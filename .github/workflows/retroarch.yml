@@ -1,0 +1,65 @@
+name: RetroArch build
+
+# Builds OSD/OS's own RetroArch from the commit scripts/engines.env names
+# (.github/actions/retroarch, scripts/build-retroarch.sh): the version every
+# machine plays with, built with TLS for the Linux arm64 package (the
+# tarball and the OSD/OS image), where Debian's has none and asks
+# RetroAchievements over plain HTTP. It runs on the runner that package is
+# built on, and starts the build on a game against a stand-in for
+# RetroAchievements' site (tests/retroarch_tls_test.sh). A change to the
+# commit, the script or the test is built here before a release does,
+# because the release's own jobs run for a tag alone, and the build is kept
+# in the cache they take it from. It is uploaded as the artifact
+# retroarch-linux-arm64, to try as <data>/bin/retroarch.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build-retroarch.sh'
+      - 'scripts/engines.env'
+      - 'tests/retroarch_tls_test.sh'
+      - 'tests/retroarch_tls/**'
+      - '.github/actions/retroarch/**'
+      - '.github/workflows/retroarch.yml'
+  pull_request:
+    paths:
+      - 'scripts/build-retroarch.sh'
+      - 'scripts/engines.env'
+      - 'tests/retroarch_tls_test.sh'
+      - 'tests/retroarch_tls/**'
+      - '.github/actions/retroarch/**'
+      - '.github/workflows/retroarch.yml'
+
+permissions:
+  contents: read
+
+# A newer push cancels the run before it: only the newest commit's result
+# matters.
+concurrency:
+  group: retroarch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Linux arm64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: RetroArch with TLS
+        uses: ./.github/actions/retroarch
+        with:
+          program-dir: out
+          licenses: out/retroarch-licenses.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: retroarch-linux-arm64
+          path: out
+          if-no-files-found: error

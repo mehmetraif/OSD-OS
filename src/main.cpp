@@ -47,6 +47,7 @@
 #include "bluetooth/BluetoothManager.h"
 #include "wifi/WifiManager.h"
 #include "system/SystemInfo.h"
+#include "system/SystemSettings.h"
 #include "util/ExecPath.h"
 #include "util/DisplayHandoff.h"
 #include "util/OsdIconProvider.h"
@@ -262,8 +263,6 @@ int main(int argc, char *argv[]) {
               g.width(), g.height(), g.x(), g.y());
     }
 
-    QQmlApplicationEngine engine;
-
     AppCore             appCore(appRoot, dataRoot);
     appCore.setSetupNotice(setupfile::noticeTitle(setup), setup.lines.join(QLatin1Char('\n')));
 
@@ -333,6 +332,9 @@ int main(int argc, char *argv[]) {
     PlaylistsBackend    playlistsBackend(dataRoot, &appCore, &localFiles, &youtubeBackend,
                                          {{QStringLiteral("com.osdos.jellyfin"), &jellyfinBackend},
                                           {QStringLiteral("com.osdos.emby"), &embyBackend}});
+    // No download beside a game: it has the processor and the card to itself.
+    QObject::connect(&arcadeBackend, &ArcadeBackend::runningChanged, &playlistsBackend,
+                     [&arcadeBackend, &playlistsBackend] { playlistsBackend.setHeld(arcadeBackend.running()); });
     MpvController       mpvController(appRoot, dataRoot, &appCore, &displayHandoff);
     InputManager        inputManager(dataRoot, &appCore);
     IdleTracker         idleTracker(60);   // disabled until Main.qml applies the saved setting
@@ -346,6 +348,7 @@ int main(int argc, char *argv[]) {
     // Settings → System → About → System Information, the films' drive Local Files'
     // folder's.
     SystemInfo          systemInfo(dataRoot, [&localFiles] { return localFiles.mediaRoot(); });
+    SystemSettings      systemSettings;
 
     // Playback follows the UI's display: mpv gets a --fs-screen* arg derived
     // from this on macOS / desktop Linux (no-op at index 0 and on headless).
@@ -399,6 +402,18 @@ int main(int argc, char *argv[]) {
                              ambientMode.stopAudio();
                      });
 
+    // Settings → System → Export to OSD/OS Setup: the settings as QR codes
+    // (image://qr/), which open OSD/OS Setup's page with them.
+    SetupExporter setupExport(dataRoot, &appCore, &displayOutput, &wifiManager);
+
+    // The engine after everything QML is given, so that it goes first as the
+    // app ends, its windows and their bindings with it. Made before them, it
+    // outlived them: each context property turned null under a binding that
+    // read it ("TypeError: Cannot call method 'get_settings' of null" at
+    // every quit, restart and update), and the scene graph drew its last
+    // frames from backends that were gone.
+    QQmlApplicationEngine engine;
+
     // Each module backend is wired in one call: stored for action routing, exposed to QML
     // under its context-property name, and its optional signals/slots connected by
     // introspection. The module ID lives in exactly one place per module.
@@ -430,9 +445,7 @@ int main(int argc, char *argv[]) {
     ctx->setContextProperty("bluetoothManager", &bluetoothManager);
     ctx->setContextProperty("wifiManager", &wifiManager);
     ctx->setContextProperty("systemInfo", &systemInfo);
-    // Settings → System → Export to OSD/OS Setup: the settings as QR codes
-    // (image://qr/), which open OSD/OS Setup's page with them.
-    SetupExporter setupExport(dataRoot, &appCore, &displayOutput, &wifiManager);
+    ctx->setContextProperty("systemSettings", &systemSettings);
     ctx->setContextProperty("setupExport", &setupExport);
     // Whether a child has the screen (Main.qml: root.screenHandedOff).
     ctx->setContextProperty("displayHandoff", &displayHandoff);
@@ -453,6 +466,14 @@ int main(int argc, char *argv[]) {
     // The title bar's logos, in the theme's colour on the art-pixel grid
     // (image://osdicon/…). The engine owns it.
     engine.addImageProvider(QStringLiteral("osdicon"), new OsdIconProvider);
+    // It keeps what each icon's file gave. Settings' Theme or Skin changed,
+    // the icons are another folder's, or the same one's as they are now:
+    // forgotten here, before Main.qml (loaded below, so told after) asks for
+    // them again.
+    QObject::connect(&appCore, &AppCore::appSettingChanged, &appCore,
+                     [](const QString &key) { OsdIconProvider::lookChanged(key); });
+    // The deck's pixel symbols (PixelIcon): a picture each, shared.
+    engine.addImageProvider(QStringLiteral("osdpixel"), new OsdPixelProvider);
     engine.addImageProvider(QStringLiteral("osdskin"), new OsdSkinProvider);
     engine.addImageProvider(QStringLiteral("qr"), new QrImageProvider);
     // The picture of a video played inside this window (Transparent Background),
@@ -552,6 +573,12 @@ int main(int argc, char *argv[]) {
             }, Qt::SingleShotConnection);
         });
     }
+
+    // Where videos play inside the window (Transparent Background), libmpv is
+    // loaded ahead, off the app's thread, a moment after the menus are up.
+    // Its libraries, FFmpeg's among them, take a second and more to load from
+    // a card, and the first video's start held the menus still for it.
+    QTimer::singleShot(3000, &mpvController, &MpvController::warmUp);
 
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window

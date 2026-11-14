@@ -1,4 +1,5 @@
 #include "MpvController.h"
+#include <QThreadPool>
 #include "EmbeddedMpv.h"
 #include "../AppCore.h"
 #include "../audio/AudioOutput.h"
@@ -7,6 +8,7 @@
 #include "../util/DisplayHandoff.h"
 #include "../util/FontconfigOverride.h"
 #include "../util/AtomicFile.h"
+#include "../util/RuntimeFiles.h"
 #include "../audio/MenuMusic.h"
 #include "../util/Board.h"
 #include "../util/LegacyNames.h"
@@ -29,6 +31,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <iterator>
 
 namespace {
 
@@ -66,6 +69,30 @@ constexpr int kPictureRemoteMs = 45000;
 // Back before a session's first picture, this long after its mpv started,
 // is worth what the mpv was doing in the log.
 constexpr int kLeftEarlyMs = 4000;
+// The key bindings every session's mpv gets, a process's and an embedded
+// session's alike (--input-conf). Back ends the video (backFromProcess), and
+// opens its player's menu if it has one; with Transparent Background it
+// returns to the menus and leaves the video playing (detachToMenus). Which is
+// decided here, not in mpv: one file for both. The deck's own menu still
+// takes back first while it is open (its bindings are forced).
+const char kInputConf[] = "ESC script-message osdos-menu\n"
+                          "BS script-message osdos-menu\n"
+                          "ENTER cycle pause\n";
+
+// Whether the file at `path` holds `text`, whole: left as it is when it does
+// (an mpv just started may be reading it), written when it doesn't or isn't
+// there (the first session's, or a cleaner took it since the last). False,
+// with the reason in the log, when it couldn't be written: mpv is then given
+// no file, rather than the name of one that isn't the app's.
+bool holdsOrWritten(const QString &path, const QByteArray &text) {
+    if (path.isEmpty())
+        return false;
+    QFile there(path);
+    if (there.open(QIODevice::ReadOnly) && there.readAll() == text)
+        return true;
+    there.close();
+    return writeFileAnew(path, text, QFile::ReadOwner | QFile::WriteOwner);
+}
 
 // The last value an option was given among these, "" if none.
 QString lastOption(const QStringList &options, const QLatin1String &name) {
@@ -265,6 +292,18 @@ QString redactSecrets(QString text) {
     return text;
 }
 
+// Text for the log with every address in it cut down to where it leads, its
+// scheme and host: the rest of one may name a user, a password or a token
+// that redactSecrets() has no pattern for (a card's own stream, a server
+// yet to come).
+QString hostsOnly(QString text) {
+    static const QRegularExpression kAddress(
+        QStringLiteral("\\b([a-z][a-z0-9+.-]*://)(?:[^/\\s?#@]*@)?([^/\\s?#]+)\\S*"),
+        QRegularExpression::CaseInsensitiveOption);
+    text.replace(kAddress, QStringLiteral("\\1\\2"));
+    return text;
+}
+
 } // namespace
 
 MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
@@ -279,14 +318,9 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     // mpv's control connection on Windows is a named pipe, which QLocalSocket
     // opens by the same name.
     , m_socketPath(QStringLiteral("\\\\.\\pipe\\osdos-mpv-") + QString::number(QCoreApplication::applicationPid()))
-#else
-    , m_socketPath(QDir::tempPath() + "/osdos-mpv.sock")
 #endif
-    , m_inputConfPath(QDir::tempPath() + "/osdos-input.conf")
-    , m_logFilePath(QDir::tempPath() + "/osdos-mpv.log")
-    , m_subInfoPath(QDir::tempPath() + "/osdos-mpv-subinfo.json")
-    , m_logoOverlayPath(QDir::tempPath() + "/osdos-logo.bgra")
 {
+    placeRunFiles();
     m_videoProfile = detectVideoProfile();
     qInfo("[MpvController] video profile: %s",
           m_videoProfile == VideoProfile::Pi4       ? "Pi 4 — drm + drm-copy,v4l2m2m-copy"
@@ -294,19 +328,6 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         : m_videoProfile == VideoProfile::PiFullKms ? "Pi 5 (Full KMS) — drm + auto-safe"
                                                     : "generic");
 
-    // Back ends the video (backFromProcess), and opens its player's menu if
-    // it has one; with Transparent Background it returns to the menus and
-    // leaves the video playing (detachToMenus). Which is decided here, not in
-    // mpv: one file for a process and an embedded session alike. The deck's
-    // own menu still takes back first while it is open (its bindings are
-    // forced).
-    QFile f(m_inputConfPath);
-    if (f.open(QFile::WriteOnly | QFile::Text)) {
-        f.write("ESC script-message osdos-menu\n");
-        f.write("BS script-message osdos-menu\n");
-        f.write("ENTER cycle pause\n");
-        f.close();
-    }
     // A video played inside the window ends when anything else takes the
     // screen (a takeover script, a web player, a game): left playing behind
     // the menus, or full screen still, whose player is told (endEmbedded());
@@ -321,6 +342,8 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         connect(m_appCore, &AppCore::appSettingChanged, this, [this](const QString &key, const QString &) {
             if (key == QLatin1String("transparent_background") && !transparentBackground())
                 stopBackground();
+            else
+                followVideoSetting(key);
         });
     }
 
@@ -426,6 +449,21 @@ MpvController::~MpvController() {
         m_handoff->releaseNow(QLatin1String(kHandoffOwner));
 }
 
+// Where a session's files go: a folder of the user's own, not the temp folder
+// every account writes in (util/RuntimeFiles.h). Asked as the app starts and
+// for each session: the folder may have been taken away since the last, and
+// is made again then. A path is "" where there is no such folder, and its
+// file is then left out of what mpv is given.
+void MpvController::placeRunFiles() {
+#ifndef Q_OS_WIN
+    m_socketPath = runtimefiles::path(QStringLiteral("osdos-mpv.sock"));
+#endif
+    m_inputConfPath = runtimefiles::path(QStringLiteral("osdos-input.conf"));
+    m_logFilePath = runtimefiles::path(QStringLiteral("osdos-mpv.log"));
+    m_subInfoPath = runtimefiles::path(QStringLiteral("osdos-mpv-subinfo.json"));
+    m_logoOverlayPath = runtimefiles::path(QStringLiteral("osdos-logo.bgra"));
+}
+
 QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
                                        int audioTrack, int subTrack,
                                        const QStringList &subFiles,
@@ -442,9 +480,11 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     const QString oscScript = m_appRoot + "/scripts/" + ((oscMode == "ambient") ? "mpv-osc-ambient.lua" : "mpv-osc.lua");
 
     QStringList args;
-    args << QString("--input-ipc-server=%1").arg(m_socketPath)
-         << QString("--log-file=%1").arg(m_logFilePath)
-         << (hasOscScript ? "--osc=no" : "--osc=yes")
+    if (!m_socketPath.isEmpty())
+        args << QString("--input-ipc-server=%1").arg(m_socketPath);
+    if (!m_logFilePath.isEmpty())
+        args << QString("--log-file=%1").arg(m_logFilePath);
+    args << (hasOscScript ? "--osc=no" : "--osc=yes")
          << "--osd-level=0";
 
     if (hasOscScript)
@@ -599,14 +639,12 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
             if (!subTitles[i].isEmpty())
                 info.insert(subFiles[i], subTitles[i]);
         }
-        QFile sf(m_subInfoPath);
-        if (!info.isEmpty() && sf.open(QFile::WriteOnly | QFile::Truncate)) {
-            sf.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
-            sf.write(QJsonDocument(info).toJson(QJsonDocument::Compact));
-            sf.close();
-            // Path is comma- and space-free, so it is safe in the script-opts list.
+        // Named to the script only once it is written whole. Path is comma-
+        // and space-free, so it is safe in the script-opts list.
+        if (!info.isEmpty() && !m_subInfoPath.isEmpty()
+                && writeFileAnew(m_subInfoPath, QJsonDocument(info).toJson(QJsonDocument::Compact),
+                                 QFile::ReadOwner | QFile::WriteOwner))
             scriptOpts << QString("subinfo-file=%1").arg(m_subInfoPath);
-        }
     }
     // Point mpv's ytdl_hook at the same user-updatable yt-dlp the app resolves,
     // so both agree on one copy even when it isn't on the global PATH (the
@@ -661,7 +699,7 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     // cropping ones need panscan, which the Pi3 overlay (smooth) path blanks
     // video under, so it keeps the whole picture there, matching the 1080p
     // Playback trade-off. The OSC's CROP button steps through all four live.
-    const QString scaling = videoScaling();
+    const QString scaling = videoScaling(m_activeModule);
     if (scaling == QLatin1String("Anamorphic")) {
         args << QStringLiteral("--keepaspect=no");
     } else if (!noCrop) {
@@ -722,6 +760,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // Its player notes the new session afresh (noteSession), or leaves none,
     // and a session left with Browse is gone: this one takes its place.
     m_sessionNote.clear();
+    m_sessionModule = m_activeModule;
     if (!m_leftNote.isEmpty()) {
         m_leftNote.clear();
         emit leftNoteChanged();
@@ -733,6 +772,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // Transparent Background plays inside the app's own window, where the
     // menus can lie over the picture.
     const bool embedded = transparentBackground();
+    placeRunFiles();
     QStringList args = sessionArgs(url, startSeconds, audioTrack, subTrack, subFiles, subLangs, loop,
                                    playlistStart, transcodeOffsetSec, plexToken, muteAudio, oscMode,
                                    shuffle, subTitles, imageDurationSec, imageContent, extraArgs,
@@ -744,9 +784,14 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     const QStringList media = QStringList(url) + extraUrls;
     // The deck's keys, how a held one repeats (sendKey()), and audio as the
     // clock; ahead of the video arguments, so a setting's mpv_video_args
-    // still has the last word.
-    args << QString("--input-conf=%1").arg(m_inputConfPath)
-         << QStringLiteral("--input-ar-delay=%1").arg(kMpvRepeatDelayMs)
+    // still has the last word. The keys' file only while it holds them: one
+    // that couldn't be written is not named to mpv, which then keeps its own
+    // bindings, and back still ends the video from here (backKey()).
+    if (holdsOrWritten(m_inputConfPath, kInputConf))
+        args << QString("--input-conf=%1").arg(m_inputConfPath);
+    else
+        qWarning("[MpvController] The keys' file for mpv couldn't be written: this video plays with mpv's own bindings");
+    args << QStringLiteral("--input-ar-delay=%1").arg(kMpvRepeatDelayMs)
          << QStringLiteral("--input-ar-rate=%1").arg(kMpvRepeatsPerSecond)
          << QStringLiteral("--video-sync=audio");
     if (embedded) {
@@ -755,22 +800,40 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
         // Chosen again while it plays behind the menus: the same session goes
         // on, full screen again (as takeBack() has it). Its start is the
         // module's resume point, which reattach() weighs, its sound card
-        // follows Settings as it plays (followAudioOutput()), and its decoding
-        // and drawing flags follow where it is drawn, which a GPU that failed
-        // to take it changes since.
+        // follows Settings as it plays (followAudioOutput()), as its Scaling
+        // and Video Levels do (followVideoSetting()), and its decoding and
+        // drawing flags follow where it is drawn, which a GPU that failed to
+        // take it changes since.
         QStringList drawing;
         appendEmbeddedVideoArgs(drawing, true);
         appendEmbeddedVideoArgs(drawing, false);
-        auto comparable = [&drawing](QStringList a) {
-            a.erase(std::remove_if(a.begin(), a.end(), [&drawing](const QString &x) {
+        auto ofThePicture = [](const QString &x) {
+            return x.startsWith(QLatin1String("--panscan=")) || x.startsWith(QLatin1String("--keepaspect="))
+                || x.startsWith(QLatin1String("--video-output-levels="));
+        };
+        auto comparable = [&drawing, &ofThePicture](QStringList a) {
+            a.erase(std::remove_if(a.begin(), a.end(), [&drawing, &ofThePicture](const QString &x) {
                         return x.startsWith(QLatin1String("--start="))
                             || x.startsWith(QLatin1String("--audio-device="))
-                            || drawing.contains(x);
+                            || ofThePicture(x) || drawing.contains(x);
                     }), a.end());
             return a;
         };
+        auto picture = [&ofThePicture](const QStringList &a) {
+            QStringList flags;
+            std::copy_if(a.cbegin(), a.cend(), std::back_inserter(flags), ofThePicture);
+            return flags;
+        };
         if (m_background && m_embedded && m_embedded->running()
                 && comparable(args) == comparable(m_sessionArgs)) {
+            // Asked for with another Scaling or Video Levels than it was last
+            // given (its module's own changed meanwhile): it takes them now.
+            // As it was given, it keeps what its menu's CROP made of it.
+            if (picture(args) != picture(m_sessionArgs)) {
+                m_sessionArgs = args;
+                followVideoSetting(QStringLiteral("video_scaling"));
+                followVideoSetting(QStringLiteral("video_output_levels"));
+            }
             reattach(startSeconds);
             return;
         }
@@ -1093,9 +1156,13 @@ void MpvController::logStartState(const char *what) {
     const bool process = m_process && m_process->state() != QProcess::NotRunning;
     const QString who = process ? QStringLiteral("mpv (pid %1)").arg(m_process->processId())
                                 : QStringLiteral("mpv inside the window");
-    qWarning("[MpvController] The video %s %.1f s after %s started (control connection %s, %s)", what,
-             m_startClock.elapsed() / 1000.0, qPrintable(who),
-             m_ipc->state() == QLocalSocket::ConnectedState ? "made" : "not made",
+    // A process is spoken to over its control connection; mpv inside the
+    // window has none to make.
+    const char *connection = !process ? ""
+                           : m_ipc->state() == QLocalSocket::ConnectedState ? "control connection made, "
+                                                                            : "control connection not made, ";
+    qWarning("[MpvController] The video %s %.1f s after %s started (%s%s)", what,
+             m_startClock.elapsed() / 1000.0, qPrintable(who), connection,
              m_hardwareDecode ? "hardware decoder asked for" : "decoded on the CPU");
     if (process) {
         const QStringList threads = diagnostics::threadStates(m_process->processId());
@@ -1613,6 +1680,21 @@ void MpvController::setFailure(const QString &error, const QString &detail, bool
     emit lastErrorChanged();
 }
 
+void MpvController::logFailure(const QString &player, const QString &playing, const QString &why) {
+    QString reason = why;
+    if (reason.isEmpty()) {
+        reason = m_lastError.isEmpty() ? QStringLiteral("mpv gave no reason") : m_lastError;
+        if (!m_lastErrorDetail.isEmpty())
+            reason += QStringLiteral(": ") + m_lastErrorDetail;
+    }
+    // One line, whatever the detail's own (how long mpv showed nothing, then
+    // its word on it).
+    static const QRegularExpression kLineBreak(QStringLiteral("\\s*\\n\\s*"));
+    reason.replace(kLineBreak, QStringLiteral("; "));
+    qWarning("[%s] %s: playback failed: %s", qPrintable(player),
+             qPrintable(hostsOnly(redactSecrets(playing))), qPrintable(hostsOnly(redactSecrets(reason))));
+}
+
 void MpvController::sendCommand(const QJsonArray &args) {
     if (m_ipc->state() != QLocalSocket::ConnectedState) {
         // A session's connection takes a moment to come (and comes again
@@ -1768,11 +1850,11 @@ bool MpvController::autoCropEnabled() const {
     return v.toString().compare(QStringLiteral("On"), Qt::CaseInsensitive) == 0;
 }
 
-QString MpvController::videoScaling() const {
+QString MpvController::videoScaling(const QString &module) const {
     if (!m_appCore)
         return QStringLiteral("Letterbox");
-    if (!m_activeModule.isEmpty()) {
-        const QString own = m_appCore->get_setting(m_activeModule, "video_scaling").toString();
+    if (!module.isEmpty()) {
+        const QString own = m_appCore->get_setting(module, "video_scaling").toString();
         if (!own.isEmpty() && own.compare(QStringLiteral("Default"), Qt::CaseInsensitive) != 0)
             return own;
     }
@@ -1817,6 +1899,12 @@ bool MpvController::hasSmoothPlaybackTradeoff() const {
 
 bool MpvController::embeddedAvailable() const {
     return EmbeddedMpv::available();
+}
+
+void MpvController::warmUp() {
+    if (!transparentBackground())
+        return;
+    QThreadPool::globalInstance()->start([] { EmbeddedMpv::available(); });
 }
 
 bool MpvController::transparentBackground() const {
@@ -1923,6 +2011,12 @@ void MpvController::appendEmbeddedVideoArgs(QStringList &args, bool gpu) const {
 #endif
         break;
     }
+    // A Pi 4's and a Pi 3's frames reach the GPU one way, as DRM buffers
+    // (drmprime). Left to itself under the render API, mpv sets up every way
+    // it was built with at every video, NVIDIA's among them, whose library
+    // the journal is told is missing each time ("Cannot load libcuda.so.1").
+    if (gpu && (m_videoProfile == VideoProfile::Pi4 || m_videoProfile == VideoProfile::Pi3))
+        args << QStringLiteral("--gpu-hwdec-interop=drmprime");
     if (gpu)
         args << QStringLiteral("--fbo-format=rgba8");
     if (gpu && m_videoProfile != VideoProfile::Generic)
@@ -2102,6 +2196,25 @@ void MpvController::followAudioOutput() {
         return;
     const QString device = AudioOutput::mpvDevice();
     setVideoProperty(QStringLiteral("audio-device"), device.isEmpty() ? QStringLiteral("auto") : device);
+}
+
+void MpvController::followVideoSetting(const QString &key) {
+    // Only a video inside the app can be playing while Settings is up; an
+    // mpv process starts with the settings as they are then. A module's own
+    // Scaling stays its video's: the app's is what it has on Default.
+    if (!m_embedded || !m_embedded->running())
+        return;
+    // Through sendCommand(), not setVideoProperty(): asked while the
+    // session's control connection is still on its way, it waits for it.
+    if (key == QLatin1String("video_scaling")) {
+        const QString scaling = videoScaling(m_sessionModule);
+        sendCommand({"set_property", "keepaspect", scaling != QLatin1String("Anamorphic")});
+        sendCommand({"set_property", "panscan", scaling == QLatin1String("Pan & Scan") ? 1.0
+                                                : scaling == QLatin1String("14:9") ? 0.43 : 0.0});
+    } else if (key == QLatin1String("video_output_levels")) {
+        const QString levels = videoOutputLevels();
+        sendCommand({"set_property", "video-output-levels", levels.isEmpty() ? QStringLiteral("auto") : levels});
+    }
 }
 
 void MpvController::setVideoProperty(const QString &name, const QVariant &value) {

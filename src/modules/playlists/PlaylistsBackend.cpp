@@ -42,6 +42,12 @@ const QString kYouTube = QStringLiteral("com.osdos.youtube");
 // A server's folder that could not be listed is asked for again this long
 // after.
 constexpr qint64 kListingRetryMs = 15000;
+// A download that failed in a way that may pass by itself (no network yet
+// after a power cut, Wi-Fi gone mid-transfer, a server still starting) is
+// tried again this long after, twice as long each time it fails again and an
+// hour at most, and from the start again once a download succeeds.
+constexpr int kRetryFirstMs = 60 * 1000;
+constexpr int kRetryMostMs = 60 * 60 * 1000;
 
 // To yt-dlp and the ffmpeg under it, by their group: killed alone, yt-dlp
 // would leave ffmpeg writing on. An interrupt lets yt-dlp tidy up; the kill
@@ -103,7 +109,9 @@ PlaylistsBackend::PlaylistsBackend(const QString &dataRoot, AppCore *appCore, Lo
                                    YouTubeBackend *youtube, const QHash<QString, MediaServer *> &servers,
                                    QObject *parent)
     : QObject(parent), m_dataRoot(dataRoot), m_appCore(appCore), m_localFiles(localFiles),
-      m_youtube(youtube), m_servers(servers) {
+      m_youtube(youtube), m_servers(servers), m_retryTimer(new QTimer(this)), m_retryMs(kRetryFirstMs) {
+    m_retryTimer->setSingleShot(true);
+    connect(m_retryTimer, &QTimer::timeout, this, &PlaylistsBackend::retryFailed);
     load();
     // What was left to download goes on once the app has settled (and the
     // network, at boot, has had a chance to come up), and only with the
@@ -704,6 +712,7 @@ void PlaylistsBackend::dropUnreferenced() {
 }
 
 void PlaylistsBackend::queueOfflineItems() {
+    removeStaleTemporaries();
     for (const QJsonObject &p : m_playlists) {
         if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
             continue;
@@ -723,6 +732,28 @@ void PlaylistsBackend::queueOfflineItems() {
     }
 }
 
+void PlaylistsBackend::retryFailed() {
+    const QSet<QString> keys = m_retryKeys;
+    m_retryKeys.clear();
+    // Twice as long next time, while they go on failing.
+    m_retryMs = int(std::min<qint64>(qint64(m_retryMs) * 2, kRetryMostMs));
+    // Off: nothing downloads, and turned on again the lists are queued whole.
+    if (!moduleEnabled())
+        return;
+    // In the lists' order, as queueOfflineItems() has them; not one tried
+    // again, taken off its lists or downloaded meanwhile.
+    for (const QJsonObject &p : m_playlists) {
+        if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
+            continue;
+        for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray()) {
+            const QString key = v.toObject().value(QStringLiteral("key")).toString();
+            if (keys.contains(key)
+                && m_downloads.value(key).value(QStringLiteral("state")).toString() == QLatin1String("failed"))
+                enqueue(key);
+        }
+    }
+}
+
 bool PlaylistsBackend::enqueue(const QString &key) {
     if (m_active.key == key || m_queue.contains(key))
         return true;
@@ -737,7 +768,7 @@ bool PlaylistsBackend::enqueue(const QString &key) {
 }
 
 void PlaylistsBackend::startNext() {
-    if (!m_active.key.isEmpty() || !moduleEnabled())
+    if (!m_active.key.isEmpty() || !moduleEnabled() || m_held)
         return;
     while (!m_queue.isEmpty()) {
         const QString key = m_queue.takeFirst();
@@ -827,7 +858,11 @@ void PlaylistsBackend::startYouTube(const QString &key, const QJsonObject &item)
         const QString rest = QString::fromUtf8(process->readAll());
         for (const QString &line : rest.split(QLatin1Char('\n')))
             readLine(line.trimmed());
-        finish(status == QProcess::NormalExit && code == 0 && !m_active.finalPath.isEmpty());
+        const bool ok = status == QProcess::NormalExit && code == 0 && !m_active.finalPath.isEmpty();
+        // yt-dlp ran and failed: for all its error says, the network's (none
+        // yet after a power cut, YouTube not answering), which may pass.
+        m_active.mayPass = !ok;
+        finish(ok);
     });
     connect(process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
@@ -862,9 +897,11 @@ void PlaylistsBackend::startServer(const QString &key, const QJsonObject &item) 
             emit downloadProgress(key, percent);
         }
     });
-    connect(download, &ServerDownload::finished, this, [this](bool ok, const QString &finalPath, const QString &reason) {
+    connect(download, &ServerDownload::finished, this,
+            [this](bool ok, const QString &finalPath, const QString &reason, bool mayPass) {
         m_active.finalPath = finalPath;
         m_active.reason = reason;
+        m_active.mayPass = mayPass;
         finish(ok);
     });
     qDebug("[Playlists] downloading %s", qPrintable(key));
@@ -913,6 +950,8 @@ void PlaylistsBackend::record(bool ok) {
                                             {QStringLiteral("state"), QStringLiteral("done")},
                                             {QStringLiteral("bytes"), double(QFileInfo(m_active.finalPath).size())}});
         qDebug("[Playlists] downloaded %s: %s", qPrintable(key), qPrintable(m_active.finalPath));
+        // The network is there: the next failure is waited on from the start.
+        m_retryMs = kRetryFirstMs;
     } else {
         // What was fetched stays for a retry to carry on from (yt-dlp does);
         // only a download no list wants loses it (cancel).
@@ -920,6 +959,13 @@ void PlaylistsBackend::record(bool ok) {
         m_downloads.insert(key, QJsonObject{{QStringLiteral("state"), QStringLiteral("failed")},
                                             {QStringLiteral("reason"), reason}});
         qWarning("[Playlists] download of %s failed: %s", qPrintable(key), qPrintable(reason));
+        // One that may pass is tried again after a while (retryFailed), with
+        // the others that fail meanwhile: until now only the next start did.
+        if (m_active.mayPass) {
+            m_retryKeys.insert(key);
+            if (!m_retryTimer->isActive())
+                m_retryTimer->start(m_retryMs);
+        }
     }
     m_active = Active();
     // Taken off every offline list while it came: not kept.
@@ -973,6 +1019,28 @@ void PlaylistsBackend::pauseDownloads() {
     emit playlistsChanged();
 }
 
+// Held while a game plays (main.cpp, from the Arcade module's running): the
+// game has the processor and the card to itself. A YouTube download stops and
+// waits at the head of the queue, as when the module is turned off, and
+// carries on from what yt-dlp fetched; a server's, which would start again
+// from nothing, is left to end, and the next one waits. Let go, the queue
+// goes on.
+void PlaylistsBackend::setHeld(bool held) {
+    if (m_held == held)
+        return;
+    m_held = held;
+    if (held) {
+        if (!m_active.key.isEmpty() && !m_active.flushing && m_active.process) {
+            qInfo("[Playlists] a game is playing: download of %s waits", qPrintable(m_active.key));
+            m_queue.prepend(m_active.key);
+            stopActive();
+            emit playlistsChanged();
+        }
+    } else {
+        QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
+    }
+}
+
 void PlaylistsBackend::removePartials(const QString &key) const {
     // What yt-dlp leaves of a video it didn't finish: its .part files and the
     // streams it was to merge (".f137.mp4"), all named with "[<id>]".
@@ -983,4 +1051,24 @@ void PlaylistsBackend::removePartials(const QString &key) const {
     for (const QFileInfo &f : dir.entryInfoList(QDir::Files))
         if (f.fileName().contains(tag))
             QFile::remove(f.absoluteFilePath());
+}
+
+void PlaylistsBackend::removeStaleTemporaries() const {
+    // A server's download is written to a temporary file beside the film
+    // (ServerDownload's QSaveFile), which a failure or a cancel removes; the
+    // power going doesn't. Where the filesystem has no unnamed files (the
+    // film partition's exFAT) it is left there under the film's name with
+    // six letters after it ("Film [id].mkv.RkYmKP"), up to a film's size
+    // each time, and the download begun again writes another. None is a
+    // download's own while no server's download runs.
+    if (m_active.download)
+        return;
+    static const QRegularExpression kTemporary(QStringLiteral("\\]\\.[A-Za-z0-9]{1,5}\\.[A-Za-z]{6}$"));
+    for (auto it = m_servers.constBegin(); it != m_servers.constEnd(); ++it) {
+        const QDir dir(QDir(downloadFolder()).filePath(sourceFolderName(it.key())));
+        for (const QFileInfo &f : dir.entryInfoList(QDir::Files)) {
+            if (kTemporary.match(f.fileName()).hasMatch() && QFile::remove(f.absoluteFilePath()))
+                qInfo("[Playlists] removed what a download cut short left: %s", qPrintable(f.absoluteFilePath()));
+        }
+    }
 }

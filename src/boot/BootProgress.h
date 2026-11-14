@@ -19,6 +19,11 @@ class QTimer;
 // is polled. markReady only writes OSDOS_READY_FILE when that is set.
 class BootProgress : public QObject {
     Q_OBJECT
+    // This system has a boot screen: the OSD/OS image, whose service names
+    // the unit list. True there whether or not the screen showed at this
+    // start (the app started again later shows none); Settings offers Boot
+    // Screen Colors by it.
+    Q_PROPERTY(bool available READ available CONSTANT)
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(qreal progress READ progress NOTIFY progressChanged)
     // [{ unit, label, state }] in list order; state is one of
@@ -32,6 +37,7 @@ public:
     explicit BootProgress(QObject *parent = nullptr);
     ~BootProgress() override;
 
+    bool available() const { return m_available; }
     bool active() const { return m_active; }
     qreal progress() const { return m_progress; }
     QVariantList steps() const;
@@ -75,6 +81,7 @@ private:
     }
 
     QVector<Step>  m_steps;
+    bool           m_available     = false;
     bool           m_active        = false;
     bool           m_closing       = false;
     bool           m_readyMarked   = false;

@@ -1,4 +1,5 @@
 #include "util/SetupExport.h"
+#include "system/SystemLocale.h"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -78,8 +79,11 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
                 out.insert(key, QJsonValue());
         } else if (type == QLatin1String("slider")) {
             out.insert(key, row.value(QLatin1String("default")).toDouble(0));
-        } else if (type == QLatin1String("directory_browser")) {
+        } else if (type == QLatin1String("directory_browser") || type == QLatin1String("text")) {
             out.insert(key, row.value(QLatin1String("default")).toString());
+        } else if (type == QLatin1String("text_list")) {
+            // A list of typed lines: none unless some were typed.
+            out.insert(key, QJsonArray());
         }
     }
 }
@@ -131,24 +135,13 @@ Form formOf(const QJsonObject &extra, const QHash<QString, QJsonObject> &manifes
 }
 
 void readSystem(System &system, const QString &root, const QString &home) {
-    // The time zone: /etc/localtime's link into zoneinfo, as timedatectl
-    // sets it, else /etc/timezone.
-    static const QRegularExpression kZone(QStringLiteral("^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$"));
-    const QString link = QFileInfo(root + QStringLiteral("/etc/localtime")).symLinkTarget();
-    const qsizetype at = link.indexOf(QLatin1String("/zoneinfo/"));
-    QString zone = at >= 0 ? link.mid(at + 10) : QString();
-    if (zone.isEmpty())
-        zone = QString::fromUtf8(readText(root + QStringLiteral("/etc/timezone"))).trimmed();
-    if (kZone.match(zone).hasMatch() && !zone.contains(QLatin1String("..")))
+    // The time zone and the keyboard, as Settings → System shows them.
+    const QString zone = systemlocale::timeZone(root);
+    if (!zone.isEmpty())
         system.timezone = zone;
-
-    // The keyboard: the first of XKBLAYOUT's layouts, as raspi-config sets it.
-    static const QRegularExpression kLayout(QStringLiteral("^\\s*XKBLAYOUT\\s*=\\s*\"?([a-z]{2,5})"),
-                                            QRegularExpression::MultilineOption);
-    const QRegularExpressionMatch layout =
-        kLayout.match(QString::fromUtf8(readText(root + QStringLiteral("/etc/default/keyboard"))));
-    if (layout.hasMatch())
-        system.keyboard = layout.captured(1);
+    const QString layout = systemlocale::keyboard(root);
+    if (!layout.isEmpty())
+        system.keyboard = layout;
 
     // SSH, where it is there to be turned on: on when systemd starts it,
     // password login as the card's setup said (its own drop-in), and the

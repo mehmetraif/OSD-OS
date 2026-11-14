@@ -54,7 +54,10 @@ class ControllersTest : public QObject {
         SDL_JoystickID id = -1;
         SDL_Joystick *joystick = nullptr;
 
-        bool attach(const char *name, Uint16 vendor = 0x1209, Uint16 product = 0x0001) {
+        // buttons: the ones it has, a bit each (SDL_GameControllerButton);
+        // all of them unless said.
+        bool attach(const char *name, Uint16 vendor = 0x1209, Uint16 product = 0x0001,
+                    Uint32 buttons = (1u << SDL_CONTROLLER_BUTTON_MAX) - 1) {
             SDL_VirtualJoystickDesc desc;
             SDL_zero(desc);
             desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
@@ -63,7 +66,7 @@ class ControllersTest : public QObject {
             desc.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
             desc.vendor_id = vendor;
             desc.product_id = product;
-            desc.button_mask = (1u << SDL_CONTROLLER_BUTTON_MAX) - 1;
+            desc.button_mask = buttons;
             desc.axis_mask = (1u << SDL_CONTROLLER_AXIS_MAX) - 1;
             desc.name = name;
             const int index = SDL_JoystickAttachVirtualEx(&desc);
@@ -195,51 +198,58 @@ private slots:
     void labelsByStyle() {
         using controllers::inputLabel;
         using S = controllers::LabelStyle;
-        // The face buttons by position, as each maker prints them.
-        QCOMPARE(inputLabel(S::Xbox, "a"), QString("A"));
-        QCOMPARE(inputLabel(S::PlayStation, "a"), QString("X"));
-        QCOMPARE(inputLabel(S::Nintendo, "a"), QString("B"));
-        QCOMPARE(inputLabel(S::Arcade, "a"), QString("1"));
-        QCOMPARE(inputLabel(S::Xbox, "b"), QString("B"));
-        QCOMPARE(inputLabel(S::PlayStation, "b"), QString("O"));
-        QCOMPARE(inputLabel(S::Nintendo, "b"), QString("A"));
-        QCOMPARE(inputLabel(S::Arcade, "y"), QString("4"));
-        QCOMPARE(inputLabel(S::PlayStation, "x"), QString("SQ"));
-        QCOMPARE(inputLabel(S::Nintendo, "y"), QString("X"));
+        // The face buttons by position, as each style names them.
+        QCOMPARE(inputLabel(S::ABelow, "a"), QString("A"));
+        QCOMPARE(inputLabel(S::Shapes, "a"), QString("X"));
+        QCOMPARE(inputLabel(S::ARight, "a"), QString("B"));
+        QCOMPARE(inputLabel(S::Numbers, "a"), QString("1"));
+        QCOMPARE(inputLabel(S::ABelow, "b"), QString("B"));
+        QCOMPARE(inputLabel(S::Shapes, "b"), QString("O"));
+        QCOMPARE(inputLabel(S::ARight, "b"), QString("A"));
+        QCOMPARE(inputLabel(S::Numbers, "y"), QString("4"));
+        QCOMPARE(inputLabel(S::Shapes, "x"), QString("SQ"));
+        QCOMPARE(inputLabel(S::ARight, "y"), QString("X"));
         // The JAMMA board's eight buttons: B7 down to B0 are a, b, x, y, the
         // shoulders and the triggers (osdos-jamma).
-        QCOMPARE(inputLabel(S::Arcade, "rightshoulder"), QString("6"));
-        QCOMPARE(inputLabel(S::Arcade, "righttrigger+"), QString("8"));
-        QCOMPARE(inputLabel(S::Arcade, "back"), QString("COIN"));
-        QCOMPARE(inputLabel(S::Arcade, "start"), QString("START"));
-        QCOMPARE(inputLabel(S::PlayStation, "lefttrigger+"), QString("L2"));
-        QCOMPARE(inputLabel(S::Nintendo, "start"), QString("+"));
-        QCOMPARE(inputLabel(S::Xbox, "leftshoulder"), QString("LB"));
+        QCOMPARE(inputLabel(S::Numbers, "rightshoulder"), QString("6"));
+        QCOMPARE(inputLabel(S::Numbers, "righttrigger+"), QString("8"));
+        QCOMPARE(inputLabel(S::Numbers, "back"), QString("COIN"));
+        QCOMPARE(inputLabel(S::Numbers, "start"), QString("START"));
+        QCOMPARE(inputLabel(S::Shapes, "lefttrigger+"), QString("L2"));
+        QCOMPARE(inputLabel(S::ARight, "start"), QString("+"));
+        QCOMPARE(inputLabel(S::ABelow, "leftshoulder"), QString("LB"));
         // The d-pad and the sticks with their direction.
-        QCOMPARE(inputLabel(S::Xbox, "dpup"), QString("D-PAD ▲"));
-        QCOMPARE(inputLabel(S::Nintendo, "dpright"), QString("D-PAD ►"));
-        QCOMPARE(inputLabel(S::Xbox, "leftx-"), QString("L STICK ◄"));
-        QCOMPARE(inputLabel(S::Xbox, "lefty+"), QString("L STICK ▼"));
-        QCOMPARE(inputLabel(S::PlayStation, "righty-"), QString("R STICK ▲"));
-        QCOMPARE(inputLabel(S::Arcade, "leftx+"), QString("JOYSTICK ►"));
+        QCOMPARE(inputLabel(S::ABelow, "dpup"), QString("D-PAD ▲"));
+        QCOMPARE(inputLabel(S::ARight, "dpright"), QString("D-PAD ►"));
+        QCOMPARE(inputLabel(S::ABelow, "leftx-"), QString("L STICK ◄"));
+        QCOMPARE(inputLabel(S::ABelow, "lefty+"), QString("L STICK ▼"));
+        QCOMPARE(inputLabel(S::Shapes, "righty-"), QString("R STICK ▲"));
+        QCOMPARE(inputLabel(S::Numbers, "leftx+"), QString("JOYSTICK ►"));
         // What has no name of its own: as input.cfg calls it.
-        QCOMPARE(inputLabel(S::Xbox, "paddle1"), QString("PADDLE1"));
+        QCOMPARE(inputLabel(S::ABelow, "paddle1"), QString("PADDLE1"));
 
-        QCOMPARE(controllers::labelStyleFromName("PlayStation"), S::PlayStation);
+        QCOMPARE(controllers::labelStyleFromName("Shapes"), S::Shapes);
+        // The names an older version wrote for the same styles are still read.
+        QCOMPARE(controllers::labelStyleFromName("xbox"), S::ABelow);
+        QCOMPARE(controllers::labelStyleFromName("PlayStation"), S::Shapes);
+        QCOMPARE(controllers::labelStyleFromName("nintendo"), S::ARight);
+        QCOMPARE(controllers::labelStyleFromName("arcade"), S::Numbers);
+        QCOMPARE(controllers::labelStyleTitle(S::ABelow), QString("A below"));
+        QCOMPARE(inputLabel(S::Shapes, "guide"), QString("HOME"));
         QCOMPARE(controllers::labelStyleFromName("bogus"), S::Auto);
         QCOMPARE(controllers::labelStyleNames(),
-                 QStringList({ "auto", "xbox", "playstation", "nintendo", "arcade" }));
+                 QStringList({ "auto", "a_below", "a_right", "shapes", "numbers" }));
     }
 
     void profileAsKept() {
         const QVariantMap stored{
-            { "name", "8BitDo Pro 2" }, { "kind", "gamepad" }, { "labels", "Nintendo" },
+            { "name", "8BitDo Pro 2" }, { "kind", "gamepad" }, { "labels", "A_Right" },
             { "bindings", QVariantMap{ { "A", "Select" }, { "leftx-", "back" }, { "x", "bogus" },
                                        { "", "up" }, { "b", "none" } } } };
         const controllers::Profile p = controllers::Profile::fromVariant(stored);
         QCOMPARE(p.name, QString("8BitDo Pro 2"));
         QCOMPARE(p.kind, QString("gamepad"));
-        QCOMPARE(p.labels, controllers::LabelStyle::Nintendo);
+        QCOMPARE(p.labels, controllers::LabelStyle::ARight);
         // An action it doesn't know, or no input, isn't one.
         QCOMPARE(p.bindings.size(), 3);
         QCOMPARE(p.bindings.value("a"), QString("select"));
@@ -247,7 +257,7 @@ private slots:
         QCOMPARE(p.bindings.value("b"), QString("none"));
 
         const QVariantMap kept = p.toVariant();
-        QCOMPARE(kept.value("labels").toString(), QString("nintendo"));
+        QCOMPARE(kept.value("labels").toString(), QString("a_right"));
         QCOMPARE(controllers::Profile::fromVariant(kept).bindings, p.bindings);
 
         // A name alone is nothing to keep.
@@ -267,7 +277,7 @@ private slots:
         QCOMPARE(arcadeLayouts(), QStringList({ "default", "fighting6", "neogeo4", "nes", "megadrive", "snes", "saturn", "n64",
                                                 "custom" }));
         QCOMPARE(arcadeLayoutTitle("fighting6"), QString("Fighting 6"));
-        QCOMPARE(arcadeLayoutTitle(""), QString("Default"));
+        QCOMPARE(arcadeLayoutTitle(""), QString("Engine's"));
         QCOMPARE(arcadeInputName(kArcadeCoin), QString("coin"));
         QCOMPARE(arcadeInputLabel(2), QString("Button 3"));
         QCOMPARE(arcadeInputLabel(kArcadeStart), QString("Start"));
@@ -312,25 +322,25 @@ private slots:
         // MAME numbers a pad's buttons in its order, the triggers among them
         // only where they are buttons; Back and Start are SELECT and START,
         // an analog trigger pressed is its slider, negative.
-        PadShape xbox;
+        PadShape full;
         for (const char *input : { "a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick",
                                    "leftshoulder", "rightshoulder", "leftx", "lefty", "rightx", "righty",
                                    "lefttrigger", "righttrigger" })
-            xbox.inputs.insert(input);
-        QCOMPARE(mameInput(xbox, "a"), QString("BUTTON1"));
-        QCOMPARE(mameInput(xbox, "rightshoulder"), QString("BUTTON6"));
-        QCOMPARE(mameInput(xbox, "leftstick"), QString("BUTTON7"));
-        QCOMPARE(mameInput(xbox, "guide"), QString("BUTTON9"));
-        QCOMPARE(mameInput(xbox, "back"), QString("SELECT"));
-        QCOMPARE(mameInput(xbox, "start"), QString("START"));
-        QCOMPARE(mameInput(xbox, "lefttrigger+"), QString("SLIDER1_NEG_SWITCH"));
-        QCOMPARE(mameInput(xbox, "righttrigger+"), QString("SLIDER2_NEG_SWITCH"));
-        QCOMPARE(mameInput(xbox, "rightx-"), QString("ZAXIS_NEG_SWITCH"));
-        QCOMPARE(mameInput(xbox, "righty+"), QString("RZAXIS_POS_SWITCH"));
-        QCOMPARE(mameInput(xbox, "paddle1"), QString());
-        QCOMPARE(mameInput(xbox, ""), QString());
+            full.inputs.insert(input);
+        QCOMPARE(mameInput(full, "a"), QString("BUTTON1"));
+        QCOMPARE(mameInput(full, "rightshoulder"), QString("BUTTON6"));
+        QCOMPARE(mameInput(full, "leftstick"), QString("BUTTON7"));
+        QCOMPARE(mameInput(full, "guide"), QString("BUTTON9"));
+        QCOMPARE(mameInput(full, "back"), QString("SELECT"));
+        QCOMPARE(mameInput(full, "start"), QString("START"));
+        QCOMPARE(mameInput(full, "lefttrigger+"), QString("SLIDER1_NEG_SWITCH"));
+        QCOMPARE(mameInput(full, "righttrigger+"), QString("SLIDER2_NEG_SWITCH"));
+        QCOMPARE(mameInput(full, "rightx-"), QString("ZAXIS_NEG_SWITCH"));
+        QCOMPARE(mameInput(full, "righty+"), QString("RZAXIS_POS_SWITCH"));
+        QCOMPARE(mameInput(full, "paddle1"), QString());
+        QCOMPARE(mameInput(full, ""), QString());
         // Triggers that are buttons (a JAMMA stick's, a Switch Pro's).
-        PadShape stick = xbox;
+        PadShape stick = full;
         stick.buttonTriggers = { "lefttrigger", "righttrigger" };
         QCOMPARE(mameInput(stick, "lefttrigger+"), QString("BUTTON7"));
         QCOMPARE(mameInput(stick, "righttrigger+"), QString("BUTTON8"));
@@ -354,7 +364,7 @@ private slots:
         const QStringList away{ "a", "b", "paddle1", "", "", "", "", "back", "touchpad", "start" };
         QCOMPARE(arcadeActing(away, small),
                  QStringList({ "a", "b", "paddle1", "", "", "", "", "", "back", "start" }));
-        QCOMPARE(arcadeActing(away, xbox), arcadeActing(away, small));
+        QCOMPARE(arcadeActing(away, full), arcadeActing(away, small));
         const QStringList swapped{ "a", "", "", "", "", "", "", "", "start", "back" };
         QCOMPARE(arcadeActing(swapped, small), swapped);
         QCOMPARE(arcadeActing({ "a", "", "", "", "", "", "", "", "start", "paddle1" }, small), swapped);
@@ -477,7 +487,7 @@ private slots:
         QVariantMap page = im->controllerPage(key);
         QCOMPARE(page.value("name").toString(), QString("OSD/OS Test Pad"));
         QCOMPARE(page.value("labels").toString(), QString("auto"));
-        QCOMPARE(page.value("labelsInUse").toString(), QString("Xbox"));
+        QCOMPARE(page.value("labelsInUse").toString(), QString("A below"));
         QCOMPARE(rowValue(page, "select"), QString("A"));
         QCOMPARE(rowValue(page, "back"), QString("B, BACK"));
         QCOMPARE(rowValue(page, "up"), QString("D-PAD ▲, L STICK ▲"));
@@ -512,12 +522,12 @@ private slots:
         QCOMPARE(im->hints().value("select").toString(), QString("[X]"));
 
         // Its labels, here and in the hints.
-        im->setControllerLabels(key, "playstation");
-        QCOMPARE(im->controllerPage(key).value("labelsInUse").toString(), QString("PlayStation"));
+        im->setControllerLabels(key, "shapes");
+        QCOMPARE(im->controllerPage(key).value("labelsInUse").toString(), QString("Shapes"));
         QCOMPARE(im->hints().value("select").toString(), QString("[SQ]"));
         QCOMPARE(im->hints().value("back").toString(), QString("[O]"));
         QCOMPARE(rowValue(im->controllerPage(key), "left"), QString("L1, D-PAD ◄"));
-        im->setControllerLabels(key, "nintendo");
+        im->setControllerLabels(key, "a_right");
         QCOMPARE(im->hints().value("select").toString(), QString("[Y]"));
         QCOMPARE(im->hints().value("play_pause").toString(), QString("[+]"));
 
@@ -525,7 +535,7 @@ private slots:
         const QJsonObject saved = savedControllers().value(key).toObject();
         QCOMPARE(saved.value("name").toString(), QString("OSD/OS Test Pad"));
         QCOMPARE(saved.value("kind").toString(), QString("gamepad"));
-        QCOMPARE(saved.value("labels").toString(), QString("nintendo"));
+        QCOMPARE(saved.value("labels").toString(), QString("a_right"));
         QCOMPARE(saved.value("bindings").toObject(),
                  QJsonObject({ { "x", "select" }, { "a", "none" }, { "leftx-", "back" } }));
 
@@ -546,7 +556,7 @@ private slots:
         QCOMPARE(entry(*im, "OSD/OS Test Pad").value("count").toInt(), 0);
         page = im->controllerPage(key);
         QVERIFY(!page.value("present").toBool());
-        QCOMPARE(rowValue(page, "select"), QString("Y"));   // Nintendo's name for X
+        QCOMPARE(rowValue(page, "select"), QString("Y"));   // A right's name for X
         im->resetController(key);
         QVERIFY(entry(*im, "OSD/OS Test Pad").isEmpty());
         QVERIFY(!savedControllers().contains(key));
@@ -580,12 +590,12 @@ private slots:
         // and Start; nothing of its for the games.
         QVariantMap page = im->arcadePage(key);
         QCOMPARE(page.value("layout").toString(), QString("default"));
-        QCOMPARE(page.value("layoutTitle").toString(), QString("Default"));
+        QCOMPARE(page.value("layoutTitle").toString(), QString("Engine's"));
         QVERIFY(page.value("present").toBool());
-        QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Default"));
-        QCOMPARE(values(), QStringList({ "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "Auto", "BACK", "START" }));
+        QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Engine's"));
+        QCOMPARE(values(), QStringList({ "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "BACK", "START" }));
         QCOMPARE(listed(page.value("layouts").toList(), "title"),
-                 QStringList({ "Default", "Fighting 6", "Neo Geo 4", "NES", "Mega Drive", "SNES", "Saturn", "N64", "Custom" }));
+                 QStringList({ "Engine's", "Fighting 6", "Neo Geo 4", "NES", "Mega Drive", "SNES", "Saturn", "N64", "Custom" }));
         // Every input it has that can be one: all but a touchpad, which SDL
         // gives no pad it makes up.
         QStringList has = controllers::arcadeTokens();
@@ -660,7 +670,21 @@ private slots:
         // Defaults forgets a layout too.
         im->setArcadeLayout(key, "default");
         QVERIFY(controllers::playerArcade().value(0).isEmpty());
-        QVERIFY(!savedControllers().value(key).toObject().contains("arcade"));
+        // What was set by hand is kept beside it, and beside a preset, so
+        // that Custom brings it back.
+        QJsonObject keeps = savedControllers().value(key).toObject().value("arcade").toObject();
+        QCOMPARE(keeps.value("layout").toString(), QString("default"));
+        QVERIFY(!keeps.contains("inputs"));
+        QCOMPARE(keeps.value("custom").toObject().value("5").toString(), QString("leftshoulder"));
+        im->setArcadeLayout(key, "fighting6");
+        QCOMPARE(values().at(0), QString("X"));
+        keeps = savedControllers().value(key).toObject().value("arcade").toObject();
+        QCOMPARE(keeps.value("inputs").toObject().value("1").toString(), QString("x"));
+        QCOMPARE(keeps.value("custom").toObject().value("1").toString(), QString("a"));
+        im->setArcadeLayout(key, "custom");
+        QCOMPARE(values(), QStringList({ "A", "B", "X", "Y", "LB", "RB", "None", "None", "BACK", "START" }));
+        QVERIFY(!savedControllers().value(key).toObject().value("arcade").toObject().contains("custom"));
+        im->setArcadeLayout(key, "default");
         im->setArcadeLayout(key, "bogus");
         QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
         im->setArcadeLayout(key, "neogeo4");
@@ -868,10 +892,23 @@ private slots:
         result = im.bindControllerInput(pkey, "b", "none");
         QCOMPARE(outcome(result), QString("already"));
         QCOMPARE(result.value("action").toString(), QString("none"));
+    }
 
-        // A keyboard's: Back ends the wait; Select / OK's and the menus' keys
-        // keep what they do; any other is set.
+    // A keyboard's or a remote's keys on a page: the menus' own keys keep what
+    // they do, and an extra key that is the Select / OK, Up or Down in use
+    // stays it until the menus have been worked with something else.
+    void extraKeysStay() {
+        AppCore core(m_app.path(), m_data.path());
+        // A remote, known as one: a keyboard has the menus' own keys beside
+        // its extra ones, which can always go (savedByTheVersionBefore()).
         const QString kbd = QStringLiteral("kbd-0005-046d-b342");
+        core.save_setting(QString(), "controllers", QVariantMap{ { kbd, QVariantMap{
+            { "name", "Air Remote" }, { "kind", "remote" }, { "labels", "a_right" } } } });
+        InputManager im(m_data.path(), &core);
+        QVariantMap result;
+
+        // Back ends the wait; Select / OK's and the menus' keys keep what
+        // they do; any other is set.
         const auto key = [](int qtKey) { return QString::number(qtKey); };
         QCOMPARE(outcome(im.keyCapture(kbd, Qt::Key_Escape, "up")), QString("cancel"));
         QCOMPARE(outcome(im.keyCapture(kbd, Qt::Key_Backspace, "none")), QString("cancel"));
@@ -894,19 +931,25 @@ private slots:
         core.save_setting(QString(), "remote_keymap.left", int(Qt::Key_F5));
         QCOMPARE(outcome(im.keyCapture(QString(), ccBack, "up")), QString("cancel"));
         QCOMPARE(outcome(im.keyCapture(QString(), leftClick, "back")), QString("already"));
+        // The extra Down stays while nothing else has been seen to go down: it
+        // may be the only Down that remote has.
         result = im.keyCapture(QString(), Qt::Key_F7, "up");
-        QCOMPARE(outcome(result), QString("already"));
+        QCOMPARE(outcome(result), QString("only"));
         QCOMPARE(result.value("label").toString(), QString("Down"));
+        QCOMPARE(outcome(im.keyCapture(InputManager::allKeys(), Qt::Key_F7, "up")), QString("only"));
         QCOMPARE(outcome(im.keyCapture(QString(), Qt::Key_F5, "right")), QString("set"));
         QCOMPARE(outcome(im.keyCapture(QString(), Qt::Key_F5, "left")), QString("already"));
         QCOMPARE(outcome(im.keyCapture(kbd, ccBack, "up")), QString("cancel"));
 
         // Its own: set, then kept as its Select / OK or Up; moved; taken away.
         QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_O), "select")), QString("set"));
-        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_O), "up")), QString("already"));
-        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_O), "none")), QString("already"));
+        result = im.bindControllerInput(kbd, key(Qt::Key_O), "up");
+        QCOMPARE(outcome(result), QString("only"));
+        QCOMPARE(result.value("label").toString(), QString("Select / OK"));
+        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_O), "none")), QString("only"));
+        QCOMPARE(outcome(im.removeControllerInput(kbd, key(Qt::Key_O))), QString("only"));
         QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_Q), "up")), QString("set"));
-        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_Q), "down")), QString("already"));
+        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_Q), "down")), QString("only"));
         QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_P), "left")), QString("set"));
         QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_P), "right")), QString("set"));
         QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_F6), "none")), QString("other"));
@@ -914,40 +957,581 @@ private slots:
         QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_Escape), "none")), QString("cancel"));
         QCOMPARE(savedControllers().value(kbd).toObject().value("bindings").toObject(),
                  QJsonObject({ { key(Qt::Key_O), "select" }, { key(Qt::Key_Q), "up" }, { key(Qt::Key_P), "right" } }));
-        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_P), "none")), QString("set"));
+        QCOMPARE(outcome(im.removeControllerInput(kbd, key(Qt::Key_P))), QString("set"));
+        QCOMPARE(outcome(im.removeControllerInput(kbd, key(Qt::Key_P))), QString("other"));
         QCOMPARE(savedControllers().value(kbd).toObject().value("bindings").toObject(),
                  QJsonObject({ { key(Qt::Key_O), "select" }, { key(Qt::Key_Q), "up" } }));
+
+        // Once the menus have been worked with another key, the extra one can
+        // go: Enter selected, so O is no longer the Select / OK in use.
+        QWindow window;
+        const auto press = [&window](int qtKey) {
+            QKeyEvent down(QEvent::KeyPress, qtKey, Qt::NoModifier);
+            QCoreApplication::sendEvent(&window, &down);
+            QKeyEvent up(QEvent::KeyRelease, qtKey, Qt::NoModifier);
+            QCoreApplication::sendEvent(&window, &up);
+        };
+        press(Qt::Key_Return);
+        QCOMPARE(outcome(im.bindControllerInput(kbd, key(Qt::Key_O), "left")), QString("set"));
+        // Q went up last: it stays, until an arrow has.
+        press(Qt::Key_Q);
+        QCOMPARE(outcome(im.removeControllerInput(kbd, key(Qt::Key_Q))), QString("only"));
+        press(Qt::Key_Up);
+        QCOMPARE(outcome(im.removeControllerInput(kbd, key(Qt::Key_Q))), QString("set"));
+        // The same for every keyboard's: F7 can move once an arrow went down.
+        press(Qt::Key_Down);
+        QCOMPARE(outcome(im.keyCapture(QString(), Qt::Key_F7, "up")), QString("set"));
     }
 
-    // A key a wait for a press took stays swallowed until it is let go:
-    // held on, its repeats don't act as what it has just been given.
-    void keyHeldThroughAWait() {
+    // A wait for a press takes a tap for the answer and a hold for its way
+    // out: a press is told at once (to show), told again as the answer when
+    // it is let go, and held a second and a half it stops the wait, answers
+    // nothing and acts on nothing. A pad's buttons and stick, and with All
+    // Keyboards & Remotes a key and a mouse button.
+    void tapAndHold() {
         AppCore core(m_app.path(), m_data.path());
         InputManager im(m_data.path(), &core);
         QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
-        QSignalSpy captured(&im, &InputManager::auxButtonPressed);
+        QSignalSpy down(&im, &InputManager::controllerInputDown);
+        QSignalSpy captured(&im, &InputManager::controllerInputCaptured);
+        QSignalSpy held(&im, &InputManager::captureHeld);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        const QString key = entry(im, "OSD/OS Test Pad").value("key").toString();
+
+        // A tap: down as it is pressed, the answer as it is let go.
+        im.captureController(key);
+        pad.button(SDL_CONTROLLER_BUTTON_X, true);
+        QVERIFY(down.wait(1000));
+        QCOMPARE(down.at(0), QList<QVariant>({ key, QString("x"), QString("X") }));
+        QCOMPARE(captured.count(), 0);
+        release(pad, SDL_CONTROLLER_BUTTON_X);
+        QTRY_COMPARE(captured.count(), 1);
+        QCOMPARE(captured.at(0), QList<QVariant>({ key, QString("x"), QString("X") }));
+        QCOMPARE(held.count(), 0);
+
+        // Held: the wait's way out, with the pad's own Back as with any
+        // other; let go, it is no answer, and nothing acted.
+        QElapsedTimer since;
+        since.start();
+        pad.button(SDL_CONTROLLER_BUTTON_B, true);
+        QVERIFY(held.wait(3000));
+        QVERIFY2(since.elapsed() >= 1400, qPrintable(QString::number(since.elapsed())));
+        QCOMPARE(held.at(0).at(0).toString(), key);
+        QCOMPARE(down.count(), 2);
+        im.captureController(QString());   // as the page does
+        release(pad, SDL_CONTROLLER_BUTTON_B);
+        QTest::qWait(100);
+        QCOMPARE(captured.count(), 1);
+        QCOMPARE(keysOf(keys), QStringList());
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString("ESC"));
+
+        // Two held together: the older one's time counts; a stick pushed is
+        // a press like any.
+        captured.clear();
+        held.clear();
+        im.captureController(key);
+        pad.axis(SDL_CONTROLLER_AXIS_LEFTY, -30000);
+        QTest::qWait(700);
+        pad.button(SDL_CONTROLLER_BUTTON_Y, true);
+        QVERIFY(held.wait(1500));
+        centre(pad, SDL_CONTROLLER_AXIS_LEFTY);
+        release(pad, SDL_CONTROLLER_BUTTON_Y);
+        QTest::qWait(100);
+        QCOMPARE(captured.count(), 0);
+        // The wait still on (a test goes on to its next press): a tap answers.
+        pad.axis(SDL_CONTROLLER_AXIS_LEFTY, -30000);
+        QTest::qWait(100);
+        centre(pad, SDL_CONTROLLER_AXIS_LEFTY);
+        QTRY_COMPARE(captured.count(), 1);
+        QCOMPARE(captured.at(0), QList<QVariant>({ key, QString("lefty-"), QString("L STICK ▲") }));
+        im.captureController(QString());
+
+        // The wait ended while a button is down: its release answers nothing.
+        captured.clear();
+        im.captureController(key);
+        pad.button(SDL_CONTROLLER_BUTTON_X, true);
+        QTest::qWait(100);
+        im.captureController(QString());
+        release(pad, SDL_CONTROLLER_BUTTON_X);
+        QTest::qWait(100);
+        QCOMPARE(captured.count(), 0);
+        QCOMPARE(held.count(), 1);
+
+        // All Keyboards & Remotes: a key and a mouse button the same way,
+        // under its own key; a pad's button still acts (its Back cancels
+        // the page's wait).
         QWindow window;
         const auto send = [&window](QEvent::Type type, bool repeat) {
             QKeyEvent event(type, Qt::Key_P, Qt::NoModifier, QStringLiteral("p"), repeat);
             QCoreApplication::sendEvent(&window, &event);
         };
-
-        // All Keyboards & Remotes waits; P is pressed and saved for Down.
-        im.setRemapCapture(true);
+        const auto mouse = [&window](QEvent::Type type) {
+            QMouseEvent event(type, QPointF(1, 1), QPointF(1, 1), Qt::MiddleButton,
+                              type == QEvent::MouseButtonPress ? Qt::MiddleButton : Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        const QString all = InputManager::allKeys();
+        down.clear();
+        captured.clear();
+        held.clear();
+        keys.clear();
+        im.captureController(all);
         send(QEvent::KeyPress, false);
+        QCOMPARE(down.count(), 1);
+        QCOMPARE(down.at(0), QList<QVariant>({ all, QString::number(int(Qt::Key_P)), QString("P") }));
+        QCOMPARE(captured.count(), 0);
+        send(QEvent::KeyPress, true);
+        send(QEvent::KeyRelease, false);
         QCOMPARE(captured.count(), 1);
-        QCOMPARE(captured.at(0).at(0).toInt(), int(Qt::Key_P));
-        im.setRemapCapture(false);
+        QCOMPARE(captured.at(0), down.at(0));
+        mouse(QEvent::MouseButtonPress);
+        mouse(QEvent::MouseButtonRelease);
+        QCOMPARE(captured.count(), 2);
+        QCOMPARE(captured.at(1).at(1).toString(), QString::number(0x03000000 + int(Qt::MiddleButton)));
+        QCOMPARE(captured.at(1).at(2).toString(), QString("Mouse: Middle Click"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString("ESC"));
+        QCOMPARE(captured.count(), 2);
+
+        // P held: the way out. Saved for Down meanwhile, its repeats and its
+        // release act on nothing; pressed anew, it is Down.
+        keys.clear();
+        send(QEvent::KeyPress, false);
+        QVERIFY(held.wait(3000));
+        QCOMPARE(held.at(0).at(0).toString(), all);
+        im.captureController(QString());
         core.save_setting(QString(), "remote_keymap.down", int(Qt::Key_P));
         send(QEvent::KeyPress, true);
         send(QEvent::KeyPress, true);
-        QCOMPARE(keysOf(keys), QStringList());
         send(QEvent::KeyRelease, false);
+        QCOMPARE(captured.count(), 2);
         QCOMPARE(keysOf(keys), QStringList());
-        // Pressed anew, it is Down.
         send(QEvent::KeyPress, false);
         send(QEvent::KeyRelease, false);
         QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
+    }
+
+    // Menu Buttons on a pad's page. Replace makes the button pressed the
+    // action's only one, the ones that did it doing nothing after; where the
+    // button was the pad's only Select / OK, Back, Up or Down, the first of
+    // those takes that in its place, so A and B swap in one step from either
+    // row. Remove one takes a button's action away, but for the last of
+    // those four. The page lists only the buttons a pad connected has, each
+    // with its name, and says what an input is in the menus and the games.
+    void menuButtons() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        VirtualPad pad, small;
+        QVERIFY(pad.attach("OSD/OS Test Pad"));
+        // One with no Back button and no shoulders.
+        const Uint32 fewer = ((1u << SDL_CONTROLLER_BUTTON_MAX) - 1)
+                             & ~((1u << SDL_CONTROLLER_BUTTON_BACK) | (1u << SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
+                                 | (1u << SDL_CONTROLLER_BUTTON_RIGHTSHOULDER));
+        QVERIFY(small.attach("OSD/OS Small Pad", 0x1209, 0x0005, fewer));
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        QTRY_VERIFY(entry(im, "OSD/OS Small Pad").value("present").toBool());
+        const QString key = entry(im, "OSD/OS Test Pad").value("key").toString();
+        const QString skey = entry(im, "OSD/OS Small Pad").value("key").toString();
+        const auto row = [&im](const QString &k, const QString &action) {
+            const QVariantList rows = im.controllerPage(k).value("rows").toList();
+            for (const QVariant &v : rows) {
+                if (v.toMap().value("action").toString() == action)
+                    return v.toMap();
+            }
+            return QVariantMap();
+        };
+        const auto inputsOf = [&row](const QString &k, const QString &action) {
+            QStringList tokens;
+            const QVariantList inputs = row(k, action).value("inputs").toList();
+            for (const QVariant &v : inputs)
+                tokens << v.toMap().value("input").toString();
+            return tokens;
+        };
+
+        // The rows: what does each action, the first of them, and each by its
+        // input; on the small pad only what it has.
+        QCOMPARE(row(key, "back").value("value").toString(), QString("B, BACK"));
+        QCOMPARE(row(key, "back").value("first").toString(), QString("B"));
+        QCOMPARE(inputsOf(key, "back"), QStringList({ "b", "back" }));
+        QCOMPARE(row(key, "back").value("inputs").toList().at(1).toMap().value("label").toString(), QString("BACK"));
+        QCOMPARE(row(skey, "back").value("value").toString(), QString("B"));
+        QCOMPARE(row(skey, "left").value("value").toString(), QString("D-PAD ◄, L STICK ◄"));
+        QCOMPARE(inputsOf(skey, "left"), QStringList({ "dpleft", "leftx-" }));
+
+        // Back's row, Replace, A pressed: A was the only Select / OK, so B
+        // takes it, and BACK, which did Back too, does nothing now.
+        QVariantMap result = im.replaceControllerInput(key, "a", "back");
+        QCOMPARE(outcome(result), QString("swapped"));
+        QCOMPARE(result.value("action").toString(), QString("back"));
+        QCOMPARE(result.value("other").toString(), QString("B"));
+        QCOMPARE(result.value("otherAction").toString(), QString("Select / OK"));
+        QCOMPARE(result.value("cleared").toStringList(), QStringList({ "BACK" }));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_A, keys), QString("ESC"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString("ENTER"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_BACK, keys), QString());
+        QCOMPARE(row(key, "select").value("value").toString(), QString("B"));
+        QCOMPARE(row(key, "back").value("value").toString(), QString("A"));
+        // The same again is nothing new.
+        QCOMPARE(outcome(im.replaceControllerInput(key, "a", "back")), QString("already"));
+        im.resetController(key);
+
+        // Select / OK's row, Replace, B pressed: Back has BACK too, so
+        // nothing is swapped: B selects, A does nothing.
+        result = im.replaceControllerInput(key, "b", "select");
+        QCOMPARE(outcome(result), QString("set"));
+        QCOMPARE(result.value("cleared").toStringList(), QStringList({ "A" }));
+        QCOMPARE(row(key, "select").value("value").toString(), QString("B"));
+        QCOMPARE(row(key, "back").value("value").toString(), QString("BACK"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_A, keys), QString());
+        im.resetController(key);
+
+        // A button that did nothing takes an action's place: its buttons go.
+        result = im.replaceControllerInput(key, "x", "left");
+        QCOMPARE(outcome(result), QString("set"));
+        QCOMPARE(result.value("cleared").toStringList(), QStringList({ "LB", "D-PAD ◄", "L STICK ◄" }));
+        QCOMPARE(row(key, "left").value("value").toString(), QString("X"));
+        // One of the action's own kept alone.
+        result = im.replaceControllerInput(key, "start", "play_pause");
+        QCOMPARE(outcome(result), QString("already"));
+        im.resetController(key);
+
+        // On the small pad B is the only Back and A the only Select / OK: the
+        // two swap from either row, where a second button was refused before.
+        result = im.replaceControllerInput(skey, "b", "select");
+        QCOMPARE(outcome(result), QString("swapped"));
+        QCOMPARE(result.value("other").toString(), QString("A"));
+        QCOMPARE(result.value("otherAction").toString(), QString("Back"));
+        QCOMPARE(tap(small, SDL_CONTROLLER_BUTTON_B, keys), QString("ENTER"));
+        QCOMPARE(tap(small, SDL_CONTROLLER_BUTTON_A, keys), QString("ESC"));
+        // An action with no button has none to give: the only Back stays.
+        QCOMPARE(outcome(im.bindControllerInput(skey, "start", "none")), QString("set"));
+        result = im.replaceControllerInput(skey, "a", "play_pause");
+        QCOMPARE(outcome(result), QString("only"));
+        QCOMPARE(result.value("label").toString(), QString("Back"));
+        // Add another refuses it too, and Remove one.
+        QCOMPARE(outcome(im.bindControllerInput(skey, "a", "play_pause")), QString("only"));
+        QCOMPARE(outcome(im.removeControllerInput(skey, "a")), QString("only"));
+        // Remove one of two: the other then stays.
+        QCOMPARE(outcome(im.removeControllerInput(key, "back")), QString("set"));
+        QCOMPARE(outcome(im.removeControllerInput(key, "b")), QString("only"));
+        QCOMPARE(outcome(im.removeControllerInput(key, "start")), QString("set"));
+        QCOMPARE(row(key, "play_pause").value("value").toString(), QString("None"));
+        QCOMPARE(row(key, "play_pause").value("first").toString(), QString("None"));
+
+        // What an input is, for the pad's test: its action in the menus, and
+        // in the games the joystick, MAME's menu, a Game Button, or under
+        // Default the emulators' to number (Coin and Start always OSD/OS's).
+        im.resetController(key);
+        QCOMPARE(im.inputRoles(key, "a"), QVariantMap({ { "action", "Select / OK" }, { "game", "Engine's" } }));
+        QCOMPARE(im.inputRoles(key, "back"), QVariantMap({ { "action", "Back" }, { "game", "Coin" } }));
+        QCOMPARE(im.inputRoles(key, "dpup"), QVariantMap({ { "action", "Up" }, { "game", "Joystick" } }));
+        QCOMPARE(im.inputRoles(key, "guide"), QVariantMap({ { "action", "" }, { "game", "MAME's menu" } }));
+        im.setArcadeLayout(key, "fighting6");
+        QCOMPARE(im.inputRoles(key, "a"), QVariantMap({ { "action", "Select / OK" }, { "game", "Button 4" } }));
+        QCOMPARE(im.inputRoles(key, "x"), QVariantMap({ { "action", "" }, { "game", "Button 1" } }));
+        QCOMPARE(im.inputRoles(key, "leftstick"), QVariantMap({ { "action", "" }, { "game", "" } }));
+    }
+
+    // All Keyboards & Remotes' page and a keyboard's own: each action's own
+    // key by name, then the extra keys; several to an action; Replace puts a
+    // new key in the place of the action's others at once; kept in
+    // config.json as a number for one key, as every version wrote it, and a
+    // list for more.
+    void extraKeys() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        const QString all = InputManager::allKeys();
+        const auto id = [](int qtKey) { return QString::number(qtKey); };
+        const auto row = [&im](const QString &k, const QString &action) {
+            const QVariantList rows = im.controllerPage(k).value("rows").toList();
+            for (const QVariant &v : rows) {
+                if (v.toMap().value("action").toString() == action)
+                    return v.toMap();
+            }
+            return QVariantMap();
+        };
+        const auto stored = [&core](const char *action) {
+            return core.get_setting(QString(), QStringLiteral("remote_keymap.") + action);
+        };
+
+        QVariantMap page = im.controllerPage(all);
+        QCOMPARE(page.value("name").toString(), QString("All Keyboards & Remotes"));
+        QCOMPARE(page.value("kind").toString(), QString("keys"));
+        QVERIFY(page.value("present").toBool());
+        QCOMPARE(page.value("rows").toList().size(), 7);
+        QCOMPARE(row(all, "up").value("value").toString(), QString("Arrow key"));
+        QCOMPARE(row(all, "select").value("value").toString(), QString("Enter"));
+        QCOMPARE(row(all, "back").value("value").toString(), QString("Esc"));
+        QCOMPARE(row(all, "play_pause").value("value").toString(), QString("Space"));
+        QVERIFY(row(all, "select").value("inputs").toList().isEmpty());
+
+        // One extra key, then another beside it, for an action the menus can
+        // do without; Play / Pause has a row here too.
+        QSignalSpy changed(&im, &InputManager::controllersChanged);
+        QCOMPARE(outcome(im.bindControllerInput(all, id(Qt::Key_F5), "left")), QString("set"));
+        QCOMPARE(stored("left").toInt(), int(Qt::Key_F5));
+        // The page is told, to show it.
+        QVERIFY(changed.count() > 0);
+        QCOMPARE(outcome(im.bindControllerInput(all, id(Qt::Key_F6), "left")), QString("set"));
+        QCOMPARE(row(all, "left").value("value").toString(), QString("Arrow key + F5 + F6"));
+        QCOMPARE(stored("left").toList().size(), 2);
+        QCOMPARE(outcome(im.bindControllerInput(all, id(Qt::Key_F9), "play_pause")), QString("set"));
+        QCOMPARE(row(all, "play_pause").value("value").toString(), QString("Space + F9"));
+        // One key, one action: given to another, it moves.
+        QCOMPARE(outcome(im.bindControllerInput(all, id(Qt::Key_F6), "right")), QString("set"));
+        QCOMPARE(row(all, "left").value("value").toString(), QString("Arrow key + F5"));
+        QCOMPARE(row(all, "right").value("value").toString(), QString("Arrow key + F6"));
+        QCOMPARE(stored("left").toInt(), int(Qt::Key_F5));
+        // Replace: F8 in, F5 out, at once.
+        QVariantMap result = im.replaceControllerInput(all, id(Qt::Key_F8), "left");
+        QCOMPARE(outcome(result), QString("set"));
+        QCOMPARE(result.value("cleared").toStringList(), QStringList({ "F5" }));
+        QCOMPARE(row(all, "left").value("value").toString(), QString("Arrow key + F8"));
+        QCOMPARE(row(all, "left").value("inputs").toList().at(0).toMap().value("input").toString(), id(Qt::Key_F8));
+        // The menus' own keys keep what they do, Back ends a wait.
+        QCOMPARE(outcome(im.replaceControllerInput(all, id(Qt::Key_Return), "left")), QString("already"));
+        QCOMPARE(outcome(im.replaceControllerInput(all, id(Qt::Key_Escape), "left")), QString("cancel"));
+        // Remove one.
+        QCOMPARE(outcome(im.removeControllerInput(all, id(Qt::Key_F8))), QString("set"));
+        QCOMPARE(outcome(im.removeControllerInput(all, id(Qt::Key_F8))), QString("other"));
+        QCOMPARE(stored("left").toInt(), 0);
+        QCOMPARE(row(all, "left").value("value").toString(), QString("Arrow key"));
+
+        // A keyboard's own page names every keyboard's extra keys before
+        // its own; a key of its own for another action comes first on it.
+        const QString kbd = QStringLiteral("kbd-0005-046d-b342");
+        QCOMPARE(row(kbd, "right").value("value").toString(), QString("Arrow key + F6 (all)"));
+        QCOMPARE(outcome(im.bindControllerInput(kbd, id(Qt::Key_F7), "right")), QString("set"));
+        QCOMPARE(row(kbd, "right").value("value").toString(), QString("Arrow key + F6 (all) + F7"));
+        QCOMPARE(row(kbd, "right").value("inputs").toList().size(), 1);
+        QCOMPARE(outcome(im.bindControllerInput(kbd, id(Qt::Key_F6), "left")), QString("set"));
+        QCOMPARE(row(kbd, "right").value("value").toString(), QString("Arrow key + F7"));
+        QCOMPARE(row(kbd, "left").value("value").toString(), QString("Arrow key + F6"));
+        QCOMPARE(im.inputRoles(kbd, id(Qt::Key_F6)), QVariantMap({ { "action", "Left" }, { "game", "" } }));
+        QCOMPARE(im.inputRoles(kbd, id(Qt::Key_Return)).value("action").toString(), QString("Select / OK"));
+
+        // At the next start, the same.
+        InputManager again(m_data.path(), &core);
+        QCOMPARE(again.controllerPage(all).value("rows").toList().at(3).toMap().value("value").toString(),
+                 QString("Arrow key + F6"));
+        QCOMPARE(again.keyCapture(QString(), Qt::Key_F9, "play_pause").value("outcome").toString(), QString("already"));
+    }
+
+    // A pad's player from its own page: Auto, or a number. A number another
+    // pad was chosen for swaps the two; one a pad had by Auto leaves that pad
+    // to Auto, and the answer says where it went. Every player back to Auto
+    // in one step.
+    void padPlayer() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        VirtualPad first, second, third;
+        QVERIFY(first.attach("OSD/OS First Pad", 0x1209, 0x0011));
+        QVERIFY(second.attach("OSD/OS Second Pad", 0x1209, 0x0012));
+        QVERIFY(third.attach("OSD/OS Third Pad", 0x1209, 0x0013));
+        QTRY_VERIFY(entry(im, "OSD/OS Third Pad").value("present").toBool());
+        const QString k1 = entry(im, "OSD/OS First Pad").value("key").toString();
+        const QString k2 = entry(im, "OSD/OS Second Pad").value("key").toString();
+        const QString k3 = entry(im, "OSD/OS Third Pad").value("key").toString();
+        const auto plays = [&im](const QString &key) {
+            QList<int> numbers;
+            const QVariantList list = im.controllerPage(key).value("players").toList();
+            for (const QVariant &v : list)
+                numbers << v.toInt();
+            return numbers;
+        };
+
+        // By Auto, in the order they came; the list says so too.
+        QCOMPARE(plays(k1), QList<int>({ 1 }));
+        QCOMPARE(plays(k3), QList<int>({ 3 }));
+        QCOMPARE(entry(im, "OSD/OS Second Pad").value("players").toList(), QVariantList{ 2 });
+        QCOMPARE(im.controllerPage(k3).value("player").toInt(), 0);
+
+        // The third made player 1: the first, there by Auto, goes on to the
+        // next number free.
+        QVariantMap result = im.setPadPlayer(k3, 1);
+        QCOMPARE(outcome(result), QString("set"));
+        QCOMPARE(result.value("other").toString(), QString("OSD/OS First Pad"));
+        QCOMPARE(result.value("otherPlayer").toInt(), 2);
+        QCOMPARE(plays(k3), QList<int>({ 1 }));
+        QCOMPARE(im.controllerPage(k3).value("player").toInt(), 1);
+        QCOMPARE(plays(k2), QList<int>({ 3 }));
+        QCOMPARE(outcome(im.setPadPlayer(k3, 1)), QString("already"));
+
+        // The second chosen for 4, then the third for 4: the two swap.
+        QCOMPARE(outcome(im.setPadPlayer(k2, 4)), QString("set"));
+        result = im.setPadPlayer(k3, 4);
+        QCOMPARE(result.value("other").toString(), QString("OSD/OS Second Pad"));
+        QCOMPARE(result.value("otherPlayer").toInt(), 1);
+        QCOMPARE(plays(k3), QList<int>({ 4 }));
+        QCOMPARE(plays(k2), QList<int>({ 1 }));
+        QCOMPARE(im.controllerPage(k2).value("player").toInt(), 1);
+        QCOMPARE(savedApp("players").value("4").toObject().value("key").toString(), k3);
+        QCOMPARE(savedApp("players").value("1").toObject().value("key").toString(), k2);
+
+        // Back to Auto, one pad, then all of them.
+        QCOMPARE(outcome(im.setPadPlayer(k3, 0)), QString("set"));
+        QCOMPARE(outcome(im.setPadPlayer(k3, 0)), QString("already"));
+        QCOMPARE(im.controllerPage(k3).value("player").toInt(), 0);
+        im.resetPlayers();
+        QCOMPARE(plays(k1), QList<int>({ 1 }));
+        QCOMPARE(plays(k2), QList<int>({ 2 }));
+        QCOMPARE(savedApp("players").value("1").toObject().value("key").toString(), QString());
+        // A pad away can't be given a number.
+        third.detach();
+        QTRY_VERIFY(!entry(im, "OSD/OS Third Pad").value("present").toBool());
+        QCOMPARE(outcome(im.setPadPlayer(k3, 2)), QString("away"));
+    }
+
+    // A config.json as the version before these pages wrote it is read as it
+    // is: the players' pads, a pad's own buttons and its button names (by
+    // the name that version gave the style), its Arcade Buttons (a preset's,
+    // and inputs set by hand), a keyboard's and a remote's extra keys, and
+    // every keyboard's, a number an action. Nothing of it is lost by the
+    // first change made after.
+    void savedByTheVersionBefore() {
+        // The pad's key, as SDL makes it here.
+        QString key;
+        {
+            AppCore core(m_app.path(), m_data.path());
+            InputManager im(m_data.path(), &core);
+            VirtualPad pad;
+            QVERIFY(pad.attach("OSD/OS Test Pad"));
+            QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+            key = entry(im, "OSD/OS Test Pad").value("key").toString();
+        }
+        const QString other = QStringLiteral("pad-0300aaaa5e040000ea02000000007801");
+        const QString kbd = QStringLiteral("kbd-0005-046d-b342");
+        const QString remote = QStringLiteral("kbd-0003-1d57-ad02");
+        QByteArray config = R"({
+    "app": {
+        "color_scheme": "Video 1",
+        "controllers": {
+            "PAD": {
+                "arcade": {
+                    "inputs": { "1": "x", "2": "y", "3": "rightshoulder", "4": "a", "5": "b", "6": "righttrigger+",
+                                "7": "leftshoulder", "8": "lefttrigger+", "coin": "back", "start": "start" },
+                    "layout": "custom"
+                },
+                "bindings": { "a": "back", "b": "select", "x": "none" },
+                "kind": "gamepad",
+                "labels": "nintendo",
+                "name": "OSD/OS Test Pad"
+            },
+            "OTHER": {
+                "arcade": {
+                    "inputs": { "1": "x", "2": "y", "3": "rightshoulder", "4": "a", "5": "b", "6": "righttrigger+",
+                                "7": "leftshoulder", "8": "lefttrigger+", "coin": "back", "start": "start" },
+                    "layout": "fighting6"
+                },
+                "bindings": {},
+                "kind": "gamepad",
+                "labels": "playstation",
+                "name": "Another Pad"
+            },
+            "KBD": {
+                "bindings": { "16777268": "select", "16777269": "left" },
+                "kind": "keyboard",
+                "labels": "auto",
+                "name": "Logitech K380"
+            },
+            "REMOTE": {
+                "bindings": { "16777301": "select" },
+                "kind": "remote",
+                "labels": "auto",
+                "name": "Air Mouse Remote"
+            }
+        },
+        "players": {
+            "1": { "key": "", "name": "" },
+            "2": { "key": "PAD", "name": "OSD/OS Test Pad" },
+            "3": { "key": "OTHER", "name": "Another Pad" },
+            "4": { "key": "", "name": "" },
+            "5": { "key": "", "name": "" },
+            "6": { "key": "", "name": "" }
+        },
+        "remote_keymap": { "up": 0, "down": 0, "left": 0, "right": 0, "select": 16777301, "back": 33554604 }
+    },
+    "modules": {
+    }
+}
+)";
+        config.replace("\"PAD\"", '"' + key.toLatin1() + '"').replace("\"OTHER\"", '"' + other.toLatin1() + '"');
+        config.replace("\"KBD\"", '"' + kbd.toLatin1() + '"').replace("\"REMOTE\"", '"' + remote.toLatin1() + '"');
+        QVERIFY(writeData("config.json", config));
+
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        QCOMPARE(entry(im, "OSD/OS Test Pad").value("key").toString(), key);
+
+        // The pad: its buttons, its names, its player, its Arcade Buttons.
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString("ENTER"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_A, keys), QString("ESC"));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_X, keys), QString());
+        QVariantMap page = im.controllerPage(key);
+        QCOMPARE(page.value("labels").toString(), QString("a_right"));
+        QCOMPARE(page.value("labelsInUse").toString(), QString("A right"));
+        QCOMPARE(rowValue(page, "select"), QString("A"));      // the east button, by that style's name
+        QCOMPARE(page.value("player").toInt(), 2);
+        QCOMPARE(page.value("players").toList(), QVariantList{ 2 });
+        QCOMPARE(page.value("arcade").toString(), QString("Custom"));
+        QCOMPARE(im.arcadeLabel(key, "1"), QString("Y"));      // x, as that style names it
+        QCOMPARE(im.arcadeLabel(key, "6"), QString("ZR"));
+        QTRY_COMPARE(controllers::playerArcade().value(1).mame.value(0), QString("BUTTON3"));
+        // The pad away: its player's choice, its names, its preset.
+        QCOMPARE(player(im, 3).value("key").toString(), other);
+        QCOMPARE(player(im, 3).value("name").toString(), QString("Another Pad"));
+        QVERIFY(!player(im, 3).value("connected").toBool());
+        QCOMPARE(im.controllerPage(other).value("labelsInUse").toString(), QString("Shapes"));
+        QCOMPARE(im.controllerPage(other).value("arcade").toString(), QString("Fighting 6"));
+        // The keyboard's and the remote's extra keys, and every keyboard's.
+        QCOMPARE(rowValue(im.controllerPage(kbd), "select"), QString("Enter + Menu (all) + F5"));
+        QCOMPARE(rowValue(im.controllerPage(kbd), "left"), QString("Arrow key + F6"));
+        QCOMPARE(rowValue(im.controllerPage(remote), "select"), QString("Enter + Menu"));
+        QCOMPARE(rowValue(im.controllerPage(InputManager::allKeys()), "select"), QString("Enter + Menu"));
+        // A remote's Consumer Control button has its name on Linux, where
+        // such buttons are read (InputManager::evdevKeyName()); elsewhere a
+        // code from a Linux's config.json is shown by its number.
+#ifdef Q_OS_LINUX
+        const QString home = QStringLiteral("Home");
+#else
+        const QString home = QStringLiteral("Button 172");
+#endif
+        QCOMPARE(rowValue(im.controllerPage(InputManager::allKeys()), "back"), QStringLiteral("Esc + ") + home);
+        QCOMPARE(im.keyCapture(QString(), Qt::Key_Menu, "select").value("outcome").toString(), QString("already"));
+
+        // A layout chosen, then Custom again: the inputs set by hand are back.
+        im.setArcadeLayout(key, "neogeo4");
+        QCOMPARE(im.arcadeLabel(key, "1"), QString("B"));
+        im.setArcadeLayout(key, "custom");
+        QCOMPARE(im.arcadeLabel(key, "1"), QString("Y"));
+        QCOMPARE(im.arcadeLabel(key, "8"), QString("ZL"));
+        // A change to one controller leaves the others' as they were; the
+        // names are written the new way, the rest as it was.
+        im.setControllerLabels(key, "auto");
+        const QJsonObject saved = savedControllers();
+        QCOMPARE(saved.value(key).toObject().value("bindings").toObject(),
+                 QJsonObject({ { "a", "back" }, { "b", "select" }, { "x", "none" } }));
+        QCOMPARE(saved.value(key).toObject().value("arcade").toObject().value("inputs").toObject().value("6").toString(),
+                 QString("righttrigger+"));
+        QCOMPARE(saved.value(other).toObject().value("labels").toString(), QString("shapes"));
+        QCOMPARE(saved.value(other).toObject().value("arcade").toObject().value("layout").toString(), QString("fighting6"));
+        QCOMPARE(saved.value(kbd).toObject().value("bindings").toObject(),
+                 QJsonObject({ { "16777268", "select" }, { "16777269", "left" } }));
+        QCOMPARE(saved.value(remote).toObject().value("bindings").toObject(), QJsonObject({ { "16777301", "select" } }));
+        QCOMPARE(savedApp("players").value("2").toObject().value("key").toString(), key);
+        QCOMPARE(savedApp("players").value("3").toObject().value("key").toString(), other);
+        QCOMPARE(savedApp("remote_keymap").value("select").toInt(), 16777301);
+        QCOMPARE(savedApp("remote_keymap").value("back").toInt(), 33554604);
+        // A keyboard has the menus' own keys: its extra Select / OK can go
+        // (a remote's stays while nothing else has selected: extraKeysStay()).
+        QCOMPARE(outcome(im.removeControllerInput(kbd, "16777268")), QString("set"));
+        QCOMPARE(rowValue(im.controllerPage(kbd), "select"), QString("Enter + Menu (all)"));
     }
 
     // A held volume key, which the keyboard repeats every 80 ms or so, goes
@@ -1052,12 +1636,12 @@ private slots:
 #ifdef Q_OS_LINUX
         // A wait for a press takes libinput's OK as a remote's OK button, which
         // keeps what it does too.
-        QSignalSpy captured(&im, &InputManager::auxButtonPressed);
-        im.setRemapCapture(true);
+        QSignalSpy captured(&im, &InputManager::controllerInputCaptured);
+        im.captureController(InputManager::allKeys());
         key(0, KEY_OK + 8);
-        im.setRemapCapture(false);
+        im.captureController(QString());
         QCOMPARE(captured.count(), 1);
-        const int ok = captured.at(0).at(0).toInt();
+        const int ok = captured.at(0).at(1).toString().toInt();
         QCOMPARE(ok, 0x02000000 + KEY_OK);
         QCOMPARE(im.keyDisplayName(ok), QString("OK"));
         QCOMPARE(outcome(im.keyCapture(QString(), ok, "up")), QString("already"));
@@ -1080,9 +1664,9 @@ private slots:
         wheel(-120);
         wheel(60);
         wheel(60);
-        im.setRemapCapture(true);
+        im.captureController(InputManager::allKeys());
         wheel(120);
-        im.setRemapCapture(false);
+        im.captureController(QString());
         QCOMPARE(keysOf(keys), QStringList({ "DOWN", "UP" }));
         // Bound to something else, the click does that.
         core.save_setting(QString(), "remote_keymap.down", leftClick);
@@ -1626,9 +2210,12 @@ private slots:
         QCOMPARE(im.hints().value("select").toString(), QString("[1]"));
         QCOMPARE(im.hints().value("back").toString(), QString("[2]"));
         const QVariantMap page = im.controllerPage(listed.value("key").toString());
-        QCOMPARE(page.value("labelsInUse").toString(), QString("Arcade"));
+        QCOMPARE(page.value("labelsInUse").toString(), QString("Numbers"));
         QCOMPARE(rowValue(page, "back"), QString("2, COIN"));
-        QCOMPARE(rowValue(page, "left"), QString("5, D-PAD ◄, JOYSTICK ◄"));
+        // A panel's buttons 5 and 6 (a pad's shoulders) are buttons like the
+        // rest: the joystick goes left and right.
+        QCOMPARE(rowValue(page, "left"), QString("D-PAD ◄, JOYSTICK ◄"));
+        QCOMPARE(tap(p1, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, keys), QString());
 
         // Away with no settings of its own, it is still the arcade stick it
         // was: its page names and labels it so, and what is set there keeps
@@ -1637,12 +2224,12 @@ private slots:
         p2.detach();
         QTRY_VERIFY(entry(im, "OSD/OS JAMMA P2").isEmpty());
         QCOMPARE(im.controllerPage(key2).value("name").toString(), QString("OSD/OS JAMMA P2"));
-        QCOMPARE(im.controllerPage(key2).value("labelsInUse").toString(), QString("Arcade"));
-        im.setControllerLabels(key2, "nintendo");
+        QCOMPARE(im.controllerPage(key2).value("labelsInUse").toString(), QString("Numbers"));
+        im.setControllerLabels(key2, "a_right");
         QCOMPARE(entry(im, "OSD/OS JAMMA P2").value("kind").toString(), QString("arcade"));
         im.setControllerLabels(key2, "auto");
         QVERIFY(entry(im, "OSD/OS JAMMA P2").isEmpty());
-        im.setControllerLabels(key2, "xbox");
+        im.setControllerLabels(key2, "a_below");
         QCOMPARE(entry(im, "OSD/OS JAMMA P2").value("kind").toString(), QString("arcade"));
         QCOMPARE(savedControllers().value(key2).toObject().value("name").toString(), QString("OSD/OS JAMMA P2"));
     }
@@ -1672,7 +2259,7 @@ private slots:
         const QString key1 = entry(im, "OSD/OS JAMMA P1").value("key").toString();
         QVERIFY(key1 != entry(im, "OSD/OS JAMMA P2").value("key").toString());
 
-        // P1's settings from before: Xbox labels, and player 1's choice.
+        // P1's settings from before: its labels (as that version named them), and player 1's choice.
         const QString legacy = controllers::legacyJammaKey(key1.mid(4), "OSD/OS JAMMA P1");
         QVERIFY(!legacy.isEmpty() && legacy != key1);
         p1.detach();
@@ -1686,7 +2273,7 @@ private slots:
         QVERIFY(savedControllers().contains(key1));
         QVERIFY(!savedControllers().contains(legacy));
         QCOMPARE(savedApp("players").value("1").toObject().value("key").toString(), key1);
-        QCOMPARE(im.controllerPage(key1).value("labelsInUse").toString(), QString("Xbox"));
+        QCOMPARE(im.controllerPage(key1).value("labelsInUse").toString(), QString("A below"));
         // Nothing of it left under the old key: listed once, connected.
         int listed = 0;
         for (const QVariant &v : im.controllers())

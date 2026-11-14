@@ -36,6 +36,43 @@
 
 #include <functional>
 
+#include <sys/inotify.h>
+#include <unistd.h>
+
+// What happens to a folder's files from here on, as the kernel tells it
+// (inotify): the names that come into the folder, and those written to while
+// they have that name. A file written whole and then given its name comes in
+// without being written to; one written in place is written to under its
+// own. fd is -1 where the folder can't be watched.
+struct FolderWatch {
+    int fd = -1;
+    explicit FolderWatch(const QString &folder) : fd(inotify_init1(IN_NONBLOCK | IN_CLOEXEC)) {
+        if (fd >= 0 && inotify_add_watch(fd, QFile::encodeName(folder).constData(),
+                                         IN_CREATE | IN_MOVED_TO | IN_MODIFY) < 0) {
+            ::close(fd);
+            fd = -1;
+        }
+    }
+    ~FolderWatch() {
+        if (fd >= 0)
+            ::close(fd);
+    }
+    void read(QStringList &cameIn, QStringList &writtenTo) const {
+        alignas(inotify_event) char buffer[16 * 1024];
+        for (ssize_t size; (size = ::read(fd, buffer, sizeof buffer)) > 0;) {
+            for (const char *at = buffer; at < buffer + size;) {
+                const auto *event = reinterpret_cast<const inotify_event *>(at);
+                const QString name = event->len ? QFile::decodeName(event->name) : QString();
+                if (event->mask & (IN_CREATE | IN_MOVED_TO))
+                    cameIn << name;
+                if (event->mask & IN_MODIFY)
+                    writtenTo << name;
+                at += sizeof(inotify_event) + event->len;
+            }
+        }
+    }
+};
+
 // The Arcade module against a stand-in for MAME (a shell script in the data
 // folder's bin, where the module looks first): the games folder read off the
 // GUI thread, what MAME's -listxml says of its sets, read as it comes and
@@ -237,9 +274,11 @@ exit 0
     }
 
     // Asked about the folder, and done asking MAME.
+    // The folder read, or looked at and found as it was (lookAtNames()),
+    // and MAME asked about what it hadn't been.
     static void refreshed(ArcadeBackend &arcade) {
         arcade.refresh();
-        QTRY_VERIFY_WITH_TIMEOUT(!arcade.scanning(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.looking() && !arcade.scanning(), 10000);
     }
 
     // A game played to its end: (exit code, reason, notice).
@@ -3682,6 +3721,10 @@ private slots:
             QTest::qWait(20);
             writeFile(games + QStringLiteral("/bios/neogeo.zip"), zipOf({ { "sp-s2.sp1", biosRom }, { "000-lo.lo", "LO" } }));
             writeFile(games + QStringLiteral("/galaga.zip"), zipOf({ { "gg1_1b.3p", galagaRom }, { "extra", "X" } }));
+            // An archive replaced under its own name is not seen by a look at
+            // the folder's names (refresh()): by the next read, as the app
+            // starts, after a game, or from Read the Games Again.
+            arcade.markChanged();
             refreshed(arcade);
             QCOMPARE(infoOf(arcade), QList<int>({ 5, 1, 1, 1, 0, 2 }));
             QVERIFY(setsIn(arcade, "all").contains(QStringLiteral("mslug")));
@@ -4876,7 +4919,8 @@ private slots:
     // through the folder, RetroAchievements' pass first, then asks ArcadeDB
     // about the games with no picture in one request, saves each game's
     // screenshot as snap/<set>.png and its title screen as titles/<set>.png,
-    // never over a file there, and notes in .arcadedb.json what ArcadeDB had
+    // never over a file there and each whole as it comes into the folder
+    // (RetroAchievements' too), and notes in .arcadedb.json what ArcadeDB had
     // of each set, so that none is asked about again; a game shown is asked
     // about by itself, after RetroAchievements; Pictures From can keep
     // either source out; the look's marker goes once every picture is had.
@@ -4963,6 +5007,7 @@ private slots:
         // Fighter II or its bootleg, which have their picture by then, nor
         // Pac-Man, which has its own), and Galaga's two pictures are saved
         // where the packs put them. The marker stands while it goes on.
+        const FolderWatch watch(snap);
         arcade.downloadPictures();
         QTRY_VERIFY_WITH_TIMEOUT(arcade.sweepingPictures(), 5000);
         QVERIFY(QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
@@ -4971,6 +5016,20 @@ private slots:
         QCOMPARE(files(titles), QStringList({ QStringLiteral("galaga.png") }));
         QCOMPARE(contents(snap + QStringLiteral("/galaga.png")), png("galaga in play"));
         QCOMPARE(contents(titles + QStringLiteral("/galaga.png")), png("galaga title"));
+        // Each came into the folder whole: written beside its name and given
+        // it once on the card, never written to under it, where the power
+        // going would leave a picture cut short that is then the game's.
+        if (watch.fd >= 0) {
+            QStringList cameIn;
+            QStringList writtenTo;
+            watch.read(cameIn, writtenTo);
+            for (const char *picture : { "galaga.png", "sf2_1.png" }) {
+                QVERIFY2(cameIn.contains(QLatin1String(picture)), qPrintable(cameIn.join(QLatin1Char(' '))));
+                QVERIFY2(!writtenTo.contains(QLatin1String(picture)), picture);
+            }
+        } else {
+            qWarning("the snap folder can't be watched here (inotify): how its pictures are written isn't checked");
+        }
         const QStringList queries = asked("/service_scraper.php?");
         QCOMPARE(queries.size(), 1);
         QVERIFY2(queries.first().contains(QLatin1String("galaga")) && queries.first().contains(QLatin1String("kinst"))
@@ -6552,8 +6611,11 @@ private slots:
         // FinalBurn Neo gone: that, first.
         const QString core = libretro::downloadedCore(data.path());
         QVERIFY(QFile::rename(core, core + QStringLiteral(".away")));
-        QCOMPARE(lanSays(), QStringLiteral("FinalBurn Neo Not Installed"));
+        // Within a second or so: where the emulators are is kept that long
+        // between looks (ArcadeBackend::programs()).
+        QTRY_COMPARE_WITH_TIMEOUT(lanSays(), QStringLiteral("FinalBurn Neo Not Installed"), 3000);
         QVERIFY(QFile::rename(core + QStringLiteral(".away"), core));
+        QTRY_COMPARE_WITH_TIMEOUT(lanSays(), QStringLiteral("Network Not Reachable"), 3000);
 
         // Off again: nothing of it.
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
@@ -6908,6 +6970,72 @@ private slots:
         QCOMPARE(setsOf(arcade.rooms()), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
         QCOMPARE(lobbyWhy(12), QString());
         QCOMPARE(setsOf(arcade.lanRooms()), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
+    }
+
+    // The RetroArch a package brings (the Linux arm64 one's, built with
+    // TLS): played with before the system's, beside FinalBurn Neo's cores;
+    // not without the system's certificates, which it would end without at
+    // its first request, nor once it was left.
+    void packagedRetroArch() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString program = dir.path() + QStringLiteral("/retroarch");
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, false), QString());
+        writeFile(program, "#!/bin/sh\n");
+        // A file that can't be run is no program.
+        QVERIFY(QFile::setPermissions(program, QFile::ReadOwner | QFile::WriteOwner));
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, false), QString());
+        QVERIFY(QFile::setPermissions(program, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, false), program);
+        QCOMPARE(libretro::packagedProgramToPlay(program, false, false), QString());
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, true), QString());
+        QCOMPARE(libretro::packagedProgramToPlay(QString(), true, false), QString());
+        QCOMPARE(QFileInfo(libretro::packagedProgram()).path(), QFileInfo(libretro::packagedCore()).path());
+        QCOMPARE(QFileInfo(libretro::packagedProgram()).fileName(), QStringLiteral("retroarch"));
+    }
+
+    // A package's RetroArch that doesn't start (a library it needs isn't on
+    // the system): the system's is played with instead, and its version is
+    // the one read.
+    void packagedRetroArchThatDoesNotStart() {
+        if (!QFileInfo::exists(QLatin1String(libretro::kSystemCertificates)))
+            QSKIP("The system has no certificates file: the package's RetroArch is never played with");
+        QTemporaryDir data;
+        QTemporaryDir prefix;
+        QTemporaryDir system;
+        QVERIFY(data.isValid() && prefix.isValid() && system.isValid());
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([path] {
+            qputenv("PATH", path);
+            libretro::setPackagePrefix(QString());
+        });
+        libretro::setPackagePrefix(prefix.path());
+        const QString packaged = libretro::packagedProgram();
+        QCOMPARE(packaged, prefix.path() + QStringLiteral("/lib/osdos/retroarch"));
+        writeFile(packaged, "#!/bin/sh\necho 'error while loading shared libraries: libSDL2-2.0.so.0' >&2\nexit 127\n");
+        writeFile(system.path() + QStringLiteral("/retroarch"), fixture("retroarch"));
+        for (const QString &program : { packaged, system.path() + QStringLiteral("/retroarch") })
+            QVERIFY(QFile::setPermissions(program, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("PATH", system.path().toLocal8Bit() + ':' + path);
+        // The package's first, then the user's own over it.
+        QCOMPARE(libretro::programPath(data.path()), packaged);
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
+        arcade.setVersionReadTimeout(3000);
+        const auto ours = [&arcade](const char *key) { return arcade.lobby().value(QLatin1String(key)).toString(); };
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArch"), QStringLiteral("1.22.2"), 8000);
+        QCOMPARE(libretro::programPath(data.path()), system.path() + QStringLiteral("/retroarch"));
+        // Asked for again, it is the package's once more: left only until
+        // the app starts again.
+        libretro::setPackagePrefix(prefix.path());
+        QCOMPARE(libretro::programPath(data.path()), packaged);
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        QCOMPARE(libretro::programPath(data.path()), data.path() + QStringLiteral("/bin/retroarch"));
     }
 
     // Our RetroArch's and core's versions, which the lobby's rooms are
@@ -7952,6 +8080,37 @@ private slots:
 
     // How long each game has been played, kept for the next start; not a
     // game MAME refused.
+    // The module opened again reads nothing while the games folder is as it
+    // was: a look at its names says so, and the list stays as it is. A game
+    // put in it, or taken out, is found by that look and the folder read.
+    void folderLookedAtBeforeItIsRead() {
+        const auto restore = qScopeGuard([this] { QFile::remove(m_games + QStringLiteral("/1944.zip")); });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
+        refreshed(arcade);                                  // the first: read
+        const QVariant before = arcade.requestEntries(QStringLiteral("all"));
+        QVERIFY(before.isValid());
+        QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
+        QSignalSpy looked(&arcade, &ArcadeBackend::lookedAtNames);
+        arcade.refresh();
+        // On the screen at once, the folder not being read.
+        QVERIFY(!arcade.reading());
+        QVERIFY(arcade.requestEntries(QStringLiteral("all")).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(looked.size(), 1, 10000);
+        QCOMPARE(reading.size(), 0);
+        QCOMPARE(arcade.requestEntries(QStringLiteral("all")), before);
+
+        writeFile(m_games + QStringLiteral("/1944.zip"));
+        arcade.refresh();
+        QTRY_VERIFY_WITH_TIMEOUT(reading.size() >= 2, 10000);   // read, and done
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.looking() && !arcade.scanning(), 10000);
+        QCOMPARE(looked.size(), 1);
+        QVERIFY(names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1944.zip")));
+
+        QVERIFY(QFile::remove(m_games + QStringLiteral("/1944.zip")));
+        refreshed(arcade);
+        QVERIFY(!names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1944.zip")));
+    }
+
     void playTime() {
         QFile::remove(m_data.path() + QStringLiteral("/arcade/playtime.json"));
         {

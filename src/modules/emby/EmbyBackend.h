@@ -183,6 +183,14 @@ private:
     // Emby Connect helpers (step 2 of the flow, and post-exchange persistence).
     void fetchConnectServers();
     void persistConnectAuthAndFinish();
+    // Step 3, at one address of the server: its access key exchanged for a
+    // local token at serverUrl, and at fallbackUrl (when there is one) should
+    // serverUrl give none.
+    void exchangeConnectKey(const QString &serverUrl, const QString &accessKey,
+                            const QString &fallbackUrl);
+    // The remote address of each server Emby Connect listed last with a LAN
+    // address too, by its access key.
+    QHash<QString, QString> m_connectRemotes;
 
     // An item's row, its subtitles' URLs on serverUrl with accessToken: of
     // the item alone, so a list can be read away from the screen's thread

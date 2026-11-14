@@ -108,6 +108,29 @@ FocusScope {
             layoutBranches(true)
     }
 
+    // The cursor of an open folder put on its entry at entryPath: for a host
+    // that opened the tree down a trail on trust (savedTrail, its folders
+    // still on their way), as each folder comes in. False when the folder
+    // isn't open, is still on its way, or has no such entry.
+    function select(path, entryPath) {
+        for (var i = 0; i < trail.count; ++i) {
+            if (trail.get(i).path !== path)
+                continue
+            var l = listing(path)
+            for (var j = 0; !l.pending && j < l.items.length; ++j) {
+                if (l.items[j].path === entryPath) {
+                    trail.setProperty(i, "sel", j)
+                    remembered[path] = j
+                    if (ready)
+                        relayout()
+                    return true
+                }
+            }
+            return false
+        }
+        return false
+    }
+
     // A folder gone with all in it (a drive taken out): the open folders at it
     // and in it close, back to the one that held it, and what they listed is
     // forgotten.

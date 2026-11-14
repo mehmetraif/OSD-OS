@@ -41,9 +41,22 @@ FocusScope {
         plexBackend.tune_channel(channel.channelId, sessionId)
     }
 
+    // A channel that would not play goes back to the channel list with
+    // nothing on the screen to say why, so the log does: the channel, and
+    // why, in the server's words (why) or, without, mpvController's own.
+    function logFailed(why) {
+        mpvController.logFailure("LivePlayer",
+                                 "channel " + ([channel.number, channel.title].filter(Boolean).join(" ")
+                                               || channel.channelId),
+                                 why || "")
+    }
+
     function teardown() {
         if (exiting) return
         exiting = true
+        // A tune still on its way answers no one (not the next channel's
+        // player either), and lets go of the tuner it took as it comes.
+        plexBackend.cancel_stream()
         plexBackend.stop_live_session(sessionId)
         mpvController.stop()
     }
@@ -114,9 +127,17 @@ FocusScope {
         }
 
         function onErrorOccurred(msg) {
-            console.log("[LivePlayer] Backend error: " + msg)
-            // A tune/stream failure leaves nothing playing — bail back to the list.
-            if (!playbackStarted) { teardown(); goBack() }
+            // A tune/stream failure leaves nothing playing — bail back to the
+            // list, the log told which channel (once: not for an error that
+            // comes as it leaves).
+            if (!playbackStarted) {
+                if (!exiting)
+                    logFailed(msg)
+                teardown()
+                goBack()
+            } else {
+                console.log("[LivePlayer] Backend error: " + msg)
+            }
         }
     }
 
@@ -129,7 +150,10 @@ FocusScope {
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             // Any end (user quit, stream failure, or rare eof) tears down the tuner
-            // and returns to the channel list.
+            // and returns to the channel list; a failure with its line in
+            // the log.
+            if (reason === "failed")
+                logFailed()
             teardown()
             goBack()
         }

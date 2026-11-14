@@ -79,7 +79,10 @@ Rectangle {
     property var selectorPresets: ["Sparkles"]
     property var screenPresets: ({ "Scanlines": {} })
     property var transitionPresets: ["Fade"]
-    function transitionUsable(kind) { return true }
+    // The transitions this system can't play (Main.qml: those that are
+    // shaders, without a GPU).
+    property var unusableTransitions: []
+    function transitionUsable(kind) { return unusableTransitions.indexOf(kind) < 0 }
     function osdBackgroundOf(raw) { return raw === "Window" || raw === "Off" ? raw : "Full" }
     function osdFrameOf(raw) { return raw === "Off" || raw === "Shadow" ? raw : "On" }
     function backgroundOn(raw) { return false }
@@ -90,15 +93,28 @@ Rectangle {
     QtObject {
         id: appCore
         property var values: ({})
-        function get_settings() { return { app: values, modules: {} } }
+        // Modules installed besides the ones below, for a test.
+        property var moreModules: []
+        // How often the page asked for the settings, the modules, the themes
+        // and the skins (counted in place: no binding follows them), and a
+        // setting changed by another hand than the page's, as AppCore tells
+        // it.
+        readonly property var calls: ({ settings: 0, modules: 0, themes: 0, skins: 0 })
+        signal appSettingChanged(string key, string value)
+        function get_settings() {
+            calls.settings++
+            return { app: values, modules: {} }
+        }
         function get_installed_modules() {
-            return [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
+            calls.modules++
+            return moreModules.concat(
+                   [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
                     { id: "com.osdos.highscores", name: "High Scores", has_settings: true, settings_group: "arcade", enabled: false },
                     { id: "com.osdos.local_files", name: "Local Files", has_settings: true, settings_group: "tv", enabled: true },
                     { id: "com.osdos.plex", name: "Plex", has_settings: true, settings_group: "tv", enabled: false },
                     { id: "com.osdos.scripts", name: "Scripts", has_settings: true, settings_group: "", enabled: false },
                     { id: "com.osdos.radio", name: "Radio", has_settings: true, settings_group: "radio", enabled: false },
-                    { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true }]
+                    { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true }])
         }
         function isAutostartSession() { return false }
         function canRestartSystem() { return false }
@@ -109,15 +125,40 @@ Rectangle {
         signal logsSaved(bool ok, string detail)
         function canSaveLogs() { return canLogs }
         function saveLogs() { logSaves++; return true }
-        function themes() { return [] }
-        function skins() { return [] }
+        function themes() { calls.themes++; return [] }
+        function skins() { calls.skins++; return [] }
         function getCustomColorSchemes() { return ({}) }
         function getCustomColorScheme() { return ({}) }
         function localIpAddress() { return "" }
+        // How many times config.json was written, and the settings held
+        // back from it: a slider's steps (save_setting_soon()), which are
+        // its value at once and written with flush_settings() or the next
+        // save. settingsNotSaved() is what AppCore says when that write
+        // fails.
+        property int writes: 0
+        property var held: []
+        signal settingsNotSaved()
         function save_setting(module, key, value) {
             var v = Object.assign({}, values)
             v[key] = value
             values = v
+            writes++
+            held = []
+            return true
+        }
+        function save_setting_soon(module, key, value) {
+            var v = Object.assign({}, values)
+            v[key] = value
+            values = v
+            if (held.indexOf(key) < 0)
+                held = held.concat([key])
+            return true
+        }
+        function flush_settings() {
+            if (held.length > 0) {
+                writes++
+                held = []
+            }
             return true
         }
         // Several at once, and how many times that was asked.
@@ -125,6 +166,8 @@ Rectangle {
         function save_settings(module, some) {
             batches++
             values = Object.assign({}, values, some)
+            writes++
+            held = []
             return true
         }
         // Paste OSD/OS Setup: what was pasted, and a setting it sets.
@@ -154,14 +197,74 @@ Rectangle {
     QtObject {
         id: audioOutput
         property bool available: false
+        // Its row as AudioOutput::settingRow() gives it, from the cards
+        // there are as it is asked.
+        property var row: ({ options: ["Auto"], values: [""], value: "Auto", note: "" })
+        function settingRow() { return row }
     }
     QtObject {
         id: bluetoothManager
         property bool supported: false
+        // As BluetoothManager has them: devicesChanged is the property's own.
+        property bool powered: false
+        property var devices: []
+        signal adapterChanged()
+    }
+    // The boot screen there is on the OSD/OS image (BootProgress).
+    QtObject {
+        id: bootProgress
+        property bool available: true
+    }
+    // The screen saver's tracker (IdleTracker), as the pages that hold the
+    // saver off use it.
+    QtObject {
+        id: idleTracker
+        property bool viewActive: false
+        property int resets: 0
+        function resetActivity() { resets++ }
+    }
+    // Export to OSD/OS Setup's codes (SetupExporter): one, made at once.
+    QtObject {
+        id: setupExport
+        property var links: ["https://osdos.tv/setup/#1"]
+        property bool busy: false
+        property var missing: []
+        property var carried: []
+        function make(version) {}
+        function clear() {}
+    }
+    // SystemSettings as the page uses it: what the system has, the lists to
+    // pick from, and what was asked of it.
+    QtObject {
+        id: systemSettings
+        property bool available: false
+        property string timeZone: "Europe/Istanbul"
+        property string keyboard: "tr"
+        property string keyboardName: "Turkish (Q)"
+        readonly property var timeZones: [{ name: "America/New_York", region: "America" },
+                                          { name: "Asia/Tokyo", region: "Asia" },
+                                          { name: "Europe/Berlin", region: "Europe" },
+                                          { name: "Europe/Istanbul", region: "Europe" },
+                                          { name: "UTC", region: "UTC" }]
+        readonly property var keyboards: [{ name: "English (US)", code: "us" }, { name: "German", code: "de" },
+                                          { name: "Turkish (Q)", code: "tr" }]
+        property bool busy: false
+        property string message: ""
+        property var asked: []
+        signal changed()
+        function setTimeZone(zone) { asked = asked.concat(["time-zone " + zone]); return true }
+        function setKeyboard(code) { asked = asked.concat(["keyboard " + code]); return true }
+        function clearMessage() { message = "" }
     }
     QtObject {
         id: wifiManager
         property bool supported: false
+        // Not supported for the launcher alone (WifiManager::launcherTooOld).
+        property bool launcherTooOld: false
+        // As WifiManager has them: stateChanged is the property's own.
+        property bool enabled: true
+        property string state: ""
+        property var current: ({})
     }
 
     // Where the page asked to go, and how often back out of it.
@@ -190,14 +293,36 @@ Rectangle {
 
         function init() {
             appCore.values = {}
+            appCore.moreModules = []
             appCore.pasted = ""
             appCore.canLogs = false
             appCore.logSaves = 0
+            appCore.writes = 0
+            appCore.held = []
+            appCore.calls.settings = appCore.calls.modules = appCore.calls.themes = appCore.calls.skins = 0
             root.navigations = []
             root.backs = 0
             root.menuLayout = "Standard"
             root.setFrame([], 0, false)
             wifiManager.supported = false
+            wifiManager.launcherTooOld = false
+            systemSettings.available = false
+            systemSettings.timeZone = "Europe/Istanbul"
+            systemSettings.keyboard = "tr"
+            systemSettings.keyboardName = "Turkish (Q)"
+            systemSettings.busy = false
+            systemSettings.message = ""
+            systemSettings.asked = []
+            bootProgress.available = true
+            root.transitionPresets = ["Fade"]
+            root.unusableTransitions = []
+            audioOutput.available = false
+            audioOutput.row = { options: ["Auto"], values: [""], value: "Auto", note: "" }
+            wifiManager.state = ""
+            wifiManager.current = {}
+            bluetoothManager.supported = false
+            bluetoothManager.powered = false
+            bluetoothManager.devices = []
         }
         function cleanup() {
             loader.source = ""
@@ -294,12 +419,13 @@ Rectangle {
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
-                { tag: "screen", lines: ["Display Output", "Monitor", "Test Patterns", "Screen Saver", "Mouse Pointer",
-                                         "Window Mode"] },
+                { tag: "screen", lines: ["Display Output", "Display", "Monitor", "Test Patterns", "Screen Saver",
+                                         "Mouse Pointer", "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
                 { tag: "startup", lines: ["Start on Module", "Play at Startup", "Startup From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update", "About", "# Modules", "Scripts", "Radio"] }
+                { tag: "system", lines: ["Time Zone", "Keyboard", "Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update",
+                                         "About", "# Modules", "Scripts", "Radio"] }
             ]
         }
         function test_pages(data) {
@@ -355,6 +481,58 @@ Rectangle {
             compare(page.offReason(all.indexOf("Music Volume")), "")
         }
 
+        // A slider's steps (Music Volume) are its value at once, on the row
+        // and in the settings, but config.json is not written at each: the
+        // steps are held (save_setting_soon()) and written once, as the page
+        // is left. Another row saved meanwhile is written at once, as ever.
+        function test_sliderWrittenOnce() {
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            var page = open({ group: "sound" })
+            moveTo(page, "Music Volume")
+            for (var volume = 50; volume >= 20; volume -= 10) {
+                keyClick(Qt.Key_Left)
+                compare(appCore.values.menu_music_volume, volume)
+                compare(row(page, "Music Volume").value, volume)
+            }
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.menu_music_volume, 30)
+            compare(appCore.writes, 0)
+            compare(appCore.held, ["menu_music_volume"])
+            // Leaving the page (back, or a page opened from it) writes it.
+            loader.source = ""
+            compare(appCore.writes, 1)
+            compare(appCore.held, [])
+            compare(appCore.values.menu_music_volume, 30)
+
+            // A page left with nothing held writes nothing.
+            page = open({ group: "sound" })
+            moveTo(page, "Menu Music")
+            keyClick(Qt.Key_Left)
+            compare(appCore.writes, 2)
+            loader.source = ""
+            compare(appCore.writes, 2)
+        }
+
+        // Steps the card couldn't take (AppCore's settingsNotSaved, once the
+        // write has failed): the row is back on what is saved, the cursor
+        // still on it.
+        function test_sliderNotSaved() {
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            var page = open({ group: "sound" })
+            moveTo(page, "Music Volume")
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(row(page, "Music Volume").value, 40)
+            // As AppCore does: the settings as the file has them, then told.
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            appCore.held = []
+            appCore.settingsNotSaved()
+            compare(row(page, "Music Volume").value, 60)
+            compare(cursor(page), "Music Volume")
+            keyClick(Qt.Key_Right)
+            compare(row(page, "Music Volume").value, 70)
+        }
+
         // Window Mode, on Screen's page, can be used where the menus can be
         // a window, on a desktop, and is dimmed anywhere else: on the
         // offscreen platform the tests run on, as on the Pi's console.
@@ -376,6 +554,144 @@ Rectangle {
         // select hands the clipboard's text to AppCore, the notice it answers
         // with shows over the rows, made again as they are now, and back
         // closes it.
+        // A child of the page by its objectName.
+        function named(page, name) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].objectName === name)
+                    return page.children[i]
+            }
+            return null
+        }
+
+        // Time Zone and Keyboard, first on System's page: the system's own,
+        // dimmed with why where OSD/OS can't set them; on the image, select
+        // opens the list on the one in force, ◄ ► step by region, select
+        // asks the system for it, the row says Setting meanwhile and follows
+        // the system as it changes, and a refusal is said.
+        function test_systemRows() {
+            var page = open({ group: "system" })
+            compare(lines(page).slice(0, 2), ["Time Zone", "Keyboard"])
+            compare(row(page, "Time Zone").value, "Europe/Istanbul")
+            compare(row(page, "Keyboard").value, "Turkish (Q)")
+            verify(page.offReason(0).indexOf("Only on the OSD/OS image") === 0)
+            verify(page.offReason(1).indexOf("Only on the OSD/OS image") === 0)
+            // The cursor stops on a dimmed row, and select opens nothing.
+            compare(cursor(page), "Time Zone")
+            keyClick(Qt.Key_Return)
+            verify(!named(page, "systemPicker").visible)
+            loader.source = ""
+
+            systemSettings.available = true
+            page = open({ group: "system" })
+            compare(page.offReason(0), "")
+            compare(cursor(page), "Time Zone")
+            var picker = named(page, "systemPicker")
+            verify(picker !== null)
+            verify(!picker.visible)
+            keyClick(Qt.Key_Return)
+            verify(picker.visible)
+            compare(picker.title, "Time Zone")
+            compare(picker.entries.length, 5)
+            compare(picker.entries[0].label, "America/New York")
+            compare(picker.entries[picker.index].value, "Europe/Istanbul")
+            // ◄ ► from region to region, round.
+            keyClick(Qt.Key_Right)
+            compare(picker.entries[picker.index].value, "UTC")
+            keyClick(Qt.Key_Right)
+            compare(picker.entries[picker.index].value, "America/New_York")
+            keyClick(Qt.Key_Left)
+            compare(picker.entries[picker.index].value, "UTC")
+            keyClick(Qt.Key_Left)
+            compare(picker.entries[picker.index].value, "Europe/Berlin")
+            keyClick(Qt.Key_Up)
+            compare(picker.entries[picker.index].value, "Asia/Tokyo")
+            // Back leaves it as it was.
+            keyClick(Qt.Key_Escape)
+            verify(!picker.visible)
+            compare(systemSettings.asked, [])
+            compare(cursor(page), "Time Zone")
+            // Select asks for the one under the cursor.
+            keyClick(Qt.Key_Right)
+            verify(picker.visible)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(!picker.visible)
+            compare(systemSettings.asked, ["time-zone Europe/Berlin"])
+            // On its way, then as the system has it.
+            systemSettings.busy = true
+            compare(row(page, "Time Zone").value, "Setting")
+            keyClick(Qt.Key_Return)
+            verify(!picker.visible)
+            systemSettings.timeZone = "Europe/Berlin"
+            systemSettings.busy = false
+            systemSettings.changed()
+            compare(row(page, "Time Zone").value, "Europe/Berlin")
+            compare(cursor(page), "Time Zone")
+
+            // The keyboard's layouts, by letter.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(picker.visible)
+            compare(picker.title, "Keyboard")
+            compare(picker.entries[picker.index].value, "tr")
+            keyClick(Qt.Key_Right)
+            compare(picker.entries[picker.index].value, "us")
+            keyClick(Qt.Key_Return)
+            compare(systemSettings.asked, ["time-zone Europe/Berlin", "keyboard us"])
+            // Refused: said, and gone with its message once read.
+            var notice = named(page, "systemNotice")
+            verify(!notice.visible)
+            systemSettings.message = "Keyboard set"
+            verify(!notice.visible)
+            systemSettings.message = "Keyboard not set: raspi-config couldn't set it"
+            verify(notice.visible)
+            compare(notice.promptText, "Keyboard not set")
+            compare(notice.subtitleText, "raspi-config couldn't set it")
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible)
+            compare(systemSettings.message, "")
+        }
+
+        // Video Arguments, on TV / Movie's page: Default until something is
+        // typed on the on-screen keyboard, kept without the spaces at its
+        // ends, and Default again once nothing is.
+        function test_videoArguments() {
+            var page = open({ group: "tv" })
+            compare(lines(page).indexOf("Video Arguments"), lines(page).indexOf("Info Screen") + 1)
+            compare(row(page, "Video Arguments").value, "Default")
+            moveTo(page, "Video Arguments")
+            var keyboard = named(page, "videoArgsKeyboard")
+            verify(keyboard !== null)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.text, "")
+            keyboard.accepted("  --vo=gpu --hwdec=no ")
+            verify(!keyboard.visible)
+            compare(appCore.values.mpv_video_args, "--vo=gpu --hwdec=no")
+            compare(row(page, "Video Arguments").value, "--vo=gpu --hwdec=no")
+            compare(cursor(page), "Video Arguments")
+            // Opened again on what is saved; back keeps it.
+            keyClick(Qt.Key_Right)
+            verify(keyboard.visible)
+            compare(keyboard.text, "--vo=gpu --hwdec=no")
+            keyboard.canceled()
+            compare(appCore.values.mpv_video_args, "--vo=gpu --hwdec=no")
+            keyClick(Qt.Key_Return)
+            keyboard.accepted("")
+            compare(appCore.values.mpv_video_args, "")
+            compare(row(page, "Video Arguments").value, "Default")
+        }
+
+        // Display, on Screen's page: the displays there are, by number, name
+        // and size, and nothing to choose with one.
+        function test_displayRow() {
+            var page = open({ group: "screen" })
+            var display = row(page, "Display")
+            compare(display.options.length, Qt.application.screens.length)
+            verify(display.value.indexOf("1: ") === 0, display.value)
+            compare(page.offReason(lines(page).indexOf("Display")) === "", Qt.application.screens.length > 1)
+        }
+
         function test_pasteSetup() {
             var page = open({ group: "system" })
             var all = lines(page)
@@ -566,9 +882,9 @@ Rectangle {
             loader.source = ""
             page = open({ group: "system" })
             list = listOf(page)
-            hover(middle(list.itemAtIndex(3)))
+            hover(middle(list.itemAtIndex(5)))
             compare(cursor(page), "About")
-            hover(middle(list.itemAtIndex(4)))
+            hover(middle(list.itemAtIndex(6)))
             compare(cursor(page), "About")
         }
 
@@ -691,6 +1007,104 @@ Rectangle {
             compare(root.backs, 1)
         }
 
+        // Camcorder and Studio Monitor: a move along the icons makes the rows
+        // of the page moved to, once, and nothing else. The settings, the
+        // modules, the first screen's rows and the icons are as they were
+        // read when the page was made: not read again for each icon passed,
+        // nor the icons handed to the frame anew. Look's themes and skins
+        // are listed as its rows are made, once a visit.
+        function test_iconMovesMakeOnlyThePagesRows_data() {
+            return [{ tag: "Camcorder", layout: "Camcorder", first: 0 },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", first: 1 }]
+        }
+        function test_iconMovesMakeOnlyThePagesRows(data) {
+            root.menuLayout = data.layout
+            var page = open()
+            verify(page.inIcons())
+            compare(appCore.calls.settings, 1)
+            compare(appCore.calls.modules, 1)
+            // Studio Monitor opens on Status, which reads the theme's name
+            // from Look's rows.
+            var listed = data.first
+            compare(appCore.calls.themes, listed)
+            compare(appCore.calls.skins, listed)
+            var pages = page.camPages
+            var icons = root.frameIcons
+            var shown = []
+            // Down every page, round to the first, and back up over two.
+            for (var i = 0; i < pages.length + 2; i++) {
+                keyClick(i < pages.length ? Qt.Key_Down : Qt.Key_Up)
+                shown.push(lines(page)[0])
+            }
+            compare(page.camIndex, pages.length - 2)
+            compare(appCore.calls.settings, 1)
+            compare(appCore.calls.modules, 1)
+            verify(page.camPages === pages, "the pages as they were made")
+            if (data.layout === "Camcorder")
+                verify(root.frameIcons === icons, "the icons as they were handed")
+            // Every page's rows as its own page has them: each page's first.
+            var firstRows = ["Scaling", "Arcade", "Theme", "Display Output", "Audio Output", "Controls", "Wi-Fi",
+                             "Start on Module", "Time Zone", "Quit"]
+            if (data.first === 1)
+                firstRows.unshift("Output")
+            var expected = []
+            for (i = 0; i < pages.length; i++)
+                expected.push(firstRows[(i + 1) % pages.length])
+            expected.push(firstRows[pages.length - 1], firstRows[pages.length - 2])
+            compare(shown, expected)
+            // Look was passed once on the way: its themes and skins listed
+            // once for its rows (and once more for Status, passed once).
+            compare(appCore.calls.themes, listed + 1 + data.first)
+            compare(appCore.calls.skins, listed + 1 + data.first)
+        }
+
+        // What a page's row was set to is what it shows when the icons come
+        // back to the page, a slider's step too, without the settings read
+        // again; a setting another hand changed meanwhile is read before the
+        // next rows are made.
+        function test_iconMovesKeepWhatWasSet() {
+            root.menuLayout = "Camcorder"
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            var page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines(page)[0], "Theme")
+            keyClick(Qt.Key_Right)
+            moveTo(page, "Hint Bar")
+            compare(row(page, "Hint Bar").value, "On")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.hint_bar, "Off")
+            keyClick(Qt.Key_Escape)
+            verify(page.inIcons())
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines(page)[0], "Audio Output")
+            keyClick(Qt.Key_Right)
+            moveTo(page, "Music Volume")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.menu_music_volume, 50)
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(row(page, "Hint Bar").value, "Off")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(row(page, "Music Volume").value, 50)
+            compare(appCore.calls.settings, 1)
+
+            // Another hand's: Window Mode's key, a setup file taken, a module.
+            appCore.values = Object.assign({}, appCore.values, { screensaver_timeout: "60" })
+            appCore.appSettingChanged("screensaver_timeout", "60")
+            compare(appCore.calls.settings, 1)
+            keyClick(Qt.Key_Up)
+            compare(lines(page)[0], "Display Output")
+            compare(row(page, "Screen Saver").value, "60")
+            compare(appCore.calls.settings, 2)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)
+            compare(appCore.calls.settings, 2)
+        }
+
         // Camcorder: a page that is a view of its own (Arcade's) shows its
         // first-screen row, and ► opens it, keeping where the cursor was;
         // a page opened from the rows (Look's Effects) has the column too,
@@ -809,6 +1223,50 @@ Rectangle {
             compare(lines(page), ["Arcade"])
         }
 
+        // Studio Monitor's Status follows what it shows while it is open:
+        // Wi-Fi's line as a network is joined, Bluetooth's as a device
+        // connects or it is turned off, the keys still in the strip. An
+        // output OSD/OS doesn't offer here reads System, the system's own,
+        // not None. On another page nothing is made again for them.
+        function test_statusFollows() {
+            root.menuLayout = "Studio Monitor"
+            wifiManager.supported = true
+            wifiManager.state = "disconnected"
+            bluetoothManager.supported = true
+            bluetoothManager.powered = true
+            var page = open()
+            compare(row(page, "Output").value, "System")
+            compare(row(page, "Audio").value, "System")
+            compare(row(page, "Wi-Fi").value, "Not Joined")
+            compare(row(page, "Bluetooth").value, "On")
+            wifiManager.current = { ssid: "Home" }
+            wifiManager.state = "connected"
+            compare(row(page, "Wi-Fi").value, "Home")
+            bluetoothManager.devices = [{ connected: true }, { connected: false }]
+            compare(row(page, "Bluetooth").value, "1 Connected")
+            bluetoothManager.powered = false
+            bluetoothManager.adapterChanged()
+            compare(row(page, "Bluetooth").value, "Off")
+            verify(page.inIcons())
+            compare(chromeOf(page).title, "Status")
+            // A sound card OSD/OS chooses reads as its row does.
+            audioOutput.available = true
+            page.audioFollowInterval = 50
+            wifiManager.state = "disconnected"
+            compare(row(page, "Wi-Fi").value, "Not Joined")
+            compare(row(page, "Audio").value, "Auto")
+            audioOutput.row = { options: ["Auto (USB Audio)", "USB Audio"], values: ["", { card: "Device", name: "USB Audio" }],
+                                value: "Auto (USB Audio)", note: "" }
+            tryVerify(function() { return row(page, "Audio").value === "Auto (USB Audio)" }, 3000)
+            // TV / Movie's page: left as it is.
+            keyClick(Qt.Key_Down)
+            compare(lines(page)[0], "Scaling")
+            var built = page.settingsItems
+            wifiManager.state = "connected"
+            bluetoothManager.adapterChanged()
+            verify(page.settingsItems === built)
+        }
+
         // Broadcast: the first screen as a list, Key Protect (Cabinet Lock)
         // at its foot; a value changed in two steps: select, ▲ ▼ through
         // the choices with nothing saved, select saves, back leaves it.
@@ -919,6 +1377,226 @@ Rectangle {
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
         }
 
+        // Audio Output's cards are read again while Sound's page stays open:
+        // a card plugged in is offered and one taken out goes, or reads
+        // (Unplugged) while it is the one chosen, the cursor kept where it
+        // is; while nothing changes the page is left as it is, and so it is
+        // under a value being changed in two steps.
+        function test_audioOutputFollowsTheCards() {
+            var hdmi = { card: "vc4hdmi0", name: "HDMI" }
+            var usb = { card: "Device", name: "USB Audio" }
+            audioOutput.available = true
+            audioOutput.row = { options: ["Auto", "HDMI"], values: ["", hdmi], value: "Auto", note: "No USB sound card" }
+            var page = open({ group: "sound" })
+            page.audioFollowInterval = 50
+            compare(row(page, "Audio Output").options, ["Auto", "HDMI"])
+            verify(row(page, "Audio Output").description.indexOf("No USB sound card") > 0)
+            moveTo(page, "Menu Music")
+            var built = page.settingsItems
+            wait(300)
+            verify(page.settingsItems === built, "left as it is while the cards stay")
+            audioOutput.row = { options: ["Auto", "HDMI", "USB Audio"], values: ["", hdmi, usb], value: "Auto", note: "" }
+            tryVerify(function() { return row(page, "Audio Output").options.length === 3 }, 3000)
+            compare(row(page, "Audio Output").options, ["Auto", "HDMI", "USB Audio"])
+            compare(cursor(page), "Menu Music")
+            // Chosen, then taken out.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.audio_output, usb)
+            audioOutput.row = { options: ["Auto", "HDMI", "USB Audio (Unplugged)"], values: ["", hdmi, usb],
+                                value: "USB Audio (Unplugged)", note: "No USB sound card" }
+            tryVerify(function() { return row(page, "Audio Output").value === "USB Audio (Unplugged)" }, 3000)
+            compare(cursor(page), "Audio Output")
+            // Broadcast: not under a value being changed.
+            loader.source = ""
+            root.menuLayout = "Broadcast"
+            page = open({ group: "sound" })
+            page.audioFollowInterval = 50
+            keyClick(Qt.Key_Return)
+            verify(page.editIndex >= 0)
+            audioOutput.row = { options: ["Auto", "HDMI"], values: ["", hdmi], value: "Auto", note: "" }
+            wait(300)
+            verify(page.editIndex >= 0)
+            compare(row(page, "Audio Output").options.length, 3)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return row(page, "Audio Output").options.length === 2 }, 3000)
+        }
+
+        // A part's row (the eight a theme sets) whose saved value is not
+        // among its choices shows what is drawn in its place, not its first
+        // choice: a color scheme removed since Video 1, a skin gone from its
+        // folder None, an effect's unknown name Off, a transition this
+        // system can't play Fade and an unknown one Off; Menu Music's is the
+        // theme's. ◄ ► go on from what is shown. A value among the choices
+        // shows as itself.
+        function test_partRowsInForce() {
+            root.transitionPresets = ["Fade", "Cube", "Ripple"]
+            root.unusableTransitions = ["Ripple"]
+            var saved = { osd_theme: "vhs", color_scheme: "My Scheme", skin: "gone", text_effect: "Sparkle",
+                          background_effect: "Gone", selector_effect: "Gone", screen_effect: "Gone",
+                          transition: "Ripple", menu_music: "Gone" }
+            appCore.values = saved
+            var page = open({ group: "look" })
+            compare(row(page, "Color Scheme").options, ["Theme", "Video 1", "Late Night"])
+            compare(row(page, "Color Scheme").value, "Video 1")
+            compare(row(page, "Skin").options, ["Theme", "None"])
+            compare(row(page, "Skin").value, "None")
+            moveTo(page, "Color Scheme")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.color_scheme, "Late Night")
+            loader.source = ""
+            appCore.values = saved
+            page = open({ group: "effects" })
+            compare(row(page, "Text Effect").value, "Off")
+            compare(row(page, "Background Effect").value, "Off")
+            compare(row(page, "Selector Effect").value, "Off")
+            compare(row(page, "Screen Effect").value, "Off")
+            compare(row(page, "Transition").options, ["Theme", "Off", "Fade", "Cube"])
+            compare(row(page, "Transition").value, "Fade")
+            loader.source = ""
+            appCore.values = saved
+            page = open({ group: "sound" })
+            compare(row(page, "Menu Music").value, "Theme")
+            // A transition of no name there is: none plays.
+            loader.source = ""
+            appCore.values = { osd_theme: "vhs", transition: "Gone", color_scheme: "Late Night", text_effect: "" }
+            page = open({ group: "effects" })
+            compare(row(page, "Transition").value, "Off")
+            compare(row(page, "Text Effect").value, "Theme")
+            loader.source = ""
+            page = open({ group: "look" })
+            compare(row(page, "Color Scheme").value, "Late Night")
+            // Without a theme: the same, where there is no THEME to show.
+            loader.source = ""
+            appCore.values = { color_scheme: "My Scheme", transition: "Ripple", selector_effect: "Gone", skin: "gone" }
+            page = open({ group: "look" })
+            compare(row(page, "Color Scheme").value, "Video 1")
+            compare(row(page, "Skin").value, "None")
+            loader.source = ""
+            page = open({ group: "effects" })
+            compare(row(page, "Transition").value, "Fade")
+            compare(row(page, "Selector Effect").value, "Off")
+        }
+
+        // Info Screen, on TV / Movie's page, is Netflix's, Prime Video's and
+        // YouTube's: with none of them turned on it is dimmed, saying whose
+        // it is, and ◄ ► leave it as it is; with one on (not merely
+        // installed), a row like the others.
+        function test_infoScreenRow() {
+            appCore.moreModules = [{ id: "com.osdos.youtube", name: "YouTube", has_settings: false,
+                                     settings_group: "tv", enabled: false }]
+            var page = open({ group: "tv" })
+            var at = lines(page).indexOf("Info Screen")
+            compare(page.offReason(at), "Only with Netflix, Prime Video or YouTube enabled")
+            listOf(page).currentIndex = at
+            verify(helpOf(page).text.indexOf("Only with Netflix, Prime Video or YouTube enabled") === 0, helpOf(page).text)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.info_screen, undefined)
+            var on = ["com.osdos.youtube", "com.osdos.netflix", "com.osdos.prime_video"]
+            for (var i = 0; i < on.length; i++) {
+                loader.source = ""
+                appCore.values = {}
+                appCore.moreModules = [{ id: on[i], name: "Films", has_settings: false, settings_group: "tv", enabled: true }]
+                page = open({ group: "tv" })
+                compare(page.offReason(at), "")
+                listOf(page).currentIndex = at
+                keyClick(Qt.Key_Right)
+                compare(appCore.values.info_screen, "5")
+            }
+        }
+
+        // Startup From, on Startup's page, is for a favourite that can be
+        // resumed, Local Files' or YouTube's: with none it waits for Play at
+        // Startup; with an Arcade game's, or a web player's title's, it is
+        // dimmed, saying whose it is for, and ◄ ► leave it as it is.
+        function test_startupFromRow() {
+            var page = open({ group: "startup" })
+            var at = lines(page).indexOf("Startup From")
+            compare(page.offReason(at), "Off while Play at Startup is None")
+            var favorites = [{ module: "com.osdos.local_files", usable: true },
+                             { module: "com.osdos.youtube", usable: true },
+                             { module: "com.osdos.arcade", usable: false },
+                             { module: "com.osdos.netflix", usable: false }]
+            for (var i = 0; i < favorites.length; i++) {
+                loader.source = ""
+                appCore.values = { startup_favorite: { module: favorites[i].module, path: "p", name: "Favourite" } }
+                page = open({ group: "startup" })
+                compare(row(page, "Play at Startup").value, "Favourite")
+                compare(page.offReason(at), favorites[i].usable ? "" : "Only with a Local Files or YouTube favourite")
+                moveTo(page, "Startup From")
+                compare(menuRow(page, at).dimmed, !favorites[i].usable)
+                keyClick(Qt.Key_Right)
+                compare(appCore.values.startup_from, favorites[i].usable ? "Beginning" : undefined)
+            }
+            verify(helpOf(page).text.indexOf("Only with a Local Files or YouTube favourite") === 0, helpOf(page).text)
+        }
+
+        // Boot Screen Colors, on Look's page: a row like the others on the
+        // OSD/OS image, which has a boot screen; anywhere else dimmed, the
+        // help line saying where it is for, ◄ ► leaving it as it is.
+        function test_bootScreenColorsRow() {
+            var page = open({ group: "look" })
+            var at = lines(page).indexOf("Boot Screen Colors")
+            compare(page.offReason(at), "")
+            moveTo(page, "Boot Screen Colors")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.boot_colors, "Default")
+            loader.source = ""
+            appCore.values = {}
+            bootProgress.available = false
+            page = open({ group: "look" })
+            compare(page.offReason(at), "Only on the OSD/OS image, which has a boot screen")
+            moveTo(page, "Boot Screen Colors")
+            verify(menuRow(page, at).dimmed)
+            verify(helpOf(page).text.indexOf("Only on the OSD/OS image") === 0, helpOf(page).text)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.boot_colors, undefined)
+        }
+
+        // Cabinet Lock's row says what the lock does now: On while there is a
+        // Start on Module to stay on; with none (set to None since, or its
+        // module turned off) On (No Module), the help line saying it locks
+        // nothing; it follows Start on Module as that changes on the page,
+        // and still opens its page. Studio Monitor's Status says the same.
+        function test_cabinetLockRow() {
+            appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.arcade" }
+            var page = open({ group: "startup" })
+            compare(row(page, "Cabinet Lock").value, "On")
+            compare(cursor(page), "Start on Module")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.startup_module, "None")
+            compare(row(page, "Cabinet Lock").value, "On (No Module)")
+            compare(cursor(page), "Start on Module")
+            moveTo(page, "Cabinet Lock")
+            verify(helpOf(page).text.indexOf("Locks nothing now") === 0, helpOf(page).text)
+            compare(page.offReason(lines(page).indexOf("Cabinet Lock")), "")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "views/CabinetLock.qml")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "Start on Module")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.startup_module, "com.osdos.arcade")
+            compare(row(page, "Cabinet Lock").value, "On")
+            // A module turned off since is no module to stay on; off is Off.
+            loader.source = ""
+            appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.plex" }
+            page = open({ group: "startup" })
+            compare(row(page, "Cabinet Lock").value, "On (No Module)")
+            loader.source = ""
+            appCore.values = { cabinet_lock: "Off" }
+            page = open({ group: "startup" })
+            compare(row(page, "Cabinet Lock").value, "Off")
+            loader.source = ""
+            root.menuLayout = "Studio Monitor"
+            appCore.values = { cabinet_lock: "On" }
+            page = open()
+            compare(row(page, "Cabinet Lock").value, "On (No Module)")
+        }
+
         // Test Patterns, on Screen's page on every machine, opens its page.
         function test_testPatternsRow() {
             var page = open({ group: "screen" })
@@ -936,12 +1614,93 @@ Rectangle {
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 0)
+            // Kept off by an old launcher alone, on a machine NetworkManager
+            // runs on: dimmed still, the reason what it needs, not where it
+            // would work.
+            loader.source = ""
+            wifiManager.launcherTooOld = true
+            page = open({ group: "network" })
+            verify(page.offReason(0).indexOf("Needs a newer launcher") === 0, page.offReason(0))
+            verify(page.offReason(0).indexOf("NetworkManager") < 0)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            wifiManager.launcherTooOld = false
             loader.source = ""
             wifiManager.supported = true
             page = open({ group: "network" })
             compare(page.offReason(0), "")
             keyClick(Qt.Key_Return)
             compare(root.navigations[root.navigations.length - 1].path, "views/Wifi.qml")
+        }
+    }
+
+    // Settings' pages that are read with no key pressed hold the screen saver
+    // off while they are (IdleTracker's viewActive), and let it come again
+    // as they go.
+    TestCase {
+        name: "SaverHeldOff"
+        when: windowShown
+
+        function init() {
+            idleTracker.viewActive = false
+            idleTracker.resets = 0
+            root.backs = 0
+        }
+        function cleanup() {
+            loader.source = ""
+        }
+
+        // Export to OSD/OS Setup (views/SetupExport.qml): its question is a
+        // menu like any other; once the codes are up, which a phone reads,
+        // the saver waits, until the page goes. Left at the question, it
+        // never held it.
+        function test_exportCodes() {
+            loader.setSource(Qt.resolvedUrl("../../views/SetupExport.qml"), { navParams: {} })
+            var page = loader.item
+            verify(page !== null, "loaded SetupExport.qml")
+            page.forceActiveFocus()
+            verify(page.asking)
+            verify(!idleTracker.viewActive)
+            keyClick(Qt.Key_Return)
+            verify(!page.asking)
+            verify(idleTracker.viewActive)
+            compare(idleTracker.resets, 0)
+            loader.source = ""
+            tryVerify(function() { return !idleTracker.viewActive })
+            compare(idleTracker.resets, 1)
+            idleTracker.resets = 0
+            loader.setSource(Qt.resolvedUrl("../../views/SetupExport.qml"), { navParams: {} })
+            loader.item.forceActiveFocus()
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            loader.source = ""
+            wait(50)
+            verify(!idleTracker.viewActive)
+            compare(idleTracker.resets, 0)
+        }
+
+        // A Bluetooth pairing's code (views/BluetoothPrompt.qml), typed on
+        // the device or compared with its own: the saver waits while it is
+        // up, and may come again once the pairing is done, or the page goes
+        // with it up.
+        function test_pairingCode() {
+            loader.setSource(Qt.resolvedUrl("../../views/BluetoothPrompt.qml"), { prompt: {} })
+            var prompt = loader.item
+            verify(prompt !== null, "loaded BluetoothPrompt.qml")
+            verify(!prompt.visible)
+            verify(!idleTracker.viewActive)
+            prompt.prompt = { kind: "passkey", code: "123456", entered: 0, name: "Keyboard" }
+            verify(prompt.visible)
+            verify(idleTracker.viewActive)
+            prompt.prompt = {}
+            verify(!prompt.visible)
+            verify(!idleTracker.viewActive)
+            compare(idleTracker.resets, 1)
+            prompt.prompt = { kind: "confirm", code: "123456", name: "Pad" }
+            verify(idleTracker.viewActive)
+            loader.source = ""
+            tryVerify(function() { return !idleTracker.viewActive })
+            compare(idleTracker.resets, 2)
         }
     }
 
@@ -998,6 +1757,188 @@ Rectangle {
             bar.visible = false
             wait(2500)
             compare(title.x, 0)
+        }
+    }
+
+    // Every symbol PixelIcon has, side by side on a ground of a colour no
+    // symbol is drawn in, as the component draws them: pictures from the
+    // app's image provider.
+    Component {
+        id: pictureSheet
+        Rectangle {
+            id: sheet
+            property color ink: "white"
+            property int cell: 2
+            property var names: []
+            width: 620
+            height: flow.height
+            color: "#3a55b4"
+            Flow {
+                id: flow
+                width: parent.width
+                spacing: 3
+                Repeater {
+                    model: sheet.names
+                    Components.PixelIcon {
+                        required property string modelData
+                        name: modelData
+                        color: sheet.ink
+                        pixel: sheet.cell
+                    }
+                }
+            }
+        }
+    }
+    // The same, each painted on a Canvas of its own from its cells, a run of
+    // set cells a rectangle: how PixelIcon drew a symbol before it was a
+    // picture, and what the pictures are held to.
+    Component {
+        id: canvasSheet
+        Rectangle {
+            id: sheet
+            property color ink: "white"
+            property int cell: 2
+            property var names: []
+            property var shapes: ({})
+            property int painted: 0
+            width: 620
+            height: flow.height
+            color: "#3a55b4"
+            Flow {
+                id: flow
+                width: parent.width
+                spacing: 3
+                Repeater {
+                    model: sheet.names
+                    Canvas {
+                        required property string modelData
+                        readonly property var rows: sheet.shapes[modelData] || []
+                        width: (rows.length ? rows[0].length : 0) * sheet.cell
+                        height: rows.length * sheet.cell
+                        antialiasing: false
+                        smooth: false
+                        onPainted: sheet.painted++
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.fillStyle = sheet.ink
+                            for (var y = 0; y < rows.length; ++y) {
+                                var row = rows[y]
+                                var x = 0
+                                while (x < row.length) {
+                                    if (row[x] !== "#") {
+                                        ++x
+                                        continue
+                                    }
+                                    var start = x
+                                    while (x < row.length && row[x] === "#")
+                                        ++x
+                                    ctx.fillRect(start * sheet.cell, y * sheet.cell, (x - start) * sheet.cell, sheet.cell)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: pixelIcon
+        Components.PixelIcon {}
+    }
+
+    TestCase {
+        name: "PixelIcon"
+        when: windowShown
+
+        // A symbol is a picture of its cells in its colour, the size of its
+        // cells times its pixel, and two that show the same share it; another
+        // colour, size or symbol is another picture.
+        function test_picture() {
+            var play = createTemporaryObject(pixelIcon, root, { name: "play", color: "#ff8000", pixel: 3 })
+            compare(play.width, 4 * 3)
+            compare(play.height, 7 * 3)
+            compare(play.status, Image.Ready)
+            compare(play.sourceSize, Qt.size(12, 21))
+            verify(String(play.source).indexOf("image://osdpixel/ff8000/1000,1100,1110,1111,") === 0, play.source)
+            var twin = createTemporaryObject(pixelIcon, root, { name: "play", color: "#ff8000", pixel: 3 })
+            compare(twin.source, play.source)
+            twin.color = "#ffffff"
+            verify(twin.source !== play.source)
+            compare(twin.status, Image.Ready)
+            twin.color = "#ff8000"
+            twin.pixel = 4
+            compare(twin.source, play.source)
+            compare(twin.sourceSize, Qt.size(16, 28))
+            compare(twin.status, Image.Ready)
+            // A name it hasn't: nothing drawn, no room taken, no picture asked for.
+            var none = createTemporaryObject(pixelIcon, root, { name: "no such symbol" })
+            compare(none.width, 0)
+            compare(none.height, 0)
+            compare(String(none.source), "")
+            compare(none.status, Image.Null)
+        }
+
+        // Every symbol, at each size a screen gives a pixel and in a scheme's
+        // colours, a dark one on a light ground too: pixel for pixel what a
+        // Canvas painted of it.
+        function test_sameAsPainted_data() {
+            var rows = []
+            var inks = ["#ffffff", "#000000", "#ffb000", "#1e90ff", "#102030"]
+            var cells = [1, 2, 3, 4, 6]
+            for (var c = 0; c < cells.length; c++) {
+                for (var i = 0; i < inks.length; i++)
+                    rows.push({ tag: cells[c] + " px " + inks[i], cell: cells[c], ink: inks[i] })
+            }
+            return rows
+        }
+        function test_sameAsPainted(data) {
+            var probe = createTemporaryObject(pixelIcon, root, {})
+            var shapes = probe.shapes
+            var names = Object.keys(shapes)
+            verify(names.length >= 38, "every symbol: " + names.length)
+
+            var painted = createTemporaryObject(canvasSheet, root, { ink: data.ink, cell: data.cell,
+                                                                    names: names, shapes: shapes })
+            var pictures = createTemporaryObject(pictureSheet, root, { ink: data.ink, cell: data.cell, names: names })
+            tryVerify(function() { return painted.painted >= names.length }, 5000, "every Canvas painted")
+            compare(pictures.width, painted.width)
+            compare(pictures.height, painted.height)
+            verify(pictures.height >= 7 * data.cell)
+
+            var was = grabImage(painted)
+            var now = grabImage(pictures)
+            compare(now.width, was.width)
+            compare(now.height, was.height)
+            // The two sheets the same, pixel for pixel; where they aren't,
+            // the first pixel that differs is said.
+            if (!now.equals(was)) {
+                for (var y = 0; y < was.height; y++) {
+                    for (var x = 0; x < was.width; x++) {
+                        if (!Qt.colorEqual(was.pixel(x, y), now.pixel(x, y)))
+                            fail("at " + x + "," + y + ": painted " + was.pixel(x, y) + ", the picture " + now.pixel(x, y))
+                    }
+                }
+                fail("the sheets differ, though no pixel does")
+            }
+            // And not two sheets of nothing: the first symbol, play, is its
+            // sixteen cells in the colour and twelve clear.
+            compare(names[0], "play")
+            var inked = 0, clear = 0
+            for (y = 0; y < 7 * data.cell; y++) {
+                for (x = 0; x < 4 * data.cell; x++) {
+                    if (Qt.colorEqual(now.pixel(x, y), data.ink))
+                        inked++
+                    else if (Qt.colorEqual(now.pixel(x, y), pictures.color))
+                        clear++
+                }
+            }
+            compare(inked, 16 * data.cell * data.cell)
+            compare(clear, 12 * data.cell * data.cell)
+            // Its tip a cell wide, its fourth row all four.
+            verify(Qt.colorEqual(now.pixel(0, 0), data.ink))
+            verify(Qt.colorEqual(now.pixel(data.cell, 0), pictures.color))
+            verify(Qt.colorEqual(now.pixel(4 * data.cell - 1, 3 * data.cell), data.ink))
         }
     }
 }

@@ -33,7 +33,7 @@ RETRY, or the next video, gets the device's decoders again.
 
 ### The control channel
 
-OSD/OS controls each video's mpv over a socket, `/tmp/osdos-mpv.sock` (`--input-ipc-server`; a named pipe on Windows).
+OSD/OS controls each video's mpv over a socket, `osdos-mpv.sock` in its [run-time folder](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files) (`--input-ipc-server`; `/tmp/runtime-pi/` on the image, a named pipe on Windows).
 
 - Keys reach mpv this way: on a Pi, mpv reads no keyboard itself.
 - Settings changed during a video apply this way: the speed, looping, Scaling, the sound card.
@@ -41,7 +41,7 @@ OSD/OS controls each video's mpv over a socket, `/tmp/osdos-mpv.sock` (`--input-
 
 ### Back, and the end of a video
 
-OSD/OS writes each video's key bindings to `osdos-input.conf` in the temporary folder:
+OSD/OS writes each video's key bindings to `osdos-input.conf` in the same folder:
 
 ```text
 ESC script-message osdos-menu
@@ -50,6 +50,7 @@ ENTER cycle pause
 ```
 
 - Your own `~/.config/mpv/input.conf` isn't read. mpv's built-in bindings stay (Space pauses, ◄ ► seek).
+- A file that can't be written isn't given to mpv: that video plays with mpv's own bindings, back still ends it, and the log says `[MpvController] The keys' file for mpv couldn't be written`.
 - While the deck menu or the screen saver is open, back closes that first.
 - [Using OSD/OS → Back during a video](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#back-during-a-video) says what back does in each module.
 
@@ -88,8 +89,8 @@ A Local Files film on a Pi 4 with the OSD/OS image, resumed at 12:34.2. All sett
 
 ```sh
 /usr/bin/mpv \
-  --input-ipc-server=/tmp/osdos-mpv.sock \
-  --log-file=/tmp/osdos-mpv.log \
+  --input-ipc-server=/tmp/runtime-pi/osdos-mpv.sock \
+  --log-file=/tmp/runtime-pi/osdos-mpv.log \
   --osc=no \
   --osd-level=0 \
   --script=/opt/osdos/share/osdos/scripts/mpv-osc.lua \
@@ -101,7 +102,7 @@ A Local Files film on a Pi 4 with the OSD/OS image, resumed at 12:34.2. All sett
   --script-opts=logo-corner=tr \
   --image-display-duration=5.0 \
   --ytdl=no \
-  --input-conf=/tmp/osdos-input.conf \
+  --input-conf=/tmp/runtime-pi/osdos-input.conf \
   --input-ar-delay=150 \
   --input-ar-rate=6 \
   --video-sync=audio \
@@ -114,7 +115,7 @@ A Local Files film on a Pi 4 with the OSD/OS image, resumed at 12:34.2. All sett
 
 - Settings, the module and the device change the line: see How the flags are layered, below.
 - A desktop has `--fullscreen --no-native-fs`, and no `--vo` or `--no-input-terminal`.
-- `grep 'Command line' /tmp/osdos-mpv.log` shows the last video's command line, tokens included. The file is readable by its owner only.
+- `grep 'Command line' /tmp/runtime-pi/osdos-mpv.log` shows the last video's command line, tokens included. The file is readable by its owner only.
 
 ## Transparent Background: mpv inside the app
 
@@ -176,12 +177,13 @@ OSD/OS reads the board's model from `/proc/device-tree/model` and picks the flag
 
 | Device | Drawn on the GPU | Drawn on the CPU |
 |---|---|---|
-| Pi 4 | `--hwdec=drm,v4l2m2m,drm-copy,v4l2m2m-copy --fbo-format=rgba8 --profile=fast --dscale=hermite --correct-downscaling=yes --dither=fruit` | `--hwdec=drm-copy,v4l2m2m-copy` |
-| Pi 3 | `--hwdec=v4l2m2m,v4l2m2m-copy` and the same five | `--hwdec=v4l2m2m-copy` |
+| Pi 4 | `--hwdec=drm,v4l2m2m,drm-copy,v4l2m2m-copy --gpu-hwdec-interop=drmprime --fbo-format=rgba8 --profile=fast --dscale=hermite --correct-downscaling=yes --dither=fruit` | `--hwdec=drm-copy,v4l2m2m-copy` |
+| Pi 3 | `--hwdec=v4l2m2m,v4l2m2m-copy --gpu-hwdec-interop=drmprime` and the same five | `--hwdec=v4l2m2m-copy` |
 | Pi 5 | `--hwdec=auto-copy-safe` and the same five | `--hwdec=auto-copy-safe` |
 | Any other Linux | `--hwdec=nvdec,vaapi-copy,nvdec-copy,no --fbo-format=rgba8` | `--hwdec=vaapi-copy,nvdec-copy,no` |
 | macOS | (Qt draws with Metal there, so the picture is drawn on the CPU) | `--hwdec=videotoolbox-copy`, and `--osd-fonts-dir` for the VCR font |
 
+- Where plain ALSA plays (the image, Raspberry Pi OS Lite), a video inside the app is also given `--ao=alsa`, so mpv doesn't try PipeWire, PulseAudio, JACK and sndio first.
 - **Pi 4.** `drm-copy` decodes HEVC; it needs `dtoverlay=rpivid-v4l2` under `[pi4]` in `config.txt`, as the image has it. `v4l2m2m-copy` decodes H.264. VP9 and AV1 decode in software.
 - **Pi 3.** With Settings → TV / Movie → 1080p Playback **On** (the default), 1080p H.264 is smooth but can't be cropped. 14:9 and Pan & Scan then show the whole picture, and the deck menu has no CROP. **Off** crops, for videos of 720p and below. Inside the app the picture can always be cropped.
 - **Pi 5.** The launcher exports `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR` and `OSDOS_DRM_MODE`, so mpv plays on the output the display preset names ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
@@ -204,7 +206,7 @@ On mpv's command line a later flag overrides an earlier one, and the command lin
 
 ## mpv_video_args
 
-`mpv_video_args` in `config.json` replaces the device decode layer: the `--vo`, `--gpu-context` and `--hwdec` flags, and on a Pi 5 the `--drm-*` flags too.
+Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.json`) replaces the device decode layer: the `--vo`, `--gpu-context` and `--hwdec` flags, and on a Pi 5 the `--drm-*` flags too.
 
 ```json
 {
@@ -276,7 +278,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 
 - **Module settings**: Auto Show Subtitles and Subtitle Language (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitle Language and Audio Language (YouTube). Each module's page has the values.
 - The forced-only flags need mpv 0.38 or later.
-- A server's sidecar subtitles show their real names in the deck menu (`/tmp/osdos-mpv-subinfo.json`).
+- A server's sidecar subtitles show their real names in the deck menu (`osdos-mpv-subinfo.json` in the run-time folder).
 - **How subtitles look** is mpv's: `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.
 
 ## Resume points
@@ -307,7 +309,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 Settings → TV / Movie → Channel Logo and Logo Image put a logo in a corner of the picture ([Using OSD/OS → The channel logo](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-channel-logo)).
 
 - mpv draws it (`scripts/mpv-logo.lua`, with `logo-corner=tl`, `tr`, `bl`, `br` or `all` in the script options), in both ways of playing.
-- **Logo Image** is scaled to the logo's height and written to `/tmp/osdos-logo.bgra`. The script gets `logo-image`, `logo-width` and `logo-height`.
+- **Logo Image** is scaled to the logo's height and written to `osdos-logo.bgra` in the run-time folder. The script gets `logo-image`, `logo-width` and `logo-height`.
 - A change applies from the next video.
 
 ## Audio Output and mpv
@@ -377,7 +379,7 @@ MPV_BIN=$(scripts/build-mpv.sh)
 ### First, the logs
 
 - **OSD/OS's log**: `journalctl -u osdos -b` under the autostart service, or the terminal `osdos` was started from. An mpv process's messages appear there as `[mpv] …`.
-- **mpv's full log**: `/tmp/osdos-mpv.log`, the last video's.
+- **mpv's full log**: `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)), the last video's.
 - **The profile**: `journalctl -u osdos -b | grep 'video profile'`. `generic` on a Pi means `/proc/device-tree/model` didn't name a Pi 3, 4 or 5.
 
 ### A video goes straight back to the menu
@@ -402,7 +404,7 @@ A video that can't play ends on a **Playback failed** notice: the reason, mpv's 
 
 ### No hardware decoding
 
-- `grep -i 'hardware decoding' /tmp/osdos-mpv.log` says which decoder played. No line means software decoding.
+- `grep -i 'hardware decoding' /tmp/runtime-pi/osdos-mpv.log` says which decoder played. No line means software decoding.
 - **A Pi running a desktop**: set `"mpv_video_args": "--hwdec=v4l2m2m-copy"`.
 - **HEVC on a Pi 4** needs `dtoverlay=rpivid-v4l2` in `config.txt`, and Raspberry Pi OS's own FFmpeg. VP9 and AV1 have no hardware decoder there.
 - **A video that showed no picture** was tried again in software. The log says `[MpvController] The video plays without the hardware decoder`.

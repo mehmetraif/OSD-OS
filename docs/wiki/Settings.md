@@ -6,7 +6,7 @@ Settings is OSD/OS's own menu. This page lists every page and row in screen orde
 
 ## Getting around
 
-Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its first screen lists the pages: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup**, **System**, then **Quit**.
+Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so does the **Settings** row at the foot of the Standard and Broadcast menus. Its first screen lists the pages: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup**, **System**, then **Quit**.
 
 | Action | Keyboard | Gamepad | What it does in Settings |
 |---|---|---|---|
@@ -16,7 +16,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its fir
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the row that opened the page, or to the main menu |
 
 - A change is saved at once, under `app.<key>` in `config.json` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)).
-- Most rows apply at once. Scaling, Video Levels, Channel Logo, Logo Image, 1080p Playback and Screen Saver during a video apply from the next video.
+- Most rows apply at once. Scaling, Video Levels, Channel Logo, Logo Image, 1080p Playback and Screen Saver during a video apply from the next video; Scaling and Video Levels also at once on a video playing behind the menus (Transparent Background).
 - A value that can't be saved (a full or read-only disk) isn't applied. The log says `[AppCore] Setting not saved: …`.
 - The first screen's title bar shows a release's version and the device's IP address. A page shows its name: `SETTINGS | LOOK`.
 - No row is hidden. One that can't be used is dimmed, and its help line starts with why ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#rows-dimmed-in-settings)).
@@ -37,7 +37,8 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its fir
 | Loading Screen Colors | Theme, Default | Theme | The loading screen in the theme's or colour scheme's colours, or white on blue | `app.loading_colors` |
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | A logo in a corner of the picture while a video plays | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
 | Logo Image | OSD/OS Logo, or a PNG, JPG, JPEG, SVG, GIF, BMP or WebP picked on the file browser | OSD/OS | Your own picture as the channel logo, as tall as OSD/OS's. A PNG with a clear background works best. Only while Channel Logo isn't Off | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
-| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
+| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
+| Video Arguments | Default, or a line typed on the on-screen keyboard | Default | For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)). From the next video | `app.mpv_video_args` |
 
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
@@ -51,7 +52,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its fir
 <tr><td>Your own picture in its place.</td><td>Select on a picture, or <b>OSD/OS Logo</b> to go back to it.</td></tr>
 </table>
 
-**The file browser** that Music File and Logo Image open is Local Files' tree. At its top is the default (**No File**, **OSD/OS Logo**), then **Home**, **Media** (`/media`), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`).
+**The file browser** that Music File and Logo Image open is Local Files' tree. At its top is the default (**No File**, **OSD/OS Logo**), then **Home**, **Media** (`/media`), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`); on Windows, in Root's place, each drive by its letter (**C:**, **D:**).
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: 1080p Playback dimmed, Loading Effect, Loading Screen Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
 
@@ -83,7 +84,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How Settings and the main menu are laid out ([below](#menu-layout)) | `app.menu_layout` |
 | OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Window**: a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
 | Window Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Window | `app.osd_frame` |
-| Boot Screen Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue | `app.boot_colors` |
+| Boot Screen Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors` |
 | Hint Bar | On, Off | On | The key hints at the foot of every screen. Off gives every menu a row more; the keys work as before | `app.hint_bar` |
 | Help Line | On, Off | On | The line about the selected row under a menu. Off hides it everywhere but About | `app.help_line` |
 | Status Icons | On, Off | On | What is on, at the right end of every title bar ([below](#status-icons)) | `app.status_icons` |
@@ -98,7 +99,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | What goes on behind the menus, in the window. Needs a GPU | `app.background_effect` |
 | Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | What goes on round the selected line. Works everywhere | `app.selector_effect` |
 | Screen Effect | THEME, Off, Scanlines, CRT, VHS | A picture tube's or a tape's look over the whole screen. Needs a GPU | `app.screen_effect` |
-| Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade | `app.transition` |
+| Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade, and one saved before plays, and reads, as Fade | `app.transition` |
 
 The effects and the menu music rest while a video plays, loads or has its menu open, and while a player has the screen ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
 
@@ -116,7 +117,7 @@ Every layout has the same pages and rows, and changes at once.
 |---|---|---|
 | Standard | A list, a page at a time | As [above](#getting-around) |
 | Camcorder | The pages as icons in a column, the selected page's rows beside it. The column stays on the pages opened from there (Wi-Fi, Bluetooth, Controls, About, a module's settings) | ▲ ▼ go from page to page, ► or select into the rows, back out to the icons |
-| Studio Monitor | A black window, the pages' icons in a blue strip. Its first page, **Status**, shows what is set | As Camcorder |
+| Studio Monitor | A black window, the pages' icons in a blue strip. Its first page, **Status**, shows what is set (**System** where the system picks the output), and follows it while it is open | As Camcorder |
 | Broadcast | Plain blue, a three-line key guide | A list. A value changes in two steps |
 | Flat Panel | Black, mixed case, a page of rows at a time (`1/2`) | As Broadcast. ◄ goes back |
 
@@ -183,9 +184,10 @@ The Arcade screen shows them at its bottom right. A module turned off takes its 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Display Output | Those this Pi has of: HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p 15 kHz (720x240), JAMMA 240p 15 kHz (320x240), JAMMA 240p 15 kHz (1920x240), JAMMA 288p 15 kHz (720x288), JAMMA 288p 15 kHz (1920x288), JAMMA 480i 15 kHz (720x480), JAMMA 480i 15 kHz (640x480), JAMMA 576i 15 kHz (720x576), JAMMA 25 kHz (496x384), JAMMA 31 kHz (640x480) | The image's build setting, HDMI unless built otherwise | Where the picture goes ([below](#display-output)). On the OSD/OS image only | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
+| Display | Each display there is, by number, name and size | The first | Which display OSD/OS opens on, and mpv plays on, from its next start. Dimmed with one display, as on a Pi | `app.display_index`: `0` for the first |
 | Monitor | Horizontal, Turned Right, Turned Left | Horizontal | For a monitor turned on its side (TATE): menus, games and videos stand upright on it. **Turned Right**: its top is on the right as you face it. **Turned Left**: on the left ([A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)). On a desktop, turn the screen in the system's settings instead. For a monitor turned only for a vertical game, use Arcade → Emulator Video → Vertical Games | `app.monitor` |
 | Test Patterns | A page | | Pictures to set the screen up by ([below](#test-patterns)) | None |
-| Screen Saver | OFF, 30, 60, 120 | OFF | Seconds without a key or a mouse move before a black screen with the OSD/OS logo bouncing across it, in the menus and over a paused video. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
+| Screen Saver | OFF, 30, 60, 120 | OFF | Seconds without a key or a mouse move before a black screen with the OSD/OS logo bouncing across it, in the menus (with a video playing behind them too) and over a paused video. It waits while a Test Pattern, Export to OSD/OS Setup's codes or a Bluetooth pairing's code is up. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
 | Mouse Pointer | Off, 2 sec, 5 sec, 10 sec, 30 sec, Always | 5 sec | How long the pointer stays after the mouse stops. **Off**: never shown, and the selection doesn't follow the mouse. Clicks and the wheel work whatever this is set to ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)) | `app.mouse_pointer`: `off`, `2`, `5`, `10`, `30` or `always` |
 | Window Mode | Off, On | Off | The menus in a desktop window, 960×720 to start with. F11 or Alt+Enter switches at any time. On Windows and on a Linux or BSD desktop only | `app.window_mode` |
 
@@ -251,14 +253,16 @@ More in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
 
 Controls is a page of its own, explained in [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 AUTO (OSD/OS JAMMA P1), PLAYER 2 AUTO (XBOX WIRELESS CO…), PLAYER 3 to PLAYER 6 AUTO" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: 8BITDO PRO 2 PLAYER 3, marked as the one used last and selected, OSD/OS JAMMA P1 PLAYER 1, OSD/OS JAMMA P2 PLAYER 2, KEYBOARDS & REMOTES, NOT CONNECTED 1" />
 
 | Line | What it does |
 |---|---|
-| **All Keyboards & Remotes** | One more button for each of **Up**, **Down**, **Left**, **Right**, **Select / OK** and **Back**, on every keyboard and remote. The default key keeps working. Saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select` and `.back`, a number each, `0` for none |
-| **Player 1** to **Player 6** | The pad each player has in games: one of the pads connected, or Auto |
-| A controller | Each gamepad and, on Linux, each keyboard and remote. A ● marks the one used last. Select opens its page: **Button Labels**, **Test Buttons** or **Test Keys**, **Arcade Buttons**, a button for each action, **Clear a Button** or **Remove a Key**, and **Reset to Defaults**. Saved under `app.controllers`, by its key |
-| **Not Connected** | Controllers that are away and have settings of their own |
+| A gamepad | Each one connected, the one used last on top with a ●, and the player it is. Select opens its page: **Test Buttons**, **Menu Buttons**, **Game Buttons**, **Player**, **Button Names** and **Reset**, which asks first. Saved under `app.controllers`, by its key; its player under `app.players` |
+| **All Players Automatic** | Only while a pad's player was chosen by hand: every player back to Auto |
+| **Keyboards & Remotes** | **All Keyboards & Remotes** and, on Linux, each keyboard and remote: extra keys for **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back** and **Play / Pause**. The action's own key keeps working. Every keyboard's are saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back` and `.play_pause`: a number for one key, a list for several, `0` for none |
+| **Not Connected** | Only while there are any: controllers that are away and have settings of their own |
+
+Every screen that waits for a press takes a tap for the answer; holding any button for a second and a half stops it with nothing changed.
 
 Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 
@@ -286,8 +290,10 @@ Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 - A network joined is saved and joined by itself from then on.
 - A network that wants a user name too (WPA Enterprise) can't be joined here.
 - A character the on-screen keyboard hasn't (`/`, `:`, a bracket) can be typed on a real keyboard.
+- Back from a network not listed's password, or from the question before it, keeps the name you typed: **Network Not Listed** opens on it again.
 - The help line says how it went: **Connected to …**, or why not (**wrong password?**, **it gave no address (DHCP)**, **it is out of reach**).
 - Without NetworkManager or Wi-Fi hardware the page says **No Wi-Fi**. On a Mac, join networks in the Mac's own settings.
+- The Wi-Fi row is dimmed where OSD/OS can't use NetworkManager. With a launcher older than level 7 its help line says **Needs a newer launcher**: run `install.sh` again, or put a newer image on the card.
 
 Problems are in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#wi-fi-on-the-image).
 
@@ -318,7 +324,7 @@ Problems are in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Trou
 |---|---|---|---|---|
 | Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start. A module turned off later is never opened | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
 | Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. Choose it in its module (► on the entry, then **Play at Startup**); here you can only turn it off | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
-| Startup From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite | `app.startup_from` |
+| Startup From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite of Local Files' or YouTube's, whose players resume | `app.startup_from` |
 | Cabinet Lock | A page: On, Off | Off | Keeps OSD/OS on Start on Module's module ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
 
 The Scripts module's **Auto-Run On Startup** needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
@@ -329,8 +335,8 @@ Cabinet Lock keeps OSD/OS on Start on Module's module, such as a cabinet's Arcad
 
 | Row | What it does |
 |---|---|
-| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**. It needs a Start on Module and unlock buttons |
-| Unlock Buttons | Select, then hold one to four buttons together for two seconds, of any pads and keyboards. The window names them as they are held (`P1 START + P2 START`) |
+| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**. It needs a Start on Module and unlock buttons. On with no module to stay on any more (Start on Module set to None since, or its module turned off) it locks nothing, and the row reads **On (No Module)** |
+| Unlock Buttons | Select, then hold one to four buttons together for two seconds, of any pads and keyboards. The window names them as they are held (`P1 START + P2 START`). Letting go of everything cancels: after ten seconds with nothing held the old ones are kept, and the window says so and counts the seconds (`STOPS BY ITSELF IN 9`) |
 
 <table>
 <tr><th width="33%">Cabinet Lock</th><th width="33%">Unlock Buttons</th><th width="33%">Lock the cabinet?</th></tr>
@@ -355,6 +361,8 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
+| Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image, from a launcher at level 10; elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
+| Keyboard | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
 | Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
 | Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
@@ -365,7 +373,7 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 1. On [OSD/OS Setup](https://osdos.tv/setup/), choose the settings, then **Copy for a computer**.
 2. Select on this row. OSD/OS's own settings and the RetroAchievements account are set at once.
 
-- A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard.
+- A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard (the time zone and the keyboard have rows of their own above).
 - The page's file does the same at the next start, put in the data folder or beside the app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
 
 ### Export to OSD/OS Setup
@@ -524,12 +532,10 @@ Select asks **Really quit?**. Run by hand, or on a Mac, the answers are **Yes** 
 
 ## Settings without a row
 
-A few app settings have no row. Set them in `config.json` by hand, with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)):
+Two older keys have no row, and are read only while their successors are unset. Set them in `config.json` by hand, with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)):
 
 | Key | Values | What it does |
 |---|---|---|
-| `app.display_index` | A number, `0` by default | The display the menus open on, and mpv plays on, when a Mac or a Linux desktop has several. The log lists them at start: `[main] display index 1: "…" 1280x720 at (3840,0)`. Out of range falls back to 0 |
-| `app.mpv_video_args` | A string of mpv flags, separated by spaces | Replaces the video output and decoder flags OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)) |
 | `app.auto_crop` | `On`, `Off` | Read only while `app.video_scaling` is unset: `On` means Pan & Scan |
 | `app.theme` | A skin's folder name | Read as the Skin only while `app.skin` is unset |
 

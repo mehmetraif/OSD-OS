@@ -45,6 +45,22 @@ Rectangle {
                            browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
     function selectorShown(item, shown) {}
     function skinIcon(url) { return url }
+    // What a layer over the page is drawn on (OsdGround): the keyboard's,
+    // and the window an action row's question is asked in.
+    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
+    property rect osdWindow: contentBox
+    property string osdBackground: "Full"
+    property string osdFrame: "On"
+    property var backgroundEffect: ({})
+    property string backgroundShader: ""
+    property bool effectsRest: true
+    property real fxTime: 0
+    property bool videoBehind: false
+    property int backdropSolidity: 100
+    function coverShown(item, shown) {}
+    // The theme in force (Settings → Look → Theme), as AppCore::theme() reads
+    // it: {} for none.
+    property var theme: ({})
 
     // AppCore as the page uses it: the module's schema and saved values, and
     // another module's, of the same group.
@@ -61,20 +77,115 @@ Rectangle {
         signal moduleAuthStateChanged(string mid)
         function get_settings() { return { modules: { "com.osdos.test": values, "com.osdos.other": otherValues } } }
         function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }, { id: "com.osdos.other", name: "Other" }] }
-        function get_module_auth_state(id) { return "" }
-        function invoke_module_action(id, slot) { actions = actions.concat([slot]) }
-        function save_setting(module, key, value) {
-            if (saveFails)
+        // Who is signed in, and how often the page asked for that and for a
+        // schema (counted in place: no binding follows them).
+        property string authState: ""
+        readonly property var calls: ({ schemas: 0, states: 0 })
+        function get_module_auth_state(id) {
+            calls.states++
+            return authState
+        }
+        // A slot called on the module's backend; false where it has none
+        // such (noSuchAction), as AppCore says.
+        property bool noSuchAction: false
+        function invoke_module_action(id, slot) {
+            if (noSuchAction)
                 return false
+            actions = actions.concat([slot])
+            return true
+        }
+        // How many times config.json was written, and what is held back
+        // from it: a slider's steps (save_setting_soon()), each its value
+        // at once, written together by flush_settings() or the next save.
+        // Should that write fail (saveFails), the settings are as they were
+        // before the steps, and settingsNotSaved() says so.
+        property int writes: 0
+        property var held: []
+        signal settingsNotSaved()
+        function put(module, key, value) {
             var v = Object.assign({}, module === "com.osdos.other" ? otherValues : values)
-            v[key] = value
+            if (value === undefined)
+                delete v[key]
+            else
+                v[key] = value
             if (module === "com.osdos.other")
                 otherValues = v
             else
                 values = v
+        }
+        function save_setting(module, key, value) {
+            if (saveFails)
+                return false
+            put(module, key, value)
+            writes++
+            held = []
             return true
         }
-        function get_module_settings_schema(id) { return id === "com.osdos.other" ? otherSchema : schema }
+        function save_setting_soon(module, key, value) {
+            if (!held.some(function(h) { return h.module === module && h.key === key })) {
+                var saved = module === "com.osdos.other" ? otherValues : values
+                held = held.concat([{ module: module, key: key, before: saved[key] }])
+            }
+            put(module, key, value)
+            return true
+        }
+        function flush_settings() {
+            if (held.length === 0)
+                return true
+            var lost = held
+            held = []
+            if (!saveFails) {
+                writes++
+                return true
+            }
+            for (var i = 0; i < lost.length; i++)
+                put(lost[i].module, lost[i].key, lost[i].before)
+            settingsNotSaved()
+            return false
+        }
+        function get_module_settings_schema(id) {
+            calls.schemas++
+            return id === "com.osdos.other" ? otherSchema : schema
+        }
+
+        // The file picker's (views/FilePicker.qml): the places, and a
+        // folder's entries (folders: path -> entries), read off the app's
+        // thread: asked for (asked), nothing until the test hands them over
+        // (deliver()), then folderEntriesReady. folderEntries() is the read
+        // on the app's thread, counted. With cacheKept, what was handed over
+        // before the picker opened is in at once. Kept in `picks`, changed in
+        // place: as AppCore's own, these calls change no property a binding
+        // follows.
+        property var folders: ({})
+        readonly property var picks: ({ asked: [], arrived: {}, readsOnThread: 0, cacheKept: false })
+        signal folderEntriesReady(string path)
+        function filePlaces() {
+            return [{ name: "Home", path: "/home/me" }, { name: "Media", path: "/media" }, { name: "Root", path: "/" }]
+        }
+        function listed(path, types) {
+            return (folders[path] || []).filter(function(entry) {
+                return entry.isFolder || types.indexOf(entry.name.replace(/^.*\./, "")) >= 0
+            }).map(function(entry) { return Object.assign({}, entry) })
+        }
+        function clearFolderCache() {
+            if (!picks.cacheKept)
+                picks.arrived = {}
+        }
+        function requestFolderEntries(path, types) {
+            if (picks.arrived[path])
+                return listed(path, types)
+            if (picks.asked.indexOf(path) < 0)
+                picks.asked.push(path)
+            return undefined
+        }
+        function folderEntries(path, types) {
+            picks.readsOnThread++
+            return listed(path, types)
+        }
+        function deliver(path) {
+            picks.arrived[path] = true
+            folderEntriesReady(path)
+        }
     }
 
     // The pages the view opens (navigateTo), as the router would.
@@ -116,7 +227,19 @@ Rectangle {
             appCore.otherValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
+            appCore.noSuchAction = false
+            appCore.authState = ""
+            appCore.calls.schemas = appCore.calls.states = 0
+            appCore.writes = 0
+            appCore.held = []
+            appCore.folders = {}
+            appCore.picks.asked = []
+            appCore.picks.arrived = {}
+            appCore.picks.readsOnThread = 0
+            appCore.picks.cacheKept = false
             root.navigations = []
+            root.helpLine = true
+            root.theme = {}
         }
         function cleanup() {
             loader.source = ""
@@ -187,6 +310,100 @@ Rectangle {
                     return found
             }
             return null
+        }
+
+        // The page's list (MenuList), for where it is scrolled to.
+        function menuOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].contentY !== undefined && page.children[i].shownHeight !== undefined)
+                    return page.children[i]
+            }
+            return null
+        }
+
+        // What dims a row changes (the row it goes with, what the server can
+        // do, a sign-in): the rows dimmed or usable otherwise change in
+        // place. No line of the list is made again, the list stays where it
+        // was scrolled to with the cursor on its row, the help line follows,
+        // and the schema isn't asked for again.
+        function test_rowsFollowInPlace() {
+            var rows = []
+            for (var i = 0; i < 10; i++)
+                rows.push({ key: "fill" + i, label: "Fill " + i, type: "toggle", default: "OFF" })
+            rows.push({ key: "screen", label: "Screen", type: "list_single", options: ["Original", "Arcade"],
+                        default: "Original" })
+            rows.push({ key: "border", label: "Border", type: "toggle", default: "ON",
+                        shown_with: { key: "screen", value: "Arcade" }, description: "A border round the list" })
+            rows.push({ key: "skip", label: "Skip Intros", type: "toggle", default: "ON",
+                        requires_capability: "mediasegments" })
+            rows.push({ key: "server", label: "Server", type: "toggle", default: "ON", requires_auth: true })
+            appCore.schema = rows
+            var page = open()
+            compare(appCore.calls.schemas, 1)
+            compare(appCore.calls.states, 1)
+            // To the list's foot, then back up to Screen, the last rows in view.
+            for (i = 0; i < 13; i++)
+                keyClick(Qt.Key_Down)
+            for (i = 0; i < 3; i++)
+                keyClick(Qt.Key_Up)
+            compare(cursor(page), "screen")
+            var menu = menuOf(page)
+            verify(menu !== null)
+            var scrolled = menu.contentY
+            verify(scrolled > 0)
+            var lines = [menuRow(page, 10), menuRow(page, 11), menuRow(page, 12), menuRow(page, 13)]
+            for (i = 0; i < lines.length; i++)
+                verify(lines[i] !== null, "line " + (10 + i) + " drawn")
+            verify(lines[1].dimmed && lines[2].dimmed && lines[3].dimmed)
+            var model = page.schemaItems
+            // Each line still the one it was, and the list where it was.
+            var kept = function(what) {
+                for (var n = 0; n < lines.length; n++)
+                    verify(menuRow(page, 10 + n) === lines[n], what + ": line " + (10 + n) + " not made again")
+                verify(page.schemaItems === model, what + ": the list's rows not given anew")
+                compare(menu.contentY, scrolled)
+                compare(cursor(page), "screen")
+                compare(appCore.calls.schemas, 1)
+            }
+
+            // The row Border goes with.
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.screen, "Arcade")
+            compare(off(page, "border"), "")
+            verify(!lines[1].dimmed)
+            verify(lines[1].changes)
+            verify(lines[2].dimmed && lines[3].dimmed)
+            kept("a row's value")
+
+            // What the server can do.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["mediasegments"])
+            compare(off(page, "skip"), "")
+            verify(!lines[2].dimmed)
+            verify(lines[3].dimmed)
+            kept("the capabilities")
+
+            // A sign-in: the state asked for again, not the schema.
+            appCore.authState = "user"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(off(page, "server"), "")
+            verify(!lines[3].dimmed)
+            compare(appCore.calls.states, 2)
+            kept("a sign-in")
+
+            // And back: dimmed again in place, the help line saying why.
+            keyClick(Qt.Key_Left)
+            compare(off(page, "border"), "Only with Screen on Arcade")
+            verify(lines[1].dimmed)
+            verify(!lines[1].changes)
+            kept("the value back")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "border")
+            verify(findText(page, "Only with Screen on Arcade") !== null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Only with Screen on Arcade") === null)
+            verify(findText(page, "A border round the list") !== null)
         }
 
         // A toggle's and a list's value stand between the ◄ and ► that
@@ -345,6 +562,155 @@ Rectangle {
             compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
         }
 
+        // A "text" row is typed on the on-screen keyboard: select or ► opens
+        // it on what is saved, OK keeps what was typed (without the spaces
+        // at its ends) and calls the row's apply slot, back leaves it; a
+        // "secret" one never shows what it holds.
+        function test_textRow() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "server_url", label: "Server Address", type: "text", default: "", max_length: 64,
+                  apply_slot: "addressChanged" },
+                { key: "api_key", label: "Key", type: "text", secret: true, default: "" }
+            ]
+            var page = open()
+            var keyboard = null
+            for (var i = 0; i < page.children.length && !keyboard; i++) {
+                if (page.children[i].objectName === "keyboard")
+                    keyboard = page.children[i]
+            }
+            verify(keyboard !== null)
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Not Set")
+            verify(page.opens(page.schemaItems[1]))
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "server_url")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.title, "Server Address")
+            compare(keyboard.maxLength, 64)
+            verify(!keyboard.masked)
+            keyboard.accepted("  http://nas:8096 ")
+            compare(appCore.values.server_url, "http://nas:8096")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "http://nas:8096")
+            compare(appCore.actions, ["addressChanged"])
+            // Opened again on what is saved; back keeps it.
+            keyClick(Qt.Key_Right)
+            verify(keyboard.visible)
+            compare(keyboard.text, "http://nas:8096")
+            keyboard.canceled()
+            compare(appCore.values.server_url, "http://nas:8096")
+            // A key: typed hidden, and only said to be set.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.masked)
+            keyboard.accepted("Key456example")
+            compare(appCore.values.api_key, "Key456example")
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Set")
+            // Nothing typed unsets the row.
+            keyClick(Qt.Key_Return)
+            keyboard.accepted("")
+            compare(appCore.values.api_key, "")
+            compare(page.currentDisplayValue(page.schemaItems[2]), "Not Set")
+        }
+
+        // A list of typed lines (text_list): its count on the row, its own
+        // page from it, there a line added on the keyboard, changed, not
+        // listed twice, taken out, and no more than the row takes.
+        function test_textList() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "channels", label: "Channels", type: "text_list", max_length: 30, max_lines: 3,
+                  description: "A line each", apply_slot: "channelsChanged" }
+            ]
+            appCore.values = { channels: ["UCone", "UCtwo"] }
+            var page = open()
+            compare(page.currentDisplayValue(page.schemaItems[1]), "2")
+            verify(page.opens(page.schemaItems[1]))
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/TextListSettings.qml")
+            var params = root.navigations[0].params
+            compare(params.settingKey, "channels")
+            compare(params.maxLines, 3)
+            appCore.values = {}
+            compare(page.currentDisplayValue(page.schemaItems[1]), "2")
+            loader.source = ""
+            appCore.values = {}
+            page = open()
+            compare(page.currentDisplayValue(page.schemaItems[1]), "None")
+            loader.source = ""
+
+            appCore.values = { channels: ["UCone", " ", "UCtwo"] }
+            loader.setSource(Qt.resolvedUrl("../../views/TextListSettings.qml"), { navParams: params })
+            var list = loader.item
+            verify(list !== null, "loaded TextListSettings.qml")
+            list.forceActiveFocus()
+            var keyboard = null, options = null, lines = null
+            for (var i = 0; i < list.children.length; i++) {
+                var child = list.children[i]
+                if (child.objectName === "keyboard") keyboard = child
+                if (child.objectName === "options") options = child
+                if (child.objectName === "lines") lines = child
+            }
+            verify(keyboard && options && lines)
+            compare(list.lines, ["UCone", "UCtwo"])
+            compare(lines.count, 3)
+            // ADD, the last row: a line typed, kept at the foot, the cursor
+            // left on ADD.
+            lines.currentIndex = 2
+            verify(lines.onAdd)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.title, "Channels")
+            compare(keyboard.maxLength, 30)
+            keyboard.accepted("  UCthree ")
+            verify(!keyboard.visible)
+            compare(appCore.values.channels, ["UCone", "UCtwo", "UCthree"])
+            compare(appCore.actions, ["channelsChanged"])
+            compare(lines.count, 4)
+            verify(lines.onAdd)
+            // Full: ADD opens nothing.
+            verify(list.full)
+            keyClick(Qt.Key_Return)
+            verify(!keyboard.visible)
+            // A line: change it, or take it out.
+            lines.currentIndex = 0
+            keyClick(Qt.Key_Return)
+            verify(options.visible)
+            compare(options.subtitleText, "UCone")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.text, "UCone")
+            // One already there isn't listed twice: the line goes.
+            keyboard.accepted("UCtwo")
+            compare(appCore.values.channels, ["UCtwo", "UCthree"])
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            keyboard.accepted("UCfirst")
+            compare(appCore.values.channels, ["UCfirst", "UCthree"])
+            compare(lines.currentIndex, 0)
+            // Remove, the second answer.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(!options.visible)
+            compare(appCore.values.channels, ["UCthree"])
+            compare(lines.currentIndex, 0)
+            // Not saved (a full card): the page stays on what is saved.
+            appCore.saveFails = true
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(list.lines, ["UCthree"])
+            // Back leaves the page.
+            var left = 0
+            list.goBack.connect(function() { left++ })
+            keyClick(Qt.Key_Escape)
+            compare(left, 1)
+        }
+
         function test_unsaved() {
             var page = open()
             keyClick(Qt.Key_Down)
@@ -431,6 +797,66 @@ Rectangle {
             compare(cursor(page), "online")
         }
 
+        // A row kept back while something holds (manifest "shown_unless",
+        // "shown_with" turned round): by the theme in force ({ theme, value },
+        // as the Arcade screen's List Style, Border and Info Background are
+        // in the Orb look), in the condition's own words or ones made of it;
+        // or by another row's value. Dimmed, ◄ ► leave it as it is; a row
+        // that "shown_with" keeps back too says that first. With another
+        // theme, or none, it is a row like the others.
+        function test_shownUnless() {
+            appCore.schema = [
+                { key: "screen", label: "Screen", type: "list_single", options: ["Original", "Arcade"],
+                  default: "Arcade" },
+                { key: "list_style", label: "List Style", type: "list_single", options: ["Straight", "Curved"],
+                  default: "Curved", shown_with: { key: "screen", value: "Arcade" },
+                  shown_unless: { theme: "arcade", value: "orb", reason: "Not with a theme in the Orb look" } },
+                { key: "border", label: "Border", type: "toggle", default: "ON",
+                  shown_unless: { theme: "arcade", value: "orb" } },
+                { key: "tree_sort", label: "Tree Sort", type: "list_single", options: ["Name", "Year"],
+                  default: "Name", shown_unless: [{ key: "screen", value: "Arcade" }] },
+                { key: "frame", label: "Frame", type: "toggle", default: "ON",
+                  shown_with: { key: "border", value: "ON" } }
+            ]
+            root.theme = { name: "Orb", arcade: "orb" }
+            var page = open()
+            compare(keys(page), ["screen", "list_style", "border", "tree_sort", "frame"])
+            compare(usable(page), ["screen"])
+            compare(off(page, "list_style"), "Not with a theme in the Orb look")
+            compare(off(page, "border"), "Not with the theme's arcade orb")
+            compare(off(page, "tree_sort"), "Not with Screen on Arcade")
+            // A row that goes with one kept back is kept back with it.
+            compare(off(page, "frame"), "Only with Border on")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "list_style")
+            verify(menuRow(page, 1).dimmed)
+            verify(!menuRow(page, 1).changes)
+            verify(findText(page, "Not with a theme in the Orb look") !== null)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.list_style, undefined)
+            // Screen on Original: List Style waits for its Screen first, and
+            // Tree Sort is the tree's own.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.screen, "Original")
+            compare(off(page, "list_style"), "Only with Screen on Arcade")
+            compare(usable(page), ["screen", "tree_sort"])
+            compare(cursor(page), "screen")
+            // A theme without that look, and none.
+            var themes = [{ name: "Late Night" }, {}]
+            for (var i = 0; i < themes.length; i++) {
+                loader.source = ""
+                appCore.values = {}
+                root.theme = themes[i]
+                page = open()
+                compare(usable(page), ["screen", "list_style", "border", "frame"])
+                keyClick(Qt.Key_Down)
+                keyClick(Qt.Key_Left)
+                compare(appCore.values.list_style, "Straight")
+            }
+        }
+
         // A slider: its label, and the tape bar between its two ends under
         // it, at its value, unset its default; ◄ ► a step toward either end,
         // saved, and no further than an end. ▼ goes past its bar's lines.
@@ -458,6 +884,68 @@ Rectangle {
             compare(appCore.values.ground, 0)
             keyClick(Qt.Key_Down)
             compare(cursor(page), "video")
+        }
+
+        // A slider's steps are its value at once, on the page and in the
+        // settings, but config.json isn't written at each: they are held
+        // (save_setting_soon()) and written once, as the page is left; a
+        // toggle or a list is written at once, as ever, the steps with it.
+        function test_sliderWrittenOnce() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10 }
+            ]
+            var page = open()
+            keyClick(Qt.Key_Down)
+            for (var ground = 90; ground >= 50; ground -= 10) {
+                keyClick(Qt.Key_Left)
+                compare(appCore.values.ground, ground)
+                compare(page.valueOf(page.schemaItems[1]), ground)
+            }
+            compare(appCore.writes, 0)
+            compare(appCore.held.length, 1)
+            loader.source = ""
+            compare(appCore.writes, 1)
+            compare(appCore.held.length, 0)
+            compare(appCore.values.ground, 50)
+
+            page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.writes, 1)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.enabled, true)
+            compare(appCore.writes, 2)
+            compare(appCore.held.length, 0)
+            loader.source = ""
+            compare(appCore.writes, 2)
+        }
+
+        // Steps the card can't take: once the write has failed (AppCore's
+        // settingsNotSaved) the slider is back on what is saved, the cursor
+        // still on its row.
+        function test_sliderNotSaved() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10 }
+            ]
+            appCore.values = { ground: 80 }
+            var page = open()
+            keyClick(Qt.Key_Down)
+            appCore.saveFails = true
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(page.valueOf(page.schemaItems[1]), 60)
+            // The steps at rest, as AppCore's timer has it.
+            verify(!appCore.flush_settings())
+            compare(appCore.values.ground, 80)
+            compare(page.valueOf(page.schemaItems[1]), 80)
+            compare(cursor(page), "ground")
+            compare(appCore.writes, 0)
+            appCore.saveFails = false
+            keyClick(Qt.Key_Right)
+            compare(page.valueOf(page.schemaItems[1]), 90)
         }
 
         // A slider the list's foot would cut as the page opens is left out
@@ -582,6 +1070,67 @@ Rectangle {
             compare(back.count, 1)
         }
 
+        // A multiselect_submenu row's page before its choices come, and with
+        // none: Loading… until the backend answers; No Choices for an answer
+        // with none, and for one that says why (a single { problem }), which
+        // the help line says whatever Settings' Help Line is; nothing is
+        // saved from such a line. Choices that come after take its place.
+        function test_multiSelectNone() {
+            appCore.schema = [{ key: "libraries", label: "Libraries", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "getLibraries" }]
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "libraries",
+                                            settingLabel: "Libraries" } })
+            var page = loader.item
+            verify(page !== null, "loaded MultiSelectSettings.qml")
+            page.forceActiveFocus()
+            compare(appCore.actions, ["getLibraries"])
+            verify(findText(page, "Loading…") !== null)
+            verify(findText(page, "No Choices") === null)
+            var line = menuRow(page, 0)
+            verify(!line.changes)
+            verify(!line.selected)
+            compare(line.value, "")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.libraries, undefined)
+
+            // Another row's choices are not this page's answer.
+            appCore.dynamicOptionsReady("com.osdos.test", "server", [])
+            verify(findText(page, "Loading…") !== null)
+
+            // The server out of reach.
+            root.helpLine = false
+            appCore.dynamicOptionsReady("com.osdos.test", "libraries", [{ problem: "The server could not be reached" }])
+            verify(findText(page, "Loading…") === null)
+            verify(findText(page, "No Choices") !== null)
+            var why = findText(page, "The server could not be reached")
+            verify(why !== null)
+            var box = why
+            while (box !== null && box.shown === undefined)
+                box = box.parent
+            verify(box !== null)
+            verify(box.shown, "said with Help Line off too")
+            compare(box.opacity, 1)
+            root.helpLine = true
+            compare(page.options.length, 0)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.libraries, undefined)
+
+            // A server with none to offer: no reason to give.
+            appCore.dynamicOptionsReady("com.osdos.test", "libraries", [])
+            verify(findText(page, "No Choices") !== null)
+            verify(findText(page, "The server could not be reached") === null)
+
+            // Asked again and answered: the choices.
+            appCore.dynamicOptionsReady("com.osdos.test", "libraries", [{ id: "1", label: "FILMS" }])
+            verify(findText(page, "No Choices") === null)
+            verify(findText(page, "FILMS") !== null)
+            verify(menuRow(page, 0).selected)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.libraries, { "1": false })
+        }
+
         // A choice whose name is too long for its line is cut short, its ON
         // or OFF kept whole at the line's end.
         function test_multiSelectLongName() {
@@ -604,6 +1153,274 @@ Rectangle {
             compare(value.width, value.implicitWidth)
             verify(value.mapToItem(label.parent, value.width, 0).x <= label.parent.width)
             verify(value.parent.width >= value.implicitWidth)
+        }
+
+        // An action row calls its slot, and the help line says what became
+        // of it, in the row's own words ("done") or with its label, with
+        // Settings' Help Line off too, until the cursor moves on; where the
+        // backend has no such slot, that it wasn't done.
+        function test_actionSaysWhatItDid() {
+            appCore.schema = [
+                { key: "rescan", label: "Rescan Scripts", type: "action", action_slot: "rescanScripts",
+                  done: "Scripts folder read again", description: "Re-read the scripts folder" },
+                { key: "tidy", label: "Tidy Up", type: "action", action_slot: "tidy" },
+                { key: "video", label: "Video", type: "list_single", options: ["Auto", "OpenGL"], default: "Auto" }
+            ]
+            var page = open()
+            var help = findChild(page, "helpLine")
+            verify(help !== null)
+            compare(help.text, "Re-read the scripts folder")
+            root.helpLine = false
+            verify(!help.shown)
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["rescanScripts"])
+            compare(help.text, "Scripts folder read again")
+            verify(help.visible)
+            verify(help.shown, "said with Help Line off too")
+            compare(help.opacity, 1)
+            root.helpLine = true
+            // No question was asked.
+            verify(!findChild(page, "confirmPrompt").visible)
+
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "tidy")
+            verify(!help.visible, "a row with nothing to say")
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["rescanScripts", "tidy"])
+            compare(help.text, "Tidy Up: done")
+            verify(help.visible)
+
+            appCore.noSuchAction = true
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["rescanScripts", "tidy"])
+            compare(help.text, "Not done: Tidy Up isn't offered by the module now")
+            keyClick(Qt.Key_Up)
+            compare(help.text, "Re-read the scripts folder")
+        }
+
+        // A row that deletes or signs out (its "confirm") asks first, in the
+        // standard question window: the question, what the row does under
+        // it, Yes and No with No under the cursor. No and back do nothing
+        // and leave nothing said; Yes calls the slot, and the help line says
+        // what became of it.
+        function test_actionAsksFirst() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "delete_history", label: "Delete Recently Watched", type: "action",
+                  action_slot: "delete_history", confirm: "Delete Recently Watched?",
+                  done: "Recently Watched deleted", description: "Empties Recently Watched" }
+            ]
+            var page = open()
+            keyClick(Qt.Key_Down)
+            var prompt = findChild(page, "confirmPrompt")
+            var help = findChild(page, "helpLine")
+            verify(prompt !== null && !prompt.visible)
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            compare(appCore.actions, [])
+            compare(prompt.promptText, "Delete Recently Watched?")
+            compare(prompt.promptKind, "question")
+            compare(prompt.subtitleText, "Empties Recently Watched")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Yes", "No"])
+            compare(prompt.choices[prompt.choiceIndex].label, "No")
+
+            // No.
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(appCore.actions, [])
+            compare(help.text, "Empties Recently Watched")
+            // Back.
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            compare(prompt.choices[prompt.choiceIndex].label, "No")
+            keyClick(Qt.Key_Escape)
+            verify(!prompt.visible)
+            compare(appCore.actions, [])
+            compare(help.text, "Empties Recently Watched")
+            // Yes.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            compare(prompt.choices[prompt.choiceIndex].label, "Yes")
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(appCore.actions, ["delete_history"])
+            compare(help.text, "Recently Watched deleted")
+            compare(cursor(page), "delete_history")
+            // The list has the keys again.
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "enabled")
+            verify(!help.visible)
+        }
+
+        // A sign-out row dimmed while no one is signed in asks nothing and
+        // does nothing. Signed in, it asks; signed out by it, the row is
+        // dimmed again where it stands, and what it did is still said.
+        function test_signOutAsksFirst() {
+            appCore.schema = [
+                { key: "logout", label: "Sign out", type: "action", action_slot: "logout",
+                  confirm: "Sign out of Plex?", done: "Signing out of Plex", requires_auth: true }
+            ]
+            var page = open()
+            var prompt = findChild(page, "confirmPrompt")
+            var help = findChild(page, "helpLine")
+            compare(off(page, "logout"), "Only once signed in")
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(appCore.actions, [])
+
+            appCore.authState = "user"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(off(page, "logout"), "")
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            compare(prompt.promptText, "Sign out of Plex?")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["logout"])
+            compare(help.text, "Signing out of Plex")
+            appCore.authState = ""
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(off(page, "logout"), "Only once signed in")
+            compare(help.text, "Signing out of Plex")
+            verify(menuRow(page, 0).dimmed)
+        }
+
+        // The file picker (views/FilePicker.qml), as a directory_browser row
+        // opens it: a drive's folders, and the picker's tree and its open
+        // folders' paths.
+        function folder(name, path) { return { name: name, path: path, isFolder: true } }
+        function file(name, path) { return { name: name, path: path, isFolder: false } }
+        readonly property var driveFolders: ({
+            "/media": [folder("card", "/media/card"), folder("usb", "/media/usb")],
+            "/media/usb": [folder("films", "/media/usb/films"), folder("music", "/media/usb/music"),
+                           file("logo.png", "/media/usb/logo.png"), file("notes.txt", "/media/usb/notes.txt")],
+            "/media/usb/films": [folder("drama", "/media/usb/films/drama"), folder("horror", "/media/usb/films/horror"),
+                                 file("a.mkv", "/media/usb/films/a.mkv")],
+            "/media/usb/films/horror": [folder("old", "/media/usb/films/horror/old")]
+        })
+        function openPicker(params) {
+            loader.setSource(Qt.resolvedUrl("../../views/FilePicker.qml"),
+                             { navParams: Object.assign({ moduleId: "com.osdos.test", settingKey: "folder",
+                                                          label: "Folder" }, params) })
+            verify(loader.item !== null, "loaded FilePicker.qml")
+            loader.item.forceActiveFocus()
+            return loader.item
+        }
+        function treeOf(picker) {
+            for (var i = 0; i < picker.children.length; i++) {
+                if (picker.children[i].trailState !== undefined)
+                    return picker.children[i]
+            }
+            return null
+        }
+        function openFolders(tree) {
+            return tree.trailState().map(function(column) { return column.path })
+        }
+        function cursorIn(tree, path) {
+            var column = tree.trailState().filter(function(c) { return c.path === path })[0]
+            return column ? column.sel : -1
+        }
+
+        // The picker opens down to the folder chosen now without reading a
+        // folder on the app's thread: each folder on the way is asked for and
+        // opened on trust, saying loading… until it is in, whatever order
+        // they come in, and then has its cursor on the way on. Select on USE
+        // THIS FOLDER picks the folder.
+        function test_filePickerOpensWithoutWaiting() {
+            appCore.folders = driveFolders
+            var picker = openPicker({ currentPath: "/media/usb/films/horror", defaultLabel: "Default Folder" })
+            var tree = treeOf(picker)
+            verify(tree !== null)
+            compare(appCore.picks.readsOnThread, 0)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"])
+            // The places: the default, Home, Media, Root.
+            compare(cursorIn(tree, "places"), 2)
+            var onTheWay = ["/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"]
+            for (var i = 0; i < onTheWay.length; i++)
+                verify(appCore.picks.asked.indexOf(onTheWay[i]) >= 0, onTheWay[i] + " asked for")
+            verify(findText(picker, "loading…") !== null)
+            compare(tree.folderName, "horror")
+            compare(tree.currentEntry, null)
+
+            // The folder chosen comes in first: the cursor on USE THIS FOLDER.
+            appCore.deliver("/media/usb/films/horror")
+            compare(tree.currentEntry.kind, "choose")
+            compare(tree.currentEntry.target, "/media/usb/films/horror")
+            // Then one in the middle: its cursor on the folder that leads on.
+            appCore.deliver("/media/usb")
+            compare(cursorIn(tree, "/media/usb"), 1)
+            // The cursor moved meanwhile stays where it was put: a folder
+            // coming in later moves its own alone.
+            keyClick(Qt.Key_Down)
+            compare(tree.currentEntry.name, "old")
+            appCore.deliver("/media/usb/films")
+            compare(cursorIn(tree, "/media/usb/films"), 2)
+            appCore.deliver("/media")
+            compare(cursorIn(tree, "/media"), 2)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"])
+            compare(tree.currentEntry.name, "old")
+            compare(appCore.picks.readsOnThread, 0)
+
+            keyClick(Qt.Key_Up)
+            var back = signalSpy.createObject(picker, { target: picker, signalName: "goBack" })
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.folder, "/media/usb/films/horror")
+            compare(back.count, 1)
+        }
+
+        // A folder on the way gone since (deleted, its drive taken out): once
+        // the folder that held it is in, the folders opened on trust beyond
+        // it close, and the tree stops at the last folder there is.
+        function test_filePickerFolderGone() {
+            appCore.folders = driveFolders
+            var picker = openPicker({ currentPath: "/media/usb/gone/deeper" })
+            var tree = treeOf(picker)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/gone", "/media/usb/gone/deeper"])
+            appCore.deliver("/media/usb/gone/deeper")
+            appCore.deliver("/media/usb")
+            compare(openFolders(tree), ["places", "/media", "/media/usb"])
+            compare(tree.currentEntry.kind, "choose")
+            compare(tree.currentEntry.target, "/media/usb")
+            appCore.deliver("/media")
+            compare(cursorIn(tree, "/media"), 2)
+            compare(openFolders(tree), ["places", "/media", "/media/usb"])
+            compare(appCore.picks.readsOnThread, 0)
+        }
+
+        // Picking a file: the tree opens down to its folder, and the cursor
+        // goes on the file once the folder is in; select picks it.
+        function test_filePickerFile() {
+            appCore.folders = driveFolders
+            var picker = openPicker({ settingKey: "logo", mode: "file", types: ["png"],
+                                      currentPath: "/media/usb/logo.png", defaultLabel: "OSD/OS Logo" })
+            var tree = treeOf(picker)
+            compare(openFolders(tree), ["places", "/media", "/media/usb"])
+            verify(findText(picker, "loading…") !== null)
+            appCore.deliver("/media")
+            appCore.deliver("/media/usb")
+            // The folders, then the files of the types asked for.
+            compare(tree.currentEntry.path, "/media/usb/logo.png")
+            compare(cursorIn(tree, "/media/usb"), 2)
+            compare(appCore.picks.readsOnThread, 0)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.logo, "/media/usb/logo.png")
+        }
+
+        // What is in already as the picker opens (nothing is, in the app,
+        // which reads the folders afresh at each visit) has its cursor on the
+        // way on at once, and only the rest is opened on trust.
+        function test_filePickerFoldersInAlready() {
+            appCore.folders = driveFolders
+            appCore.picks.cacheKept = true
+            appCore.picks.arrived = { "/media": true, "/media/usb": true }
+            var picker = openPicker({ currentPath: "/media/usb/films/horror" })
+            var tree = treeOf(picker)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"])
+            compare(cursorIn(tree, "/media"), 2)
+            compare(cursorIn(tree, "/media/usb"), 1)
+            appCore.deliver("/media/usb/films")
+            compare(cursorIn(tree, "/media/usb/films"), 2)
+            compare(appCore.picks.readsOnThread, 0)
         }
 
         Component {

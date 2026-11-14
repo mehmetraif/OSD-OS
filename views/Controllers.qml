@@ -1,14 +1,21 @@
 import QtQuick
 import Components
 
-// Settings → Controls: every controller there is, each with a page of its own
-// (ControllerSettings.qml): a gamepad, the JAMMA board's sticks, and on Linux
-// each keyboard and remote apart. First the extra keys every keyboard and
-// remote shares (RemapControls.qml), then which pad each player has (PLAYERS,
-// all six, chosen from the pads connected, or Auto); last, under NOT
-// CONNECTED, those away with settings of their own. The line of the
-// controller used last is marked ◄, so a button pressed on one shows which
-// line it is, and a pad that plays says so (P1, P2…).
+// Settings → Controls: the gamepads connected first, the one used last on
+// top with the cursor on it and a ● on its line, each with the player it is
+// ("8BITDO PRO 2 ······ PLAYER 1 ►") and a page of its own
+// (ControllerSettings.qml); then Keyboards & Remotes, and Not Connected while
+// there are controllers away with settings of their own. With no gamepad
+// there, two lines say so and what to do, where the cursor passes over them.
+// While a player's pad was chosen by hand, a line puts every player back to
+// Auto.
+//
+// Keyboards & Remotes and Not Connected are this view again (navParams.show
+// "keyboards", "away"): All Keyboards & Remotes and each keyboard and remote
+// connected, which open their keys (MenuButtons.qml); the controllers away.
+// Where no keyboard is listed apart (a Mac, Windows, a Linux without the
+// input group), Keyboards & Remotes opens All Keyboards & Remotes' keys at
+// once.
 FocusScope {
     id: controllersRoot
     // In the layout's frame (Main.qml): its rows in the pane, beside the
@@ -20,35 +27,43 @@ FocusScope {
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+    // "" (the first list), "keyboards" or "away".
+    readonly property string show: navParams && navParams.show ? navParams.show : ""
 
     // Null guards: context properties resolve to null while the view Loader
     // tears down; guarded bindings stay teardown-safe (see Bluetooth.qml).
     readonly property var controllers: inputManager ? inputManager.controllers : []
     readonly property string active: inputManager ? inputManager.activeController : ""
     readonly property var players: inputManager ? inputManager.players : []
+    readonly property string allKeys: inputManager ? inputManager.allKeys : ""
 
-    // The lines: { type: "shared" | "section" | "player" | "note" | "controller", … }.
+    // The lines: { type: "controller" | "keys" | "list" | "players" | "note" | "section", … }.
     property var rows: []
-    // The player whose pad is being chosen.
-    property int choosingPlayer: 0
+    // The pad on top: the one used last as the page opened. It stays there
+    // while the page is up, so the lines don't jump as pads are pressed.
+    property string topKey: ""
+    // What the last choice did, in the help line until the cursor moves.
+    property string notice: ""
 
     onControllersChanged: buildRows()
     onActiveChanged: buildRows()
     onPlayersChanged: buildRows()
     Component.onCompleted: {
+        topKey = active
         buildRows()
-        // Back from a controller's page: on its line.
+        // Back from a line's page: on that line. Else on the first line.
         var index = -1
-        for (var i = 0; i < rows.length && navListState.key; i++) {
-            if (rows[i].key === navListState.key)
+        for (var i = 0; i < rows.length && navListState.at; i++) {
+            if (at(rows[i]) === navListState.at)
                 index = i
         }
         if (index < 0 && navListState.currentIndex !== undefined)
             index = selectableFrom(Math.min(navListState.currentIndex, rows.length - 1), 1)
-        if (index >= 0)
-            list.currentIndex = index
+        list.currentIndex = index >= 0 ? index : selectableFrom(0, 1)
         list.positionViewAtIndex(list.currentIndex, ListView.Contain)
     }
+
+    function isPad(c) { return c.kind === "gamepad" || c.kind === "arcade" }
 
     function kindTitle(kind) {
         if (kind === "arcade")   return "Arcade"
@@ -57,125 +72,78 @@ FocusScope {
         return "Gamepad"
     }
 
-    // What a player's line says: the pad chosen, or Auto and the pad it
-    // took; a pad chosen and away, so.
-    function playerValue(p) {
-        if (p.key === "")
-            return p.connected ? "Auto (" + p.name + ")" : "Auto"
-        return p.connected ? p.name : (p.name || "A pad") + " (Away)"
+    // "PLAYER 1", "PLAYERS 3+4" (two of a model), or "NO PLAYER".
+    function playerText(c) {
+        var numbers = c.players || []
+        if (numbers.length === 0)
+            return "No player"
+        return (numbers.length > 1 ? "Players " : "Player ") + numbers.join("+")
     }
 
-    // The pads a player can have, Auto first: { label, action }, the action
-    // a pad's key ("auto" for Auto).
-    function playerChoices() {
-        var list = [{ label: "Auto", action: "auto" }]
-        for (var i = 0; i < controllers.length; i++) {
-            var c = controllers[i]
-            if (c.present && (c.kind === "gamepad" || c.kind === "arcade"))
-                list.push({ label: c.name + (c.count > 1 ? " x" + c.count : ""), action: c.key })
-        }
-        return list
-    }
-
-    function playerOf(number) {
-        for (var i = 0; i < players.length; i++) {
-            if (players[i].player === number)
-                return players[i]
-        }
-        return null
-    }
-
-    function choosePlayer(row) {
-        var p = playerOf(row.player)
-        if (!p)
-            return
-        choosingPlayer = row.player
-        chooser.choices = playerChoices()
-        chooser.promptText = "Player " + row.player
-        chooser.subtitleText = "Which pad is player " + row.player
-        chooser.open()
-        for (var i = 0; i < chooser.choices.length; i++) {
-            if (chooser.choices[i].action === (p.key === "" ? "auto" : p.key))
-                chooser.choiceIndex = i
-        }
-    }
-
-    // ◄ ► on a player's line: the next pad, round, Auto among them.
-    function cyclePlayer(row, step) {
-        var p = playerOf(row.player)
-        if (!p || !inputManager)
-            return
-        var choices = playerChoices()
-        var at = 0
-        for (var i = 0; i < choices.length; i++) {
-            if (choices[i].action === (p.key === "" ? "auto" : p.key))
-                at = i
-        }
-        var next = choices[(at + step + choices.length) % choices.length].action
-        inputManager.setPlayer(row.player, next === "auto" ? "" : next)
+    // What names a line, to find it again: a controller's key, the list it
+    // opens, else its type.
+    function at(row) {
+        return row ? (row.key || (row.show ? "list:" + row.show : row.type)) : ""
     }
 
     function buildRows() {
-        // The cursor stays on its line as controllers come and go: a
-        // controller by its key, a player by its number, the others by type.
-        var at = list.currentIndex
-        var current = rows[at]
-        var items = [{ type: "shared", label: "All Keyboards & Remotes",
-                       description: "An extra key for each action, on every keyboard and remote at once" }]
+        var current = rows[list.currentIndex]
+        var before = list.currentIndex
         var present = controllers.filter(function(c) { return c.present })
         var away = controllers.filter(function(c) { return !c.present })
-        items.push({ type: "section", label: "Players" })
-        // All six, whatever is connected now: a cabinet's two sticks and four
-        // pads over USB or Bluetooth, each chosen before it is plugged in.
-        for (var n = 0; n < players.length; n++) {
-            var p = players[n]
-            items.push({ type: "player", player: p.player, label: "Player " + p.player, value: playerValue(p),
-                         description: "The pad player " + p.player + " has in games. Select, or ◄ ►, to choose it. Auto takes "
-                                      + (p.player <= 2 ? "the JAMMA board's P" + p.player + " stick, else " : "")
-                                      + "the pads in the order they came" })
-        }
-        items.push({ type: "section", label: "Connected" })
-        if (present.length === 0)
-            items.push({ type: "note", label: "None",
-                         description: "Connect a gamepad, a keyboard or a remote: it shows here at once" })
-        for (var i = 0; i < present.length; i++) {
-            var c = present[i]
-            var playing = players.filter(function(p) { return p.connected && p.playing === c.key })
-                                 .map(function(p) { return "P" + p.player })
-            items.push({ type: "controller", key: c.key,
-                         label: c.name + (c.count > 1 ? " x" + c.count : ""),
-                         value: (playing.length > 0 ? playing.join("+") + " " : "") + kindTitle(c.kind),
-                         // Marked with a ● on its line.
-                         last: c.key === active,
-                         description: "Its own buttons" + (c.kind === "gamepad" || c.kind === "arcade" ? " and labels" : "")
-                                      + ". A dot marks the one used last: press a button on a controller to find it" })
-        }
-        if (away.length > 0) {
-            items.push({ type: "section", label: "Not Connected" })
-            for (var j = 0; j < away.length; j++)
-                items.push({ type: "controller", key: away[j].key, label: away[j].name,
-                             value: kindTitle(away[j].kind),
+        var items = []
+        if (show === "keyboards") {
+            items.push({ type: "keys", key: allKeys, label: "All Keyboards & Remotes",
+                         description: "Extra keys on every keyboard and remote" })
+            present.filter(function(c) { return !isPad(c) }).forEach(function(c) {
+                items.push({ type: "keys", key: c.key, label: c.name, value: kindTitle(c.kind), last: c.key === active,
+                             description: "Extra keys on this one only" })
+            })
+        } else if (show === "away") {
+            away.forEach(function(c) {
+                items.push({ type: isPad(c) ? "controller" : "keys", key: c.key, label: c.name, value: kindTitle(c.kind),
                              description: "Its settings, kept for when it is back" })
+            })
+            if (items.length === 0)
+                items.push({ type: "note", label: "None" })
+        } else {
+            var pads = present.filter(isPad)
+            // The one used last on top, the rest as InputManager has them.
+            pads.sort(function(a, b) { return (b.key === topKey ? 1 : 0) - (a.key === topKey ? 1 : 0) })
+            pads.forEach(function(c) {
+                items.push({ type: "controller", key: c.key, label: c.name + (c.count > 1 ? " x" + c.count : ""),
+                             value: playerText(c), last: c.key === active,
+                             description: "Its buttons, its player and its test" })
+            })
+            if (pads.length === 0) {
+                items.push({ type: "note", label: "No gamepad connected" })
+                items.push({ type: "note", label: "Plug one in or pair it in Network" })
+            }
+            if (players.some(function(p) { return p.key !== "" }))
+                items.push({ type: "players", label: "All Players Automatic",
+                             description: "Each pad back to the number it gets" })
+            items.push({ type: "list", show: "keyboards", label: "Keyboards & Remotes",
+                         description: "Extra keys for the menus' actions" })
+            if (away.length > 0)
+                items.push({ type: "list", show: "away", label: "Not Connected", value: String(away.length),
+                             description: "Controllers away that have settings" })
         }
         rows = items
 
+        // The cursor stays on its line as controllers come and go; its line
+        // gone (a controller unplugged), on the one now in its place.
         var index = -1
-        if (current) {
-            for (var k = 0; k < items.length && index < 0; k++) {
-                if (current.type === "controller" ? items[k].key === current.key
-                    : current.type === "player" ? items[k].type === "player" && items[k].player === current.player
-                    : items[k].type === current.type && selectable(current))
-                    index = k
-            }
+        for (var k = 0; k < items.length && current && index < 0; k++) {
+            if (at(items[k]) === at(current) && selectable(items[k]))
+                index = k
         }
-        // Its line gone (a controller unplugged): the one now in its place.
         if (index < 0)
-            index = selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
+            index = selectableFrom(Math.min(Math.max(before, 0), items.length - 1), 1)
         list.currentIndex = index
     }
 
     function selectable(row) {
-        return !!row && (row.type === "shared" || row.type === "player" || row.type === "controller")
+        return !!row && row.type !== "note" && row.type !== "section"
     }
 
     // The first line that can be chosen from index on, going by step, round.
@@ -188,28 +156,40 @@ FocusScope {
         return 0
     }
 
-    // A line that leads to a page: the shared keys', a controller's. ► opens
-    // it too, and its line ends in a ►.
+    // A line that leads to a page: every one but the players'.
     function opens(row) {
-        return !!row && (row.type === "shared" || row.type === "controller")
+        return selectable(row) && row.type !== "players"
+    }
+
+    function listState(row) {
+        return { currentIndex: list.currentIndex, at: at(row) }
     }
 
     function activate(row) {
-        if (!row)
+        if (!selectable(row) || !inputManager)
             return
-        if (row.type === "shared")
-            navigateTo("views/RemapControls.qml", {}, { currentIndex: list.currentIndex })
-        else if (row.type === "player")
-            choosePlayer(row)
-        else if (row.type === "controller")
-            navigateTo("views/ControllerSettings.qml", { key: row.key },
-                       { currentIndex: list.currentIndex, key: row.key })
+        if (row.type === "controller") {
+            navigateTo("views/ControllerSettings.qml", { key: row.key }, listState(row))
+        } else if (row.type === "keys") {
+            navigateTo("views/MenuButtons.qml", { key: row.key }, listState(row))
+        } else if (row.type === "players") {
+            inputManager.resetPlayers()
+            notice = "Every player is automatic now"
+        } else if (row.show === "keyboards"
+                   && !controllers.some(function(c) { return c.present && !isPad(c) })) {
+            // No keyboard listed apart: straight to every keyboard's keys.
+            navigateTo("views/MenuButtons.qml", { key: allKeys }, listState(row))
+        } else {
+            navigateTo("views/Controllers.qml", { show: row.show }, listState(row))
+        }
     }
 
     // Header
     AppBar {
         iconSource: "../../assets/images/keyboard.svg"
         title: "Controls"
+        subtitle: controllersRoot.show === "keyboards" ? "Keyboards & Remotes"
+                : controllersRoot.show === "away" ? "Not Connected" : ""
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -232,25 +212,29 @@ FocusScope {
         // Lines come and go as controllers do: no sliding.
         highlightMoveDuration: 0
 
+        // The cursor's line in view, and with it the lines the cursor passes
+        // over before or after it (a note at an end of the list).
+        function showCurrent() {
+            positionViewAtIndex(currentIndex, ListView.Contain)
+            if (controllersRoot.selectableFrom(0, 1) === currentIndex)
+                positionViewAtBeginning()
+            else if (controllersRoot.selectableFrom(controllersRoot.rows.length - 1, -1) === currentIndex)
+                positionViewAtEnd()
+        }
+
         function move(step) {
             if (controllersRoot.rows.length === 0)
                 return
             currentIndex = controllersRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
+            showCurrent()
+            controllersRoot.notice = ""
         }
 
         Keys.onUpPressed: move(-1)
         Keys.onDownPressed: move(1)
-        Keys.onLeftPressed: {
-            var row = controllersRoot.rows[currentIndex]
-            if (row && row.type === "player")
-                controllersRoot.cyclePlayer(row, -1)
-        }
         Keys.onRightPressed: {
             var row = controllersRoot.rows[currentIndex]
-            if (row && row.type === "player")
-                controllersRoot.cyclePlayer(row, 1)
-            else if (controllersRoot.opens(row))
+            if (controllersRoot.opens(row))
                 controllersRoot.activate(row)
         }
         Keys.onReturnPressed: controllersRoot.activate(controllersRoot.rows[currentIndex])
@@ -262,21 +246,17 @@ FocusScope {
             }
         }
 
-        // Lines read like a camcorder's menu: "8BITDO PRO 2······GAMEPAD ►",
-        // the one used last with a ● before the ►, a player's pad between ◄
-        // and ►, and the groups' headings like Settings': "CONNECTED ─────".
+        // Lines read like a camcorder's menu: "8BITDO PRO 2······PLAYER 1 ►",
+        // the one used last with a ● before the ►.
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
-            heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
             icons: modelData.last ? ["rec"] : []
             opens: controllersRoot.opens(modelData)
-            changes: modelData.type === "player"
-            // A long name is cut short, not what it is; a player's pad, the
-            // other way round.
-            keepValue: modelData.type === "controller"
+            // A long name is cut short, not what it is.
+            keepValue: true
             selected: list.currentIndex === index && controllersRoot.selectable(modelData)
         }
     }
@@ -289,7 +269,9 @@ FocusScope {
 
     HelpLine {
         property var currentRow: controllersRoot.rows[list.currentIndex]
-        text: (currentRow && currentRow.description) || ""
+        text: controllersRoot.notice !== "" ? controllersRoot.notice : ((currentRow && currentRow.description) || "")
+        // What a choice did is said with Help Line off too.
+        always: controllersRoot.notice !== ""
         visible: text !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -300,23 +282,10 @@ FocusScope {
     HintBar {
         property var currentRow: controllersRoot.rows[list.currentIndex]
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (currentRow && currentRow.type === "player" ? root.hints.change + ":CHANGE " : "")
-              + root.hints.select + ":SELECT"
+              + root.hints.select + (currentRow && currentRow.type === "players" ? ":SET" : ":OPEN")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
-    }
-
-    // A player's pad, from those connected.
-    ChoiceOverlay {
-        id: chooser
-        objectName: "playerChooser"
-        anchors.fill: parent
-        onActivated: function(action) {
-            if (inputManager && controllersRoot.choosingPlayer > 0)
-                inputManager.setPlayer(controllersRoot.choosingPlayer, action === "auto" ? "" : action)
-        }
-        onClosed: list.forceActiveFocus()
     }
 }

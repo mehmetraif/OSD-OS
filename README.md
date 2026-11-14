@@ -42,7 +42,7 @@ A media centre and an arcade under one menu, drawn for a tube and set up from it
 | Menus drawn for a 240p CRT | Yes: two colors, large type | Skins for HD screens | Themes for HD screens, some for CRTs |
 | Composite, SCART RGB and JAMMA picked in Settings | Yes | No | Config files, or the system's own board |
 | A JAMMA cabinet's monitor, sticks and buttons | Yes, with Cabinet Lock and TATE | No | With their own boards, or by hand |
-| LAN play with no internet, six players across machines | Yes | No | RetroArch's netplay |
+| LAN play with no internet, six players across machines | Yes: the network's games listed in the app | No | Yes, set up by hand in RetroArch's netplay menu |
 | The same app on macOS, Windows, Linux and the BSDs | Yes | Kodi: yes | No: each is a system of its own |
 
 As of November 2026. Corrections are welcome in an [issue](https://github.com/mehmetraif/OSD-OS/issues).

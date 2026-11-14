@@ -4,6 +4,9 @@ import Components
 // Main Plex home screen: Continue Watching + library list
 FocusScope {
     id: browseRoot
+    // In the layout's frame (Main.qml): its list in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -93,7 +96,11 @@ FocusScope {
         text: browseRoot.loaded ? "NO LIBRARIES" : "LOADING..."
         color: root.tertiaryColor
         font.family: root.globalFont
-        anchors.centerIn: parent
+        // In the middle of the pane.
+        x: root.paneX
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth
+        horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
     }
 
@@ -106,8 +113,10 @@ FocusScope {
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
-        width: root.sw * 0.6 //384
-        anchors.centerIn: parent
+        // In the middle of the pane.
+        x: root.paneX
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth
         font.pixelSize: root.sh * 0.0375 //18
     }
 
@@ -118,8 +127,8 @@ FocusScope {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
         height: root.sh * 0.525 + root.hintRoom //252
         clip: true
         focus: true

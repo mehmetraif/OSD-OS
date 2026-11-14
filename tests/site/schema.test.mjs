@@ -266,9 +266,28 @@ test("the rows of the page's Basic and Logins views", () => {
     // How the card starts, its look, the monitor's way round and the
     // arcade's playing together; what it signs in with.
     assert.deepEqual(inView("basic"), ["app.monitor", "app.osd_theme", "app.startup_module",
-                                       "com.osdos.arcade.lan_play", "com.osdos.arcade.online_play"]);
+                                       "com.osdos.arcade.lan_play", "com.osdos.arcade.online_play",
+                                       "com.osdos.weather.location"]);
     assert.deepEqual(inView("logins"), ["com.osdos.arcade.online_name", "com.osdos.emby.server_url",
-                                        "com.osdos.jellyfin.server_url", "com.osdos.plex.auto_sign_in"]);
+                                        "com.osdos.jellyfin.server_url", "com.osdos.netflix.tmdb_api_key",
+                                        "com.osdos.plex.auto_sign_in", "com.osdos.prime_video.tmdb_api_key"]);
+    // A line typed on the device (a manifest's "text" row) is a line of text
+    // here, a key hidden as a password is.
+    const typed = rows.filter(([, r]) => ["server_url", "location", "tmdb_api_key"].includes(r.key));
+    assert.equal(typed.length, 5);
+    for (const [scope, row] of typed) {
+        assert.equal(row.type, "text", `${scope}.${row.key}`);
+        assert.equal(!!row.secret, row.key === "tmdb_api_key", `${scope}.${row.key}`);
+    }
+    // A list of typed lines (a manifest's "text_list" row) is a line each
+    // here, none unless typed, no more or longer than the app takes.
+    const lists = rows.filter(([, r]) => r.type === "lines").map(([scope, r]) => `${scope}.${r.key}`).sort();
+    assert.deepEqual(lists, ["com.osdos.weather.music_list", "com.osdos.weather.other_places",
+                             "com.osdos.youtube.playlists", "com.osdos.youtube.subscriptions"]);
+    for (const [scope, row] of rows.filter(([, r]) => r.type === "lines")) {
+        assert.deepEqual(row.default, [], `${scope}.${row.key}`);
+        assert.ok(row.max_length > 0 && row.max_lines > 0, `${scope}.${row.key}`);
+    }
     // A module's views name its own rows.
     const extra = JSON.parse(read("site/setup/schema-extra.json"));
     for (const [id, more] of Object.entries(extra.modules)) {

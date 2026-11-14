@@ -36,6 +36,11 @@ FocusScope {
 
     // The lines: { type: "power" | "country" | "search" | "hidden" | "section" | "note" | "network", … }.
     property var rows: []
+    // The lines the list is made of, given it anew only as lines come, go or
+    // change places: one whose value, icons or help change (a signal, a
+    // join under way, a search) is changed where it is, from rows, so a
+    // scan's answers don't make every line again each time.
+    property var shownRows: []
     // The network whose options are open.
     property var optionsNetwork: null
     // What the keyboard is typing: "password" (for typingFor), "hiddenName",
@@ -148,6 +153,15 @@ FocusScope {
         }
         rows = items
 
+        // The same lines in the same places: the list and its cursor are
+        // left as they are.
+        var same = items.length === shownRows.length
+        for (var s = 0; s < items.length && same; s++)
+            same = items[s].type === shownRows[s].type && items[s].label === shownRows[s].label
+        if (same)
+            return
+        shownRows = items
+
         var index = -1
         if (current) {
             for (var k = 0; k < items.length && index < 0; k++) {
@@ -185,6 +199,16 @@ FocusScope {
         keyboard.open("")
     }
 
+    // The network not listed is asked for by the name typed, which is kept
+    // until now: back from its password, from the question before it or
+    // from the name itself comes to a keyboard that opens on the name
+    // again, not on nothing.
+    function joinHidden(password) {
+        var name = hiddenName
+        hiddenName = ""
+        wifiManager.connectHidden(name, password)
+    }
+
     function activate(row) {
         if (!row || !wifiManager)
             return
@@ -206,11 +230,13 @@ FocusScope {
             else
                 wifiManager.startSearch()
         } else if (row.type === "hidden") {
+            // On the name typed before, where back left it before its join
+            // was asked (hiddenName).
             typing = "hiddenName"
             keyboard.title = "Network Name"
             keyboard.masked = false
             keyboard.maxLength = 32
-            keyboard.open("")
+            keyboard.open(hiddenName)
         } else if (row.type === "network") {
             var n = row.network
             if (n.busy !== "")
@@ -256,7 +282,7 @@ FocusScope {
     ListView {
         id: list
         visible: !keyboard.visible
-        model: wifiRoot.rows
+        model: wifiRoot.shownRows
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
@@ -304,15 +330,18 @@ FocusScope {
         // and signal, and the groups' headings like Settings': "SAVED ─────".
         // A network's name gives way to its value and icons.
         delegate: MenuRow {
-            readonly property string trail: modelData.busy ? ".".repeat(wifiRoot.dots) : ""
+            // The line as it is now (rows), which the list's own (shownRows)
+            // may be behind.
+            readonly property var row: wifiRoot.rows[index] || modelData
+            readonly property string trail: row.busy ? ".".repeat(wifiRoot.dots) : ""
             width: list.width
             height: root.sh * 0.0583333 //28
-            heading: modelData.type === "section"
-            label: (modelData.label || "") + (modelData.type === "note" ? trail : "")
-            value: modelData.value ? modelData.value + trail : ""
-            icons: modelData.icons || []
-            keepValue: modelData.type === "network"
-            selected: list.currentIndex === index && wifiRoot.selectable(modelData)
+            heading: row.type === "section"
+            label: (row.label || "") + (row.type === "note" ? trail : "")
+            value: row.value ? row.value + trail : ""
+            icons: row.icons || []
+            keepValue: row.type === "network"
+            selected: list.currentIndex === index && wifiRoot.selectable(row)
         }
     }
 
@@ -365,7 +394,7 @@ FocusScope {
                 return
             }
             if (action === "hiddenOpen") {
-                wifiManager.connectHidden(wifiRoot.hiddenName, "")
+                wifiRoot.joinHidden("")
                 return
             }
             var n = wifiRoot.optionsNetwork
@@ -409,11 +438,15 @@ FocusScope {
                 options.open()
                 return
             } else if (typed === "hiddenPassword") {
-                wifiManager.connectHidden(wifiRoot.hiddenName, text)
+                wifiRoot.joinHidden(text)
             }
             list.forceActiveFocus()
         }
         onCanceled: {
+            // A name left half typed is kept as far as it got; a password
+            // never is.
+            if (wifiRoot.typing === "hiddenName")
+                wifiRoot.hiddenName = keyboard.text
             wifiRoot.typing = ""
             keyboard.text = ""
             list.forceActiveFocus()
@@ -432,6 +465,9 @@ FocusScope {
 
         readonly property var entries: wifiManager ? wifiManager.countries : []
         property int index: 0
+        // Its window, a line for every country there is, is made as it
+        // first opens: most visits to the page never choose a country.
+        property bool made: false
 
         function open() {
             var code = wifiRoot.country !== "" ? wifiRoot.country : (wifiManager ? wifiManager.suggestedCountry : "")
@@ -440,6 +476,7 @@ FocusScope {
                 if (entries[i].code === code)
                     index = i
             }
+            made = true
             visible = true
             forceActiveFocus()
         }
@@ -494,14 +531,18 @@ FocusScope {
             }
         }
 
-        PromptScreen {
-            title: "Wi-Fi Country"
-            message: "The country the Pi is used in: Wi-Fi keeps to its rules"
-            choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
-            currentIndex: countries.index
-            onHovered: function(index) { countries.index = index }
-            hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
-                  + root.hints.select + ":SELECT"
+        Loader {
+            anchors.fill: parent
+            active: countries.made
+            sourceComponent: PromptScreen {
+                title: "Wi-Fi Country"
+                message: "The country the Pi is used in: Wi-Fi keeps to its rules"
+                choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
+                currentIndex: countries.index
+                onHovered: function(index) { countries.index = index }
+                hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
+                      + root.hints.select + ":SELECT"
+            }
         }
     }
 }

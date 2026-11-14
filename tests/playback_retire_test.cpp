@@ -17,7 +17,11 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QImageReader>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocalServer>
+#include <QLocalSocket>
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -37,6 +41,7 @@ if [ -f "$log.pids" ]; then
 fi
 echo "$$ $media" >> "$log.pids"
 printf '%s\n' "$@" > "$log.args"
+printf '%s\n' "$FONTCONFIG_FILE" > "$log.fonts"
 echo "start $media" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then
   echo "[ffmpeg/video] h264: error while decoding MB 1 2"
@@ -98,9 +103,28 @@ class PlaybackRetireTest : public QObject {
         m_mpv->loadAndPlay(m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4"),
                            startSeconds, -1, -1);
     }
+    // The warnings written to the log while `what` runs, each as it is
+    // written.
+    static inline QStringList *s_logged = nullptr;
+    static void keepWarning(QtMsgType type, const QMessageLogContext &, const QString &message) {
+        if (type == QtWarningMsg && s_logged)
+            s_logged->append(message);
+    }
+    template <typename What> static QStringList logged(What what) {
+        QStringList lines;
+        s_logged = &lines;
+        const QtMessageHandler previous = qInstallMessageHandler(keepWarning);
+        what();
+        qInstallMessageHandler(previous);
+        s_logged = nullptr;
+        return lines;
+    }
+    // The run-time folder the controller's files go in (XDG_RUNTIME_DIR): the
+    // test's own, and apart from its temp folder, which they used to be in.
+    QString runDir() const { return m_dir.path() + QStringLiteral("/run"); }
     // The player's control connection, stood in for by the test: mpv's
     // socket, which the controller connects to once it listens.
-    QString socketPath() const { return m_dir.path() + QStringLiteral("/osdos-mpv.sock"); }
+    QString socketPath() const { return runDir() + QStringLiteral("/osdos-mpv.sock"); }
     bool listen(QLocalServer &control) {
         QLocalServer::removeServer(socketPath());
         return control.listen(socketPath());
@@ -158,7 +182,7 @@ private slots:
             play(film);
             QTRY_VERIFY_WITH_TIMEOUT(happened(QStringLiteral("start ") + film), 5000);
             QLocalServer control;
-            const QString path = m_dir.path() + QStringLiteral("/osdos-mpv.sock");
+            const QString path = socketPath();
             QLocalServer::removeServer(path);
             QVERIFY(control.listen(path));
             QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
@@ -197,8 +221,13 @@ private slots:
         mpv.close();
         QVERIFY(mpv.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
         qputenv("PATH", bin.toUtf8() + ':' + qgetenv("PATH"));
-        // The controller's socket, logs and input.conf, away from a running app's.
+        // The controller's socket, logs and input.conf, away from a running
+        // app's: in a run-time folder of the test's own, the user's alone as
+        // a login session's is.
         qputenv("TMPDIR", m_dir.path().toUtf8());
+        QVERIFY(QDir().mkpath(runDir()));
+        QVERIFY(QFile::setPermissions(runDir(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+        qputenv("XDG_RUNTIME_DIR", runDir().toUtf8());
         m_log = m_dir.path() + QStringLiteral("/mpv.log");
         qputenv("FAKE_MPV_LOG", m_log.toUtf8());
         qputenv("FAKE_MPV_TERM_DELAY", kTermDelay);
@@ -214,6 +243,87 @@ private slots:
     void cleanup() {
         delete m_mpv;  // ends what still plays, killing it if it must
         m_mpv = nullptr;
+    }
+
+    // What mpv is handed for a session (its control socket, log, key
+    // bindings and fontconfig file) is in the user's run-time folder, not
+    // under a fixed name in the temp folder, which other accounts write in.
+    // The bindings' file is the app's own, whole and its owner's alone: made
+    // again when it is gone or holds something else, and not named to mpv at
+    // all when it can't be written.
+    // mpv is given every OpenGL function as the context has it, but
+    // glFenceSync: one that makes no fence. mpv 0.40 leaves a fence behind
+    // for every picture it draws for the render API, and on a Pi 4 each is a
+    // file descriptor: a film's length of them used up all the app may open.
+    // Where the context has no fences, mpv is given none.
+    void mpvIsGivenNoFences() {
+        int marker = 0;
+        void *real = &marker;
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glClear", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glDeleteSync", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glClientWaitSync", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glFenceSyncAPPLE", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glFenceSync", nullptr), static_cast<void *>(nullptr));
+        void *given = EmbeddedMpv::glFunctionFor("glFenceSync", real);
+        QVERIFY(given != nullptr);
+        QVERIFY(given != real);
+        const quint64 before = EmbeddedMpv::fencesNotMade();
+#if defined(Q_OS_WIN) && !defined(Q_OS_WIN64)
+        using FenceSync = void *(__stdcall *)(unsigned int, unsigned int);
+#else
+        using FenceSync = void *(*)(unsigned int, unsigned int);
+#endif
+        // GL_SYNC_GPU_COMMANDS_COMPLETE, as mpv asks.
+        QCOMPARE(reinterpret_cast<FenceSync>(given)(0x9117, 0), static_cast<void *>(nullptr));
+        QCOMPARE(EmbeddedMpv::fencesNotMade(), before + 1);
+    }
+
+    void runFilesAreTheUsersOwn() {
+        const auto read = [](const QString &path) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        const QString conf = runDir() + QStringLiteral("/osdos-input.conf");
+        const QString named = QStringLiteral("--input-conf=") + conf;
+        const QByteArray bindings = "ESC script-message osdos-menu\nBS script-message osdos-menu\nENTER cycle pause\n";
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(arguments().contains(QStringLiteral("--input-ipc-server=") + socketPath()),
+                 qPrintable(arguments().join(QLatin1Char(' '))));
+        QVERIFY(arguments().contains(QStringLiteral("--log-file=") + runDir() + QStringLiteral("/osdos-mpv.log")));
+        QVERIFY(arguments().contains(named));
+        QCOMPARE(read(conf), bindings);
+        QVERIFY(!(QFile::permissions(conf) & (QFileDevice::ReadGroup | QFileDevice::WriteGroup
+                                             | QFileDevice::ReadOther | QFileDevice::WriteOther)));
+        QCOMPARE(read(m_log + QStringLiteral(".fonts")).trimmed(),
+                 (runDir() + QStringLiteral("/osdos-fonts.conf")).toUtf8());
+        QVERIFY(read(runDir() + QStringLiteral("/osdos-fonts.conf")).contains("/assets/fonts</dir>"));
+        // Nothing of it in the temp folder.
+        QVERIFY(QDir(m_dir.path()).entryList({ QStringLiteral("osdos-*") }, QDir::AllEntries | QDir::System).isEmpty());
+
+        QVERIFY(write(conf, "ESC quit\n"));
+        play("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QVERIFY(arguments().contains(named));
+        QCOMPARE(read(conf), bindings);
+
+        QVERIFY(QFile::remove(conf));
+        play("C");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
+        QVERIFY(arguments().contains(named));
+        QCOMPARE(read(conf), bindings);
+
+        // A folder has its name: it can't be written.
+        QVERIFY(QFile::remove(conf));
+        QVERIFY(QDir().mkpath(conf + QStringLiteral("/held")));
+        const auto free = qScopeGuard([conf] { QDir(conf).removeRecursively(); });
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral(
+                                               "^\\[MpvController\\] The keys' file for mpv couldn't be written")));
+        play("D");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
+        QVERIFY2(arguments().filter(QStringLiteral("--input-conf")).isEmpty(),
+                 qPrintable(arguments().join(QLatin1Char(' '))));
+        QVERIFY(!arguments().filter(QStringLiteral("--input-ar-delay=")).isEmpty());
     }
 
     // On a tube mpv is told the screen is 4:3 whatever its pixels; on a
@@ -312,7 +422,7 @@ private slots:
         play("A");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
         QLocalServer control;
-        const QString path = m_dir.path() + QStringLiteral("/osdos-mpv.sock");
+        const QString path = socketPath();
         QLocalServer::removeServer(path);
         QVERIFY(control.listen(path));
         QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
@@ -394,6 +504,91 @@ private slots:
         m_mpv->stopBackground();
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoActive(), 5000);
         QCOMPARE(ended.count(), 1);
+    }
+
+    // Transparent Background: Settings → TV / Movie → Scaling and Video
+    // Levels reach a video playing behind the menus at once, as a session
+    // starts with them (mpv asked what it has over its own socket, as another
+    // client), and the video chosen again carries on, the same session. A
+    // video of a module with a Scaling of its own keeps that.
+    void scalingAndLevelsReachAVideoBehindTheMenus() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        const QString module = QStringLiteral("com.osdos.local_files");
+        m_mpv->setActiveModule(module);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        // Settings open over it.
+        m_mpv->setActiveModule(QString());
+
+        QLocalSocket probe;
+        QTRY_VERIFY_WITH_TIMEOUT((probe.state() == QLocalSocket::ConnectedState
+                                  || (probe.connectToServer(socketPath()), probe.waitForConnected(500))), 10000);
+        int asked = 0;
+        auto property = [&probe, &asked](const char *name) {
+            const int id = ++asked;
+            probe.write(QJsonDocument(QJsonObject{ { "command", QJsonArray{ "get_property", name } },
+                                                   { "request_id", id } }).toJson(QJsonDocument::Compact) + '\n');
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 3000) {
+                if (!probe.canReadLine() && !probe.waitForReadyRead(200))
+                    continue;
+                const QJsonObject answer = QJsonDocument::fromJson(probe.readLine()).object();
+                if (answer.value("request_id").toInt() == id)
+                    return answer.value("data").toVariant();
+            }
+            return QVariant(QStringLiteral("no answer"));
+        };
+        QCOMPARE(property("panscan").toDouble(), 0.0);
+        QCOMPARE(property("keepaspect").toBool(), true);
+        QCOMPARE(property("video-output-levels").toString(), QStringLiteral("auto"));
+
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Pan & Scan")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 1.0, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("14:9")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 0.43, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Anamorphic")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("keepaspect").toBool(), false, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 0.0, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Letterbox")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("keepaspect").toBool(), true, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_output_levels"), QStringLiteral("Limited")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("video-output-levels").toString(), QStringLiteral("limited"), 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_output_levels"), QStringLiteral("Full")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("video-output-levels").toString(), QStringLiteral("full"), 5000);
+
+        // Chosen again in its module: the session carries on, as it is.
+        m_mpv->setActiveModule(module);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QVERIFY(!m_mpv->background());
+        QCOMPARE(property("video-output-levels").toString(), QStringLiteral("full"));
+        QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        m_mpv->setActiveModule(QString());
+
+        // Its module's own Scaling stays its video's, whatever Settings' is;
+        // back on Default it is Settings' again, taken as it is chosen again.
+        QVERIFY(core.save_setting(module, QStringLiteral("video_scaling"), QStringLiteral("14:9")));
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Pan & Scan")));
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_output_levels"), QStringLiteral("Auto")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("video-output-levels").toString(), QStringLiteral("auto"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 0.43, 5000);
+        QVERIFY(core.save_setting(module, QStringLiteral("video_scaling"), QStringLiteral("Default")));
+        m_mpv->setActiveModule(module);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QVERIFY(!m_mpv->background());
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 1.0, 5000);
+        QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
     }
 
     // Transparent Background: a video asked for while the last one's player
@@ -756,6 +951,45 @@ private slots:
         QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not play it"));
         QCOMPARE(m_mpv->lastErrorDetail(), QStringLiteral("[ffmpeg] https: HTTP error 404 Not Found"));
         QVERIFY(!m_mpv->playerFailed());
+    }
+
+    // A player that goes back without a word when its video failed has it
+    // written to the log (logFailure), one line a failure: which player,
+    // what it played and why, mpv's own first words on it unless the player
+    // has a server's. Whatever it is handed, no token or password is
+    // written, and of an address no more than its host.
+    void aFailureIsLoggedInOneLine() {
+        // Nothing failed yet: said so, rather than an empty reason.
+        QCOMPARE(logged([this] { m_mpv->logFailure(QStringLiteral("AmbientMode Player"), QStringLiteral("Fireplace.mp4")); }),
+                 QStringList{ QStringLiteral("[AmbientMode Player] Fireplace.mp4: playback failed: mpv gave no reason") });
+
+        qputenv("FAKE_MPV_MODE", "fail");
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(logged([this] { m_mpv->logFailure(QStringLiteral("YouTube Player"), QStringLiteral("\"A Talk\" (abc123)")); }),
+                 QStringList{ QStringLiteral("[YouTube Player] \"A Talk\" (abc123): playback failed: "
+                                             "mpv could not play it: [ffmpeg] https: HTTP error 404 Not Found") });
+        // A card's stream, named by its address: the host alone, without the
+        // account's name, password and token.
+        QCOMPARE(logged([this] {
+                     m_mpv->logFailure(QStringLiteral("NfcReader Player"),
+                                       QStringLiteral("https://ann:made-up-password@nas.example:8096/Videos/7/stream"
+                                                      "?static=true&api_key=made-up-key"));
+                 }),
+                 QStringList{ QStringLiteral("[NfcReader Player] https://nas.example:8096: playback failed: "
+                                             "mpv could not play it: [ffmpeg] https: HTTP error 404 Not Found") });
+        // A server's words in place of mpv's, the address asked in them and
+        // a token beside it, on two lines: one line, the host, no token.
+        QCOMPARE(logged([this] {
+                     m_mpv->logFailure(QStringLiteral("LivePlayer"), QStringLiteral("channel 5 News"),
+                                       QStringLiteral("TUNE FAILED: Error transferring https://plex.example:32400/livetv/dvrs/1"
+                                                      "/channels/5/tune?X-Plex-Token=made-up-token - server replied: Forbidden\n"
+                                                      "  asked with X-Plex-Token:made-up-token"));
+                 }),
+                 QStringList{ QStringLiteral("[LivePlayer] channel 5 News: playback failed: TUNE FAILED: Error transferring "
+                                             "https://plex.example:32400 - server replied: Forbidden; "
+                                             "asked with X-Plex-Token=REDACTED") });
     }
 
     // An mpv that starts and never shows a picture (a hardware decoder that

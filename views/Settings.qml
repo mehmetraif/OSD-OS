@@ -81,13 +81,16 @@ FocusScope {
                  rowIndex: settingsList.currentIndex, camRows: !camIcons }
     }
     // The icons: the page above (-1) or below (1), round, its rows beside
-    // them at once.
+    // them at once. Only that page's rows are made (showRows()): the
+    // settings, the modules, the first screen's rows and the icons are as
+    // they were read, and read again only if a setting changed under the
+    // page.
     function moveIcon(direction) {
         var n = camPages.length
         if (n === 0)
             return
         camIndex = (camIndex + direction + n) % n
-        buildModel(0)
+        showRows(0)
     }
     // ► or select on an icon: into the page's rows, or a view of its own
     // opened. STATUS is read from the icons.
@@ -267,25 +270,70 @@ FocusScope {
           .concat(saveLogsOption)
           .concat([{ label: "No",  action: "cancel" }])
 
-    // `at`: the row the cursor stays on, else the one it was on last.
+    // The page made, or made again where what it is made from may have
+    // changed (a theme chosen, settings pasted, the layout, a row another
+    // row follows). `at`: the row the cursor stays on, else the one it was
+    // on last.
     function buildModel(at) {
+        readAll()
+        showRows(at)
+    }
+
+    // What every page's rows are made from: the settings, the modules, the
+    // first screen's rows and, with icons, its pages (Studio Monitor's
+    // STATUS first) and their icons for the layout's frame. Read as the page
+    // is made, not at each move along the icons: a read of config.json's
+    // whole content, the modules and the first screen for every icon passed.
+    property var firstScreen: []
+    property var pageIconList: []
+    function readAll() {
         var cfg = appCore.get_settings()
         appSettings = cfg.app || {}
+        stale = false
         installedModules = appCore.get_installed_modules()
         autostartSession = appCore.isAutostartSession()
         canRestart = appCore.canRestartSystem()
         canSaveLogs = appCore.canSaveLogs()
 
-        // The first screen's rows, and with icons its pages (Studio
-        // Monitor's STATUS first): the page shown is the icon's, a page
-        // opened from one has its heading's.
         var first = []
         firstRows(first)
+        firstScreen = first
         builtLayout = layout
         builtIcons = iconMenu
-        editIndex = -1
         var pages = iconMenu ? (studio ? [statusPage] : []).concat(first) : []
-        camPages = pages.map(function(row) { return { row: row, icon: pageIcons[pageKey(row)] || "" } })
+        var icons = pages.map(function(row) { return { icon: pageIcons[pageKey(row)] || "" } })
+        pageIconList = icons
+        camPages = pages.map(function(row, i) { return { row: row, icon: icons[i].icon } })
+    }
+    // The settings as readAll() read them are no longer what is saved: one
+    // was changed by another hand than this page's (onAppSettingChanged; its
+    // own saves keep appSettings in step, save()). Read again before the
+    // next rows are made.
+    property bool stale: false
+    property bool saving: false
+
+    // A row's value saved, and kept in appSettings, which the rows are made
+    // from: a page's rows made again as the icons come back to it show what
+    // was just set. `soon`, a slider's step, written once the steps rest
+    // (AppCore::save_setting_soon()). False when it couldn't be saved.
+    function save(row, value, soon) {
+        saving = true
+        var saved = soon ? appCore.save_setting_soon(row.moduleId, row.key, value)
+                         : appCore.save_setting(row.moduleId, row.key, value)
+        saving = false
+        if (saved)
+            appSettings[row.key] = value
+        return saved
+    }
+
+    // The rows of the page shown, made from what readAll() read: the first
+    // screen's, a heading's page's, or with icons those of the page the
+    // cursor's icon is (a page opened from one has its heading's icon).
+    function showRows(at) {
+        if (stale)
+            readAll()
+        editIndex = -1
+        var pages = camPages.map(function(page) { return page.row })
         if (iconMenu && group !== "") {
             var heading = "group_" + (group === "effects" ? "look" : group)
             camIndex = Math.max(0, pages.findIndex(function(row) { return row.key === heading }))
@@ -315,9 +363,11 @@ FocusScope {
         else if (iconMenu && group === "")
             items = [pages[camIndex]]
         else
-            items = first
+            items = firstScreen.slice()
 
         settingsItems = items
+        // Audio Output's cards are on this page: read again as it stays open.
+        audioListed = (shown === "sound" || shown === "status") && !!audioOutput && audioOutput.available
 
         // Restore saved position, or default to first selectable row
         var start = at !== undefined ? Math.min(at, items.length - 1)
@@ -376,13 +426,15 @@ FocusScope {
     }
 
     // STATUS (Studio Monitor): what is set, a line each, read alone; each
-    // value as its own row has it.
+    // value as its own row has it. A row OSD/OS doesn't offer here (Display
+    // Output off a Pi, Audio Output where the system picks the card) is the
+    // system's to say: System, not None, as if there were no output.
     function statusRows(items) {
         function valueOf(build, key) {
             var rows = []
             build(rows)
             var row = rows.filter(function(r) { return r.key === key || r.type === key })[0]
-            return !row || row.unavailable ? "None" : (row.value || "None")
+            return !row ? "None" : row.unavailable ? "System" : (row.value || "None")
         }
         var wifi = "None"
         if (wifiManager && wifiManager.supported) {
@@ -401,7 +453,7 @@ FocusScope {
                      ["Bluetooth", bluetooth],
                      ["Theme", valueOf(lookRows, "osd_theme")],
                      ["Start On", valueOf(startupRows, "startup_module")],
-                     ["Cabinet Lock", appSettings["cabinet_lock"] === "On" ? "On" : "Off"],
+                     ["Cabinet Lock", cabinetLockRow().value],
                      ["Version", root.devBuild ? "Dev" : root.appVersion],
                      ["IP Address", ipAddress || "None"]]
         for (var i = 0; i < lines.length; i++)
@@ -451,12 +503,16 @@ FocusScope {
         // scheme's colours (AppCore::skins(); read in Main.qml as root.skin).
         // Saved by folder name, shown by the skin's name.
         // A skin chosen before skins had their name was saved as app.theme.
+        var skinSaved = appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || "")
         var skinRow = lookRow("skin", "Skin", "Theme", appCore.skins(),
             "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors\n[THEME] The theme's  [NONE] OSD/OS's own  A new one is a folder in the data folder's skins, see the wiki",
-            appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || ""))
+            skinSaved)
         skinRow.options.splice(1, 0, "None")
         skinRow.values.splice(1, 0, "Off")
-        if (appSettings["skin"] === "Off" || (!appSettings["osd_theme"] && skinRow.value === "Theme"))
+        // A skin saved and gone from its folder since is drawn as none
+        // (Main.qml's skinChosen): None, not the theme's.
+        var skinGone = skinRow.value === "Theme" && skinSaved !== "" && skinSaved !== "Off"
+        if (appSettings["skin"] === "Off" || skinGone || (!appSettings["osd_theme"] && skinRow.value === "Theme"))
             skinRow.value = "None"
         if (!appSettings["osd_theme"]) {
             skinRow.options.shift()
@@ -506,7 +562,9 @@ FocusScope {
 
         // BOOT SCREEN COLORS — the boot screen in the colours in force, as
         // the loading screen's are (TV / Movie). Read in Main.qml
-        // (root.bootInk).
+        // (root.bootInk). The boot screen is the OSD/OS image's
+        // (BootProgress's available): elsewhere there is none to colour.
+        var bootScreen = typeof bootProgress !== "undefined" && !!bootProgress && bootProgress.available
         items.push({
             type: "list_single",
             key: "boot_colors",
@@ -514,6 +572,7 @@ FocusScope {
             options: ["Theme", "Default"],
             value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
             description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
+            unavailable: bootScreen ? "" : "Only on the OSD/OS image, which has a boot screen",
             moduleId: ""
         })
 
@@ -617,6 +676,28 @@ FocusScope {
                 moduleId: ""
             })
         }
+        // DISPLAY — which of a computer's displays OSD/OS opens on, and mpv
+        // plays on (app.display_index, read as it starts: main.cpp). With
+        // one display, as a Pi has, there is nothing to choose.
+        var displays = Qt.application.screens
+        var displayOpts = []
+        var displayVals = []
+        for (var d = 0; d < displays.length; d++) {
+            displayOpts.push((d + 1) + ": " + (displays[d].name || "Display") + " " + displays[d].width + "x" + displays[d].height)
+            displayVals.push(String(d))
+        }
+        var displayAt = displayVals.indexOf(String(parseInt(appSettings["display_index"]) || 0))
+        items.push({
+            type: "list_single",
+            key: "display_index",
+            label: "Display",
+            options: displayOpts,
+            values: displayVals,
+            value: displayOpts[Math.max(0, displayAt)] || "",
+            description: "Which display OSD/OS opens on and plays its videos on, from its next start",
+            unavailable: displays.length > 1 ? "" : "Only with more than one display",
+            moduleId: ""
+        })
         // MONITOR — a monitor turned on its side for vertical games (TATE):
         // Main.qml turns what it draws to stand upright on it, MAME, RetroArch
         // and mpv their pictures, from the next game or video.
@@ -693,6 +774,7 @@ FocusScope {
             // Without a USB sound card to choose: what the system sees of one
             // (note).
             var audio = audioOutput.settingRow()
+            audioShown = JSON.stringify(audio)
             var usbNote = audio.note || ""
             items.push({
                 type: "list_single",
@@ -753,16 +835,44 @@ FocusScope {
         })
     }
 
+    // Audio Output's cards are read as its row is made (settingRow()), and
+    // again every couple of seconds while the row is on the page (Sound's,
+    // or STATUS's Audio line): a USB sound card plugged in or taken out
+    // shows there, and (Unplugged) comes and goes, without leaving the page.
+    // The page is made again only where the answer changed (audioShown, what
+    // the row was made from), the cursor kept, and never under a value being
+    // changed in two steps.
+    property bool audioListed: false
+    property string audioShown: ""
+    property int audioFollowInterval: 2000
+    function followAudio() {
+        if (editIndex >= 0 || !audioOutput || !audioOutput.available)
+            return
+        if (JSON.stringify(audioOutput.settingRow()) !== audioShown)
+            buildModel(settingsList.currentIndex)
+    }
+    Timer {
+        interval: settingsRoot.audioFollowInterval
+        repeat: true
+        running: settingsRoot.audioListed
+        onTriggered: settingsRoot.followAudio()
+    }
+
     // NETWORK: joining a Wi-Fi network (NetworkManager), pairing Bluetooth
     // (BlueZ); both Linux's.
     function networkRows(items) {
         var wifi = !!(wifiManager && wifiManager.supported)
+        // Kept off by the launcher alone (an image, or an install.sh, from
+        // before the one that lets OSD/OS use NetworkManager): this machine
+        // is one where NetworkManager runs, and the reason says what it needs.
+        var oldLauncher = !!(wifiManager && wifiManager.launcherTooOld)
         items.push({
             type: "submenu",
             key: "wifi",
             label: "Wi-Fi",
             description: "The networks within reach: join one with its password, or one that doesn't say its name, and the country Wi-Fi keeps to the rules of",
-            unavailable: wifi ? "" : "Only where NetworkManager runs, as on the OSD/OS image",
+            unavailable: wifi ? "" : oldLauncher ? "Needs a newer launcher: run install.sh again, or put a newer OSD/OS image on the card"
+                                                 : "Only where NetworkManager runs, as on the OSD/OS image",
             moduleId: ""
         })
         var bluetooth = !!(bluetoothManager && bluetoothManager.supported)
@@ -821,7 +931,10 @@ FocusScope {
 
         // Startup From — where that favourite begins. Either way it begins
         // without asking: a resume prompt is no question to put to a player
-        // switched on to play. For a favourite set above (shownWith).
+        // switched on to play. For a favourite set above (shownWith), of a
+        // module whose player reads it, Local Files' or YouTube's: an Arcade
+        // game, or a Netflix or Prime Video title, has nowhere to resume.
+        var resumes = ["com.osdos.local_files", "com.osdos.youtube"]
         items.push({
             type: "list_single",
             key: "startup_from",
@@ -830,6 +943,8 @@ FocusScope {
             value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
             description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
             shownWith: { key: "startup_favorite", not: "None" },
+            unavailable: favName !== "" && resumes.indexOf(startupFav.module) < 0
+                         ? "Only with a Local Files or YouTube favourite" : "",
             moduleId: ""
         })
 
@@ -838,20 +953,56 @@ FocusScope {
 
     // CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
     // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
+    // On with no module to stay on (Start on Module set to None since, or
+    // its module turned off) it locks nothing (Main.qml's cabinetLocked()),
+    // and the row says so.
     function cabinetLockRow() {
+        var on = appSettings["cabinet_lock"] === "On"
+        var idle = on && !startModuleThere()
         return {
             type: "submenu",
             key: "cabinet_lock",
             label: "Cabinet Lock",
-            value: appSettings["cabinet_lock"] === "On" ? "On" : "Off",
-            description: "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
+            value: !on ? "Off" : idle ? "On (No Module)" : "On",
+            description: (idle ? "Locks nothing now: there is no Start on Module to stay on\n" : "")
+                         + "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
             moduleId: ""
         }
+    }
+    // Whether Start on Module names a module that is turned on, as
+    // AppCore::startupModuleEntryPoint() has it.
+    function startModuleThere() {
+        var id = appSettings["startup_module"] || "None"
+        return installedModules.some(function(m) { return m.enabled && m.id === id })
     }
 
     // SYSTEM: OSD/OS Setup's settings, the update, About, and the modules
     // of no group, each a page.
     function systemRows(items) {
+        // TIME ZONE and KEYBOARD — the system's, as its files say
+        // (systemSettings). On the OSD/OS image select opens the list to pick
+        // another from, which its root helper sets (osdos-system.socket);
+        // elsewhere they are the system's own settings' to change.
+        var system = settingsRoot.system
+        var systemOff = system && system.available ? "" : "Only on the OSD/OS image, from its launcher at level 10: elsewhere, in the system's own settings"
+        items.push({
+            type: "submenu",
+            key: "time_zone",
+            label: "Time Zone",
+            value: !system ? "" : system.busy ? "Setting" : system.timeZone !== "" ? system.timeZone : "Not Set",
+            description: "The time zone the clock goes by: Weather's, a film's dates and the logs'",
+            unavailable: systemOff,
+            moduleId: ""
+        })
+        items.push({
+            type: "submenu",
+            key: "keyboard",
+            label: "Keyboard",
+            value: !system ? "" : system.busy ? "Setting" : system.keyboardName !== "" ? system.keyboardName : "Not Set",
+            description: "The keyboard's layout at Exit to Terminal, where a name and a password are typed: OSD/OS's own menus take any keyboard as it is",
+            unavailable: systemOff,
+            moduleId: ""
+        })
         // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
         // set at once (pasteSetup(), AppCore::applySetupText()), where there
         // is a clipboard to paste them from: a computer's.
@@ -946,7 +1097,8 @@ FocusScope {
         // Video Output Range, the RGB range mpv converts YUV into. mpv's default
         // is full range; a display expecting studio (limited) levels renders that
         // as crushed blacks and blown whites, and the reverse reads as washed-out
-        // gray. Takes effect on the next video.
+        // gray. Takes effect on the next video, and at once on one playing
+        // behind the menus (MpvController::followVideoSetting(), as Scaling).
         // The key keeps mpv's own name for the option; the label uses the wording
         // TVs and GPU drivers use for the same control (HDMI RGB range, DRM
         // "Broadcast RGB"), since that's what the setting is matching.
@@ -1042,6 +1194,10 @@ FocusScope {
         var infoVals = ["off", "key", "1", "2", "3", "5"]
         var infoOpts = ["Off", "Key", "1 sec", "2 sec", "3 sec", "5 sec"]
         var infoIdx = infoVals.indexOf(appSettings["info_screen"] || "3")
+        // Theirs alone: with none of the three turned on there is no tree
+        // to show it in, and the row says so.
+        var infoModules = ["com.osdos.netflix", "com.osdos.prime_video", "com.osdos.youtube"]
+        var infoRead = installedModules.some(function(m) { return m.enabled && infoModules.indexOf(m.id) >= 0 })
         items.push({
             type: "list_single",
             key: "info_screen",
@@ -1050,6 +1206,21 @@ FocusScope {
             values: infoVals,
             value: infoOpts[infoIdx < 0 ? infoVals.indexOf("3") : infoIdx],
             description: "A film's details in Netflix, Prime Video and YouTube\n[KEY] With right on a film  [SEC] Also on its own once the cursor rests on it",
+            unavailable: infoRead ? "" : "Only with Netflix, Prime Video or YouTube enabled",
+            moduleId: ""
+        })
+
+        // VIDEO ARGUMENTS — mpv's options for how a video is put on the
+        // screen and decoded, typed in place of those OSD/OS picks for the
+        // device (MpvController's videoArgs): for a setup its own don't
+        // suit. Nothing typed is OSD/OS's own.
+        var videoArgs = String(appSettings["mpv_video_args"] || "").trim()
+        items.push({
+            type: "submenu",
+            key: "mpv_video_args",
+            label: "Video Arguments",
+            value: videoArgs !== "" ? videoArgs : "Default",
+            description: "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for this device, such as --vo=gpu --hwdec=no. From the next video\n[DEFAULT] Nothing typed: OSD/OS's own",
             moduleId: ""
         })
 
@@ -1127,14 +1298,31 @@ FocusScope {
     // A row for one of the theme's parts: THEME (saved as "", as the theme
     // has it) while there is a theme, OFF (with `off`, saved as "Off") and
     // the choices. Without a theme, "" shows as the first of those, what it
-    // is then.
+    // is then. A saved value that isn't among the choices (a custom scheme
+    // removed since, an effect this system can't draw) shows as what is
+    // drawn in its place (partInForce()), not as the row's first choice.
     function partRow(key, label, choices, off, description) {
         var themed = !!appSettings["osd_theme"]
         var options = (themed ? ["Theme"] : []).concat(off ? ["Off"] : [], choices)
         var values = (themed ? [""] : []).concat(off ? ["Off"] : [], choices)
-        var at = values.indexOf(appSettings[key] === undefined ? "" : String(appSettings[key]))
+        var saved = appSettings[key] === undefined ? "" : String(appSettings[key])
+        var at = values.indexOf(saved)
+        if (at < 0)
+            at = values.indexOf(partInForce(key, saved))
         return { type: "list_single", key: key, label: label, options: options, values: values,
                  value: options[Math.max(0, at)], description: description, moduleId: "" }
+    }
+    // What Main.qml makes of a part's saved value that names nothing it has:
+    // a scheme not there is Video 1 (root.scheme), an effect's unknown name
+    // none (effectOf(), nameOf()), a transition this system can't play
+    // (Ripple, Wave or Drop without a GPU) Fade (windowCaught()) and an
+    // unknown one none. Menu Music's is the theme's, the row's first choice.
+    function partInForce(key, saved) {
+        if (key === "color_scheme")
+            return "Video 1"
+        if (key === "transition")
+            return root.transitionPresets.indexOf(saved) >= 0 ? "Fade" : "Off"
+        return key === "menu_music" ? undefined : "Off"
     }
 
     // The theme's parts, each set back to THEME as a theme is chosen (to what
@@ -1197,9 +1385,17 @@ FocusScope {
         return idx
     }
 
+    // A slider's steps wait to be written to config.json until they rest
+    // (moveSlider()): leaving the page writes them at once. AppCore as the
+    // page opened, for that: the context property may read null while the
+    // view Loader tears down.
+    property var core: null
+    Component.onDestruction: if (core) core.flush_settings()
+
     // Back on Camcorder's first screen: the page, its row and where the keys
     // were, as listState() left them.
     Component.onCompleted: {
+        core = appCore
         if (iconMenu && group === "") {
             // The first screen's row, after Studio Monitor's STATUS.
             camIndex = navListState.currentIndex === undefined || navListState.page === "group_status" ? 0
@@ -1231,7 +1427,33 @@ FocusScope {
     // IP address, on the first page's bar alone.
     property string ipAddress: ""
     // STATUS shows it too.
-    onIpAddressChanged: if (studio && group === "" && pageGroup((camPages[camIndex] || {}).row) === "status") buildModel(0)
+    onIpAddressChanged: if (statusShown()) buildModel(0)
+    // STATUS on the page (Studio Monitor's first), and its lines read again
+    // as what they show changes while it is: Wi-Fi's as a network is joined
+    // or left, Bluetooth's as it is turned on or off or a device connects.
+    // Made again only where a line reads otherwise.
+    function statusShown() {
+        return studio && group === "" && pageGroup((camPages[camIndex] || {}).row) === "status"
+    }
+    function followStatus() {
+        if (!statusShown())
+            return
+        var lines = []
+        statusRows(lines)
+        if (JSON.stringify(lines) !== JSON.stringify(settingsItems))
+            buildModel(0)
+    }
+    Connections {
+        target: wifiManager
+        ignoreUnknownSignals: true
+        function onStateChanged() { settingsRoot.followStatus() }
+    }
+    Connections {
+        target: bluetoothManager
+        ignoreUnknownSignals: true
+        function onAdapterChanged() { settingsRoot.followStatus() }
+        function onDevicesChanged() { settingsRoot.followStatus() }
+    }
     Timer {
         interval: 5000
         running: settingsRoot.group === "" && !root.screenSaverActive
@@ -1322,10 +1544,14 @@ FocusScope {
             settingsRoot.revision++
         }
 
-        // A slider's step toward one end (-1 left, 1 right), saved and kept.
+        // A slider's step toward one end (-1 left, 1 right), kept and in
+        // force at once, and saved once the steps rest or the page is left
+        // (AppCore::save_setting_soon()): saved at every step, the key held
+        // down wrote config.json to the card ten times across the bar.
         // One that is off turns on instead, where its bar waits. A row whose
         // value couldn't be saved (a full card) stays on what is saved, here
-        // and in the list ones below.
+        // and in the list ones below; a slider's goes back to it once the
+        // write has failed (onSettingsNotSaved).
         function moveSlider(direction) {
             var row = settingsItems[currentIndex]
             if (row.on === false) {
@@ -1333,7 +1559,7 @@ FocusScope {
                 return
             }
             var v = Math.max(0, Math.min(100, row.value + direction * row.step))
-            if (v === row.value || !appCore.save_setting(row.moduleId, row.key, v))
+            if (v === row.value || !settingsRoot.save(row, v, true))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: v }))
         }
@@ -1343,7 +1569,7 @@ FocusScope {
         function toggleSlider() {
             var row = settingsItems[currentIndex]
             var on = !row.on
-            if (appCore.save_setting(row.moduleId, row.key, on ? row.value : row.offValue))
+            if (settingsRoot.save(row, on ? row.value : row.offValue))
                 replaceCurrentRow(Object.assign({}, row, { on: on }))
         }
 
@@ -1358,22 +1584,25 @@ FocusScope {
             var opts = row.options
             if (newIdx < 0 || opts[newIdx] === row.value)
                 return
-            if (!appCore.save_setting(row.moduleId, row.key, row.values ? row.values[newIdx] : opts[newIdx]))
+            if (!settingsRoot.save(row, row.values ? row.values[newIdx] : opts[newIdx]))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")
                 settingsRoot.themeChosen()
+            // Cabinet Lock's row says whether it has a module to stay on.
+            else if (row.key === "startup_module")
+                settingsRoot.buildModel(currentIndex)
         }
         // A slider set at once (a monitor layout's second step): a value,
         // or -1 for Off where it can be.
         function setSlider(v) {
             var row = settingsItems[currentIndex]
             if (v < 0) {
-                if (row.on !== false && appCore.save_setting(row.moduleId, row.key, row.offValue))
+                if (row.on !== false && settingsRoot.save(row, row.offValue))
                     replaceCurrentRow(Object.assign({}, row, { on: false }))
                 return
             }
-            if ((v === row.value && row.on !== false) || !appCore.save_setting(row.moduleId, row.key, v))
+            if ((v === row.value && row.on !== false) || !settingsRoot.save(row, v))
                 return
             replaceCurrentRow(Object.assign({}, row, row.on !== undefined ? { value: v, on: true } : { value: v }))
         }
@@ -1404,6 +1633,10 @@ FocusScope {
                     settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
                 else if (row.key === "cabinet_lock")
                     settingsRoot.navigateTo("views/CabinetLock.qml", {}, settingsRoot.listState())
+                else if (row.key === "time_zone" || row.key === "keyboard")
+                    settingsRoot.openSystemPicker(row.key)
+                else if (row.key === "mpv_video_args")
+                    videoArgsKeyboard.open(String(appSettings["mpv_video_args"] || ""))
                 else if (row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade")
                     settingsRoot.navigateTo("views/Settings.qml", { group: row.key.substring(6) },
                                             settingsRoot.listState())
@@ -1602,9 +1835,11 @@ FocusScope {
     readonly property bool inFrame: true
     readonly property bool ownsFrame: true
     readonly property bool frameKeys: inIcons()
+    // The icons as readAll() listed them, the one list handed each time: a
+    // move changes which is boxed, not the icons.
     function handFrame() {
         if (camcorder && camPages.length > 0)
-            root.setFrame(camPages.map(function(page) { return { icon: page.icon } }), camIndex, frameKeys, false)
+            root.setFrame(pageIconList, camIndex, frameKeys, false)
     }
     onCamPagesChanged: handFrame()
     onCamIndexChanged: handFrame()
@@ -1718,11 +1953,20 @@ FocusScope {
         target: appCore
         ignoreUnknownSignals: true
         function onAppSettingChanged(key, value) {
+            // Not this page's own save: the settings it read are behind,
+            // and are read again before its rows are next made (showRows()).
+            if (!settingsRoot.saving)
+                settingsRoot.stale = true
             if (key !== "window_mode" || !settingsRoot.desktopWindow)
                 return
             var shown = settingsRoot.settingsItems.filter(function(r) { return r.key === "window_mode" })[0]
             if (shown && shown.value !== (value === "On" ? "On" : "Off"))
                 settingsRoot.buildModel(settingsList.currentIndex)
+        }
+        // A slider's steps couldn't be written (a full card): its row made
+        // again from what is saved, the cursor where it is.
+        function onSettingsNotSaved() {
+            settingsRoot.buildModel(settingsList.currentIndex)
         }
     }
 
@@ -1738,6 +1982,107 @@ FocusScope {
                 return
             settingsRoot.outputFailure = reason
             outputFailed.open()
+        }
+    }
+
+    // TIME ZONE and KEYBOARD: the list to pick from, the one in force under
+    // the cursor; ◄ ► from region to region, or letter to letter.
+    // The system's time zone and keyboard (SystemSettings), where the app
+    // has it.
+    readonly property var system: typeof systemSettings !== "undefined" && systemSettings ? systemSettings : null
+    property string systemPicking: ""
+    function openSystemPicker(key) {
+        if (!system || !system.available || system.busy)
+            return
+        systemPicking = key
+        if (key === "time_zone") {
+            systemPicker.title = "Time Zone"
+            systemPicker.message = "The time zone the clock goes by"
+            systemPicker.groupName = "REGION"
+            systemPicker.entries = system.timeZones.map(function(z) {
+                return { label: z.name.replace(/_/g, " "), value: z.name, group: z.region }
+            })
+            // A card not yet given a zone is on Etc/UTC, the list's UTC.
+            systemPicker.open(system.timeZone === "Etc/UTC" ? "UTC" : system.timeZone)
+        } else {
+            systemPicker.title = "Keyboard"
+            systemPicker.message = "The keyboard's layout at Exit to Terminal"
+            systemPicker.groupName = "LETTER"
+            systemPicker.entries = system.keyboards.map(function(k) {
+                return { label: k.name, value: k.code, group: k.name.charAt(0).toUpperCase() }
+            })
+            systemPicker.open(system.keyboard)
+        }
+    }
+    ListPicker {
+        id: systemPicker
+        objectName: "systemPicker"
+        onPicked: function(value) {
+            if (!settingsRoot.system)
+                return
+            if (settingsRoot.systemPicking === "time_zone")
+                settingsRoot.system.setTimeZone(value)
+            else
+                settingsRoot.system.setKeyboard(value)
+        }
+        onClosed: settingsList.forceActiveFocus()
+    }
+    // The rows follow the system as it is read again, and as one is on its
+    // way (Setting); one that couldn't be set says why.
+    Connections {
+        target: settingsRoot.system
+        ignoreUnknownSignals: true
+        function onChanged() { settingsRoot.followSystem() }
+        function onBusyChanged() { settingsRoot.followSystem() }
+        function onMessageChanged() {
+            if (settingsRoot.system.message.indexOf(" not set: ") > 0)
+                systemNotice.open()
+        }
+    }
+    // Made again only while the two rows are on the page, the cursor kept,
+    // and never under a value being changed in two steps.
+    function followSystem() {
+        if (editIndex < 0 && settingsItems.some(function(row) { return row.key === "time_zone" }))
+            buildModel(settingsList.currentIndex)
+    }
+    ChoiceOverlay {
+        id: systemNotice
+        objectName: "systemNotice"
+        anchors.fill: parent
+        promptKind: "notice"
+        readonly property var parts: (settingsRoot.system ? settingsRoot.system.message : "").split(": ")
+        promptText: parts[0] || ""
+        subtitleText: parts.slice(1).join(": ")
+        choices: []
+        onClosed: {
+            settingsList.forceActiveFocus()
+            if (settingsRoot.system)
+                settingsRoot.system.clearMessage()
+        }
+    }
+
+    // VIDEO ARGUMENTS: typed on the on-screen keyboard, over the page; kept
+    // on OK without the spaces at its ends, nothing typed being OSD/OS's own.
+    OnScreenKeyboard {
+        id: videoArgsKeyboard
+        objectName: "videoArgsKeyboard"
+        anchors.fill: parent
+        visible: false
+        title: "Video Arguments"
+        caseSensitive: true
+        allowEmpty: true
+        maxLength: 120
+        onAccepted: function(text) {
+            videoArgsKeyboard.close()
+            settingsList.forceActiveFocus()
+            if (appCore.save_setting("", "mpv_video_args", text.trim())) {
+                settingsRoot.appSettings = Object.assign({}, settingsRoot.appSettings, { mpv_video_args: text.trim() })
+                settingsRoot.buildModel(settingsList.currentIndex)
+            }
+        }
+        onCanceled: {
+            videoArgsKeyboard.close()
+            settingsList.forceActiveFocus()
         }
     }
 

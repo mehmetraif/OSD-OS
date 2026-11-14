@@ -1207,6 +1207,15 @@ Rectangle {
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
             verify(findText(page, "Installed") !== null)
+            // The package's own (the Linux arm64 one's, built with TLS):
+            // said so, with what it is for in place of its path.
+            arcadeBackend.fbneo = { retroarch: "/opt/osdos/lib/osdos/retroarch", core: "", coreDate: "", downloaded: false,
+                                    games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
+                                    retroarchDownloadVersion: "", retroarchDownloaded: false, retroarchPackaged: true }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "With OSD/OS") !== null }, 1000)
+            verify(findText(page, "over https") !== null)
+            verify(findText(page, "/opt/osdos/lib/osdos/retroarch") === null)
 
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
@@ -1413,14 +1422,15 @@ Rectangle {
         readonly property string screenshot: Qt.resolvedUrl("../../docs/screenshots/arcade-games.png")
         readonly property string widePicture: Qt.resolvedUrl("../../assets/images/cassette.png")
 
-        // The picture on the screen: the one of the two shown.
+        // The picture on the screen: the one of the two shown. Not one of
+        // the deck's pixel symbols (PixelIcon), which are pictures too.
         function shownPicture(screen) {
             var found = null
             var walk = function(item) {
                 if (found)
                     return
                 if (item.fillMode !== undefined && item.sourceSize !== undefined && item.visible
-                        && String(item.source) !== "")
+                        && String(item.source) !== "" && String(item.source).indexOf("image://osdpixel/") !== 0)
                     found = item
                 for (var i = 0; i < item.children.length; i++)
                     walk(item.children[i])
@@ -3432,6 +3442,40 @@ Rectangle {
             compare([screen.areaLeft, screen.areaTop, screen.areaRight, screen.areaBottom], [120, 84, 843, 633])
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // The module's own Hint Bar and Help Line are the Arcade screen's:
+        // opened on it (to play, or to adjust), Main.qml goes by them
+        // (hintBarShown, helpLineShown); on the tree, or on one of Settings →
+        // Arcade's pages, by Settings' own (undefined), whatever they are.
+        function test_rootOwnBars_data() {
+            return [{ tag: "arcade screen", params: {}, own: true, file: "ArcadeScreen.qml" },
+                    { tag: "screen adjustment", params: { adjustScreen: true }, own: true, file: "ArcadeScreen.qml" },
+                    { tag: "mame", params: { mame: true }, own: false, file: "Mame.qml" },
+                    { tag: "fbneo", params: { fbneo: true }, own: false, file: "Fbneo.qml" },
+                    { tag: "account", params: { achievements: true }, own: false, file: "Account.qml" },
+                    { tag: "pictures", params: { pictures: true }, own: false, file: "Pictures.qml" },
+                    { tag: "check roms", params: { romCheck: true }, own: false, file: "RomCheck.qml" },
+                    { tag: "favorites", params: { favorites: true }, own: false, file: "Favorites.qml" },
+                    { tag: "online name", params: { onlineName: true }, own: false, file: "OnlineName.qml" }]
+        }
+        function test_rootOwnBars(data) {
+            appCore.settings = { screen: "Arcade", hint_bar: false, help_line: true }
+            var router = open("Root.qml", data.params)
+            compare(shownFile(router), data.file)
+            compare(router.hintBarShown, data.own ? false : undefined)
+            compare(router.helpLineShown, data.own ? true : undefined)
+            loader.source = ""
+            appCore.settings = { screen: "Arcade", hint_bar: true, help_line: false }
+            router = open("Root.qml", data.params)
+            compare(router.hintBarShown, data.own ? true : undefined)
+            compare(router.helpLineShown, data.own ? false : undefined)
+            // The tree goes by Settings' own, as it always has.
+            loader.source = ""
+            appCore.settings = { screen: "Original", hint_bar: false, help_line: false }
+            router = open("Root.qml", {})
+            compare(router.hintBarShown, undefined)
+            compare(router.helpLineShown, undefined)
         }
 
         // The visible marks at the rows' right ends (PixelIcon's mark): a

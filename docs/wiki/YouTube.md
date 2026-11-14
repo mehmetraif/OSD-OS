@@ -82,11 +82,13 @@ That one copy serves search, playlists, info screens and playback.
 
 ## Turning it on
 
-Settings → TV / Movie → **YouTube** → **Enabled**: On. The tree starts with Recently Watched, Favorites and Search. Subscriptions, Channels and Playlists appear once the two files below list something; Watch Later once a video is saved to it.
+Settings → TV / Movie → **YouTube** → **Enabled**: On. The tree starts with Recently Watched, Favorites and Search. Subscriptions, Channels and Playlists appear once the two lists below hold something; Watch Later once a video is saved to it.
 
 ## Channels and subscriptions
 
-List the channels you follow in a text file in the data folder:
+Settings → TV / Movie → **YouTube** → **Subscriptions** lists the channels you follow, a line each, typed on the on-screen keyboard. [OSD/OS Setup](https://osdos.tv/setup/) has the same list as a box of lines, where an ID can be pasted.
+
+A text file in the data folder adds its own channels after those:
 
 | System | File |
 |---|---|
@@ -117,13 +119,13 @@ UCLA_DiR1FfKNvjuUpBHmylQ
 EOF
 ```
 
-- An edit shows the next time you open YouTube.
+- An edit, in Settings or in the file, shows the next time you open YouTube.
 - Each channel's feed gives its 15 or so newest videos. Feeds are kept for 15 minutes.
 - **Subscriptions** merges every channel's videos, newest first, at most 100. **Channels** has a folder per channel.
 
 ## Playlists
 
-Playlists are listed in `youtube_playlists.txt` in the data folder:
+Settings → TV / Movie → **YouTube** → **Playlists** lists them, a line each, and OSD/OS Setup has the same list. `youtube_playlists.txt` in the data folder adds its own after those. Either way:
 
 - One playlist per line: a URL with `list=<ID>` in it, or the bare playlist ID.
 - Optionally a name first, then `|`: `My Name | <URL or ID>`. Without one, the folder takes YouTube's title.
@@ -151,9 +153,9 @@ YouTube uses the same tree, with the same keys, as Local Files ([Using OSD/OS](h
 | **Recently Watched** | Videos you played, newest first, at most 100. | Always |
 | **Favorites** | Videos you added, newest first, at most 100. | Always |
 | **Search** | YouTube's search. | Always |
-| **Subscriptions** | Your channels' newest videos, merged. | `youtube_subscriptions.txt` lists a channel |
+| **Subscriptions** | Your channels' newest videos, merged. | Subscriptions in Settings, or `youtube_subscriptions.txt`, lists a channel |
 | **Channels** | A folder per channel. | As above |
-| **Playlists** | A folder per playlist. | `youtube_playlists.txt` lists a playlist |
+| **Playlists** | A folder per playlist. | Playlists in Settings, or `youtube_playlists.txt`, lists a playlist |
 | **Watch Later** | Videos you saved, newest saved first. | It holds something |
 
 On a video, ► opens its info screen and select plays it.
@@ -286,11 +288,13 @@ Settings → TV / Movie → **YouTube**:
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows YouTube on the main menu. | `modules.com.osdos.youtube.enabled` |
+| Subscriptions | A list of lines, 50 at most | None | [Your channels](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#channels-and-subscriptions). Select ADD to type one; select a line to change it or take it out. | `modules.com.osdos.youtube.subscriptions` |
+| Playlists | A list of lines, 50 at most | None | [Your playlists](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#playlists). | `modules.com.osdos.youtube.playlists` |
 | Advanced | Opens a submenu | | [The Advanced settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#the-advanced-settings-and-what-yt-dlp-is-asked-for). | |
-| Delete Watch Later | Select | | Deletes `youtube_watch_later.json` at once. | |
-| Delete Recently Watched | Select | | Deletes `youtube_history.json` at once: Recently Watched and every resume point. | |
+| Delete Watch Later | Select | | Asks first, then deletes `youtube_watch_later.json`. | |
+| Delete Recently Watched | Select | | Asks first, then deletes `youtube_history.json`: Recently Watched and every resume point. | |
 | Sign in | Select | | See [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). | |
-| Sign out | Select | | Deletes the sign-in's browser profile. Does nothing while the browser is open. | |
+| Sign out | Select | | Asks first, then deletes the sign-in's browser profile. Does nothing while the browser is open. | |
 
 App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Startup From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
 
@@ -343,7 +347,7 @@ The tree's help line names the problem.
 | **Could not search YouTube: check the network, and that yt-dlp is up to date.** | Check the network, then update yt-dlp. On the image: `sudo systemctl start osdos-yt-dlp-update.service`. Elsewhere: `yt-dlp -U`, or `brew upgrade yt-dlp`. A [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#1-update-yt-dlp-console) script can do it from the remote. |
 | **Could not load the subscriptions: check the network.** | No channel's feed could be fetched. |
 | **Could not load the playlists: check the network, and that yt-dlp is installed.** | As for search. |
-| **Playback failed: Please check that yt-dlp is installed and up to date.** | Run yt-dlp by hand (below). mpv's log is `/tmp/osdos-mpv.log` (the system's temporary folder on a Mac). |
+| **Playback failed: Please check that yt-dlp is installed and up to date.** | Run yt-dlp by hand (below). mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). |
 | `No supported JavaScript runtime could be found` | Deno is missing, or not on the `PATH` of the user or service running OSD/OS. [Install it](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#on-raspberry-pi-os-steamos-and-macos). |
 | `Sign in to confirm you're not a bot` | [Sign in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in) with a spare account. If it persists, compare `--force-ipv4` with `--force-ipv6` in the command below: a check on IPv4 only points at the route. |
 | Subscriptions and Channels don't appear. | Check the file's name and place (not `.txt.txt`), and that it has a line that is neither blank nor a comment. |

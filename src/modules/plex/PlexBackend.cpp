@@ -1,5 +1,6 @@
 #include "PlexBackend.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/ServerLog.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -1398,6 +1399,57 @@ void PlexBackend::probeNext(const QList<QString> &uris, int index,
     });
 }
 
+// The active server's connections asked of plex.tv again and probed as at the
+// sign-in, and the one that answers kept for it (servers[].uri and
+// active_server_uri): the address found then is otherwise the only one ever
+// tried. found is false, and nothing changed, when plex.tv doesn't answer,
+// no longer lists the server, or none of its connections does.
+void PlexBackend::probeActiveServer(std::function<void(bool found)> done) {
+    const QString machineId = loadAuth()["active_server_machine_id"].toString();
+    if (machineId.isEmpty()) { done(false); return; }
+
+    QUrl resUrl(PLEX_TV + "/api/v2/resources");
+    QUrlQuery q;
+    q.addQueryItem("includeHttps", "1");
+    q.addQueryItem("includeRelay", "1");
+    q.addQueryItem("includeIPv6", "1");
+    resUrl.setQuery(q);
+    auto *resReply = plexGet(resUrl, accountToken());
+    connect(resReply, &QNetworkReply::finished, this, [this, resReply, machineId, done]() {
+        resReply->deleteLater();
+        QJsonArray connections;
+        if (resReply->error() == QNetworkReply::NoError) {
+            for (const auto &rv : QJsonDocument::fromJson(resReply->readAll()).array()) {
+                const QJsonObject res = rv.toObject();
+                if (res["clientIdentifier"].toString() == machineId
+                    && res["provides"].toString().contains("server")) {
+                    connections = res["connections"].toArray();
+                    break;
+                }
+            }
+        }
+        probeConnections(connections, [this, machineId, done](QString uri) {
+            QJsonObject auth = loadAuth();
+            // None answered; or signed out, or another server chosen, meanwhile.
+            if (uri.isEmpty() || auth["active_server_machine_id"].toString() != machineId) {
+                done(false);
+                return;
+            }
+            QJsonArray servers = auth["servers"].toArray();
+            for (int i = 0; i < servers.size(); ++i) {
+                QJsonObject s = servers[i].toObject();
+                if (s["machineId"].toString() != machineId) continue;
+                s["uri"] = uri;
+                servers[i] = s;
+            }
+            auth["servers"]           = servers;
+            auth["active_server_uri"] = uri;
+            saveAuth(auth);
+            done(true);
+        });
+    });
+}
+
 // ---------------------------------------------------------------------------
 // load_users_from_cache
 // ---------------------------------------------------------------------------
@@ -1568,6 +1620,8 @@ void PlexBackend::load_libraries_impl() {
             secReply->deleteLater();
             int secStatus = secReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (secReply->error() != QNetworkReply::NoError) {
+                const bool probed = m_serverProbeRetried;
+                m_serverProbeRetried = false;
                 if (secStatus == 498) {
                     handle498([this]{ load_libraries_impl(); });
                 } else if (secStatus == 401) {
@@ -1609,12 +1663,31 @@ void PlexBackend::load_libraries_impl() {
                                   "SIGN OUT AND SIGN IN AGAIN."
                                 : "SERVER REJECTED THIS DEVICE. PLEASE TRY AGAIN.");
                     }
+                } else if (secStatus == 0 && !probed) {
+                    // No answer at all, as against a refusal: the server is no
+                    // longer at the address kept for it since the sign-in (the
+                    // router gave it another, or it was linked from another
+                    // network or through the relay). Its connections are probed
+                    // again, and the libraries asked for once more at the one
+                    // that answers; m_serverProbeRetried keeps that to one go.
+                    m_serverProbeRetried = true;
+                    const QString failure = secReply->errorString();
+                    qWarning("[PlexBackend] server not reached — probing its connections again");
+                    probeActiveServer([this, failure](bool found) {
+                        if (found) {
+                            load_libraries_impl();
+                            return;
+                        }
+                        m_serverProbeRetried = false;
+                        emit errorOccurred("LOAD LIBRARIES FAILED: " + failure);
+                    });
                 } else {
                     emit errorOccurred("LOAD LIBRARIES FAILED: " + secReply->errorString());
                 }
                 return;
             }
             m_serverAuthRetried = false; // this server accepted our token; re-arm the retry
+            m_serverProbeRetried = false;
             QJsonArray sections = QJsonDocument::fromJson(secReply->readAll())
                                   .object()["MediaContainer"].toObject()["Directory"].toArray();
 
@@ -2085,12 +2158,24 @@ void PlexBackend::load_item_detail(const QString &ratingKey) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
                 handle498([this, ratingKey]{ load_item_detail(ratingKey); }); return;
             }
+            // The detail page shows nothing of an item that didn't come, so
+            // the log says which and why (serverlog): here, for an answer
+            // without the item, and for an item with nothing to play, which
+            // the page drops as it does another's.
+            serverlog::loadFailed("Plex", "item " + ratingKey, reply);
             emit errorOccurred("LOAD DETAIL FAILED: " + reply->errorString()); return;
         }
         QJsonArray metaArr = QJsonDocument::fromJson(reply->readAll())
                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        if (metaArr.isEmpty()) { emit errorOccurred("LOAD DETAIL FAILED: empty metadata"); return; }
-        emit itemLoaded(buildItemDetail(metaArr[0].toObject()));
+        if (metaArr.isEmpty()) {
+            serverlog::loadFailed("Plex", "item " + ratingKey, reply, QStringLiteral("the answer has no such item"));
+            emit errorOccurred("LOAD DETAIL FAILED: empty metadata"); return;
+        }
+        const QVariantMap detail = buildItemDetail(metaArr[0].toObject());
+        if (detail.isEmpty())
+            serverlog::loadFailed("Plex", "item " + ratingKey, reply,
+                                  QStringLiteral("the server has nothing of it to play"));
+        emit itemLoaded(detail);
     });
 }
 
@@ -2106,10 +2191,16 @@ void PlexBackend::load_children(const QString &ratingKey) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
                 handle498([this, ratingKey]{ load_children(ratingKey); }); return;
             }
+            // As the detail page's item: a show's page without its seasons,
+            // or a season's without its episodes, says nothing, the log does.
+            serverlog::loadFailed("Plex", "the seasons or episodes of item " + ratingKey, reply);
             emit errorOccurred("LOAD CHILDREN FAILED: " + reply->errorString()); return;
         }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
-                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("MediaContainer")))
+            serverlog::loadFailed("Plex", "the seasons or episodes of item " + ratingKey, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray metadata = answer["MediaContainer"].toObject()["Metadata"].toArray();
         QVariantList items;
         for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
         emit childrenLoaded(items);
@@ -2127,7 +2218,9 @@ void PlexBackend::load_extras(const QString &ratingKey) {
             }
             // No errorOccurred here: the detail views' error handlers reset
             // loading/play state, and a failed extras fetch must not do that.
-            qDebug() << "[Plex] Load extras failed:" << reply->errorString();
+            // The page then has no EXTRAS row and no word of why: the log
+            // says it, in a release build too.
+            serverlog::loadFailed("Plex", "the extras of item " + ratingKey, reply);
             emit extrasLoaded(QVariantList{}); return;
         }
         QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
@@ -2875,13 +2968,22 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
     q.addQueryItem("X-Plex-Client-Identifier",  clientId());
     q.addQueryItem("X-Plex-Session-Identifier", sessionId);
     url.setQuery(q);
+    // A stream as a transcode's is (m_streamRequest): a channel left while it
+    // tuned (cancel_stream), or another stream asked for since, answers no one.
+    const int request = ++m_streamRequest;
     auto *reply = plexPost(url, token);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, channelId, sessionId]() {
+            [this, reply, request, channelId, sessionId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            // Not wanted any more, and nothing tuned: no one to tell.
+            if (request != m_streamRequest)
+                return;
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, channelId, sessionId]{ tune_channel(channelId, sessionId); }); return;
+                handle498([this, request, channelId, sessionId]{
+                    if (request == m_streamRequest)
+                        tune_channel(channelId, sessionId);
+                }); return;
             }
             emit errorOccurred("TUNE FAILED: " + reply->errorString()); return;
         }
@@ -2900,6 +3002,17 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
             if (!ops.isEmpty()) meta = ops[0].toObject()["Metadata"].toObject();
         }
         QString livePath = meta["key"].toString();
+        const QString ratingKey = meta["ratingKey"].toVariant().toString();
+        const int durationMs    = meta["duration"].toInt();
+        if (request != m_streamRequest) {
+            // Tuned for a player that has gone, or that waits for another
+            // stream by now: no transcode is started and no view told, and
+            // the tuner is let go of here, the player's own
+            // stop_live_session() having come before there was a session.
+            if (!livePath.isEmpty())
+                reportLiveTimeline("stopped", livePath, ratingKey, sessionId, durationMs, 0);
+            return;
+        }
         if (livePath.isEmpty()) {
             QString msg = mc["message"].toString();
             qDebug() << "[Plex] Tune produced no stream — raw:" << body.left(600);
@@ -2907,8 +3020,8 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
             return;
         }
         m_liveTimelineKey = livePath;
-        m_liveRatingKey   = meta["ratingKey"].toVariant().toString();
-        m_liveDurationMs  = meta["duration"].toInt();
+        m_liveRatingKey   = ratingKey;
+        m_liveDurationMs  = durationMs;
         m_liveSessionId   = sessionId;
         m_liveStartedMs   = QDateTime::currentMSecsSinceEpoch();
 
@@ -2939,8 +3052,17 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
         req.setRawHeader("X-Plex-Platform", "Chrome");
         auto *startReply = m_nam->get(req);
         ignoreSslErrors(startReply);
-        connect(startReply, &QNetworkReply::finished, this, [this, startReply, token]() {
+        connect(startReply, &QNetworkReply::finished, this, [this, startReply, request, token, sessionId]() {
             startReply->deleteLater();
+            if (request != m_streamRequest) {
+                // Left as its transcode started: stopped again, the player's
+                // own stop having reached the server before it had begun,
+                // with the tuner if that stop hasn't let go of it.
+                if (m_liveSessionId == sessionId)
+                    update_live_timeline("stopped");
+                stopLiveTranscode(sessionId);
+                return;
+            }
             if (startReply->error() != QNetworkReply::NoError) {
                 emit errorOccurred("LIVE STREAM FAILED: " + startReply->errorString()); return;
             }
@@ -2966,38 +3088,47 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
 
 void PlexBackend::update_live_timeline(const QString &state) {
     if (m_liveTimelineKey.isEmpty()) return;
-    QString uri = serverUrl(), token = serverToken();
     // The ratingKey + session + an advancing time are what let Plex match this
     // timeline to the active airing and keep the DVR grab rolling. Without them the
     // grab is reaped after a few minutes and the HLS playlist starts returning 404.
     qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - m_liveStartedMs;
     if (elapsed < 0) elapsed = 0;
     if (m_liveDurationMs > 0 && elapsed > m_liveDurationMs) elapsed = m_liveDurationMs;
-    QUrl url(uri + "/:/timeline");
-    QUrlQuery q;
-    q.addQueryItem("ratingKey", m_liveRatingKey);
-    q.addQueryItem("key",       m_liveTimelineKey);
-    q.addQueryItem("state",     state);
-    q.addQueryItem("time",      QString::number(elapsed));
-    q.addQueryItem("duration",  QString::number(m_liveDurationMs));
-    q.addQueryItem("hasMDE",    "1");
-    q.addQueryItem("X-Plex-Session-Identifier", m_liveSessionId);
-    q.addQueryItem("X-Plex-Client-Identifier",  clientId());
-    url.setQuery(q);
-    auto *reply = plexGet(url, token);
-    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+    reportLiveTimeline(state, m_liveTimelineKey, m_liveRatingKey, m_liveSessionId, m_liveDurationMs, elapsed);
     // Releasing the tuner ends this session; forget the key so a stray timer tick
     // can't re-ping a dead session.
     if (state == "stopped") m_liveTimelineKey.clear();
 }
 
-void PlexBackend::stop_live_session(const QString &sessionId) {
+void PlexBackend::reportLiveTimeline(const QString &state, const QString &key, const QString &ratingKey,
+                                     const QString &sessionId, int durationMs, qint64 timeMs) {
     QString uri = serverUrl(), token = serverToken();
+    QUrl url(uri + "/:/timeline");
+    QUrlQuery q;
+    q.addQueryItem("ratingKey", ratingKey);
+    q.addQueryItem("key",       key);
+    q.addQueryItem("state",     state);
+    q.addQueryItem("time",      QString::number(timeMs));
+    q.addQueryItem("duration",  QString::number(durationMs));
+    q.addQueryItem("hasMDE",    "1");
+    q.addQueryItem("X-Plex-Session-Identifier", sessionId);
+    q.addQueryItem("X-Plex-Client-Identifier",  clientId());
+    url.setQuery(q);
+    auto *reply = plexGet(url, token);
+    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+}
+
+void PlexBackend::stop_live_session(const QString &sessionId) {
     // Stop the universal transcode consuming the tuner. Also report the timeline
     // stopped (best effort) before forgetting the key, so the server reclaims the
     // tuner promptly instead of waiting for the idle timeout.
     update_live_timeline("stopped");
     if (sessionId.isEmpty()) return;
+    stopLiveTranscode(sessionId);
+}
+
+void PlexBackend::stopLiveTranscode(const QString &sessionId) {
+    QString uri = serverUrl(), token = serverToken();
     QUrl url(uri + "/video/:/transcode/universal/stop");
     QUrlQuery q;
     q.addQueryItem("session", sessionId);
@@ -3071,6 +3202,13 @@ void PlexBackend::getLibraries() {
                 QString id = machineId.isEmpty() ? key : machineId + "_" + key;
                 options.append(QVariantMap{{"id",id},{"label",s["title"].toString().toUpper()}});
             }
+        } else {
+            // No libraries, and why: one entry that is no choice, which the
+            // page says in their place (MultiSelectSettings.qml).
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            options.append(QVariantMap{{"problem", status > 0
+                ? QStringLiteral("The server answered with an error (HTTP %1)").arg(status)
+                : QStringLiteral("The server could not be reached")}});
         }
         emit dynamicOptionsReady("libraries", options);
     });

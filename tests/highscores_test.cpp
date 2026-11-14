@@ -206,6 +206,8 @@ private slots:
         const QString root = m_data.path() + QStringLiteral("/highscores/mame");
         QCOMPARE(QFileInfo(root + QStringLiteral("/hiscore")).symLinkTarget(), m_arcade + QStringLiteral("/hiscore"));
         QCOMPARE(QFileInfo(root + QStringLiteral("/plugins/hiscore/hiscore.dat")).symLinkTarget(), m_dat);
+        // Written off the app's thread (saveCache()): there once that is done.
+        scores.m_saves.waitForDone();
         QVERIFY(QFileInfo::exists(m_data.path() + QStringLiteral("/highscores/scores.json")));
     }
 

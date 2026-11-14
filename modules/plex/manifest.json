@@ -81,6 +81,9 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "logout",
+      "confirm": "Sign out of Plex?",
+      "done": "Signing out of Plex",
+      "description": "Signs out of Plex on this device, which plex.tv is asked to forget",
       "requires_auth": true
     }
   ]

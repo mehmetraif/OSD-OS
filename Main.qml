@@ -692,8 +692,49 @@ Window {
         frameActive = !!active
         frameTall = !!tall
     }
-    readonly property bool framed: menuLayout === "Camcorder" && frameIcons.length > 0
+    // Inside a module the column is one level on, as the main menu's is the
+    // groups beside a group's modules: the modules of the open one's group,
+    // by their logos, the open module's framed, its own content in the pane.
+    // Worked out here from the main menu's rows (menuModules, which the main
+    // menu hands on as AppCore sends them: it is always the first view), so
+    // it is the same however the module was opened: from the main menu, at
+    // startup, by a card.
+    property var menuModules: []
+    readonly property var moduleFrame: {
+        var source = String(moduleLoader.source)
+        var open = null
+        for (var i = 0; i < menuModules.length && !open; i++) {
+            var entry = menuModules[i].entry_point
+            if (entry && menuModules[i].icon && source.slice(-entry.length - 1) === "/" + entry)
+                open = menuModules[i]
+        }
+        if (!open)
+            return null
+        var groupOf = function(row) { return row.group === "tv" || row.group === "arcade" ? row.group : "" }
+        var icons = [], seen = {}, index = 0
+        for (var n = 0; n < menuModules.length; n++) {
+            var row = menuModules[n]
+            // A module once, whatever rows of its own it adds to the menu.
+            if (!row.icon || seen[row.entry_point] || groupOf(row) !== groupOf(open))
+                continue
+            seen[row.entry_point] = true
+            if (row.entry_point === open.entry_point)
+                index = icons.length
+            icons.push({ source: row.icon })
+        }
+        return { icons: icons, index: index }
+    }
+    // The frame that is up: the open module's, else the one handed over.
+    readonly property var shownFrameIcons: moduleFrame ? moduleFrame.icons : frameIcons
+    readonly property int shownFrameIndex: moduleFrame ? moduleFrame.index : frameIndex
+    readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0
                                    && !!moduleLoader.item && moduleLoader.item.inFrame === true
+    // Where the column stands, in a view's own coordinates, for whatever
+    // draws it: the shell, under the views, and a question window, which
+    // draws it again over its own ground (PromptScreen), so that a question
+    // is asked in the layout, its answers in the pane.
+    readonly property rect frameColumn: Qt.rect(sw * 0.115625, sh * 0.25, sw * 0.084375, //74, 120, 54
+        frameTall || moduleFrame ? sh * 0.525 + hintRoom : sh * 0.4666667 + helpRoom + hintRoom) //252 : 224
     // The pane: where a view's rows go, beside the frame's column or, with no
     // frame, where every view has its list.
     readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625 //134 : 74
@@ -968,13 +1009,11 @@ Window {
     property bool screenSaverActive: false
 
     // Playback counts as user activity even when no key started it (an NFC
-    // card tap launches mpv directly). If the saver was showing at launch,
-    // nothing key-driven ever reaches its dismiss handler — focus has moved
-    // into the module's player view — so clear it on playback windowChange.
+    // card tap launches mpv directly), so the saver is cleared on playback
+    // windowChange too, not only by a key. As it goes, the saver hands the
+    // keys to whoever has them under it (ScreenSaver's keysTo, below).
     function dismissScreenSaver() {
-        if (!screenSaverActive) return
         screenSaverActive = false
-        moduleLoader.forceActiveFocus()
     }
 
     // --- APP-LEVEL NAV STACK ---
@@ -1079,24 +1118,38 @@ Window {
     // Block the screen saver while mpv is playing so it never flashes during or
     // immediately after playback. The core guard is in IdleTracker (mpvActive
     // property), which also resets the idle timer on windowChange.
+    // A video left playing behind the menus (Transparent Background) has the
+    // screen no longer: the menus do, and left alone the saver comes over
+    // them as over any menu, the video playing on under it, sound and all.
+    // Taken back full screen, it holds the saver off again.
+    function videoHoldsSaver() {
+        return mpvController.videoActive && !mpvController.background
+    }
     Connections {
         target: mpvController
         function onPositionChanged(ms) {
-            if (ms > 0 && !idleTracker.mpvActive) {
+            if (ms > 0 && !idleTracker.mpvActive && !mpvController.background) {
                 idleTracker.mpvActive = true
                 idleTracker.resetActivity()
                 root.dismissScreenSaver()
             }
         }
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
-            // A video left playing behind the menus is still playing.
-            idleTracker.mpvActive = mpvController.videoActive
+            idleTracker.mpvActive = root.videoHoldsSaver()
             idleTracker.resetActivity()
             root.dismissScreenSaver()
         }
         function onVideoActiveChanged() {
-            idleTracker.mpvActive = mpvController.videoActive
+            idleTracker.mpvActive = root.videoHoldsSaver()
             idleTracker.resetActivity()
+        }
+        function onBackgroundChanged() {
+            idleTracker.mpvActive = root.videoHoldsSaver()
+            idleTracker.resetActivity()
+            // Full screen again without a key (a card tapped): no saver
+            // stays up over its player.
+            if (!mpvController.background)
+                root.dismissScreenSaver()
         }
     }
 
@@ -1393,15 +1446,14 @@ Window {
             IconColumn {
                 z: -0.25
                 visible: root.framed
-                model: root.frameIcons
-                currentIndex: root.frameIndex
+                model: root.shownFrameIcons
+                currentIndex: root.shownFrameIndex
                 active: root.frameActive && !!moduleLoader.item && moduleLoader.item.ownsFrame === true
-                x: root.sw * 0.115625 //74
-                y: root.stageY + root.sh * 0.25 //120
-                width: root.sw * 0.084375 //54
                 // A menu's list beside it: a row more for each bar that is off.
-                height: root.frameTall ? root.sh * 0.525 + root.hintRoom //252
-                                       : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+                x: root.frameColumn.x
+                y: root.stageY + root.frameColumn.y
+                width: root.frameColumn.width
+                height: root.frameColumn.height
             }
 
             // --- MODULE LOADER ---
@@ -1529,19 +1581,10 @@ Window {
                 // Only show on active → true; never hide here — the overlay's
                 // key handler owns dismissal, preventing the C++ event filter's
                 // synchronous reset from stealing the key from QML. Never over the
-                // boot screen, which would lose focus to it.
-                if (idleTracker.active && idleTracker.enabled && !root.bootActive) {
-                    if (!screenSaverActive) {
-                        var usableW = screenSaverOverlay.width - bounceLogo.width
-                        var usableH = screenSaverOverlay.height - bounceLogo.height
-                        bounceLogo.x = Math.random() * (usableW > 0 ? usableW : 1)
-                        bounceLogo.y = Math.random() * (usableH > 0 ? usableH : 1)
-                        bounceLogo.vx = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 1.5)
-                        bounceLogo.vy = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 1.5)
-                        screenSaverActive = true
-                        screenSaverOverlay.forceActiveFocus()
-                    }
-                }
+                // boot screen, which would lose focus to it. The overlay takes
+                // the keys as it shows.
+                if (idleTracker.active && idleTracker.enabled && !root.bootActive)
+                    screenSaverActive = true
             }
         }
 
@@ -1582,72 +1625,26 @@ Window {
             onLoaded: item.forceActiveFocus()
         }
 
-        Item {
+        // The screen saver (Components/ScreenSaver.qml), over all of them. The
+        // keys are its own while it is up, whatever opens under it, and as
+        // it goes it hands them to whoever has them there, the top-most
+        // first: the window asking to keep a display output, OSD/OS Setup's
+        // notice, the boot screen, else the views, and through their loader
+        // the question open in one. A key only wakes it.
+        ScreenSaver {
             id: screenSaverOverlay
             anchors.fill: parent
-            visible: screenSaverActive
             z: 9999
-            focus: visible
-
-            // Solid black background — no transparency so it serves as a true
-            // CRT burn-in prevention black frame between the logo bounces.
-            Rectangle {
-                anchors.fill: parent
-                color: "#000000"
-            }
-
-            // Bouncing logo — classic DVD player screen saver
-            Image {
-                id: bounceLogo
-                source: "assets/images/logo.svg"
-                sourceSize.width: root.sw * 0.05
-                sourceSize.height: root.sw * 0.05
-                fillMode: Image.PreserveAspectFit
-                antialiasing: true
-
-                property real vx: 0
-                property real vy: 0
-
-                // Physics tick at ~60 fps while the overlay is visible
-                Timer {
-                    interval: 16
-                    repeat: true
-                    running: screenSaverActive
-                    onTriggered: {
-                        bounceLogo.x += bounceLogo.vx
-                        bounceLogo.y += bounceLogo.vy
-
-                        if (bounceLogo.x + bounceLogo.width > screenSaverOverlay.width) {
-                            bounceLogo.x = screenSaverOverlay.width - bounceLogo.width
-                            bounceLogo.vx = -Math.abs(bounceLogo.vx)
-                        } else if (bounceLogo.x < 0) {
-                            bounceLogo.x = 0
-                            bounceLogo.vx = Math.abs(bounceLogo.vx)
-                        }
-
-                        if (bounceLogo.y + bounceLogo.height > screenSaverOverlay.height) {
-                            bounceLogo.y = screenSaverOverlay.height - bounceLogo.height
-                            bounceLogo.vy = -Math.abs(bounceLogo.vy)
-                        } else if (bounceLogo.y < 0) {
-                            bounceLogo.y = 0
-                            bounceLogo.vy = Math.abs(bounceLogo.vy)
-                        }
-                    }
-                }
-            }
-
-            // Capture any keypress to dismiss — consumes the event so the
-            // underlying view never sees it, preventing accidental navigation.
-            // Ctrl+Q still quits (moduleLoader's handler is a sibling, so it
-            // can't see keys focused here — handle the chord directly).
-            Keys.onPressed: (event) => {
-                event.accepted = true
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q && !root.cabinetLocked()) {
+            shown: root.screenSaverActive
+            keysTo: [displayKeepLoader.item, setupNoticeLoader.item, bootScreenLoader.item, moduleLoader]
+            onWoken: root.dismissScreenSaver()
+            // Ctrl+Q quits from here too; under Cabinet Lock it is a key
+            // like any other.
+            onQuitAsked: {
+                if (root.cabinetLocked())
+                    root.dismissScreenSaver()
+                else
                     Qt.quit()
-                    return
-                }
-                screenSaverActive = false
-                moduleLoader.forceActiveFocus()
             }
         }
 

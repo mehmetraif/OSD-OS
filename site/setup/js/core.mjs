@@ -588,6 +588,19 @@ export function toggleOn(row, value) {
     return row.on === true ? value === true || value === "ON" : value === row.on;
 }
 
+// A list typed a line each (a manifest's "text_list" row), as the app keeps
+// it: each line without spaces at its ends and no longer than the row takes,
+// no blank line, no line twice, and no more lines than the row takes.
+export function listLines(text, row = {}) {
+    const lines = [];
+    for (const raw of String(text ?? "").split(/\r?\n/)) {
+        const line = raw.trim().slice(0, row.max_length || 64).trim();
+        if (line && !lines.includes(line) && lines.length < (row.max_lines || 50))
+            lines.push(line);
+    }
+    return lines;
+}
+
 // What of a file read back this page has: a board it knows, an output that
 // board has, a country, a time zone and a keyboard it offers, and the
 // settings on its form. The rest left out, named.

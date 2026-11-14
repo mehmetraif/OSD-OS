@@ -136,6 +136,13 @@ FocusScope {
                              mpvController.lastErrorDetail, true)
                 return
             }
+            // Failed once its picture had shown (a stream cut off, a file
+            // damaged further in): back to the tap screen as from any end,
+            // nothing on the screen to say why, so the log does: the card's
+            // title, else what it plays (of an address, logFailure keeps
+            // the host alone).
+            if (reason === "failed")
+                mpvController.logFailure("NfcReader Player", videoTitle !== "" ? "\"" + videoTitle + "\"" : videoPath)
             var pos   = lastKnownPositionMs || finalPositionMs
             var dur   = lastKnownDurationMs || finalDurationMs
             var plPos = lastKnownPlaylistPos

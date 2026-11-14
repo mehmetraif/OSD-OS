@@ -69,7 +69,7 @@ cp ~/.local/share/OSD-OS/crash-report.txt ~/.local/share/OSD-OS/stall-report.txt
 ### mpv's own log
 
 - mpv's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked.
-- mpv also writes a verbose log of the latest video to `/tmp/osdos-mpv.log` (on a Mac, `$TMPDIR`). It starts afresh for each video, so copy it before playing the next.
+- mpv also writes a verbose log of the latest video, `osdos-mpv.log`, in a folder only OSD/OS's user can open: `/tmp/runtime-pi/` on the image and under the autostart service, `$XDG_RUNTIME_DIR` (`/run/user/1000`, say) when OSD/OS is started from a terminal or a desktop, and the temporary folder on a Mac or Windows ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). It starts afresh for each video, so copy it before playing the next.
 - That file holds each video's full address, and a media server's token with it. Look through it before you post it.
 
 ### What a build from source adds
@@ -130,7 +130,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[boot]`, `[legacy]` | The image's boot screen; moving over from 240-MP | Each held-back service settling; the data folder moved over |
 | `[DisplayOutput]`, `[AudioOutput]`, `[MenuMusic]`, `[Bluetooth]`, `[Wi-Fi]`, `[input]` | The Settings row or page of that name; gamepads, keyboards and remotes | What was chosen or found, and why something failed |
 | `[LocalFiles]`, `[HighScores]`, `[NfcReader]`, `[Weather]`, `[AmbientMode]`, `[Playlists]`, `[WebPlayer]`, `[TMDB]` | The module of that name; the web players; Netflix's and Prime Video's catalogue | What it couldn't find, read, fetch or write, and why |
-| `[PlexBackend]`, `[Plex]`, `[PlexAuth]`, `[JellyfinBackend]`, `[Jellyfin]`, `[EmbyBackend]`, `[Emby]` | The media servers | Token refreshes, a token or device the server rejected, playback reports that failed |
+| `[PlexBackend]`, `[Plex]`, `[PlexAuth]`, `[JellyfinBackend]`, `[Jellyfin]`, `[EmbyBackend]`, `[Emby]` | The media servers | Token refreshes, a token or device the server rejected, playback reports that failed, an item, its seasons or its episodes that could not be loaded |
 | `qml:` | The screens | `qml: [Effect] … can't be used`, `qml: Routing to: modules/…/Root.qml`, a module screen's error |
 
 ## A module is missing from the main menu
@@ -167,8 +167,10 @@ The loading screen comes, then **Playback failed** with why: *mpv is not install
 |---|---|---|
 | `[MpvController] mpv not found (no bundled sibling, none on PATH)` | mpv isn't installed, or isn't on the `PATH` of OSD/OS's user | Install it as the screen says (`sudo apt install mpv` on Raspberry Pi OS). On Windows, unpack mpv from mpv.io beside OSD/OS as a folder named `mpv` |
 | `Error parsing option subs-with-matching-audio (option parameter could not be parsed)`, then `[MpvController] mpv exited with code 1` | mpv is older than 0.38 | Install a newer mpv, or build 0.40 with `scripts/build-mpv.sh` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-appimage-and-mpv-038)) |
-| `[mpv] …` lines about the file, then `mpv exited with code 2` | mpv couldn't play the file: a codec, a file cut short, a stream refused | Try `mpv <file>` in a terminal: if mpv can't either, the file is the problem. `/tmp/osdos-mpv.log` has the details |
+| `[mpv] …` lines about the file, then `mpv exited with code 2` | mpv couldn't play the file: a codec, a file cut short, a stream refused | Try `mpv <file>` in a terminal: if mpv can't either, the file is the problem. mpv's log (`/tmp/runtime-pi/osdos-mpv.log` on the image) has the details |
+| `[YouTube Player] "A Talk" (abc123): playback failed: mpv could not play it: …`, or the same from `[NfcReader Player]`, `[Playlists Player]`, `[AmbientMode Player]`, `[LivePlayer]` or `[Extras]` | The video failed and its player went back to the menus without a **Playback failed** screen: a YouTube, card or playlist video once its picture had shown, an Ambient:Mode clip, a Plex live channel or extra | The words after `playback failed:` are mpv's own, or the server's. The line names the video by its title; of an address it keeps the host alone |
 | `[MpvController] The video has shown nothing N s after mpv (pid …) started` | mpv started and showed no picture | OSD/OS starts the video again without the hardware decoder. If that fails too it says **The video did not start**. Send the lines with a bug report |
+| `MESA: error: Failed to export gem bo … to dmabuf` and `Export failed` by the thousand, then `Too many open files`, on a Pi 4 with Transparent Background | In older releases mpv left a file open for every picture it drew inside the app; after some 45 minutes of video nothing more could be opened, and OSD/OS ended and started again | Update OSD/OS. The line `memory as a video starts: … N of 65536 files open` says how many are open |
 | `[MpvController] The video played without sound: the sound card could not be opened` | Another program has the sound card, or there is none | See [No sound](#no-sound) |
 | `[MpvController] Cannot start playback: <owner> has the screen` | A takeover script or a web player holds the Pi's screen | Let it finish, or stop it |
 | `[MpvController] WATCHDOG: no IPC time-pos event for N s — possible freeze` | mpv stopped moving: a stream stalled, a network share or USB drive gone | mpv's log says what it was waiting for |
@@ -189,7 +191,7 @@ The loading screen comes, then **Playback failed** with why: *mpv is not install
 1. **Choose the card** in Settings → Sound → Audio Output: AV Jack, HDMI or a USB sound card. A Pi 5 has no AV jack: use HDMI, or a USB sound card on a CRT.
 2. **See the cards ALSA has**: `aplay -l`, or `cat /proc/asound/cards`.
 3. **Quiet AV jack**: OSD/OS keeps the card at 0 dB. `amixer sset PCM 100%` raises it 4 dB (`sudo alsactl store` keeps it); loud sound can clip there.
-4. **Read the log**: `journalctl -b -u osdos | grep AudioOutput` shows `Sound through <card>`. `/tmp/osdos-mpv.log` says why a video's sound couldn't open.
+4. **Read the log**: `journalctl -b -u osdos | grep AudioOutput` shows `Sound through <card>`. mpv's log (`/tmp/runtime-pi/osdos-mpv.log` on the image) says why a video's sound couldn't open.
 
 A dimmed Audio Output row means a sound server (PipeWire, PulseAudio) runs: choose the output in the system's sound settings. More in [Audio Output → When there is no sound](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output#when-there-is-no-sound); `/etc/asound.conf` and `audio-device=` in `mpv.conf` are in [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md).
 
@@ -201,8 +203,8 @@ YouTube searches, lists and plays through yt-dlp. A problem shows in the help li
 |---|---|---|
 | **Searching needs yt-dlp, which is not installed**, then how to install it | No yt-dlp at `bin/yt-dlp` in the data folder, beside OSD/OS's binary, or on the `PATH` | Install it as the line says (`sudo apt install yt-dlp` on Raspberry Pi OS). On the AppImage, put it at `~/.local/share/OSD-OS/bin/yt-dlp` and `chmod +x` it |
 | **Could not search YouTube: check the network, and that yt-dlp is up to date** | No network, or a yt-dlp too old | Update yt-dlp (below) |
-| **Could not load the playlists: check the network, and that yt-dlp is installed** | The same, for `youtube_playlists.txt` | The same |
-| **Could not load the subscriptions: check the network** | The channels' feeds didn't come | Check the network, and the channel ids in `youtube_subscriptions.txt` |
+| **Could not load the playlists: check the network, and that yt-dlp is installed** | The same, for the playlists in Settings and in `youtube_playlists.txt` | The same |
+| **Could not load the subscriptions: check the network** | The channels' feeds didn't come | Check the network, and the channel ids in Settings' Subscriptions and in `youtube_subscriptions.txt` |
 
 - **Updating yt-dlp.** The image updates its own after each boot, once a day, and as the YouTube module opens; `~/.local/share/OSD-OS/bin/yt-dlp --update` updates it now, and `journalctl -u osdos-yt-dlp-update` shows the last update. Elsewhere: `sudo yt-dlp -U` for a copy in `/usr/local/bin`, `brew upgrade yt-dlp` on a Mac.
 - **Deno.** yt-dlp needs a JavaScript runtime for YouTube; without one, a video plays in few formats or none ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)). Deno must be on the `PATH` of the user or service that runs OSD/OS, such as `/usr/local/bin`. The image has it; `brew install deno` on a Mac.
@@ -221,8 +223,8 @@ The catalogue comes from TMDB. A title plays in the service's own web player, in
 
 | What you see | Cause | Fix |
 |---|---|---|
-| **No TMDB API key: put one in tmdb_api_key.txt in the data folder (free from themoviedb.org, Settings, API)** | No key | Put a TMDB v3 key, or a v4 read access token (it starts `eyJ`), on the first line of `tmdb_api_key.txt` |
-| **TMDB turned the API key down: check tmdb_api_key.txt** | TMDB answered 401 | The key was copied short, or shares its line with something else |
+| **No TMDB API key: type one in Settings, in the module's TMDB Key (free from themoviedb.org, Settings, API)** | No key | Type a TMDB v3 key in Settings → TV / Movie → NETFLIX or PRIME VIDEO → TMDB Key. A v4 read access token (it starts `eyJ`) is too long to type: put it on the first line of `tmdb_api_key.txt` |
+| **TMDB turned the API key down: check the TMDB Key in Settings** | TMDB answered 401 | The key was copied short, or shares its line with something else |
 | **Could not reach TMDB: check the network** | No network, or TMDB unreachable | Check the network |
 | **Chromium is not installed** | No Chromium or Chrome on the `PATH` | `sudo apt install chromium libwidevinecdm0 cage wtype` on Raspberry Pi OS (the image has it). Not on Windows; on a Mac it plays in Chrome |
 | **cage is not installed** | No desktop, and no kiosk compositor for the browser | `sudo apt install cage wtype` |
@@ -246,6 +248,7 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | Signed out by itself | `Token rejected — signing out`: a password changed, or the device was removed | Sign in again |
 | A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → TV / Movie → Plex → Video Quality to one of its Mbps choices, or read the server's log |
 | Plex: **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS asleep, the Wi-Fi dropped) | Wake the server or check the network, then open the list again |
+| A film's page without its details, a show's without its seasons or a season's without its episodes | The server didn't answer, or answered with an error. The log says which item, from which server and why: `[Jellyfin] the seasons of show … could not be loaded from nas.local: HTTP 404 Not Found` (`[Plex]`, `[Emby]` likewise; `Connection refused` and the like when nothing answered) | Check that the server is on and reachable, go back and open the page again. `the server has nothing of it to play` (Plex) means the file is gone from the server |
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
 Each module's settings has **Sign out**. The sign-ins are in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
@@ -265,6 +268,7 @@ A problem with the list shows under the tree, or on the screen itself when there
 | Coin and Start don't bring you back | They count together, on one player's controller | Press them together on a controller that Settings → Controls gives a player, or Esc on a keyboard |
 | After a game the LOADING screen or a black screen stays; a keyboard's 5 and 1 do nothing in a FinalBurn Neo game | Defects of an older release | Update OSD/OS. If the screen still stays: wait a minute, switch the Pi off and on, then Quit → Save Logs |
 | On Windows: `This game is known but one of your romsets is missing files for THIS VERSION of FBNeo … None of those archives was found in your paths` for a set that plays on the Pi, or `… fbneo-arcade.dat could not be put in place` | Defects of an older release | Update OSD/OS. With a reason after the second message (`Access is denied`), close RetroArch and download again |
+| RetroAchievements isn't reached on the OSD/OS image or a Raspberry Pi (`login failed: No response`) though the network is up | The clock is wrong: OSD/OS's RetroArch checks the site's certificate, dates included, and sends nothing to one that fails | Wait until the clock is set from the network, a few seconds after it comes up, and start the game again |
 | `Hardcore paused. Setting not allowed: …` as a FinalBurn Neo game starts, and no score reaches RetroAchievements | A core option or a cheat that hardcore mode disallows | Update OSD/OS. For a game with options of its own, turn the option or the cheat off in RetroArch's menu (F1 → Core Options) |
 | `Could not join the game: Failed to connect to host …` | RetroArch couldn't reach the host | Check the host still hosts the game and its firewall lets RetroArch's port through ([LAN play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#lan-play)) |
 | `Could not host the game: Failed to bind port …` | Another RetroArch, or another program, holds the port | Close it, or wait for the other game to end |
@@ -425,7 +429,8 @@ The menu music plays only in the menus, never under a video, the boot screen, th
 | `[MenuMusic] <file>: a MIDI file needs FluidSynth and a SoundFont: fluidsynth is not installed` | A MIDI file, and no FluidSynth | `sudo apt install fluidsynth timgm6mb-soundfont` (`install.sh` and the image have them); `brew install fluid-synth` on a Mac |
 | `… needs FluidSynth and a SoundFont: no SoundFont found` | No General MIDI SoundFont | Put a `.sf2` beside the MIDI file with its name, or in the data folder's `soundfonts`, or install `timgm6mb-soundfont` |
 | `[MenuMusic] mpv couldn't play <file>, and openmpt123 is not installed` | A tracker's module (XM, MOD, S3M, IT) this mpv can't play | `sudo apt install openmpt123`; `brew install libopenmpt` on a Mac |
-| `[MenuMusic] mpv couldn't play <file> (exit N)` | The file is damaged, or of a kind mpv can't play | Pick another file: this one isn't tried again until the music changes |
+| `[MenuMusic] mpv couldn't play <file> (exit N)` | The file is damaged, or of a kind mpv can't play | Pick another file: this one isn't tried again until the music or the sound card changes |
+| `[MenuMusic] no sound card to play <file> through: waiting for one` | No sound card can play now: a USB sound card unplugged, or not up yet | Plug it in: the music starts by itself |
 | `[MenuMusic] <file>: no such file` | The file moved | Pick it again in Settings → Sound → Music File |
 | `[MenuMusic] mpv not found: no menu music` | No mpv | Install mpv |
 
@@ -515,7 +520,7 @@ The bug report form asks for the steps, the module, the platform and how OSD/OS 
 - **The output**: composite, SCART RGB or HDMI, and the Display Output preset in use (`cat /boot/firmware/osdos-display.txt` on the image).
 - **The version**: in Settings' title bar for a release; Settings → System → About → Build has the commit and the day.
 - **mpv's version**: the first line of `mpv --version`.
-- **The log**, as text: Quit → Save Logs or `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem `/tmp/osdos-mpv.log` too, once you have looked through it for addresses and tokens.
+- **The log**, as text: Quit → Save Logs or `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem mpv's log too (`/tmp/runtime-pi/osdos-mpv.log` on the image), once you have looked through it for addresses and tokens.
 - **After a crash or a freeze**: `crash-report.txt` or `stall-report.txt` from the data folder.
 - **A photo of the screen** where it helps, such as Bluetooth's Details page.
 

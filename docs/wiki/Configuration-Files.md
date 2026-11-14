@@ -52,13 +52,13 @@ Each is also read under its 240-MP name, `MP240_<NAME>`, when the `OSDOS_` one i
 | Variable | Set by | What it does |
 |---|---|---|
 | `OSDOS_AUTOSTART` | The autostart service (`Environment=OSDOS_AUTOSTART=1`) | Set to anything: OSD/OS runs as the system's app. Quit offers Power Off, Restart and Exit to Terminal (and Save Logs with `OSDOS_MEDIA_DIR`), and Display Output can be offered |
-| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`9`) | What the launcher can do, each level adding to those below. Set at all, with the app in `/opt/osdos`: in-app updates. `2`: Restart in Quit. `3`: Display Output. `4`: JAMMA 240p 15 kHz (720x240). `5`: Switch and Power Off, At Next Start. `6`: the JAMMA board's other modes. `7`: Wi-Fi. `8`: renaming the device. `9`: JAMMA 480i 15 kHz (640x480) |
+| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`10`) | What the launcher can do, each level adding to those below. Set at all, with the app in `/opt/osdos`: in-app updates. `2`: Restart in Quit. `3`: Display Output. `4`: JAMMA 240p 15 kHz (720x240). `5`: Switch and Power Off, At Next Start. `6`: the JAMMA board's other modes. `7`: Wi-Fi. `8`: renaming the device. `9`: JAMMA 480i 15 kHz (640x480) |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | The launcher, on a Pi 5, from the display preset's `# osdos-output:` and `# osdos-mode:` lines | The output OSD/OS draws on and mpv plays on: `--drm-device`, `--drm-connector` and, when set, `--drm-mode` ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
 | `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | The folder the media go in; else `media` in the data folder. Default folders there: Local Files' `Movies`, Playlists' `Movies/Playlists`, the Arcade's `Games/Arcade` |
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
 | `OSDOS_READY_FILE` | The OSD/OS image: `/run/osdos/ready` | Written, with OSD/OS's process id, once its first frame is on screen |
 | `OSDOS_BOOT_DIR` | Nothing; `/boot/firmware` by default | Where Display Output finds `osdos-display.txt` and its presets, and Wi-Fi the country in `cmdline.txt` |
-| `OSDOS_RUN_DIR` | Nothing; `/run` by default | Where the sockets are: `osdos-display.sock`, `osdos-wifi.sock`, `osdos-name.sock`, and the boot's preset, `osdos-display-boot.txt` |
+| `OSDOS_RUN_DIR` | Nothing; `/run` by default | Where the sockets are: `osdos-display.sock`, `osdos-wifi.sock`, `osdos-name.sock`, `osdos-system.sock`, and the boot's preset, `osdos-display-boot.txt` |
 | `OSDOS_ZONEINFO_DIR` | Nothing; `/usr/share/zoneinfo` by default | Where Wi-Fi finds the list of countries (`iso3166.tab`) |
 | `OSDOS_WATCHDOG` | Nothing | `0`: no freeze reports, and no restart after 20 seconds frozen. For a debugger ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `OSDOS_EMBEDDED_RENDER` | Nothing | With Transparent Background: `sw` draws the video on the CPU; `gpu` with OpenGL even when OpenGL runs on the CPU |
@@ -93,7 +93,7 @@ Other variables:
 
 | To | Variables |
 |---|---|
-| An mpv process | `APP_ROOT`. On Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf` (the VCR font). `ALSA_CARD`, as for a script. On a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` is removed |
+| An mpv process | `APP_ROOT`. On Linux `FONTCONFIG_FILE` names `osdos-fonts.conf` in the [run-time folder](#logs-and-temporary-files) (the VCR font). `ALSA_CARD`, as for a script. On a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` is removed |
 | A script (the Scripts module) and a takeover program (`web-player.sh`, MAME) | `APP_ROOT`, `DATA_ROOT`. `OSDOS_MODE` (`console` or `takeover`) and `OSDOS_VT`, also as `MP240_MODE` and `MP240_VT`. `ALSA_CARD`, when Audio Output names a card. On a Pi 5 `SDL_KMSDRM_DEVICE_INDEX`. The players' pads: `OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's |
 
 ## What is in it
@@ -106,16 +106,16 @@ Other variables:
 ├── nfc_reader_history.json     the NFC Reader's resume points
 ├── youtube_history.json        YouTube's Recently Watched, with resume points
 ├── youtube_watch_later.json    YouTube's Watch Later
-├── youtube_subscriptions.txt   you write it: YouTube channel ids, one a line
-├── youtube_playlists.txt       you write it: YouTube playlists, one a line
+├── youtube_subscriptions.txt   you write it, if you like: YouTube channel ids beside Settings' Subscriptions
+├── youtube_playlists.txt       you write it, if you like: YouTube playlists beside Settings' Playlists
 ├── playlists.json              the Playlists module's lists, where each stopped, its downloads
 ├── playlists/                  the m3u a list was last played from
 ├── plex_auth.json              the Plex sign-in            (owner-only)
 ├── plex_key.pem                Plex's key for this device  (owner-only)
 ├── jellyfin_auth.json          the Jellyfin sign-in        (owner-only)
 ├── emby_auth.json              the Emby sign-in            (owner-only)
-├── tmdb_api_key.txt            you write it: the TMDB key for Netflix and Prime Video
-├── weather_location.txt        you write it: Weather's places
+├── tmdb_api_key.txt            you write it, if you like: the TMDB key, where Settings' TMDB Key is empty
+├── weather_location.txt        you write it, if you like: Weather's places, beside Settings' Location and Other Places
 ├── weather_music.txt           you write it, if you like: Weather's music
 ├── custom_color_schemes.json   you write it, if you like: color schemes of your own
 ├── custom_color_scheme.json    you write it, if you like: the scheme called Custom
@@ -301,9 +301,9 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `window_mode` | Window Mode | string: `"Off"` or `"On"`. Windows and Linux or BSD desktops only |
 | `info_screen` | Info Screen | string: `"off"`, `"key"`, `"1"`, `"2"`, `"3"`, `"5"` |
 | `audio_output` | Audio Output | object `{ "card", "name" }` (the card's ALSA id and its name), or `""` for Auto |
-| `remote_keymap` | Controls → All Keyboards & Remotes | object: `up`, `down`, `left`, `right`, `select`, `back`, each a key's number, `0` for none |
-| `players` | Controls → Players | object: `"1"` to `"6"`, each `{ "key", "name" }`, a pad's key (`""` for Auto) and its name |
-| `controllers` | Controls → a controller's page | object by controller key (`pad-<SDL GUID>`, `kbd-<bus>-<vendor>-<product>`), each with `name`, `kind`, `labels` and `bindings` ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#how-a-controllers-settings-are-saved)) |
+| `remote_keymap` | Controls → Keyboards & Remotes → All Keyboards & Remotes | object: `up`, `down`, `left`, `right`, `select`, `back`, `play_pause`, each a key's number, a list of them for several, `0` for none |
+| `players` | Controls → a pad's page → Player | object: `"1"` to `"6"`, each `{ "key", "name" }`, a pad's key (`""` for Auto) and its name |
+| `controllers` | Controls → a controller's page | object by controller key (`pad-<SDL GUID>`, `kbd-<bus>-<vendor>-<product>`), each with `name`, `kind`, `labels`, `bindings` and a pad's `arcade` ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#how-a-controllers-settings-are-saved)) |
 
 Three keys have no row and are set by hand:
 
@@ -341,6 +341,7 @@ A module's settings are under `modules.<module id>`, with the keys its `manifest
 - **Read from the disk.** `appCore.get_setting(moduleId, key)` returns what `config.json` holds now, `get_settings()` the whole file. A key with one dot reads one level down: `get_setting("", "remote_keymap.back")` is `app.remote_keymap.back`.
 - **Written whole.** `appCore.save_setting(moduleId, key, value)` changes the one key and writes the file again, atomically (`writeFileAtomically()`), as every state file is. A crash or a full disk leaves the old file.
 - **Then announced** with `appSettingChanged` or `moduleSettingChanged`. A change that couldn't be written is not announced, and `save_setting` returns `false`.
+- **A slider's steps are written once.** Each step of ◄ ► on a slider row is announced, and is `get_setting()`'s, at once (`appCore.save_setting_soon()`), but the file is written half a second after the last step, or sooner: as the page is left, with the next setting saved, or as OSD/OS quits. Should that write fail, the setting is as the file has it again and is announced again with that value.
 - **A missing file** reads as `{ "app": { "color_scheme": "Video 1" }, "modules": {} }`, and the first change writes a new file.
 - **An invalid file is left alone.** A `config.json` that isn't valid JSON reads as those defaults but is never written over: every `save_setting` returns `false` until it is fixed. `lists.json` is kept the same way.
 
@@ -350,7 +351,7 @@ When each part is read:
 |---|---|
 | The look, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver, Audio Output, Controls, Cabinet Lock, the modules' folders | At start, then at each change made in Settings |
 | `display_index`, Start on Module, Play at Startup, Startup From | At start |
-| Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts |
+| Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts; Scaling and Video Levels also at once on a video playing behind the menus |
 | A module's other settings | When the module needs them: most as a video starts or a list opens |
 
 A change made by hand while OSD/OS runs reaches the per-video settings at the next video, and the rest at the next start.
@@ -466,7 +467,7 @@ Only the newest WAV is kept, and a changed file is made again. Deleting the fold
 |---|---|
 | OSD/OS's own log | Its standard output and error. Under the autostart service: `journalctl -u osdos -b` (this boot), `journalctl -u osdos -f` (as it happens). A Mac app opened from the Finder: Console.app. On Windows: `osdos.log` in the data folder |
 | mpv's messages | In OSD/OS's log as `[mpv] …` lines, with every token blanked out |
-| mpv's full log | `/tmp/osdos-mpv.log`, owner-only: the latest video's, verbose, with its command line (and tokens) |
+| mpv's full log | `osdos-mpv.log` in the run-time folder (below: `/tmp/runtime-pi/` on the image), owner-only: the latest video's, verbose, with its command line (and tokens) |
 | The boot screen's timings (the image) | `journalctl -b -u osdos \| grep '\[boot\]'` |
 | USB drives (the image) | `journalctl -u 'osdos-usb-mount@*'` |
 | yt-dlp's updates (the image) | `journalctl -u osdos-yt-dlp-update` |
@@ -474,17 +475,27 @@ Only the newest WAV is kept, and a changed file is made again. Deleting the fold
 
 A Release build leaves out OSD/OS's debug lines, such as `[AppCore] Setting saved: app.video_scaling = 14:9` and `[MpvController] launch: mpv …` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)).
 
-OSD/OS's temporary files go in the system's temporary folder (`/tmp`, or `$TMPDIR`):
+What OSD/OS makes for a video and hands to mpv goes in its **run-time folder**, which only its user can open:
+
+| Where OSD/OS runs | The folder |
+|---|---|
+| The OSD/OS image, and the autostart service | `/tmp/runtime-pi` (`/tmp/runtime-<user>` for another user). A service has no login session, so Qt makes the folder, and the log says `QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-pi'` |
+| Linux or a BSD, started from a terminal or a desktop | `$XDG_RUNTIME_DIR`, which a login session sets: `/run/user/1000`, say. Without one, `/tmp/runtime-<user>` |
+| macOS, Windows | The temporary folder, the user's own there (`$TMPDIR`, `%TEMP%`) |
+
+- On Linux and the BSDs `/tmp` itself is every account's to write in, which is why the files are not there.
+- Where the folder can't be had (its name taken by something else), OSD/OS makes one for the run under `/tmp`, removed as it ends, and names it in the log: `[RuntimeFiles] No run-time folder of the user's own: this run's files are in /tmp/osdos-AbCdEf`.
 
 | File | What it is |
 |---|---|
-| `osdos-mpv.sock` | The IPC socket of the video playing |
+| `osdos-mpv.sock` | The IPC socket of the video playing (a named pipe on Windows) |
 | `osdos-input.conf` | The key bindings each video's mpv gets ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#back-and-the-end-of-a-video)) |
 | `osdos-mpv.log` | mpv's log, above |
 | `osdos-mpv-subinfo.json` | Subtitle tracks' names for the deck menu, while a server's sidecar subtitles play |
 | `osdos-logo.bgra` | Logo Image's picture, in mpv's overlay format |
 | `osdos-fonts.conf` | The fontconfig file that shows mpv the VCR font |
-| `osdos-menu-music-<pid>.sock`, `osdos-weather-music.sock` | The menu music's and Weather's music's mpv sockets |
+
+The menu music's and Weather's music's mpv sockets, `osdos-menu-music-<pid>.sock` and `osdos-weather-music.sock`, are in the system's temporary folder (`/tmp`, or `$TMPDIR`).
 
 ## See also
 

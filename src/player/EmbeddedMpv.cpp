@@ -14,10 +14,52 @@
 #include <QQuickWindow>
 #include <QSemaphore>
 #include <QThread>
+#include <atomic>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <type_traits>
 #include <vector>
+
+// mpv's OpenGL renderer makes a fence after every picture it draws for the
+// render API (ra_gl_ctx_submit_frame(), mpv 0.40), and frees them only where
+// it swaps the buffers itself, which there it never does: one sync object a
+// picture, kept for good, the session's end not freeing them either. On most
+// GPUs that is a little memory. On a Pi 4's (Mesa's V3D) each fence holds a
+// file descriptor, so the pictures of some 45 minutes, at 24 a second, used
+// up the 65536 the app may have open. Nothing could be opened after that: no
+// decoder, no sound card, no font, no pipe for a process, and GLib ended the
+// app.
+//
+// mpv is therefore given a glFenceSync that makes none. It keeps a fence only
+// where one comes back, and has no other use for them here: a mapped upload
+// buffer has one, which the render API's users have only with
+// MPV_RENDER_PARAM_ADVANCED_CONTROL or --opengl-pbo, neither of them set.
+namespace {
+// OpenGL's own calling convention, where it has one (32-bit Windows).
+#if defined(Q_OS_WIN) && !defined(Q_OS_WIN64)
+#define OSDOS_GL_CALL __stdcall
+#else
+#define OSDOS_GL_CALL
+#endif
+std::atomic<quint64> g_fencesNotMade { 0 };
+// A GLsync is a pointer: none.
+void *OSDOS_GL_CALL noFence(unsigned int, unsigned int) {
+    ++g_fencesNotMade;
+    return nullptr;
+}
+} // namespace
+
+void *EmbeddedMpv::glFunctionFor(const char *name, void *real) {
+    // Not where the context has no fences: mpv then knows it has none.
+    if (real && name && std::strcmp(name, "glFenceSync") == 0)
+        return reinterpret_cast<void *>(&noFence);
+    return real;
+}
+
+quint64 EmbeddedMpv::fencesNotMade() {
+    return g_fencesNotMade.load();
+}
 
 #ifdef OSDOS_EMBEDDED_MPV
 #include <mpv/client.h>
@@ -353,7 +395,8 @@ private:
     static constexpr int kCheapest = 2;
 
     static void *procAddress(void *context, const char *name) {
-        return reinterpret_cast<void *>(static_cast<QOpenGLContext *>(context)->getProcAddress(name));
+        return EmbeddedMpv::glFunctionFor(
+            name, reinterpret_cast<void *>(static_cast<QOpenGLContext *>(context)->getProcAddress(name)));
     }
 
     bool allocate(Buffer &b, const QSize &size) {

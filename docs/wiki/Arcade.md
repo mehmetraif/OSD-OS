@@ -302,7 +302,7 @@ Settings → Look → **Theme** → **Orb** draws the Arcade screen in 3D, in x-
 - The games are on a panel at the right, eight to a page. The game's pictures are in the orb at the left.
 - Settings → Look → **Orb Fog** chooses the fog behind: **Picture** (the default) or **Live** (more work for a Raspberry Pi's GPU).
 - A game started goes into the orb for about two and a half seconds, in which no key counts.
-- Screen Adjustment, Hint Bar and Help Line apply; List Style, Border and Info Background don't.
+- Screen Adjustment, Hint Bar and Help Line apply; List Style, Border and Info Background don't, and Settings → Arcade shows them dimmed, the help line saying why.
 
 The Orb look needs a GPU and Qt Quick 3D. Without them the screen is drawn flat, and the log says `[Arcade] the Orb look needs Qt Quick 3D: the Arcade screen's own is drawn`.
 
@@ -407,7 +407,7 @@ Select on a game in the tree, or select or START on the Arcade screen. The game 
 - From the Arcade screen, every game waits three seconds. The screen says `2 credits go in as the game starts`, or `No credit: insert a coin in the game`. COIN puts in another; START or select starts at once.
 - Back in that time cancels the game and keeps the credits.
 
-**Coming back**: press **Coin and Start together** on any player's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on an Xbox pad, `SELECT + START` on a PlayStation one, `- + +` on a Nintendo one. A button changed in MAME's menu for UI Cancel replaces this way back.
+**Coming back**: press **Coin and Start together** on any player's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on most pads, `SELECT + START` or `- + +` on a pad whose buttons are named so ([Button names](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-names)). A button changed in MAME's menu for UI Cancel replaces this way back.
 
 MAME's own menu is **Tab** on a keyboard, or the controller's guide button: **MODE** on the JAMMA board.
 
@@ -430,7 +430,7 @@ MAME's players are the ones **Settings → Controls → Players** sets ([Control
 - Keyboards play with MAME's keys: 5 coin, 1 start, the arrows and Ctrl, Alt, Space for player 1.
 - Six-player games take the JAMMA board's two sticks and four pads over USB or Bluetooth.
 
-**Arcade Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)).
+**Game Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Game Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#game-buttons)).
 
 - A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line.
 - What is changed in MAME's menu comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
@@ -482,7 +482,7 @@ FinalBurn Neo is a second arcade emulator, played here in RetroArch as a libretr
 **Playing**
 
 - Come back as from MAME. A keyboard's coin and start are **5** and **1** for player 1, 6 and 2 for player 2, and so on to player 4. Player 1's buttons are Z, X, A, S, Q, W and the arrows.
-- The JAMMA board's sticks, and a pad with Arcade Buttons of its own, have FinalBurn Neo's **6-Button Panel**: buttons 1 to 3 in the top row and 4 to 6 below.
+- The JAMMA board's sticks, and a pad with Game Buttons of its own, have FinalBurn Neo's **6-Button Panel**: buttons 1 to 3 in the top row and 4 to 6 below.
 - RetroArch's menu is **F1** on a keyboard. A change made there lasts that game; FinalBurn Neo's own **Core Options** are kept.
 - A game's state is saved with **F2** and loaded with **F4**, except in hardcore mode.
 
@@ -499,7 +499,7 @@ Sign in under **Settings → Arcade → RetroAchievements Account**:
    - **At the Next Game**: no connection. RetroArch signs in as the next FinalBurn Neo game starts.
 3. Type the **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**. It is not the password. The page says **Working**, **Kept** while it can't be checked, or **Refused**.
 
-The key is for the leaderboards, the games' pictures and the achievements in Game Details. **Forget Web API Key** removes it; **Sign Out** forgets the account and its token. The password is never saved, but RetroArch as Debian builds it sends it over plain HTTP: use one you use nowhere else.
+The key is for the leaderboards, the games' pictures and the achievements in Game Details. **Forget Web API Key** removes it; **Sign Out** forgets the account and its token. The password is never saved. On the OSD/OS image and a Raspberry Pi, the RetroArch that comes with OSD/OS sends it over https, and only to a server whose certificate it has checked. A system's own RetroArch built without TLS, as Debian's and Ubuntu's packages are, sends it over plain HTTP: use one you use nowhere else there.
 
 **RA Hi-Score.** With Online High Scores on RetroAchievements and a key, the Arcade screen's box shows each FinalBurn Neo game's leaderboard, kept ten minutes. For a game with no leaderboard, or while it is read or can't be, the box shows this machine's own table. With no table either, it says `Reading…`, or `Not Reachable` without a connection or with a key refused.
 

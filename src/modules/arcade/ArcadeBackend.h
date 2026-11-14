@@ -345,6 +345,9 @@ public:
     static QStringList setsOfFavoritesText(const QString &text);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
     Q_INVOKABLE bool fbneoReady() const;
+    // A look at the games folder's names is under way (refresh()).
+    bool looking() const { return m_looking; }
+    void markChanged();
     // FinalBurn Neo can play the game: it is ready, has the set, and the set
     // is a zip or a 7z named as it looks for it (not a folder of files, not
     // in capitals).
@@ -572,6 +575,18 @@ public:
     // Played, as main.cpp hands them over.
     QStringList recentSets() const { return listedSets(QStringLiteral("recent")); }
 
+    // Where the emulators are and whether pictures can be saved, as last
+    // looked for (programs(), kept for a second; forgetPrograms() has them
+    // looked for anew).
+    struct Programs {
+        QString mame, retroarch, core;
+        QString snapFolder;
+        bool snapWritable = false;
+        QElapsedTimer looked;
+    };
+    mutable Programs m_programs;
+    const Programs &programs() const;
+    void forgetPrograms();
     // MAME's program: DATA_ROOT/bin/mame, else mame on the PATH, else
     // Debian's /usr/games/mame (not on a service's PATH). "" for none.
     QString mamePath() const;
@@ -626,6 +641,8 @@ signals:
     // isn't as it was, or Menu Filters has changed.
     void gamesChanged();
     void runningChanged();
+    // A look at the games folder found it as it was last read (refresh()).
+    void lookedAtNames();
     void scanningChanged();
     void readingChanged();
     void problemChanged();
@@ -667,6 +684,7 @@ private:
     // is gone.
     struct Read {
         QString folder;                          // the games folder read
+        QByteArray names;                        // namesOf() as it was read
         QHash<QString, QString> sets;            // as m_sets, m_misnamed and so on
         QSet<QString> misnamed;
         QSet<QString> folders;
@@ -1435,6 +1453,16 @@ private:
     // waits for it (afterRead()).
     QFutureWatcher<Read> *m_watcher = nullptr;
     bool m_reading = false;
+    // The folders' names as last read (namesOf()), a look at them under way
+    // (lookAtNames()), and something known to have changed since the read,
+    // which the names wouldn't show.
+    QByteArray m_namesRead;
+    QString m_programsRead;       // programsStamp() as it was read
+    QString programsStamp() const;
+    bool m_looking = false;
+    bool m_dirty = false;
+    static QByteArray namesOf(const QString &folder, const QString &home, const QString &dat);
+    void lookAtNames();
     bool m_readAgain = false;
     bool m_scanAfterRead = false;
     bool m_rescanAfterRead = false;

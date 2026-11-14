@@ -40,7 +40,7 @@ Back on the code screen cancels. OSD/OS appears in the server's list of devices 
 
 ### Sign in without a keyboard
 
-Put the server's address in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
+Type the server's address in Settings → TV / Movie → **JELLYFIN** → **Server Address**. It can also go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
 
 ```json
 {
@@ -199,7 +199,7 @@ The keys sit under `modules.com.osdos.jellyfin`, nested as in the fragment [abov
 | `resume_playback` | `"ask"` or `"always"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Pan & Scan"` |
-| `server_url` | the server address signed in to (no setting row) |
+| `server_url` | the server address: Settings → TV / Movie → JELLYFIN → Server Address, and the sign-in screen |
 
 ## How the sign-in is stored
 
@@ -224,7 +224,7 @@ Sign-in messages are listed [above](#signing-in-with-quick-connect).
 | Changing subtitles restarts the video | It is a transcode; Direct Play switches without a restart |
 | Offline playlist says **Not Allowed** | An administrator must allow your Jellyfin user to download media. Then **Retry Downloads** on the playlist's page |
 
-Logs: `journalctl -u osdos -b | grep -i jellyfin`. mpv's log is `/tmp/osdos-mpv.log` (the system's temp folder on a Mac). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
+Logs: `journalctl -u osdos -b | grep -i jellyfin`. mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
 ## See also
 

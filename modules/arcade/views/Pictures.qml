@@ -18,11 +18,18 @@ FocusScope {
 
     readonly property var progress: (arcadeBackend && arcadeBackend.picturesProgress) || ({})
     readonly property bool active: !!progress.active
-    // Read again as the folder is read again, as a picture comes in and as
+    // Read again as the folder is read again, as pictures come in and as
     // the look ends: not at each of its steps, as it goes through every game.
+    // While pictures come in, once a second at most (recount): the count
+    // walks every game, and a download saves several pictures a second.
     property int revision: 0
     readonly property var info: (revision, arcadeBackend ? arcadeBackend.picturesInfo() : ({}))
     onActiveChanged: revision++
+    Timer {
+        id: recount
+        interval: 1000
+        onTriggered: picturesRoot.revision++
+    }
 
     readonly property var keys: ["games", "achievements", "snaps", "download"]
 
@@ -77,7 +84,7 @@ FocusScope {
         target: arcadeBackend
         ignoreUnknownSignals: true
         function onScanningChanged() { picturesRoot.revision++ }
-        function onPicturesChanged(set) { picturesRoot.revision++ }
+        function onPicturesChanged(set) { if (!recount.running) recount.start() }
         function onGamesChanged() { picturesRoot.revision++ }
     }
 

@@ -67,8 +67,8 @@ Select on a video opens its choices:
 | Choice | What it does |
 |---|---|
 | **Play from Here** | Plays the list starting with this video, without asking about where it stopped |
-| **Move Up** / **Move Down** | Moves it one place in the list |
-| **Remove from Playlist** | Takes it off. On an offline list its download is stopped or deleted, unless another offline playlist has the video |
+| **Move Up** / **Move Down** | Moves it one place in the list; the cursor stays on it |
+| **Remove from Playlist** | Takes it off; the cursor is then on the video that took its place. On an offline list its download is stopped or deleted, unless another offline playlist has the video |
 
 ## Adding videos
 
@@ -245,7 +245,8 @@ A server video downloads as its original file from `/Items/<id>/Download`, signe
 - Queued videos start downloading 15 seconds after OSD/OS starts. A video put on an offline list joins the queue at once.
 - With the Playlists module turned off, nothing downloads; a download under way stops and waits. Turned on again, the queue goes on.
 - A download stays at 100% for a moment while the file is written out to the card, and only then counts as **READY**.
-- A failed download is tried again each time OSD/OS starts, and with **Retry Downloads**. A **NOT ALLOWED** one is tried only with Retry Downloads.
+- A download that failed for the network (nothing answered, the transfer was cut, the server was still starting, or yt-dlp gave up) is tried again by itself: a minute later, then after twice as long each time it fails again, up to an hour.
+- Every failed download is also tried again each time OSD/OS starts, and with **Retry Downloads**. A **NOT ALLOWED** one is tried only with Retry Downloads.
 - A downloaded file deleted from outside OSD/OS shows **QUEUED** and downloads again the next time OSD/OS starts.
 
 ### When a download is deleted
@@ -419,7 +420,7 @@ http://192.168.1.30:8096/Videos/20733/stream?static=true&api_key=<token>
 | A Jellyfin or Emby video doesn't play on an online list | The server must be reachable. The list streams the original file, so a file mpv can't decode won't play here |
 
 - The app's log has the module's warnings: `journalctl -u osdos -b | grep Playlists`, such as `[Playlists] download of youtube:aBcD3fGh1jK failed: <reason>` or `[Playlists] can't write playlists.json`.
-- mpv's own log is `/tmp/osdos-mpv.log` ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
+- mpv's own log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files); [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
 
 ## See also
 

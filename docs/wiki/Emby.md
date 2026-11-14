@@ -39,7 +39,8 @@ The username and password go to the server only. The password is never stored. U
 ### Emby Connect
 
 - With more than one server on the account, **Choose a Server** lists them. Select one.
-- If that server doesn't answer, the error shows on the same list, to pick another.
+- A server is tried at its address on your network first, then at its address on the internet: a server in another house, or one in a container that reports the container's own address.
+- If it gives no sign-in at either, the error shows on the same list, to pick another.
 - After sign-in Emby Connect isn't needed again.
 
 ### What the sign-in screen can say
@@ -55,12 +56,12 @@ The username and password go to the server only. The password is never stored. U
 | **EMBY CONNECT SIGN IN FAILED (HTTP …)**, **INVALID EMBY CONNECT RESPONSE** | emby.media refused or answered oddly |
 | **FAILED TO LOAD SERVERS: …** | The account's server list couldn't be fetched |
 | **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or use Local Server |
-| **SERVER EXCHANGE FAILED (HTTP …)**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account, or didn't answer (HTTP 0). Pick another, or use Local Server |
+| **SERVER EXCHANGE FAILED (HTTP …)**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account, or answered at neither of its addresses (HTTP 0). Pick another, or use Local Server |
 | **INVALID SERVER SELECTION** | Emby Connect listed the server without an access key |
 
 ### Fill in the address beforehand
 
-For Local Server, the address can go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
+For Local Server, type the address in Settings → TV / Movie → **EMBY** → **Server Address**. It can also go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
 
 ```json
 {
@@ -160,7 +161,7 @@ The keys sit under `modules.com.osdos.emby`, nested as in the fragment [above](#
 | `resume_playback` | `"ask"` or `"always"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Letterbox"` |
-| `server_url` | the server address signed in to (no setting row) |
+| `server_url` | the server address: Settings → TV / Movie → EMBY → Server Address, and the sign-in screen |
 
 ## How the sign-in is stored
 
@@ -183,7 +184,7 @@ Sign-in messages are listed [above](#what-the-sign-in-screen-can-say).
 | Offline playlist says **Not Allowed** | An administrator must allow your Emby user to download media. Then **Retry Downloads** on the playlist's page |
 | No Continue Watching or Next Up | They show only when they have something |
 
-Logs: `journalctl -u osdos -b | grep -i emby`. mpv's log is `/tmp/osdos-mpv.log` (the system's temp folder on a Mac). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
+Logs: `journalctl -u osdos -b | grep -i emby`. mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
 ## See also
 

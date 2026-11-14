@@ -27,13 +27,13 @@ FocusScope {
     property string detail: {
         switch (reason) {
         case "notfound":
-            return "Please check the place's name in the location file, see the wiki"
+            return "Please check the place's name in Settings, in WEATHER's Location, or in the location file"
         case "network":
             return "Please check your network connection and try again"
         case "unreadable":
             return "Please check the location file's permissions"
         default:
-            return "Please write your town, or its latitude and longitude, in the location file, see the wiki"
+            return "Please type your town, or its latitude and longitude, in Settings, in WEATHER's Location"
         }
     }
     // The file itself, named for the reasons that are about it.

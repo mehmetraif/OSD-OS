@@ -2,6 +2,7 @@
 #include "../../util/MpvLocator.h"
 #include "../../audio/AudioOutput.h"
 #include "../../audio/MenuMusic.h"
+#include "../../util/EndProcess.h"
 
 #include <QDir>
 #include <QFile>
@@ -480,7 +481,7 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
 }
 
 WeatherBackend::~WeatherBackend() {
-    stopMusic();
+    endMusic(true);
 }
 
 QString WeatherBackend::location_file_path() const {
@@ -524,6 +525,16 @@ void WeatherBackend::onSettingChanged(const QString &moduleId, const QString &ke
         fetchWeather();
         fetchOthers();
     }
+    // Another place: looked up again, where the file's was looked up once a
+    // run. The forecast on the screen stays until the new one is in.
+    if (key == QLatin1String("location")) {
+        m_resolved = false;
+        resolveLocation();
+    }
+    // The other places: looked up again beside the place there is. With no
+    // place yet there is nothing to show them beside.
+    if (key == QLatin1String("other_places") && m_resolved)
+        resolveLocation();
 }
 
 void WeatherBackend::getDisplays() {
@@ -571,7 +582,10 @@ void WeatherBackend::stop() {
 // ── Music ────────────────────────────────────────────────────────────────────
 
 QStringList WeatherBackend::musicPlaylist() const {
-    QStringList entries = readListFile(music_file_path());
+    // Settings' Music List, else weather_music.txt, else the built-in tracks.
+    QStringList entries = settingLines("music_list");
+    if (entries.isEmpty())
+        entries = readListFile(music_file_path());
     if (entries.isEmpty()) {
         for (const char *track : kBuiltInMusic)
             entries << QString::fromUtf8(track);
@@ -608,6 +622,9 @@ void WeatherBackend::startMusic() {
                              : setting.toBool(true);
     if (!enabled) return;
     if (m_music) return;
+    // One asked to end a moment ago still has the sound card: not two at once.
+    if (m_musicEnding && m_musicEnding->state() != QProcess::NotRunning)
+        m_musicEnding->waitForFinished(1000);
 
     const QStringList tracks = musicPlaylist();
     if (tracks.isEmpty()) return;
@@ -675,20 +692,36 @@ void WeatherBackend::startMusic() {
 }
 
 void WeatherBackend::stopMusic() {
+    endMusic(false);
+}
+
+// `wait` as the app ends: mpv is gone before this returns. Leaving the
+// module, it is not waited for: the menus come back at once, mpv goes in its
+// own time, and the menu music has the card only once it has.
+void WeatherBackend::endMusic(bool wait) {
     if (m_musicConnect) m_musicConnect->stop();
     if (m_musicIpc)     m_musicIpc->abort();
 
-    if (m_music) {
-        QProcess *p = m_music;
-        m_music = nullptr;          // cleared first: terminate() can re-enter
+    QProcess *p = std::exchange(m_music, nullptr);  // cleared first: terminate() can re-enter
+    m_musicPaused = false;
+    if (p) {
         p->disconnect(this);        // this slot via the finished signal
+        if (p->state() != QProcess::NotRunning && !wait) {
+            m_musicEnding = p;
+            endProcessLater(p, this, [this]() {
+                // Not while the music is on again: its hold is the new one's.
+                if (!m_music)
+                    MenuMusic::release(QStringLiteral("weather"));
+            });
+            emit musicStateChanged();
+            return;
+        }
         if (p->state() != QProcess::NotRunning) {
             p->terminate();
             p->waitForFinished(1000);
         }
         p->deleteLater();
     }
-    m_musicPaused = false;
     MenuMusic::release(QStringLiteral("weather"));
     emit musicStateChanged();
 }
@@ -731,6 +764,19 @@ QStringList WeatherBackend::readLocationLines() const {
     return readListFile(location_file_path());
 }
 
+// One of the module's lists typed in Settings or OSD/OS Setup
+// (modules.<id>.<key>, a list of lines): its lines that say something.
+QStringList WeatherBackend::settingLines(const char *key) const {
+    QStringList lines;
+    const QJsonArray typed = moduleConfig()[QLatin1String(key)].toArray();
+    for (const QJsonValue &v : typed) {
+        const QString line = v.toString().trimmed();
+        if (!line.isEmpty() && !line.startsWith(QLatin1Char('#')) && !lines.contains(line))
+            lines << line;
+    }
+    return lines;
+}
+
 // "42.3601, -71.0589" or "42.3601, -71.0589, BOSTON".
 //
 // Explicit coordinates are the reliable escape hatch when a place name is
@@ -760,16 +806,27 @@ bool WeatherBackend::parseCoordLine(const QString &line, double *lat, double *lo
 void WeatherBackend::resolveLocation() {
     const quint64 generation = ++m_locationGeneration;
     ++m_extraLocationGeneration;
+    // Settings' Location (modules.<id>.location) is the place; the file's
+    // lines after its first are the other places then, and with no file there
+    // are none. Without the setting the file says both, as it always has.
+    // Settings' Other Places come before the file's.
+    const QString chosen = moduleConfig()[QStringLiteral("location")].toString().trimmed();
     QFile probe(location_file_path());
-    if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
-    if (!probe.open(QIODevice::ReadOnly | QIODevice::Text)) { emitError(QStringLiteral("unreadable")); return; }
-    probe.close();
+    if (chosen.isEmpty()) {
+        if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
+        if (!probe.open(QIODevice::ReadOnly | QIODevice::Text)) { emitError(QStringLiteral("unreadable")); return; }
+        probe.close();
+    }
 
     const QStringList lines = readLocationLines();
-    if (lines.isEmpty()) { emitError(QStringLiteral("empty")); return; }
+    if (chosen.isEmpty() && lines.isEmpty()) { emitError(QStringLiteral("empty")); return; }
 
-    const QString primary = lines.first();
-    const QStringList others = lines.mid(1);
+    const QString primary = chosen.isEmpty() ? lines.first() : chosen;
+    QStringList others = settingLines("other_places");
+    for (const QString &line : lines.mid(1)) {
+        if (!others.contains(line))
+            others << line;
+    }
 
     double lat = 0.0, lon = 0.0;
     QString label;

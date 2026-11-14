@@ -222,6 +222,7 @@ HighScoresBackend::HighScoresBackend(const QString &appRoot, const QString &data
 #else
     m_problem = QStringLiteral("This build of OSD/OS reads no high score tables: it was built without minizip");
 #endif
+    m_saves.setMaxThreadCount(1);
     m_watcher = new QFutureWatcher<Read>(this);
     connect(m_watcher, &QFutureWatcherBase::finished, this, &HighScoresBackend::onRead);
 }
@@ -229,6 +230,8 @@ HighScoresBackend::HighScoresBackend(const QString &appRoot, const QString &data
 HighScoresBackend::~HighScoresBackend() {
     // The read keeps nothing of this object's: it may finish on its own.
     m_watcher->disconnect(this);
+    // scores.json as it stands, on the card before the backend has gone.
+    m_saves.waitForDone();
 }
 
 QHash<QString, HighScoresBackend::Source> HighScoresBackend::listSources() const {
@@ -320,8 +323,15 @@ void HighScoresBackend::saveCache() const {
                              { QStringLiteral("namesFrom"), m_namesFrom },
                              { QStringLiteral("games"), games },
                              { QStringLiteral("names"), names } };
-    QDir().mkpath(m_home);
-    writeFileAtomically(m_home + QStringLiteral("/scores.json"), QJsonDocument(cache).toJson(QJsonDocument::Compact));
+    // Off the app's thread: this runs as the tables are read, after each
+    // game, and a write that waits for the card takes tens to hundreds of
+    // milliseconds on one. In order, the newest last (m_saves is one thread,
+    // waited for as the backend goes).
+    const QByteArray json = QJsonDocument(cache).toJson(QJsonDocument::Compact);
+    m_saves.start([home = m_home, json] {
+        QDir().mkpath(home);
+        writeFileAtomically(home + QStringLiteral("/scores.json"), json);
+    });
 }
 
 void HighScoresBackend::refresh() {

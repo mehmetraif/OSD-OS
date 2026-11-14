@@ -1,8 +1,9 @@
 // The menu music (MenuMusic) against a stand-in for mpv: a shell script first
 // on PATH that writes down when it starts and what, and stays until killed
-// (or, told to fail, ends at once, as mpv does on a file it can't play). And
-// stand-ins for FluidSynth and openmpt123, which write down what they were
-// asked to make and make a file of it.
+// (or, told to fail, ends at once, as mpv does on a file it can't play, and
+// with no sound card to play through). And stand-ins for FluidSynth and
+// openmpt123, which write down what they were asked to make and make a file
+// of it, and for ALSA's list of sound cards (OSDOS_ASOUND_DIR).
 #include "audio/MenuMusic.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -20,6 +21,7 @@ media=""
 for a in "$@"; do media="$a"; done
 echo "start $(basename "$media") $$" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then exit 2; fi
+if [ "$FAKE_MPV_MODE" = card ] && ! grep -q '^ *[0-9]' "$OSDOS_ASOUND_DIR/cards"; then exit 2; fi
 case "$media" in *.xm) if [ "$FAKE_MPV_MODULE" = fail ]; then exit 2; fi ;; esac
 i=0
 while [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done
@@ -69,6 +71,16 @@ class MenuMusicTest : public QObject {
             && f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
     }
     QString cache() const { return m_dir.path() + QStringLiteral("/cache"); }
+    // ALSA's list of cards, as /proc/asound has it: a USB sound card that
+    // can play, or none.
+    bool soundCard(bool there) const {
+        const QString asound = m_dir.path() + QStringLiteral("/asound");
+        return QDir().mkpath(asound + QStringLiteral("/card1/pcm0p"))
+            && writeFile(asound + QStringLiteral("/cards"),
+                         there ? QByteArray(" 1 [Device         ]: USB-Audio - USB Audio Device\n"
+                                            "                      USB Audio Device at usb-xhci-hcd.0-1, full speed\n")
+                               : QByteArray("--- no soundcards ---\n"));
+    }
     // What the cache holds of the menu music's.
     QStringList made() const {
         QStringList files;
@@ -98,6 +110,11 @@ private slots:
         qputenv("PATH", bin.toUtf8() + ':' + qgetenv("PATH"));
         qputenv("TMPDIR", m_dir.path().toUtf8());
         qputenv("XDG_CACHE_HOME", cache().toUtf8());
+        // The sound cards are the test's own, whatever the machine has, with
+        // no sound server to pick one in ALSA's place.
+        qputenv("OSDOS_ASOUND_DIR", (m_dir.path() + QStringLiteral("/asound")).toUtf8());
+        qputenv("XDG_RUNTIME_DIR", m_dir.path().toUtf8());
+        qunsetenv("PULSE_SERVER");
         m_log = m_dir.path() + QStringLiteral("/mpv.log");
         qputenv("FAKE_MPV_LOG", m_log.toUtf8());
         m_tune = m_dir.path() + QStringLiteral("/tune.ogg");
@@ -112,6 +129,7 @@ private slots:
         qputenv("FAKE_MPV_MODULE", "play");
         qputenv("FAKE_RENDER_MODE", "make");
         qputenv("FAKE_RENDER_DELAY", "");
+        QVERIFY(soundCard(true));
         m_music = new MenuMusic(m_dir.path() + QStringLiteral("/data"));
     }
 
@@ -183,6 +201,41 @@ private slots:
         qputenv("FAKE_MPV_MODE", "play");
         m_music->setSource(m_dir.path() + QStringLiteral("/bin/../tune.ogg"));
         QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 2, 3000);
+    }
+
+    // No sound card to play through (a USB card unplugged, or not up yet as
+    // the Pi starts): mpv ends at once, as on a file it can't play, but the
+    // file isn't given up on, nor started over and over; it plays once a
+    // card is there.
+    void waitsForASoundCard() {
+        QVERIFY(soundCard(false));
+        qputenv("FAKE_MPV_MODE", "card");
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral(
+                                               "^\\[MenuMusic\\] no sound card to play .*/tune\\.ogg through")));
+        QTest::failOnWarning(QRegularExpression(QStringLiteral("couldn't play")));
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 1, 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(!m_music->playing(), 2000);
+        QTest::qWait(2500);
+        QCOMPARE(starts().size(), 1);
+        QVERIFY(soundCard(true));
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 5000);
+        QCOMPARE(starts().size(), 2);
+    }
+
+    // A tune given up on is tried once more on another sound card (Settings →
+    // Sound → Audio Output): the card before may be what couldn't play it.
+    void anotherCardTriesAgain() {
+        qputenv("FAKE_MPV_MODE", "fail");
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 1, 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->findChildren<QProcess *>().isEmpty(), 3000);
+        qputenv("FAKE_MPV_MODE", "play");
+        m_music->restart();
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        QCOMPARE(starts().size(), 2);
     }
 
     // A MIDI file: FluidSynth makes it into a WAV with the SoundFont beside

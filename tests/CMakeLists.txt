@@ -69,15 +69,18 @@ target_link_libraries(storage_search_test PRIVATE
     Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME storage_search COMMAND storage_search_test)
 
-# Themes and skins, read from the app's folder and the data folder's (AppCore).
+# Themes and skins, read from the app's folder and the data folder's (AppCore),
+# and their icons as the icon provider draws and keeps them (OsdIconProvider).
+find_package(Qt6 REQUIRED COMPONENTS Quick)
 add_executable(looks_test
     looks_test.cpp
     ../src/AppCore.cpp
+    ../src/util/OsdIconProvider.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(looks_test PRIVATE ../src)
 target_compile_definitions(looks_test PRIVATE OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
+target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 
 # The Jellyfin, Emby and Plex backends against a stand-in network: a list
@@ -235,6 +238,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(system_info_test PRIVATE ../src)
     target_link_libraries(system_info_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
     add_test(NAME system_info COMMAND system_info_test)
+
+    # Settings → System's Time Zone and Keyboard (SystemSettings): what the
+    # system has from a stand-in root, the lists it offers, and a new one sent
+    # through a stand-in for osdos-system.socket.
+    add_executable(system_settings_test
+        system_settings_test.cpp
+        ../src/system/SystemSettings.cpp
+        ../src/util/LegacyNames.cpp
+        ../src/util/RootRequest.cpp)
+    target_include_directories(system_settings_test PRIVATE ../src)
+    target_compile_definitions(system_settings_test PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
+    target_link_libraries(system_settings_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+    add_test(NAME system_settings COMMAND system_settings_test)
 
     # Settings → Network → Wi-Fi (WifiManager) against a stand-in for NetworkManager
     # (fake_networkmanager) on a D-Bus of the test's own, and for the country
@@ -436,13 +452,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Gui Quick QuickTest)
-add_executable(tree_browser_test tree_browser_test.cpp)
+# The runner's engine has the app's provider of the pixel symbols' pictures
+# (PixelIcon, image://osdpixel), as main.cpp's has.
+add_executable(tree_browser_test tree_browser_test.cpp ../src/util/OsdIconProvider.cpp)
+target_include_directories(tree_browser_test PRIVATE ../src)
 target_link_libraries(tree_browser_test PRIVATE Qt6::QuickTest Qt6::Quick)
 add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_tree_browser.qml)
 set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # Settings → Controls' pages (views/Controllers.qml, ControllerSettings.qml,
-# ArcadeButtons.qml, RemapControls.qml) against a stand-in for InputManager,
-# with the same QML test runner.
+# MenuButtons.qml, ControllerTest.qml, ArcadeButtons.qml) against a stand-in
+# for InputManager, with the same QML test runner.
 add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
@@ -474,6 +493,19 @@ set_tests_properties(main_menu_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offs
 add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# Settings → Network → Bluetooth (views/Bluetooth.qml) against a stand-in for
+# BluetoothManager: its lines, a device's options, and the lines changed where
+# they are as BlueZ says more.
+add_test(NAME bluetooth_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_bluetooth.qml
+                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(bluetooth_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# What comes over a view, each on its own: the on-screen keyboard
+# (views/Components/OnScreenKeyboard.qml), the choice window
+# (views/Components/ChoiceOverlay.qml) and the screen saver
+# (views/Components/ScreenSaver.qml).
+add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
+                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # About (views/About.qml): System Information first, the device's name its
 # value, opening its page; OSD/OS's lines and the arcade's, each licence a
 # page of its own, against stand-ins for the licence files and the name.

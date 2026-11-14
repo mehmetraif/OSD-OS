@@ -63,10 +63,41 @@ FocusScope {
         return out
     }
 
+    // The first of the rows that is a video, or -1.
+    function firstVideoRow(list) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].type === "item")
+                return i
+        }
+        return -1
+    }
+
+    // Where the cursor goes in the rows made anew, from the row it was on
+    // (was, the index-th of before): the same row, wherever it is now, a
+    // video by its id (moved up or down, or pushed along by a line that came
+    // or went above it: Retry Downloads) and a line of the menu by what it
+    // does. A video taken off leaves it on the one that took its place, the
+    // last one's on the new last; a line that is gone, on the row at its
+    // place.
+    function cursorRow(before, index) {
+        var was = before[index]
+        if (was) {
+            for (var i = 0; i < rows.length; i++) {
+                if (rows[i].type === was.type && (was.type !== "item" || rows[i].item.id === was.item.id))
+                    return i
+            }
+            var first = firstVideoRow(rows)
+            if (was.type === "item" && first >= 0)
+                return Math.min(first + index - firstVideoRow(before), rows.length - 1)
+        }
+        return Math.max(0, Math.min(index, rows.length - 1))
+    }
+
     function reload() {
         if (!playlistsBackend)
             return
         var current = list.currentIndex
+        var before = rows
         var y = list.contentY
         playlist = playlistsBackend.playlist(playlistId)
         if (!playlist.id) {
@@ -77,8 +108,10 @@ FocusScope {
         }
         progress = ({})
         rows = rowsFrom(playlist)
-        list.currentIndex = Math.max(0, Math.min(current, rows.length - 1))
+        list.currentIndex = cursorRow(before, current)
+        // Scrolled as it was, but for a row the cursor went out of view with.
         list.contentY = y
+        list.show(list.currentIndex)
         if (rows[list.currentIndex] && rows[list.currentIndex].type === "section")
             list.step(1)
     }

@@ -34,7 +34,8 @@ FocusScope {
     property var alsoAuthStates: ({}) // module id -> its sign-in state
     property var moduleNames: ({})    // module id -> its name
 
-    function loadSettings() {
+    // `keepId`: the row the cursor stays on, as in buildModel().
+    function loadSettings(keepId) {
         var allSettings = appCore.get_settings()
         var saved = allSettings.modules || {}
         currentValues = saved[moduleId] || {}
@@ -50,7 +51,7 @@ FocusScope {
         moduleNames = names
         moduleName = names[moduleId] || ""
 
-        buildModel()
+        buildModel(keepId)
     }
 
     // The module a row is of, and its name among the page's rows: its key,
@@ -75,9 +76,21 @@ FocusScope {
         return row && row.type === "submenu" ? row : null
     }
 
-    // `keepId`: the row the cursor stays on (rowId()), as the rows are made
-    // again round it.
+    // The page made: the schemas and the sign-in states read, and the list
+    // given its rows. `keepId`: the row the cursor stays on (rowId()), where
+    // the rows are made again round it. What dims a row changing later
+    // (another row's value, a sign-in, what the server can do) doesn't make
+    // the page again: followRows().
     function buildModel(keepId) {
+        readSchemas()
+        readAuth()
+        placeRows(offeredRows(), keepId)
+    }
+
+    // The schemas, this module's (its submenu's rows, on a submenu's page)
+    // and the group's other modules': a manifest's, which stays as it is
+    // while the app runs, so read as the page is made and not again.
+    function readSchemas() {
         var schema = appCore.get_module_settings_schema(moduleId)
         fullSchema = schema
         if (submenuKey !== "") {
@@ -86,23 +99,72 @@ FocusScope {
             schema = submenu ? (submenu.settings || []) : []
         }
         menuSchema = schema
-        authState = needsAuth(schema) ? appCore.get_module_auth_state(moduleId) : ""
         var schemas = {}
+        for (var a = 0; a < alsoModules.length; a++)
+            schemas[alsoModules[a]] = appCore.get_module_settings_schema(alsoModules[a]) || []
+        alsoSchemas = schemas
+    }
+
+    // Who is signed in, for the modules with a row that asks.
+    function readAuth() {
+        authState = needsAuth(menuSchema) ? appCore.get_module_auth_state(moduleId) : ""
         var states = {}
         for (var a = 0; a < alsoModules.length; a++) {
             var mid = alsoModules[a]
-            schemas[mid] = appCore.get_module_settings_schema(mid) || []
-            states[mid] = needsAuth(schemas[mid]) ? appCore.get_module_auth_state(mid) : ""
+            states[mid] = needsAuth(alsoSchemas[mid]) ? appCore.get_module_auth_state(mid) : ""
         }
-        alsoSchemas = schemas
         alsoAuthStates = states
-        var filtered = offered(schema, "")
-        for (a = 0; a < alsoModules.length; a++) {
-            var rows = offered(schemas[alsoModules[a]], alsoModules[a])
+    }
+
+    // The page's rows as they are offered now: this menu's, then each other
+    // module's under its name as a heading.
+    function offeredRows() {
+        var filtered = offered(menuSchema, "")
+        for (var a = 0; a < alsoModules.length; a++) {
+            var rows = offered(alsoSchemas[alsoModules[a]], alsoModules[a])
             if (rows.length > 0)
                 filtered = filtered.concat([{ type: "section", label: moduleNames[alsoModules[a]] || alsoModules[a] }], rows)
         }
+        return filtered
+    }
+
+    // Counted up as a row changes in place (followRows()), so the lines
+    // read theirs again: the list keeps its model, its lines and its place.
+    property int revision: 0
+
+    // What dims a row may have changed: another row's value, a sign-in, what
+    // the server can do. The rows are worked out again, and those that are
+    // dimmed or usable otherwise are put in their places, the others and the
+    // list left as they are: no line is made again, the list isn't scrolled,
+    // the cursor is where it was. The rows are the same rows whatever is
+    // dimmed (none is ever hidden); were they not, the list is given the
+    // new ones, the cursor kept on its row.
+    function followRows() {
+        var rows = offeredRows()
+        var same = rows.length === schemaItems.length
+        for (var i = 0; same && i < rows.length; i++)
+            same = rows[i].type === schemaItems[i].type && rows[i].key === schemaItems[i].key
+                   && rows[i]._module === schemaItems[i]._module
+        if (!same) {
+            placeRows(rows, currentKey())
+            return
+        }
+        var changed = false
+        for (i = 0; i < rows.length; i++) {
+            if (rows[i]._off === schemaItems[i]._off && rows[i]._offBy === schemaItems[i]._offBy)
+                continue
+            schemaItems[i] = rows[i]
+            changed = true
+        }
+        if (changed)
+            revision++
+    }
+
+    // The list given its rows, the cursor on the row to keep, else where it
+    // was left (navListState), never on a heading.
+    function placeRows(filtered, keepId) {
         schemaItems = filtered
+        revision++
 
         if (filtered.length > 0) {
             var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
@@ -131,7 +193,7 @@ FocusScope {
     // of them: one a sign-in, a capability or another row's value keeps back
     // is dimmed rather than hidden, the cursor stopping on it and the help
     // line saying why (_off; _offBy, what keeps it back: "auth",
-    // "capability" or "shown_with").
+    // "capability", "shown_with" or "shown_unless").
     function offered(schema, mid) {
         var state = mid !== "" ? (alsoAuthStates[mid] || "") : authState
         var caps = dynamicOptions[optionKey(mid, "_capabilities")] || []
@@ -148,6 +210,9 @@ FocusScope {
             } else if (item.shown_with && !shownWith(item.shown_with, mid)) {
                 off = shownWithReason(item.shown_with, mid)
                 by = "shown_with"
+            } else if (item.shown_unless && shownWith(item.shown_unless, mid)) {
+                off = shownUnlessReason(item.shown_unless, mid)
+                by = "shown_unless"
             }
             var row = mid !== "" ? Object.assign({ _module: mid }, item) : item
             rows.push(off !== "" ? Object.assign({ _off: off, _offBy: by }, row) : row)
@@ -159,14 +224,28 @@ FocusScope {
     // Arcade", an on or off one's "Only with Online Play on", several "… or
     // …".
     function shownWithReason(cond, mid) {
-        var parts = conditions(cond).map(function(one) {
-            var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
-            var label = row ? (row.label || one.key) : one.key
-            var value = String(one.value)
-            var lower = value.toLowerCase()
-            return lower === "on" || lower === "off" ? label + " " + lower : label + " on " + value
-        })
+        var parts = conditions(cond).map(function(one) { return conditionWords(one, mid) })
         return "Only with " + parts.join(" or ")
+    }
+    // What a row's "shown_unless" is kept back by, in words: the first of
+    // its conditions that holds, in its own words ("reason") where it has
+    // them, else "Not with Screen on Arcade".
+    function shownUnlessReason(cond, mid) {
+        var holding = conditions(cond).filter(function(one) { return shownWith(one, mid) })[0]
+        if (!holding)
+            return ""
+        return holding.reason ? String(holding.reason) : "Not with " + conditionWords(holding, mid)
+    }
+    // A condition in words: another row's label and the value it waits for,
+    // or the theme's part and what it is.
+    function conditionWords(one, mid) {
+        var value = String(one.value)
+        if (one.theme !== undefined)
+            return "the theme's " + one.theme + " " + value
+        var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
+        var label = row ? (row.label || one.key) : one.key
+        var lower = value.toLowerCase()
+        return lower === "on" || lower === "off" ? label + " " + lower : label + " on " + value
     }
 
     // The module's whole schema, submenus and all, and this menu's rows, as
@@ -180,7 +259,17 @@ FocusScope {
     // "value" }), such as the Arcade module's rows for its Arcade screen, can
     // be used now: that row's value as the page shows it, and never while
     // that row can't be used itself. A list of them holds while any holds.
+    // A condition may be on the theme in force instead (Settings → Look →
+    // Theme, Main.qml's root.theme): { "theme", "value" }, one of its parts
+    // and what it is, such as its look for the Arcade screen ("arcade":
+    // "orb"). "shown_unless" is the same turned round: its row can't be used
+    // while a condition holds (the Arcade screen's List Style in the Orb
+    // look, which lays the list out itself).
     function shownWith(cond, mid, depth) {
+        if (cond.theme !== undefined) {
+            var part = (root.theme || {})[cond.theme]
+            return String(part === undefined || part === null ? "" : part) === String(cond.value)
+        }
         if (cond.key === undefined)
             return conditions(cond).some(function(one) { return shownWith(one, mid, depth) })
         mid = mid || ""
@@ -190,13 +279,16 @@ FocusScope {
             return false
         if (row.shown_with && !shownWith(row.shown_with, mid, depth + 1))
             return false
+        if (row.shown_unless && shownWith(row.shown_unless, mid, depth + 1))
+            return false
         return String(valueOf(mid !== "" ? Object.assign({ _module: mid }, row) : row)) === String(cond.value)
     }
 
-    // A row's "shown_with" as a list of its conditions: one, or a list of
-    // them, which from the manifest is a sequence rather than a JS Array.
+    // A row's "shown_with" or "shown_unless" as a list of its conditions:
+    // one, or a list of them, which from the manifest is a sequence rather
+    // than a JS Array.
     function conditions(cond) {
-        return !cond ? [] : cond.key !== undefined ? [cond] : Array.from(cond)
+        return !cond ? [] : cond.key !== undefined || cond.theme !== undefined ? [cond] : Array.from(cond)
     }
 
     // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
@@ -238,7 +330,8 @@ FocusScope {
     function rowsFollow(key, mid) {
         var rows = mid ? (alsoSchemas[mid] || []) : menuSchema
         for (var i = 0; i < rows.length; i++) {
-            if (conditions(rows[i].shown_with).some(function(one) { return one.key === key })) return true
+            if (conditions(rows[i].shown_with).concat(conditions(rows[i].shown_unless))
+                    .some(function(one) { return one.key === key })) return true
         }
         return false
     }
@@ -287,6 +380,7 @@ FocusScope {
     // Rows that show their current value after the dots.
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
+               || item.type === "text" || item.type === "text_list"
     }
 
     function currentDisplayValue(item) {
@@ -313,13 +407,33 @@ FocusScope {
             return saved !== "" ? saved : "Default"
         }
 
+        // A line typed on the on-screen keyboard: what was typed, or that
+        // something was (a key or a password, "secret", is never shown).
+        if (type === "text") {
+            var typed = String(valuesOf(item)[key] || "")
+            return typed === "" ? "Not Set" : item.secret ? "Set" : typed
+        }
+
+        // A list of typed lines (its own page): how many there are.
+        if (type === "text_list") {
+            var lines = valuesOf(item)[key]
+            var count = lines && lines.length !== undefined && typeof lines !== "string" ? lines.length : 0
+            return count === 0 ? "None" : String(count)
+        }
+
         return ""
     }
 
     // A row's new value, saved in its module and shown. One that couldn't be
     // saved (a full card) leaves the row on what is still saved: false.
-    function store(item, value) {
-        if (!appCore.save_setting(moduleOf(item), item.key, value))
+    // `soon`, a slider's step: in force at once, and written to config.json
+    // once the steps rest or the page is left (AppCore::save_setting_soon()),
+    // not at every step with the key held down; should that write fail, the
+    // row goes back to what is saved (onSettingsNotSaved).
+    function store(item, value, soon) {
+        var saved = soon ? appCore.save_setting_soon(moduleOf(item), item.key, value)
+                         : appCore.save_setting(moduleOf(item), item.key, value)
+        if (!saved)
             return false
         var updated = Object.assign({}, valuesOf(item))
         updated[item.key] = value
@@ -369,10 +483,12 @@ FocusScope {
             var at = valueOf(item)
             var v = Math.max(0, Math.min(100, at + direction * (item.step || 10)))
             if (v === at) return
-            store(item, v)
+            store(item, v, true)
         }
+        // The rows that go with this one's value: dimmed or not as it is
+        // now, in place.
         if (rowsFollow(item.key, item._module)) {
-            buildModel(rowId(item))
+            followRows()
             requestOptions(false)
         }
     }
@@ -383,11 +499,37 @@ FocusScope {
     // A dimmed line (_off) neither opens nor changes.
     function opens(item) {
         return !!item && !item._off && (item.type === "submenu" || item.type === "multiselect_submenu"
-                                        || item.type === "module_view" || item.type === "directory_browser")
+                                        || item.type === "module_view" || item.type === "directory_browser"
+                                        || item.type === "text" || item.type === "text_list")
     }
     // A line whose value ◄ ► change on it: between a ◄ and a ►.
     function changes(item) {
         return !!item && !item._off && (item.type === "toggle" || item.type === "list_single")
+    }
+
+    // An action row (manifest "type": "action"): select calls its slot on
+    // the module's backend, and the help line says what became of it until
+    // the cursor moves, with Settings' Help Line off too: the row's own
+    // words ("done": "Watch Later deleted"), else its label and "done", or
+    // that it wasn't done where the backend has no such slot. A row that
+    // deletes or signs out carries "confirm", a question asked first in the
+    // standard window: Yes or No, No under the cursor, and back is No.
+    property string notice: ""
+    property var asking: null
+    function activateAction(item) {
+        notice = ""
+        if (!item.confirm) {
+            runAction(item)
+            return
+        }
+        asking = item
+        confirmPrompt.open()
+        confirmPrompt.choiceIndex = 1
+    }
+    function runAction(item) {
+        var called = appCore.invoke_module_action(moduleOf(item), item.action_slot)
+        notice = called === false ? "Not done: " + (item.label || item.action_slot) + " isn't offered by the module now"
+                                  : item.done ? String(item.done) : (item.label || "") + ": done"
     }
 
     // Forward dynamicOptionsReady from appCore into our local cache
@@ -400,22 +542,38 @@ FocusScope {
             updated[optionKey(own, key)] = items
             moduleSettingsRoot.dynamicOptions = updated
             readAgain(mid, own, key)
-            // The rows made again, the cursor kept on its row, when the
-            // choices decide which are offered: the capabilities
-            // (requires_capability) or a row others follow (shown_with).
+            // The rows dimmed or not anew, in place, when the choices decide
+            // which can be used: the capabilities (requires_capability) or
+            // a row others follow (shown_with).
             if (key === "_capabilities" || rowsFollow(key, own))
-                buildModel(currentKey())
+                followRows()
             else
                 settingsList.forceLayout()
         }
         function onModuleAuthStateChanged(mid) {
             if (mid !== moduleSettingsRoot.moduleId && moduleSettingsRoot.alsoModules.indexOf(mid) < 0) return
-            buildModel(currentKey())
+            readAuth()
+            followRows()
             requestOptions(true)
         }
     }
 
+    // A slider's steps that couldn't be written (a full card): the values
+    // read again as saved, the cursor kept on its row.
+    Connections {
+        target: appCore
+        ignoreUnknownSignals: true
+        function onSettingsNotSaved() { moduleSettingsRoot.loadSettings(moduleSettingsRoot.currentKey()) }
+    }
+
+    // A slider's steps wait to be written until they rest: leaving the page
+    // writes them at once. AppCore as the page opened, for that: the context
+    // property may read null while the view Loader tears down.
+    property var core: null
+    Component.onDestruction: if (core) core.flush_settings()
+
     Component.onCompleted: {
+        core = appCore
         loadSettings()
         // Kick off loading dynamic option lists for any dynamic settings
         requestOptions(true)
@@ -460,6 +618,27 @@ FocusScope {
                 moduleSettingsRoot.navigateTo(appCore.module_entry_point(moduleSettingsRoot.moduleOf(item)),
                                               item.params || {},
                                               { currentIndex: settingsList.currentIndex })
+            } else if (item.type === "text_list") {
+                // A list of typed lines, on a page of its own.
+                var owner = moduleSettingsRoot.moduleOf(item)
+                moduleSettingsRoot.navigateTo("views/TextListSettings.qml", {
+                    moduleId: owner,
+                    moduleName: owner === moduleSettingsRoot.moduleId ? moduleName : (moduleNames[owner] || owner),
+                    settingKey: item.key,
+                    settingLabel: item.label,
+                    help: item.description || "",
+                    applySlot: item.apply_slot || "",
+                    maxLength: item.max_length || 64,
+                    maxLines: item.max_lines || 50
+                }, { currentIndex: settingsList.currentIndex })
+            } else if (item.type === "text") {
+                // Typed on the on-screen keyboard, over the page: what is
+                // saved to start from, kept on OK, left as it was on back.
+                moduleSettingsRoot.typingRow = item
+                keyboard.title = item.label || ""
+                keyboard.maxLength = item.max_length || 64
+                keyboard.masked = !!item.secret
+                keyboard.open(String(moduleSettingsRoot.valuesOf(item)[item.key] || ""))
             } else if (item.type === "directory_browser") {
                 // Picked on the file picker's tree; "" is the module's own.
                 moduleSettingsRoot.navigateTo("views/FilePicker.qml", {
@@ -491,8 +670,10 @@ FocusScope {
             else if (moduleSettingsRoot.opens(item))
                 openRow(item)
             else if (item.type === "action")
-                appCore.invoke_module_action(moduleSettingsRoot.moduleOf(item), item.action_slot)
+                moduleSettingsRoot.activateAction(item)
         }
+        // What an action did is said until the cursor moves on.
+        onCurrentIndexChanged: moduleSettingsRoot.notice = ""
 
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
@@ -512,7 +693,11 @@ FocusScope {
             id: rowItem
             required property var modelData
             required property int index
-            readonly property bool slider: modelData.type === "slider"
+            // The row as it is now, read again as one is dimmed or not in
+            // place (followRows(), revision): the list's own copy of it
+            // (modelData) is as the list was given it.
+            readonly property var row: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[index]) || modelData
+            readonly property bool slider: row.type === "slider"
             readonly property real lineHeight: root.sh * 0.0583333 //28
             readonly property int barLines: slider ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
@@ -521,28 +706,28 @@ FocusScope {
             MenuRow {
                 width: parent.width
                 height: rowItem.lineHeight
-                heading: rowItem.modelData.type === "section"
-                label: rowItem.modelData.label || ""
-                value: moduleSettingsRoot.hasValue(rowItem.modelData)
-                    ? moduleSettingsRoot.currentDisplayValue(rowItem.modelData) : ""
-                opens: moduleSettingsRoot.opens(rowItem.modelData)
-                changes: moduleSettingsRoot.changes(rowItem.modelData)
-                dimmed: !!rowItem.modelData._off
+                heading: rowItem.row.type === "section"
+                label: rowItem.row.label || ""
+                value: moduleSettingsRoot.hasValue(rowItem.row)
+                    ? moduleSettingsRoot.currentDisplayValue(rowItem.row) : ""
+                opens: moduleSettingsRoot.opens(rowItem.row)
+                changes: moduleSettingsRoot.changes(rowItem.row)
+                dimmed: !!rowItem.row._off
                 selected: settingsList.currentIndex === rowItem.index
             }
             Loader {
                 id: tape
                 active: rowItem.slider
-                visible: !rowItem.modelData._off
+                visible: !rowItem.row._off
                 x: root.sw * 0.009375 //6
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
                 width: parent.width - 2 * x
                 sourceComponent: OsdTapeBar {
                     changes: true
                     fontSize: root.sh * 0.0333333 //16
-                    value: moduleSettingsRoot.valueOf(rowItem.modelData) / 100
-                    startText: rowItem.modelData.start_text || ""
-                    endText: rowItem.modelData.end_text || ""
+                    value: moduleSettingsRoot.valueOf(rowItem.row) / 100
+                    startText: rowItem.row.start_text || ""
+                    endText: rowItem.row.end_text || ""
                 }
             }
         }
@@ -551,10 +736,15 @@ FocusScope {
     // --- HELP TEXT --- (shown when a focused row has a description), on one
     // line that scrolls when it is too long for the box.
     // A dimmed row's says first why it can't be used now.
+    // What an action did (notice) in their place, said whatever Settings'
+    // Help Line is.
     HelpLine {
-        property var currentRow: moduleSettingsRoot.schemaItems[settingsList.currentIndex]
-        visible: !!(currentRow && (currentRow.description || currentRow._off))
-        text: (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
+        objectName: "helpLine"
+        property var currentRow: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[settingsList.currentIndex])
+        visible: moduleSettingsRoot.notice !== "" || !!(currentRow && (currentRow.description || currentRow._off))
+        always: moduleSettingsRoot.notice !== ""
+        text: moduleSettingsRoot.notice !== "" ? moduleSettingsRoot.notice
+              : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
@@ -569,5 +759,51 @@ FocusScope {
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
+    }
+
+    // An action row's question (its "confirm"), what it does under it. The
+    // answer is taken once the window has closed and the list has the keys
+    // again; back, or No, does nothing.
+    ChoiceOverlay {
+        id: confirmPrompt
+        objectName: "confirmPrompt"
+        anchors.fill: parent
+        promptText: moduleSettingsRoot.asking ? String(moduleSettingsRoot.asking.confirm) : ""
+        subtitleText: moduleSettingsRoot.asking ? (moduleSettingsRoot.asking.description || "") : ""
+        choices: [{ label: "Yes", action: "yes" }, { label: "No", action: "no" }]
+        onActivated: function(action) {
+            var item = moduleSettingsRoot.asking
+            if (action === "yes" && item)
+                moduleSettingsRoot.runAction(item)
+        }
+        onClosed: settingsList.forceActiveFocus()
+    }
+
+    // A "text" row's keyboard: an address, a place's name, a key. Upper and
+    // lower case as typed, and nothing typed is an answer too (the row unset).
+    property var typingRow: null
+    OnScreenKeyboard {
+        id: keyboard
+        objectName: "keyboard"
+        anchors.fill: parent
+        visible: false
+        caseSensitive: true
+        allowEmpty: true
+        onAccepted: function(text) {
+            var item = moduleSettingsRoot.typingRow
+            moduleSettingsRoot.typingRow = null
+            keyboard.close()
+            // A key typed goes no further than the settings.
+            keyboard.text = ""
+            settingsList.forceActiveFocus()
+            if (item && moduleSettingsRoot.store(item, text.trim()) && item.apply_slot)
+                appCore.invoke_module_action(moduleSettingsRoot.moduleOf(item), item.apply_slot)
+        }
+        onCanceled: {
+            moduleSettingsRoot.typingRow = null
+            keyboard.close()
+            keyboard.text = ""
+            settingsList.forceActiveFocus()
+        }
     }
 }

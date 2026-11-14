@@ -76,6 +76,19 @@ void TmdbCatalog::forget() {
 }
 
 QString TmdbCatalog::apiKey() const {
+    // Settings' TMDB Key first, typed in either module that reads the
+    // catalogue (one key serves both); else the file's.
+    QFile config(m_dataRoot + QStringLiteral("/config.json"));
+    if (config.open(QIODevice::ReadOnly)) {
+        const QJsonObject modules = QJsonDocument::fromJson(config.readAll()).object()
+                                        .value(QLatin1String("modules")).toObject();
+        for (const char *id : { "com.osdos.netflix", "com.osdos.prime_video" }) {
+            const QString key = modules.value(QLatin1String(id)).toObject()
+                                    .value(QLatin1String("tmdb_api_key")).toString().trimmed();
+            if (!key.isEmpty())
+                return key;
+        }
+    }
     QFile f(m_dataRoot + QStringLiteral("/tmdb_api_key.txt"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return {};
@@ -112,7 +125,7 @@ QVariant TmdbCatalog::listing(const QString &path, bool preview) {
         };
     }
     if (apiKey().isEmpty()) {
-        setProblem(QStringLiteral("No TMDB API key: put one in tmdb_api_key.txt in the data folder"
+        setProblem(QStringLiteral("No TMDB API key: type one in Settings, in the module's TMDB Key"
                                   " (free from themoviedb.org, Settings, API)"));
         return QVariantList();
     }
@@ -176,7 +189,7 @@ void TmdbCatalog::get(const QString &endpoint, QList<QPair<QString, QString>> qu
             return;
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 401) {
-            m_failure = QStringLiteral("TMDB turned the API key down: check tmdb_api_key.txt");
+            m_failure = QStringLiteral("TMDB turned the API key down: check the TMDB Key in Settings");
             setProblem(m_failure);
             done({});
             return;

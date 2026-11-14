@@ -20,10 +20,12 @@ InfoPanel InfoPanel.qml
 EntryOptions EntryOptions.qml
 PlayerMenu PlayerMenu.qml
 MousePointer MousePointer.qml
+ScreenSaver ScreenSaver.qml
 LoadingScreen LoadingScreen.qml
 PromptScreen PromptScreen.qml
 PlaybackNotice PlaybackNotice.qml
 MenuList MenuList.qml
+ListPicker ListPicker.qml
 PlaylistAdder PlaylistAdder.qml
 OsdGround OsdGround.qml
 SkinImage SkinImage.qml
@@ -32,3 +34,5 @@ StatusIcons StatusIcons.qml
 IconColumn IconColumn.qml
 MonitorChrome MonitorChrome.qml
 MonitorRow MonitorRow.qml
+PressPrompt PressPrompt.qml
+ButtonGrid ButtonGrid.qml
