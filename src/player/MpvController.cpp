@@ -1892,12 +1892,18 @@ bool MpvController::embeddedAvailable() const {
 }
 
 void MpvController::warmUp() {
-    if (!transparentBackground())
+    // By the setting alone: transparentBackground() would open the library
+    // here, on the app's thread, which is the wait this is for.
+    if (!transparentBackgroundAsked())
         return;
     QThreadPool::globalInstance()->start([] { EmbeddedMpv::available(); });
 }
 
 bool MpvController::transparentBackground() const {
+    return transparentBackgroundAsked() && EmbeddedMpv::available();
+}
+
+bool MpvController::transparentBackgroundAsked() const {
     if (!m_appCore)
         return false;
     // How solid the menus' ground is over the picture, 0 to 100, Settings'
@@ -1909,7 +1915,7 @@ bool MpvController::transparentBackground() const {
               || v.compare(QStringLiteral("Dim"), Qt::CaseInsensitive) == 0;
     if (!on)
         v.toInt(&on);
-    return on && EmbeddedMpv::available();
+    return on;
 }
 
 bool MpvController::videoActive() const {
