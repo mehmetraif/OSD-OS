@@ -5,7 +5,11 @@ import QtQuick
 // while rows are hidden above or below (ScrollMarks), and a cursor that steps
 // over section headings (rows whose type is "section"), round the ends. The
 // host gives it its rows (model, a list) and their delegate, and keys it (the
-// cursor's up and down are its own).
+// cursor's up and down are its own). In a monitor layout's frame (Settings →
+// Look → Menu Layout) it lies where the frame has its rows (Main.qml's
+// listY, listHeight), and in Flat Panel's its rows come a page at a time, the
+// frame saying which page (ScrollMarks): rows of one line's height there, as
+// MonitorRow draws them.
 //
 //     MenuList {
 //         id: list
@@ -25,15 +29,19 @@ Item {
     readonly property alias shownTop: wholeRows.y
     readonly property alias shownHeight: wholeRows.height
 
+    // In a monitor layout's frame, and its rows a page at a time there.
+    readonly property bool monitor: root.monitorFramed === true
+    readonly property bool paged: monitor && root.menuLayout === "Flat Panel"
+
     anchors.top: parent.top
     anchors.left: parent.left
-    anchors.topMargin: root.sh * 0.25 //120
+    anchors.topMargin: monitor ? root.listY : root.sh * 0.25 //120
     // The pane's: beside a layout's column where the view is in its frame
     // (Main.qml's paneX, paneWidth), else where every view has its list.
     anchors.leftMargin: root.paneX
     width: root.paneWidth
     // A row more for each bar that is off (Main.qml's helpRoom, hintRoom).
-    height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+    height: monitor ? root.listHeight : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
 
     function isSection(i) {
         var row = view.model[i]
@@ -58,6 +66,9 @@ Item {
     // several (a module's settings), so a scroll can stop with one cut by an
     // edge: it carries on past it, keeping the row, as far as the list goes.
     function show(i) {
+        // Flat Panel's page is the marks' to turn to (ScrollMarks).
+        if (paged)
+            return
         view.positionViewAtIndex(i, ListView.Contain)
         var top = cutAtTop()
         if (top && top !== view.currentItem)

@@ -6,9 +6,13 @@ import QtQuick
 // the middle of the space they leave both ways, what it is about and the
 // answers. However few lines it has, the bars stay where they are.
 //
-// In a layout's frame (Main.qml's, Menu Layout's Camcorder) it is asked in
-// the layout: the frame's column stays beside it, and what it is about and
-// the answers are in the middle of the pane.
+// In a layout's frame (Main.qml's, Settings → Look → Menu Layout) it is
+// asked in the layout. In Camcorder's the frame's column stays beside it,
+// and what it is about and the answers are in the middle of the pane. In a
+// monitor layout's the frame stays round it: the question is where the frame
+// writes its title, the keys in its guide, the answers in the pane with the
+// layout's cursor, over the view's rows. `inLayout` off is one asked over
+// the whole screen whatever the layout (a display output's, at startup).
 //
 // It only draws: the host keeps its keys and the cursor (currentIndex), and
 // shows it (visible); it tells the host which answer the mouse is over
@@ -57,13 +61,34 @@ Item {
 
     default property alias content: extra.data
 
+    // Asked in the layout's frame, where one is up (its ground's inLayout):
+    // on unless a host turns it off. And what follows from it (asked):
+    // whether a monitor layout's frame is round it, Flat Panel's mixed case,
+    // and whether what it is about and the answers go in the pane.
+    // All four are aliases, declared after `content`, so that `content`
+    // keeps its place among the properties: PressPrompt's own `content` is an
+    // alias of it, which a QML cache kept from an earlier version holds by
+    // that place.
+    property alias inLayout: ground.inLayout
+    readonly property alias monitor: asked.monitor
+    readonly property alias mixedCase: asked.mixedCase
+    readonly property alias paned: asked.paned
+    QtObject {
+        id: asked
+        readonly property bool monitor: ground.inLayout && root.monitorInk === true
+        readonly property bool mixedCase: monitor && root.menuLayout === "Flat Panel"
+        readonly property bool paned: monitor || root.framed === true
+    }
+
     anchors.fill: parent
 
     onCurrentIndexChanged: answers.keep()
 
     // Over the view it asks in, on the ground every view has (OSD BACKGROUND).
     OsdGround {
+        id: ground
         anchors.fill: parent
+        inLayout: true
     }
 
     // The frame's column again, over that ground, as the shell has it under
@@ -86,6 +111,7 @@ Item {
         iconSource: prompt.kind === "notice" ? "../../assets/images/notice.svg"
                                              : "../../assets/images/question.svg"
         title: prompt.title
+        frameTitle: prompt.title
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -94,19 +120,22 @@ Item {
 
     // The space between the bars, or with the hint bar off, down to where it
     // ends: what is in it is centred there.
+    // In a monitor layout's frame, the pane from its rows' top to its foot.
     Item {
         id: middle
-        anchors.top: titleBar.bottom
-        anchors.bottom: root.hintBar ? hintBar.top : hintBar.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
+        readonly property real startY: prompt.monitor ? root.listY : titleBar.y + titleBar.height
+        readonly property real endY: prompt.monitor ? root.paneBottom
+                                     : root.hintBar ? hintBar.y : hintBar.y + hintBar.height
+        y: startY
+        width: parent.width
+        height: endY - startY
     }
 
     Column {
         // In the middle of the pane (the window's, with no frame).
-        x: root.paneX
+        x: prompt.paned ? root.paneX : root.sw * 0.115625 //74
         anchors.verticalCenter: middle.verticalCenter
-        width: root.paneWidth
+        width: prompt.paned ? root.paneWidth : root.sw * 0.76875 //492
         spacing: root.sh * 0.05 //24
 
         Text {
@@ -116,7 +145,7 @@ Item {
             text: prompt.message
             color: root.primaryColor
             font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
+            font.capitalization: prompt.mixedCase ? Font.MixedCase : Font.AllUppercase
             font.pixelSize: root.sh * 0.0416667 //20
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
@@ -180,6 +209,7 @@ Item {
                     // picture of a selected line (Settings → Look → Skin):
                     // its ▶ and its label.
                     SelectionBox {
+                        id: answerBox
                         anchors.fill: line
                         visible: answer.current && !answer.divider
                     }
@@ -195,7 +225,7 @@ Item {
                         PixelIcon {
                             visible: answer.starts
                             name: "play"
-                            color: answer.current ? root.surfaceColor : root.primaryColor
+                            color: answer.current ? answerBox.ink : root.primaryColor
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
@@ -205,9 +235,9 @@ Item {
                                             - (answer.starts ? line.spacing + root.px * 7 : 0))
                             textFormat: Text.PlainText
                             text: typeof modelData === "string" ? modelData : (modelData.label || "")
-                            color: answer.current ? root.surfaceColor : root.primaryColor
+                            color: answer.current ? answerBox.ink : root.primaryColor
                             font.family: root.globalFont
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: prompt.mixedCase ? Font.MixedCase : Font.AllUppercase
                             font.pixelSize: root.sh * 0.05 //24
                             elide: Text.ElideRight
                             topPadding: root.sh * 0.0041667 //2
@@ -221,6 +251,7 @@ Item {
             ScrollMarks {
                 anchors.fill: answers
                 list: answers
+                pages: false
             }
         }
     }

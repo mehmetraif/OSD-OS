@@ -1,8 +1,10 @@
 import QtQuick
 
-// One line of Settings or the main menu in a monitor layout (Settings → Look
-// → Menu Layout: Studio Monitor, Broadcast, Flat Panel), in the layout's own
-// colours (root.menuPalette), the way a studio monitor's menu draws one:
+// One line of a menu in a monitor layout (Settings → Look → Menu Layout:
+// Studio Monitor, Broadcast, Flat Panel), in the layout's own colours
+// (root.menuPalette), the way a studio monitor's menu draws one. Settings
+// and the main menu draw theirs with it, and so does every MenuRow in a
+// monitor layout's frame:
 //
 //   Studio Monitor  ■ DISPLAY OUTPUT           HDMI ►    a yellow square
 //                                                        before the line
@@ -31,6 +33,9 @@ Item {
     property bool dimmed: false
     // Its value being changed: Broadcast's and Flat Panel's second step.
     property bool editing: false
+    // Pixel symbols at the line's end (PixelIcon's names): a Wi-Fi network's
+    // lock and signal. The value stops short of them.
+    property var icons: []
 
     readonly property string layout: root.menuLayout
     readonly property bool flat: layout === "Flat Panel"
@@ -46,9 +51,10 @@ Item {
     // Flat Panel's columns: the ▶ of a line that opens, then the value.
     readonly property real arrowX: Math.round(width * 0.496)
     readonly property real valueX: Math.round(width * 0.545)
-    // Where the value ends: before a Studio Monitor line's ►.
-    readonly property real valueEnd: width - pad - (opens && !flat && !broadcast ? arrow.width + pad : 0)
-    readonly property real valueWidth: flat ? Math.max(0, width - pad - valueX)
+    // Where the value ends: before the icons and a Studio Monitor line's ►.
+    readonly property real iconsWidth: icons.length > 0 ? iconRow.width + pad : 0
+    readonly property real valueEnd: width - pad - iconsWidth - (opens && !flat && !broadcast ? arrow.width + pad : 0)
+    readonly property real valueWidth: flat ? Math.max(0, width - pad - iconsWidth - valueX)
                                             : Math.min(valueText.implicitWidth, Math.max(0, valueEnd - gutter))
 
     // Flat Panel's bar under the selected line.
@@ -75,7 +81,8 @@ Item {
         x: line.gutter
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, Math.min(implicitWidth,
-                                    (line.flat ? (line.opens ? line.arrowX : line.valueX)
+                                    (line.flat ? (line.opens ? line.arrowX
+                                                  : line.value !== "" ? line.valueX : line.width - line.iconsWidth)
                                                : line.valueEnd - (line.value !== "" ? line.valueWidth + 2 * line.pad : 0))
                                     - line.gutter - line.pad))
         elide: Text.ElideRight
@@ -122,7 +129,25 @@ Item {
         visible: line.opens && !line.broadcast
         name: "play"
         color: line.ink
-        x: line.flat ? line.arrowX : line.width - line.pad - width
+        x: line.flat ? line.arrowX : line.width - line.pad - line.iconsWidth - width
         y: Math.round((line.height - height) / 2 / root.px) * root.px
+    }
+
+    // The icons, against the line's end.
+    Row {
+        id: iconRow
+        visible: line.icons.length > 0
+        x: line.width - line.pad - width
+        y: Math.round((line.height - height) / 2 / root.px) * root.px
+        spacing: line.pad
+
+        Repeater {
+            model: line.icons
+            PixelIcon {
+                required property string modelData
+                name: modelData
+                color: line.ink
+            }
+        }
     }
 }

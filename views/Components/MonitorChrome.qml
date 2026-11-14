@@ -483,7 +483,8 @@ Item {
         visible: chrome.flat
         x: root.sw * 0.125 //80
         y: root.sh * 0.1083333 //52
-        width: (pageMark.visible ? pageMark.x : status.visible ? status.x : root.sw * 0.875) - x - root.sw * 0.025
+        // Up to the status icons, which stand before the page, or the page.
+        width: (status.visible ? status.x : pageMark.visible ? pageMark.x : root.sw * 0.875) - x - root.sw * 0.025
         // A path too long for the line keeps its end, where one is.
         elide: Text.ElideLeft
         textFormat: Text.PlainText

@@ -86,6 +86,8 @@ Item {
     ScrollMarks {
         anchors.fill: icons
         list: icons
+        // A column of icons, not a menu's rows: never paged.
+        pages: false
     }
 
     Rectangle {
