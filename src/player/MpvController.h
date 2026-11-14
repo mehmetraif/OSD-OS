@@ -165,6 +165,10 @@ public:
     // Settings → Sound → Audio Output changed: a video playing behind the menus moves
     // to the card chosen at once (AudioOutput).
     void followAudioOutput();
+    // Settings → TV / Movie → Scaling ("video_scaling") or Video Levels
+    // ("video_output_levels") changed: a video playing behind the menus takes
+    // it at once, as a session starts with it (sessionArgs()).
+    void followVideoSetting(const QString &key);
     // The embedded session's newest picture, and the size to draw it at
     // (VideoSurface).
     QImage videoFrame() const;
@@ -324,10 +328,10 @@ private:
     // App-level "auto_crop" setting (default OFF), from before Scaling: its ON
     // reads as Pan & Scan while no Scaling has been chosen.
     bool autoCropEnabled() const;
-    // The Scaling in force ("Letterbox", "14:9", "Pan & Scan", "Anamorphic"):
-    // the active module's own "video_scaling", unless it is "Default", then the
-    // app's.
-    QString videoScaling() const;
+    // The Scaling in force for a module's video ("Letterbox", "14:9", "Pan &
+    // Scan", "Anamorphic"): the module's own "video_scaling", unless it is
+    // "Default", then the app's.
+    QString videoScaling(const QString &module) const;
     // True when the active decode path can't crop (Pi 3 overlay path with smooth
     // playback ON): --panscan blanks the video there. Gates auto-crop and tells
     // the OSC scripts to hide their CROP button.
@@ -341,6 +345,9 @@ private:
 
     AppCore        *m_appCore      = nullptr;
     QString         m_activeModule;
+    // The module whose video the session plays: the one open as it started,
+    // while another view (Settings) may be open over a video behind the menus.
+    QString         m_sessionModule;
     EmbeddedMpv    *m_embedded     = nullptr;
     bool            m_background   = false;
     int             m_detachPositionMs = 0;

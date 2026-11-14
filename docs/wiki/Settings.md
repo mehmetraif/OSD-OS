@@ -16,7 +16,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its fir
 | Back | Esc, Backspace | B, or the pad's Back/Select button | Back to the row that opened the page, or to the main menu |
 
 - A change is saved at once, under `app.<key>` in `config.json` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#configjson)).
-- Most rows apply at once. Scaling, Video Levels, Channel Logo, Logo Image, 1080p Playback and Screen Saver during a video apply from the next video.
+- Most rows apply at once. Scaling, Video Levels, Channel Logo, Logo Image, 1080p Playback and Screen Saver during a video apply from the next video; Scaling and Video Levels also at once on a video playing behind the menus (Transparent Background).
 - A value that can't be saved (a full or read-only disk) isn't applied. The log says `[AppCore] Setting not saved: …`.
 - The first screen's title bar shows a release's version and the device's IP address. A page shows its name: `SETTINGS | LOOK`.
 - No row is hidden. One that can't be used is dimmed, and its help line starts with why ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#rows-dimmed-in-settings)).

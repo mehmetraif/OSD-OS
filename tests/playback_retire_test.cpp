@@ -17,7 +17,11 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QImageReader>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocalServer>
+#include <QLocalSocket>
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -457,6 +461,91 @@ private slots:
         m_mpv->stopBackground();
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoActive(), 5000);
         QCOMPARE(ended.count(), 1);
+    }
+
+    // Transparent Background: Settings → TV / Movie → Scaling and Video
+    // Levels reach a video playing behind the menus at once, as a session
+    // starts with them (mpv asked what it has over its own socket, as another
+    // client), and the video chosen again carries on, the same session. A
+    // video of a module with a Scaling of its own keeps that.
+    void scalingAndLevelsReachAVideoBehindTheMenus() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        const QString module = QStringLiteral("com.osdos.local_files");
+        m_mpv->setActiveModule(module);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        // Settings open over it.
+        m_mpv->setActiveModule(QString());
+
+        QLocalSocket probe;
+        QTRY_VERIFY_WITH_TIMEOUT((probe.state() == QLocalSocket::ConnectedState
+                                  || (probe.connectToServer(socketPath()), probe.waitForConnected(500))), 10000);
+        int asked = 0;
+        auto property = [&probe, &asked](const char *name) {
+            const int id = ++asked;
+            probe.write(QJsonDocument(QJsonObject{ { "command", QJsonArray{ "get_property", name } },
+                                                   { "request_id", id } }).toJson(QJsonDocument::Compact) + '\n');
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 3000) {
+                if (!probe.canReadLine() && !probe.waitForReadyRead(200))
+                    continue;
+                const QJsonObject answer = QJsonDocument::fromJson(probe.readLine()).object();
+                if (answer.value("request_id").toInt() == id)
+                    return answer.value("data").toVariant();
+            }
+            return QVariant(QStringLiteral("no answer"));
+        };
+        QCOMPARE(property("panscan").toDouble(), 0.0);
+        QCOMPARE(property("keepaspect").toBool(), true);
+        QCOMPARE(property("video-output-levels").toString(), QStringLiteral("auto"));
+
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Pan & Scan")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 1.0, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("14:9")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 0.43, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Anamorphic")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("keepaspect").toBool(), false, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 0.0, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Letterbox")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("keepaspect").toBool(), true, 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_output_levels"), QStringLiteral("Limited")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("video-output-levels").toString(), QStringLiteral("limited"), 5000);
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_output_levels"), QStringLiteral("Full")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("video-output-levels").toString(), QStringLiteral("full"), 5000);
+
+        // Chosen again in its module: the session carries on, as it is.
+        m_mpv->setActiveModule(module);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QVERIFY(!m_mpv->background());
+        QCOMPARE(property("video-output-levels").toString(), QStringLiteral("full"));
+        QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        m_mpv->setActiveModule(QString());
+
+        // Its module's own Scaling stays its video's, whatever Settings' is;
+        // back on Default it is Settings' again, taken as it is chosen again.
+        QVERIFY(core.save_setting(module, QStringLiteral("video_scaling"), QStringLiteral("14:9")));
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("Pan & Scan")));
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_output_levels"), QStringLiteral("Auto")));
+        QTRY_COMPARE_WITH_TIMEOUT(property("video-output-levels").toString(), QStringLiteral("auto"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 0.43, 5000);
+        QVERIFY(core.save_setting(module, QStringLiteral("video_scaling"), QStringLiteral("Default")));
+        m_mpv->setActiveModule(module);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QVERIFY(!m_mpv->background());
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 1.0, 5000);
+        QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
     }
 
     // Transparent Background: a video asked for while the last one's player

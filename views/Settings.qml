@@ -958,7 +958,8 @@ FocusScope {
         // Video Output Range, the RGB range mpv converts YUV into. mpv's default
         // is full range; a display expecting studio (limited) levels renders that
         // as crushed blacks and blown whites, and the reverse reads as washed-out
-        // gray. Takes effect on the next video.
+        // gray. Takes effect on the next video, and at once on one playing
+        // behind the menus (MpvController::followVideoSetting(), as Scaling).
         // The key keeps mpv's own name for the option; the label uses the wording
         // TVs and GPU drivers use for the same control (HDMI RGB range, DRM
         // "Broadcast RGB"), since that's what the setting is matching.

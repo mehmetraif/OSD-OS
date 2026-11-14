@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <iterator>
 
 namespace {
 
@@ -328,6 +329,8 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         connect(m_appCore, &AppCore::appSettingChanged, this, [this](const QString &key, const QString &) {
             if (key == QLatin1String("transparent_background") && !transparentBackground())
                 stopBackground();
+            else
+                followVideoSetting(key);
         });
     }
 
@@ -683,7 +686,7 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     // cropping ones need panscan, which the Pi3 overlay (smooth) path blanks
     // video under, so it keeps the whole picture there, matching the 1080p
     // Playback trade-off. The OSC's CROP button steps through all four live.
-    const QString scaling = videoScaling();
+    const QString scaling = videoScaling(m_activeModule);
     if (scaling == QLatin1String("Anamorphic")) {
         args << QStringLiteral("--keepaspect=no");
     } else if (!noCrop) {
@@ -744,6 +747,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // Its player notes the new session afresh (noteSession), or leaves none,
     // and a session left with Browse is gone: this one takes its place.
     m_sessionNote.clear();
+    m_sessionModule = m_activeModule;
     if (!m_leftNote.isEmpty()) {
         m_leftNote.clear();
         emit leftNoteChanged();
@@ -783,22 +787,40 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
         // Chosen again while it plays behind the menus: the same session goes
         // on, full screen again (as takeBack() has it). Its start is the
         // module's resume point, which reattach() weighs, its sound card
-        // follows Settings as it plays (followAudioOutput()), and its decoding
-        // and drawing flags follow where it is drawn, which a GPU that failed
-        // to take it changes since.
+        // follows Settings as it plays (followAudioOutput()), as its Scaling
+        // and Video Levels do (followVideoSetting()), and its decoding and
+        // drawing flags follow where it is drawn, which a GPU that failed to
+        // take it changes since.
         QStringList drawing;
         appendEmbeddedVideoArgs(drawing, true);
         appendEmbeddedVideoArgs(drawing, false);
-        auto comparable = [&drawing](QStringList a) {
-            a.erase(std::remove_if(a.begin(), a.end(), [&drawing](const QString &x) {
+        auto ofThePicture = [](const QString &x) {
+            return x.startsWith(QLatin1String("--panscan=")) || x.startsWith(QLatin1String("--keepaspect="))
+                || x.startsWith(QLatin1String("--video-output-levels="));
+        };
+        auto comparable = [&drawing, &ofThePicture](QStringList a) {
+            a.erase(std::remove_if(a.begin(), a.end(), [&drawing, &ofThePicture](const QString &x) {
                         return x.startsWith(QLatin1String("--start="))
                             || x.startsWith(QLatin1String("--audio-device="))
-                            || drawing.contains(x);
+                            || ofThePicture(x) || drawing.contains(x);
                     }), a.end());
             return a;
         };
+        auto picture = [&ofThePicture](const QStringList &a) {
+            QStringList flags;
+            std::copy_if(a.cbegin(), a.cend(), std::back_inserter(flags), ofThePicture);
+            return flags;
+        };
         if (m_background && m_embedded && m_embedded->running()
                 && comparable(args) == comparable(m_sessionArgs)) {
+            // Asked for with another Scaling or Video Levels than it was last
+            // given (its module's own changed meanwhile): it takes them now.
+            // As it was given, it keeps what its menu's CROP made of it.
+            if (picture(args) != picture(m_sessionArgs)) {
+                m_sessionArgs = args;
+                followVideoSetting(QStringLiteral("video_scaling"));
+                followVideoSetting(QStringLiteral("video_output_levels"));
+            }
             reattach(startSeconds);
             return;
         }
@@ -1796,11 +1818,11 @@ bool MpvController::autoCropEnabled() const {
     return v.toString().compare(QStringLiteral("On"), Qt::CaseInsensitive) == 0;
 }
 
-QString MpvController::videoScaling() const {
+QString MpvController::videoScaling(const QString &module) const {
     if (!m_appCore)
         return QStringLiteral("Letterbox");
-    if (!m_activeModule.isEmpty()) {
-        const QString own = m_appCore->get_setting(m_activeModule, "video_scaling").toString();
+    if (!module.isEmpty()) {
+        const QString own = m_appCore->get_setting(module, "video_scaling").toString();
         if (!own.isEmpty() && own.compare(QStringLiteral("Default"), Qt::CaseInsensitive) != 0)
             return own;
     }
@@ -2130,6 +2152,25 @@ void MpvController::followAudioOutput() {
         return;
     const QString device = AudioOutput::mpvDevice();
     setVideoProperty(QStringLiteral("audio-device"), device.isEmpty() ? QStringLiteral("auto") : device);
+}
+
+void MpvController::followVideoSetting(const QString &key) {
+    // Only a video inside the app can be playing while Settings is up; an
+    // mpv process starts with the settings as they are then. A module's own
+    // Scaling stays its video's: the app's is what it has on Default.
+    if (!m_embedded || !m_embedded->running())
+        return;
+    // Through sendCommand(), not setVideoProperty(): asked while the
+    // session's control connection is still on its way, it waits for it.
+    if (key == QLatin1String("video_scaling")) {
+        const QString scaling = videoScaling(m_sessionModule);
+        sendCommand({"set_property", "keepaspect", scaling != QLatin1String("Anamorphic")});
+        sendCommand({"set_property", "panscan", scaling == QLatin1String("Pan & Scan") ? 1.0
+                                                : scaling == QLatin1String("14:9") ? 0.43 : 0.0});
+    } else if (key == QLatin1String("video_output_levels")) {
+        const QString levels = videoOutputLevels();
+        sendCommand({"set_property", "video-output-levels", levels.isEmpty() ? QStringLiteral("auto") : levels});
+    }
 }
 
 void MpvController::setVideoProperty(const QString &name, const QVariant &value) {

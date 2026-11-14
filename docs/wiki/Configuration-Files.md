@@ -350,7 +350,7 @@ When each part is read:
 |---|---|
 | The look, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver, Audio Output, Controls, Cabinet Lock, the modules' folders | At start, then at each change made in Settings |
 | `display_index`, Start on Module, Play at Startup, Startup From | At start |
-| Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts |
+| Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts; Scaling and Video Levels also at once on a video playing behind the menus |
 | A module's other settings | When the module needs them: most as a video starts or a list opens |
 
 A change made by hand while OSD/OS runs reaches the per-video settings at the next video, and the rest at the next start.
