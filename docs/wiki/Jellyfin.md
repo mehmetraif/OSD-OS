@@ -32,11 +32,12 @@ Back on the code screen cancels. OSD/OS appears in the server's list of devices 
 |---|---|
 | **Please enter a server URL** | The Server URL field is empty |
 | **CONNECTION FAILED: …** | Nothing answered at that address: a typing slip, a missing `http://` or port, or the server is off or on another network |
-| **CONNECTION FAILED: HOST REQUIRES AUTHENTICATION** | Quick Connect is off: turn it on in the Jellyfin dashboard |
+| **QUICK CONNECT NOT ENABLED ON SERVER** | Quick Connect is off: turn it on in the Jellyfin dashboard |
+| **SERVER ERROR (HTTP …)** | Something at that address answered with an error of that status: often another web server (404), or a proxy whose Jellyfin isn't running (502, 503) |
 | **INVALID RESPONSE FROM SERVER** | Something answered, but not a Jellyfin server |
-| **CODE EXPIRED** | Two minutes passed without approval. Back (`[ESC]:RETRY`) returns to the first screen for a new code |
-| **POLL FAILED: …** | The connection dropped while waiting, or the server forgot the code. Go back and start again |
-| **Approved…**, and nothing after it | The sign-in failed after approval. Go back and start again |
+| **CODE EXPIRED** | Two minutes passed without approval; a connection lost meanwhile is tried again until then. Back (`[ESC]:RETRY`) returns to the first screen for a new code |
+| **CODE EXPIRED — RETRY** | The server no longer knows the code. Back for a new one |
+| **AUTH FAILED (HTTP …)**, **AUTH FAILED: …** or **INVALID AUTH RESPONSE**, after **Approved** | The sign-in failed after approval: the server refused it with that status, didn't answer, or answered something else. Go back and start again |
 
 ### Sign in without a keyboard
 
