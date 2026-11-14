@@ -108,6 +108,7 @@ public slots:
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 private:
+    friend class PlaylistsTest;
     quint64 m_flushGeneration = 0;
     // The download under way: yt-dlp's process, or a server's file on its
     // own thread.
@@ -156,6 +157,11 @@ private:
     // Whether a download can go in the folder; if not, it fails, saying so.
     bool writable(const QString &folder);
     void removePartials(const QString &key) const;
+    // The temporary files that servers' downloads cut short by the power
+    // going left in their folders: deleted as the lists are queued (15 s
+    // after the start, the module turned on, Retry Downloads), unless a
+    // server's download is under way.
+    void removeStaleTemporaries() const;
     // A list's m3us, all but the one named keep.
     void removeM3us(const QString &playlistId, const QString &keep = QString()) const;
 

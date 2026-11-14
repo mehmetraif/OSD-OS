@@ -704,6 +704,7 @@ void PlaylistsBackend::dropUnreferenced() {
 }
 
 void PlaylistsBackend::queueOfflineItems() {
+    removeStaleTemporaries();
     for (const QJsonObject &p : m_playlists) {
         if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
             continue;
@@ -1005,4 +1006,24 @@ void PlaylistsBackend::removePartials(const QString &key) const {
     for (const QFileInfo &f : dir.entryInfoList(QDir::Files))
         if (f.fileName().contains(tag))
             QFile::remove(f.absoluteFilePath());
+}
+
+void PlaylistsBackend::removeStaleTemporaries() const {
+    // A server's download is written to a temporary file beside the film
+    // (ServerDownload's QSaveFile), which a failure or a cancel removes; the
+    // power going doesn't. Where the filesystem has no unnamed files (the
+    // film partition's exFAT) it is left there under the film's name with
+    // six letters after it ("Film [id].mkv.RkYmKP"), up to a film's size
+    // each time, and the download begun again writes another. None is a
+    // download's own while no server's download runs.
+    if (m_active.download)
+        return;
+    static const QRegularExpression kTemporary(QStringLiteral("\\]\\.[A-Za-z0-9]{1,5}\\.[A-Za-z]{6}$"));
+    for (auto it = m_servers.constBegin(); it != m_servers.constEnd(); ++it) {
+        const QDir dir(QDir(downloadFolder()).filePath(sourceFolderName(it.key())));
+        for (const QFileInfo &f : dir.entryInfoList(QDir::Files)) {
+            if (kTemporary.match(f.fileName()).hasMatch() && QFile::remove(f.absoluteFilePath()))
+                qInfo("[Playlists] removed what a download cut short left: %s", qPrintable(f.absoluteFilePath()));
+        }
+    }
 }

@@ -102,6 +102,7 @@ ctest --test-dir build-tests --output-on-failure
 - **playlists** (`playlists_test.cpp`, Linux only). A playlist's m3u (`PlaylistsBackend::prepare`). Downloads wait for a game: held while one plays, a video put on an offline list stays queued, and the queue goes on once it has ended.
   - Owner-only and whole, `#EXTM3U` then each video's `#EXTINF` and path; played again, a new one, the one before gone.
   - One a full card can't take (a file size limit, which holds for root too) says why and plays nothing, and the one before stays.
+  - What a server's download cut short by the power going left in its folder (the temporary file it was writing, the film's name with six letters after it) is deleted as the downloads start; the films, a file of the user's own and yt-dlp's part file stay.
 - **youtube** (`youtube_test.cpp`, Linux only). YouTube's subscriptions against a stand-in for its feeds (`YouTubeBackend::setFeedUrl`), each request held until the test answers it.
   - Ten channels are asked for four at a time, the next as each feed lands, never more than four at once.
   - A channel opened meanwhile is asked for next, ahead of those still waiting, and answered as its own feed lands, before the subscriptions are.

@@ -1,4 +1,5 @@
 #include "AppCore.h"
+#include "modules/playlists/MediaServer.h"
 #include "modules/playlists/PlaylistsBackend.h"
 #include "util/AtomicFile.h"
 
@@ -13,9 +14,28 @@
 
 // A playlist's m3u (PlaylistsBackend::prepare): owner-only, written whole,
 // the one before removed once it is; one that can't be written (a full card)
-// says so, plays nothing, and leaves the one before.
+// says so, plays nothing, and leaves the one before. And an offline list's
+// downloads: only while the module is on, and what a server's download cut
+// short by the power going left in its folder cleared as they start.
+
+// A media server signed in to, whose downloads are asked of url.
+class StandInServer : public MediaServer {
+public:
+    QUrl url;
+    bool signedIn() const override { return true; }
+    QNetworkRequest downloadRequest(const QString &itemId) const override {
+        QUrl item = url;
+        item.setPath(QStringLiteral("/Items/") + itemId + QStringLiteral("/Download"));
+        return QNetworkRequest(item);
+    }
+    QString streamUrl(const QString &) const override { return {}; }
+    void browse(const QString &, QObject *, std::function<void(bool, const QVariantList &)>) override {}
+};
+
 class PlaylistsTest : public QObject {
     Q_OBJECT
+
+    static bool exists(const QString &path) { return QFileInfo::exists(path); }
 
 private slots:
     void m3u() {
@@ -121,6 +141,39 @@ private slots:
         QCOMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("queued"));
         playlists.setHeld(false);
         QTRY_COMPARE(state().value(QStringLiteral("state")).toString(), QStringLiteral("failed"));
+    }
+
+    // What a server's download cut short by the power going left in its
+    // folder, the temporary file it was writing (the film's name with six
+    // letters after it, where the filesystem has no unnamed files: exFAT),
+    // is deleted as the downloads start. The films themselves, a file of the
+    // user's own and yt-dlp's part file, which it carries on from, stay.
+    void leftoversOfADownloadCutShortAreCleared() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString folder = data.path() + QStringLiteral("/media/Playlists");
+        QVERIFY(QDir().mkpath(folder + QStringLiteral("/Jellyfin")));
+        QVERIFY(QDir().mkpath(folder + QStringLiteral("/YouTube")));
+        const QString film = folder + QStringLiteral("/Jellyfin/Film [abc123].mkv");
+        const QStringList left{ film + QStringLiteral(".RkYmKP"),
+                                folder + QStringLiteral("/Jellyfin/Another Film [def456].mp4.MZbRcq") };
+        const QStringList kept{ film,
+                                folder + QStringLiteral("/Jellyfin/Holiday.mkv.backup"),
+                                folder + QStringLiteral("/Jellyfin/Notes [mine].txt"),
+                                folder + QStringLiteral("/YouTube/Clip [aqz-KE-bpKQ].mp4.part") };
+        for (const QString &path : left + kept)
+            QVERIFY(writeFileAtomically(path, "film"));
+
+        StandInServer server;
+        PlaylistsBackend playlists(data.path(), nullptr, nullptr, nullptr,
+                                   { { QStringLiteral("com.osdos.jellyfin"), &server } });
+        QCOMPARE(playlists.downloadFolder(), folder);
+        // As 15 s after the start, or as the module is turned on.
+        playlists.queueOfflineItems();
+        for (const QString &path : left)
+            QVERIFY2(!exists(path), qPrintable(path));
+        for (const QString &path : kept)
+            QVERIFY2(exists(path), qPrintable(path));
     }
 };
 
