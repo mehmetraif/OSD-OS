@@ -348,7 +348,7 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 - A mouse or a touchpad shows OSD/OS's own pointer while it moves.
 - Over a menu the selection follows the pointer. A left click is select, a right click back, the wheel ▲ ▼.
 - In a file tree the wheel moves the cursor, and a click opens what it is on.
-- A mouse button bound in Settings → Controls → All Keyboards & Remotes does that action instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
+- A mouse button bound in Settings → Controls → Keyboards & Remotes → All Keyboards & Remotes does that action instead ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-mouse)).
 
 | Setting (Settings → Screen) | Values | Default | What it does | Config key |
 |---|---|---|---|---|

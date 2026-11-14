@@ -407,7 +407,7 @@ Select on a game in the tree, or select or START on the Arcade screen. The game 
 - From the Arcade screen, every game waits three seconds. The screen says `2 credits go in as the game starts`, or `No credit: insert a coin in the game`. COIN puts in another; START or select starts at once.
 - Back in that time cancels the game and keeps the credits.
 
-**Coming back**: press **Coin and Start together** on any player's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on an Xbox pad, `SELECT + START` on a PlayStation one, `- + +` on a Nintendo one. A button changed in MAME's menu for UI Cancel replaces this way back.
+**Coming back**: press **Coin and Start together** on any player's controller, or **Esc** on a keyboard. The screen names them as player 1's controller does: `COIN + START` on the JAMMA board's sticks, `BACK + START` on most pads, `SELECT + START` or `- + +` on a pad whose buttons are named so ([Button names](https://github.com/mehmetraif/OSD-OS/wiki/Controls#button-names)). A button changed in MAME's menu for UI Cancel replaces this way back.
 
 MAME's own menu is **Tab** on a keyboard, or the controller's guide button: **MODE** on the JAMMA board.
 
@@ -430,7 +430,7 @@ MAME's players are the ones **Settings → Controls → Players** sets ([Control
 - Keyboards play with MAME's keys: 5 coin, 1 start, the arrows and Ctrl, Alt, Space for player 1.
 - Six-player games take the JAMMA board's two sticks and four pads over USB or Bluetooth.
 
-**Arcade Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Arcade Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#arcade-buttons)).
+**Game Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Game Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#game-buttons)).
 
 - A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line.
 - What is changed in MAME's menu comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
@@ -482,7 +482,7 @@ FinalBurn Neo is a second arcade emulator, played here in RetroArch as a libretr
 **Playing**
 
 - Come back as from MAME. A keyboard's coin and start are **5** and **1** for player 1, 6 and 2 for player 2, and so on to player 4. Player 1's buttons are Z, X, A, S, Q, W and the arrows.
-- The JAMMA board's sticks, and a pad with Arcade Buttons of its own, have FinalBurn Neo's **6-Button Panel**: buttons 1 to 3 in the top row and 4 to 6 below.
+- The JAMMA board's sticks, and a pad with Game Buttons of its own, have FinalBurn Neo's **6-Button Panel**: buttons 1 to 3 in the top row and 4 to 6 below.
 - RetroArch's menu is **F1** on a keyboard. A change made there lasts that game; FinalBurn Neo's own **Core Options** are kept.
 - A game's state is saved with **F2** and loaded with **F4**, except in hardcore mode.
 

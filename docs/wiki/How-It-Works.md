@@ -154,8 +154,8 @@ flowchart LR
 | back | Escape | `ESC` | B (east), Back/Select |
 | play_pause | Space | `SPACE` | Start |
 
-- **Gamepads** go through SDL2's game controller layer, with buttons named by position on an Xbox layout. A held direction repeats after 400 ms, every 100 ms.
-- **Overrides**: `input.cfg` (every pad), a controller's page in Settings → Controls (`app.controllers.<key>`), All Keyboards & Remotes (`app.remote_keymap.<action>`), and `gamecontrollerdb.txt` for pads SDL doesn't know ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
+- **Gamepads** go through SDL2's game controller layer, with buttons named by position: `a` is the bottom face button, whatever is printed on it. A held direction repeats after 400 ms, every 100 ms.
+- **Overrides**: `input.cfg` (every pad), a controller's pages in Settings → Controls (`app.controllers.<key>`), All Keyboards & Remotes (`app.remote_keymap.<action>`), and `gamecontrollerdb.txt` for pads SDL doesn't know ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
 - **Keyboards and remotes** send real keys. Right Shift is a second back, except in a text field. Keypad Enter and a remote's Select or OK key are select.
 - **A mouse** without a desktop (EGLFS): its left and right buttons are select and back.
 - **Media keys** (volume, mute, play/pause, stop, next, previous, forward, rewind) always go to mpv, over its socket.

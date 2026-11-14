@@ -301,9 +301,9 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `window_mode` | Window Mode | string: `"Off"` or `"On"`. Windows and Linux or BSD desktops only |
 | `info_screen` | Info Screen | string: `"off"`, `"key"`, `"1"`, `"2"`, `"3"`, `"5"` |
 | `audio_output` | Audio Output | object `{ "card", "name" }` (the card's ALSA id and its name), or `""` for Auto |
-| `remote_keymap` | Controls → All Keyboards & Remotes | object: `up`, `down`, `left`, `right`, `select`, `back`, each a key's number, `0` for none |
-| `players` | Controls → Players | object: `"1"` to `"6"`, each `{ "key", "name" }`, a pad's key (`""` for Auto) and its name |
-| `controllers` | Controls → a controller's page | object by controller key (`pad-<SDL GUID>`, `kbd-<bus>-<vendor>-<product>`), each with `name`, `kind`, `labels` and `bindings` ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#how-a-controllers-settings-are-saved)) |
+| `remote_keymap` | Controls → Keyboards & Remotes → All Keyboards & Remotes | object: `up`, `down`, `left`, `right`, `select`, `back`, `play_pause`, each a key's number, a list of them for several, `0` for none |
+| `players` | Controls → a pad's page → Player | object: `"1"` to `"6"`, each `{ "key", "name" }`, a pad's key (`""` for Auto) and its name |
+| `controllers` | Controls → a controller's page | object by controller key (`pad-<SDL GUID>`, `kbd-<bus>-<vendor>-<product>`), each with `name`, `kind`, `labels`, `bindings` and a pad's `arcade` ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#how-a-controllers-settings-are-saved)) |
 
 Three keys have no row and are set by hand:
 

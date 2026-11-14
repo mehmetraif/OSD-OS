@@ -49,6 +49,10 @@ constexpr int kMouseButtonBase = 0x03000000;
 constexpr Sint16 kAxisEngage  = 16384;
 constexpr Sint16 kAxisRelease = 12000;
 
+// How long an input is held, while a page waits for a press, to stop the
+// wait instead of answering it (captureHeld()).
+constexpr int kCaptureHoldMs = 1500;
+
 // Held-direction auto-repeat, tuned to feel like keyboard repeat in lists.
 constexpr int kRepeatDelayMs    = 400;
 constexpr int kRepeatIntervalMs = 100;
@@ -233,6 +237,9 @@ InputManager::InputManager(const QString &dataRoot, AppCore *appCore, QObject *p
     m_captureIdleTimer.setSingleShot(true);
     m_captureIdleTimer.setInterval(kUnlockCaptureIdleMs);
     connect(&m_captureIdleTimer, &QTimer::timeout, this, [this] { endUnlockCapture(false); });
+    // A page's wait for a press (captureController()).
+    m_captureStopTimer.setSingleShot(true);
+    connect(&m_captureStopTimer, &QTimer::timeout, this, &InputManager::captureHeldOut);
 
     loadProfiles();
     loadPlayers();
@@ -556,6 +563,15 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
     pad.arcade = controllers::isJammaStick(name);
     pad.buttons = m_buttonMap;
     pad.axes = m_axisMap;
+    // A cabinet's buttons 5 and 6 are a pad's shoulders, which go left and
+    // right by default: on its panel they are buttons like the rest, and
+    // the joystick goes left and right. input.cfg's own lines for them hold.
+    if (pad.arcade) {
+        for (const int shoulder : { SDL_CONTROLLER_BUTTON_LEFTSHOULDER, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER }) {
+            if (!m_cfgButtons.contains(shoulder))
+                pad.buttons.remove(shoulder);
+        }
+    }
 
     const controllers::Profile profile = m_profiles.value(key);
     for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
@@ -585,10 +601,10 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
 #endif
         const bool playstation = type == SDL_CONTROLLER_TYPE_PS3 || type == SDL_CONTROLLER_TYPE_PS4
                               || type == SDL_CONTROLLER_TYPE_PS5;
-        pad.labels = pad.arcade ? controllers::LabelStyle::Arcade
-                   : nintendo ? controllers::LabelStyle::Nintendo
-                   : playstation ? controllers::LabelStyle::PlayStation
-                   : controllers::LabelStyle::Xbox;
+        pad.labels = pad.arcade ? controllers::LabelStyle::Numbers
+                   : nintendo ? controllers::LabelStyle::ARight
+                   : playstation ? controllers::LabelStyle::Shapes
+                   : controllers::LabelStyle::ABelow;
     }
     return pad;
 }
@@ -634,18 +650,34 @@ InputManager::Action InputManager::padInputAction(const Pad &pad, const QString 
 
 // How many of the inputs a connected pad has do this.
 int InputManager::padInputsFor(SDL_JoystickID id, Action a) const {
-    SDL_GameController *gc = m_controllers.value(id, nullptr);
-    const Pad pad = m_pads.value(id);
-    int count = 0;
-    for (auto it = pad.buttons.cbegin(); it != pad.buttons.cend(); ++it) {
-        if (it.value() == a && (!gc || SDL_GameControllerHasButton(gc, SDL_GameControllerButton(it.key()))))
-            ++count;
+    return int(padTokensFor(m_pads.value(id), m_controllers.value(id, nullptr), a).size());
+}
+
+QStringList InputManager::padTokensFor(const Pad &pad, SDL_GameController *gc, Action a) {
+    QStringList tokens;
+    for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
+        if (pad.buttons.value(b, Action::None) == a
+            && (!gc || SDL_GameControllerHasButton(gc, SDL_GameControllerButton(b))))
+            tokens << buttonToken(b);
     }
-    for (auto it = pad.axes.cbegin(); it != pad.axes.cend(); ++it) {
-        if (!gc || SDL_GameControllerHasAxis(gc, SDL_GameControllerAxis(it.key())))
-            count += int(it->first == a) + int(it->second == a);
+    for (int axis = 0; axis < SDL_CONTROLLER_AXIS_MAX; ++axis) {
+        if (gc && !SDL_GameControllerHasAxis(gc, SDL_GameControllerAxis(axis)))
+            continue;
+        const auto pair = pad.axes.value(axis, { Action::None, Action::None });
+        if (pair.first == a)
+            tokens << axisToken(axis, -1);
+        if (pair.second == a)
+            tokens << axisToken(axis, +1);
     }
-    return count;
+    return tokens;
+}
+
+SDL_JoystickID InputManager::padIdOf(const QString &key) const {
+    for (auto it = m_pads.cbegin(); it != m_pads.cend(); ++it) {
+        if (it->key == key && !m_suppressedDevices.contains(it.key()))
+            return it.key();
+    }
+    return -1;
 }
 
 void InputManager::rebuildPad(SDL_JoystickID id) {
@@ -732,6 +764,7 @@ void InputManager::loadDefaultMapping() {
     m_buttonMap.clear();
     m_axisMap.clear();
     m_labelOverrides.clear();
+    m_cfgButtons.clear();
     m_buttonMap[SDL_CONTROLLER_BUTTON_DPAD_UP]       = Action::Up;
     m_buttonMap[SDL_CONTROLLER_BUTTON_DPAD_DOWN]     = Action::Down;
     m_buttonMap[SDL_CONTROLLER_BUTTON_DPAD_LEFT]     = Action::Left;
@@ -818,17 +851,71 @@ QVariantMap InputManager::captureOutcome(const QString &outcome, Action does) {
                         { QStringLiteral("label"), controllers::actionLabel(name) } };
 }
 
+QString InputManager::allKeys() {
+    return QStringLiteral("kbd-all");
+}
+
+// The key the views take for an action by themselves, as a row names it.
+QString InputManager::defaultKeyName(Action a) {
+    switch (a) {
+    case Action::Up:
+    case Action::Down:
+    case Action::Left:
+    case Action::Right:     return QStringLiteral("Arrow key");
+    case Action::Select:    return QStringLiteral("Enter");
+    case Action::Back:      return QStringLiteral("Esc");
+    case Action::PlayPause: return QStringLiteral("Space");
+    case Action::None:      break;
+    }
+    return QString();
+}
+
+QList<int> InputManager::extraKeysFor(const QString &key, Action a) const {
+    QList<int> ids;
+    if (key == allKeys()) {
+        for (auto it = m_keyRemap.cbegin(); it != m_keyRemap.cend(); ++it) {
+            if (it.value() == a)
+                ids << it.key();
+        }
+    } else {
+        const controllers::Profile profile = m_profiles.value(key);
+        for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
+            if (it.value() == actionName(a))
+                ids << it.key().toInt();
+        }
+    }
+    std::sort(ids.begin(), ids.end(), [this](int x, int y) {
+        const int byName = keyDisplayName(x).compare(keyDisplayName(y), Qt::CaseInsensitive);
+        return byName != 0 ? byName < 0 : x < y;
+    });
+    return ids;
+}
+
+bool InputManager::canLoseKey(const QString &key, int id, Action a) const {
+    if (!essentialAction(a))
+        return true;
+    if (key != allKeys() && m_seenAs.value(key).kind == QLatin1String("keyboard"))
+        return true;
+    const auto last = m_lastActionBy.constFind(int(a));
+    return last != m_lastActionBy.constEnd() && *last != id;
+}
+
 QVariantMap InputManager::keyCapture(const QString &key, int id, const QString &action) const {
+    const bool all = key.isEmpty() || key == allKeys();
     // All Keyboards & Remotes' wait: what the key does on the controller that
     // pressed it, the one used last (readNode() and eventFilter() note it).
-    const Action does = keyActionOn(key.isEmpty() ? m_activeController : key, id);
+    const Action does = keyActionOn(all ? m_activeController : key, id);
     if (does == Action::Back)
         return captureOutcome(QStringLiteral("cancel"), does);
-    if (essentialAction(does) || defaultKeyAction(id) != Action::None
-        || (does != Action::None && actionName(does) == action))
+    if (defaultKeyAction(id) != Action::None || (does != Action::None && actionName(does) == action))
         return captureOutcome(QStringLiteral("already"), does);
-    if (action == QLatin1String("none") && !m_profiles.value(key).bindings.contains(QString::number(id)))
+    const bool own = all ? m_keyRemap.contains(id) : m_profiles.value(key).bindings.contains(QString::number(id));
+    if (action == QLatin1String("none") && !own)
         return captureOutcome(QStringLiteral("other"), does);
+    // An extra key that is the Select / OK, Up or Down the menus are worked
+    // with stays it.
+    if (!canLoseKey(all ? allKeys() : key, id, does))
+        return captureOutcome(QStringLiteral("only"), does);
     return captureOutcome(QStringLiteral("set"), does);
 }
 
@@ -938,6 +1025,7 @@ void InputManager::loadUserMapping() {
                 continue;
             }
             m_buttonMap[button] = action;
+            m_cfgButtons.insert(button);
         }
         ++applied;
     }
@@ -946,7 +1034,7 @@ void InputManager::loadUserMapping() {
 
 // Keyboard/remote-button remap, config.json's app.remote_keymap.<action>,
 // each an int Qt::Key value (or unset/0, meaning "no extra key for this
-// action"). Set from Settings > Remote Controls (views/RemapControls.qml).
+// action"). Set from Settings → Controls → Keyboards & Remotes (views/MenuButtons.qml).
 // Unlike input.cfg's gamepad rebinds, this is additive: it never removes an
 // action's default key, it only adds one more physical key that also fires
 // it, so a bad remap can't lock the menus out from a plain keyboard.
@@ -954,26 +1042,73 @@ void InputManager::loadKeyRemap() {
     m_keyRemap.clear();
     if (!m_appCore)
         return;
-    static const struct { const char *name; Action action; } kRemapActions[] = {
-        { "up",     Action::Up },
-        { "down",   Action::Down },
-        { "left",   Action::Left },
-        { "right",  Action::Right },
-        { "select", Action::Select },
-        { "back",   Action::Back },
-    };
-    for (const auto &entry : kRemapActions) {
-        bool ok = false;
-        const int qtKey = m_appCore->get_setting(QString(), QStringLiteral("remote_keymap.") + entry.name).toInt(&ok);
-        if (ok && qtKey != 0)
-            m_keyRemap[qtKey] = entry.action;
+    // An action's extra keys: a number for one (0 for none), as every
+    // version has written it, or a list of them.
+    for (const QString &name : controllers::actionNames()) {
+        bool known = false;
+        const Action action = actionFromString(name, &known);
+        const QVariant stored = m_appCore->get_setting(QString(), QStringLiteral("remote_keymap.") + name);
+        const QVariantList keys = stored.typeId() == QMetaType::QVariantList ? stored.toList() : QVariantList{ stored };
+        for (const QVariant &key : keys) {
+            bool ok = false;
+            const int qtKey = key.toInt(&ok);
+            if (ok && qtKey != 0)
+                m_keyRemap[qtKey] = action;
+        }
     }
+}
+
+// The shared extra keys as they are now, to config.json: each action's that
+// differs from what is there. All of them are worked out first: a save reads
+// them back (onAppSettingChanged()).
+bool InputManager::saveKeyRemap() {
+    if (!m_appCore)
+        return true;
+    QList<QPair<QString, QVariant>> changed;
+    for (const QString &name : controllers::actionNames()) {
+        bool known = false;
+        const QList<int> ids = extraKeysFor(allKeys(), actionFromString(name, &known));
+        QVariantList list;
+        for (const int id : ids)
+            list << id;
+        const QVariant wanted = list.isEmpty() ? QVariant(0) : list.size() == 1 ? list.first() : QVariant(list);
+        const QString setting = QStringLiteral("remote_keymap.") + name;
+        const QVariant stored = m_appCore->get_setting(QString(), setting);
+        const bool none = !stored.isValid() || stored.isNull() || (stored.typeId() != QMetaType::QVariantList && stored.toInt() == 0);
+        if (list.isEmpty() ? !none : stored != wanted)
+            changed << qMakePair(setting, wanted);
+    }
+    bool saved = true;
+    for (const auto &change : std::as_const(changed))
+        saved = m_appCore->save_setting(QString(), change.first, change.second) && saved;
+    if (!saved)
+        loadKeyRemap();
+    return saved;
+}
+
+bool InputManager::setExtraKey(const QString &key, int id, Action a) {
+    if (key == allKeys()) {
+        if (a == Action::None)
+            m_keyRemap.remove(id);
+        else
+            m_keyRemap[id] = a;
+        return saveKeyRemap();
+    }
+    controllers::Profile &profile = editProfile(key);
+    if (a == Action::None)
+        profile.bindings.remove(QString::number(id));
+    else
+        profile.bindings.insert(QString::number(id), actionName(a));
+    return saveProfiles();
 }
 
 void InputManager::onAppSettingChanged(const QString &key, const QString &value) {
     Q_UNUSED(value)
-    if (key.startsWith(QStringLiteral("remote_keymap.")))
+    if (key.startsWith(QStringLiteral("remote_keymap."))) {
         loadKeyRemap();
+        // Every keyboard's page, and each keyboard's own, show them.
+        emit controllersChanged();
+    }
     if (key == QLatin1String("controllers") || key.startsWith(QStringLiteral("controllers."))) {
         loadProfiles();
         rebuildPads();
@@ -1231,6 +1366,60 @@ void InputManager::setPlayer(int player, const QString &key) {
     savePlayers();
 }
 
+QVariantMap InputManager::setPadPlayer(const QString &key, int player) {
+    if (!key.startsWith(QLatin1String("pad-")) || player < 0 || player > controllers::kPlayers)
+        return {};
+    const auto result = [](const QString &outcome, const QString &other = QString(), int otherPlayer = 0) {
+        return QVariantMap{ { QStringLiteral("outcome"), outcome }, { QStringLiteral("other"), other },
+                            { QStringLiteral("otherPlayer"), otherPlayer } };
+    };
+    if (player == 0) {
+        bool chosen = false;
+        for (int p = 0; p < controllers::kPlayers; ++p) {
+            if (m_playerKeys[p] != key)
+                continue;
+            m_playerKeys[p].clear();
+            m_playerNames[p].clear();
+            chosen = true;
+        }
+        if (!chosen)
+            return result(QStringLiteral("already"));
+        savePlayers();
+        return result(QStringLiteral("set"));
+    }
+    if (padIdOf(key) < 0)
+        return result(QStringLiteral("away"));
+    const int p = player - 1;
+    if (m_playerKeys[p] == key)
+        return result(QStringLiteral("already"));
+    // The pad that has the number now, chosen for it or by Auto, and the
+    // number this one was chosen for.
+    const SDL_JoystickID had = m_playerPads.value(p, -1);
+    const QString hadKey = m_pads.value(had).key;
+    const QString hadName = m_pads.value(had).name;
+    const QString chosenKey = m_playerKeys[p];
+    const QString chosenName = m_playerNames[p];
+    const int mine = int(m_playerKeys.indexOf(key));
+    setPlayer(player, key);
+    // One chosen for it takes this pad's number in its place: the two swap.
+    if (!chosenKey.isEmpty() && chosenKey != key && mine >= 0 && m_playerKeys[mine].isEmpty()) {
+        m_playerKeys[mine] = chosenKey;
+        m_playerNames[mine] = chosenName;
+        savePlayers();
+    }
+    if (had < 0 || hadKey == key)
+        return result(QStringLiteral("set"));
+    return result(QStringLiteral("set"), hadName, int(m_playerPads.indexOf(had)) + 1);
+}
+
+void InputManager::resetPlayers() {
+    for (int p = 0; p < controllers::kPlayers; ++p) {
+        m_playerKeys[p].clear();
+        m_playerNames[p].clear();
+    }
+    savePlayers();
+}
+
 // Who plays: each player's chosen pad if it is there (a player whose pad is
 // away has none until it is back), then Auto's players from the pads left:
 // the JAMMA board's stick of the player's number, else the first left, the
@@ -1411,7 +1600,7 @@ void InputManager::noteController(const QString &key) {
 }
 
 QVariantList InputManager::controllers() const {
-    struct Entry { QString key, name, kind; int count; int order; int jamma; };   // order 3: not connected
+    struct Entry { QString key, name, kind; int count; int order; int jamma; QVariantList players; };   // order 3: not connected
     QList<Entry> entries;
     const auto add = [&entries](const QString &key, const QString &name, const QString &kind, int order,
                                 int jamma = 0) {
@@ -1431,7 +1620,7 @@ QVariantList InputManager::controllers() const {
             }
             return;
         }
-        entries.append({ key, name, kind, 1, order, jamma });
+        entries.append({ key, name, kind, 1, order, jamma, {} });
     };
     for (auto it = m_pads.cbegin(); it != m_pads.cend(); ++it) {
         if (!m_suppressedDevices.contains(it.key()))
@@ -1454,7 +1643,17 @@ QVariantList InputManager::controllers() const {
         QString kind = it->kind;
         if (kind.isEmpty())
             kind = pad ? QStringLiteral("gamepad") : QStringLiteral("keyboard");
-        entries.append({ it.key(), it->name.isEmpty() ? it.key() : it->name, kind, 0, 3, 0 });
+        entries.append({ it.key(), it->name.isEmpty() ? it.key() : it->name, kind, 0, 3, 0, {} });
+    }
+    // The numbers each pad plays as.
+    for (int p = 0; p < controllers::kPlayers; ++p) {
+        const auto pad = m_pads.constFind(m_playerPads.value(p, -1));
+        if (pad == m_pads.constEnd())
+            continue;
+        for (Entry &e : entries) {
+            if (e.key == pad->key && e.order < 3)
+                e.players << p + 1;
+        }
     }
     std::stable_sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b) {
         return a.order != b.order ? a.order < b.order : a.name.compare(b.name, Qt::CaseInsensitive) < 0;
@@ -1463,7 +1662,8 @@ QVariantList InputManager::controllers() const {
     for (const Entry &e : entries)
         list << QVariantMap{ { QStringLiteral("key"), e.key }, { QStringLiteral("name"), e.name },
                              { QStringLiteral("kind"), e.kind }, { QStringLiteral("count"), e.count },
-                             { QStringLiteral("present"), e.order < 3 }, { QStringLiteral("jamma"), e.jamma } };
+                             { QStringLiteral("present"), e.order < 3 }, { QStringLiteral("jamma"), e.jamma },
+                             { QStringLiteral("players"), e.players } };
     return list;
 }
 
@@ -1474,55 +1674,77 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
     QString name = profile.name.isEmpty() ? seen.name : profile.name;
     QString kind = profile.name.isEmpty() ? seen.kind : profile.kind;
     bool present = false;
-    const QVariantList listed = controllers();
+    int count = 0;
+    QVariantList players;
+    const bool all = key == allKeys();
+    if (all) {
+        name = QStringLiteral("All Keyboards & Remotes");
+        kind = QStringLiteral("keys");
+        present = true;
+    }
+    const QVariantList listed = all ? QVariantList() : controllers();
     for (const QVariant &v : listed) {
         const QVariantMap c = v.toMap();
         if (c.value(QStringLiteral("key")).toString() == key) {
             name = c.value(QStringLiteral("name")).toString();
             kind = c.value(QStringLiteral("kind")).toString();
             present = c.value(QStringLiteral("present")).toBool();
+            count = c.value(QStringLiteral("count")).toInt();
+            players = c.value(QStringLiteral("players")).toList();
             break;
         }
     }
 
     const bool isPad = key.startsWith(QLatin1String("pad-"));
     const Pad pad = isPad ? padOf(key, name) : Pad();
+    // A pad connected lists the inputs it has; one away, all its map names.
+    SDL_GameController *gc = isPad ? padController(key) : nullptr;
 
     QVariantList rows;
     for (const QString &action : controllers::actionNames()) {
         bool ok = false;
         const Action a = actionFromString(action, &ok);
-        QStringList inputs;
+        QStringList names;
+        QVariantList inputs;
         QString value;
         if (isPad) {
-            for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
-                if (pad.buttons.value(b, Action::None) == a)
-                    inputs << padLabel(m_labelOverrides, pad.labels, buttonToken(b), b);
+            const QStringList tokens = padTokensFor(pad, gc, a);
+            for (const QString &token : tokens) {
+                const QString label = padInputLabel(pad, token);
+                names << label;
+                inputs << QVariantMap{ { QStringLiteral("input"), token }, { QStringLiteral("label"), label } };
             }
-            for (int axis = 0; axis < SDL_CONTROLLER_AXIS_MAX; ++axis) {
-                const auto pair = pad.axes.value(axis, { Action::None, Action::None });
-                if (pair.first == a)
-                    inputs << controllers::inputLabel(pad.labels, axisToken(axis, -1));
-                if (pair.second == a)
-                    inputs << controllers::inputLabel(pad.labels, axisToken(axis, +1));
-            }
-            value = inputs.isEmpty() ? QStringLiteral("None") : inputs.join(QStringLiteral(", "));
+            value = names.isEmpty() ? QStringLiteral("None") : names.join(QStringLiteral(", "));
         } else {
-            for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
-                if (it.value() == action)
-                    inputs << keyDisplayName(it.key().toInt());
+            // The action's own key, every keyboard's extra keys, then its own.
+            names << defaultKeyName(a);
+            if (!all) {
+                const QList<int> shared = extraKeysFor(allKeys(), a);
+                for (const int id : shared) {
+                    if (profileAction(key, QString::number(id)) == Action::None)
+                        names << keyDisplayName(id) + QStringLiteral(" (all)");
+                }
             }
-            inputs.sort(Qt::CaseInsensitive);
-            value = inputs.isEmpty() ? QStringLiteral("Default")
-                                     : QStringLiteral("Default + ") + inputs.join(QStringLiteral(", "));
+            const QList<int> own = extraKeysFor(key, a);
+            for (const int id : own) {
+                const QString label = keyDisplayName(id);
+                names << label;
+                inputs << QVariantMap{ { QStringLiteral("input"), QString::number(id) }, { QStringLiteral("label"), label } };
+            }
+            value = names.join(QStringLiteral(" + "));
         }
         rows << QVariantMap{ { QStringLiteral("action"), action },
                              { QStringLiteral("label"), controllers::actionLabel(action) },
-                             { QStringLiteral("value"), value } };
+                             { QStringLiteral("value"), value },
+                             { QStringLiteral("first"), names.value(0, QStringLiteral("None")) },
+                             { QStringLiteral("inputs"), inputs } };
     }
     return QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("name"), name },
                         { QStringLiteral("kind"), kind.isEmpty() ? (isPad ? QStringLiteral("gamepad") : QStringLiteral("keyboard")) : kind },
                         { QStringLiteral("present"), present },
+                        { QStringLiteral("count"), count },
+                        { QStringLiteral("players"), players },
+                        { QStringLiteral("player"), isPad ? int(m_playerKeys.indexOf(key)) + 1 : 0 },
                         { QStringLiteral("labels"), controllers::labelStyleName(profile.labels) },
                         { QStringLiteral("labelsInUse"), isPad ? controllers::labelStyleTitle(pad.labels) : QString() },
                         { QStringLiteral("jamma"), isPad ? jammaPlayer(pad) : 0 },
@@ -1538,6 +1760,56 @@ void InputManager::captureControllers(const QStringList &keys) {
     m_captureControllers = keys;
     m_captureControllers.removeAll(QString());
     m_captureEnds = m_captureControllers.isEmpty() ? 0 : m_clock.elapsed() + 12000;
+    // What is held of a controller no longer waited for answers nothing: its
+    // release is only a release.
+    for (auto it = m_capturePresses.begin(); it != m_capturePresses.end();)
+        it = m_captureControllers.contains(it->key) ? std::next(it) : m_capturePresses.erase(it);
+    armCaptureStop();
+}
+
+void InputManager::capturePressed(const HeldInput &held, const QString &key, const QString &input,
+                                  const QString &label) {
+    for (const CapturePress &press : std::as_const(m_capturePresses)) {
+        if (press.held == held)
+            return;   // held already: its release went missing
+    }
+    m_capturePresses.append({ held, key, input, label, m_clock.elapsed() });
+    armCaptureStop();
+    emit controllerInputDown(key, input, label);
+}
+
+// An input let go: true for one a wait took, a tap if the wait is still on.
+bool InputManager::captureReleased(const HeldInput &held) {
+    for (int i = 0; i < m_capturePresses.size(); ++i) {
+        if (m_capturePresses.at(i).held != held)
+            continue;
+        const CapturePress press = m_capturePresses.takeAt(i);
+        armCaptureStop();
+        if (capturing(press.key))
+            emit controllerInputCaptured(press.key, press.input, press.label);
+        return true;
+    }
+    return false;
+}
+
+void InputManager::armCaptureStop() {
+    if (m_capturePresses.isEmpty()) {
+        m_captureStopTimer.stop();
+        return;
+    }
+    const qint64 left = m_capturePresses.first().at + kCaptureHoldMs - m_clock.elapsed();
+    m_captureStopTimer.start(int(qMax<qint64>(0, left)));
+}
+
+// The oldest press held long enough: the wait's way out. What is held
+// answers nothing from here on, whichever is let go first.
+void InputManager::captureHeldOut() {
+    if (m_capturePresses.isEmpty())
+        return;
+    const QString key = m_capturePresses.first().key;
+    m_capturePresses.clear();
+    if (capturing(key))
+        emit captureHeld(key);
 }
 
 void InputManager::watchJammaPins(bool on) {
@@ -1581,20 +1853,129 @@ QVariantMap InputManager::bindControllerInput(const QString &key, const QString 
                 return captureOutcome(QStringLiteral("only"), does);
         }
     } else {
+        // A keyboard's or a remote's keys keep their own actions: only extra
+        // keys are set, and "none" takes one away.
         const QVariantMap capture = keyCapture(key, token.toInt(), action);
         if (capture.value(QStringLiteral("outcome")).toString() != QLatin1String("set"))
             return capture;
+        return captureOutcome(setExtraKey(key, token.toInt(), wanted) ? QStringLiteral("set") : QStringLiteral("unsaved"),
+                              wanted);
     }
     controllers::Profile &profile = editProfile(key);
-    // A keyboard's or a remote's keys keep their own actions: only extra keys
-    // are its profile's, and "none" takes one away.
-    if (!isPad && wanted == Action::None)
-        profile.bindings.remove(token);
-    else
-        profile.bindings.insert(token, action);
+    profile.bindings.insert(token, action);
     if (!saveProfiles())
         return captureOutcome(QStringLiteral("unsaved"), wanted);
     return captureOutcome(QStringLiteral("set"), wanted);
+}
+
+QVariantMap InputManager::replaceControllerInput(const QString &key, const QString &input, const QString &action) {
+    bool ok = false;
+    const Action wanted = actionFromString(action, &ok);
+    if (key.isEmpty() || input.isEmpty() || !ok || wanted == Action::None)
+        return {};
+    const QString token = input.toLower();
+    QStringList cleared;
+    if (!key.startsWith(QLatin1String("pad-"))) {
+        const int id = token.toInt();
+        QVariantMap capture = keyCapture(key, id, action);
+        const QString outcome = capture.value(QStringLiteral("outcome")).toString();
+        // The action's other extra keys go once the new one is in: one that
+        // does it already may be the one to keep.
+        const QList<int> extras = extraKeysFor(key, wanted);
+        const bool keeps = outcome == QLatin1String("already") && extras.contains(id) && extras.size() > 1;
+        if (outcome != QLatin1String("set") && !keeps)
+            return capture;
+        bool saved = keeps || setExtraKey(key, id, wanted);
+        for (const int old : extras) {
+            if (old == id || !saved)
+                continue;
+            cleared << keyDisplayName(old);
+            saved = setExtraKey(key, old, Action::None);
+        }
+        capture = captureOutcome(saved ? QStringLiteral("set") : QStringLiteral("unsaved"), wanted);
+        capture.insert(QStringLiteral("cleared"), cleared);
+        return capture;
+    }
+
+    const SDL_JoystickID id = padIdOf(key);
+    if (id < 0)
+        return {};
+    const Pad pad = m_pads.value(id);
+    const Action does = padInputAction(pad, token);
+    QStringList old = padTokensFor(pad, m_controllers.value(id, nullptr), wanted);
+    old.removeAll(token);
+    if (does == wanted && old.isEmpty())
+        return captureOutcome(QStringLiteral("already"), does);
+    // The input pressed was the pad's only Select / OK, Back, Up or Down:
+    // the first of those it takes the place of does that instead.
+    QString taker;
+    if (does != wanted && essentialAction(does) && padInputsFor(id, does) <= 1) {
+        if (old.isEmpty())
+            return captureOutcome(QStringLiteral("only"), does);
+        taker = old.takeFirst();
+    }
+    controllers::Profile &profile = editProfile(key);
+    profile.bindings.insert(token, action);
+    for (const QString &gone : std::as_const(old)) {
+        profile.bindings.insert(gone, QStringLiteral("none"));
+        cleared << padInputLabel(pad, gone);
+    }
+    if (!taker.isEmpty())
+        profile.bindings.insert(taker, actionName(does));
+    if (!saveProfiles())
+        return captureOutcome(QStringLiteral("unsaved"), wanted);
+    QVariantMap result = captureOutcome(taker.isEmpty() ? QStringLiteral("set") : QStringLiteral("swapped"), wanted);
+    result.insert(QStringLiteral("cleared"), cleared);
+    if (!taker.isEmpty()) {
+        result.insert(QStringLiteral("other"), padInputLabel(pad, taker));
+        result.insert(QStringLiteral("otherAction"), controllers::actionLabel(actionName(does)));
+    }
+    return result;
+}
+
+QVariantMap InputManager::removeControllerInput(const QString &key, const QString &input) {
+    if (key.isEmpty() || input.isEmpty())
+        return {};
+    if (key.startsWith(QLatin1String("pad-")))
+        return bindControllerInput(key, input, QStringLiteral("none"));
+    const int id = input.toInt();
+    const bool all = key == allKeys();
+    const bool own = all ? m_keyRemap.contains(id) : m_profiles.value(key).bindings.contains(QString::number(id));
+    const Action does = all ? m_keyRemap.value(id, Action::None) : profileAction(key, QString::number(id));
+    if (!own)
+        return captureOutcome(QStringLiteral("other"), does);
+    if (!canLoseKey(key, id, does))
+        return captureOutcome(QStringLiteral("only"), does);
+    return captureOutcome(setExtraKey(key, id, Action::None) ? QStringLiteral("set") : QStringLiteral("unsaved"),
+                          Action::None);
+}
+
+QVariantMap InputManager::inputRoles(const QString &key, const QString &input) const {
+    const QString token = input.toLower();
+    QString action, game;
+    Action does = Action::None;
+    if (key.startsWith(QLatin1String("pad-"))) {
+        const Pad pad = padOf(key, m_seenAs.value(key).name);
+        does = padInputAction(pad, token);
+        const QStringList inputs = arcadeInputsOf(key);
+        const int at = int(inputs.indexOf(token));
+        // Under Default MAME and FinalBurn Neo number another pad's buttons
+        // their own ways: only its Coin and Start are OSD/OS's.
+        const bool theirs = m_profiles.value(key).arcadeLayout.isEmpty() && !jammaPlayer(pad);
+        if (token == QLatin1String("guide"))
+            game = QStringLiteral("MAME's menu");
+        else if (!controllers::isArcadeToken(token))
+            game = QStringLiteral("Joystick");
+        else if (at >= 0 && !(theirs && at < controllers::kArcadeCoin))
+            game = controllers::arcadeInputLabel(at);
+        else if (theirs)
+            game = QStringLiteral("Engine's");
+    } else {
+        does = keyActionOn(key == allKeys() ? m_activeController : key, token.toInt());
+    }
+    if (does != Action::None)
+        action = controllers::actionLabel(actionName(does));
+    return QVariantMap{ { QStringLiteral("action"), action }, { QStringLiteral("game"), game } };
 }
 
 void InputManager::setControllerLabels(const QString &key, const QString &style) {
@@ -1607,6 +1988,12 @@ void InputManager::setControllerLabels(const QString &key, const QString &style)
 void InputManager::resetController(const QString &key) {
     if (key.isEmpty())
         return;
+    // Every keyboard's and remote's extra keys.
+    if (key == allKeys()) {
+        m_keyRemap.clear();
+        saveKeyRemap();
+        return;
+    }
     m_profiles.remove(key);
     saveProfiles();
 }
@@ -1629,6 +2016,9 @@ bool InputManager::saveArcade(const QString &key, const QString &layout, const Q
     controllers::Profile &profile = editProfile(key);
     profile.arcadeLayout = layout;
     profile.arcade = layout.isEmpty() ? QStringList() : inputs;
+    // Custom's inputs are kept while another layout is chosen.
+    if (layout == QLatin1String("custom"))
+        profile.arcadeCustom = inputs;
     return saveProfiles();
 }
 
@@ -1659,7 +2049,7 @@ QVariantMap InputManager::arcadePage(const QString &key) const {
         rows << QVariantMap{ { QStringLiteral("input"), controllers::arcadeInputName(i) },
                              { QStringLiteral("label"), controllers::arcadeInputLabel(i) },
                              { QStringLiteral("token"), token },
-                             { QStringLiteral("value"), theirs ? QStringLiteral("Auto")
+                             { QStringLiteral("value"), theirs ? QStringLiteral("Engine's")
                                                         : token.isEmpty() || (gc && !shape.has(token)) ? QStringLiteral("None")
                                                         : padInputLabel(pad, token) } };
     }
@@ -1686,7 +2076,8 @@ void InputManager::setArcadeLayout(const QString &key, const QString &layout) {
     if (layout == QLatin1String("default"))
         saveArcade(key, QString(), {});
     else if (layout == QLatin1String("custom"))
-        saveArcade(key, layout, arcadeInputsOf(key));
+        saveArcade(key, layout, m_profiles.value(key).arcadeCustom.isEmpty() ? arcadeInputsOf(key)
+                                                                           : m_profiles.value(key).arcadeCustom);
     else
         saveArcade(key, layout, controllers::arcadeLayoutInputs(layout, jammaPlayer(padOf(key, m_seenAs.value(key).name)) > 0));
 }
@@ -1815,9 +2206,6 @@ void InputManager::publishArcade() {
     controllers::setPlayerArcade(players);
 }
 
-void InputManager::setRemapCapture(bool active) {
-    m_remapCapture = active;
-}
 
 #ifdef Q_OS_LINUX
 // The keyboards and remotes, from their /dev/input nodes (read-only, never
@@ -1990,6 +2378,8 @@ void InputManager::readNode(Node *node) {
         // or the key its press went to the views as.
         const HeldInput button{ node->path, ev.code };
         if (ev.value == 0) {
+            if (captureReleased(button))
+                continue;
             releaseAction(m_heldInputs.take(button));
             if (const int qtKey = m_postedKeys.take(button))
                 postKey(qtKey, QEvent::KeyRelease, false);
@@ -2000,18 +2390,12 @@ void InputManager::readNode(Node *node) {
         // A press taken here, reported to a wait or acted on, is this node's
         // alone: Qt may have a copy of it too, as libinput takes such a node
         // for a keyboard, and eventFilter() drops that (m_consumerTaken).
-        if (m_remapCapture) {
-            // Capture mode: report the button, never act on it. Acting is what
-            // must not happen here — finishing a capture writes the binding
-            // into m_keyRemap before this function resumes, so a lookup after
-            // the emit would fire the action on the very press that bound it.
+        // A wait for a press, every keyboard's or this one's: the button is
+        // reported, never acted on.
+        const bool all = capturing(allKeys());
+        if (all || capturing(node->key)) {
             m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
-            emit auxButtonPressed(extendedId);
-            continue;
-        }
-        if (capturing(node->key)) {
-            m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
-            emit controllerInputCaptured(node->key, QString::number(extendedId), evdevKeyName(ev.code));
+            capturePressed(button, all ? allKeys() : node->key, QString::number(extendedId), evdevKeyName(ev.code));
             continue;
         }
 
@@ -2031,6 +2415,7 @@ void InputManager::readNode(Node *node) {
         }
         m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
         m_heldInputs.insert(button, a);
+        m_lastActionBy.insert(int(a), extendedId);
         pressFrom(QStringLiteral("keyboard"), a);
     }
 }
@@ -2198,6 +2583,8 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
     const HeldInput input{ padSource(which), button };
     const QString token = buttonToken(button);
     if (!pressed) {
+        if (captureReleased(input))
+            return;
         if (m_heldThroughHandoff.remove(input))
             return;
         if (unlockRelease(padInputId(which, token)))
@@ -2221,7 +2608,7 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
     const QString key = pad->key;
     noteController(key);
     if (capturing(key)) {
-        emit controllerInputCaptured(key, token, padLabel(m_labelOverrides, pad->labels, token, button));
+        capturePressed(input, key, token, padLabel(m_labelOverrides, pad->labels, token, button));
         return;
     }
     if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
@@ -2247,6 +2634,7 @@ void InputManager::actOnPadPress(SDL_JoystickID which, const HeldInput &input, c
         return;
     noteActiveController(which);
     m_heldInputs.insert(input, a);
+    m_lastActionBy.insert(int(a), -1);
     pressAction(a);
 }
 
@@ -2284,7 +2672,8 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // Only a real engage/release counts as "using" this controller — idle
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
-    if (old != 0 && !m_heldThroughHandoff.remove(input) && !unlockRelease(padInputId(which, axisToken(axis, old)))) {
+    if (old != 0 && !captureReleased(input) && !m_heldThroughHandoff.remove(input)
+        && !unlockRelease(padInputId(which, axisToken(axis, old)))) {
         if (m_coinInputs.remove(input)) {
             postKey(Qt::Key_5, QEvent::KeyRelease, false);
         } else {
@@ -2305,7 +2694,7 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     }
     noteController(key);
     if (capturing(key)) {
-        emit controllerInputCaptured(key, token, controllers::inputLabel(labels, token));
+        capturePressed(input, key, token, controllers::inputLabel(labels, token));
         return;
     }
     if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
@@ -2395,6 +2784,10 @@ bool InputManager::essentialAction(Action a) {
 // A controller gone lets go of what its inputs held, for the releases it can
 // no longer send.
 void InputManager::releaseHeld(const QString &source) {
+    // What a wait held of it answers nothing.
+    for (auto it = m_capturePresses.begin(); it != m_capturePresses.end();)
+        it = it->held.first == source ? m_capturePresses.erase(it) : std::next(it);
+    armCaptureStop();
     QList<Action> held;
     for (auto it = m_heldInputs.begin(); it != m_heldInputs.end();) {
         if (it.key().first == source) {
@@ -2599,7 +2992,7 @@ QString InputManager::mpvKeyForMediaEvent(const QKeyEvent *ke) {
 // (eventFilter()), so that the views have the keys in the order they came.
 std::optional<bool> InputManager::unlockKey(const QKeyEvent *ke, int id, const QString &device) {
     // A page waiting for a key of its own has it as it is.
-    if (m_remapCapture || capturing(device))
+    if (capturing(allKeys()) || capturing(device))
         return std::nullopt;
     const QString input = QStringLiteral("key/%1").arg(id);
     // Its repeats wait with its press, and go nowhere while new unlock
@@ -2648,7 +3041,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     if (type == QEvent::Wheel) {
         if (!obj || !obj->isWindowType())
             return false;
-        if (m_remapCapture)
+        if (capturing(allKeys()))
             return true;
         m_wheelTurn += static_cast<QWheelEvent *>(event)->angleDelta().y();
         while (qAbs(m_wheelTurn) >= 120) {
@@ -2682,14 +3075,16 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         const int extendedId = kMouseButtonBase + int(me->button());
         // Its release lets go of what its press began, as a pad's does.
         const HeldInput button{ QStringLiteral("mouse"), int(me->button()) };
+        if (!isPress && captureReleased(button))
+            return true;
         if (!isPress && m_heldInputs.contains(button)) {
             releaseAction(m_heldInputs.take(button));
             return true;
         }
 
-        if (m_remapCapture) {
+        if (capturing(allKeys())) {
             if (isPress)
-                emit auxButtonPressed(extendedId);
+                capturePressed(button, allKeys(), QString::number(extendedId), keyDisplayName(extendedId));
             return true;
         }
 
@@ -2697,6 +3092,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         if (does != Action::None) {
             if (isPress) {
                 m_heldInputs.insert(button, does);
+                m_lastActionBy.insert(int(does), extendedId);
                 pressFrom(QStringLiteral("keyboard"), does);
             }
             return true;
@@ -2781,42 +3177,51 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     // A key a wait took (below) stays swallowed until it is let go: held,
     // its repeats would act as what it has just been given. A press anew
     // means its release went missing.
+    const HeldInput heldKey{ QStringLiteral("keys"), id };
     if (!synthetic && m_capturedKeys.contains(ke->key())) {
         if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
             m_capturedKeys.remove(ke->key());
         } else {
-            if (type == QEvent::KeyRelease && !ke->isAutoRepeat())
+            if (type == QEvent::KeyRelease && !ke->isAutoRepeat()) {
                 m_capturedKeys.remove(ke->key());
+                // Let go: the wait's answer, if it wasn't held to stop it.
+                captureReleased(heldKey);
+            }
             return true;
         }
     }
 
-    // Capture mode (see setRemapCapture): swallow every real key and report
-    // presses through auxButtonPressed instead of letting them reach QML.
-    // Going through the signal rather than key delivery is what lets an
-    // already-remapped key be captured as itself — the remap branch below
-    // would otherwise consume it and hand the overlay its action's default
-    // key. Sits after the right-shift block so that alias still cancels the
-    // overlay via its normal Back path.
-    if (m_remapCapture && !synthetic) {
+    // A wait for a press of every keyboard and remote (captureController()
+    // with allKeys): every real key is swallowed and reported instead of
+    // reaching QML. Going through the signals rather than key delivery is
+    // what lets an already-remapped key be taken as itself — the remap
+    // branch below would otherwise consume it and hand the page its
+    // action's default key. Sits after the right-shift block so that alias
+    // still cancels the wait via its normal Back path.
+    if (capturing(allKeys()) && !synthetic) {
         if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
             m_capturedKeys.insert(ke->key());
-            emit auxButtonPressed(id);
+            capturePressed(heldKey, allKeys(), QString::number(id), keyDisplayName(id));
         }
         return true;
     }
 
-    // The same for one keyboard's or remote's page (captureController()):
-    // its keys are reported, everyone else's go on as usual.
+    // The same for one keyboard's or remote's page: its keys are reported,
+    // everyone else's go on as usual.
     if (capturing(device)) {
         if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
             m_capturedKeys.insert(ke->key());
-            emit controllerInputCaptured(device, QString::number(id), keyDisplayName(id));
+            capturePressed(heldKey, device, QString::number(id), keyDisplayName(id));
         }
         return true;
     }
 
-    // Custom remote/keyboard remap (Settings > Remote Controls): an extra
+    // What the menus were last worked with (canLoseKey()): a key's own
+    // action here, an extra key's below.
+    if (!synthetic && type == QEvent::KeyPress && !ke->isAutoRepeat() && defaultKeyAction(id) != Action::None)
+        m_lastActionBy.insert(int(defaultKeyAction(id)), id);
+
+    // Custom remote/keyboard remap (Settings → Controls → Keyboards & Remotes): an extra
     // physical key that also fires one of the six actions, delivered the same
     // way a gamepad press is: a synthesized key event carrying that action's
     // *default* Qt key, so every existing Keys.onPressed handler sees exactly
@@ -2844,6 +3249,8 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
             // repeats, as a held arrow does.
             if (ke->isAutoRepeat() && !isDirectional(remapped))
                 return true;
+            if (type == QEvent::KeyPress && !ke->isAutoRepeat())
+                m_lastActionBy.insert(int(remapped), id);
             if (type == QEvent::KeyPress)
                 deliverPress(remapped, ke->isAutoRepeat());
             else
@@ -2925,7 +3332,7 @@ void InputManager::updateHints() {
             pad = m_pads.constBegin();
         const bool known = pad != m_pads.constEnd();
         const QHash<int, Action> &buttons = known ? pad->buttons : m_buttonMap;
-        const controllers::LabelStyle style = known ? pad->labels : controllers::LabelStyle::Xbox;
+        const controllers::LabelStyle style = known ? pad->labels : controllers::LabelStyle::ABelow;
         const auto buttonLabel = [&](Action a) -> QString {
             for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; ++b) {
                 if (buttons.value(b, Action::None) == a) {

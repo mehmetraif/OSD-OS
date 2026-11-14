@@ -253,14 +253,16 @@ More in [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output).
 
 Controls is a page of its own, explained in [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#settings--controls).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: ALL KEYBOARDS & REMOTES; PLAYERS: PLAYER 1 AUTO (OSD/OS JAMMA P1), PLAYER 2 AUTO (XBOX WIRELESS CO…), PLAYER 3 to PLAYER 6 AUTO" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/controls.png" width="100%" alt="Controls: 8BITDO PRO 2 PLAYER 3, marked as the one used last and selected, OSD/OS JAMMA P1 PLAYER 1, OSD/OS JAMMA P2 PLAYER 2, KEYBOARDS & REMOTES, NOT CONNECTED 1" />
 
 | Line | What it does |
 |---|---|
-| **All Keyboards & Remotes** | One more button for each of **Up**, **Down**, **Left**, **Right**, **Select / OK** and **Back**, on every keyboard and remote. The default key keeps working. Saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select` and `.back`, a number each, `0` for none |
-| **Player 1** to **Player 6** | The pad each player has in games: one of the pads connected, or Auto |
-| A controller | Each gamepad and, on Linux, each keyboard and remote. A ● marks the one used last. Select opens its page: **Button Labels**, **Test Buttons** or **Test Keys**, **Arcade Buttons**, a button for each action, **Clear a Button** or **Remove a Key**, and **Reset to Defaults**. Saved under `app.controllers`, by its key |
-| **Not Connected** | Controllers that are away and have settings of their own |
+| A gamepad | Each one connected, the one used last on top with a ●, and the player it is. Select opens its page: **Test Buttons**, **Menu Buttons**, **Game Buttons**, **Player**, **Button Names** and **Reset**, which asks first. Saved under `app.controllers`, by its key; its player under `app.players` |
+| **All Players Automatic** | Only while a pad's player was chosen by hand: every player back to Auto |
+| **Keyboards & Remotes** | **All Keyboards & Remotes** and, on Linux, each keyboard and remote: extra keys for **Up**, **Down**, **Left**, **Right**, **Select / OK**, **Back** and **Play / Pause**. The action's own key keeps working. Every keyboard's are saved as `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back` and `.play_pause`: a number for one key, a list for several, `0` for none |
+| **Not Connected** | Only while there are any: controllers that are away and have settings of their own |
+
+Every screen that waits for a press takes a tap for the answer; holding any button for a second and a half stops it with nothing changed.
 
 Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 

@@ -34,3 +34,5 @@ StatusIcons StatusIcons.qml
 IconColumn IconColumn.qml
 MonitorChrome MonitorChrome.qml
 MonitorRow MonitorRow.qml
+PressPrompt PressPrompt.qml
+ButtonGrid ButtonGrid.qml
