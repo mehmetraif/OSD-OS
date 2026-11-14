@@ -919,6 +919,48 @@ Rectangle {
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
         }
 
+        // Cabinet Lock's row says what the lock does now: On while there is a
+        // Start on Module to stay on; with none (set to None since, or its
+        // module turned off) On (No Module), the help line saying it locks
+        // nothing; it follows Start on Module as that changes on the page,
+        // and still opens its page. Studio Monitor's Status says the same.
+        function test_cabinetLockRow() {
+            appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.arcade" }
+            var page = open({ group: "startup" })
+            compare(row(page, "Cabinet Lock").value, "On")
+            compare(cursor(page), "Start on Module")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.startup_module, "None")
+            compare(row(page, "Cabinet Lock").value, "On (No Module)")
+            compare(cursor(page), "Start on Module")
+            moveTo(page, "Cabinet Lock")
+            verify(helpOf(page).text.indexOf("Locks nothing now") === 0, helpOf(page).text)
+            compare(page.offReason(lines(page).indexOf("Cabinet Lock")), "")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "views/CabinetLock.qml")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "Start on Module")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.startup_module, "com.osdos.arcade")
+            compare(row(page, "Cabinet Lock").value, "On")
+            // A module turned off since is no module to stay on; off is Off.
+            loader.source = ""
+            appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.plex" }
+            page = open({ group: "startup" })
+            compare(row(page, "Cabinet Lock").value, "On (No Module)")
+            loader.source = ""
+            appCore.values = { cabinet_lock: "Off" }
+            page = open({ group: "startup" })
+            compare(row(page, "Cabinet Lock").value, "Off")
+            loader.source = ""
+            root.menuLayout = "Studio Monitor"
+            appCore.values = { cabinet_lock: "On" }
+            page = open()
+            compare(row(page, "Cabinet Lock").value, "On (No Module)")
+        }
+
         // Test Patterns, on Screen's page on every machine, opens its page.
         function test_testPatternsRow() {
             var page = open({ group: "screen" })

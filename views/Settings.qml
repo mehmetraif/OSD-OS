@@ -401,7 +401,7 @@ FocusScope {
                      ["Bluetooth", bluetooth],
                      ["Theme", valueOf(lookRows, "osd_theme")],
                      ["Start On", valueOf(startupRows, "startup_module")],
-                     ["Cabinet Lock", appSettings["cabinet_lock"] === "On" ? "On" : "Off"],
+                     ["Cabinet Lock", cabinetLockRow().value],
                      ["Version", root.devBuild ? "Dev" : root.appVersion],
                      ["IP Address", ipAddress || "None"]]
         for (var i = 0; i < lines.length; i++)
@@ -838,15 +838,27 @@ FocusScope {
 
     // CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
     // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
+    // On with no module to stay on (Start on Module set to None since, or
+    // its module turned off) it locks nothing (Main.qml's cabinetLocked()),
+    // and the row says so.
     function cabinetLockRow() {
+        var on = appSettings["cabinet_lock"] === "On"
+        var idle = on && !startModuleThere()
         return {
             type: "submenu",
             key: "cabinet_lock",
             label: "Cabinet Lock",
-            value: appSettings["cabinet_lock"] === "On" ? "On" : "Off",
-            description: "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
+            value: !on ? "Off" : idle ? "On (No Module)" : "On",
+            description: (idle ? "Locks nothing now: there is no Start on Module to stay on\n" : "")
+                         + "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
             moduleId: ""
         }
+    }
+    // Whether Start on Module names a module that is turned on, as
+    // AppCore::startupModuleEntryPoint() has it.
+    function startModuleThere() {
+        var id = appSettings["startup_module"] || "None"
+        return installedModules.some(function(m) { return m.enabled && m.id === id })
     }
 
     // SYSTEM: OSD/OS Setup's settings, the update, About, and the modules
@@ -1363,6 +1375,9 @@ FocusScope {
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")
                 settingsRoot.themeChosen()
+            // Cabinet Lock's row says whether it has a module to stay on.
+            else if (row.key === "startup_module")
+                settingsRoot.buildModel(currentIndex)
         }
         // A slider set at once (a monitor layout's second step): a value,
         // or -1 for Off where it can be.

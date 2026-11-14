@@ -37,7 +37,8 @@ FocusScope {
     property bool lockAfter: false
 
     readonly property var rows: [
-        { key: "lock", label: "Cabinet Lock", value: lockOn ? "On" : "Off",
+        // On with no module to stay on, it locks nothing, and says so.
+        { key: "lock", label: "Cabinet Lock", value: !lockOn ? "Off" : homeName !== "" ? "On" : "On (No Module)",
           description: "Keeps OSD/OS on its Start on Module" + (homeName !== "" ? ", " + homeName : "")
                        + ": back there goes nowhere, and the main menu, Settings and Quit open only with the unlock"
                        + " buttons held together for three seconds, until OSD/OS starts again or they are held again" },
