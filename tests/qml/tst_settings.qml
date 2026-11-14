@@ -90,15 +90,18 @@ Rectangle {
     QtObject {
         id: appCore
         property var values: ({})
+        // Modules installed besides the ones below, for a test.
+        property var moreModules: []
         function get_settings() { return { app: values, modules: {} } }
         function get_installed_modules() {
-            return [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
+            return moreModules.concat(
+                   [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
                     { id: "com.osdos.highscores", name: "High Scores", has_settings: true, settings_group: "arcade", enabled: false },
                     { id: "com.osdos.local_files", name: "Local Files", has_settings: true, settings_group: "tv", enabled: true },
                     { id: "com.osdos.plex", name: "Plex", has_settings: true, settings_group: "tv", enabled: false },
                     { id: "com.osdos.scripts", name: "Scripts", has_settings: true, settings_group: "", enabled: false },
                     { id: "com.osdos.radio", name: "Radio", has_settings: true, settings_group: "radio", enabled: false },
-                    { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true }]
+                    { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true }])
         }
         function isAutostartSession() { return false }
         function canRestartSystem() { return false }
@@ -197,6 +200,7 @@ Rectangle {
 
         function init() {
             appCore.values = {}
+            appCore.moreModules = []
             appCore.pasted = ""
             appCore.canLogs = false
             appCore.logSaves = 0
@@ -926,6 +930,34 @@ Rectangle {
             verify(lines(page).indexOf("Key Protect") > 0)
             root.menuLayout = "Camcorder"
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
+        }
+
+        // Info Screen, on TV / Movie's page, is Netflix's, Prime Video's and
+        // YouTube's: with none of them turned on it is dimmed, saying whose
+        // it is, and ◄ ► leave it as it is; with one on (not merely
+        // installed), a row like the others.
+        function test_infoScreenRow() {
+            appCore.moreModules = [{ id: "com.osdos.youtube", name: "YouTube", has_settings: false,
+                                     settings_group: "tv", enabled: false }]
+            var page = open({ group: "tv" })
+            var at = lines(page).indexOf("Info Screen")
+            compare(page.offReason(at), "Only with Netflix, Prime Video or YouTube enabled")
+            listOf(page).currentIndex = at
+            verify(helpOf(page).text.indexOf("Only with Netflix, Prime Video or YouTube enabled") === 0, helpOf(page).text)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.info_screen, undefined)
+            var on = ["com.osdos.youtube", "com.osdos.netflix", "com.osdos.prime_video"]
+            for (var i = 0; i < on.length; i++) {
+                loader.source = ""
+                appCore.values = {}
+                appCore.moreModules = [{ id: on[i], name: "Films", has_settings: false, settings_group: "tv", enabled: true }]
+                page = open({ group: "tv" })
+                compare(page.offReason(at), "")
+                listOf(page).currentIndex = at
+                keyClick(Qt.Key_Right)
+                compare(appCore.values.info_screen, "5")
+            }
         }
 
         // Startup From, on Startup's page, is for a favourite that can be

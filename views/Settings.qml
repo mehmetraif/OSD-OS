@@ -1068,6 +1068,10 @@ FocusScope {
         var infoVals = ["off", "key", "1", "2", "3", "5"]
         var infoOpts = ["Off", "Key", "1 sec", "2 sec", "3 sec", "5 sec"]
         var infoIdx = infoVals.indexOf(appSettings["info_screen"] || "3")
+        // Theirs alone: with none of the three turned on there is no tree
+        // to show it in, and the row says so.
+        var infoModules = ["com.osdos.netflix", "com.osdos.prime_video", "com.osdos.youtube"]
+        var infoRead = installedModules.some(function(m) { return m.enabled && infoModules.indexOf(m.id) >= 0 })
         items.push({
             type: "list_single",
             key: "info_screen",
@@ -1076,6 +1080,7 @@ FocusScope {
             values: infoVals,
             value: infoOpts[infoIdx < 0 ? infoVals.indexOf("3") : infoIdx],
             description: "A film's details in Netflix, Prime Video and YouTube\n[KEY] With right on a film  [SEC] Also on its own once the cursor rests on it",
+            unavailable: infoRead ? "" : "Only with Netflix, Prime Video or YouTube enabled",
             moduleId: ""
         })
 
