@@ -547,8 +547,8 @@ QStringList AudioOutput::mpvArgs(bool inApp) {
     // config client.conf"), and with ALSA not answering goes on to
     // PulseAudio, JACK and sndio, the app's thread waiting 12 seconds for
     // JACK alone. A process keeps mpv's own order, and its mpv.conf's.
-    if (inApp && g_available)
-        args << QStringLiteral("--ao=alsa");
+    if (inApp)
+        args << alsaAlone();
     const QString id = card();
     // Auto's card reaches a process as ALSA's default (applyTo()), so that an
     // audio-device in its mpv.conf still has the last word: only a card
@@ -557,6 +557,10 @@ QStringList AudioOutput::mpvArgs(bool inApp) {
         return args;
     args << QStringLiteral("--audio-device=") + deviceOf(id);
     return args;
+}
+
+QStringList AudioOutput::alsaAlone() {
+    return g_available ? QStringList{ QStringLiteral("--ao=alsa") } : QStringList();
 }
 
 bool AudioOutput::hasPlaybackCard() {

@@ -64,6 +64,11 @@ public:
     // neither: Auto's card too, and ALSA as the only output to try (--ao)
     // where plain ALSA plays.
     static QStringList mpvArgs(bool inApp = false);
+    // "--ao=alsa" where plain ALSA plays (no PipeWire or PulseAudio server),
+    // nothing elsewhere: for an mpv that reads no mpv.conf (libmpv, the menu
+    // music's), so that it tries ALSA alone, not PipeWire first, whose
+    // library says in the journal that it has no config each time.
+    static QStringList alsaAlone();
     // For a program about to start: ALSA_CARD names the card.
     static void applyTo(QProcessEnvironment &env);
     // Whether there is a card that can play now, as far as ALSA says: false
