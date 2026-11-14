@@ -330,9 +330,13 @@ void addNumbered(QHash<QString, QStringList> &numbered, const QString &name, con
 
 // A picture saved in folder as <name>_<n>.png (or .jpg, as data is), n the
 // first number no picture of that name has there (.png or .jpg, in either
-// case), nor a set of the folder's (sets) as its name: never over a file,
-// which a new file only (NewOnly) makes sure of. Flushed to the card with its
-// folder. Its path, "" when it couldn't be saved.
+// case), nor a set of the folder's (sets) as its name: never over a file
+// that is there (the pictures are saved one at a time). Whole or not at all
+// (writeFileAtomically(): written beside its name, and given it once it is
+// on the card): written in place, a power cut on the way left a picture cut
+// short under the name, which the next read of the folder took for one of
+// the game's. Its folder's entry flushed to the card too. Its path, "" when
+// it couldn't be saved.
 QString savePicture(const QString &folder, const QString &name, const QByteArray &data,
                     const QHash<QString, QString> &sets) {
     if (!QDir().mkpath(folder))
@@ -350,24 +354,13 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
         const QString base = folder + QLatin1Char('/') + stem;
         if (sets.contains(stem) || taken(base))
             continue;
-        QFile file(base + QLatin1Char('.') + suffix);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
-            // Made meanwhile: the next number.
-            if (file.exists())
-                continue;
-            qWarning("[Arcade] A picture could not be saved in %s: %s", qPrintable(folder),
-                     qPrintable(file.errorString()));
-            return QString();
-        }
-        const bool written = file.write(data) == data.size() && file.flush();
-        file.close();
-        if (!written || !syncPath(file.fileName()).isEmpty()) {
+        const QString path = base + QLatin1Char('.') + suffix;
+        if (!writeFileAtomically(path, data)) {
             qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
-            file.remove();
             return QString();
         }
         syncPath(folder, true);
-        return file.fileName();
+        return path;
     }
     return QString();
 }
@@ -375,8 +368,10 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
 // A picture saved in folder as <stem>.png (or .jpg, as data is), the way the
 // picture packs for MAME name them, unless a picture of that name is there
 // already (.png or .jpg, in either case), the user's own or one saved before,
-// which is kept as it is and is the answer. Flushed to the card with its
-// folder. Its path, "" when it couldn't be saved.
+// which is kept as it is and is the answer. Whole or not at all, as
+// savePicture()'s: a picture cut short under this name would be kept as the
+// game's for good, a file of the name being the answer. Its folder's entry
+// flushed to the card too. Its path, "" when it couldn't be saved.
 QString saveNamedPicture(const QString &folder, const QString &stem, const QByteArray &data) {
     if (!QDir().mkpath(folder))
         return QString();
@@ -386,23 +381,13 @@ QString saveNamedPicture(const QString &folder, const QString &stem, const QByte
             return base + QLatin1String(ending);
     }
     const QString suffix = data.startsWith("\x89PNG") ? QStringLiteral("png") : QStringLiteral("jpg");
-    QFile file(base + QLatin1Char('.') + suffix);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
-        // Made meanwhile: it is the picture.
-        if (file.exists())
-            return file.fileName();
-        qWarning("[Arcade] A picture could not be saved in %s: %s", qPrintable(folder), qPrintable(file.errorString()));
-        return QString();
-    }
-    const bool written = file.write(data) == data.size() && file.flush();
-    file.close();
-    if (!written || !syncPath(file.fileName()).isEmpty()) {
+    const QString path = base + QLatin1Char('.') + suffix;
+    if (!writeFileAtomically(path, data)) {
         qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
-        file.remove();
         return QString();
     }
     syncPath(folder, true);
-    return file.fileName();
+    return path;
 }
 
 // A room on the local network as its id is kept: where it is joined, its

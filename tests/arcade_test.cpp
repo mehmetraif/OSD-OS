@@ -36,6 +36,43 @@
 
 #include <functional>
 
+#include <sys/inotify.h>
+#include <unistd.h>
+
+// What happens to a folder's files from here on, as the kernel tells it
+// (inotify): the names that come into the folder, and those written to while
+// they have that name. A file written whole and then given its name comes in
+// without being written to; one written in place is written to under its
+// own. fd is -1 where the folder can't be watched.
+struct FolderWatch {
+    int fd = -1;
+    explicit FolderWatch(const QString &folder) : fd(inotify_init1(IN_NONBLOCK | IN_CLOEXEC)) {
+        if (fd >= 0 && inotify_add_watch(fd, QFile::encodeName(folder).constData(),
+                                         IN_CREATE | IN_MOVED_TO | IN_MODIFY) < 0) {
+            ::close(fd);
+            fd = -1;
+        }
+    }
+    ~FolderWatch() {
+        if (fd >= 0)
+            ::close(fd);
+    }
+    void read(QStringList &cameIn, QStringList &writtenTo) const {
+        alignas(inotify_event) char buffer[16 * 1024];
+        for (ssize_t size; (size = ::read(fd, buffer, sizeof buffer)) > 0;) {
+            for (const char *at = buffer; at < buffer + size;) {
+                const auto *event = reinterpret_cast<const inotify_event *>(at);
+                const QString name = event->len ? QFile::decodeName(event->name) : QString();
+                if (event->mask & (IN_CREATE | IN_MOVED_TO))
+                    cameIn << name;
+                if (event->mask & IN_MODIFY)
+                    writtenTo << name;
+                at += sizeof(inotify_event) + event->len;
+            }
+        }
+    }
+};
+
 // The Arcade module against a stand-in for MAME (a shell script in the data
 // folder's bin, where the module looks first): the games folder read off the
 // GUI thread, what MAME's -listxml says of its sets, read as it comes and
@@ -4882,7 +4919,8 @@ private slots:
     // through the folder, RetroAchievements' pass first, then asks ArcadeDB
     // about the games with no picture in one request, saves each game's
     // screenshot as snap/<set>.png and its title screen as titles/<set>.png,
-    // never over a file there, and notes in .arcadedb.json what ArcadeDB had
+    // never over a file there and each whole as it comes into the folder
+    // (RetroAchievements' too), and notes in .arcadedb.json what ArcadeDB had
     // of each set, so that none is asked about again; a game shown is asked
     // about by itself, after RetroAchievements; Pictures From can keep
     // either source out; the look's marker goes once every picture is had.
@@ -4969,6 +5007,7 @@ private slots:
         // Fighter II or its bootleg, which have their picture by then, nor
         // Pac-Man, which has its own), and Galaga's two pictures are saved
         // where the packs put them. The marker stands while it goes on.
+        const FolderWatch watch(snap);
         arcade.downloadPictures();
         QTRY_VERIFY_WITH_TIMEOUT(arcade.sweepingPictures(), 5000);
         QVERIFY(QFile::exists(data.path() + QStringLiteral("/arcade/pictures-wanted")));
@@ -4977,6 +5016,20 @@ private slots:
         QCOMPARE(files(titles), QStringList({ QStringLiteral("galaga.png") }));
         QCOMPARE(contents(snap + QStringLiteral("/galaga.png")), png("galaga in play"));
         QCOMPARE(contents(titles + QStringLiteral("/galaga.png")), png("galaga title"));
+        // Each came into the folder whole: written beside its name and given
+        // it once on the card, never written to under it, where the power
+        // going would leave a picture cut short that is then the game's.
+        if (watch.fd >= 0) {
+            QStringList cameIn;
+            QStringList writtenTo;
+            watch.read(cameIn, writtenTo);
+            for (const char *picture : { "galaga.png", "sf2_1.png" }) {
+                QVERIFY2(cameIn.contains(QLatin1String(picture)), qPrintable(cameIn.join(QLatin1Char(' '))));
+                QVERIFY2(!writtenTo.contains(QLatin1String(picture)), picture);
+            }
+        } else {
+            qWarning("the snap folder can't be watched here (inotify): how its pictures are written isn't checked");
+        }
         const QStringList queries = asked("/service_scraper.php?");
         QCOMPARE(queries.size(), 1);
         QVERIFY2(queries.first().contains(QLatin1String("galaga")) && queries.first().contains(QLatin1String("kinst"))
