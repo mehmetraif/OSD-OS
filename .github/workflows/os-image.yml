@@ -76,6 +76,12 @@ jobs:
           dat: install/usr/local/share/osdos/fbneo/fbneo-arcade.dat
           license: install/usr/local/share/osdos/fbneo/license.txt
 
+      - name: RetroArch with TLS
+        uses: ./.github/actions/retroarch
+        with:
+          program-dir: install/usr/local/lib/osdos
+          licenses: install/usr/local/share/osdos/retroarch/licenses.txt
+
       - name: Create tarball
         run: |
           cd "${GITHUB_WORKSPACE}/install"

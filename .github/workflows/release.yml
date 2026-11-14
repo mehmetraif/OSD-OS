@@ -313,6 +313,15 @@ jobs:
           dat: install/usr/local/share/osdos/fbneo/fbneo-arcade.dat
           license: install/usr/local/share/osdos/fbneo/license.txt
 
+      # OSD/OS's own RetroArch beside them, the version every machine plays
+      # with, built with TLS (libretro::packagedProgram()): Debian's, which
+      # the image has too, asks RetroAchievements over plain HTTP.
+      - name: RetroArch with TLS
+        uses: ./.github/actions/retroarch
+        with:
+          program-dir: install/usr/local/lib/osdos
+          licenses: install/usr/local/share/osdos/retroarch/licenses.txt
+
       - name: Create tarball
         env:
           TAG: ${{ github.ref_name }}
