@@ -12,6 +12,15 @@
       "default": "OFF"
     },
     {
+      "key": "server_url",
+      "label": "Server Address",
+      "type": "text",
+      "default": "",
+      "placeholder": "http://192.168.1.10:8096",
+      "max_length": 64,
+      "description": "Your Emby server, as http://192.168.1.10:8096\nThe sign-in screen fills it in too"
+    },
+    {
       "key": "libraries",
       "label": "Libraries",
       "type": "multiselect_submenu",
@@ -75,6 +84,9 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "logout",
+      "confirm": "Sign out of Emby?",
+      "done": "Signing out of Emby",
+      "description": "Removes this device from the server and forgets the sign-in here",
       "requires_auth": true
     }
   ]

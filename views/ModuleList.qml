@@ -18,6 +18,9 @@ FocusScope {
         target: appCore;
         function onModulesLoaded(moduleData) {
             appRoot.modules = moduleData
+            // The shell's too, for the column inside a module (Main.qml's
+            // moduleFrame).
+            root.menuModules = moduleData
             // With a video to go back to, the cursor starts on its row: the
             // quickest way out of the menus is then select.
             appRoot.showRows(appRoot.behind ? null : navListState)
@@ -39,9 +42,11 @@ FocusScope {
     // rows beside it the group's. ◄ goes to the icons (groupIcons), ▲ ▼ there
     // from group to group, ► or select into the group's rows; on Settings'
     // they open Settings. Studio Monitor does the same in a monitor's window
-    // (Components/MonitorChrome), the icons in its strip. Broadcast and Flat
-    // Panel are lists as Standard is, in a monitor's look: Broadcast's ends
-    // in a row for Settings after a gap, Flat Panel's goes a page at a time.
+    // (the shell's frame, Components/MonitorChrome), the icons in its strip.
+    // Broadcast and Flat Panel are lists as Standard is, in a monitor's look.
+    // Standard's and Broadcast's end in a row for Settings after a gap, so
+    // Settings opens without a Back button too; Flat Panel's goes a page at a
+    // time.
     readonly property string layout: root.menuLayout
     readonly property bool camcorder: layout === "Camcorder"
     readonly property bool studio: layout === "Studio Monitor"
@@ -171,8 +176,11 @@ FocusScope {
         } else {
             groups = []
             groupIcons = false
-            // Broadcast's Settings, after a gap the cursor passes over.
-            if (broadcast) {
+            // Standard's and Broadcast's Settings, after a gap the cursor
+            // passes over: a row as well as Back, for a remote or a pad
+            // whose Back isn't set up yet (Settings → Controls is where it
+            // would be).
+            if (broadcast || !monitor) {
                 rows.push({ name: "", gap: true })
                 rows.push({ name: "Settings", entry_point: "views/Settings.qml" })
                 index = keptRow(rows, keep)
@@ -188,10 +196,14 @@ FocusScope {
         showCurrent()
     }
 
-    // Header: in Camcorder, the group's name.
+    // Header: in Camcorder, the group's name. In a monitor layout the
+    // frame writes it (Main.qml's): Studio Monitor's tab the group's name,
+    // the others OSD/OS. The main menu is above the top level: a view
+    // opened from it starts the frame's path.
     AppBar {
-        visible: !appRoot.monitor
         subtitle: appRoot.camcorder && appRoot.groups[appRoot.groupIndex] ? appRoot.groups[appRoot.groupIndex].label : ""
+        path: []
+        frameTitle: appRoot.studio ? (appRoot.groups[appRoot.groupIndex] || { label: "OSD/OS" }).label : "OSD/OS"
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -224,28 +236,21 @@ FocusScope {
     }
 
     // A monitor layout's window or ground, title, the groups' icons in
-    // Studio Monitor's strip, and the key guide, under the rows. No help
-    // line: the main menu has none.
-    MonitorChrome {
-        id: chrome
-        anchors.fill: parent
-        visible: appRoot.monitor
-        hasHelp: false
-        title: appRoot.studio ? (appRoot.groups[appRoot.groupIndex] || { label: "OSD/OS" }).label : "OSD/OS"
-        icons: appRoot.studio ? appRoot.groups.map(function(group) { return group.icon }) : []
-        iconIndex: appRoot.groupIndex
-        iconsActive: appRoot.groupIcons
-        guide: {
-            var h = root.hints
-            if (appRoot.studio)
-                return [h.navigate + ":MENU/ITEM", appRoot.groupIcons ? h.browse + ":ENTER" : h.left + ":GROUPS",
-                        h.back + ":SETTINGS"].concat(root.videoBehind ? [h.play_pause + ":STOP"] : [])
-            // Broadcast's three lines, as a monitor's guide has them.
-            if (appRoot.broadcast)
-                return ["TO SELECT  :" + h.navigate, "TO ENTER   :" + h.select, "TO SETTINGS:" + h.back]
-            return [h.navigate + " Select", h.select + " Open", h.back + " Settings"]
-                   .concat(root.videoBehind ? [h.play_pause + " Stop"] : [])
-        }
+    // Studio Monitor's strip, and the key guide: the shell's frame, under
+    // the rows (Main.qml's root.chrome), which says where they go. No help
+    // line: the main menu has none, and its rows take the room (tallHeight).
+    readonly property var chrome: root.chrome
+    // The key guide's lines in a monitor layout, as a monitor's has them.
+    readonly property var monitorGuide: {
+        var h = root.hints
+        if (appRoot.studio)
+            return [h.navigate + ":MENU/ITEM", appRoot.groupIcons ? h.browse + ":ENTER" : h.left + ":GROUPS",
+                    h.back + ":SETTINGS"].concat(root.videoBehind ? [h.play_pause + ":STOP"] : [])
+        // Broadcast's three lines.
+        if (appRoot.broadcast)
+            return ["TO SELECT  :" + h.navigate, "TO ENTER   :" + h.select, "TO SETTINGS:" + h.back]
+        return [h.navigate + " Select", h.select + " Open", h.back + " Settings"]
+               .concat(root.videoBehind ? [h.play_pause + " Stop"] : [])
     }
 
     ListView {
@@ -258,11 +263,11 @@ FocusScope {
         anchors.topMargin: appRoot.monitor ? chrome.listY : root.sh * 0.25 //120
         anchors.leftMargin: appRoot.monitor ? chrome.listX : appRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
         width: appRoot.monitor ? chrome.listWidth : appRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
-        height: appRoot.monitor ? chrome.listHeight : root.sh * 0.525 + root.hintRoom //252
+        height: appRoot.monitor ? chrome.tallHeight : root.sh * 0.525 + root.hintRoom //252
         onHeightChanged: if (appRoot.flat) Qt.callLater(appRoot.showCurrent)
         // Flat Panel's last page filled out to a whole page, and the view
         // left where its page puts it (not moved to follow the cursor).
-        footer: Item { width: 1; height: chrome.pageFill(menuList.count) }
+        footer: Item { width: 1; height: appRoot.flat ? chrome.pageFill(menuList) : 0 }
         highlightFollowsCurrentItem: !appRoot.flat
         clip: true;
         focus: true;
@@ -433,23 +438,24 @@ FocusScope {
         color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
-    // Camcorder's icons, the groups, at the left of the rows: the layout's
-    // frame, which the shell draws (Main.qml's setFrame()).
+    // Camcorder's icons, the groups, at the left of the rows, and Studio
+    // Monitor's in its strip: the layout's frame, which the shell draws
+    // (Main.qml's setFrame()).
     readonly property bool inFrame: true
     readonly property bool ownsFrame: true
     function handFrame() {
-        if (camcorder && groups.length > 0)
+        if (iconMenu && groups.length > 0)
             root.setFrame(groups.map(function(group) { return { icon: group.icon } }), groupIndex, groupIcons, true)
     }
     onGroupsChanged: handFrame()
     onGroupIndexChanged: handFrame()
     onGroupIconsChanged: handFrame()
-    onCamcorderChanged: handFrame()
+    onIconMenuChanged: handFrame()
 
     // --- FOOTER ---
     HintBar {
         id: footer
-        visible: !appRoot.monitor
+        guide: appRoot.monitor ? appRoot.monitorGuide : []
         text: root.hints.back + ":SETTINGS " + root.hints.navigate + ":NAVIGATE "
               + (appRoot.camcorder ? (appRoot.groupIcons ? root.hints.browse + ":OPEN " : root.hints.left + ":GROUPS ") : "")
               + (root.videoBehind ? root.hints.play_pause + ":STOP " : "") + root.hints.select + ":SELECT"

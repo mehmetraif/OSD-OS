@@ -14,6 +14,20 @@
       "default": "OFF"
     },
     {
+      "key": "subscriptions",
+      "label": "Subscriptions",
+      "type": "text_list",
+      "max_length": 64,
+      "description": "Your channels, a line each: a channel's id (UC and 22 more), or its link with /channel/ in it\nyoutube_subscriptions.txt in the data folder adds its own"
+    },
+    {
+      "key": "playlists",
+      "label": "Playlists",
+      "type": "text_list",
+      "max_length": 120,
+      "description": "Your playlists, a line each: a playlist's link or its id, with a name and | before it if you like\nyoutube_playlists.txt in the data folder adds its own"
+    },
+    {
       "key": "advanced",
       "label": "Advanced",
       "type": "submenu",
@@ -102,13 +116,19 @@
       "key": "delete_watch_later",
       "label": "Delete Watch Later",
       "type": "action",
-      "action_slot": "delete_watch_later"
+      "action_slot": "delete_watch_later",
+      "confirm": "Delete Watch Later?",
+      "done": "Watch Later deleted",
+      "description": "Empties Watch Later, the videos kept on this player to watch later"
     },
     {
       "key": "delete_history",
       "label": "Delete Recently Watched",
       "type": "action",
-      "action_slot": "delete_history"
+      "action_slot": "delete_history",
+      "confirm": "Delete Recently Watched?",
+      "done": "Recently Watched deleted",
+      "description": "Empties Recently Watched, and forgets where each video was stopped"
     },
     {
       "key": "sign_in",
@@ -122,6 +142,8 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "signOut",
+      "confirm": "Sign out of YouTube?",
+      "done": "Signed out of YouTube",
       "description": "Forgets the YouTube sign-in on this player"
     }
   ]

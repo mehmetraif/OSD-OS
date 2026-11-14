@@ -53,6 +53,9 @@
         { "key": "monitor", "label": "Monitor", "type": "choice", "default": "Horizontal", "options": ["Horizontal", "Turned Right", "Turned Left"],
           "view": "basic",
           "help": "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets. [TURNED RIGHT] Its top on the right as you face it. [TURNED LEFT] Its top on the left." },
+        { "key": "display_index", "label": "Display", "type": "choice", "default": "0",
+          "options": [["First", "0"], ["Second", "1"], ["Third", "2"], ["Fourth", "3"]],
+          "help": "Which display a computer with several opens OSD/OS on, and plays its videos on, from its next start. A Raspberry Pi has one." },
         { "key": "boot_colors", "label": "Boot Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
           "help": "The colours of the boot screen, with its cassette. [THEME] The theme's or color scheme's. [DEFAULT] White on blue." },
         { "key": "hint_bar", "label": "Hint Bar", "type": "toggle", "on": "On", "off": "Off", "default": "On",
@@ -91,7 +94,10 @@
           "help": "The channel logo's picture on the device, a PNG with a clear background best. Empty: OSD/OS's." },
         { "key": "info_screen", "label": "Info Screen", "type": "choice", "default": "3",
           "options": [["Off", "off"], ["Key", "key"], ["1 sec", "1"], ["2 sec", "2"], ["3 sec", "3"], ["5 sec", "5"]],
-          "help": "A film's details in Netflix, Prime Video and YouTube. [KEY] With right on a film. [SEC] Also on its own once the cursor rests on it." }
+          "help": "A film's details in Netflix, Prime Video and YouTube. [KEY] With right on a film. [SEC] Also on its own once the cursor rests on it." },
+        { "key": "mpv_video_args", "label": "Video Arguments", "type": "text", "default": "", "placeholder": "--vo=gpu --hwdec=no",
+          "max_length": 120, "trim": true,
+          "help": "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device. Empty: OSD/OS's own." }
       ]
     }
   ],
@@ -132,20 +138,14 @@
         "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
         "resume_playback": [["Ask", "ask"], ["Always", "always"]]
       },
-      "extra": [
-        { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
-          "view": "logins", "help": "Your Jellyfin server, filled in on the sign-in screen." }
-      ]
+      "views": { "server_url": "logins" }
     },
     "com.osdos.emby": {
       "options": {
         "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
         "resume_playback": [["Ask", "ask"], ["Always", "always"]]
       },
-      "extra": [
-        { "key": "server_url", "label": "Server Address", "type": "text", "default": "", "placeholder": "http://192.168.1.10:8096",
-          "view": "logins", "help": "Your Emby server, filled in on the sign-in screen." }
-      ]
+      "views": { "server_url": "logins" }
     },
     "com.osdos.arcade": {
       "options": {
@@ -165,7 +165,14 @@
     "com.osdos.weather": {
       "options": {
         "displays": [["Current Conditions", "current"], ["Extended Forecast", "extended"], ["Other Locations", "others"], ["Almanac", "almanac"]]
-      }
+      },
+      "views": { "location": "basic" }
+    },
+    "com.osdos.netflix": {
+      "views": { "tmdb_api_key": "logins" }
+    },
+    "com.osdos.prime_video": {
+      "views": { "tmdb_api_key": "logins" }
     }
   },
   "keyboards": [["English (US)", "us"], ["English (UK)", "gb"], ["Turkish (Q)", "tr"], ["German", "de"], ["French", "fr"], ["Spanish", "es"], ["Italian", "it"], ["Portuguese", "pt"], ["Portuguese (Brazil)", "br"], ["Dutch", "nl"], ["Belgian", "be"], ["Swiss", "ch"], ["Swedish", "se"], ["Norwegian", "no"], ["Danish", "dk"], ["Finnish", "fi"], ["Polish", "pl"], ["Czech", "cz"], ["Hungarian", "hu"], ["Japanese", "jp"], ["Korean", "kr"], ["Latin American", "latam"], ["Irish", "ie"], ["Icelandic", "is"], ["Romanian", "ro"], ["Slovak", "sk"], ["Slovenian", "si"], ["Croatian", "hr"], ["Estonian", "ee"], ["Latvian", "lv"], ["Lithuanian", "lt"]]

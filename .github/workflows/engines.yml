@@ -66,6 +66,18 @@ jobs:
             echo "::notice::Debian has RetroArch ${retroarch}, which libretro has no Windows build of yet"
             retroarch=$RETROARCH_VERSION
           fi
+          # The commit at RetroArch's tag of that version, which the Linux
+          # arm64 package's own RetroArch is built from.
+          retroarch_commit=$RETROARCH_COMMIT
+          if [ "$retroarch" != "$RETROARCH_VERSION" ]; then
+            retroarch_commit=$(git ls-remote https://github.com/libretro/RetroArch.git "refs/tags/v${retroarch}" "refs/tags/v${retroarch}^{}" \
+              | tail -n1 | cut -f1)
+            if ! [[ "$retroarch_commit" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::notice::Debian has RetroArch ${retroarch}, whose tag libretro's repository does not have"
+              retroarch=$RETROARCH_VERSION
+              retroarch_commit=$RETROARCH_COMMIT
+            fi
+          fi
           tag="mame${mame//./}"
           if [ "$mame" != "$MAME_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
               "https://github.com/mamedev/mame/releases/download/${tag}/${tag}b_64bit.exe"; then
@@ -82,6 +94,7 @@ jobs:
           rm -rf fbneo
           {
             echo "retroarch=$retroarch"
+            echo "retroarch_commit=$retroarch_commit"
             echo "mame=$mame"
             echo "commit=$commit"
             echo "date=$date"
@@ -93,12 +106,15 @@ jobs:
         id: raise
         env:
           RETROARCH: ${{ steps.newest.outputs.retroarch }}
+          RETROARCH_AT: ${{ steps.newest.outputs.retroarch_commit }}
           MAME: ${{ steps.newest.outputs.mame }}
           COMMIT: ${{ steps.newest.outputs.commit }}
           DATE: ${{ steps.newest.outputs.date }}
         run: |
           set -euo pipefail
           sed -i -e "s/^RETROARCH_VERSION=.*/RETROARCH_VERSION=${RETROARCH}/" \
+                 -e "s/^RETROARCH_COMMIT=.*/RETROARCH_COMMIT=${RETROARCH_AT}/" \
+                 -e "s/^\\(# RetroArch's commit at that version's tag (v\\)[0-9.]*)/\\1${RETROARCH})/" \
                  -e "s/^MAME_VERSION=.*/MAME_VERSION=${MAME}/" \
                  -e "s/^FBNEO_COMMIT=.*/FBNEO_COMMIT=${COMMIT}/" \
                  -e "s/^FBNEO_DATE=.*/FBNEO_DATE=${DATE}/" scripts/engines.env
@@ -129,7 +145,7 @@ jobs:
           body="The floor the arcade engines stand on has risen, so every machine rises with it (scripts/engines.env):
 
           - FinalBurn Neo: libretro/FBNeo@${COMMIT} (${DATE}), built for every package by this pull request's checks.
-          - RetroArch ${RETROARCH} and MAME ${MAME}: Debian trixie's, the OSD/OS image's, which Windows downloads too.
+          - RetroArch ${RETROARCH} and MAME ${MAME}: Debian trixie's, the OSD/OS image's, which Windows downloads too. The Linux arm64 package's own RetroArch, with TLS, is built from the same version's tag by this pull request's checks.
 
           Merged, the next release brings them to every machine."
           if [ -z "$(gh pr list --head engines/raise --state open --json number --jq '.[].number')" ]; then

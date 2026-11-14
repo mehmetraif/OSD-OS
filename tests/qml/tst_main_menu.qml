@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import "../../views/Components" as Components
 
 // The main menu, views/ModuleList.qml, against a stand-in for AppCore: the
 // modules turned on, a row each; select opens one, back opens Settings. With
@@ -17,17 +18,41 @@ Rectangle {
     // The layout's frame and its pane (Main.qml): the column's icons as a
     // view hands them over, and where a view's rows go.
     property var frameIcons: []
+    property var menuModules: []
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
+    // A monitor layout's frame, which the shell draws under the views
+    // (Main.qml's frameChrome): up in a monitor layout, the views' bars
+    // telling it what to write, its place for their rows the pane.
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    Components.MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+        icons: root.menuLayout === "Studio Monitor" ? root.frameIcons.map(function(entry) { return entry.icon }) : []
+        iconIndex: root.frameIndex
+        iconsActive: root.frameActive
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
     property color primaryColor: "white"
     property color surfaceColor: "black"
+    // A selected cell's box and what is written in it (Main.qml's).
+    readonly property color cursorColor: primaryColor
+    readonly property color cursorInk: surfaceColor
     property var skin: ({})
     property bool hintBar: true
     property bool helpLine: true
@@ -130,11 +155,12 @@ Rectangle {
             return ""
         }
 
-        // Standard: every module's row in the order they come; select opens
-        // one, back opens Settings.
+        // Standard: every module's row in the order they come, then, after a
+        // gap the cursor passes over, a row for Settings; select opens a row,
+        // and back opens Settings too.
         function test_standard() {
             var menu = open()
-            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts"])
+            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts", "", "Settings"])
             verify(!menu.camcorder)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
@@ -142,6 +168,15 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(root.navigations[1].path, "views/Settings.qml")
             verify(hint(menu).indexOf("GROUPS") < 0)
+            // With no Back to press: up from the first row, round to
+            // Settings' row, over the gap, and select.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(menu), "Settings")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[2].path, "views/Settings.qml")
+            keyClick(Qt.Key_Down)
+            compare(cursor(menu), "Arcade")
         }
 
         // Camcorder: the groups' icons, the rows of the one the cursor is
@@ -158,6 +193,9 @@ Rectangle {
             // The column is the shell's (Main.qml's frame), handed the
             // groups' icons, the group and whether the keys are in it.
             verify(menu.inFrame && menu.ownsFrame)
+            // Its rows too, for the column inside a module (the modules of
+            // its group, by their logos).
+            compare(root.menuModules.length, menu.modules.length)
             compare(root.frameIcons.map(function(icon) { return icon.icon }), ["tv", "joystick", "apps", "gear"])
             compare(root.frameIndex, 0)
             verify(!root.frameActive)
@@ -196,13 +234,10 @@ Rectangle {
             compare(root.navigations[2].path, "views/Settings.qml")
         }
 
-        // The monitor layouts' frame.
+        // The monitor layouts' frame: the shell's, which the menu's title
+        // bar and hint bar speak to.
         function chromeOf(menu) {
-            for (var i = 0; i < menu.children.length; i++) {
-                if (menu.children[i].guide !== undefined && menu.children[i].pageTo !== undefined)
-                    return menu.children[i]
-            }
-            return null
+            return root.chrome
         }
 
         // Studio Monitor: Camcorder's groups, their icons in the window's
@@ -273,7 +308,7 @@ Rectangle {
             compare(names(menu), ["Local Files", "Plex"])
             compare(cursor(menu), "Plex")
             root.menuLayout = "Standard"
-            tryVerify(function() { return names(menu).length === 5 })
+            tryVerify(function() { return names(menu).length === 7 })
             compare(cursor(menu), "Plex")
         }
     }

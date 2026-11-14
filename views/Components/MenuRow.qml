@@ -81,157 +81,187 @@ Item {
         text: "M"
     }
 
-    // The selected line's bar, or the skin's picture of it.
-    SelectionBox {
+    // In a monitor layout's frame (Settings → Look → Menu Layout, Main.qml's
+    // root.chrome) the line is drawn as the layout draws one (MonitorRow),
+    // in the layout's colours, and what is below is not.
+    readonly property bool handed: root.monitorInk === true
+    // Its value being changed, where a layout changes one in two steps
+    // (Broadcast's, Flat Panel's): boxed, or in the layout's mark colour.
+    property bool editing: false
+    Loader {
         anchors.fill: parent
-        visible: menuRow.selected
-    }
-
-    Text {
-        id: labelText
-        x: menuRow.pad
-        anchors.verticalCenter: parent.verticalCenter
-        width: menuRow.keepValue && menuRow.hasEnd
-               ? Math.min(implicitWidth,
-                          Math.max(1, menuRow.endCell - menuRow.valueCells - menuRow.leadCells - 2) * menuRow.cell)
-               : implicitWidth
-        elide: Text.ElideRight
-        textFormat: Text.PlainText
-        text: menuRow.label
-        color: menuRow.ink
-        font.family: root.globalFont
-        font.capitalization: Font.AllUppercase
-        font.pixelSize: menuRow.fontSize
-    }
-
-    // The leader: one square dot in each cell between the label and the value,
-    // level with the middle of the capitals. Drawn rather than typed, since the
-    // font has no middle dot of its own. A dot for every cell of the line,
-    // shown or not: a count that followed the label and the value would have
-    // every dot made again as either changed (a value's trailing dots, a
-    // line read anew with each cursor move).
-    Repeater {
-        model: Math.max(0, menuRow.lineCells)
-        Rectangle {
-            visible: menuRow.hasEnd && index >= menuRow.labelCells && index < menuRow.valueCell - menuRow.leadCells
-            x: Math.round(menuRow.pad + (index + 0.5) * menuRow.cell - width / 2)
-            y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
-            width: root.px
-            height: root.px
-            color: menuRow.ink
-            antialiasing: false
+        active: menuRow.handed && menuRow.visible
+        sourceComponent: MonitorRow {
+            label: menuRow.label
+            value: menuRow.value
+            selected: menuRow.selected
+            heading: menuRow.heading
+            opens: menuRow.opens
+            dimmed: menuRow.dimmed
+            editing: menuRow.editing
+            icons: menuRow.icons
+            keepValue: menuRow.keepValue
+            alwaysScroll: menuRow.alwaysScroll
         }
     }
 
-    // A heading's rule, from a cell past the label to the line's end, at the
-    // height the dots would be.
-    Rectangle {
-        visible: menuRow.heading
-        x: Math.round(menuRow.pad + (menuRow.labelCells + 1) * menuRow.cell)
-        y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
-        width: Math.max(0, Math.round(menuRow.pad + menuRow.lineCells * menuRow.cell) - x)
-        height: root.px
-        color: menuRow.ink
-        antialiasing: false
-    }
-
-    // The value: cut short with "…" when it is too long for the line, and
-    // scrolled through instead while the line is selected (or always, with
-    // alwaysScroll).
     Item {
-        id: valueClip
-        visible: menuRow.value !== ""
-        x: menuRow.pad + menuRow.valueCell * menuRow.cell
-        width: Math.max(0, menuRow.endCell - menuRow.valueCell) * menuRow.cell
-        height: parent.height
-        clip: true
+        id: deck
+        anchors.fill: parent
+        visible: !menuRow.handed
+
+        // The selected line's bar, or the skin's picture of it.
+        SelectionBox {
+            anchors.fill: parent
+            visible: menuRow.selected
+        }
 
         Text {
-            id: valueText
+            id: labelText
+            x: menuRow.pad
             anchors.verticalCenter: parent.verticalCenter
-            width: menuRow.selected || menuRow.alwaysScroll ? implicitWidth
-                                                            : Math.min(implicitWidth, valueClip.width)
-            textFormat: Text.PlainText
-            text: menuRow.value
-            color: menuRow.ink
+            width: menuRow.keepValue && menuRow.hasEnd
+                   ? Math.min(implicitWidth,
+                              Math.max(1, menuRow.endCell - menuRow.valueCells - menuRow.leadCells - 2) * menuRow.cell)
+                   : implicitWidth
             elide: Text.ElideRight
+            textFormat: Text.PlainText
+            text: menuRow.label
+            color: menuRow.ink
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             font.pixelSize: menuRow.fontSize
         }
 
-        // Whether the value scrolls, and how far. The animation keeps the
-        // distance it started with, so it is started (and started over) once
-        // the line's layout has settled, a turn of the event loop later: one
-        // started in the middle of it, as a line that scrolls from the start
-        // is, would keep a stale distance for good.
-        // Not while the line is hidden (a list under a keyboard or a page):
-        // a scroll going on there would redraw the window every frame.
-        readonly property bool scrolls: menuRow.visible && (menuRow.selected || menuRow.alwaysScroll)
-                                        && valueText.implicitWidth > valueClip.width
-        readonly property real scrollBy: valueClip.width - valueText.implicitWidth
-        onScrollsChanged: Qt.callLater(updateScroll)
-        onScrollByChanged: Qt.callLater(updateScroll)
-        function updateScroll() {
-            if (scrolls)
-                scroll.restart()
-            else
-                scroll.stop()
-        }
-
-        SequentialAnimation {
-            id: scroll
-            loops: Animation.Infinite
-            onRunningChanged: if (!running) valueText.x = 0
-
-            PauseAnimation { duration: 1500 }
-            NumberAnimation {
-                target: valueText
-                property: "x"
-                to: valueClip.scrollBy
-                duration: Math.abs(to) * 20
-            }
-            PauseAnimation { duration: 2000 }
-            PropertyAction { target: valueText; property: "x"; value: 0 }
-        }
-    }
-
-    // The ◄ of a value that changes, at the start of the cell before the
-    // value's: the rest of the cell between it and the value, as much as lies
-    // between the value and the ► at the line's end, which the ► leaves at the
-    // start of its cell.
-    PixelIcon {
-        visible: menuRow.changes
-        name: "left"
-        color: menuRow.ink
-        x: Math.round(menuRow.pad + (menuRow.valueCell - 1) * menuRow.cell)
-        y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
-    }
-
-    // The icons, and the ► of a line that opens or changes, against the
-    // line's end, their middles level with the capitals' as the dots are.
-    Row {
-        id: iconRow
-        visible: menuRow.endIcons.length > 0
-        x: Math.round(menuRow.pad + menuRow.lineCells * menuRow.cell - width)
-        y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
-        spacing: menuRow.cell
-
+        // The leader: one square dot in each cell between the label and the value,
+        // level with the middle of the capitals. Drawn rather than typed, since the
+        // font has no middle dot of its own. A dot for every cell of the line,
+        // shown or not: a count that followed the label and the value would have
+        // every dot made again as either changed (a value's trailing dots, a
+        // line read anew with each cursor move).
         Repeater {
-            model: menuRow.endIcons
-            PixelIcon {
-                required property string modelData
-                name: modelData
+            model: menuRow.handed ? 0 : Math.max(0, menuRow.lineCells)
+            Rectangle {
+                visible: menuRow.hasEnd && index >= menuRow.labelCells && index < menuRow.valueCell - menuRow.leadCells
+                x: Math.round(menuRow.pad + (index + 0.5) * menuRow.cell - width / 2)
+                y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
+                width: root.px
+                height: root.px
                 color: menuRow.ink
+                antialiasing: false
             }
         }
-    }
 
-    // A dimmed line, faded over all it draws; made only for such a line, a
-    // canvas being a square per art pixel.
-    Loader {
-        anchors.fill: parent
-        active: menuRow.dimmed && !menuRow.selected
-        sourceComponent: Dither {}
+        // A heading's rule, from a cell past the label to the line's end, at the
+        // height the dots would be.
+        Rectangle {
+            visible: menuRow.heading
+            x: Math.round(menuRow.pad + (menuRow.labelCells + 1) * menuRow.cell)
+            y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
+            width: Math.max(0, Math.round(menuRow.pad + menuRow.lineCells * menuRow.cell) - x)
+            height: root.px
+            color: menuRow.ink
+            antialiasing: false
+        }
+
+        // The value: cut short with "…" when it is too long for the line, and
+        // scrolled through instead while the line is selected (or always, with
+        // alwaysScroll).
+        Item {
+            id: valueClip
+            visible: menuRow.value !== ""
+            x: menuRow.pad + menuRow.valueCell * menuRow.cell
+            width: Math.max(0, menuRow.endCell - menuRow.valueCell) * menuRow.cell
+            height: parent.height
+            clip: true
+
+            Text {
+                id: valueText
+                anchors.verticalCenter: parent.verticalCenter
+                width: menuRow.selected || menuRow.alwaysScroll ? implicitWidth
+                                                                : Math.min(implicitWidth, valueClip.width)
+                textFormat: Text.PlainText
+                text: menuRow.value
+                color: menuRow.ink
+                elide: Text.ElideRight
+                font.family: root.globalFont
+                font.capitalization: Font.AllUppercase
+                font.pixelSize: menuRow.fontSize
+            }
+
+            // Whether the value scrolls, and how far. The animation keeps the
+            // distance it started with, so it is started (and started over) once
+            // the line's layout has settled, a turn of the event loop later: one
+            // started in the middle of it, as a line that scrolls from the start
+            // is, would keep a stale distance for good.
+            // Not while the line is hidden (a list under a keyboard or a page):
+            // a scroll going on there would redraw the window every frame.
+            readonly property bool scrolls: menuRow.visible && !menuRow.handed && (menuRow.selected || menuRow.alwaysScroll)
+                                            && valueText.implicitWidth > valueClip.width
+            readonly property real scrollBy: valueClip.width - valueText.implicitWidth
+            onScrollsChanged: Qt.callLater(updateScroll)
+            onScrollByChanged: Qt.callLater(updateScroll)
+            function updateScroll() {
+                if (scrolls)
+                    scroll.restart()
+                else
+                    scroll.stop()
+            }
+
+            SequentialAnimation {
+                id: scroll
+                loops: Animation.Infinite
+                onRunningChanged: if (!running) valueText.x = 0
+
+                PauseAnimation { duration: 1500 }
+                NumberAnimation {
+                    target: valueText
+                    property: "x"
+                    to: valueClip.scrollBy
+                    duration: Math.abs(to) * 20
+                }
+                PauseAnimation { duration: 2000 }
+                PropertyAction { target: valueText; property: "x"; value: 0 }
+            }
+        }
+
+        // The ◄ of a value that changes, at the start of the cell before the
+        // value's: the rest of the cell between it and the value, as much as lies
+        // between the value and the ► at the line's end, which the ► leaves at the
+        // start of its cell.
+        PixelIcon {
+            visible: menuRow.changes
+            name: "left"
+            color: menuRow.ink
+            x: Math.round(menuRow.pad + (menuRow.valueCell - 1) * menuRow.cell)
+            y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
+        }
+
+        // The icons, and the ► of a line that opens or changes, against the
+        // line's end, their middles level with the capitals' as the dots are.
+        Row {
+            id: iconRow
+            visible: menuRow.endIcons.length > 0
+            x: Math.round(menuRow.pad + menuRow.lineCells * menuRow.cell - width)
+            y: Math.round(labelText.y + labelText.baselineOffset - menuRow.capMiddle - height / 2)
+            spacing: menuRow.cell
+
+            Repeater {
+                model: menuRow.endIcons
+                PixelIcon {
+                    required property string modelData
+                    name: modelData
+                    color: menuRow.ink
+                }
+            }
+        }
+
+        // A dimmed line, faded over all it draws; made only for such a line, a
+        // canvas being a square per art pixel.
+        Loader {
+            anchors.fill: parent
+            active: menuRow.dimmed && !menuRow.selected
+            sourceComponent: Dither {}
+        }
     }
 }

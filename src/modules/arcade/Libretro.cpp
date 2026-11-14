@@ -20,6 +20,7 @@
 #include <QXmlStreamReader>
 #include <QtEndian>
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <iterator>
 #include <optional>
@@ -52,9 +53,16 @@ QString firstFile(const QStringList &candidates) {
     return QString();
 }
 
+// Set once the package's RetroArch is found not to start (leavePackagedProgram()).
+std::atomic<bool> g_packagedProgramLeft { false };
+// A test's folder in place of the prefix (setPackagePrefix()).
+QString g_packagePrefix;
+
 // The prefix the app is installed under: the folder above its own
 // (/usr/local for /usr/local/bin/osdos).
 QString packagePrefix() {
+    if (!g_packagePrefix.isEmpty())
+        return g_packagePrefix;
     return QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/.."));
 }
 
@@ -273,6 +281,11 @@ QString programPath(const QString &dataRoot) {
     const QFileInfo dropIn(dataRoot + QStringLiteral("/bin/") + exe);
     if (dropIn.isFile() && dropIn.isExecutable())
         return dropIn.absoluteFilePath();
+    // The package's own before the system's: the same version, with TLS.
+    const QString packaged = packagedProgramToPlay(packagedProgram(), QFileInfo::exists(QLatin1String(kSystemCertificates)),
+                                                   g_packagedProgramLeft.load());
+    if (!packaged.isEmpty())
+        return packaged;
     const QString onPath = QStandardPaths::findExecutable(QStringLiteral("retroarch"));
     if (!onPath.isEmpty())
         return onPath;
@@ -305,6 +318,31 @@ QString programPath(const QString &dataRoot) {
 
 QString downloadedRetroArch(const QString &dataRoot) {
     return dataRoot + QStringLiteral("/arcade/retroarch/RetroArch-Win64/retroarch.exe");
+}
+
+QString packagedProgram() {
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+    // RetroArch.app and libretro's Windows build have TLS of their own.
+    return QString();
+#else
+    return packagePrefix() + QStringLiteral("/lib/osdos/retroarch");
+#endif
+}
+
+void leavePackagedProgram() {
+    g_packagedProgramLeft = true;
+}
+
+void setPackagePrefix(const QString &prefix) {
+    g_packagePrefix = prefix;
+    g_packagedProgramLeft = false;
+}
+
+QString packagedProgramToPlay(const QString &program, bool certificates, bool left) {
+    if (program.isEmpty() || !certificates || left)
+        return QString();
+    const QFileInfo file(program);
+    return file.isFile() && file.isExecutable() ? file.absoluteFilePath() : QString();
 }
 
 QString downloadedCore(const QString &dataRoot) {
@@ -695,6 +733,13 @@ QString configText(const Launch &launch) {
     set("savestate_directory", launch.stateDir);
     set("rgui_config_directory", launch.configDir);
     set("libretro_log_level", QStringLiteral("1"));
+    // RetroArch's own records of what was played: its history list, and how
+    // long each game ran. OSD/OS keeps both itself (Recently Played, play
+    // time), so they are not written to the card at every game, the second
+    // of them outside OSD/OS's folder (~/.config/retroarch/playlists/logs).
+    set("history_list_enable", on(false));
+    set("content_runtime_log", on(false));
+    set("content_runtime_log_aggregate", on(false));
     // The credits bought, put in by OSD/OS once the game runs: player 1's
     // network RetroPad, on this machine's UDP port (coinPort), else none.
     set("network_remote_enable", on(launch.coinPort != 0));

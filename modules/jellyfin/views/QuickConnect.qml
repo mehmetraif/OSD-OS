@@ -3,6 +3,9 @@ import Components
 
 FocusScope {
     id: qcRoot
+    // In the layout's frame (Main.qml): what it says in the middle of the
+    // pane, beside the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
 
@@ -113,6 +116,11 @@ FocusScope {
     // Body
     Column {
         anchors.centerIn: parent
+        // In the middle of the pane, in a layout's frame (Main.qml's).
+        anchors.horizontalCenterOffset: root.framed || root.monitorFramed === true
+                                        ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
+        anchors.verticalCenterOffset: root.monitorFramed === true
+                                      ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
         spacing: root.sh * 0.05 //24
 
         Text {
@@ -127,12 +135,16 @@ FocusScope {
             font.letterSpacing: root.sw * 0.025 // 16
         }
 
+        // Within the content's width: a long address goes on to a line more
+        // rather than off the screen's edges.
         Text {
             visible: !failed && code !== ""
             text: "Enter the above code at:\n" + serverUrl + "/web/#quickconnect"
             color: root.secondaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
+            width: root.paneWidth //492
+            wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter
             font.pixelSize: root.sh * 0.0333333 //16
@@ -167,7 +179,10 @@ FocusScope {
             }
         }
 
-        // Error state: a line of the column, across its middle.
+        // Error state: alone in the column, across its middle, wrapped
+        // inside the content's width as Plex's sign-in wraps its own (the
+        // server's words can be long, with the address asked in them), and
+        // cut after six lines.
         Text {
             visible: failed
             anchors.horizontalCenter: parent.horizontalCenter
@@ -175,6 +190,11 @@ FocusScope {
             color: root.accentColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
+            width: root.paneWidth //492
+            wrapMode: Text.Wrap
+            maximumLineCount: 6
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
             font.pixelSize: root.sh * 0.05 // 24
         }
 

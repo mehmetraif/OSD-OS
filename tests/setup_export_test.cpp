@@ -62,6 +62,8 @@ private slots:
                 { "key": "play_at_startup", "type": "list_single", "options_source": "dynamic" },
                 { "key": "border", "type": "toggle", "default": "ON" },
                 { "key": "achievements_account", "type": "module_view" },
+                { "key": "server_url", "type": "text", "default": "" },
+                { "key": "subscriptions", "type": "text_list" },
                 { "key": "emulator_video", "type": "submenu", "settings": [
                     { "key": "vertical_monitor", "type": "list_single", "options": ["Horizontal", "Turned Right"] } ] } ] })") }
         };
@@ -76,6 +78,10 @@ private slots:
         QCOMPARE(arcade.value(QStringLiteral("vertical_monitor")).toString(), QStringLiteral("Horizontal"));
         QVERIFY(arcade.contains(QStringLiteral("menu_filters")));
         QVERIFY(arcade.contains(QStringLiteral("online_name")));
+        // A typed line, unset as nothing typed, and a list of typed lines,
+        // none.
+        QCOMPARE(arcade.value(QStringLiteral("server_url")), QJsonValue(QString()));
+        QCOMPARE(arcade.value(QStringLiteral("subscriptions")), QJsonValue(QJsonArray()));
         // A list the page has no choices of, and a page of the app's.
         QVERIFY(!arcade.contains(QStringLiteral("play_at_startup")));
         QVERIFY(!arcade.contains(QStringLiteral("achievements_account")));
@@ -98,11 +104,14 @@ private slots:
                      { QStringLiteral("osd_theme"), QJsonValue() } };
         form.modules.insert(QStringLiteral("com.osdos.arcade"),
                             { { QStringLiteral("enabled"), false }, { QStringLiteral("border"), true },
-                              { QStringLiteral("screen"), QStringLiteral("Arcade") } });
+                              { QStringLiteral("screen"), QStringLiteral("Arcade") },
+                              { QStringLiteral("subscriptions"), QJsonArray() },
+                              { QStringLiteral("playlists"), QJsonArray() } });
         const QJsonObject config = json(R"({
             "app": { "monitor": "Turned Right", "hint_bar": "On", "osd_theme": "orb", "volume": 80 },
             "modules": {
-                "com.osdos.arcade": { "enabled": true, "border": "ON", "screen": "List", "engines": { "sf2": "mame" } },
+                "com.osdos.arcade": { "enabled": true, "border": "ON", "screen": "List", "engines": { "sf2": "mame" },
+                                      "subscriptions": ["UCexampleChannel0000000000"], "playlists": [] },
                 "com.osdos.plex": { "enabled": true } } })");
         setupexport::System system;
         system.name = QStringLiteral("cabinet");
@@ -129,11 +138,13 @@ private slots:
                            "ssh": { "enabled": true, "password_login": false,
                                     "authorized_keys": ["ssh-ed25519 AAAAC3Nza me@pc"] } })"));
         QCOMPARE(setup.value(QStringLiteral("retroachievements")).toObject(), account);
-        // At their defaults (On, and ON for true), not on the form (volume,
-        // engines), or a module the page hasn't: left out.
+        // At their defaults (On, and ON for true, a list with no lines), not
+        // on the form (volume, engines), or a module the page hasn't: left
+        // out. A list of typed lines goes whole.
         QCOMPARE(setup.value(QStringLiteral("config")).toObject(),
                  json(R"({ "app": { "monitor": "Turned Right", "osd_theme": "orb" },
-                           "modules": { "com.osdos.arcade": { "enabled": true, "screen": "List" } } })"));
+                           "modules": { "com.osdos.arcade": { "enabled": true, "screen": "List",
+                                                              "subscriptions": ["UCexampleChannel0000000000"] } } })"));
 
         // The Arcade's favourites, by set.
         const QJsonObject withFavorites = setupexport::build(QJsonObject(), form, QJsonObject(), setupexport::System(),

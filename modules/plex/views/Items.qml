@@ -4,6 +4,9 @@ import Components
 // Reusable list view — handles all listType values via navParams.
 FocusScope {
     id: itemListRoot
+    // In the layout's frame (Main.qml): its list in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -449,7 +452,11 @@ FocusScope {
         text: "LOADING..."
         color: root.tertiaryColor
         font.family: root.globalFont
-        anchors.centerIn: parent
+        // In the middle of the pane.
+        x: root.paneX
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth
+        horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
     }
     Text {
@@ -457,10 +464,10 @@ FocusScope {
         text: errorMessage
         color: root.tertiaryColor
         font.family: root.globalFont
-        anchors.centerIn: parent
-        // The content's width, so a long server error wraps inside the
-        // screen instead of running off a tube's edges.
-        width: root.sw * 0.76875 //492
+        // In the middle of the pane, and as wide.
+        x: root.paneX
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
@@ -470,7 +477,11 @@ FocusScope {
         text: "NO ITEMS FOUND"
         color: root.tertiaryColor
         font.family: root.globalFont
-        anchors.centerIn: parent
+        // In the middle of the pane.
+        x: root.paneX
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.paneWidth
+        horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
     }
 
@@ -480,10 +491,11 @@ FocusScope {
         model: rows
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: showLetterNav ? root.sw * 0.671875 : root.sw * 0.76875 //430 or 492
-        height: root.sh * 0.525 + root.hintRoom //252
+        anchors.topMargin: root.listY //120
+        anchors.leftMargin: root.paneX
+        // The pane's, less the letters' room beside it.
+        width: root.paneWidth - (showLetterNav ? root.sw * 0.096875 : 0) //430 or 492
+        height: root.tallListHeight //252
         clip: true
         focus: true
 
@@ -530,8 +542,20 @@ FocusScope {
             width: itemList.width
             height: root.sh * 0.0583333 //28
 
+            // The row as a monitor layout draws one, in its frame (Main.qml's):
+            // the layout's cursor, its case, its colours.
+            Loader {
+                anchors.fill: parent
+                active: root.monitorInk === true
+                sourceComponent: MonitorRow {
+                    label: rowText.text
+                    selected: itemList.currentIndex === index && !letterNavActive
+                }
+            }
+
             Item {
                 id: textClip
+                visible: root.monitorInk !== true
                 width: Math.min(rowText.implicitWidth, itemList.width)
                 height: parent.height
                 clip: true
@@ -650,7 +674,7 @@ FocusScope {
             height: root.sh * 0.04375 //21
 
             Rectangle {
-                color: root.accentColor
+                color: root.cursorColor
                 anchors.fill: parent
                 visible: letterList.currentIndex === index && letterNavActive
             }
@@ -658,7 +682,7 @@ FocusScope {
             Text {
                 text: modelData.letter
                 color: (letterList.currentIndex === index && letterNavActive)
-                       ? root.surfaceColor : root.primaryColor
+                       ? root.cursorInk : root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0354167 //17
@@ -676,6 +700,10 @@ FocusScope {
         anchors.fill: letterList
         visible: letterList.visible && !letterNavActive
     }
+
+    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
+    // frame says which.
+    ListPager { list: itemList }
 
     // Footer
     HintBar {

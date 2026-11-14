@@ -19,14 +19,16 @@ class WebPlayerBackend;
 
 // Backend for the YouTube module (V1 "feed" approach — no account needed).
 //
-// The user lists channel IDs (one per line) in <dataRoot>/youtube_subscriptions.txt.
+// The user lists channel IDs (one per line) in Settings' Subscriptions
+// (modules.<id>.subscriptions) and in <dataRoot>/youtube_subscriptions.txt.
 // Video lists come from each channel's official RSS feed (titles, exact publish
 // dates, channel name — ~15 newest videos), fetched unauthenticated, four at a
 // time (the channel opened first). Results are
 // cached in memory per channel for the session (kCacheTtlMs TTL), so the first
 // entry into Subscriptions or Channels fills the cache for every other view.
 //
-// Playlists come from <dataRoot>/youtube_playlists.txt (one playlist URL or ID
+// Playlists come from Settings' Playlists (modules.<id>.playlists) and
+// <dataRoot>/youtube_playlists.txt (one playlist URL or ID
 // per line, optional "My Name | <url>" display-name prefix). RSS feeds for
 // playlists stop at 15 entries, so playlist contents are fetched by spawning
 // yt-dlp --flat-playlist instead (async QProcess, same session cache TTL).
@@ -194,6 +196,7 @@ private:
     QVariantList loadWatchLater() const;
     void         saveWatchLater(const QVariantList &list);
 
+    QStringList  listLines(const char *key, const char *fileName) const;
     QStringList  readSubscriptionIds() const;
     void         ensureFresh(bool forceRefresh);
     void         spawnNextChannelFetch();

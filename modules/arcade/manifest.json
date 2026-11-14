@@ -81,6 +81,7 @@
       "options": ["Straight", "Curved", "3D Curved"],
       "default": "Curved",
       "shown_with": { "key": "screen", "value": "Arcade" },
+      "shown_unless": { "theme": "arcade", "value": "orb", "reason": "Not with a theme in the Orb look" },
       "description": "How the games lie on the Arcade screen\n[STRAIGHT] One under another, a page at a time\n[CURVED] On an arc, a page at a time\n[3D CURVED] On a wheel: the game chosen goes up and down it, furthest out, the others going back, nearer each other and fading the further they are from it, and the wheel turns at its top and bottom rows"
     },
     {
@@ -89,6 +90,7 @@
       "type": "toggle",
       "default": "ON",
       "shown_with": { "key": "screen", "value": "Arcade" },
+      "shown_unless": { "theme": "arcade", "value": "orb", "reason": "Not with a theme in the Orb look" },
       "description": "The frames round the Arcade screen's picture and the box under it\n[OFF] No frames: the picture and the box stand on their ground alone"
     },
     {
@@ -100,6 +102,7 @@
       "start_text": "TRANSPARENT",
       "end_text": "SOLID",
       "shown_with": { "key": "screen", "value": "Arcade" },
+      "shown_unless": { "theme": "arcade", "value": "orb", "reason": "Not with a theme in the Orb look" },
       "description": "The ground under the Arcade screen's picture and the box of the game's high scores and details, over Settings' Background Effect\n[TRANSPARENT] The background shows through  [SOLID] None of it"
     },
     {
@@ -325,6 +328,7 @@
       "label": "Read the Games Again",
       "type": "action",
       "action_slot": "rescan",
+      "done": "Reading the games again",
       "description": "Ask MAME about every game in the folder again\nEvery game's pictures are then looked for too, as Pictures From allows, a game a second, in the background"
     }
   ]

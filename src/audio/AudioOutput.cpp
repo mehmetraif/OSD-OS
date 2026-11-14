@@ -540,13 +540,23 @@ QString AudioOutput::mpvDevice() {
 }
 
 QStringList AudioOutput::mpvArgs(bool inApp) {
+    QStringList args;
+    // Inside the app, where plain ALSA plays (no PipeWire or PulseAudio
+    // server): ALSA alone. Left to itself mpv tries PipeWire first, whose
+    // library says so in the journal at every video ("pw.conf: can't load
+    // config client.conf"), and with ALSA not answering goes on to
+    // PulseAudio, JACK and sndio, the app's thread waiting 12 seconds for
+    // JACK alone. A process keeps mpv's own order, and its mpv.conf's.
+    if (inApp && g_available)
+        args << QStringLiteral("--ao=alsa");
     const QString id = card();
     // Auto's card reaches a process as ALSA's default (applyTo()), so that an
     // audio-device in its mpv.conf still has the last word: only a card
     // chosen goes on its command line. libmpv reads neither.
     if (id.isEmpty() || (!inApp && id != g_card))
-        return {};
-    return { QStringLiteral("--audio-device=") + deviceOf(id) };
+        return args;
+    args << QStringLiteral("--audio-device=") + deviceOf(id);
+    return args;
 }
 
 bool AudioOutput::hasPlaybackCard() {

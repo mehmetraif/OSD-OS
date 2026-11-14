@@ -46,6 +46,11 @@ class WifiManager : public QObject {
     // launcher whose image lets it use NetworkManager (launcher API 7):
     // Settings offers the row.
     Q_PROPERTY(bool supported READ supported CONSTANT)
+    // Not supported for the launcher alone: built with NetworkManager
+    // support, but run by the service of an image, or an install.sh, from
+    // before launcher API 7. Settings says so on the dimmed row, where
+    // "only where NetworkManager runs" would name the machine it is on.
+    Q_PROPERTY(bool launcherTooOld READ launcherTooOld CONSTANT)
     // NetworkManager runs and has a Wi-Fi device.
     Q_PROPERTY(bool available READ available NOTIFY stateChanged)
     // Wi-Fi is on.
@@ -94,6 +99,7 @@ public:
 #endif
 
     bool supported() const;
+    bool launcherTooOld() const;
     bool available() const { return m_available; }
     bool enabled() const { return m_enabled; }
     QString state() const { return m_state; }

@@ -124,7 +124,9 @@ public:
 
     // Live TV — minimal "watch live channels" support (no DVR/recording features).
     // load_live_channels lists the channel lineup of the first available DVR;
-    // tune_channel allocates a tuner + HLS transcode session and emits streamUrlReady;
+    // tune_channel allocates a tuner + HLS transcode session and emits streamUrlReady
+    // (a stream like request_transcode's: given up with cancel_stream, it answers
+    // no one, and the tuner it took is let go of as the server answers);
     // update_live_timeline keeps that tuner alive (state "playing") or releases it
     // (state "stopped"). The grabbed media key is remembered between calls.
     Q_INVOKABLE void load_live_channels();
@@ -258,8 +260,9 @@ private:
     QHash<QString, KeptList> m_keptLists;
     QStringList m_keptOrder;    // oldest first
     int m_listRequest = 0;
-    // The stream asked for last (request_transcode, build_stream_url): one
-    // answering after another was asked for, or after cancel_stream, is dropped.
+    // The stream asked for last (request_transcode, build_stream_url,
+    // tune_channel): one answering after another was asked for, or after
+    // cancel_stream, is dropped.
     int m_streamRequest = 0;
     // The next item looked for last, the same way: a queue played again after
     // its player was left mid-lookup starts on its own first item, not on
@@ -319,6 +322,9 @@ private:
                           std::function<void(QString)> callback);
     void probeNext(const QList<QString> &uris, int index,
                    std::function<void(QString)> callback);
+    // The active server looked for again where plex.tv now says it is, when
+    // it no longer answers at the address kept since the sign-in.
+    void probeActiveServer(std::function<void(bool found)> done);
 
     // Browse implementation (separated so startup check can wrap it)
     void load_libraries_impl();
@@ -383,6 +389,7 @@ private:
     bool    m_refreshInFlight  = false;
     bool    m_deviceVerified   = false; // set after first successful plex.tv check per session
     bool    m_serverAuthRetried = false; // guards the one-shot token re-fetch on a PMS 401
+    bool    m_serverProbeRetried = false; // guards the one-shot probe for a server that doesn't answer
 
     // Live TV session state. m_liveDvrId is cached from the last load_live_channels.
     // The rest are set by tune_channel and drive the timeline keep-alive that stops
@@ -397,4 +404,11 @@ private:
     QString m_liveSessionId;
     int     m_liveDurationMs = 0;
     qint64  m_liveStartedMs  = 0;
+    // A live session's timeline, by what its tune gave, and its transcode
+    // stopped: the session playing (update_live_timeline, stop_live_session),
+    // and a channel tuned for a player that left before the server answered,
+    // which the player's own stop came too early to let go of.
+    void reportLiveTimeline(const QString &state, const QString &key, const QString &ratingKey,
+                            const QString &sessionId, int durationMs, qint64 timeMs);
+    void stopLiveTranscode(const QString &sessionId);
 };

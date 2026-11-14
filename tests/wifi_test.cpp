@@ -974,12 +974,17 @@ private slots:
     void supported() {
         auto wifi = makeWifi();
         QVERIFY(wifi->supported());
+        QVERIFY(!wifi->launcherTooOld());
         qputenv("OSDOS_AUTOSTART", "1");
         QVERIFY(!wifi->supported());
+        // Kept off by the launcher alone, which Settings' row says.
+        QVERIFY(wifi->launcherTooOld());
         qputenv("OSDOS_LAUNCHER_API", "6");
         QVERIFY(!wifi->supported());
+        QVERIFY(wifi->launcherTooOld());
         qputenv("OSDOS_LAUNCHER_API", "7");
         QVERIFY(wifi->supported());
+        QVERIFY(!wifi->launcherTooOld());
         qunsetenv("OSDOS_AUTOSTART");
         qunsetenv("OSDOS_LAUNCHER_API");
         qputenv("MP240_AUTOSTART", "1");

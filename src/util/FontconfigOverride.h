@@ -7,7 +7,9 @@
 // --osd-fonts-dir.
 //
 // Returns the path to the written config (to be exported as FONTCONFIG_FILE in
-// the child's environment), or an empty string if it could not be written.
+// the child's environment), or an empty string if it could not be written
+// whole. It goes among the run's files, in a folder of the user's own
+// (util/RuntimeFiles.h).
 namespace fcoverride {
 QString write(const QString &fontsDir);
 }

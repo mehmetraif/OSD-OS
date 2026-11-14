@@ -398,6 +398,14 @@ bool WifiManager::supported() const {
 #endif
 }
 
+bool WifiManager::launcherTooOld() const {
+#ifdef OSDOS_WIFI
+    return !supported();
+#else
+    return false;
+#endif
+}
+
 QString WifiManager::countryName() const {
     const Country *c = countryByCode(m_country);
     return c ? c->name : QString();

@@ -73,7 +73,14 @@ FocusScope {
         }
 
         function onErrorOccurred(msg) {
-            console.log("[Extras] Error: " + msg)
+            // The stream an extra's PLAY asked for won't come: the list has
+            // the keys again with nothing on the screen to say why, so the
+            // log does: the extra, and the server's words.
+            var d = extrasRoot.launchingExtra
+            if (d)
+                mpvController.logFailure("Extras", "\"" + (d.title || "") + "\" (" + d.ratingKey + ")", msg)
+            else
+                console.log("[Extras] Error: " + msg)
             extrasRoot.launchingExtra = null
         }
     }

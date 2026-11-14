@@ -38,8 +38,11 @@ FocusScope {
     }
 
     // The tree's entries: at its root the default and the places, in a folder
-    // USE THIS FOLDER (picking folders) and what is in it.
-    function entriesOf(path, asynchronous) {
+    // USE THIS FOLDER (picking folders) and what is in it. A folder is read
+    // off the app's thread (AppCore::requestFolderEntries): null until it is
+    // in, the tree saying "loading…" meanwhile, then folderEntriesReady. On
+    // a slow card or a network share a folder read here held the menus still.
+    function entriesOf(path) {
         if (!appCore)
             return []
         if (path === "places") {
@@ -51,7 +54,7 @@ FocusScope {
             return top
         }
         var types = pickFile ? (navParams.types || []) : []
-        var entries = asynchronous ? appCore.requestFolderEntries(path, types) : appCore.folderEntries(path, types)
+        var entries = appCore.requestFolderEntries(path, types)
         if (entries === undefined || entries === null) return null
         // Not in a branch's glance at a folder: there it would be every
         // folder's first line.
@@ -64,51 +67,99 @@ FocusScope {
     // The tree opened down to what is chosen now, from the deepest place that
     // holds it: the cursor on USE THIS FOLDER in a folder, on a file in its
     // folder, on the default when it is the default.
+    // A place that is a root ends in its "/" ("/", a Windows drive's "D:/"):
+    // what is in it follows that at once.
+    function inside(folder) {
+        return folder.charAt(folder.length - 1) === "/" ? folder : folder + "/"
+    }
+    // The menus don't wait for a folder to be read: each folder on the way is
+    // asked for, off the app's thread. One that is in already has its cursor
+    // on the way on at once. One still on its way is opened on trust, by its
+    // name in the path, and has its cursor put there once it is in (`next`:
+    // the folder, and the entry of it that leads on; settle()). While files
+    // are picked the path's last name is the file, an entry of its folder.
+    // Gives the tree's savedTrail (`trail`) and `next`.
     function trailTo(target) {
         var trail = [{ path: "places", sel: 0, name: "", pushed: false }]
+        var next = {}
         target = String(target || "")
         if (target.length > 1 && target.charAt(target.length - 1) === "/")
             target = target.substring(0, target.length - 1)
         if (target === "")
-            return trail
+            return { trail: trail, next: next }
         var top = entriesOf("places")
         var best = -1
         for (var i = 0; i < top.length; i++) {
             var p = top[i].path
-            if (top[i].isFolder && (target === p || target.indexOf(p === "/" ? "/" : p + "/") === 0)
+            if (top[i].isFolder && (inside(target) === inside(p) || target.indexOf(inside(p)) === 0)
                     && (best < 0 || p.length > top[best].path.length))
                 best = i
         }
         if (best < 0)
-            return trail
+            return { trail: trail, next: next }
         trail[0].sel = best
         var folder = top[best].path
         trail.push({ path: folder, sel: 0, name: top[best].name, pushed: false })
-        var rest = target.substring(folder.length).split("/")
+        var rest = target.substring(folder.length).split("/").filter(function(part) { return part !== "" })
         for (var j = 0; j < rest.length; j++) {
-            if (rest[j] === "")
-                continue
-            var next = (folder === "/" ? "" : folder) + "/" + rest[j]
+            var entry = inside(folder) + rest[j]
             var entries = entriesOf(folder)
-            var idx = -1
-            for (var k = 0; k < entries.length && idx < 0; k++) {
-                if (!entries[k].kind && entries[k].path === next)
-                    idx = k
+            var opens = !(pickFile && j === rest.length - 1)
+            if (entries === null) {
+                next[folder] = entry
+            } else {
+                var idx = -1
+                for (var k = 0; k < entries.length && idx < 0; k++) {
+                    if (!entries[k].kind && entries[k].path === entry)
+                        idx = k
+                }
+                if (idx < 0)
+                    break
+                trail[trail.length - 1].sel = idx
+                opens = entries[idx].isFolder
             }
-            if (idx < 0)
+            if (!opens)
                 break
-            trail[trail.length - 1].sel = idx
-            if (!entries[idx].isFolder)
-                break
-            folder = next
-            trail.push({ path: folder, sel: 0, name: entries[idx].name, pushed: false })
+            folder = entry
+            trail.push({ path: folder, sel: 0, name: rest[j], pushed: false })
         }
-        return trail
+        return { trail: trail, next: next }
+    }
+    // The way down to what is chosen now, worked out once a visit (kept in
+    // `visit`, which no binding follows), the folders read afresh for it so
+    // that what was copied in since shows.
+    readonly property var visit: ({})
+    readonly property var opening: {
+        if (!visit.opening && appCore) {
+            appCore.clearFolderCache()
+            visit.opening = trailTo(navParams.currentPath)
+        }
+        return visit.opening || { trail: [], next: {} }
+    }
+    // The folders on that way whose cursor has been put, each once: where
+    // the cursor goes after that is the user's.
+    readonly property var settled: ({})
+
+    // A folder on the way to what is chosen now has come in: its cursor on
+    // the entry that leads on (the next folder, which is open beside it, or
+    // the file chosen). With no such entry, a folder deleted or a drive taken
+    // out since, the folders opened on trust beyond it close: the tree stops
+    // at the last folder there is, as it always has.
+    function settle(path) {
+        var entry = opening.next[path]
+        if (entry === undefined || settled[path])
+            return
+        settled[path] = true
+        if (!tree.select(path, entry))
+            tree.leave(entry)
     }
 
     Connections {
         target: appCore
-        function onFolderEntriesReady(path) { tree.refresh(path) }
+        function onFolderEntriesReady(path) {
+            tree.refresh(path)
+            picker.settle(path)
+        }
     }
 
     AppBar {
@@ -126,9 +177,9 @@ FocusScope {
         id: tree
         anchors.fill: parent
         focus: true
-        rootPath: { if (appCore) appCore.clearFolderCache(); return "places" }
-        fetch: function(path, preview) { return picker.entriesOf(path, true) }
-        savedTrail: picker.trailTo(picker.navParams.currentPath)
+        rootPath: "places"
+        fetch: function(path, preview) { return picker.entriesOf(path) }
+        savedTrail: picker.opening.trail
         onActivated: function(item) {
             if (item.kind === "default")
                 picker.choose("")

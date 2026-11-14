@@ -10,7 +10,8 @@ class QObject;
 // (scripts/install.sh) behind a systemd socket only the app's user may write
 // to, osdos-<stem>.socket, one unit a request. A line goes out, a line comes
 // back: "ok", or why not. Display Output's At Next Start ("display"), Wi-Fi's
-// country ("wifi") and the device's name ("name") go this way.
+// country ("wifi"), the device's name ("name") and Settings → System's time
+// zone and keyboard ("system") go this way.
 namespace rootrequest {
 
 struct Answer {

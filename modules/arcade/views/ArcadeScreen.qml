@@ -1203,7 +1203,10 @@ FocusScope {
         // The picture to show, and the two that show it: the one on the
         // screen, and the next loading behind it, which takes its place once
         // it is in (or can't be), so the pictures cut from one to the next.
-        readonly property string wanted: arcadeScreen.pictures.length > 0
+        // None in the Orb look, which draws the picture itself (OrbLook):
+        // this frame is hidden then, and a picture asked for here was read
+        // from the card a second time, ahead of the one that is shown.
+        readonly property string wanted: !arcadeScreen.orb && arcadeScreen.pictures.length > 0
                                          ? arcadeScreen.pictures[arcadeScreen.pictureIndex % arcadeScreen.pictures.length]
                                          : ""
         property Image shown: pictureA

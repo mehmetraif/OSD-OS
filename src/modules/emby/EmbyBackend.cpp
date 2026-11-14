@@ -9,6 +9,7 @@
 
 #include "../../util/AtomicFile.h"
 #include "../../util/EmbyApi.h"
+#include "../../util/ServerLog.h"
 #include "../../util/SslErrors.h"
 #include <QVariantList>
 #include <QVariantMap>
@@ -456,6 +457,8 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
 // Step 3: GET  {serverUrl}/Connect/Exchange?format=json&ConnectUserId={id}
 //         with X-MediaBrowser-Token: {AccessKey}
 //         -> LocalUserId + AccessToken (the normal per-server credentials)
+//         at the server's LocalAddress first, then at its Url when that
+//         gives none
 // ---------------------------------------------------------------------------
 
 void EmbyBackend::connect_authenticate(const QString &usernameOrEmail, const QString &password) {
@@ -531,15 +534,19 @@ void EmbyBackend::fetchConnectServers() {
 
         QJsonArray arr = QJsonDocument::fromJson(reply->readAll()).array();
         QVariantList servers;
+        m_connectRemotes.clear();
         for (const QJsonValue &v : arr) {
             QJsonObject s = v.toObject();
             const QString local  = normalizeServerUrl(s["LocalAddress"].toString());
             const QString remote = normalizeServerUrl(s["Url"].toString());
             // Prefer the LAN address (a CRT device usually shares the network with
-            // its server); fall back to the remote/WAN address.
+            // its server); fall back to the remote/WAN address, which is also
+            // tried when the LAN one gives no exchange (connect_select_server).
             const QString address = !local.isEmpty() ? local : remote;
             if (address.isEmpty())
                 continue;
+            if (!remote.isEmpty() && remote != address)
+                m_connectRemotes.insert(s["AccessKey"].toString(), remote);
             servers.append(QVariantMap{
                 {"name",          s["Name"].toString()},
                 {"address",       address},
@@ -570,12 +577,21 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
         emit connectFailed("INVALID SERVER SELECTION");
         return;
     }
+    // The address Emby Connect has for the server from outside, for when the
+    // one chosen (its LAN address, where it names one) gives no exchange: a
+    // server in another house, or one in a container that names an address of
+    // the container's own.
+    const QString remote = m_connectRemotes.value(accessKey);
+    exchangeConnectKey(normalized, accessKey, remote == normalized ? QString() : remote);
+}
 
+void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &accessKey,
+                                     const QString &fallbackUrl) {
     // Set the server URL up front so ignoreSslErrors() matches the exchange
     // reply's host (self-signed LAN servers).
-    m_serverUrl = normalized;
+    m_serverUrl = serverUrl;
 
-    QUrl url(normalized + "/Connect/Exchange");
+    QUrl url(serverUrl + "/Connect/Exchange");
     { QUrlQuery q; q.addQueryItem("format", "json"); q.addQueryItem("ConnectUserId", m_connectUserId); url.setQuery(q); }
 
     QNetworkRequest req(url);
@@ -587,11 +603,20 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
 
     auto *reply = m_nam->get(req);
     ignoreSslErrors(reply);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, accessKey, fallbackUrl]() {
         reply->deleteLater();
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        // No exchange at this address (nothing there, or something else that
+        // answers in the server's place on this network): the server's other
+        // address is tried before the failure is said.
+        const auto failed = [this, accessKey, fallbackUrl](const QString &message) {
+            if (fallbackUrl.isEmpty())
+                emit connectFailed(message);
+            else
+                exchangeConnectKey(fallbackUrl, accessKey, QString());
+        };
         if (reply->error() != QNetworkReply::NoError) {
-            emit connectFailed("SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")");
+            failed("SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")");
             return;
         }
 
@@ -599,7 +624,7 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
         const QString localUserId = data["LocalUserId"].toString();
         const QString token       = data["AccessToken"].toString();
         if (localUserId.isEmpty() || token.isEmpty()) {
-            emit connectFailed("INVALID EXCHANGE RESPONSE");
+            failed("INVALID EXCHANGE RESPONSE");
             return;
         }
 
@@ -933,15 +958,21 @@ void EmbyBackend::load_item_detail(const QString &itemId) {
     q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
     url.setQuery(q);
 
+    // The detail page shows nothing of an item that didn't come, so the log
+    // says which and why (serverlog), a load that failed or an answer that
+    // is something else (a proxy's sign-in page): the page drops that one.
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, itemId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed("Emby", "item " + itemId, reply);
             emit errorOccurred("LOAD ITEM DETAIL FAILED: " + reply->errorString());
             return;
         }
 
         QJsonObject item = QJsonDocument::fromJson(reply->readAll()).object();
+        if (item["Id"].toString().isEmpty())
+            serverlog::loadFailed("Emby", "item " + itemId, reply, QStringLiteral("the answer is not the item"));
         emit itemLoaded(formatItem(item));
     });
 }
@@ -1030,14 +1061,21 @@ void EmbyBackend::load_seasons(const QString &seriesId) {
     url.setQuery(q);
     // [dev] qDebug("[EmbyBackend] load_seasons series=%s", qPrintable(seriesId));
 
+    // As the detail page's item: a show's page without its seasons says
+    // nothing, the log does.
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed("Emby", "the seasons of show " + seriesId, reply);
             emit errorOccurred("LOAD SEASONS FAILED: " + reply->errorString());
             return;
         }
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("Items")))
+            serverlog::loadFailed("Emby", "the seasons of show " + seriesId, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray items = answer["Items"].toArray();
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
@@ -1065,14 +1103,21 @@ void EmbyBackend::load_episodes(const QString &seriesId, const QString &seasonId
     url.setQuery(q);
     // [dev] qDebug("[EmbyBackend] load_episodes series=%s season=%s", qPrintable(seriesId), qPrintable(seasonId));
 
+    // As the detail page's item: a season's page without its episodes says
+    // nothing, the log does.
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed("Emby", "the episodes of season " + seasonId, reply);
             emit errorOccurred("LOAD EPISODES FAILED: " + reply->errorString());
             return;
         }
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("Items")))
+            serverlog::loadFailed("Emby", "the episodes of season " + seasonId, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray items = answer["Items"].toArray();
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
@@ -1157,9 +1202,11 @@ void EmbyBackend::load_series_next_up(const QString &seriesId) {
     url.setQuery(q);
 
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            // The show's PLAY then does nothing, with nothing said: the log does.
+            serverlog::loadFailed("Emby", "the next episode of show " + seriesId, reply);
             emit errorOccurred("LOAD SERIES NEXT UP FAILED: " + reply->errorString());
             return;
         }
@@ -1711,6 +1758,12 @@ void EmbyBackend::getLibraries() {
         reply->deleteLater();
         QVariantList options;
         if (reply->error() != QNetworkReply::NoError) {
+            // No libraries, and why: one entry that is no choice, which the
+            // page says in their place (MultiSelectSettings.qml).
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            options.append(QVariantMap{{"problem", status > 0
+                ? QStringLiteral("The server answered with an error (HTTP %1)").arg(status)
+                : QStringLiteral("The server could not be reached")}});
             emit dynamicOptionsReady("libraries", options);
             return;
         }

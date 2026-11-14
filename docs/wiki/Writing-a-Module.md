@@ -65,6 +65,8 @@ Each setting is an object:
 | `options_source`, `options_slot` | `list_single`, `multiselect_submenu` | `"dynamic"`, and the backend slot that sends the choices ([part 3](#part-3-a-c-backend)) |
 | `apply_slot` | `list_single` with dynamic choices | A backend slot called after each change |
 | `action_slot` | `action` | The backend slot select calls |
+| `done` | `action` | What the help line says once the slot has been called, in a few words (`"Scripts folder read again"`), until the cursor moves. Without it, the label and `done` |
+| `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Yes or No, with No under the cursor. The row's `description` is shown under it |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
 | `settings` | `submenu` | Its own rows, in this same format |
 | `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |
@@ -83,8 +85,8 @@ The types, as Settings shows and saves them:
 | `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` | Its rows' keys, flat under `modules.<id>` |
 | `module_view` | Select opens the module itself, its `Root.qml` with `params` | Nothing |
 | `directory_browser` | Select opens the folder picker. The row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |
-| `slider` | The deck's tape bar under its label; ◄ ► move it a `step` | A number from 0 to 100 |
-| `action` | Select calls `action_slot` | Nothing |
+| `slider` | The deck's tape bar under its label; ◄ ► move it a `step`. Each step reaches `onSettingChanged()` and `get_setting()` at once; `config.json` has it once the steps rest | A number from 0 to 100 |
+| `action` | Select calls `action_slot`, after its `confirm` question when it has one, and the help line says what became of it (`done`) | Nothing |
 
 There is no free-text type. A view of your own can open the `OnScreenKeyboard`.
 
@@ -500,7 +502,7 @@ APP_ROOT=$(pwd) ./build/osdos
 <tr><td>The video modules' rows, on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is on the System page.</td><td>A settings page made from a manifest, Local Files' here.</td></tr>
 </table>
 
-Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on, `config.json` has:
+Changing a row saves it at once (a slider's steps, half a second after the last, or as the page is left). With Sort Order on Z to A and Loop Playback on, `config.json` has:
 
 ```json
 {
@@ -1015,7 +1017,7 @@ cat "$D/lists.json"; echo               # the recent list, with where it stopped
 
 - **640 × 480** is the size the views' fractions are written against. Try 1920 × 1080 too.
 - **No sound card**: a video played to its end may end as `failed` rather than `eof`. Check a video's end on a machine with sound.
-- **The log** is in `/tmp/hello.log`, mpv's own in `/tmp/osdos-mpv.log`. A QML mistake names its file and line there.
+- **The log** is in `/tmp/hello.log`, mpv's own in `$XDG_RUNTIME_DIR/osdos-mpv.log` (`/tmp/runtime-<user>/` where that is not set, the temp folder on a Mac). A QML mistake names its file and line there.
 - **The keys**: `Up`, `Down`, `Left`, `Right`, `Return` (select), `Escape` (back), `space` (play/pause).
 
 ### A test in tests/

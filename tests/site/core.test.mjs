@@ -49,6 +49,14 @@ test("an SSH key whole, as sshd takes it", () => {
     assert.deepEqual(core.keyLines("ssh-ed25519 A\r\n\n# a comment\n  ssh-rsa B  "), ["ssh-ed25519 A", "ssh-rsa B"]);
 });
 
+test("a list typed a line each, as the app keeps it", () => {
+    assert.deepEqual(core.listLines("  UCone \r\n\nUCtwo\nUCone\n"), ["UCone", "UCtwo"]);
+    assert.deepEqual(core.listLines(""), []);
+    assert.deepEqual(core.listLines(undefined), []);
+    // No longer, and no more, than the row takes.
+    assert.deepEqual(core.listLines("abcdefgh\nb\nc\nd", { max_length: 5, max_lines: 3 }), ["abcde", "b", "c"]);
+});
+
 test("the device's name, as System Information makes one", () => {
     assert.deepEqual(core.hostnameFor("  Den TV "), { name: "den-tv" });
     assert.deepEqual(core.hostnameFor("Attic_TV 2"), { name: "attic-tv-2" });

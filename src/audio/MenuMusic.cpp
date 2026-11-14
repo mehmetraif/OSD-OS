@@ -22,6 +22,8 @@ namespace {
 constexpr int kStartDelayMs = 700;
 // mpv ending sooner than this after it started couldn't play the file.
 constexpr qint64 kFailedWithinMs = 3000;
+// How often a sound card is looked for, once mpv has ended for want of one.
+constexpr int kCardWaitMs = 2000;
 // Where a system keeps its General MIDI SoundFont: Debian's and Raspberry Pi
 // OS's (fluid-soundfont-gm, timgm6mb-soundfont), others', Homebrew's.
 const char *const kSystemSoundFonts[] = {
@@ -67,6 +69,17 @@ MenuMusic::MenuMusic(const QString &dataRoot, QObject *parent) : QObject(parent)
         // music came back after a video): told now, or mpv would keep the
         // volume it started with.
         sendVolume();
+    });
+    // No sound card to play through when mpv was last started (a USB card
+    // unplugged, or not up yet as the Pi starts): played once there is one,
+    // after the moment a start takes, which a card new to the system has to
+    // settle in.
+    m_cardWait.setInterval(kCardWaitMs);
+    connect(&m_cardWait, &QTimer::timeout, this, [this]() {
+        if (!AudioOutput::hasPlaybackCard())
+            return;
+        m_cardWait.stop();
+        reconsider();
     });
 }
 
@@ -130,8 +143,11 @@ void MenuMusic::release(const QString &who) {
 }
 
 void MenuMusic::restart() {
-    if (!playing())
+    // A tune given up on is tried once more: the card before may be what
+    // couldn't play it.
+    if (!playing() && m_failed.isEmpty())
         return;
+    m_failed.clear();
     stopNow();
     reconsider();
 }
@@ -305,7 +321,10 @@ void MenuMusic::play(const QString &file) {
     process->setProcessEnvironment(env);
     QElapsedTimer clock;
     clock.start();
-    whenOver(process, this, [this, process, clock](int code) {
+    // Whether there is a card to play through, asked now and again as mpv
+    // ends: one that came meanwhile wasn't there for it.
+    const bool card = AudioOutput::hasPlaybackCard();
+    whenOver(process, this, [this, process, clock, card](int code) {
         process->deleteLater();
         // Killed by stopNow(): it is no longer m_process.
         if (process != m_process)
@@ -317,6 +336,13 @@ void MenuMusic::play(const QString &file) {
         emit playingChanged();
         if (clock.elapsed() >= kFailedWithinMs)
             return;
+        // Without a sound card mpv ends as fast as on a file it can't play:
+        // the file isn't blamed, and is played once a card is there.
+        if (!card || !AudioOutput::hasPlaybackCard()) {
+            qWarning("[MenuMusic] no sound card to play %s through: waiting for one", qPrintable(path()));
+            m_cardWait.start();
+            return;
+        }
         // A file it couldn't play isn't tried again until the source changes.
         if (kindOf(path()) == Kind::Module && !m_renderModule
                 && !QStandardPaths::findExecutable(QStringLiteral("openmpt123")).isEmpty()) {
@@ -347,6 +373,7 @@ void MenuMusic::stopNow() {
         render->kill();
         render->waitForFinished(300);
     }
+    m_cardWait.stop();
     m_connect.stop();
     m_ipc.abort();
     QProcess *process = m_process;

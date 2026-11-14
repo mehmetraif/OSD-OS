@@ -3,6 +3,9 @@ import Components
 
 FocusScope {
     id: itemsRoot
+    // In the layout's frame (Main.qml): its list in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -112,11 +115,11 @@ FocusScope {
         id: scriptList
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.topMargin: root.listY //120
+        anchors.leftMargin: root.paneX //74
+        width: root.paneWidth //492
         // A row more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        height: root.listHeight //224
         clip: true
         focus: true
 
@@ -130,6 +133,7 @@ FocusScope {
             // short of it — a long name must never run underneath the tag.
             Text {
                 id: modeTag
+                visible: root.monitorInk !== true
                 text: (modelData.favorite ? "* " : "")
                       + (modelData.mode === "takeover" ? "TAKEOVER" : "CONSOLE")
                 color: scriptList.currentIndex === index ? root.accentColor : root.tertiaryColor
@@ -141,8 +145,21 @@ FocusScope {
                 font.pixelSize: root.sh * 0.0291667 //14
             }
 
+            // The row as a monitor layout draws one, in its frame (Main.qml's):
+            // the layout's cursor, its case, its colours.
+            Loader {
+                anchors.fill: parent
+                active: root.monitorInk === true
+                sourceComponent: MonitorRow {
+                    label: rowText.text
+                    value: modeTag.text
+                    selected: scriptList.currentIndex === index
+                }
+            }
+
             Item {
                 id: textClip
+                visible: root.monitorInk !== true
                 width: Math.min(rowText.implicitWidth,
                                 scriptList.width - modeTag.width - root.sw * 0.028125)
                 height: parent.height
@@ -199,6 +216,10 @@ FocusScope {
             scriptList.positionViewAtIndex(scriptList.currentIndex, ListView.Contain)
         }
     }
+
+    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
+    // frame says which.
+    ListPager { list: scriptList }
 
     // The help line: the selected script's file and sidecar flags, so what
     // was parsed out of the .txt is visible without leaving the app.

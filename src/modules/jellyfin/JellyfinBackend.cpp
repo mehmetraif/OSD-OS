@@ -9,6 +9,7 @@
 
 #include "../../util/AtomicFile.h"
 #include "../../util/EmbyApi.h"
+#include "../../util/ServerLog.h"
 #include "../../util/SslErrors.h"
 #include <QVariantList>
 #include <QVariantMap>
@@ -355,16 +356,21 @@ void JellyfinBackend::quick_connect_initiate(const QString &serverUrl) {
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray body = reply->readAll();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            emit quickConnectFailed("CONNECTION FAILED: " + reply->errorString());
-            return;
-        }
+        // The server's refusal first, by its status: Qt marks every answer of
+        // 400 and above as an error too, and asked first the error took them
+        // all, in Qt's words for it ("Host requires authentication" for a
+        // server with Quick Connect off). What is left as an error had no
+        // such answer: nothing at the address, or a connection that broke.
         if (status >= 400) {
             qWarning("[JellyfinBackend] QC Initiate HTTP %d", status);
             if (status == 401)
                 emit quickConnectFailed("QUICK CONNECT NOT ENABLED ON SERVER");
             else
                 emit quickConnectFailed("SERVER ERROR (HTTP " + QString::number(status) + ")");
+            return;
+        }
+        if (reply->error() != QNetworkReply::NoError) {
+            emit quickConnectFailed("CONNECTION FAILED: " + reply->errorString());
             return;
         }
 
@@ -461,13 +467,15 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray body = reply->readAll();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH FAILED: " + reply->errorString());
-            return;
-        }
+        // As the start above: the server's refusal by its status, then an
+        // exchange that got no such answer, in the network's words.
         if (status >= 400) {
             qWarning("[JellyfinBackend] QC Auth HTTP %d", status);
             emit errorOccurred("AUTH FAILED (HTTP " + QString::number(status) + ")");
+            return;
+        }
+        if (reply->error() != QNetworkReply::NoError) {
+            emit errorOccurred("AUTH FAILED: " + reply->errorString());
             return;
         }
 
@@ -786,15 +794,21 @@ void JellyfinBackend::load_item_detail(const QString &itemId) {
     q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
     url.setQuery(q);
 
+    // The detail page shows nothing of an item that didn't come, so the log
+    // says which and why (serverlog), a load that failed or an answer that
+    // is something else (a proxy's sign-in page): the page drops that one.
     auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, itemId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed("Jellyfin", "item " + itemId, reply);
             emit errorOccurred("LOAD ITEM DETAIL FAILED: " + reply->errorString());
             return;
         }
 
         QJsonObject item = QJsonDocument::fromJson(reply->readAll()).object();
+        if (item["Id"].toString().isEmpty())
+            serverlog::loadFailed("Jellyfin", "item " + itemId, reply, QStringLiteral("the answer is not the item"));
         emit itemLoaded(formatItem(item));
     });
 }
@@ -882,14 +896,21 @@ void JellyfinBackend::load_seasons(const QString &seriesId) {
     url.setQuery(q);
     // [dev] qDebug("[JellyfinBackend] load_seasons series=%s", qPrintable(seriesId));
 
+    // As the detail page's item: a show's page without its seasons says
+    // nothing, the log does.
     auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed("Jellyfin", "the seasons of show " + seriesId, reply);
             emit errorOccurred("LOAD SEASONS FAILED: " + reply->errorString());
             return;
         }
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("Items")))
+            serverlog::loadFailed("Jellyfin", "the seasons of show " + seriesId, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray items = answer["Items"].toArray();
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
@@ -915,14 +936,21 @@ void JellyfinBackend::load_episodes(const QString &seriesId, const QString &seas
     url.setQuery(q);
     // [dev] qDebug("[JellyfinBackend] load_episodes series=%s season=%s", qPrintable(seriesId), qPrintable(seasonId));
 
+    // As the detail page's item: a season's page without its episodes says
+    // nothing, the log does.
     auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed("Jellyfin", "the episodes of season " + seasonId, reply);
             emit errorOccurred("LOAD EPISODES FAILED: " + reply->errorString());
             return;
         }
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("Items")))
+            serverlog::loadFailed("Jellyfin", "the episodes of season " + seasonId, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray items = answer["Items"].toArray();
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
@@ -1006,9 +1034,11 @@ void JellyfinBackend::load_series_next_up(const QString &seriesId) {
     url.setQuery(q);
 
     auto *reply = jellyfinGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            // The show's PLAY then does nothing, with nothing said: the log does.
+            serverlog::loadFailed("Jellyfin", "the next episode of show " + seriesId, reply);
             emit errorOccurred("LOAD SERIES NEXT UP FAILED: " + reply->errorString());
             return;
         }
@@ -1459,6 +1489,12 @@ void JellyfinBackend::getLibraries() {
         reply->deleteLater();
         QVariantList options;
         if (reply->error() != QNetworkReply::NoError) {
+            // No libraries, and why: one entry that is no choice, which the
+            // page says in their place (MultiSelectSettings.qml).
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            options.append(QVariantMap{{"problem", status > 0
+                ? QStringLiteral("The server answered with an error (HTTP %1)").arg(status)
+                : QStringLiteral("The server could not be reached")}});
             emit dynamicOptionsReady("libraries", options);
             return;
         }

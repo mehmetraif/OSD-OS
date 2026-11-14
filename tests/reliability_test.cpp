@@ -5,8 +5,10 @@
 #include "update/UpdateManager.h"
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
+#include "util/EndProcess.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/LogFile.h"
+#include "util/RuntimeFiles.h"
 #include "util/SetupFile.h"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -60,6 +62,15 @@ protected:
     }
 };
 
+// A module's backend with one slot, for AppCore::invoke_module_action().
+class ActionBackend : public QObject {
+    Q_OBJECT
+public:
+    int runs = 0;
+public slots:
+    void rescan() { ++runs; }
+};
+
 class ReliabilityTest : public QObject {
     Q_OBJECT
     static QByteArray contents(const QString &path) { QFile file(path); file.open(QIODevice::ReadOnly); return file.readAll(); }
@@ -82,6 +93,97 @@ private slots:
         QCOMPARE(backend.m_pendingOthers, 0);
         QCOMPARE(backend.m_otherPoints.size(), 1);
         QCOMPARE(backend.m_otherPoints.first().toMap().value("name").toString(), QString("NEWEST"));
+    }
+
+    // Weather's place is Settings' Location where it is set: no file is
+    // asked for then, the file's first line is passed over and its other
+    // lines are the other places; changed, it is looked up again at once.
+    void weatherLocationFromItsSetting() {
+        QTemporaryDir tmp;
+        const auto config = [&tmp](const QByteArray &location) {
+            QFile file(tmp.path() + "/config.json");
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"" + location + "\"}}}");
+        };
+        WeatherBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        QSignalSpy errors(&backend, &WeatherBackend::locationError);
+
+        // Neither: the file is asked for, as before.
+        backend.resolveLocation();
+        QTRY_COMPARE(errors.size(), 1);
+        QCOMPARE(errors.first().first().toString(), QString("missing"));
+
+        // The setting alone, with coordinates and a name: no file, no lookup.
+        config("41.01, 28.98, Istanbul");
+        errors.clear();
+        backend.resolveLocation();
+        QVERIFY(backend.m_resolved);
+        QCOMPARE(backend.m_locationName, QString("ISTANBUL"));
+        QTest::qWait(20);
+        QCOMPARE(errors.size(), 0);
+
+        // With a file too: its first line passed over.
+        {
+            QFile file(backend.location_file_path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("60.0, 10.0, Oslo\n");
+        }
+        backend.m_resolved = false;
+        backend.resolveLocation();
+        QCOMPARE(backend.m_locationName, QString("ISTANBUL"));
+
+        // Changed in Settings: the new place at once.
+        config("48.85, 2.35, Paris");
+        backend.onSettingChanged("com.osdos.weather", "location", "48.85, 2.35, Paris");
+        QCOMPARE(backend.m_locationName, QString("PARIS"));
+    }
+
+    // Weather's two lists typed in Settings (lists of lines): the other
+    // places before the file's, each once, looked up again as they change;
+    // the music in place of the file's and the built-in tracks.
+    void weatherListsFromTheirSettings() {
+        QTemporaryDir tmp;
+        const auto config = [&tmp](const QByteArray &rest) {
+            QFile file(tmp.path() + "/config.json");
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"41.01, 28.98, Istanbul\"" + rest + "}}}");
+        };
+        const auto others = [](const WeatherBackend &backend) {
+            QStringList names;
+            for (const QVariant &point : backend.m_otherPoints)
+                names << point.toMap().value("name").toString();
+            return names;
+        };
+        WeatherBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        {
+            QFile file(backend.location_file_path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("0.0, 0.0, Passed Over\n52.52, 13.40, Berlin\n60.0, 10.0, Oslo\n");
+        }
+        config("");
+        backend.resolveLocation();
+        QCOMPARE(others(backend), QStringList({ "BERLIN", "OSLO" }));
+
+        config(",\"other_places\":[\"48.85, 2.35, Paris\",\" \",\"60.0, 10.0, Oslo\"]");
+        backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
+        QCOMPARE(others(backend), QStringList({ "PARIS", "OSLO", "BERLIN" }));
+
+        // Music: the built-in tracks, then the file's, then Settings'.
+        const QStringList builtIn = backend.musicPlaylist();
+        QVERIFY(!builtIn.isEmpty());
+        {
+            QFile file(backend.music_file_path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("filed.ogg\n");
+        }
+        QCOMPARE(backend.musicPlaylist(), QStringList({ tmp.path() + "/filed.ogg" }));
+        config(",\"music_list\":[\"http://music.example/a b.mp3\",\"typed.ogg\"]");
+        QCOMPARE(backend.musicPlaylist(),
+                 QStringList({ "http://music.example/a%20b.mp3", tmp.path() + "/typed.ogg" }));
     }
 
     void markerFailureDoesNotArmUpdate() {
@@ -179,6 +281,148 @@ private slots:
         QCOMPARE(manager.m_expectedSha256, QString());
 #endif
         QCoreApplication::setApplicationVersion(running);
+    }
+
+#ifdef Q_OS_UNIX
+    // A helper process (Weather's or Ambient's audio) is ended without the
+    // app's thread waiting for it: asked to end, killed after the grace if it
+    // won't, and the caller told once it has gone, when the card is free.
+    void processEndedWithoutWaiting() {
+        QObject context;
+        int gone = 0;
+        auto *stubborn = new QProcess(&context);
+        stubborn->start(QStringLiteral("/bin/sh"), { QStringLiteral("-c"), QStringLiteral("trap '' TERM; sleep 5") });
+        QVERIFY(stubborn->waitForStarted());
+        QTest::qWait(150);      // the trap is set
+        QElapsedTimer timer;
+        timer.start();
+        endProcessLater(stubborn, &context, [&gone]() { ++gone; }, 300);
+        QVERIFY2(timer.elapsed() < 100, "the call returned at once");
+        QCOMPARE(gone, 0);
+        QTRY_COMPARE_WITH_TIMEOUT(gone, 1, 3000);
+        QVERIFY2(timer.elapsed() >= 250, "killed after the grace, not before");
+
+        auto *willing = new QProcess(&context);
+        willing->start(QStringLiteral("/bin/sleep"), { QStringLiteral("5") });
+        QVERIFY(willing->waitForStarted());
+        timer.restart();
+        endProcessLater(willing, &context, [&gone]() { ++gone; }, 2000);
+        QTRY_COMPARE_WITH_TIMEOUT(gone, 2, 1500);
+        QVERIFY2(timer.elapsed() < 1500, "gone as asked, without the kill");
+    }
+
+    // An AppImage's update put in place (UpdateManager::replaceAppImage): the
+    // new image whole under the name of the one in use, able to run, that
+    // one kept beside it as .bak, and nothing else left there; a new image
+    // that can't be copied beside it leaves the one in use as it was. And as
+    // the app starts (settleAppImage): the backup of an image that launched
+    // is swept, with the copy an update was cut short on, and the backup of
+    // an image that is gone is put back under its name, before the app says
+    // whether it can update itself.
+    void appImageReplacedWholeOrNotAtAll() {
+        QTemporaryDir tmp;
+        const QString image = tmp.path() + "/OSD-OS.AppImage", staged = tmp.path() + "/staged.AppImage";
+        const auto write = [](const QString &path, const QByteArray &data) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+        };
+        // Longer than one block of the copy, and no multiple of it.
+        const QByteArray newer(3 * 1024 * 1024 + 17, 'n');
+        QVERIFY(write(image, "old") && write(staged, newer));
+        // Left by an update before, and by one cut short.
+        QVERIFY(write(image + ".bak", "older") && write(image + ".new", "half"));
+        QCOMPARE(UpdateManager::replaceAppImage(staged, image), QString());
+        QCOMPARE(contents(image), newer);
+        QVERIFY(QFileInfo(image).isExecutable());
+        QCOMPARE(contents(image + ".bak"), QByteArray("old"));
+        QVERIFY(!QFileInfo::exists(image + ".new"));
+        QCOMPARE(contents(staged), newer);
+
+        QVERIFY(write(image + ".new", "half"));
+        UpdateManager::settleAppImage(image);
+        QCOMPARE(contents(image), newer);
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+        QVERIFY(!QFileInfo::exists(image + ".new"));
+
+        // No room for the copy's name (a folder that isn't empty has it), or
+        // no staged image to copy.
+        QVERIFY(QDir().mkpath(image + ".new/held"));
+        QVERIFY(write(staged, "newest"));
+        QVERIFY(!UpdateManager::replaceAppImage(staged, image).isEmpty());
+        QCOMPARE(contents(image), newer);
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+        QVERIFY(QDir(image + ".new").removeRecursively());
+        QVERIFY(!UpdateManager::replaceAppImage(tmp.path() + "/missing", image).isEmpty());
+        QCOMPARE(contents(image), newer);
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+        QVERIFY(!QFileInfo::exists(image + ".new"));
+
+        // The image gone, its backup all there is of it, as the app starts.
+        QVERIFY(QFile::rename(image, image + ".bak"));
+        const QByteArray appImage = qgetenv("APPIMAGE");
+        const bool appImageSet = qEnvironmentVariableIsSet("APPIMAGE");
+        qputenv("APPIMAGE", image.toUtf8());
+        const auto restore = qScopeGuard([appImage, appImageSet] {
+            if (appImageSet) qputenv("APPIMAGE", appImage); else qunsetenv("APPIMAGE");
+        });
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("OSD-OS\\.AppImage was gone: put back from its backup"));
+        UpdateManager manager(tmp.path(), tmp.path() + "/data");
+        QCOMPARE(contents(image), newer);
+        QVERIFY(QFileInfo(image).isExecutable());
+        QVERIFY(!QFileInfo::exists(image + ".bak"));
+#ifndef Q_OS_MAC
+        QVERIFY(manager.canApply());
+#endif
+    }
+#endif
+
+    // The files made for a run and handed to mpv (util/RuntimeFiles.h) go in
+    // a folder of the user's own: the session's run-time folder; where that
+    // one isn't theirs alone, Qt's stand-in for it under the temp folder,
+    // made again when it is taken away; and where that can't be had either,
+    // a folder made for this run, kept for the rest of it.
+    void runFilesGoInAFolderOfTheUsersOwn() {
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
+        const QByteArray xdg = qgetenv("XDG_RUNTIME_DIR"), tmpdir = qgetenv("TMPDIR");
+        const bool xdgSet = qEnvironmentVariableIsSet("XDG_RUNTIME_DIR"), tmpSet = qEnvironmentVariableIsSet("TMPDIR");
+        const auto restore = qScopeGuard([xdg, tmpdir, xdgSet, tmpSet] {
+            if (xdgSet) qputenv("XDG_RUNTIME_DIR", xdg); else qunsetenv("XDG_RUNTIME_DIR");
+            if (tmpSet) qputenv("TMPDIR", tmpdir); else qunsetenv("TMPDIR");
+        });
+        // Each its owner's alone, as they are made.
+        QTemporaryDir session, temp, shared;
+        QVERIFY(session.isValid() && temp.isValid() && shared.isValid());
+        const QString tempPath = QFileInfo(temp.path()).canonicalFilePath();
+        qputenv("TMPDIR", tempPath.toUtf8());
+        qputenv("XDG_RUNTIME_DIR", session.path().toUtf8());
+        QCOMPARE(runtimefiles::dir(), session.path());
+        QCOMPARE(runtimefiles::path("osdos-mpv.log"), session.path() + "/osdos-mpv.log");
+
+        // A session's folder that others can open isn't taken.
+        QVERIFY(QFile::setPermissions(shared.path(), QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
+                                                   | QFile::ReadGroup | QFile::ExeGroup | QFile::ReadOther | QFile::ExeOther));
+        qputenv("XDG_RUNTIME_DIR", shared.path().toUtf8());
+        const QString standIn = runtimefiles::dir();
+        QVERIFY2(standIn.startsWith(tempPath + "/runtime-"), qPrintable(standIn));
+        QVERIFY(runtimefiles::ownAlone(standIn));
+        // Taken away, as a temp cleaner does: made again.
+        QVERIFY(QDir().rmdir(standIn));
+        QCOMPARE(runtimefiles::dir(), standIn);
+        QVERIFY(runtimefiles::ownAlone(standIn));
+
+        // Its name taken by something else.
+        QVERIFY(QDir().rmdir(standIn));
+        QFile taken(standIn);
+        QVERIFY(taken.open(QIODevice::WriteOnly));
+        taken.close();
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("^\\[RuntimeFiles\\] No run-time folder of the user's own"));
+        const QString thisRun = runtimefiles::dir();
+        QVERIFY2(thisRun.startsWith(tempPath + "/osdos-"), qPrintable(thisRun));
+        QVERIFY(runtimefiles::ownAlone(thisRun));
+        QCOMPARE(runtimefiles::dir(), thisRun);
+#else
+        QSKIP("The temp folder is the user's own here, and the files stay in it.");
+#endif
     }
 
     // A download the network dropped ends with the error a cancel has (the
@@ -472,7 +716,8 @@ private slots:
         QCOMPARE(AudioOutput::card(), QString("Device"));
         QCOMPARE(given(), QString("Device"));
         QCOMPARE(AudioOutput::mpvArgs(), QStringList());
-        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--audio-device=alsa/default:CARD=Device" }));
+        // Inside the app ALSA is the only output mpv is to try.
+        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
         QCOMPARE(AudioOutput::mpvDevice(), QString("alsa/default:CARD=Device"));
         QCOMPARE(autoLabel(), QString("Auto (USB Audio Device)"));
         QCOMPARE(audio.settingRow().value("value").toString(), QString("Auto (USB Audio Device)"));
@@ -484,7 +729,7 @@ private slots:
         QVERIFY(write(drm + "/card1-HDMI-A-1/enabled", "enabled\n"));
         QCOMPARE(AudioOutput::card(), QString());
         QCOMPARE(given(), QString("-"));
-        QCOMPARE(AudioOutput::mpvArgs(true), QStringList());
+        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--ao=alsa" }));
         QCOMPARE(autoLabel(), QString("Auto"));
         QVERIFY(write(drm + "/card1-HDMI-A-1/enabled", "disabled\n"));
         QVERIFY(write(drm + "/card1-HDMI-A-2/enabled", "disabled\n"));
@@ -510,7 +755,7 @@ private slots:
         QVERIFY(core.save_setting(QString(), "audio_output", QVariantMap{ { "card", "Gone" }, { "name", "Gone Card" } }));
         QCOMPARE(AudioOutput::card(), QString("Device"));
         QCOMPARE(AudioOutput::mpvArgs(), QStringList());
-        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--audio-device=alsa/default:CARD=Device" }));
+        QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
         QCOMPARE(given(), QString("Device"));
         QCOMPARE(audio.settingRow().value("value").toString(), QString("Gone Card (Unplugged)"));
 
@@ -729,6 +974,92 @@ private slots:
         QCOMPARE(saved.at(1).at(1).toString(), QStringLiteral("The card's OSD-OS partition isn't there or can't be written"));
         QVERIFY(!QFileInfo::exists(card.path() + QStringLiteral("/gone")));
 #endif
+    }
+
+    // The file picker's places (filePlaces()): Home first, each a folder
+    // that is there, by a name of its own, and the root last. Windows has
+    // each of its drives by its letter in the root's place, which no test
+    // here reaches.
+    void filePickerPlaces() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        AppCore core(dir.path(), dir.path());
+        const QVariantList places = core.filePlaces();
+        QVERIFY(places.size() >= 2);
+        QCOMPARE(places.first().toMap().value("name").toString(), QString("Home"));
+        QCOMPARE(places.first().toMap().value("path").toString(), QDir::homePath());
+        QCOMPARE(places.last().toMap().value("name").toString(), QString("Root"));
+        QCOMPARE(places.last().toMap().value("path").toString(), QString("/"));
+        QStringList names;
+        for (const QVariant &place : places) {
+            const QVariantMap entry = place.toMap();
+            QVERIFY2(QFileInfo(entry.value("path").toString()).isDir(), qPrintable(entry.value("path").toString()));
+            QVERIFY2(!names.contains(entry.value("name").toString()), qPrintable(entry.value("name").toString()));
+            names << entry.value("name").toString();
+        }
+    }
+
+    // A module's action rows (a manifest's "type": "action", which a
+    // settings page's select runs, views/ModuleSettings.qml): each of the
+    // app's own modules' names its slot and says what it did ("done"), and
+    // one that deletes or signs out asks first ("confirm", a question).
+    // invoke_module_action() says whether there was a slot to call, which
+    // the page tells the user.
+    void moduleActionsAskAndSay() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(QStringLiteral(OSDOS_SOURCE_DIR), data.path());
+        int actions = 0, asking = 0;
+        QStringList wrong;
+        std::function<void(const QString &, const QVariantList &)> walk =
+                [&](const QString &id, const QVariantList &rows) {
+            for (const QVariant &entry : rows) {
+                const QVariantMap row = entry.toMap();
+                if (row.value("type").toString() == QLatin1String("submenu"))
+                    walk(id, row.value("settings").toList());
+                if (row.value("type").toString() != QLatin1String("action"))
+                    continue;
+                ++actions;
+                const QString name = id + QStringLiteral(": ") + row.value("label").toString();
+                const QString confirm = row.value("confirm").toString();
+                const QString what = (row.value("label").toString() + QLatin1Char(' ') + row.value("key").toString()
+                                      + QLatin1Char(' ') + row.value("action_slot").toString()).toLower();
+                bool destroys = false;
+                for (const char *word : { "delete", "sign out", "sign_out", "signout", "logout", "remove",
+                                          "forget", "reset", "clear", "erase" })
+                    destroys = destroys || what.contains(QLatin1String(word));
+                if (row.value("action_slot").toString().isEmpty())
+                    wrong << name + QStringLiteral(" names no slot");
+                if (row.value("done").toString().trimmed().isEmpty())
+                    wrong << name + QStringLiteral(" doesn't say what it did");
+                if (destroys && confirm.isEmpty())
+                    wrong << name + QStringLiteral(" deletes or signs out without asking");
+                if (!confirm.isEmpty() && (confirm.size() < 4 || !confirm.endsWith(QLatin1Char('?'))))
+                    wrong << name + QStringLiteral(" asks no question: ") + confirm;
+                asking += !confirm.isEmpty();
+            }
+        };
+        const QVariantList modules = core.get_installed_modules().toList();
+        QVERIFY(modules.size() >= 10);
+        for (const QVariant &module : modules) {
+            const QString id = module.toMap().value("id").toString();
+            walk(id, core.get_module_settings_schema(id).toList());
+        }
+        QVERIFY2(wrong.isEmpty(), qPrintable(wrong.join(QStringLiteral("; "))));
+        // Arcade's and Scripts' rescans, six sign-outs and YouTube's two lists.
+        QVERIFY2(actions >= 10, qPrintable(QString::number(actions)));
+        QVERIFY2(asking >= 8, qPrintable(QString::number(asking)));
+
+        ActionBackend backend;
+        QTest::ignoreMessage(QtWarningMsg, "[AppCore] invoke_module_action: no backend for 'com.osdos.none'");
+        QVERIFY(!core.invoke_module_action("com.osdos.none", "rescan"));
+        core.registerModule("com.osdos.action_test", "actionBackend", &backend, nullptr);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("invoke_module_action: slot 'nothing' not found"));
+        QVERIFY(!core.invoke_module_action("com.osdos.action_test", "nothing"));
+        QVERIFY(core.invoke_module_action("com.osdos.action_test", "rescan"));
+        // Queued: run once the app is back at its loop.
+        QCOMPARE(backend.runs, 0);
+        QTRY_COMPARE(backend.runs, 1);
     }
 
     // config.json is read once and kept while the file stays as it was: a

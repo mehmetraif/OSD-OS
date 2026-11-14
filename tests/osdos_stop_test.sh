@@ -5,8 +5,10 @@
 # socket (osdos-stop next-start), good and bad, the Wi-Fi country's
 # (osdos-stop wifi-country), checked against a stand-in for the time zone
 # database's list of countries, and the device name's (osdos-stop
-# device-name), on a stand-in /etc/hosts. systemctl, raspi-config and
-# hostnamectl are stand-ins that only note what they were asked.
+# device-name), on a stand-in /etc/hosts, and the time zone's and the
+# keyboard's (osdos-stop system-setting), against stand-ins for the time zone
+# database and XKB's layouts. systemctl, raspi-config, hostnamectl and
+# timedatectl are stand-ins that only note what they were asked.
 #   osdos_stop_test.sh <scripts/install.sh> <os/stage-osdos/03-boot/files>
 set -u
 
@@ -24,10 +26,14 @@ awk -v marker=STOP_HELPER '
                       -e "s#/etc/modprobe.d#$T/etc/modprobe.d#g" \
                       -e "s#/run/osdos-display-boot.txt#$T/run/osdos-display-boot.txt#g" \
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/iso3166.tab#g" \
+                      -e "s#^ZONES=/usr/share/zoneinfo\$#ZONES=$T/zoneinfo#" \
+                      -e "s#^LAYOUTS=/usr/share/X11/xkb/symbols\$#LAYOUTS=$T/xkb#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/iso3166.tab" "$T/osdos-stop" || { echo "FAIL: osdos-stop's list of countries not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts not found in $INSTALL_SH"; exit 1; }
+grep -q "^ZONES=$T/zoneinfo\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's time zones not found in $INSTALL_SH"; exit 1; }
+grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboard layouts not found in $INSTALL_SH"; exit 1; }
 printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n' "$T" > "$T/bin/systemctl"
 # raspi-config says something of its own, which must stay out of the answer,
 # and fails while raspi-config-fails is there.
@@ -37,7 +43,15 @@ printf '#!/bin/sh\necho "$*" >> "%s/raspi-config"\necho "raspi-config on its own
 # hostnamectl-fails is there.
 printf '#!/bin/sh\necho "$*" >> "%s/hostnamectl"\n[ ! -e "%s/hostnamectl-fails" ] || exit 1\necho "$2" > "%s/etc/hostname"\n' \
     "$T" "$T" "$T" > "$T/bin/hostnamectl"
-chmod +x "$T/osdos-stop" "$T/bin/systemctl" "$T/bin/raspi-config" "$T/bin/hostnamectl"
+# timedatectl fails while timedatectl-fails is there.
+printf '#!/bin/sh\necho "$*" >> "%s/timedatectl"\necho "timedatectl on its own"\n[ ! -e "%s/timedatectl-fails" ]\n' \
+    "$T" "$T" > "$T/bin/timedatectl"
+chmod +x "$T/osdos-stop" "$T/bin/systemctl" "$T/bin/raspi-config" "$T/bin/hostnamectl" "$T/bin/timedatectl"
+# The time zone database's zones and XKB's layouts, in short.
+mkdir -p "$T/zoneinfo/Europe" "$T/zoneinfo/America/Argentina" "$T/xkb"
+: > "$T/zoneinfo/Europe/Istanbul"; : > "$T/zoneinfo/America/Argentina/Buenos_Aires"; : > "$T/zoneinfo/UTC"
+: > "$T/xkb/tr"; : > "$T/xkb/us"; : > "$T/xkb/latam"
+echo secret > "$T/shadow"
 cp "$PRESETS"/osdos-display-*.txt "$T/boot/"
 # The time zone database's list of countries, as tzdata lays it out, in short.
 printf '%s\n' '# ISO 3166 alpha-2 country codes' '#' '#country-' \
@@ -81,6 +95,11 @@ device_name()  { printf '%s\n' "$1" | name_request; }
 # The same request under the locale named, from those built in $T/locales.
 name_request_in() { : > "$T/hostnamectl"; : > "$T/systemctl"; PATH="$T/bin:$PATH" LOCPATH="$T/locales" LC_ALL="$1" "$T/osdos-stop" device-name 2> "$T/stderr"; }
 hostnamectl_asked() { cat "$T/hostnamectl"; }
+# A request through the time zone's and the keyboard's socket: what
+# timedatectl and raspi-config are asked noted afresh.
+system_request() { : > "$T/timedatectl"; : > "$T/raspi-config"; PATH="$T/bin:$PATH" "$T/osdos-stop" system-setting 2> "$T/stderr"; }
+system_setting() { printf '%s\n' "$1" | system_request; }
+timedatectl_asked() { cat "$T/timedatectl"; }
 # /etc/hosts and /etc/hostname as pi-gen writes them, for a card named osdos.
 fresh_hosts() {
     printf '%s\n' $'127.0.0.1\tlocalhost' $'::1\t\tlocalhost ip6-localhost ip6-loopback' \
@@ -349,6 +368,45 @@ rmdir "$T/etc/hosts.osdos-new"
 printf '%s\n' '-x' | name_request > /dev/null
 check "a name refused answered is no failure" 0 "$?"
 check "a name refused goes to the journal" "osdos-stop device-name: not a name the network takes" "$(cat "$T/stderr")"
+
+# The time zone and the keyboard, while the app runs: a zone the database
+# has goes to timedatectl, a layout XKB has to raspi-config, as they came.
+check "time zone: Europe/Istanbul answers ok" ok "$(system_setting 'time-zone Europe/Istanbul')"
+check "time zone: timedatectl sets it" "set-timezone Europe/Istanbul" "$(timedatectl_asked)"
+check "time zone: raspi-config not asked" "" "$(raspi_asked)"
+check "time zone: three parts" ok "$(system_setting 'time-zone America/Argentina/Buenos_Aires')"
+check "time zone: one part" ok "$(system_setting 'time-zone UTC')"
+check "keyboard: tr answers ok" ok "$(system_setting 'keyboard tr')"
+check "keyboard: raspi-config sets it" "nonint do_configure_keyboard tr" "$(raspi_asked)"
+check "keyboard: timedatectl not asked" "" "$(timedatectl_asked)"
+check "keyboard: five letters" ok "$(system_setting 'keyboard latam')"
+# What isn't a zone or a layout the system has is refused, isn't repeated
+# back, and reaches neither.
+for bad in 'Europe/Ankara' 'Europe' '../shadow' 'Europe/../../shadow' '/etc/shadow' 'Europe/Istanbul; reboot' \
+           'Europe/Istanbul UTC' '$(reboot)' 'a/b/c/d' ''; do
+    check "time zone: '$bad' isn't one" "no such time zone" "$(system_setting "time-zone $bad")"
+    check "time zone: '$bad': timedatectl not asked" "" "$(timedatectl_asked)"
+done
+for bad in 'xx' 'TR' 't' 'tr us' 'tr;reboot' '../shadow' 'turkish' ''; do
+    check "keyboard: '$bad' isn't one" "no such keyboard" "$(system_setting "keyboard $bad")"
+    check "keyboard: '$bad': raspi-config not asked" "" "$(raspi_asked)"
+done
+check "a setting it doesn't set" "nothing this sets" "$(system_setting 'hostname salon')"
+check "a word alone names nothing it sets" "no such time zone" "$(system_setting 'time-zone')"
+check "an empty line names nothing" "nothing this sets" "$(system_setting '')"
+check "nothing sent" "nothing named" "$(system_request < /dev/null)"
+check "after the refusals: timedatectl not asked" "" "$(timedatectl_asked)"
+check "after the refusals: raspi-config not asked" "" "$(raspi_asked)"
+touch "$T/timedatectl-fails"
+check "timedatectl failing is a refusal" "timedatectl couldn't set it" "$(system_setting 'time-zone UTC')"
+rm "$T/timedatectl-fails"
+touch "$T/raspi-config-fails"
+check "raspi-config failing is a refusal of the keyboard" "raspi-config couldn't set it" "$(system_setting 'keyboard us')"
+rm "$T/raspi-config-fails"
+printf 'keyboard xx\n' | system_request > /dev/null
+check "a setting refused answered is no failure" 0 "$?"
+check "a setting refused goes to the journal" "osdos-stop system-setting: no such keyboard" "$(cat "$T/stderr")"
+check "after them all, still no reboot" "" "$(asked)"
 
 # Neither a stop from outside nor a crash touches anything.
 for code in 143 1 SEGV; do

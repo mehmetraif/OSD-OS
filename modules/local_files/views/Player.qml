@@ -246,7 +246,12 @@ FocusScope {
         if (isImage(filePath))
             return
         var folder = filePath.substring(0, filePath.lastIndexOf("/"))
-        var films = localFilesBackend.entries(folder).filter(function(e) {
+        // The folder as it was read when the film started (onCompleted), off
+        // the app's thread; read now only if a key came before that was in.
+        var listed = localFilesBackend.requestEntries(folder)
+        if (listed === undefined || listed.length === 0)
+            listed = localFilesBackend.entries(folder)
+        var films = listed.filter(function(e) {
             return !e.isFolder && e.path.substring(0, folder.length + 1) === folder + "/"
                    && !isImage(e.path) && !isPlaylist(e.path)
         })
@@ -356,6 +361,10 @@ FocusScope {
             Qt.callLater(playerRoot.goBack)
             return
         }
+        // The film's folder, for CH+ and CH−, read in the background now
+        // rather than on the app's thread at each of those keys.
+        if (!isPlaylist(filePath) && !isImage(filePath))
+            localFilesBackend.requestEntries(filePath.substring(0, filePath.lastIndexOf("/")))
         readSettings()
 
         imageContent = isImage(filePath) ||

@@ -13,6 +13,9 @@ import Components
 // keyboard is attached.
 FocusScope {
     id: profilePinRoot
+    // In the layout's frame (Main.qml): what it says in the middle of the
+    // pane, beside the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
 
@@ -128,6 +131,11 @@ FocusScope {
     // Body
     Column {
         anchors.centerIn: parent
+        // In the middle of the pane, in a layout's frame (Main.qml's).
+        anchors.horizontalCenterOffset: root.framed || root.monitorFramed === true
+                                        ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
+        anchors.verticalCenterOffset: root.monitorFramed === true
+                                      ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
         spacing: root.sh * 0.05 //24
 
         Text {
@@ -191,7 +199,7 @@ FocusScope {
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
-            width: root.sw * 0.6
+            width: Math.min(root.sw * 0.6, root.paneWidth)
             anchors.horizontalCenter: parent.horizontalCenter
             font.pixelSize: root.sh * 0.0375 //18
         }

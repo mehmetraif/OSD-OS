@@ -23,6 +23,15 @@ import QtQuick
 // One laid over a view `cover`s it: the selector effect plays round a selected
 // line in front of it only (Main.qml's root.selector).
 //
+// A monitor layout's frame (Settings → Look → Menu Layout, Main.qml's
+// root.chrome) has its own ground, over this one, and this one stays in the
+// colour scheme's two colours under it. A layer that takes the whole screen
+// over a view in that frame takes it out of the frame while it is up (the
+// on-screen keyboard, an info screen): the frame's colours rest, and this is
+// its ground as in every layout. One laid `inLayout` is asked in the frame
+// instead (PromptScreen): it covers what the view shows, in the layout's
+// ground colour, and leaves the frame round it.
+//
 //     OsdGround { anchors.fill: parent }
 Item {
     id: ground
@@ -30,9 +39,31 @@ Item {
     // Laid over a view, hiding it (true but for Main.qml's, under them all).
     property bool cover: true
     readonly property bool covering: cover && visible
-    onCoveringChanged: root.coverShown(ground, covering)
-    Component.onCompleted: if (covering) root.coverShown(ground, true)
-    Component.onDestruction: root.coverShown(ground, false)
+    // Laid over a view to ask in the layout's frame, where one is up.
+    property bool inLayout: false
+    readonly property bool paned: inLayout && root.monitorInk === true
+    readonly property string frameRole: "layer"
+    function tellFrame() {
+        if (root.chrome)
+            root.chrome.shown(ground, covering && inLayout)
+    }
+    onCoveringChanged: {
+        root.coverShown(ground, covering)
+        tellFrame()
+    }
+    Component.onCompleted: {
+        if (covering)
+            root.coverShown(ground, true)
+        tellFrame()
+    }
+    Component.onDestruction: {
+        root.coverShown(ground, false)
+        if (root.chrome)
+            root.chrome.shown(ground, false)
+    }
+    // The scheme's two colours, whatever a monitor layout's frame draws in.
+    readonly property color ink: root.monitorInk === true ? root.schemeInk : root.primaryColor
+    readonly property color paper: root.monitorInk === true ? root.schemePaper : root.surfaceColor
 
     // Black around the window. Main.qml turns it off over a video playing
     // behind the menus, which then shows there whole.
@@ -54,19 +85,31 @@ Item {
     readonly property bool shadowed: windowed && root.osdFrame === "Shadow"
     readonly property real shadowDepth: 6 * root.px
 
-    clip: windowed
+    clip: windowed && !paned
+
+    // In a monitor layout's frame: what the view shows covered, the frame
+    // left round it.
+    Rectangle {
+        visible: ground.paned
+        x: ground.paned ? root.chrome.cover.x - ground.x : 0
+        y: ground.paned ? root.chrome.cover.y - ground.y : 0
+        width: ground.paned ? root.chrome.cover.width : 0
+        height: ground.paned ? root.chrome.cover.height : 0
+        color: ground.paned ? root.menuPalette.ground : "transparent"
+        antialiasing: false
+    }
 
     Rectangle {
         anchors.fill: parent
-        visible: !ground.windowed || ground.surround
-        color: ground.windowed ? "#000000" : root.surfaceColor
+        visible: !ground.paned && (!ground.windowed || ground.surround)
+        color: ground.windowed ? "#000000" : ground.paper
     }
 
     // The shadow's two arms, down the window's right side and along its foot
     // (only those: over a video the window lets the picture through), one
     // checkerboard across both.
     Repeater {
-        model: ground.shadowed ? [
+        model: ground.shadowed && !ground.paned ? [
             Qt.rect(root.osdWindow.x + root.osdWindow.width, root.osdWindow.y + ground.shadowDepth,
                     ground.shadowDepth, root.osdWindow.height),
             Qt.rect(root.osdWindow.x + ground.shadowDepth, root.osdWindow.y + root.osdWindow.height,
@@ -78,7 +121,7 @@ Item {
             y: modelData.y + ground.bandY - ground.y
             width: modelData.width
             height: modelData.height
-            color: ground.surround ? root.surfaceColor : "#000000"
+            color: ground.surround ? ground.paper : "#000000"
             phase: Math.round(modelData.x / root.px + modelData.y / root.px) % 2
         }
     }
@@ -86,15 +129,15 @@ Item {
     // The window, framed: placed where it lies on the screen, whatever part of
     // the screen this ground covers.
     Rectangle {
-        visible: ground.windowed
+        visible: ground.windowed && !ground.paned
         x: root.osdWindow.x - ground.x
         y: root.osdWindow.y + ground.bandY - ground.y
         width: root.osdWindow.width
         height: root.osdWindow.height
         // The skin's frame draws the window whole, its middle too: what the
         // picture leaves clear (a rounded corner) shows what is around it.
-        color: ground.framed && skinnedFrame.shown ? "transparent" : root.surfaceColor
-        border.color: root.primaryColor
+        color: ground.framed && skinnedFrame.shown ? "transparent" : ground.paper
+        border.color: ground.ink
         border.width: ground.framed && !skinnedFrame.shown ? root.px : 0
         antialiasing: false
 
@@ -103,6 +146,8 @@ Item {
             anchors.fill: parent
             visible: ground.framed
             part: root.skin.window
+            ink: ground.ink
+            paper: ground.paper
         }
     }
 
@@ -111,6 +156,9 @@ Item {
     // one; or, for a theme's along the foot ("area": "foot"), from the
     // screen's foot up through the window.
     BackgroundFx {
+        wanted: !ground.paned
+        ink: ground.ink
+        paper: ground.paper
         readonly property rect win: ground.windowed ? root.osdWindow : ground.wholeArea
         readonly property var border: ground.windowed && ground.framed
                                       ? (skinnedFrame.shown ? root.skin.window.border : [1, 1, 1, 1]) : [0, 0, 0, 0]

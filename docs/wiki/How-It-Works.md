@@ -110,7 +110,7 @@ flowchart TD
 - **Views read the shell through `root.*`**, `Main.qml`'s own properties (`root.hints`, `root.videoActive`…), not context properties, whose bindings throw errors when a `Loader` swaps views.
 - **Sizes**: `root.sw` and `root.sh` are the screen's width and height, `root.px` one pixel of a 240-line picture (`sh / 240`), `root.contentBox` the area views lay out in ([Overscan and the safe area](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#overscan-and-the-safe-area)).
 - **The look** is resolved here from Settings and the theme: `root.primaryColor`, `root.surfaceColor` and `root.skin` ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)).
-- **The layers above the views** take the keys while they are up: the boot screen, the display question, the screen saver.
+- **The layers above the views** take the keys while they are up: the boot screen, the display question, the screen saver. The screen saver keeps them whatever opens under it, and as it goes hands them back to the layer, or the question in a view, that has them there.
 
 ## Navigation
 
@@ -154,8 +154,8 @@ flowchart LR
 | back | Escape | `ESC` | B (east), Back/Select |
 | play_pause | Space | `SPACE` | Start |
 
-- **Gamepads** go through SDL2's game controller layer, with buttons named by position on an Xbox layout. A held direction repeats after 400 ms, every 100 ms.
-- **Overrides**: `input.cfg` (every pad), a controller's page in Settings → Controls (`app.controllers.<key>`), All Keyboards & Remotes (`app.remote_keymap.<action>`), and `gamecontrollerdb.txt` for pads SDL doesn't know ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
+- **Gamepads** go through SDL2's game controller layer, with buttons named by position: `a` is the bottom face button, whatever is printed on it. A held direction repeats after 400 ms, every 100 ms.
+- **Overrides**: `input.cfg` (every pad), a controller's pages in Settings → Controls (`app.controllers.<key>`), All Keyboards & Remotes (`app.remote_keymap.<action>`), and `gamecontrollerdb.txt` for pads SDL doesn't know ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
 - **Keyboards and remotes** send real keys. Right Shift is a second back, except in a text field. Keypad Enter and a remote's Select or OK key are select.
 - **A mouse** without a desktop (EGLFS): its left and right buttons are select and back.
 - **Media keys** (volume, mute, play/pause, stop, next, previous, forward, rewind) always go to mpv, over its socket.
@@ -235,7 +235,7 @@ sequenceDiagram
     M->>MM: hold("video"): the music stops
     M->>M: build the command line, retire the old mpv
     Note over M: 50 ms later, once the loading screen is drawn
-    M->>X: start, with --input-ipc-server=/tmp/osdos-mpv.sock
+    M->>X: start, with --input-ipc-server=/tmp/runtime-pi/osdos-mpv.sock
     M->>X: observe time-pos, duration, playlist-pos, pause
     X-->>M: property changes
     M-->>V: positionChanged, durationChanged
@@ -248,7 +248,7 @@ sequenceDiagram
 1. **The command line** comes from `sessionArgs()`. What plays comes last, after `--`.
 2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), `mpv-media-keys.lua` (media keys, the VOLUME bar), `mpv-logo.lua` (the channel logo), `mpv-screensaver.lua`, and for photos `mpv-slideshow-redraw.lua`.
 3. **The old player** is told to quit (SIGTERM), killed a second later, and given up on after five seconds. The new one waits until it is gone.
-4. **The socket.** `MpvController` sends JSON commands over `/tmp/osdos-mpv.sock`. `/tmp/osdos-input.conf` maps Escape and Backspace to `script-message osdos-menu` (back) and Enter to pause.
+4. **The socket.** `MpvController` sends JSON commands over `osdos-mpv.sock`, in a folder only OSD/OS's user can open (`/tmp/runtime-pi` on the image; [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). `osdos-input.conf` beside it maps Escape and Backspace to `script-message osdos-menu` (back) and Enter to pause.
 5. **The end.** `playbackEnded(finalPos, finalDur, reason)` comes once mpv has exited and, on a Pi, the screen is the app's again:
 
 | `reason` | When | What a module does |
@@ -318,7 +318,7 @@ mpv --no-config --no-video --no-terminal --really-quiet --loop-file=inf --volume
 - **Held off.** Anything about to play sound holds it first (a video, a script, a game, a web player). A hold kills the music's mpv and waits for it. The music restarts 700 ms after nothing holds it.
 - **Live.** Music Volume changes its volume over its socket; a new sound card restarts it.
 - **MIDI and trackers.** FluidSynth (MIDI, with a SoundFont) or openmpt123 (a tracker's module) makes a WAV, kept in the cache folder.
-- **Failures.** A file mpv gives up on within three seconds isn't tried again until the setting changes.
+- **Failures.** A file mpv gives up on within three seconds isn't tried again until the setting or the sound card changes. With no sound card to play through, the music waits for one instead.
 
 More: [Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music).
 
@@ -398,7 +398,7 @@ OSD/OS logs to its standard output and error: the terminal, or the journal under
 | `[AtomicFile]` | A file that couldn't be saved |
 | `[Effect]` | A shader that couldn't be used |
 
-- mpv writes its own log of the last video to `/tmp/osdos-mpv.log` (the temp folder elsewhere), readable only by its owner.
+- mpv writes its own log of the last video to `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)), readable only by its owner.
 - For Qt itself: `QT_LOGGING_RULES="qt.qml.*=true"`, `QML_IMPORT_TRACE=1` and, on a Pi, `QT_QPA_EGLFS_DEBUG=1` ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting), [BUILDING.md → Debugging & logs](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#debugging--logs)).
 
 ## Environment variables

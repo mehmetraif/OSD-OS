@@ -75,12 +75,12 @@ public slots:
             m_reply->abort();
         }
         m_file.reset();
-        emit done(false, QString(), QStringLiteral("cancelled"));
+        emit done(false, QString(), QStringLiteral("cancelled"), false);
     }
 
 signals:
     void progress(int percent);
-    void done(bool ok, const QString &finalPath, const QString &reason);
+    void done(bool ok, const QString &finalPath, const QString &reason, bool mayPass);
 
 private:
     bool writePending() {
@@ -109,6 +109,11 @@ private:
                   && status >= 200 && status < 300;
         QString finalPath;
         QString reason;
+        // The network's failure, or the server's own trouble (no answer, a
+        // transfer cut, a 5xx as it starts): may pass by itself. Not what
+        // the server refuses or hasn't (a 4xx), nor a file that couldn't be
+        // written.
+        bool mayPass = false;
         if (ok) {
             ok = writePending();
             if (ok) {
@@ -118,12 +123,16 @@ private:
             finalPath = m_finalPath;
         } else {
             reason = (status == 401 || status == 403) ? QStringLiteral("not allowed") : m_reply->errorString();
+            mayPass = status < 400 || status >= 500;
         }
-        if (!m_writeError.isEmpty()) reason = m_writeError;
+        if (!m_writeError.isEmpty()) {
+            reason = m_writeError;
+            mayPass = false;
+        }
         m_file.reset(); // An uncommitted temporary file is removed; the old target survives.
         m_reply->deleteLater();
         m_reply = nullptr;
-        emit done(ok, ok ? finalPath : QString(), reason);
+        emit done(ok, ok ? finalPath : QString(), reason, mayPass);
     }
 
     QNetworkRequest m_request;
@@ -160,9 +169,10 @@ ServerDownload *ServerDownload::start(const QNetworkRequest &request, const QStr
     connect(thread, &QThread::finished, worker, &QObject::deleteLater);
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
     connect(worker, &Worker::progress, download, &ServerDownload::progress);
-    connect(worker, &Worker::done, download, [download](bool ok, const QString &finalPath, const QString &reason) {
+    connect(worker, &Worker::done, download,
+            [download](bool ok, const QString &finalPath, const QString &reason, bool mayPass) {
         if (!download->m_cancelled)
-            emit download->finished(ok, finalPath, reason);
+            emit download->finished(ok, finalPath, reason, mayPass);
         // Nothing left to abort: the thread is quit (below) only once this
         // has run, so a cancel() can never reach a worker being freed.
         download->m_worker = nullptr;

@@ -33,5 +33,12 @@ The AppImage also carries mpv (GPL v2 or later, `GPL-2.0.txt`), built by
 script names, with Ubuntu's FFmpeg and the libraries they need, whose
 source is in Ubuntu's archive.
 
+The Linux arm64 tarball, and so the OSD/OS image, also carries RetroArch
+(GPL v3, OSD/OS's own `LICENSE`), built by `scripts/build-retroarch.sh` from
+https://github.com/libretro/RetroArch at the commit `scripts/engines.env`
+names, unchanged, with TLS. The licences of the libraries built into it from
+its source (BearSSL, FLAC, rcheevos, SPIRV-Cross and others) are beside it,
+in `share/osdos/retroarch/licenses.txt`.
+
 FinalBurn Neo's licence comes with the core: on the OSD/OS image, or
 downloaded with it from Settings → Arcade → FinalBurn Neo.

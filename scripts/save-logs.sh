@@ -21,7 +21,8 @@
 #                        one that froze or went black, after the Pi was
 #                        switched off and on, as the journal is gone then
 #
-# Not mpv's own log (/tmp/osdos-mpv.log): it holds each video's full address,
+# Not mpv's own log (osdos-mpv.log in the app's run-time folder,
+# /tmp/runtime-<user> under the service): it holds each video's full address,
 # a media server's token with it, and the partition is anyone's to read.
 #
 # The newest ten folders are kept. Nothing is done when the folder isn't

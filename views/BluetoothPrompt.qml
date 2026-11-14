@@ -25,10 +25,27 @@ FocusScope {
     // Hidden, it lets go of the keys: an item only hidden would keep them.
     enabled: visible
     onVisibleChanged: {
+        holdSaver(visible)
         if (visible) {
             choiceIndex = 0
             forceActiveFocus()
         }
+    }
+    Component.onCompleted: holdSaver(visible)
+    Component.onDestruction: holdSaver(false)
+
+    // The code is read here and typed on the device, or compared with the
+    // device's, with no key pressed here meanwhile: the screen saver waits
+    // while it is up (IdleTracker's viewActive, as Test Patterns holds it),
+    // and may come again once the pairing is done or given up.
+    property bool holdingSaver: false
+    function holdSaver(on) {
+        if (on === holdingSaver || typeof idleTracker === "undefined" || !idleTracker)
+            return
+        holdingSaver = on
+        idleTracker.viewActive = on
+        if (!on)
+            idleTracker.resetActivity()
     }
 
     Keys.onPressed: function(event) {

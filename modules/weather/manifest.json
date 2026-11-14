@@ -12,6 +12,23 @@
       "default": "OFF"
     },
     {
+      "key": "location",
+      "label": "Location",
+      "type": "text",
+      "default": "",
+      "placeholder": "Istanbul, or 41.01, 28.98",
+      "max_length": 64,
+      "description": "Your place: its name, or its latitude and longitude with a name after them\nEmpty: the first line of weather_location.txt in the data folder"
+    },
+    {
+      "key": "other_places",
+      "label": "Other Places",
+      "type": "text_list",
+      "max_length": 64,
+      "max_lines": 12,
+      "description": "The places of the Other Locations screen, a line each, written as Location is\nThe lines of weather_location.txt after its first come after these"
+    },
+    {
       "key": "displays",
       "label": "Displays",
       "type": "multiselect_submenu",
@@ -24,7 +41,15 @@
       "label": "Music",
       "type": "toggle",
       "default": "ON",
-      "description": "Background music while the forecast is up. Optional playlist: weather_music.txt in the data directory"
+      "description": "Background music while the forecast is up: the built-in tracks, unless Music List or weather_music.txt names others"
+    },
+    {
+      "key": "music_list",
+      "label": "Music List",
+      "type": "text_list",
+      "max_length": 120,
+      "max_lines": 20,
+      "description": "Your own music in place of the built-in tracks, a line each: a stream's or a file's link, or a file's path (from the data folder unless it starts at /)\nEmpty: weather_music.txt in the data folder, else the built-in tracks"
     },
     {
       "key": "units",

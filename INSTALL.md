@@ -385,7 +385,7 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 ### Update
 
 - **From within the app (recommended):** go to `Settings → System → Update`, check for updates, download, and choose **Quit & Apply on Next Launch**. 
-- The app verifies the download, swaps the new `.AppImage` over your current one in place (keeping a `.bak` of the previous version until the new one launches cleanly). 
+- The app verifies the download, swaps the new `.AppImage` over your current one in place (keeping a `.bak` of the previous version until the new one launches cleanly). The new file is copied beside the current one first and takes its name in a single step, so a power cut on the way leaves the old version or the new one, never half a file. 
 - In Desktop Mode the app then starts again on the new version by itself. In **Gaming Mode** the app needs to close after applying; so simply relaunch it from your Steam library to pick up the new version (the file path is unchanged, so your existing shortcut will still work). 
 - Your settings in `~/.local/share/OSD-OS/` are retained.
 - If the app is stored in a read-only location the in-app update can't write to then the update screen simply point you at the [Releases page](https://github.com/mehmetraif/OSD-OS/releases/latest) to download and replace the `.AppImage` manually.

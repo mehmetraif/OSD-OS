@@ -1,0 +1,105 @@
+name: RetroArch with TLS
+description: >
+  OSD/OS's own RetroArch for the Linux arm64 package, built from the commit
+  scripts/engines.env names with TLS (scripts/build-retroarch.sh) or kept
+  from an earlier run, and put where the package keeps it, with its
+  licences. A new build is first started on a game against a stand-in for
+  RetroAchievements' site (tests/retroarch_tls_test.sh): it signs in over
+  https, and sends nothing to a server whose certificate fails. Run from the
+  repository's root, after the checkout, on a Debian or an Ubuntu.
+
+inputs:
+  program-dir:
+    description: The folder the program goes in
+    required: true
+  licenses:
+    description: The file its licences go in
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The runner's image as well as its processor: a program built on a
+    # newer Linux than a package's asks for a newer glibc.
+    - name: The runner's image and RetroArch's commit
+      id: what
+      shell: bash
+      run: |
+        . scripts/engines.env
+        echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
+        echo "commit=${RETROARCH_COMMIT}" >> "$GITHUB_OUTPUT"
+
+    # Kept from a run before for the same commit, script and test.
+    - name: Restore RetroArch
+      id: cache
+      uses: actions/cache/restore@v6.1.0
+      with:
+        path: retroarch-built
+        key: retroarch-${{ steps.what.outputs.image }}-${{ runner.arch }}-${{ steps.what.outputs.commit }}-${{ hashFiles('scripts/build-retroarch.sh', 'tests/retroarch_tls_test.sh', 'tests/retroarch_tls/**') }}
+
+    # What it is built with, whose libraries it also needs to say its
+    # version below: the features scripts/build-retroarch.sh asks for by name.
+    - name: RetroArch's libraries
+      shell: bash
+      run: |
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential pkg-config \
+          libasound2-dev libpulse-dev libsdl2-dev libudev-dev libdbus-1-dev \
+          libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev libvulkan-dev \
+          libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxxf86vm-dev libxinerama-dev libxrandr-dev libxss-dev \
+          libwayland-dev wayland-protocols libxkbcommon-dev \
+          libfreetype-dev zlib1g-dev
+
+    - name: Download RetroArch's source
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        COMMIT: ${{ steps.what.outputs.commit }}
+      run: |
+        curl -fsSL --retry 3 -o retroarch-src.tar.gz "https://github.com/libretro/RetroArch/archive/${COMMIT}.tar.gz"
+        mkdir -p retroarch-src
+        tar -xzf retroarch-src.tar.gz -C retroarch-src --strip-components 1
+        rm retroarch-src.tar.gz
+
+    - name: Build RetroArch
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bash scripts/build-retroarch.sh retroarch-src retroarch-built retroarch-built/licenses.txt
+
+    # As root: the test gives RetroArch a namespace with its own
+    # certificates and /etc/hosts, and listens on port 443. A test skipped
+    # is a build not tried.
+    - name: Try RetroArch's TLS
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: sudo bash tests/retroarch_tls_test.sh "$PWD/retroarch-built/retroarch"
+
+    # Only one that passed is kept.
+    - name: Keep RetroArch
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: retroarch-built
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    - name: Check RetroArch
+      shell: bash
+      run: |
+        . scripts/engines.env
+        said=$(retroarch-built/retroarch --version 2>&1)
+        echo "$said"
+        echo "$said" | grep -q -F "$RETROARCH_VERSION"
+        echo "$said" | grep -q -F "${RETROARCH_COMMIT:0:7}"
+        test -s retroarch-built/licenses.txt
+
+    - name: Put RetroArch in place
+      shell: bash
+      env:
+        PROGRAM_DIR: ${{ inputs.program-dir }}
+        LICENSES_FILE: ${{ inputs.licenses }}
+      run: |
+        mkdir -p "$PROGRAM_DIR" "$(dirname "$LICENSES_FILE")"
+        install -m 755 retroarch-built/retroarch "$PROGRAM_DIR/retroarch"
+        install -m 644 retroarch-built/licenses.txt "$LICENSES_FILE"

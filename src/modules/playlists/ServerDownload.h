@@ -32,8 +32,12 @@ public:
 
 signals:
     void progress(int percent);
-    // reason is "not allowed" for a 401 or 403, else the network's error.
-    void finished(bool ok, const QString &finalPath, const QString &reason);
+    // reason is "not allowed" for a 401 or 403, else the network's error, or
+    // why the file couldn't be written. mayPass says a failure may pass by
+    // itself, so that trying again later is worth it: the network's, or the
+    // server's own trouble (a 5xx), not what the server refuses or hasn't (a
+    // 4xx), nor a file that couldn't be written.
+    void finished(bool ok, const QString &finalPath, const QString &reason, bool mayPass);
 
 private:
     explicit ServerDownload(QObject *parent);

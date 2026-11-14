@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QVariantMap>
@@ -162,6 +163,29 @@ esac
         write(QStringLiteral("system-state"), "running\n");
         BootProgress boot;
         QVERIFY(!boot.active());
+    }
+
+    // Whether this system has a boot screen at all (available, by which
+    // Settings offers Boot Screen Colors): with the image's unit list, shown
+    // at this start or not; not without one, as off the image, nor with one
+    // that can't be read.
+    void availableWithTheUnitList() {
+        BootProgress booting;
+        QVERIFY(booting.active());
+        QVERIFY(booting.available());
+        write(QStringLiteral("system-state"), "running\n");
+        BootProgress started;
+        QVERIFY(!started.active());
+        QVERIFY(started.available());
+        const QByteArray list = qgetenv("OSDOS_BOOT_UNITS_FILE");
+        const auto back = qScopeGuard([list] { qputenv("OSDOS_BOOT_UNITS_FILE", list); });
+        qunsetenv("OSDOS_BOOT_UNITS_FILE");
+        BootProgress elsewhere;
+        QVERIFY(!elsewhere.active());
+        QVERIFY(!elsewhere.available());
+        qputenv("OSDOS_BOOT_UNITS_FILE", path(QStringLiteral("no-such-list")).toLocal8Bit());
+        BootProgress unread;
+        QVERIFY(!unread.available());
     }
 };
 

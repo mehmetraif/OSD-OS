@@ -108,6 +108,29 @@ FocusScope {
             layoutBranches(true)
     }
 
+    // The cursor of an open folder put on its entry at entryPath: for a host
+    // that opened the tree down a trail on trust (savedTrail, its folders
+    // still on their way), as each folder comes in. False when the folder
+    // isn't open, is still on its way, or has no such entry.
+    function select(path, entryPath) {
+        for (var i = 0; i < trail.count; ++i) {
+            if (trail.get(i).path !== path)
+                continue
+            var l = listing(path)
+            for (var j = 0; !l.pending && j < l.items.length; ++j) {
+                if (l.items[j].path === entryPath) {
+                    trail.setProperty(i, "sel", j)
+                    remembered[path] = j
+                    if (ready)
+                        relayout()
+                    return true
+                }
+            }
+            return false
+        }
+        return false
+    }
+
     // A folder gone with all in it (a drive taken out): the open folders at it
     // and in it close, back to the one that held it, and what they listed is
     // forgotten.
@@ -140,25 +163,42 @@ FocusScope {
     readonly property real gap: root.sw * 0.046875 //30
     readonly property real pad: root.sw * 0.009375 //6
     readonly property real maxColumnWidth: root.sw * 0.34375 //220
+    // In a monitor layout's frame (Settings → Look → Menu Layout, Main.qml):
+    // the tree as it is, the frame's pane a window onto it, its cursor the
+    // layout's (SelectionBox), which in Studio Monitor and Broadcast is a
+    // mark before the row and wants its room there.
+    readonly property bool monitor: root.monitorFramed === true
+    readonly property bool windowed: monitor && root.menuLayout === "Studio Monitor"
+    readonly property real cursorRoom: monitor && root.menuLayout !== "Flat Panel" ? root.chrome.gutter : pad
     // The tree's sides: the pane's (Main.qml's), beside a layout's column
     // where the view is in its frame, else where every view's content is.
-    readonly property real leftEdge: root.paneX + pad //80
+    readonly property real leftEdge: root.paneX + cursorRoom //80
     readonly property real rightEdge: root.paneX + root.paneWidth - pad //560
+    // The pane moved (a view taking its place in the frame once it is
+    // made): the columns and the strip are placed for it again.
+    onLeftEdgeChanged: if (ready) Qt.callLater(relayout)
+    onRightEdgeChanged: if (ready) Qt.callLater(relayout)
     readonly property real treeTop: root.sh * 0.2083333 //100
     readonly property real treeBottom: root.sh * 0.8333333 //400
     // Where the area ends: over the hint bar, or with Settings' Hint Bar off,
-    // at the content box's foot, more rows showing under the spine.
-    readonly property real areaBottom: root.hintBar ? treeBottom : root.contentBox.y + root.contentBox.height //400, 430
+    // at the content box's foot, more rows showing under the spine; in a
+    // monitor layout's frame, at its pane's foot.
+    readonly property real areaBottom: monitor ? root.paneBottom
+                                     : root.hintBar ? treeBottom : root.contentBox.y + root.contentBox.height //400, 430
     // The spine, in tree-area coordinates: midway down the area over the hint
     // bar, wherever the area ends.
     readonly property real spine: Math.round((treeBottom - treeTop) / 2)
     // Room a host keeps under the tree for a line of its own (a HelpLine
-    // while it shows): the area stops short of it, the spine stays put.
+    // while it shows): the area stops short of it, the spine stays put. In a
+    // monitor layout's frame the line is the frame's, in the frame's place:
+    // the room is down to there.
     property real reservedBottom: 0
+    readonly property real reserved: !monitor ? reservedBottom
+                                   : reservedBottom !== 0 ? Math.max(0, areaBottom - root.chrome.listBottom) : 0
     // How far the area reaches above and below the spine: only rows wholly
     // inside it are drawn, so none is cut in half by its edge.
     readonly property real bandTop: -spine
-    readonly property real bandBottom: areaBottom - treeTop - reservedBottom - spine
+    readonly property real bandBottom: areaBottom - treeTop - reserved - spine
     onBandBottomChanged: if (ready && branched) layoutBranches(true)
     // Branches: the gap before each level leaves room for the lanes their
     // lines turn in, one a line's width apart from the next.
@@ -783,6 +823,7 @@ FocusScope {
                 // background colour, as a deck's menu marks what is selected
                 // (or the skin's picture of a selected line, Settings → Look → Skin).
                 SelectionBox {
+                    id: cursorBox
                     visible: row.cursor
                     x: -tree.pad
                     width: Math.min(labelText.implicitWidth, row.width) + 2 * tree.pad
@@ -806,7 +847,7 @@ FocusScope {
                             // file's) isn't markup.
                             textFormat: Text.PlainText
                             elide: row.cursor ? Text.ElideNone : Text.ElideRight
-                            color: row.cursor ? root.surfaceColor : root.primaryColor
+                            color: row.cursor ? cursorBox.ink : root.primaryColor
                             font.family: root.globalFont
                             font.capitalization: Font.AllUppercase
                             font.pixelSize: tree.fontSize
@@ -849,7 +890,8 @@ FocusScope {
             visible: col.leadsOn && col.items.length > 0
             x: start
             y: tree.spine - height / 2
-            width: Math.max(0, col.width + tree.gap - (col.joinsNext ? 0 : tree.pad) - start)
+            // Short of the next column's cursor (a monitor layout's mark).
+            width: Math.max(0, col.width + tree.gap - (col.joinsNext ? 0 : tree.cursorRoom) - start)
             height: tree.lineWidth
             color: root.primaryColor
         }
@@ -857,14 +899,15 @@ FocusScope {
 
     // The tree: the pane is a window onto it. Opening a folder moves the
     // strip, never the tree's own layout. In a layout's frame the window is
-    // cut at the pane's side, where the frame's column stands; with no frame
-    // the tree runs off the screen's edge.
+    // cut at the pane's side, where the frame's column stands (Studio
+    // Monitor's strip, and its window's other side); with no frame the tree
+    // runs off the screen's edge.
     Item {
         id: treeWindow
-        x: root.framed ? root.paneX : 0
+        x: root.framed || tree.windowed ? root.paneX : 0
         y: tree.treeTop
-        width: parent.width - x
-        height: tree.areaBottom - tree.treeTop - tree.reservedBottom
+        width: tree.windowed ? root.paneWidth : parent.width - x
+        height: tree.areaBottom - tree.treeTop - tree.reserved
         clip: true
 
         Item {
@@ -952,6 +995,12 @@ FocusScope {
                     Connections {
                         target: tree
                         function onWiresChanged() { wiresCanvas.requestPaint() }
+                    }
+                    // In the colour in force, as a layout's frame takes the
+                    // view in or lets it go.
+                    Connections {
+                        target: root
+                        function onPrimaryColorChanged() { wiresCanvas.requestPaint() }
                     }
                 }
 

@@ -9,6 +9,10 @@ import Components
 // heading among them ({ label, heading: true }) groups the choices under it,
 // up to the next, and turns them all on at once, or all off once they all
 // are on.
+// Until the backend answers, the page says Loading…; an answer with no
+// choices, No Choices, and why where the backend says: an answer of one entry
+// that is no choice, { problem: "The server could not be reached" }, as the
+// media servers' Libraries give.
 FocusScope {
     id: multiSelectRoot
     // In the layout's frame (Main.qml): its rows in the pane, beside the
@@ -26,6 +30,12 @@ FocusScope {
     property var options: []         // [{id, label, default}], and [{label, heading}]
     property var enabledMap: ({})    // id -> bool, as the page shows them
     property var saved: ({})         // the row as saved, read as the choices come
+    property bool answered: false    // the backend has said what the choices are
+    property string problem: ""      // why there are none, where it says
+    // The list's lines: the choices, or one line that is none of them, read
+    // alone, while they are on their way or there are none.
+    readonly property var rows: options.length > 0 ? options
+                              : [{ note: true, label: answered ? "No Choices" : "Loading…" }]
 
     function buildEnabledMap() {
         var allSettings = appCore.get_settings()
@@ -72,7 +82,11 @@ FocusScope {
         target: appCore
         function onDynamicOptionsReady(mid, key, items) {
             if (mid !== multiSelectRoot.moduleId || key !== multiSelectRoot.settingKey) return
-            multiSelectRoot.options = items
+            // One entry saying why there are no choices is none itself.
+            var why = items.length === 1 && items[0].problem ? String(items[0].problem) : ""
+            multiSelectRoot.problem = why
+            multiSelectRoot.options = why !== "" ? [] : items
+            multiSelectRoot.answered = true
             multiSelectRoot.buildEnabledMap()
         }
     }
@@ -109,7 +123,7 @@ FocusScope {
     // long for its line is cut short rather than its ON or OFF.
     MenuList {
         id: optionsList
-        model: multiSelectRoot.options
+        model: multiSelectRoot.rows
         focus: true
 
         delegate: MenuRow {
@@ -119,10 +133,10 @@ FocusScope {
             height: root.sh * 0.0583333 //28
             label: modelData.label || ""
             heading: !!modelData.heading
-            value: modelData.heading ? "" : (multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF")
-            changes: !modelData.heading
+            value: modelData.heading || modelData.note ? "" : (multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF")
+            changes: !modelData.heading && !modelData.note
             keepValue: true
-            selected: optionsList.currentIndex === index
+            selected: optionsList.currentIndex === index && !modelData.note
         }
 
         Keys.onLeftPressed: multiSelectRoot.toggleItem(currentIndex)
@@ -136,11 +150,14 @@ FocusScope {
         }
     }
 
-    // What a heading does, on its line.
+    // What a heading does, on its line; or why there are no choices, which
+    // is said whatever Settings' Help Line is: it is all the page has to say.
     HelpLine {
         readonly property var currentRow: multiSelectRoot.options[optionsList.currentIndex]
-        visible: !!(currentRow && currentRow.heading)
-        text: "Turns all of the choices under it on or off"
+        readonly property bool heading: !!(currentRow && currentRow.heading)
+        visible: heading || multiSelectRoot.problem !== ""
+        always: !heading
+        text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin

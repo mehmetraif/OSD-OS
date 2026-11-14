@@ -61,7 +61,8 @@ public:
     // The options an mpv about to start takes: a card chosen, none on Auto,
     // whose card a process has through ALSA_CARD (applyTo()), so that its
     // mpv.conf's audio-device still applies. inApp, for libmpv, which reads
-    // neither: Auto's card too.
+    // neither: Auto's card too, and ALSA as the only output to try (--ao)
+    // where plain ALSA plays.
     static QStringList mpvArgs(bool inApp = false);
     // For a program about to start: ALSA_CARD names the card.
     static void applyTo(QProcessEnvironment &env);

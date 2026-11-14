@@ -4,6 +4,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QThreadPool>
 #include <QVariant>
 #include <functional>
 #include "ScoreTable.h"
@@ -31,6 +32,7 @@ template <typename T> class QFutureWatcher;
 // can't make out.
 class HighScoresBackend : public QObject {
     Q_OBJECT
+    friend class HighScoresTest;
     // The score files are being read: entriesReady follows for every folder
     // asked for meanwhile.
     Q_PROPERTY(bool reading READ reading NOTIFY readingChanged)
@@ -124,6 +126,8 @@ private:
     bool m_reading = false;
     bool m_again = false;    // a refresh asked for while reading
     QFutureWatcher<Read> *m_watcher = nullptr;
+    // scores.json's writes, one at a time and in order (saveCache()).
+    mutable QThreadPool m_saves;
 
     // The folders asked for since entriesReady was last sent for them.
     QSet<QString> m_shown;

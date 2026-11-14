@@ -32,15 +32,16 @@ Back on the code screen cancels. OSD/OS appears in the server's list of devices 
 |---|---|
 | **Please enter a server URL** | The Server URL field is empty |
 | **CONNECTION FAILED: …** | Nothing answered at that address: a typing slip, a missing `http://` or port, or the server is off or on another network |
-| **CONNECTION FAILED: HOST REQUIRES AUTHENTICATION** | Quick Connect is off: turn it on in the Jellyfin dashboard |
+| **QUICK CONNECT NOT ENABLED ON SERVER** | Quick Connect is off: turn it on in the Jellyfin dashboard |
+| **SERVER ERROR (HTTP …)** | Something at that address answered with an error of that status: often another web server (404), or a proxy whose Jellyfin isn't running (502, 503) |
 | **INVALID RESPONSE FROM SERVER** | Something answered, but not a Jellyfin server |
-| **CODE EXPIRED** | Two minutes passed without approval. Back (`[ESC]:RETRY`) returns to the first screen for a new code |
-| **POLL FAILED: …** | The connection dropped while waiting, or the server forgot the code. Go back and start again |
-| **Approved…**, and nothing after it | The sign-in failed after approval. Go back and start again |
+| **CODE EXPIRED** | Two minutes passed without approval; a connection lost meanwhile is tried again until then. Back (`[ESC]:RETRY`) returns to the first screen for a new code |
+| **CODE EXPIRED — RETRY** | The server no longer knows the code. Back for a new one |
+| **AUTH FAILED (HTTP …)**, **AUTH FAILED: …** or **INVALID AUTH RESPONSE**, after **Approved** | The sign-in failed after approval: the server refused it with that status, didn't answer, or answered something else. Go back and start again |
 
 ### Sign in without a keyboard
 
-Put the server's address in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
+Type the server's address in Settings → TV / Movie → **JELLYFIN** → **Server Address**. It can also go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
 
 ```json
 {
@@ -199,7 +200,7 @@ The keys sit under `modules.com.osdos.jellyfin`, nested as in the fragment [abov
 | `resume_playback` | `"ask"` or `"always"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Pan & Scan"` |
-| `server_url` | the server address signed in to (no setting row) |
+| `server_url` | the server address: Settings → TV / Movie → JELLYFIN → Server Address, and the sign-in screen |
 
 ## How the sign-in is stored
 
@@ -224,7 +225,7 @@ Sign-in messages are listed [above](#signing-in-with-quick-connect).
 | Changing subtitles restarts the video | It is a transcode; Direct Play switches without a restart |
 | Offline playlist says **Not Allowed** | An administrator must allow your Jellyfin user to download media. Then **Retry Downloads** on the playlist's page |
 
-Logs: `journalctl -u osdos -b | grep -i jellyfin`. mpv's log is `/tmp/osdos-mpv.log` (the system's temp folder on a Mac). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
+Logs: `journalctl -u osdos -b | grep -i jellyfin`. mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
 ## See also
 

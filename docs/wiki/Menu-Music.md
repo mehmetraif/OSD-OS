@@ -123,7 +123,9 @@ The music plays while it is **wanted** and **nothing holds it**.
 
 A hold stops the music at once. Once nothing holds it and it is wanted, it starts 700 ms later, from the beginning.
 
-A file that wasn't there, or that mpv couldn't play, isn't tried again until the tune changes: choose another theme or file and back, or restart OSD/OS.
+A file that wasn't there, or that mpv couldn't play, isn't tried again until the tune changes: choose another theme or file and back, or restart OSD/OS. Choosing a sound card in Settings → Sound → Audio Output tries it once more too.
+
+With no sound card to play through (a USB sound card unplugged, or not up yet as the Pi starts), the music waits: it starts by itself once a card is there.
 
 ## Installing what it needs
 
@@ -303,6 +305,7 @@ journalctl -u osdos -b | grep MenuMusic
 | `[MenuMusic] /…/tune.mid: a MIDI file needs FluidSynth and a SoundFont: no SoundFont found` | No SoundFont beside it, in `soundfonts`, or on the system | [Add one](#adding-a-soundfont) |
 | `[MenuMusic] /…/tune.mid couldn't be made into a WAV (exit 1): …` | FluidSynth or openmpt123 failed; its own words follow | A damaged file, or SoundFont |
 | `[MenuMusic] mpv couldn't play /…/menu.mp3 (exit 2)` | mpv ended within 3 seconds: a file it can't play. For a module, mpv's ffmpeg has no libopenmpt and openmpt123 isn't installed | Try the file in mpv. For a module, install openmpt123 |
+| `[MenuMusic] no sound card to play /…/menu.ogg through: waiting for one` | No sound card can play now: a USB sound card unplugged, or not up yet | Plug it in: the music starts by itself. [Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output) |
 | `[MenuMusic] mpv not found: no menu music` | No mpv | Install mpv ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)) |
 | `[AppCore] theme x: its music, "menu.wma", is not a ogg/opus/mp3/flac/wav/m4a/aac/mid/midi/xm/mod/s3m/it file in its folder` | A theme's `music` isn't one of the types, isn't there, or is outside its folder | Fix `music` |
 

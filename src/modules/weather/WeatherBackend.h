@@ -1,5 +1,7 @@
 #pragma once
 #include <QObject>
+#include <QPointer>
+#include <QProcess>
 #include <QString>
 #include <QVariantMap>
 #include <QVariantList>
@@ -9,7 +11,6 @@
 
 class QNetworkAccessManager;
 class QTimer;
-class QProcess;
 class QLocalSocket;
 
 // Backend for the weather module.
@@ -112,7 +113,9 @@ private:
     QStringList readListFile(const QString &path) const;
     // Shared by the primary location and the extras.
     QStringList readLocationLines() const;
-    // The music playlist: weather_music.txt if present, otherwise the built-in
+    // A list typed in Settings (Other Places, Music List): its lines.
+    QStringList settingLines(const char *key) const;
+    // The music playlist: Settings' Music List, else weather_music.txt, else the built-in
     // list. Entries are mpv-ready — URLs percent-encoded, local paths absolute.
     QStringList musicPlaylist() const;
     static bool parseCoordLine(const QString &line, double *lat, double *lon, QString *label);
@@ -208,6 +211,8 @@ private:
     // Background music. Its own mpv, its own socket — entirely separate from
     // MpvController's, which owns the screen and must not be disturbed by it.
     QProcess     *m_music       = nullptr;
+    QPointer<QProcess> m_musicEnding;   // asked to end, not gone yet
+    void endMusic(bool wait);
     QLocalSocket *m_musicIpc    = nullptr;
     QTimer       *m_musicConnect = nullptr;
     QString       m_musicSocketPath;

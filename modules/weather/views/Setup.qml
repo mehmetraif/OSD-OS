@@ -6,6 +6,9 @@ import Components
 // silently on a black screen.
 FocusScope {
     id: setupRoot
+    // In the layout's frame (Main.qml): what it says in the middle of the
+    // pane, beside the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     signal goBack()
@@ -27,13 +30,13 @@ FocusScope {
     property string detail: {
         switch (reason) {
         case "notfound":
-            return "Please check the place's name in the location file, see the wiki"
+            return "Please check the place's name in Settings, in WEATHER's Location, or in the location file"
         case "network":
             return "Please check your network connection and try again"
         case "unreadable":
             return "Please check the location file's permissions"
         default:
-            return "Please write your town, or its latitude and longitude, in the location file, see the wiki"
+            return "Please type your town, or its latitude and longitude, in Settings, in WEATHER's Location"
         }
     }
     // The file itself, named for the reasons that are about it.
@@ -60,7 +63,12 @@ FocusScope {
 
     Column {
         anchors.centerIn: parent
-        width: root.sw * 0.76875
+        // In the middle of the pane, in a layout's frame (Main.qml's).
+        anchors.horizontalCenterOffset: root.framed || root.monitorFramed === true
+                                        ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
+        anchors.verticalCenterOffset: root.monitorFramed === true
+                                      ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
+        width: root.paneWidth
         spacing: root.sh * 0.0333333
 
         Text {

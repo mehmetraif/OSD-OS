@@ -75,6 +75,10 @@ public:
                                   const QStringList &extraArgs = {},
                                   const QString &jellyfinToken = {},
                                   const QStringList &extraUrls = {});
+    // What a video inside the window needs, loaded ahead off the app's
+    // thread where videos play there (Transparent Background): libmpv and
+    // the libraries under it, which the first video otherwise waits for.
+    void warmUp();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seekTo(int positionMs);
     // A key for mpv, as its keypress command takes it ("UP", "ENTER"). Back,
@@ -138,6 +142,15 @@ public:
     QString lastError() const { return m_lastError; }
     QString lastErrorDetail() const { return m_lastErrorDetail; }
     bool playerFailed() const { return m_playerFailed; }
+    // A player that goes back without a word on the screen when its video
+    // failed (no PlaybackNotice) says so in the log through this, in one
+    // line, `[<player>] <playing>: playback failed: <why>`: which player,
+    // what it was playing (a title, a name) and why, `why` where the player
+    // has it in a server's words, else lastError and lastErrorDetail. The
+    // tokens are blanked as in the controller's other lines, and every
+    // address is cut down to its scheme and host, whoever wrote it: a media
+    // server's stream has the account's token in it.
+    Q_INVOKABLE void logFailure(const QString &player, const QString &playing, const QString &why = QString());
     // The session behind the menus, full screen again where it is, for the
     // player it belongs to (backgroundNote says whose it is): false when
     // there is none, and the player starts its video as it would any.
@@ -165,6 +178,10 @@ public:
     // Settings → Sound → Audio Output changed: a video playing behind the menus moves
     // to the card chosen at once (AudioOutput).
     void followAudioOutput();
+    // Settings → TV / Movie → Scaling ("video_scaling") or Video Levels
+    // ("video_output_levels") changed: a video playing behind the menus takes
+    // it at once, as a session starts with it (sessionArgs()).
+    void followVideoSetting(const QString &key);
     // The embedded session's newest picture, and the size to draw it at
     // (VideoSurface).
     QImage videoFrame() const;
@@ -238,6 +255,9 @@ private:
     enum class VideoProfile { Pi3, Pi4, PiFullKms, Generic };
 
     void sendCommand(const QJsonArray &args);
+    // Where a session's files are (the paths below), in a folder of the
+    // user's own (util/RuntimeFiles.h); asked for each session.
+    void placeRunFiles();
     // The mpv options for a session, up to how its picture is shown; what
     // plays comes after them, behind a "--".
     QStringList sessionArgs(const QString &url, float startSeconds, int audioTrack, int subTrack,
@@ -321,10 +341,10 @@ private:
     // App-level "auto_crop" setting (default OFF), from before Scaling: its ON
     // reads as Pan & Scan while no Scaling has been chosen.
     bool autoCropEnabled() const;
-    // The Scaling in force ("Letterbox", "14:9", "Pan & Scan", "Anamorphic"):
-    // the active module's own "video_scaling", unless it is "Default", then the
-    // app's.
-    QString videoScaling() const;
+    // The Scaling in force for a module's video ("Letterbox", "14:9", "Pan &
+    // Scan", "Anamorphic"): the module's own "video_scaling", unless it is
+    // "Default", then the app's.
+    QString videoScaling(const QString &module) const;
     // True when the active decode path can't crop (Pi 3 overlay path with smooth
     // playback ON): --panscan blanks the video there. Gates auto-crop and tells
     // the OSC scripts to hide their CROP button.
@@ -338,6 +358,9 @@ private:
 
     AppCore        *m_appCore      = nullptr;
     QString         m_activeModule;
+    // The module whose video the session plays: the one open as it started,
+    // while another view (Settings) may be open over a video behind the menus.
+    QString         m_sessionModule;
     EmbeddedMpv    *m_embedded     = nullptr;
     bool            m_background   = false;
     int             m_detachPositionMs = 0;
@@ -402,6 +425,8 @@ private:
     bool          m_paused         = false;  // mirrors mpv's pause property (watchdog exemption)
     QString       m_appRoot;
     QString       m_dataRoot;
+    // The session's files (placeRunFiles()); "" where there is no folder for
+    // them, and mpv is then given none. On Windows the socket is a named pipe.
     QString       m_socketPath;
     QString       m_inputConfPath;
     QString       m_logFilePath;

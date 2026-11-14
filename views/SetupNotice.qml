@@ -23,6 +23,8 @@ FocusScope {
     }
 
     PromptScreen {
+        // Over the boot screen, or whatever is up: not in a layout's frame.
+        inLayout: false
         kind: "notice"
         title: root.setupNotice
         message: root.setupNoticeDetail

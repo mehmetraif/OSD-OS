@@ -64,6 +64,8 @@ FocusScope {
     }
 
     PromptScreen {
+        // Over the boot screen, or whatever is up: not in a layout's frame.
+        inLayout: false
         kind: keepRoot.asking ? "question" : "notice"
         title: keepRoot.asking ? "Keep this display output?" : root.displayNotice
         message: keepRoot.asking

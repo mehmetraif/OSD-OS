@@ -5,11 +5,15 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
 #include <QtTest>
 #include <csignal>
+#include <fcntl.h>
+#include <unistd.h>
+#include <vector>
 
 static int runChild(int argc, char **argv) {
     QCoreApplication app(argc, argv);
@@ -92,6 +96,29 @@ private slots:
         const QString line = diagnostics::memoryLine();
         QVERIFY2(line.startsWith(QStringLiteral("app ")) && line.contains(QStringLiteral(" MB")),
                  qPrintable(line));
+    }
+
+    // With far more files open than the app needs, the line says what most
+    // of them are: a leak names itself.
+    void memoryLineNamesManyFiles() {
+        QVERIFY(!diagnostics::memoryLine().contains(QStringLiteral("most of them")));
+        diagnostics::raiseFileLimit();
+        std::vector<int> opened;
+        for (int i = 0; i < 1100; ++i) {
+            const int fd = ::open("/dev/null", O_RDONLY | O_CLOEXEC);
+            if (fd < 0)
+                break;
+            opened.push_back(fd);
+        }
+        const QString line = diagnostics::memoryLine();
+        for (int fd : opened)
+            ::close(fd);
+        if (opened.size() < 1100)
+            QSKIP("No more than 1024 files may be open here");
+        // (One more where the test's own input is /dev/null, as under ctest.)
+        static const QRegularExpression kMost(QStringLiteral(" \\(most of them: 110[01] /dev/null[,)]"));
+        QVERIFY2(line.contains(kMost), qPrintable(line));
+        QVERIFY(!diagnostics::memoryLine().contains(QStringLiteral("most of them")));
     }
 
     // A crash says so in the journal and in crash-report.txt, with where it

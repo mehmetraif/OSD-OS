@@ -71,7 +71,9 @@ FocusScope {
     }
     function valueOf(key) {
         switch (key) {
-        case "retroarch": return info.retroarch ? (info.retroarchDownloaded ? "Downloaded" : "Installed") : "Not Installed"
+        case "retroarch": return !info.retroarch ? "Not Installed"
+                                : info.retroarchDownloaded ? "Downloaded"
+                                : info.retroarchPackaged ? "With OSD/OS" : "Installed"
         case "retroarch_download": return retroarchDownloading ? retroarchProgress + "%" : (retroarchFailure !== "" ? "Failed" : "")
         case "core": return !info.core ? "Not Installed"
                            : info.packaged ? "With OSD/OS"
@@ -85,7 +87,9 @@ FocusScope {
     function descriptionOf(key) {
         switch (key) {
         case "retroarch":
-            return info.retroarch ? info.retroarch
+            return info.retroarchPackaged ? "OSD/OS's own build, which asks RetroAchievements over https and checks its"
+                                            + " certificate: an update of OSD/OS brings a new one"
+                 : info.retroarch ? info.retroarch
                                   : "The emulator FinalBurn Neo plays in. " + appCore.installHint("retroarch")
         case "retroarch_download":
             return retroarchFailure !== "" ? retroarchFailure

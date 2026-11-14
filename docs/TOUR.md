@@ -192,24 +192,24 @@ Settings → Arcade → **LAN Play** and **Online Play**: up to six players acro
 <tr><td>The buttons held, named as they are, kept after two seconds.</td><td>Asked before it locks, with what unlocks it.</td></tr>
 </table>
 
-### Controls and Arcade Buttons
+### Controls and Game Buttons
 
 <table>
-<tr><th width="50%">A pad's page</th><th width="50%">Players 1 to 6</th></tr>
-<tr><td><img src="screenshots/controller-page.png" width="100%" alt="Settings → Controls: the JAMMA board's first stick, its buttons named as the cabinet numbers them" /></td><td><img src="screenshots/controller-players.png" width="100%" alt="Player 1: which pad is player 1, Auto or one of the pads connected" /></td></tr>
-<tr><td>Each controller apart: the JAMMA board's first stick here, its buttons named as the cabinet numbers them, every button and direction listed under the action it does.</td><td>Which pad is each player, 1 to 6, for MAME, FinalBurn Neo and the games played together.</td></tr>
+<tr><th width="50%">A pad's page</th><th width="50%">Its player</th></tr>
+<tr><td><img src="screenshots/controller-page.png" width="100%" alt="Settings → Controls: a pad's page of six lines, Test Buttons, Menu Buttons, Game Buttons, Player, Button Names and Reset" /></td><td><img src="screenshots/controller-players.png" width="100%" alt="Player: Auto, or a number from a list that says which pad has each" /></td></tr>
+<tr><td>Each gamepad apart, on a page of six lines: its test, the buttons that work the menus, the ones the games get, its player, what its buttons are called, and Reset, which asks first.</td><td>Which player a pad is, 1 to 6, for MAME, FinalBurn Neo and the games played together. The list says who has each number.</td></tr>
 </table>
 
 <table>
 <tr><th width="50%">Test Buttons</th><th width="50%">Waiting for a press</th></tr>
-<tr><td><img src="screenshots/controller-test.png" width="100%" alt="Test Buttons: a grid of the JAMMA edge's pins, the ones held lit" /></td><td><img src="screenshots/controller-capture.png" width="100%" alt="Waiting for a press on that controller" /></td></tr>
-<tr><td>Test Buttons on the JAMMA board's sticks: both players' controls on a grid of the edge connector's pins, each press lit as it is held.</td><td>Select on an action waits for a press on that controller, and only that one.</td></tr>
+<tr><td><img src="screenshots/controller-test.png" width="100%" alt="Test Buttons: a grid of the JAMMA edge's pins, the ones held lit" /></td><td><img src="screenshots/controller-capture.png" width="100%" alt="Waiting for a press: hold any button to stop, stops by itself in 10" /></td></tr>
+<tr><td>Test Buttons on the JAMMA board's sticks: both players' controls on a grid of the edge connector's pins, each press lit as it is held.</td><td>Every wait for a press says its one rule on the screen: a tap answers, holding any button stops it.</td></tr>
 </table>
 
 <table>
-<tr><th width="50%">A pad's Arcade Buttons</th><th width="50%">Set All Buttons</th></tr>
-<tr><td><img src="screenshots/arcade-buttons.png" width="100%" alt="Arcade Buttons: Fighting 6 on an Xbox pad, the control panel lighting the line's button" /></td><td><img src="screenshots/arcade-buttons-set-all.png" width="100%" alt="Set All Buttons: the control panel lighting the button it asks for" /></td></tr>
-<tr><td>The game's buttons 1 to 8 on a pad, here Fighting 6: a fighter's punches on X, Y and RB, its kicks on A, B and RT. The control panel lights the line's button.</td><td>Set All takes the buttons from presses in turn, the control panel lighting the one it asks for.</td></tr>
+<tr><th width="50%">A pad's Game Buttons</th><th width="50%">Set One by One</th></tr>
+<tr><td><img src="screenshots/arcade-buttons.png" width="100%" alt="Game Buttons: Fighting 6, the control panel blinking the line's button" /></td><td><img src="screenshots/arcade-buttons-set-all.png" width="100%" alt="Set One by One: a grid of the cabinet's buttons, the one it asks for lit" /></td></tr>
+<tr><td>The game's buttons 1 to 8 on a pad, here Fighting 6: a fighter's punches on X, Y and RB, its kicks on A, B and RT. The control panel blinks the line's button.</td><td>Set One by One takes the buttons from presses in turn, the joystick a step back or no button, and saves nothing before it has shown all ten.</td></tr>
 </table>
 
 ### High Scores

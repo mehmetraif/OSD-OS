@@ -3,7 +3,10 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QHash>
 #include <QMap>
+#include <QStringList>
 #include <QTimer>
 
 #include <algorithm>
@@ -93,6 +96,52 @@ const char *signalName(int sig) {
     case SIGABRT: return "SIGABRT";
     default:      return "a signal";
     }
+}
+
+// More files open than this is far more than the app ever needs.
+constexpr long kManyFiles = 1000;
+
+// What the files open are, when there are far more than the app ever needs
+// (some 40 in the menus, a few hundred in a video): the three kinds there are
+// most of, as /proc/self/fd names them, "60012 sync_file, 31 socket, 22
+// pipe". A leak then names itself in the log, where the count alone only
+// says there is one. Not for the watchdog or a crash: it allocates.
+QString fileKinds() {
+    QDir dir(QStringLiteral("/proc/self/fd"));
+    QHash<QString, int> kinds;
+    const QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::System | QDir::NoDotAndDotDot);
+    for (const QFileInfo &entry : entries) {
+        QString target = entry.symLinkTarget();
+        if (target.isEmpty())
+            target = QFile::symLinkTarget(entry.filePath());
+        // "anon_inode:sync_file", "anon_inode:[eventfd]", "socket:[123]",
+        // "pipe:[45]", "/dmabuf:name", "/dev/dri/card1", a file's path.
+        QString kind;
+        const QString name = target.section(QLatin1Char('/'), -1);
+        if (name.startsWith(QLatin1String("anon_inode:")))
+            kind = name.mid(11).remove(QLatin1Char('[')).remove(QLatin1Char(']'));
+        else if (name.startsWith(QLatin1String("socket:")))
+            kind = QStringLiteral("socket");
+        else if (name.startsWith(QLatin1String("pipe:")))
+            kind = QStringLiteral("pipe");
+        else if (name.startsWith(QLatin1String("dmabuf:")))
+            kind = QStringLiteral("dmabuf");
+        else if (target.startsWith(QLatin1String("/dev/")))
+            kind = target;
+        else
+            kind = QStringLiteral("file");
+        ++kinds[kind];
+    }
+    QList<QPair<int, QString>> most;
+    for (auto it = kinds.cbegin(); it != kinds.cend(); ++it)
+        most.append({ it.value(), it.key() });
+    std::sort(most.begin(), most.end(), [](const auto &a, const auto &b) {
+        return a.first != b.first ? a.first > b.first : a.second < b.second;
+    });
+    QStringList said;
+    for (const auto &[count, kind] : most.mid(0, 3))
+        said << QStringLiteral("%1 %2").arg(count).arg(kind);
+    return said.join(QStringLiteral(", "));
 }
 
 // The figures behind memoryLine(), read with open(2) and read(2) into the
@@ -502,7 +551,14 @@ QString memoryLine() {
         return QString();
     char text[160];
     formatMemory(m, text, sizeof text);
-    return QString::fromLatin1(text);
+    QString line = QString::fromLatin1(text);
+    // Far more open than the app needs: what they are.
+    if (m.files > kManyFiles) {
+        const QString kinds = fileKinds();
+        if (!kinds.isEmpty())
+            line += QStringLiteral(" (most of them: %1)").arg(kinds);
+    }
+    return line;
 }
 
 namespace {

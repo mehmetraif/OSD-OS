@@ -1,5 +1,7 @@
 import QtQuick
 import QtTest
+import Components
+import "../../views/Components/Hover.js" as Hover
 
 // Settings → Network → Wi-Fi, views/Wifi.qml, against a stand-in for WifiManager: no
 // Wi-Fi; Wi-Fi off with no country, which select on WI-FI asks for first; the
@@ -7,8 +9,10 @@ import QtTest
 // Network Not Listed, the saved networks and the others, each with its lock and
 // signal, a saved one out of reach marked so); a new network's password on the
 // keyboard, an open one joined at once; a saved one's and the joined one's
-// options; one not listed by its name, then its password or none; and the
-// cursor kept on its network as the list changes.
+// options; one not listed by its name, then its password or none, its name
+// kept while it is left unjoined; the cursor kept on its network as the list
+// changes; what the page opens over itself made as it first opens; and the
+// lines changed where they are as NetworkManager says more.
 Rectangle {
     id: root
     color: surfaceColor
@@ -22,14 +26,48 @@ Rectangle {
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
+    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
+    // tallListHeight with no help line under them, helpedListHeight over one
+    // that always shows).
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    // Settings → Look → Menu Layout, and a monitor layout's frame as the
+    // shell draws it under the views (Main.qml's frameChrome): up in a
+    // monitor layout, the views' bars telling it what to write.
+    property string menuLayout: "Standard"
+    readonly property var menuPalette: ({
+        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
+    })[menuLayout] || null
+    property bool videoBehind: false
+    property int backdropSolidity: 100
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
     property string globalFont: "monospace"
     property color primaryColor: "white"
     property color surfaceColor: "black"
+    // A selected cell's box and what is written in it (Main.qml's).
+    readonly property color cursorColor: primaryColor
+    readonly property color cursorInk: surfaceColor
     property var skin: ({})
     property bool hintBar: true
     property bool helpLine: true
@@ -108,6 +146,8 @@ Rectangle {
         when: windowShown
 
         function init() {
+            root.menuLayout = "Standard"
+            root.chrome.basePath = []
             wifiManager.available = true
             wifiManager.enabled = true
             wifiManager.state = "connected"
@@ -390,6 +430,72 @@ Rectangle {
             compare(wifiManager.calls, ["connectHidden Attic Hidden99", "connectHidden Barn "])
         }
 
+        // One not listed, left before it was joined: the name typed is there
+        // when it is asked for again, the box on OK, after back from its
+        // password, from the question before it, and from the name itself
+        // as far as it was typed. A password typed never is. Once the join
+        // is asked, the next one starts from nothing.
+        function test_hiddenNameKept() {
+            var page = open()
+            moveTo(page, "Network Not Listed")
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(page)
+            compare(keyboard.text, "")
+            type("Attic")
+            keyClick(Qt.Key_Return)
+            var overlay = overlayOf(page)
+            verify(overlay.visible)
+            // Back from its password.
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            verify(keyboard.masked)
+            type("Hid")
+            keyClick(Qt.Key_Escape)
+            verify(!keyboard.visible)
+            compare(cursor(page), "Network Not Listed")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            verify(!keyboard.masked)
+            compare(keyboard.title, "Network Name")
+            compare(keyboard.text, "Attic")
+            compare(keyboard.row, keyboard.rows.length - 1)
+            compare(keyboard.col, keyboard.okCol)
+            // Back from the question.
+            keyClick(Qt.Key_Return)
+            verify(overlay.visible)
+            compare(overlay.subtitleText, "Attic")
+            keyClick(Qt.Key_Escape)
+            verify(!overlay.visible)
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "Attic")
+            // Back from the name, two letters on.
+            type("12")
+            keyClick(Qt.Key_Escape)
+            verify(!keyboard.visible)
+            compare(wifiManager.calls, [])
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "Attic12")
+            // On to its password, which starts from nothing, and joined.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.masked)
+            compare(keyboard.text, "")
+            type("Hidden99")
+            keyClick(Qt.Key_Return)
+            compare(wifiManager.calls, ["connectHidden Attic12 Hidden99"])
+            keyClick(Qt.Key_Return)
+            compare(keyboard.title, "Network Name")
+            compare(keyboard.text, "")
+            // An open one asked: nothing kept either.
+            type("Barn")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(wifiManager.calls[1], "connectHidden Barn ")
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "")
+        }
+
         // Search starts and stops it, SEARCHING trailing dots; leaving the
         // page stops it.
         function test_search() {
@@ -404,6 +510,155 @@ Rectangle {
             compare(wifiManager.calls, ["startSearch", "stopSearch"])
             loader.source = ""
             compare(wifiManager.calls, ["startSearch", "stopSearch", "stopSearch"])
+        }
+
+        // The PromptScreen an item holds, or null.
+        function promptIn(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                var kid = item.children[i]
+                if (kid.maxChoices !== undefined && typeof kid.hoverRow === "function")
+                    return kid
+                var deeper = promptIn(kid)
+                if (deeper)
+                    return deeper
+            }
+            return null
+        }
+
+        // What the page opens over itself is not made with it: the
+        // keyboard's keys, a network's options and the country's chooser
+        // each come as they first open, and stay.
+        function test_madeWhenOpened() {
+            var page = open()
+            var keyboard = keyboardOf(page)
+            var overlay = overlayOf(page)
+            var chooser = chooserOf(page)
+            verify(keyboard !== null && overlay !== null && chooser !== null)
+            compare(keyboard.keyItem(0, 0), null)
+            compare(promptIn(overlay), null)
+            compare(promptIn(chooser), null)
+            // The keyboard, for a password.
+            moveTo(page, "Neighbour")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            var key = keyboard.keyItem(0, 0)
+            verify(key !== null)
+            compare(promptIn(overlay), null)
+            compare(promptIn(chooser), null)
+            keyClick(Qt.Key_Escape)
+            compare(keyboard.keyItem(0, 0), key)
+            // A saved network's options.
+            moveTo(page, "Cafe")
+            keyClick(Qt.Key_Return)
+            verify(overlay.visible)
+            var options = promptIn(overlay)
+            verify(options !== null)
+            compare(options.message, "Cafe")
+            compare(promptIn(chooser), null)
+            keyClick(Qt.Key_Escape)
+            compare(promptIn(overlay), options)
+            // The country's chooser, a line for each country.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "Country")
+            keyClick(Qt.Key_Return)
+            verify(chooser.visible)
+            var countries = promptIn(chooser)
+            verify(countries !== null)
+            compare(countries.title, "Wi-Fi Country")
+            compare(countries.choices.length, wifiManager.countries.length)
+            compare(countries.currentIndex, chooser.index)
+            keyClick(Qt.Key_Escape)
+            compare(promptIn(chooser), countries)
+            compare(wifiManager.calls, [])
+        }
+
+        // The symbols a line draws at its end (its PixelIcons), by name.
+        function iconsOn(line) {
+            var found = []
+            var walk = function(item) {
+                if (item.name !== undefined && item.visible && /^(lock|signal)/.test(item.name))
+                    found.push(item)
+                for (var i = 0; i < item.children.length; i++)
+                    walk(item.children[i])
+            }
+            walk(line)
+            return found
+        }
+
+        // What NetworkManager says while the page is up changes the lines
+        // where they are: a network's signal, a join under way and a search
+        // make no line again, and the cursor and the list stay put. Only a
+        // line that comes or goes gives the list its lines anew, the cursor
+        // still on its network; the mouse still passes over a heading.
+        function test_linesChangeInPlace() {
+            var page = open()
+            var list = listOf(page)
+            moveTo(page, "Neighbour")
+            var at = list.currentIndex
+            var line = list.itemAtIndex(at)
+            var cafe = list.itemAtIndex(at - 3)
+            verify(line !== null && cafe !== null)
+            compare(line.label, "Neighbour")
+            compare(line.icons, ["lock", "signal3"])
+            compare(cafe.label, "Cafe")
+            var cafeIcons = iconsOn(cafe)
+            compare(cafeIcons.length, 1)
+            var networks = function(bars, busy) {
+                return [
+                    root.network("Home", { bars: 4, known: true, active: true }),
+                    root.network("Cafe", { bars: 2, security: "open", secured: false, known: true }),
+                    root.network("Office", { bars: 0, security: "", secured: false, known: true, heard: false }),
+                    root.network("Neighbour", { bars: bars, busy: busy }),
+                    root.network("Free", { bars: 0, security: "open", secured: false }),
+                    root.network("Corp", { bars: 2, security: "enterprise" })
+                ]
+            }
+            var y = list.contentY
+            // Its signal a bar down.
+            wifiManager.networks = networks(2, "")
+            compare(row(page, "Neighbour").icons, ["lock", "signal2"])
+            verify(list.itemAtIndex(at) === line, "the same line, its signal changed")
+            compare(line.icons, ["lock", "signal2"])
+            verify(list.itemAtIndex(at - 3) === cafe, "the line of a network that didn't change")
+            verify(iconsOn(cafe).length === 1 && iconsOn(cafe)[0] === cafeIcons[0], "and its signal's symbol")
+            // The same again, as every scan says it: nothing made.
+            wifiManager.networks = networks(2, "")
+            verify(list.itemAtIndex(at) === line, "the same line, nothing changed")
+            // A join under way, and a search.
+            wifiManager.state = "connecting"
+            wifiManager.networks = networks(2, "connecting")
+            wifiManager.searching = true
+            verify(list.itemAtIndex(at) === line, "the same line, joining")
+            verify(line.value.indexOf("Connecting.") === 0)
+            compare(list.itemAtIndex(2).value.indexOf("Searching."), 0)
+            compare(cursor(page), "Neighbour")
+            compare(list.currentIndex, at)
+            compare(list.contentY, y)
+            // The mouse over the heading above it moves nothing; over the
+            // line above that, the cursor.
+            var hover = function(item) {
+                var p = item.mapToItem(root, item.width / 2, item.height / 2)
+                Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+            }
+            compare(page.rows[at - 1].type, "section")
+            hover(list.itemAtIndex(at - 1))
+            compare(cursor(page), "Neighbour")
+            hover(list.itemAtIndex(at - 2))
+            compare(cursor(page), "Office")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "Neighbour")
+            // A network heard for the first time: a line more, the cursor
+            // on its network a line down.
+            wifiManager.networks = [root.network("Attic", { bars: 4 })].concat(networks(2, "connecting"))
+            compare(lines(page), ["Wi-Fi", "Country", "Search", "Network Not Listed", "# Saved", "Home", "Cafe",
+                                  "Office", "# Networks", "Attic", "Neighbour", "Free", "Corp"])
+            compare(cursor(page), "Neighbour")
+            compare(list.currentIndex, at + 1)
+            compare(list.itemAtIndex(at + 1).label, "Neighbour")
+            compare(list.itemAtIndex(at).label, "Attic")
         }
 
         // The cursor keeps to its network as the list changes: joined, it
@@ -423,6 +678,58 @@ Rectangle {
             wifiManager.message = "Connected to Neighbour"
             keyClick(Qt.Key_Down)
             compare(wifiManager.message, "")
+        }
+
+        // In a monitor layout's frame (Settings → Look → Menu Layout: Studio
+        // Monitor, Broadcast, Flat Panel) the page's lines lie where the
+        // frame has its rows and are drawn the layout's way; the frame writes
+        // where the page is, the line's help and the keys, and a network's
+        // options are asked in it, the page's own title back once they go.
+        function test_monitorLayouts_data() {
+            return [{ tag: "Studio Monitor", layout: "Studio Monitor", title: "Wi-Fi" },
+                    { tag: "Broadcast", layout: "Broadcast", title: "Network / Wi-Fi" },
+                    { tag: "Flat Panel", layout: "Flat Panel", title: ">Settings >Network >Wi-Fi" }]
+        }
+        function test_monitorLayouts(data) {
+            root.menuLayout = data.layout
+            root.chrome.basePath = ["Settings", "Network"]
+            var page = open()
+            var list = listOf(page)
+            compare(list.x, root.chrome.listX)
+            compare(list.y, root.chrome.listY)
+            compare(list.width, root.chrome.listWidth)
+            compare(list.height, root.chrome.listHeight)
+            compare(root.chrome.title, data.title)
+            verify(root.chrome.guide.length >= 3, "the hint line as the layout's guide")
+            // A line is drawn by MonitorRow, its network's icons at its end.
+            moveTo(page, "Home")
+            var drawn = null
+            var seek = function(item) {
+                for (var i = 0; i < item.children.length && !drawn; i++) {
+                    var child = item.children[i]
+                    if (child.pal !== undefined && child.label === "Home" && child.selected)
+                        drawn = child
+                    else
+                        seek(child)
+                }
+            }
+            seek(list)
+            verify(drawn !== null, "Home's line as the layout draws one")
+            verify(drawn.iconList.length > 0)
+            verify(root.chrome.helpText !== "", "the line's help in the frame's help line")
+            // Its options: a question in the frame.
+            keyClick(Qt.Key_Return)
+            tryCompare(root.chrome, "title", "Wi-Fi")
+            verify(root.chrome.frontLayer !== null)
+            compare(root.chrome.helpText, "")
+            keyClick(Qt.Key_Escape)
+            compare(root.chrome.frontLayer, null)
+            compare(root.chrome.title, data.title)
+            // Flat Panel: a page of lines at a time.
+            if (data.layout === "Flat Panel") {
+                var per = Math.floor(list.height / root.chrome.rowHeight + 0.001)
+                compare(root.chrome.pages, Math.ceil(list.count / per))
+            }
         }
     }
 }

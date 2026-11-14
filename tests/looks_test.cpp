@@ -1,6 +1,8 @@
 #include "AppCore.h"
+#include "util/OsdIconProvider.h"
 #include <QDir>
 #include <QFile>
+#include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -317,6 +319,97 @@ private slots:
         }
         QCOMPARE(core.theme("own").value("name").toString(), QString("Own"));
         QCOMPARE(core.skin("mine").value("name").toString(), QString("Mine"));
+    }
+
+    // The icon provider (OsdIconProvider, image://osdicon) keeps what an
+    // icon's file gave: asked for again, in another colour too, the icon is
+    // coloured from that, the file not read again (it is gone here, and the
+    // icon still comes), and what it draws is what a first reading draws. A
+    // file that gave none is not looked for again either. Settings' Theme or
+    // Skin changing forgets it all, and no other setting does.
+    void iconsReadOnce() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        // A skin's icon: a picture of pixels, its drawing two pixels in.
+        const auto writeIcon = [](const QString &path) {
+            QImage icon(8, 6, QImage::Format_ARGB32);
+            icon.fill(Qt::transparent);
+            for (int y = 2; y < 4; ++y) {
+                for (int x = 2; x < 5; ++x)
+                    icon.setPixel(x, y, qRgba(10, 200, 30, y == 2 ? 255 : 128));
+            }
+            return icon.save(path, "PNG");
+        };
+        const QString path = dir.filePath("icon.png");
+        QVERIFY(writeIcon(path));
+        const QString file = QUrl::fromLocalFile(path).toString();
+        const QSize asked(0, 8);
+
+        // Every pixel in the one colour, and how many are solid and half so.
+        const auto inColor = [](const QImage &image, QRgb rgb, int *solid, int *half) {
+            *solid = *half = 0;
+            for (int y = 0; y < image.height(); ++y) {
+                for (int x = 0; x < image.width(); ++x) {
+                    const QRgb p = image.pixel(x, y);
+                    if ((p & 0x00ffffff) != (rgb & 0x00ffffff))
+                        return false;
+                    *solid += qAlpha(p) == 255;
+                    *half += qAlpha(p) == 128;
+                }
+            }
+            return true;
+        };
+
+        OsdIconProvider::forget();
+        OsdIconProvider provider;
+        QSize size;
+        int solid = 0, half = 0;
+        // The drawing alone, its margin cut away, as tall as asked: its two
+        // rows, a solid one over a half-clear one.
+        const QImage white = provider.requestImage("ffffff/" + file, &size, asked);
+        QVERIFY(!white.isNull());
+        QCOMPARE(size, white.size());
+        QVERIFY2(qAbs(white.height() - asked.height()) <= 1, qPrintable(QString::number(white.height())));
+        QVERIFY(white.width() > white.height());
+        QVERIFY(inColor(white, qRgb(255, 255, 255), &solid, &half));
+        QVERIFY(solid > 0 && half > 0);
+        QVERIFY2(2 * (solid + half) > white.width() * white.height(),
+                 qPrintable(QStringLiteral("%1 + %2 of %3x%4").arg(solid).arg(half).arg(white.width()).arg(white.height())));
+
+        // The file gone: the same icon still comes, and in another colour.
+        QVERIFY(QFile::remove(path));
+        QCOMPARE(provider.requestImage("ffffff/" + file, &size, asked), white);
+        const QImage red = provider.requestImage("ff0000/" + file, &size, asked);
+        QCOMPARE(size, white.size());
+        int redSolid = 0, redHalf = 0;
+        QVERIFY(inColor(red, qRgb(255, 0, 0), &redSolid, &redHalf));
+        QCOMPARE(redSolid, solid);
+        QCOMPARE(redHalf, half);
+        QCOMPARE(red.convertToFormat(QImage::Format_Alpha8), white.convertToFormat(QImage::Format_Alpha8));
+        // Another setting leaves what is kept.
+        QVERIFY(!OsdIconProvider::lookChanged("hint_bar"));
+        QVERIFY(!OsdIconProvider::lookChanged("color_scheme"));
+        QCOMPARE(provider.requestImage("ff0000/" + file, &size, asked), red);
+        // At another size it is another drawing, read from the file: none now.
+        QVERIFY(provider.requestImage("ff0000/" + file, &size, QSize(0, 16)).isNull());
+
+        // A theme chosen: read again. Nothing there, which is kept too, the
+        // file back or not.
+        QVERIFY(OsdIconProvider::lookChanged("osd_theme"));
+        QVERIFY(provider.requestImage("ff0000/" + file, &size, asked).isNull());
+        QVERIFY(writeIcon(path));
+        QVERIFY(provider.requestImage("ff0000/" + file, &size, asked).isNull());
+        // A skin chosen: read again, and drawn as the first reading drew it.
+        QVERIFY(OsdIconProvider::lookChanged("skin"));
+        QCOMPARE(provider.requestImage("ff0000/" + file, &size, asked), red);
+        QCOMPARE(provider.requestImage("ffffff/" + file, &size, asked), white);
+
+        // Not an icon's address, or not a colour: nothing, and nothing kept
+        // of it to go wrong later.
+        QVERIFY(provider.requestImage("ffffff", &size, asked).isNull());
+        QVERIFY(provider.requestImage("nocolor/" + file, &size, asked).isNull());
+        QCOMPARE(provider.requestImage("ffffff/" + file, &size, asked), white);
+        OsdIconProvider::forget();
     }
 };
 

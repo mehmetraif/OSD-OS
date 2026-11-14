@@ -1,10 +1,40 @@
 #include "OsdIconProvider.h"
+#include <QCache>
 #include <QColor>
 #include <QImageReader>
+#include <QMutex>
 #include <QUrl>
 #include <cmath>
 
 namespace {
+
+// What each file gave at each size asked for, by "<path>\n<width>x<height>":
+// its drawing, trimmed and not yet coloured, or a null image for a file that
+// gave none. Costed in kilobytes and held to kKeptKb, the oldest going first;
+// a request may come from the scene graph's image thread, hence the mutex.
+constexpr int kKeptKb = 8 * 1024;
+QMutex g_keptMutex;
+QCache<QString, QImage> g_kept(kKeptKb);
+
+QString keptKey(const QString &path, const QSize &size) {
+    return path + QLatin1Char('\n') + QString::number(size.width()) + QLatin1Char('x')
+           + QString::number(size.height());
+}
+
+bool kept(const QString &key, QImage *drawing) {
+    QMutexLocker lock(&g_keptMutex);
+    const QImage *found = g_kept.object(key);
+    if (!found)
+        return false;
+    *drawing = *found;
+    return true;
+}
+
+void keep(const QString &key, const QImage &drawing) {
+    QMutexLocker lock(&g_keptMutex);
+    // One too large to keep is deleted by the cache, and drawn again next time.
+    g_kept.insert(key, new QImage(drawing), qMax(1, int(drawing.sizeInBytes() / 1024)));
+}
 
 // The source rendered at a given size, as straight (not premultiplied) ARGB:
 // a vector drawn at that size, a picture of pixels (a skin's icon) scaled, its
@@ -21,21 +51,11 @@ QImage render(const QString &path, const QSize &size) {
     return reader.read().convertToFormat(QImage::Format_ARGB32);
 }
 
-} // namespace
-
-QImage OsdIconProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize) {
-    // <rrggbb>/<url>: the url keeps its own slashes.
-    const int colorEnd = id.indexOf(QLatin1Char('/'));
-    if (colorEnd < 0)
-        return {};
-    const QColor color(QLatin1Char('#') + id.left(colorEnd));
-    const QUrl url(id.mid(colorEnd + 1));
-    const QString path = url.isLocalFile() ? url.toLocalFile()
-                       : url.scheme() == QLatin1String("qrc") ? QLatin1Char(':') + url.path()
-                                                              : url.toString();
-
+// The drawing a file gives at the size asked for, trimmed of the margin
+// around it, its own colours still in it; null when the file gives none.
+QImage drawingOf(const QString &path, const QSize &requestedSize) {
     const QSize natural = QImageReader(path).size();
-    if (!color.isValid() || natural.isEmpty())
+    if (natural.isEmpty())
         return {};
     const int height = requestedSize.height() > 0 ? requestedSize.height() : natural.height();
 
@@ -69,9 +89,36 @@ QImage OsdIconProvider::requestImage(const QString &id, QSize *size, const QSize
                                            qMax(1, qRound(probe.height() * scale))));
     const int x0 = int(std::floor(left * scaleX));
     const int y0 = int(std::floor(top * scale));
-    QImage out = full.copy(x0, y0,
-                           qMax(1, int(std::ceil(right * scaleX)) - x0),
-                           qMax(1, int(std::ceil(bottom * scale)) - y0));
+    return full.copy(x0, y0,
+                     qMax(1, int(std::ceil(right * scaleX)) - x0),
+                     qMax(1, int(std::ceil(bottom * scale)) - y0));
+}
+
+} // namespace
+
+QImage OsdIconProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize) {
+    // <rrggbb>/<url>: the url keeps its own slashes.
+    const int colorEnd = id.indexOf(QLatin1Char('/'));
+    if (colorEnd < 0)
+        return {};
+    const QColor color(QLatin1Char('#') + id.left(colorEnd));
+    if (!color.isValid())
+        return {};
+    const QUrl url(id.mid(colorEnd + 1));
+    const QString path = url.isLocalFile() ? url.toLocalFile()
+                       : url.scheme() == QLatin1String("qrc") ? QLatin1Char(':') + url.path()
+                                                              : url.toString();
+
+    // As kept from the last time this file was asked for at this size, or
+    // read and drawn now, and kept: the file is looked for once.
+    const QString key = keptKey(path, requestedSize);
+    QImage out;
+    if (!kept(key, &out)) {
+        out = drawingOf(path, requestedSize);
+        keep(key, out);
+    }
+    if (out.isNull())
+        return {};
 
     // In the colour, with the drawing's own edges.
     const QRgb rgb = color.rgb() & 0x00ffffff;
@@ -79,6 +126,52 @@ QImage OsdIconProvider::requestImage(const QString &id, QSize *size, const QSize
         QRgb *line = reinterpret_cast<QRgb *>(out.scanLine(y));
         for (int x = 0; x < out.width(); ++x)
             line[x] = (QRgb(qAlpha(line[x])) << 24) | rgb;
+    }
+    if (size)
+        *size = out.size();
+    return out;
+}
+
+void OsdIconProvider::forget() {
+    QMutexLocker lock(&g_keptMutex);
+    g_kept.clear();
+}
+
+bool OsdIconProvider::lookChanged(const QString &key) {
+    if (key != QLatin1String("osd_theme") && key != QLatin1String("skin"))
+        return false;
+    forget();
+    return true;
+}
+
+QImage OsdPixelProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize) {
+    // <rrggbb>/<row>,<row>,…: a colour with its alpha first (<aarrggbb>) too.
+    const int colorEnd = id.indexOf(QLatin1Char('/'));
+    if (colorEnd < 0)
+        return {};
+    const QColor color(QLatin1Char('#') + id.left(colorEnd));
+    const QStringList rows = id.mid(colorEnd + 1).split(QLatin1Char(','));
+    const int columns = rows.first().size();
+    if (!color.isValid() || columns == 0)
+        return {};
+
+    // The size asked for, a cell a pixel when none is; never a picture of a
+    // size no symbol has.
+    constexpr int kMostPixels = 2048;
+    const bool sized = requestedSize.width() > 0 && requestedSize.height() > 0;
+    const QSize full = sized ? requestedSize.boundedTo(QSize(kMostPixels, kMostPixels))
+                             : QSize(columns, int(rows.size()));
+    QImage out(full, QImage::Format_ARGB32);
+    out.fill(Qt::transparent);
+    const QRgb ink = color.rgba();
+    for (int y = 0; y < full.height(); ++y) {
+        const QString &row = rows.at(qsizetype(y) * rows.size() / full.height());
+        QRgb *line = reinterpret_cast<QRgb *>(out.scanLine(y));
+        for (int x = 0; x < full.width(); ++x) {
+            const int cell = x * columns / full.width();
+            if (cell < row.size() && row.at(cell) == QLatin1Char('1'))
+                line[x] = ink;
+        }
     }
     if (size)
         *size = out.size();

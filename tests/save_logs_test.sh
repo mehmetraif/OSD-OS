@@ -78,8 +78,10 @@ printf '%s\n' "retroarch" "GET https://ra.example/dorequest.php?r=login2&u=me&t=
 # A password with a byte that isn't UTF-8 (an "a" with two dots, as Latin-1
 # writes it), which sed passes over under a UTF-8 locale.
 printf 'https://ann:SECRET18\344SECRET19@nas.example/a.mkv\n' >> "$data/arcade/retroarch/last.log"
-# mpv's own log, which holds a media server's token, stays where it is.
-echo "mpv" > "$TMPDIR/osdos-mpv.log"
+# mpv's own log, which holds a media server's token, stays where it is: the
+# app's run-time folder, as the service has it.
+mkdir -p "$TMPDIR/runtime-$(id -un)"
+echo "mpv" > "$TMPDIR/runtime-$(id -un)/osdos-mpv.log"
 
 # Ten folders of earlier quits, the oldest first by their names.
 for n in 01 02 03 04 05 06 07 08 09 10; do

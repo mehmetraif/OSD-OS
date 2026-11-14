@@ -44,7 +44,7 @@ Against Raspberry Pi OS Lite with `scripts/install.sh` and its autostart service
 | USB drives | Not mounted | Mounted read-only under `/media/usb` |
 | Chromium, Widevine, cage, wtype | Install yourself | Included |
 | yt-dlp, Deno | Install yourself | Included; yt-dlp updates itself |
-| MAME, RetroArch | Install yourself | Included: Debian's MAME 0.276 and RetroArch |
+| MAME, RetroArch | Install yourself | Included: Debian's MAME 0.276 and RetroArch, and OSD/OS's own RetroArch with TLS |
 | Settings → Screen → Display Output | Not offered | Offered |
 | Bluetooth blocked by rfkill | Stays blocked | Unblocked |
 | Wi-Fi power saving | On | Off ([Wi-Fi](#wi-fi)) |
@@ -188,6 +188,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-display.socket` | Enabled. Display Output's At Next Start |
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
+| `osdos-system.socket` | Enabled. The time zone and the keyboard |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
@@ -232,6 +233,8 @@ SuccessExitStatus=10 11 12 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37
 ExecStopPost=+/usr/local/bin/osdos-stop
 StandardOutput=journal
 StandardError=journal
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=1000
 
 [Install]
 WantedBy=multi-user.target
@@ -456,8 +459,9 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | 7 | The polkit rule and `osdos-wifi.socket`: Settings offers Wi-Fi |
 | 8 | `osdos-name.socket`: System Information renames the device |
 | 9 | Exits 39 and 59: JAMMA 480i at 640 across |
+| 10 | `osdos-system.socket`: Settings → System sets the time zone and the keyboard |
 
-The image's launcher is level 9, as `install.sh`'s is.
+The image's launcher is level 10, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -481,6 +485,14 @@ Settings → System → About → System Information renames the device through 
 
 ```sh
 journalctl -u 'osdos-name@*' -b    # what renaming the device did
+```
+
+### The time zone's and the keyboard's socket
+
+Settings → System → **Time Zone** and **Keyboard** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
+
+```sh
+journalctl -u 'osdos-system@*' -b    # what setting the time zone or the keyboard did
 ```
 
 ### Exit to Terminal
@@ -557,7 +569,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | `/dev/tty0` for the `tty` group, USB drives, `/dev/uinput` for the `input` group |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/run/osdos/ready` | Written at OSD/OS's first frame |
-| `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock` | The three sockets |
+| `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock`, `/run/osdos-system.sock` | The four sockets |
 | `/run/osdos-display-boot.txt` | The display preset this boot started on |
 | `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` |
@@ -571,8 +583,9 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, and what became of it |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs |
 | `/usr/games/mame`, `/etc/mame/mame.ini`, `/usr/bin/retroarch` | MAME, its settings, and RetroArch |
+| `/opt/osdos/lib/osdos/retroarch` | The RetroArch the games play in: the same version, built by OSD/OS with TLS. It comes with the app, and an update brings a new one |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and its licences |
-| `/tmp/osdos-mpv.log` | mpv's own log |
+| `/tmp/runtime-pi/osdos-mpv.log` | mpv's own log |
 
 ## Logs
 
@@ -589,7 +602,7 @@ journalctl -u 'osdos-display@*'           # Display Output's At Next Start
 journalctl -u 'osdos-wifi@*'              # Settings → Network → Wi-Fi's country
 ```
 
-mpv's own log of the last video is `/tmp/osdos-mpv.log`, readable only by `pi`. See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs).
+mpv's own log of the last video is `/tmp/runtime-pi/osdos-mpv.log`, readable only by `pi`. See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs).
 
 ## What it is made of: NOTICE and licences
 
@@ -715,7 +728,7 @@ The parts are the folders of [`os/stage-osdos`](https://github.com/mehmetraif/OS
 | `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
 | `06-youtube` | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build; Deno, pinned (today `v2.9.7`); the update timer | `OSDOS_YOUTUBE=0` |
 | `07-usb` | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
-| `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names | `OSDOS_ARCADE=0` |
+| `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names, and the app's own RetroArch started once | `OSDOS_ARCADE=0` |
 
 To put another package on the image, add its name to [`os/stage-osdos/00-packages/00-packages-nr`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/00-packages/00-packages-nr), for example a line with `mc` for Midnight Commander.
 

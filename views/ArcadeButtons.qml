@@ -1,26 +1,33 @@
 import QtQuick
 import Components
 
-// A pad's Arcade Buttons, from its page in Settings → Controls
+// A pad's Game Buttons, from its page in Settings → Controls
 // (ControllerSettings.qml): which of its inputs is each of a cabinet's,
 // Button 1 to 8, Coin and Start, the same in every game, MAME's and FinalBurn
 // Neo's alike.
 //
-// LAYOUT starts it from a preset (Fighting 6: a fighter's punches over its
-// kicks, as a six-button cabinet's two rows; Neo Geo 4: A B C D on the four
-// face buttons; NES, Mega Drive, SNES, Saturn and N64: a console pad's own,
-// its buttons as that console's games had them), leaves it to the emulators
-// (Default: what OSD/OS always did, a JAMMA stick's pins' buttons in their
-// order), or is Custom, set here:
-// SET ALL BUTTONS takes them from presses in turn, 1 to 6, Coin, Start, 7 and
-// 8 (2 to 8 none if their wait runs out: a pad may have fewer); a line of its
-// own takes one press, or ◄ ► goes round the inputs the pad has left. The
-// D-pad and the left stick are the games' joystick, never a button. TEST
-// BUTTONS shows what each press is. Beside the lines, and in the waits for a
-// press, a two-player cabinet's control panel (ArcadePanel) lights the one a
-// line, a step or a press is, on the side of the player the pad plays as.
-// Kept in config.json, app.controllers.<key>.arcade, through inputManager,
-// which gives each player's to MAME and RetroArch as a game starts.
+// LAYOUT is chosen from a list (back leaves it as it was): a preset (Fighting
+// 6: a fighter's punches over its kicks, as a six-button cabinet's two rows;
+// Neo Geo 4: A B C D on the four face buttons; NES, Mega Drive, SNES, Saturn
+// and N64: a console pad's own), the emulators' own (Default: what OSD/OS
+// always did, a JAMMA stick's pins' buttons in their order), or Custom, the
+// inputs set by hand, which InputManager keeps while another layout is
+// chosen, so Custom brings them back.
+//
+// SET ONE BY ONE asks for them in turn, 1 to 6, Coin, Start, 7 and 8, a press
+// each, with the joystick left to go a step back and right to give this one
+// no button (never Coin or Start); it waits as long as it takes, twenty
+// seconds a step, and ends on what it has taken, all ten, to save, do again
+// or drop. A line of its own asks in a list: a press, one of the inputs no
+// line has, or none. Nothing changes by ◄ ► on a line.
+//
+// Every wait is PressPrompt's: a tap answers, holding any button stops it
+// with nothing changed. Beside the lines a two-player cabinet's control panel
+// (ArcadePanel) blinks the line's input, on the side of the player the pad
+// plays as; the waits show the cabinet's buttons as a grid (ButtonGrid), the
+// one asked for lit, and what the others are so far. Kept in config.json,
+// app.controllers.<key>.arcade, through inputManager, which gives each
+// player's to MAME and RetroArch as a game starts.
 FocusScope {
     id: pageRoot
 
@@ -34,9 +41,6 @@ FocusScope {
     property var page: ({})
     readonly property bool present: !!page.present
     readonly property int jamma: page.jamma || 0
-    // Under Default MAME and FinalBurn Neo number another pad's buttons their
-    // own ways.
-    readonly property bool theirs: page.layout === "default" && !jamma
     // Its name as last seen.
     property string name: ""
 
@@ -44,36 +48,30 @@ FocusScope {
     // Waiting for a press for one of them ("1" to "8", "coin", "start").
     property string captureInput: ""
     readonly property bool capturing: captureInput !== ""
-    property int secondsLeft: 0
-    // What the last press did, in the help line until the cursor moves.
+    // What the last press or choice did, in the help line until the cursor moves.
     property string notice: ""
 
-    // SET ALL BUTTONS: the step it is at in allOrder, and the inputs pressed
-    // so far, with their names, in kArcadeInputs' order ("" for none yet).
+    // SET ONE BY ONE: the step it is at in allOrder, and the inputs taken so
+    // far, with their names, in kArcadeInputs' order ("" for none yet).
     property bool settingAll: false
     property int step: 0
     property var setTokens: []
     property var setLabels: []
     // Why the last press was not taken.
     property string stepNotice: ""
-    // 1 to 6, Coin, Start, then 7 and 8. A pad may have fewer than eight
-    // buttons: the wait for Button 2 to 8 is shorter, and running out leaves
-    // it none.
+    // Its end: all ten shown, to save, do again or drop.
+    property bool summing: false
+    property int sumIndex: 0
+    // 1 to 6, Coin, Start, then 7 and 8.
     readonly property var allOrder: [0, 1, 2, 3, 4, 5, 8, 9, 6, 7]
     readonly property bool optionalStep: settingAll && optionalAt(step)
+    readonly property int stepSeconds: 20
 
-    // TEST BUTTONS: the presses seen, the last first, and which of the
-    // cabinet's the last one is ("1" to "8", "coin", "start"; "" for none).
-    property bool testing: false
-    property var presses: []
-    property string pressed: ""
-
-    // What the control panel lights: the line's input, the one a press is
-    // waited for, or the one the last test press is.
-    readonly property var lit: testing ? (pressed !== "" ? [pressed] : [])
-                             : capturing ? [captureInput]
-                             : rows[list.currentIndex] && rows[list.currentIndex].type === "input"
+    // What the control panel lights: the line's input, blinking, so that it
+    // shows on a tube.
+    readonly property var lit: rows[list.currentIndex] && rows[list.currentIndex].type === "input" && blink
                                ? [rows[list.currentIndex].input] : []
+    property bool blink: true
     // On whose side of it (playerSide()): 2 the right, 1 the left.
     property int player: 1
 
@@ -97,16 +95,28 @@ FocusScope {
         target: inputManager
         function onControllersChanged() { pageRoot.refresh() }
         function onPlayersChanged() { pageRoot.player = pageRoot.playerSide() }
+        // A tap: the answer.
         function onControllerInputCaptured(key, input, label) {
-            if (key !== pageRoot.key)
+            if (key !== pageRoot.key || !pageRoot.capturing)
                 return
-            if (pageRoot.testing)
-                pageRoot.testPress(input, label)
-            else if (pageRoot.settingAll)
-                pageRoot.setAllPress(input, label)
-            else if (pageRoot.capturing)
+            if (pageRoot.settingAll)
+                pageRoot.stepPress(input, label)
+            else
                 pageRoot.setPress(input, label)
         }
+        // Held: the way out.
+        function onCaptureHeld(key) {
+            if (key === pageRoot.key && pageRoot.capturing)
+                pageRoot.endCapture("Nothing changed")
+        }
+    }
+
+    Timer {
+        interval: 400
+        repeat: true
+        running: list.activeFocus
+        onRunningChanged: pageRoot.blink = true
+        onTriggered: pageRoot.blink = !pageRoot.blink
     }
 
     function refresh() {
@@ -116,25 +126,21 @@ FocusScope {
         if (page.name)
             name = page.name
         player = playerSide()
-        if ((capturing || settingAll) && !present)
-            cancelCapture()
-        if (testing && !present)
-            endTest()
+        if (capturing && !present)
+            endCapture("")
 
-        var away = "Connect it to set its buttons"
         var items = [
-            { type: "layout", label: "Layout", value: page.layoutTitle || "Default", description: layoutDescription() },
-            { type: "setall", label: "Set All Buttons",
-              description: !present ? away : "Press its buttons in turn: 1 to 6, Coin, Start, 7 and 8, or wait past one it hasn't" },
-            { type: "test", label: "Test Buttons",
-              description: !present ? "Connect it to test its buttons" : "Press its buttons to see which of the cabinet's each one is" },
-            { type: "section", label: "Buttons" }
+            { type: "layout", label: "Layout", description: layoutDescription() },
+            { type: "setall", label: "Set One by One",
+              description: !present ? "Connect it to set its buttons" : "All ten in turn, a press each" },
+            // The layout's name heads its buttons: beside the drawing a
+            // line has no room for it after "LAYOUT".
+            { type: "section", label: page.layoutTitle || "Buttons" }
         ]
         var r = page.rows || []
         for (var i = 0; i < r.length; i++)
             items.push({ type: "input", input: r[i].input, label: r[i].label, token: r[i].token, value: r[i].value,
-                         description: !present ? "Connect it to press its button for " + r[i].label + ", or ◄ ► to choose one"
-                                    : "Select, then press the button on it for " + r[i].label + ", or ◄ ► to choose one" })
+                         description: "A press, another input, or none" })
 
         var at = list.currentIndex
         rows = items
@@ -153,35 +159,20 @@ FocusScope {
         return jamma === 2 ? 2 : 1
     }
 
-    // The layout's own words, by what its buttons are on this pad.
+    // The layout's own words, short enough to be read at once.
     function layoutDescription() {
-        var r = page.rows || []
-        var on = function(from, to) {
-            var names = []
-            for (var i = from; i <= to && i < r.length; i++)
-                names.push(r[i].value)
-            return names.join(" ")
+        var words = {
+            fighting6: "Punches 1 2 3 over kicks 4 5 6",
+            neogeo4: "A B C D on the four face buttons",
+            nes: "B is button 1, A button 2",
+            megadrive: "A B C are 1 2 3, X Y Z 4 5 6",
+            snes: "Y X L are 1 2 3, B A R 4 5 6",
+            saturn: "X Y Z are 1 2 3, A B C 4 5 6",
+            n64: "B C◄ C▲ are 1 2 3, A C▼ C► 4 5 6",
+            custom: "Set by hand, line by line or in turn"
         }
-        if (page.layout === "fighting6")
-            return "A fighter's six: punches 1 2 3 on " + on(0, 2) + ", kicks 4 5 6 on " + on(3, 5)
-        if (page.layout === "neogeo4")
-            return "A Neo Geo's A B C D, buttons 1 to 4, on " + on(0, 3)
-        // A console's pad by its own buttons, the lines below saying what
-        // they are on this one.
-        if (page.layout === "nes")
-            return "A NES pad's: B is button 1, A button 2"
-        if (page.layout === "megadrive")
-            return "A Mega Drive pad's: A B C are buttons 1 2 3, X Y Z 4 5 6"
-        if (page.layout === "snes")
-            return "Street Fighter II on a SNES: punches 1 2 3 on Y X L, kicks 4 5 6 on B A R"
-        if (page.layout === "saturn")
-            return "A Saturn's fighters: punches 1 2 3 on X Y Z, kicks 4 5 6 on A B C; R is 7, L Coin"
-        if (page.layout === "n64")
-            return "Killer Instinct Gold's: punches 1 2 3 on B C◄ C▲, kicks 4 5 6 on A C▼ C►; Z is Coin"
-        if (page.layout === "custom")
-            return "Set button by button below, or with Set All Buttons"
-        return jamma ? "Its pins' buttons in their order, 1 to 8, COIN and START"
-                     : "MAME and FinalBurn Neo lay its buttons out their own ways"
+        return words[page.layout] || (jamma ? "Its pins' buttons in their order"
+                                            : "MAME and FinalBurn Neo number them")
     }
 
     function selectable(row) { return !!row && row.type !== "section" }
@@ -194,38 +185,6 @@ FocusScope {
                 return i
         }
         return 0
-    }
-
-    function cycleLayout(step) {
-        var layouts = page.layouts || []
-        var at = 0
-        for (var i = 0; i < layouts.length; i++) {
-            if (layouts[i].layout === page.layout)
-                at = i
-        }
-        if (layouts.length > 0)
-            inputManager.setArcadeLayout(key, layouts[(at + step + layouts.length) % layouts.length].layout)
-    }
-
-    // ◄ ►: the next of the inputs the pad has that no other line has, or
-    // none, which Coin and Start never are.
-    function cycleInput(row, step) {
-        var used = {}
-        for (var i = 0; i < rows.length; i++) {
-            if (rows[i].type === "input" && rows[i].input !== row.input && rows[i].token)
-                used[rows[i].token] = true
-        }
-        var tokens = []
-        var choices = page.choices || []
-        for (var c = 0; c < choices.length; c++) {
-            if (!used[choices[c].token])
-                tokens.push(choices[c].token)
-        }
-        if (row.input !== "coin" && row.input !== "start")
-            tokens.push("")
-        var at = tokens.indexOf(row.token)
-        var next = tokens[at < 0 ? (step > 0 ? 0 : tokens.length - 1) : (at + step + tokens.length) % tokens.length]
-        showOutcome(row.label, inputManager.setArcadeInput(key, row.input, next))
     }
 
     function inputLabel(input) {
@@ -246,6 +205,43 @@ FocusScope {
         return false
     }
 
+    // LAYOUT: the list, the cursor on the one it has.
+    function chooseLayout() {
+        var layouts = page.layouts || []
+        layoutChooser.choices = layouts.map(function(l) { return { label: l.title, action: l.layout } })
+        layoutChooser.open()
+        for (var i = 0; i < layouts.length; i++) {
+            if (layouts[i].layout === page.layout)
+                layoutChooser.choiceIndex = i
+        }
+    }
+
+    // A line of its own: a press, one of the inputs the pad has that no
+    // other line has, or none, which Coin and Start never are.
+    function chooseInput(row) {
+        var used = {}
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].type === "input" && rows[i].input !== row.input && rows[i].token)
+                used[rows[i].token] = true
+        }
+        var choices = []
+        if (present)
+            choices.push({ label: "Press a button", action: "press" })
+        var all = page.choices || []
+        for (var c = 0; c < all.length; c++) {
+            if (!used[all[c].token] && all[c].token !== row.token)
+                choices.push({ label: all[c].label, action: "token:" + all[c].token })
+        }
+        if (row.input !== "coin" && row.input !== "start" && row.token !== "")
+            choices.push({ label: "None", action: "token:" })
+        choices.push({ label: "Cancel", action: "cancel" })
+        inputChooser.input = row.input
+        inputChooser.promptText = row.label
+        inputChooser.subtitleText = "Now: " + row.value
+        inputChooser.choices = choices
+        inputChooser.open()
+    }
+
     // What came of a press, or a choice, for one of them
     // (InputManager::setArcadeInput()): "RB is Button 1 now, and A is
     // Button 3" for one another had.
@@ -257,7 +253,7 @@ FocusScope {
         else if (result.outcome === "already")
             notice = isText(result.label, label) + " already"
         else if (result.outcome === "kept")
-            notice = result.label + " stays " + result.other + ": Coin and Start always have a button"
+            notice = result.label + " stays " + result.other + ": it needs a button"
         else if (result.outcome === "joystick")
             notice = result.label + " is the joystick, not a button"
         else if (result.outcome === "menu")
@@ -279,14 +275,6 @@ FocusScope {
         return "None"
     }
 
-    // A wait of so many seconds from now: a wait under way counts them from
-    // a whole second.
-    function waitFor(seconds) {
-        secondsLeft = seconds
-        if (countdown.running)
-            countdown.restart()
-    }
-
     function startCapture(input) {
         if (!present) {
             notice = "Connect it first"
@@ -294,25 +282,29 @@ FocusScope {
         }
         notice = ""
         stepNotice = ""
-        waitFor(10)
         captureInput = input
         inputManager.captureController(key)
-        overlay.forceActiveFocus()
+        prompt.visible = true
+        prompt.start(settingAll ? stepSeconds : 10)
+        prompt.forceActiveFocus()
     }
 
-    function cancelCapture() {
-        var hadKeys = overlay.activeFocus
+    // The wait over, with what to say of it.
+    function endCapture(said) {
+        var hadKeys = prompt.activeFocus
         captureInput = ""
         settingAll = false
+        prompt.visible = false
         if (inputManager)
             inputManager.captureController("")
+        notice = said
         if (hadKeys)
             list.forceActiveFocus()
     }
 
     function setPress(token, label) {
         var input = captureInput
-        cancelCapture()
+        endCapture("")
         showOutcome(inputLabel(input), inputManager.setArcadeInput(key, input, token))
     }
 
@@ -331,157 +323,124 @@ FocusScope {
         startCapture(page.rows[allOrder[0]].input)
     }
 
-    // Whether Set All's step s may be left none: Button 2 to 8.
+    // Whether Set One by One's step s may be left none: Button 2 to 8.
     function optionalAt(s) {
         var input = allOrder[s]
         return input >= 1 && input <= 7
     }
 
-    // The next step, or with every one done, the buttons set.
+    // The step it is at, asked for (again).
+    function askStep() {
+        captureInput = page.rows[allOrder[step]].input
+        prompt.start(stepSeconds)
+        inputManager.captureController(key)
+    }
+
+    function take(token, label) {
+        var tokens = setTokens.slice()
+        var labels = setLabels.slice()
+        tokens[allOrder[step]] = token
+        labels[allOrder[step]] = label
+        setTokens = tokens
+        setLabels = labels
+    }
+
+    // The next step, or with every one done, all ten to look at.
     function nextStep() {
         step++
         stepNotice = ""
         if (step < allOrder.length) {
-            captureInput = page.rows[allOrder[step]].input
-            waitFor(optionalAt(step) ? 5 : 10)
-            inputManager.captureController(key)
+            askStep()
             return
         }
-        var outcome = inputManager.setArcadeInputs(key, setTokens)
-        cancelCapture()
-        notice = outcome === "set" ? "Set: its layout is Custom now"
-               : outcome === "unsaved" ? "Not saved: the settings could not be written" : ""
+        var hadKeys = prompt.activeFocus
+        captureInput = ""
+        settingAll = false
+        prompt.visible = false
+        inputManager.captureController("")
+        summing = true
+        sumIndex = 0
+        if (hadKeys)
+            summary.forceActiveFocus()
     }
 
-    // A press taken for the step's input, unless it is the joystick, Guide or
-    // one pressed already: then the step waits for another.
-    function setAllPress(token, label) {
+    // A tap in Set One by One. The joystick is never a button, so it steers:
+    // left a step back, right no button for this one. Guide, the joystick's
+    // up and down and a button taken already ask again.
+    function stepPress(token, label) {
+        var left = token === "dpleft" || token === "leftx-"
+        var right = token === "dpright" || token === "leftx+"
         var already = setTokens.indexOf(token)
-        if (token === "guide") {
-            stepNotice = label + " shows MAME's menu: press another button"
+        if (left) {
+            stepNotice = ""
+            if (step > 0) {
+                step--
+                take("", "")
+            }
+        } else if (right) {
+            if (optionalStep) {
+                take("", "")
+                nextStep()
+                return
+            }
+            stepNotice = inputLabel(captureInput) + " needs a button"
+        } else if (token === "guide") {
+            stepNotice = label + " shows MAME's menu: press another"
         } else if (!isChoice(token)) {
             stepNotice = label + " is the joystick: press a button"
         } else if (already >= 0) {
             stepNotice = label + " is " + page.rows[already].label + " already"
         } else {
-            var tokens = setTokens.slice()
-            var labels = setLabels.slice()
-            tokens[allOrder[step]] = token
-            labels[allOrder[step]] = label
-            setTokens = tokens
-            setLabels = labels
+            take(token, label)
             nextStep()
             return
         }
-        waitFor(optionalAt(step) ? 5 : 10)
-        inputManager.captureController(key)
+        askStep()
     }
 
-    // Set All's presses so far, the last first: "BUTTON 2: Y".
-    function setSoFar() {
-        var list = []
-        for (var s = step - 1; s >= 0; s--) {
-            var i = allOrder[s]
-            list.push(page.rows[i].label + ": " + (setTokens[i] !== "" ? setLabels[i] : "None"))
+    // The grid's names: Set One by One's so far, else the page's.
+    function gridLabels() {
+        var labels = {}
+        var r = page.rows || []
+        for (var i = 0; i < r.length; i++) {
+            var value = settingAll || summing ? (setLabels[i] || "") : r[i].value
+            labels[r[i].input] = value === "None" || value === "Engine's" ? "" : value
         }
-        return list
+        return labels
     }
 
-    // TEST BUTTONS: its presses are shown until 10 seconds go by without one,
-    // or another controller's Back.
-    function startTest() {
-        if (!present) {
-            notice = "Connect it first"
+    // The summary's answer.
+    function finish(action) {
+        summing = false
+        list.forceActiveFocus()
+        if (action === "redo") {
+            startSetAll()
             return
         }
-        notice = ""
-        presses = []
-        pressed = ""
-        waitFor(10)
-        testing = true
-        inputManager.captureController(key)
-        testOverlay.forceActiveFocus()
-    }
-
-    function endTest() {
-        var hadKeys = testOverlay.activeFocus
-        testing = false
-        if (inputManager)
-            inputManager.captureController("")
-        if (hadKeys)
-            list.forceActiveFocus()
-    }
-
-    // "X → BUTTON 1": which of the cabinet's a press is; the joystick's are
-    // the joystick, Guide MAME's menu, and under Default another pad's
-    // buttons are the emulators' to number.
-    function testPress(token, label) {
-        var role = ""
-        var r = page.rows || []
-        pressed = ""
-        for (var i = 0; i < r.length && role === ""; i++) {
-            if (r[i].token !== token)
-                continue
-            role = theirs && i < 8 ? "-" : r[i].label
-            pressed = role !== "-" ? r[i].input : ""
+        if (action !== "save") {
+            notice = "Nothing changed"
+            return
         }
-        var text = token === "guide" ? label + " → MAME's Menu"
-                 : !isChoice(token) ? label + " → Joystick"
-                 : role === "-" || (role === "" && theirs) ? label
-                 : label + " → " + (role !== "" ? role : "None")
-        var seen = presses.slice()
-        seen.unshift(text)
-        presses = seen.slice(0, 6)
-        waitFor(10)
-        inputManager.captureController(key)
+        var outcome = inputManager.setArcadeInputs(key, setTokens)
+        notice = outcome === "set" ? "Saved: its layout is Custom now"
+               : outcome === "unsaved" ? "Not saved: the settings could not be written" : "Nothing changed"
     }
 
     function activate(row) {
         if (!row || !inputManager)
             return
         if (row.type === "layout")
-            cycleLayout(1)
+            chooseLayout()
         else if (row.type === "setall")
             startSetAll()
-        else if (row.type === "test")
-            startTest()
         else if (row.type === "input")
-            startCapture(row.input)
-    }
-
-    // The waits end on their own: a pad can't cancel them itself, its every
-    // button is one to set (InputManager's own end comes later). Set All's
-    // Button 2 to 8 are left none; its others end it, nothing changed. While
-    // one runs the screen saver waits: the presses it takes are no keys.
-    Timer {
-        id: countdown
-        interval: 1000
-        repeat: true
-        running: pageRoot.capturing || pageRoot.testing
-        onTriggered: {
-            if (idleTracker)
-                idleTracker.resetActivity()
-            pageRoot.secondsLeft--
-            if (pageRoot.secondsLeft > 0)
-                return
-            if (pageRoot.testing) {
-                pageRoot.endTest()
-            } else if (pageRoot.optionalStep) {
-                pageRoot.nextStep()
-            } else {
-                var waited = pageRoot.settingAll
-                var label = pageRoot.inputLabel(pageRoot.captureInput)
-                pageRoot.cancelCapture()
-                if (waited)
-                    pageRoot.notice = "No press for " + label + ": nothing changed"
-            }
-        }
+            chooseInput(row)
     }
 
     // Header
     AppBar {
         iconSource: "../../assets/images/keyboard.svg"
-        title: "Arcade Buttons"
+        title: pageRoot.present ? "Game Buttons" : "Not Connected"
         subtitle: pageRoot.name
         anchors.top: parent.top
         anchors.left: parent.left
@@ -502,7 +461,7 @@ FocusScope {
         // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
         height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
         clip: true
-        focus: !pageRoot.capturing && !pageRoot.testing
+        focus: !pageRoot.capturing && !pageRoot.summing
         highlightMoveDuration: 0
 
         function move(step) {
@@ -513,18 +472,9 @@ FocusScope {
             pageRoot.notice = ""
         }
 
-        function change(step) {
-            var row = pageRoot.rows[currentIndex]
-            if (row && row.type === "layout")
-                pageRoot.cycleLayout(step)
-            else if (row && row.type === "input")
-                pageRoot.cycleInput(row, step)
-        }
-
         Keys.onUpPressed: move(-1)
         Keys.onDownPressed: move(1)
-        Keys.onLeftPressed: change(-1)
-        Keys.onRightPressed: change(1)
+        Keys.onRightPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onReturnPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onEnterPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
@@ -534,26 +484,26 @@ FocusScope {
             }
         }
 
-        // "BUTTON 1······◄ X ►", "BUTTONS ─────": the layout and the inputs,
-        // which ◄ ► go round, between ◄ and ►.
+        // "BUTTON 1········X ►", "FIGHTING 6 ─────": every line opens a list
+        // or a wait.
         delegate: MenuRow {
             width: list.width
             height: root.sh * 0.0583333 //28
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
-            changes: modelData.type === "layout" || modelData.type === "input"
+            opens: pageRoot.selectable(modelData)
             selected: list.currentIndex === index && pageRoot.selectable(modelData)
         }
     }
 
-    // The control panel, the line's input lit, at the content's right, level
-    // with the list.
+    // The control panel, the line's input blinking, at the content's right,
+    // level with the list.
     ArcadePanel {
         id: panel
         lit: pageRoot.lit
         player: pageRoot.player
-        visible: !pageRoot.capturing && !pageRoot.testing
+        visible: !pageRoot.capturing && !pageRoot.summing
         x: root.sw * 0.884375 - width //566
         anchors.verticalCenter: list.verticalCenter
     }
@@ -566,9 +516,9 @@ FocusScope {
 
     HelpLine {
         property var currentRow: pageRoot.rows[list.currentIndex]
-        visible: !pageRoot.capturing && !pageRoot.testing && text !== ""
+        visible: !pageRoot.capturing && !pageRoot.summing && text !== ""
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
-        // What became of a new button is said with Help Line off too.
+        // What became of a press is said with Help Line off too.
         always: pageRoot.notice !== ""
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -578,108 +528,104 @@ FocusScope {
 
     HintBar {
         property var currentRow: pageRoot.rows[list.currentIndex]
-        visible: !pageRoot.capturing && !pageRoot.testing
+        visible: !pageRoot.capturing && !pageRoot.summing
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (currentRow && (currentRow.type === "layout" || currentRow.type === "input") ? root.hints.change + ":CHANGE " : "")
-              + root.hints.select + (currentRow && currentRow.type === "test" ? ":TEST"
-                                     : currentRow && currentRow.type === "setall" ? ":START" : ":SET")
+              + root.hints.select + (currentRow && currentRow.type === "setall" ? ":START" : ":CHANGE")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    // --- WAITING FOR A PRESS ---
-    FocusScope {
-        id: overlay
+    // The layout, from a list: back leaves it as it was.
+    ChoiceOverlay {
+        id: layoutChooser
+        objectName: "layoutChooser"
         anchors.fill: parent
-        visible: pageRoot.capturing
-        // Hidden, it lets go of the keys: an item only hidden would keep them.
-        enabled: visible
-
-        // This pad's presses never come here: InputManager reports them
-        // through controllerInputCaptured instead. Another's do: its Back
-        // cancels, nothing changed, the rest wait. Autorepeat is ignored: the
-        // press that opened this may still be held when repeat kicks in.
-        // Ctrl+Q and the rest go on to Main.qml.
-        Keys.onPressed: function(event) {
-            if (event.modifiers & Qt.ControlModifier)
-                return
-            if (!event.isAutoRepeat
-                    && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)) {
-                var all = pageRoot.settingAll
-                pageRoot.cancelCapture()
-                if (all)
-                    pageRoot.notice = "Nothing changed"
-            }
-            event.accepted = true
+        promptText: "Layout"
+        subtitleText: "Custom is what was set by hand: it is kept while another is chosen"
+        onActivated: function(layout) {
+            if (inputManager)
+                inputManager.setArcadeLayout(pageRoot.key, layout)
         }
+        onClosed: list.forceActiveFocus()
+    }
 
-        PromptScreen {
-            objectName: "capturePrompt"
-            kind: "notice"
-            title: pageRoot.settingAll ? "Set All Buttons (" + (pageRoot.step + 1) + "/" + pageRoot.allOrder.length + ")"
-                                       : pageRoot.inputLabel(pageRoot.captureInput)
-            message: (pageRoot.stepNotice !== "" ? pageRoot.stepNotice + "\n" : "")
-                     + "Press the button on " + pageRoot.name + " for [" + pageRoot.inputLabel(pageRoot.captureInput) + "]"
-                     + (pageRoot.optionalStep ? ", or wait if it has none" : "")
-            // What Set All has taken so far, the last three.
-            maxChoices: 3
-            choices: pageRoot.settingAll ? pageRoot.setSoFar().slice(0, maxChoices) : []
-            currentIndex: -1
-            hint: (pageRoot.optionalStep ? "NONE IN " : "CANCELS IN ") + pageRoot.secondsLeft
+    // One of the ten: a press, an input no line has, or none.
+    ChoiceOverlay {
+        id: inputChooser
+        objectName: "inputChooser"
+        property string input: ""
+        anchors.fill: parent
+        onActivated: function(action) {
+            if (action === "press")
+                pageRoot.startCapture(input)
+            else if (action.indexOf("token:") === 0)
+                pageRoot.showOutcome(pageRoot.inputLabel(input),
+                                     inputManager.setArcadeInput(pageRoot.key, input, action.substring(6)))
+        }
+        onClosed: list.forceActiveFocus()
+    }
 
-            // The one to press, lit, at half the page's size: none on a
-            // 240-line picture, which has no room for it.
-            ArcadePanel {
-                objectName: "capturePanel"
-                cell: Math.floor(root.px / 2)
-                visible: cell > 0
-                lit: pageRoot.lit
-                player: pageRoot.player
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
+    // --- WAITING FOR A PRESS ---
+    PressPrompt {
+        id: prompt
+        objectName: "capturePrompt"
+        title: pageRoot.settingAll ? "Set One by One (" + (pageRoot.step + 1) + "/" + pageRoot.allOrder.length + ")"
+                                   : pageRoot.inputLabel(pageRoot.captureInput)
+        message: (pageRoot.stepNotice !== "" ? pageRoot.stepNotice + "\n" : "")
+                 + "Press the button on " + pageRoot.name + " for [" + pageRoot.inputLabel(pageRoot.captureInput) + "]"
+        extra: !pageRoot.settingAll ? ""
+               : "Joystick ◄ back" + (pageRoot.optionalStep ? ", ► no button" : "")
+        onBackPressed: pageRoot.endCapture("Nothing changed")
+        onTimedOut: pageRoot.endCapture("No press: nothing changed")
+
+        // The cabinet's buttons, the one asked for lit, and what the others
+        // are: Set One by One's so far, the page's for a line's own.
+        ButtonGrid {
+            objectName: "captureGrid"
+            lit: pageRoot.capturing ? [pageRoot.captureInput] : []
+            labels: pageRoot.capturing ? pageRoot.gridLabels() : ({})
         }
     }
 
-    // --- TESTING ITS BUTTONS ---
+    // --- SET ONE BY ONE'S END: ALL TEN, TO SAVE ---
     FocusScope {
-        id: testOverlay
+        id: summary
+        objectName: "summary"
         anchors.fill: parent
-        visible: pageRoot.testing
+        visible: pageRoot.summing
+        // Hidden, it lets go of the keys.
         enabled: visible
 
-        // As the wait for a press: this pad's presses come through
-        // controllerInputCaptured, another's Back ends it.
+        readonly property var answers: [{ label: "Save", action: "save" }, { label: "Do It Again", action: "redo" },
+                                        { label: "Cancel", action: "cancel" }]
+
         Keys.onPressed: function(event) {
             if (event.modifiers & Qt.ControlModifier)
                 return
-            if (!event.isAutoRepeat
-                    && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back))
-                pageRoot.endTest()
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+                pageRoot.finish("cancel")
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                pageRoot.finish(answers[pageRoot.sumIndex].action)
+            else if (event.key === Qt.Key_Up)
+                pageRoot.sumIndex = (pageRoot.sumIndex + answers.length - 1) % answers.length
+            else if (event.key === Qt.Key_Down)
+                pageRoot.sumIndex = (pageRoot.sumIndex + 1) % answers.length
             event.accepted = true
         }
 
-        // The presses as answers, the last boxed, at the top.
         PromptScreen {
-            objectName: "testPrompt"
-            kind: "notice"
-            title: "Test Buttons"
-            message: "Press the buttons on " + pageRoot.name
-            // One fewer than a prompt's own, for the panel's room.
-            maxChoices: root.hintBar ? 4 : 5
-            choices: pageRoot.presses.slice(0, maxChoices)
-            currentIndex: 0
-            hint: "ENDS IN " + pageRoot.secondsLeft
+            objectName: "summaryPrompt"
+            title: "Save these buttons?"
+            message: "They become " + pageRoot.name + "'s Custom layout"
+            choices: summary.answers
+            currentIndex: pageRoot.sumIndex
+            onHovered: function(index) { pageRoot.sumIndex = index }
 
-            // The one the last press is, lit, as the wait's.
-            ArcadePanel {
-                objectName: "testPanel"
-                cell: Math.floor(root.px / 2)
-                visible: cell > 0
-                lit: pageRoot.lit
-                player: pageRoot.player
-                anchors.horizontalCenter: parent.horizontalCenter
+            ButtonGrid {
+                objectName: "summaryGrid"
+                labels: pageRoot.summing ? pageRoot.gridLabels() : ({})
             }
         }
     }

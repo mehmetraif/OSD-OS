@@ -35,7 +35,7 @@ Every OSD/OS machine plays FinalBurn Neo's arcade games with the others: over th
 Every system plays arcade games with the same engines, so machines stay in step and take the same ROM sets.
 
 - **FinalBurn Neo comes with OSD/OS** on every system, built from one commit of it. Machines whose cores differ drift apart in a game, and RetroArch drops one of them.
-- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages.
+- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages. The image and the Raspberry Pi tarball also bring that RetroArch built by OSD/OS with TLS, for [RetroAchievements](https://github.com/mehmetraif/OSD-OS/wiki/Arcade), and play in it.
 - **The newest core**: **Settings → Arcade → FinalBurn Neo → Upgrade to Latest** puts libretro's newest core in place of OSD/OS's. Play with others on OSD/OS's version: **Back to OSD/OS's Version** goes back to it.
 
 ## LAN play

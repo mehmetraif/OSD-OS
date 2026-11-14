@@ -14,6 +14,7 @@
 
 class QQmlContext;
 class QProcess;
+class QTimer;
 
 struct ModuleEntry {
     QString id;
@@ -94,9 +95,28 @@ public:
     // of the file, each told as save_setting() tells one. False, and none
     // saved or told, where the file couldn't be written.
     Q_INVOKABLE bool save_settings(const QString &moduleId, const QVariantMap &values);
+    // A setting changed in quick steps (a slider's ◄ ►): told at once, as
+    // save_setting() tells one, and get_setting() says it from then on, but
+    // config.json isn't written at each step. It is written once: when the
+    // steps rest (kSettleMs after the last), at flush_settings(), with the
+    // next save_setting(), or as the app quits. False, and nothing told,
+    // when config.json is there but can't be read.
+    Q_INVOKABLE bool save_setting_soon(const QString &moduleId, const QString &key, const QVariant &value);
+    // What save_setting_soon() holds back, written now: a page calls it as it
+    // is left. False when it couldn't be written (a full card): the settings
+    // are then as the file has them, as after a save_setting() that failed,
+    // each told again with its saved value, and settingsNotSaved() for the
+    // page to show its rows as saved.
+    Q_INVOKABLE bool flush_settings();
+    // How long after a held setting's last step config.json is written.
+    static constexpr int kSettleMs = 500;
+    ~AppCore() override;
     Q_INVOKABLE QVariant get_module_info(const QString &moduleId);
     Q_INVOKABLE QVariant get_module_settings_schema(const QString &moduleId);
-    Q_INVOKABLE void invoke_module_action(const QString &moduleId, const QString &slotName);
+    // The slot called on the module's backend, queued. False when it has no
+    // backend, or the backend no such slot: a settings page's action row
+    // then says it wasn't done (views/ModuleSettings.qml).
+    Q_INVOKABLE bool invoke_module_action(const QString &moduleId, const QString &slotName);
     Q_INVOKABLE QVariant get_installed_modules();
     Q_INVOKABLE QVariantMap getCustomColorScheme() const;
     Q_INVOKABLE QVariantMap getCustomColorSchemes() const;
@@ -200,6 +220,9 @@ signals:
     void modulesLoaded(const QVariantList &modules);
     void appSettingChanged(const QString &key, const QString &value);
     void moduleSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
+    // What save_setting_soon() held back couldn't be written: the settings
+    // are as config.json has them (flush_settings()).
+    void settingsNotSaved();
     void setupNoticeChanged();
     // OSD/OS Setup's RetroAchievements account written while the app runs
     // (applySetupText()): the Arcade module takes it at once, as it does a
@@ -228,11 +251,25 @@ private slots:
 private:
     AsyncDirectoryCache *m_directoryCache = nullptr;
     // The config, or the defaults for one missing or unreadable; `broken`
-    // tells those apart (true: there, but not valid JSON).
+    // tells those apart (true: there, but not valid JSON). With what
+    // save_setting_soon() holds back in it, so every reader has the newest.
     QJsonObject loadConfig(bool *broken = nullptr) const;
-    // False when it couldn't be written (the reason is in the log).
-    bool saveConfig(const QJsonObject &config) const;
+    // config.json as the file has it, without what is held back.
+    QJsonObject storedConfig(bool *broken = nullptr) const;
+    // False when it couldn't be written (the reason is in the log). Written,
+    // it has what was held back in it (a config from loadConfig()): nothing
+    // is held any more.
+    bool saveConfig(const QJsonObject &config);
     bool saveSettings(const QString &moduleId, const QList<std::pair<QString, QVariant>> &values);
+    // A setting put in a config: an app's (moduleId empty) or a module's, a
+    // key with a dot as a value of a value ("libraries.key").
+    static void putSetting(QJsonObject *config, const QString &moduleId, const QString &key, const QVariant &value);
+    // A setting changed, told: appSettingChanged or moduleSettingChanged,
+    // and the status icons again for a module turned on or off.
+    void tellSetting(const QString &moduleId, const QString &key, const QVariant &value);
+    // flush_settings(), with the changes told again, or not (the app going),
+    // when the file couldn't be written.
+    bool writeHeld(bool tell);
     QJsonObject loadLists(bool *broken = nullptr) const;
     bool listsToChange(QJsonObject *lists) const;
     void saveLists(const QJsonObject &lists) const;
@@ -273,6 +310,14 @@ private:
     mutable QDateTime   m_configCacheModified;
     mutable qint64      m_configCacheSize = -1;
     mutable bool        m_configCacheValid = false;
+    // What save_setting_soon() holds back from the file, the newest value of
+    // each setting, in the order they first changed; and the timer that
+    // writes them once the steps rest. Only the changes are held, not a copy
+    // of the config: a backend that writes config.json itself meanwhile
+    // (Plex's token) is not written over.
+    struct HeldSetting { QString moduleId; QString key; QVariant value; };
+    QList<HeldSetting> m_held;
+    QTimer *m_settle = nullptr;
     // lists.json the same way (loadLists()): the Arcade screen asks for a
     // list at every page of games, a tree for each list it opens.
     mutable QJsonObject m_listsCache;

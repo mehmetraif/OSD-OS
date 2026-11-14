@@ -10,7 +10,7 @@ The weather, shown the way a cable weather channel showed it in the 90s: current
 ## Setting it up
 
 1. Settings → TV / Movie → **WEATHER** → **Enabled**: On. Weather appears on the main menu.
-2. Write your location in `weather_location.txt` in the data folder (below).
+2. Settings → TV / Movie → **WEATHER** → **Location**: type your town, or its latitude and longitude. (Or write it in `weather_location.txt`, below, which also takes your other places.)
 3. Open **Weather** from the main menu.
 
 Until the file is there, the module says what is missing (see [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Weather#troubleshooting)).
@@ -22,8 +22,8 @@ Until the file is there, the module says what is missing (see [Troubleshooting](
 | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/weather_location.txt` |
 | macOS | `~/Library/Application Support/OSD-OS/weather_location.txt` |
 
-- The **first line** is your location, a place name or coordinates.
-- **Each line after it** is another place for the Other Locations screen, which has room for about six.
+- The **first line** is your location, a place name or coordinates. With **Location** set in Settings that one is used instead, and applies at once.
+- **Each line after it** is another place for the Other Locations screen, which has room for about six. **Other Places** in Settings lists them too, and its places come first.
 - Blank lines are ignored. A line starting with `#` is a comment.
 - **After changing the file, restart OSD/OS.** Places are looked up once per run.
 - An extra place that can't be found is skipped.
@@ -81,7 +81,7 @@ A strip runs along the foot of every screen: the date and a clock in the place's
 | Pause or resume the music | ▼ | D-pad down | For this visit only; the Music setting is unchanged |
 | Leave | Esc | B | Back to the main menu; the music stops |
 
-While the module is open, the screen saver stays away.
+While the module is open, the screen saver stays away. Once it is left the screen saver comes again in the menus, with a video playing behind them too.
 
 ## Where the numbers come from
 
@@ -109,7 +109,7 @@ With **Music** on (the default), music plays while the weather is up: shuffled o
 - Without a list of your own, it streams eight tracks from the Weatherscan collection on the Internet Archive, so it needs the network.
 - It plays on the card set in Settings → Sound → Audio Output. The menu music is held off meanwhile.
 
-To play your own, list them in `weather_music.txt` in the data folder. It replaces the built-in list:
+To play your own, list them in Settings → TV / Movie → WEATHER → **Music List**, a line each, or in `weather_music.txt` in the data folder. Either replaces the built-in list, and Music List comes before the file:
 
 - one track per line: a file, or an `http://` or `https://` URL;
 - a file is an absolute path, or a path relative to the data folder;
@@ -135,8 +135,11 @@ Settings → TV / Movie → **WEATHER**. The keys sit under `modules.com.osdos.w
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows Weather on the main menu. | `enabled` |
+| Location | A line typed | Not Set | Your place: a name, or coordinates with a label. Applies at once. | `location` |
+| Other Places | A list of lines, 12 at most | None | The Other Locations screen's places, written as Location is. Looked up again at each change. | `other_places` |
 | Displays | Current Conditions, Extended Forecast, Other Locations, Almanac: each on or off | All on | Which screens are in the loop. With none on, Current Conditions alone. | `displays.current`, `.extended`, `.others`, `.almanac` |
 | Music | On, Off | On | Background music while the forecast is up. | `music` |
+| Music List | A list of lines, 20 at most | None | Your own tracks in place of the built-in ones: links, or files' paths. | `music_list` |
 | Units | Metric, US | Metric | See [Units](https://github.com/mehmetraif/OSD-OS/wiki/Weather#units-and-the-clock). | `units` |
 | Screen Time | 10 SEC, 30 SEC, 60 SEC | 10 SEC | How long each screen stays up. | `screen_time` |
 | Hours Format | 24-hour, 12-hour | 24-hour | The clock, sunrise and sunset. | `hours_format` |
@@ -145,8 +148,8 @@ Settings → TV / Movie → **WEATHER**. The keys sit under `modules.com.osdos.w
 
 | File | What it is |
 |---|---|
-| `weather_location.txt` | Your location, then your other places. You write it. |
-| `weather_music.txt` | Optional: your own music list. OSD/OS never writes it. |
+| `weather_location.txt` | Your location, then your other places, where Settings' Location and Other Places don't say. You write it. |
+| `weather_music.txt` | Optional: your own music list, read while Settings' Music List is empty. OSD/OS never writes it. |
 
 ```json
 {
@@ -185,7 +188,7 @@ When the module can't start, it says why:
 
 | Screen | Meaning | What to do |
 |---|---|---|
-| **NO LOCATION SET** | There is no `weather_location.txt` in the data folder. | Write it, as [above](https://github.com/mehmetraif/OSD-OS/wiki/Weather#the-location-file). Check the name (not `weather_location.txt.txt`) and the folder. |
+| **NO LOCATION SET** | Location in Settings is empty and there is no `weather_location.txt` in the data folder. | Type it in Settings → TV / Movie → WEATHER → Location, or write the file, as [above](https://github.com/mehmetraif/OSD-OS/wiki/Weather#the-location-file). |
 | **LOCATION FILE IS EMPTY** | The file has no line that isn't blank or a comment. | Add your location on the first line. |
 | **LOCATION FILE COULD NOT BE READ** | The file can't be opened. | The user running OSD/OS must be able to read it. |
 | **LOCATION NOT FOUND** | The geocoder knows no place of that name. | Check the spelling of the part before the first comma, or use coordinates. |

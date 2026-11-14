@@ -107,18 +107,36 @@ QStringList YouTubeBackend::cookieArgs() const {
 }
 
 // ---------------------------------------------------------------------------
-// Subscriptions file
+// Subscriptions: Settings' list (subscriptions), then youtube_subscriptions.txt
 // ---------------------------------------------------------------------------
 
+// One of the module's two lists: the lines typed in Settings or OSD/OS Setup
+// (modules.<id>.<key>, a list of lines), then the file's in the data folder.
+// Blank lines and '#' comments are no lines.
+QStringList YouTubeBackend::listLines(const char *key, const char *fileName) const {
+    QStringList lines;
+    const auto take = [&lines](const QString &raw) {
+        const QString line = raw.trimmed();
+        if (!line.isEmpty() && !line.startsWith(QLatin1Char('#')))
+            lines << line;
+    };
+    if (m_appCore) {
+        const QVariantList typed = m_appCore->get_setting(QStringLiteral("com.osdos.youtube"),
+                                                          QLatin1String(key)).toList();
+        for (const QVariant &line : typed)
+            take(line.toString());
+    }
+    QFile f(m_dataRoot + "/" + fileName);
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        while (!f.atEnd())
+            take(QString::fromUtf8(f.readLine()));
+    }
+    return lines;
+}
+
 QStringList YouTubeBackend::readSubscriptionIds() const {
-    QFile f(m_dataRoot + "/" + kSubscriptionsFileName);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
     QStringList ids;
-    while (!f.atEnd()) {
-        QString line = QString::fromUtf8(f.readLine()).trimmed();
-        if (line.isEmpty() || line.startsWith('#'))
-            continue;
+    for (QString line : listLines("subscriptions", kSubscriptionsFileName)) {
         // Be lenient with pasted channel URLs: take the segment after "channel/".
         const int slash = line.indexOf(QLatin1String("channel/"));
         if (slash >= 0) {
@@ -336,7 +354,7 @@ QVariantList YouTubeBackend::buildChannelList() const {
 }
 
 // ---------------------------------------------------------------------------
-// Playlists file (youtube_playlists.txt)
+// Playlists: Settings' list (playlists), then youtube_playlists.txt
 // Line format: [My Display Name | ] <playlist URL or bare playlist ID>
 // ---------------------------------------------------------------------------
 
@@ -358,15 +376,9 @@ static QString playlistIdFromToken(QString token) {
 }
 
 QList<YouTubeBackend::PlaylistFileRef> YouTubeBackend::readPlaylistEntries() const {
-    QFile f(m_dataRoot + "/" + kPlaylistsFileName);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
     QList<PlaylistFileRef> refs;
     QStringList seen;
-    while (!f.atEnd()) {
-        const QString line = QString::fromUtf8(f.readLine()).trimmed();
-        if (line.isEmpty() || line.startsWith('#'))
-            continue;
+    for (const QString &line : listLines("playlists", kPlaylistsFileName)) {
         // Split the optional display-name prefix at the last '|' (URLs never
         // contain one, display names conceivably could).
         QString name, token = line;

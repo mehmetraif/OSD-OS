@@ -3,7 +3,13 @@ import QtQuick
 // One of the deck's on-screen symbols (▶ ◀◀ ‖ ■ ● ⏏ …), drawn from a small
 // bitmap at a whole number of screen pixels per art pixel, so it stays as crisp
 // as the rest of the OSD. Set cells take `color`; the rest stay clear.
-Canvas {
+//
+// It is a picture OsdPixelProvider (src/util/OsdIconProvider) makes of the
+// cells at this size, in this colour: one for every PixelIcon that shows the
+// symbol so, kept by Qt Quick under its address, and one texture. Each used
+// to be a Canvas of its own, painted by a script as it was made and again at
+// every change of colour, a dozen and more of them on a settings page.
+Image {
     id: icon
 
     property string name: "play"
@@ -95,26 +101,12 @@ Canvas {
     antialiasing: false
     smooth: false
 
-    onPaint: {
-        var ctx = getContext("2d")
-        ctx.reset()
-        ctx.fillStyle = icon.color
-        for (var y = 0; y < rows.length; ++y) {
-            var row = rows[y]
-            var x = 0
-            while (x < row.length) {
-                if (row[x] !== "#") {
-                    ++x
-                    continue
-                }
-                var start = x
-                while (x < row.length && row[x] === "#")
-                    ++x
-                ctx.fillRect(start * pixel, y * pixel, (x - start) * pixel, pixel)
-            }
-        }
-    }
-    onNameChanged: requestPaint()
-    onColorChanged: requestPaint()
-    onPixelChanged: requestPaint()
+    // The picture at the symbol's own size, a cell `pixel` pixels square, so
+    // it is drawn pixel for pixel. Its cells go in the address as rows of 1
+    // and 0: a "#" would end a URL's path.
+    sourceSize: Qt.size(width, height)
+    source: width > 0 && height > 0
+            ? "image://osdpixel/" + String(color).replace("#", "") + "/"
+              + rows.join(",").replace(/#/g, "1").replace(/\./g, "0")
+            : ""
 }

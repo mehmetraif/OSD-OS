@@ -15,6 +15,7 @@
 #include "RetroAchievements.h"
 #include <QDateTime>
 #include <QDir>
+#include <QCryptographicHash>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
@@ -329,9 +330,13 @@ void addNumbered(QHash<QString, QStringList> &numbered, const QString &name, con
 
 // A picture saved in folder as <name>_<n>.png (or .jpg, as data is), n the
 // first number no picture of that name has there (.png or .jpg, in either
-// case), nor a set of the folder's (sets) as its name: never over a file,
-// which a new file only (NewOnly) makes sure of. Flushed to the card with its
-// folder. Its path, "" when it couldn't be saved.
+// case), nor a set of the folder's (sets) as its name: never over a file
+// that is there (the pictures are saved one at a time). Whole or not at all
+// (writeFileAtomically(): written beside its name, and given it once it is
+// on the card): written in place, a power cut on the way left a picture cut
+// short under the name, which the next read of the folder took for one of
+// the game's. Its folder's entry flushed to the card too. Its path, "" when
+// it couldn't be saved.
 QString savePicture(const QString &folder, const QString &name, const QByteArray &data,
                     const QHash<QString, QString> &sets) {
     if (!QDir().mkpath(folder))
@@ -349,24 +354,13 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
         const QString base = folder + QLatin1Char('/') + stem;
         if (sets.contains(stem) || taken(base))
             continue;
-        QFile file(base + QLatin1Char('.') + suffix);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
-            // Made meanwhile: the next number.
-            if (file.exists())
-                continue;
-            qWarning("[Arcade] A picture could not be saved in %s: %s", qPrintable(folder),
-                     qPrintable(file.errorString()));
-            return QString();
-        }
-        const bool written = file.write(data) == data.size() && file.flush();
-        file.close();
-        if (!written || !syncPath(file.fileName()).isEmpty()) {
+        const QString path = base + QLatin1Char('.') + suffix;
+        if (!writeFileAtomically(path, data)) {
             qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
-            file.remove();
             return QString();
         }
         syncPath(folder, true);
-        return file.fileName();
+        return path;
     }
     return QString();
 }
@@ -374,8 +368,10 @@ QString savePicture(const QString &folder, const QString &name, const QByteArray
 // A picture saved in folder as <stem>.png (or .jpg, as data is), the way the
 // picture packs for MAME name them, unless a picture of that name is there
 // already (.png or .jpg, in either case), the user's own or one saved before,
-// which is kept as it is and is the answer. Flushed to the card with its
-// folder. Its path, "" when it couldn't be saved.
+// which is kept as it is and is the answer. Whole or not at all, as
+// savePicture()'s: a picture cut short under this name would be kept as the
+// game's for good, a file of the name being the answer. Its folder's entry
+// flushed to the card too. Its path, "" when it couldn't be saved.
 QString saveNamedPicture(const QString &folder, const QString &stem, const QByteArray &data) {
     if (!QDir().mkpath(folder))
         return QString();
@@ -385,23 +381,13 @@ QString saveNamedPicture(const QString &folder, const QString &stem, const QByte
             return base + QLatin1String(ending);
     }
     const QString suffix = data.startsWith("\x89PNG") ? QStringLiteral("png") : QStringLiteral("jpg");
-    QFile file(base + QLatin1Char('.') + suffix);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
-        // Made meanwhile: it is the picture.
-        if (file.exists())
-            return file.fileName();
-        qWarning("[Arcade] A picture could not be saved in %s: %s", qPrintable(folder), qPrintable(file.errorString()));
-        return QString();
-    }
-    const bool written = file.write(data) == data.size() && file.flush();
-    file.close();
-    if (!written || !syncPath(file.fileName()).isEmpty()) {
+    const QString path = base + QLatin1Char('.') + suffix;
+    if (!writeFileAtomically(path, data)) {
         qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
-        file.remove();
         return QString();
     }
     syncPath(folder, true);
-    return file.fileName();
+    return path;
 }
 
 // A room on the local network as its id is kept: where it is joined, its
@@ -491,6 +477,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_launcher->setHandoffOwner(QLatin1String(kHandoffOwner));
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
     connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &launcherReason) {
+        // A game may have left a snapshot of its own: read, not looked at,
+        // at the next opening.
+        m_dirty = true;
         QString reason = launcherReason;
         QString notice;
         bool refused = false;
@@ -568,6 +557,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_installer = new FbneoInstaller(m_dataRoot, this);
     connect(m_installer, &FbneoInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
     connect(m_installer, &FbneoInstaller::finished, this, [this](bool ok, const QString &message) {
+        forgetPrograms();
         m_fbneoMessage = message;
         // Downloaded over the package's core: the user chose libretro's
         // newest, which plays from now on (libretro::latestChosen()).
@@ -585,6 +575,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_retroarchInstaller = new ProgramInstaller(this);
     connect(m_retroarchInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::fbneoProgressChanged);
     connect(m_retroarchInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
+        forgetPrograms();
         m_retroarchMessage = message;
         // The games read again with RetroArch there: FinalBurn Neo's play
         // now, and its version is asked as they are listed.
@@ -595,6 +586,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_mameInstaller = new ProgramInstaller(this);
     connect(m_mameInstaller, &ProgramInstaller::progressChanged, this, &ArcadeBackend::mameProgressChanged);
     connect(m_mameInstaller, &ProgramInstaller::finished, this, [this](bool ok, const QString &message) {
+        forgetPrograms();
         m_mameMessage = message;
         // The games read again with MAME there, which is asked about every
         // set, as it is another MAME: the sets the batch stopped for the
@@ -806,6 +798,7 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
 }
 
 void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
+    forgetPrograms();
     if (key == QLatin1String("games_directory")) {
         setGamesFolder(value.toString());
     } else if (key == QLatin1String("hide_bootlegs")) {
@@ -994,14 +987,35 @@ void ArcadeBackend::setProblem(const QString &problem) {
     emit problemChanged();
 }
 
+// Where the emulators are, as last looked for. A step of the cursor on the
+// Arcade screen asks several times over (the game's engine, its details, its
+// leaderboard, its pictures), and each look walks the PATH and the data
+// folder. Kept for a second, and looked for anew when the folder is read, an
+// installer ends, a setting changes or a game is about to start
+// (forgetPrograms()).
+const ArcadeBackend::Programs &ArcadeBackend::programs() const {
+    if (!m_programs.looked.isValid() || m_programs.looked.elapsed() > 1000) {
+        // One of the user's own first (a MAME built for CRTs, like
+        // GroovyMAME), as yt-dlp's is; then the system's.
+        m_programs.mame = mame::programPath(m_dataRoot);
+        m_programs.retroarch = libretro::programPath(m_dataRoot);
+        m_programs.core = libretro::corePath(m_dataRoot);
+        m_programs.snapFolder.clear();
+        m_programs.looked.start();
+    }
+    return m_programs;
+}
+
+void ArcadeBackend::forgetPrograms() {
+    m_programs.looked.invalidate();
+}
+
 QString ArcadeBackend::mamePath() const {
-    // One of the user's own first (a MAME built for CRTs, like GroovyMAME),
-    // as yt-dlp's is; then the system's.
-    return mame::programPath(m_dataRoot);
+    return programs().mame;
 }
 
 QString ArcadeBackend::retroarchPath() const {
-    return libretro::programPath(m_dataRoot);
+    return programs().retroarch;
 }
 
 QString ArcadeBackend::mameIdentity() const {
@@ -1009,10 +1023,53 @@ QString ArcadeBackend::mameIdentity() const {
     return program.exists() ? fileStamp(program) : QString();
 }
 
+// The names in the folders a read goes through, as one digest: the games
+// folder's, its bios, snap and titles folders', MAME's own snapshot folders',
+// and where catver.ini and FinalBurn Neo's list stand. A look at the folder
+// (lookAtNames()) holds it against the last read's to tell whether anything
+// was added, taken away or renamed, without asking the card about each file
+// as a read does. Names, not a folder's date: a card written in another
+// computer keeps its folders' dates as they were.
+QByteArray ArcadeBackend::namesOf(const QString &folder, const QString &home, const QString &dat) {
+    QCryptographicHash digest(QCryptographicHash::Sha1);
+    const auto add = [&digest](const QString &path) {
+        QStringList names;
+        QDirIterator it(path, QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+        while (it.hasNext()) {
+            it.next();
+            names << it.fileName();
+        }
+        names.sort();
+        digest.addData(path.toUtf8());
+        digest.addData("\n");
+        for (const QString &name : std::as_const(names)) {
+            digest.addData(name.toUtf8());
+            digest.addData("\n");
+        }
+        return names;
+    };
+    const QStringList top = add(folder);
+    for (const QString &name : top) {
+        const QString lower = name.toLower();
+        if (lower == QLatin1String("bios") || lower == QLatin1String("snap") || lower == QLatin1String("titles"))
+            add(folder + QLatin1Char('/') + name);
+    }
+    add(home + QStringLiteral("/snap"));
+    for (const QString &file : { folder + QStringLiteral("/catver.ini"), home + QStringLiteral("/catver.ini"), dat }) {
+        const QFileInfo info(file);
+        digest.addData(info.exists() ? fileStamp(info).toUtf8() : QByteArray("none"));
+        digest.addData("\n");
+    }
+    return digest.result();
+}
+
 ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &home, bool withCache,
                                         const QString &genresFrom, const QString &dat, const QString &datFrom) {
     Read read;
     read.folder = folder;
+    // As the folder stands before it is gone through: a file added while
+    // the read goes on makes the next look differ, and is read then.
+    read.names = namesOf(folder, home, dat);
     // There, so that whoever copies games onto the card sees where they go.
     QDir().mkpath(folder);
 
@@ -1215,6 +1272,9 @@ void ArcadeBackend::startRead() {
 
 void ArcadeBackend::onRead() {
     Read read = m_watcher->result();
+    m_namesRead = read.names;
+    m_programsRead = programsStamp();
+    m_dirty = false;
     // games.json, whatever folder was read: it is the module's own.
     if (read.cacheAsked && !m_cacheLoaded) {
         m_cacheLoaded = true;
@@ -1328,6 +1388,7 @@ void ArcadeBackend::afterRead(std::function<void()> fn) {
 }
 
 void ArcadeBackend::checkProblem() {
+    forgetPrograms();
     // The folder first: without it there is no list for anything else to
     // stand in the way of.
     const QFileInfo folder(m_gamesFolder);
@@ -1343,6 +1404,7 @@ void ArcadeBackend::checkProblem() {
 }
 
 void ArcadeBackend::refresh() {
+    forgetPrograms();
     // The folder, games.json until it has been read, catver.ini and the
     // pictures put there since, or taken in a game; then MAME is asked about
     // what it hasn't been (onRead()). A read under way is followed by
@@ -1352,7 +1414,60 @@ void ArcadeBackend::refresh() {
     // network's, for LAN Games.
     refreshRooms();
     refreshLanRooms();
+    // Read before, and nothing known to have changed since: the list stays
+    // as it is, on the screen at once, while a look at the folders' names
+    // says whether it has to be read again (lookAtNames()). With a full set
+    // a read asks the card about tens of thousands of files, at every
+    // opening of the module.
+    if (m_listed && m_cacheLoaded && !m_reading && !m_dirty && !m_namesRead.isEmpty()) {
+        lookAtNames();
+        return;
+    }
     readAgain();
+}
+
+// The emulators as they stand, looked for anew: which programs and core,
+// and of what date and size.
+QString ArcadeBackend::programsStamp() const {
+    m_programs.looked.invalidate();
+    QString stamp;
+    for (const QString &path : { programs().mame, programs().retroarch, programs().core }) {
+        const QFileInfo info(path);
+        stamp += (path.isEmpty() || !info.exists() ? QStringLiteral("none") : path + QLatin1Char(' ') + fileStamp(info))
+                 + QLatin1Char('\n');
+    }
+    return stamp;
+}
+
+// What was read no longer holds for a reason the folders' names wouldn't
+// show (a game's archive replaced under its name): the next refresh() reads.
+void ArcadeBackend::markChanged() {
+    m_dirty = true;
+}
+
+void ArcadeBackend::lookAtNames() {
+    if (m_looking)
+        return;
+    m_looking = true;
+    const QString folder = m_gamesFolder;
+    QtConcurrent::run(&ArcadeBackend::namesOf, folder, m_home, libretro::datPath(m_dataRoot))
+        .then(this, [this, folder](const QByteArray &names) {
+        m_looking = false;
+        // Another MAME, RetroArch or core (an update, a drop-in), or one
+        // gone, knows or plays the sets differently.
+        if (folder != m_gamesFolder || m_dirty || names != m_namesRead || programsStamp() != m_programsRead) {
+            qInfo("[Arcade] The games folder or an emulator has changed: reading the games again");
+            readAgain();
+            return;
+        }
+        // As it was: what a read ends with, the problem looked for and MAME
+        // asked about any game it hasn't been.
+        m_scanAfterRead = false;
+        m_scanFailed = false;
+        checkProblem();
+        startScan();
+        emit lookedAtNames();
+    });
 }
 
 void ArcadeBackend::readAgain() {
@@ -1363,6 +1478,8 @@ void ArcadeBackend::readAgain() {
 }
 
 void ArcadeBackend::rescan() {
+    // Read in full, whatever a look at the folder's names would say.
+    m_dirty = true;
     // Every game's pictures too, once the games have been read again
     // (emitShown()): a look under way starts anew then.
     stopPictureSweep();
@@ -2030,7 +2147,16 @@ QString ArcadeBackend::titlesFolder() const {
 
 bool ArcadeBackend::snapWritable() const {
     const QString folder = snapFolder();
-    return !folder.isEmpty() && QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable();
+    if (folder.isEmpty())
+        return false;
+    // Looked at with the emulators (programs()), and again for another folder.
+    Programs &kept = m_programs;
+    programs();
+    if (kept.snapFolder != folder) {
+        kept.snapFolder = folder;
+        kept.snapWritable = QFileInfo(QFileInfo::exists(folder) ? folder : m_gamesFolder).isWritable();
+    }
+    return kept.snapWritable;
 }
 
 void ArcadeBackend::wantPictures(const QString &set) {
@@ -3148,9 +3274,17 @@ void ArcadeBackend::addPlayTime(const QString &set, qint64 seconds) {
     QJsonObject times;
     for (auto it = m_playTime.constBegin(); it != m_playTime.constEnd(); ++it)
         times.insert(it.key(), static_cast<double>(it.value()));
-    QDir().mkpath(m_home);
-    if (!writeFileAtomically(m_home + QStringLiteral("/playtime.json"), QJsonDocument(times).toJson(QJsonDocument::Compact)))
-        qWarning("[Arcade] The play times could not be saved");
+    // Off the app's thread, as games.json is (saveCache()): this runs as a
+    // game ends, before the menus are back, and a write that waits for the
+    // card takes tens to hundreds of milliseconds on one. In order, the
+    // newest last (m_pictureSaves is one thread, waited for as the backend
+    // goes).
+    const QByteArray json = QJsonDocument(times).toJson(QJsonDocument::Compact);
+    m_pictureSaves.start([home = m_home, json] {
+        QDir().mkpath(home);
+        if (!writeFileAtomically(home + QStringLiteral("/playtime.json"), json))
+            qWarning("[Arcade] The play times could not be saved");
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -3192,6 +3326,8 @@ QString ArcadeBackend::ownFolder() const {
 }
 
 bool ArcadeBackend::play(const QString &name, int credits) {
+    // What is there now, not a moment ago.
+    forgetPrograms();
     m_lastError.clear();
     if (running()) {
         m_lastError = QStringLiteral("A game is still running");
@@ -3692,7 +3828,7 @@ void ArcadeBackend::setDifficulty(const QString &set, const QString &name) {
 }
 
 bool ArcadeBackend::fbneoReady() const {
-    return !retroarchPath().isEmpty() && !libretro::corePath(m_dataRoot).isEmpty() && !m_fbneoGames.isEmpty();
+    return !programs().retroarch.isEmpty() && !programs().core.isEmpty() && !m_fbneoGames.isEmpty();
 }
 
 bool ArcadeBackend::fbneoPlays(const QString &set) const {
@@ -4607,9 +4743,21 @@ void ArcadeBackend::readOwnVersions() {
             // The file before's version isn't this one's.
             m_retroarchVersion.clear();
             m_versionRead = askVersion(program, { QStringLiteral("--version") },
-                                       [this, programStamp, doneWith](const QByteArray &output, bool timedOut) {
+                                       [this, program, programStamp, doneWith](const QByteArray &output, bool timedOut) {
                 m_versionRead = nullptr;
                 m_retroarchVersion = libretro::readVersion(output);
+                if (m_retroarchVersion.isEmpty() && !timedOut && program == libretro::packagedProgram()) {
+                    // The package's own, which didn't start (a library it
+                    // needs isn't on this system: Debian's retroarch package
+                    // brings them all): the system's RetroArch from here on,
+                    // whose version is asked next.
+                    qWarning("[Arcade] the RetroArch that came with OSD/OS did not start, the system's is used: %s",
+                             qPrintable(QString::fromUtf8(output).simplified().left(200)));
+                    libretro::leavePackagedProgram();
+                    forgetPrograms();
+                    QTimer::singleShot(0, this, &ArcadeBackend::readOwnVersions);
+                    return;
+                }
                 if (doneWith(programStamp, timedOut && m_retroarchVersion.isEmpty()))
                     m_retroarchVersionOf = programStamp;
                 raiseOwnDownloads();
@@ -5097,7 +5245,10 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("canDownloadRetroarch"), ProgramInstaller::retroarch(m_dataRoot).available },
              { QStringLiteral("retroarchDownloadVersion"), ProgramInstaller::retroarch(m_dataRoot).version },
              { QStringLiteral("retroarchDownloaded"), !retroarchPath().isEmpty()
-                                                      && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) } };
+                                                      && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) },
+             // The package's own, built with TLS (the Linux arm64 one's).
+             { QStringLiteral("retroarchPackaged"), !retroarchPath().isEmpty()
+                                                    && retroarchPath() == libretro::packagedProgram() } };
 }
 
 QString ArcadeBackend::fbneoLicenseText() const {

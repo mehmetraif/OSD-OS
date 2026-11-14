@@ -1,6 +1,10 @@
+#include "AppCore.h"
 #include "modules/youtube/YouTubeBackend.h"
 
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPointer>
 #include <QRegularExpression>
 #include <QSignalSpy>
@@ -15,6 +19,7 @@
 // at a time however many channels there are, the next as each lands, the
 // channel opened ahead of those still waiting and answered as its own feed
 // lands, and every channel's videos in the feed once all have been read.
+// The channels and playlists typed in Settings, beside the files'.
 class YouTubeTest : public QObject {
     Q_OBJECT
 
@@ -119,6 +124,67 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(ready.contains(QVariantList{ QStringLiteral("subscriptions") }), 5000);
         QCOMPARE(youtube.listing(QStringLiteral("subscriptions")).toList().size(), ids.size());
         QVERIFY(youtube.problem().isEmpty());
+    }
+
+    // The two lists typed in Settings (modules.<id>.subscriptions and
+    // playlists, lists of lines): Home has their folders with no file there,
+    // and the channels are Settings' first, then the file's, each once, a
+    // link's channel taken from it.
+    void listsFromSettings() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const auto write = [&data](const QString &name, const QByteArray &text) {
+            QFile file(data.path() + QLatin1Char('/') + name);
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write(text);
+        };
+        const auto names = [](const QVariant &listing) {
+            QStringList out;
+            for (const QVariant &entry : listing.toList())
+                out << entry.toMap().value(QStringLiteral("name")).toString();
+            return out;
+        };
+        write(QStringLiteral("config.json"), "{}");
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        QCOMPARE(names(youtube.listing(QStringLiteral("home"))), QStringList({ QStringLiteral("Search") }));
+
+        // (Built, not written out as a raw string: moc reads a link's two
+        // slashes in one as a comment's, and finds no class in the file.)
+        const QJsonObject module{
+            { QStringLiteral("subscriptions"),
+              QJsonArray{ QStringLiteral("UCtyped"), QStringLiteral(" "),
+                          QStringLiteral("https://www.youtube.com/channel/UClinked/videos") } },
+            { QStringLiteral("playlists"),
+              QJsonArray{ QStringLiteral("Mixes | https://www.youtube.com/playlist?list=PLexample123") } } };
+        write(QStringLiteral("config.json"),
+              QJsonDocument(QJsonObject{ { QStringLiteral("modules"),
+                                           QJsonObject{ { QStringLiteral("com.osdos.youtube"), module } } } }).toJson());
+        QCOMPARE(names(youtube.listing(QStringLiteral("home"))),
+                 QStringList({ QStringLiteral("Search"), QStringLiteral("Subscriptions"), QStringLiteral("Channels"),
+                               QStringLiteral("Playlists") }));
+
+        write(QStringLiteral("youtube_subscriptions.txt"), "# mine\nUCfile\nUCtyped\n");
+        QStringList asked;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [&asked, socket] {
+                const QByteArray request = socket->property("request").toByteArray() + socket->readAll();
+                socket->setProperty("request", request);
+                if (!request.contains("\r\n\r\n"))
+                    return;
+                static const QRegularExpression channel(QStringLiteral("channel_id=([A-Za-z0-9_-]+)"));
+                asked << channel.match(QString::fromLatin1(request)).captured(1);
+                socket->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                socket->disconnectFromHost();
+            });
+        });
+        youtube.setFeedUrl(QUrl(QStringLiteral("http://127.0.0.1:%1/feeds/videos.xml").arg(server.serverPort())));
+        youtube.listing(QStringLiteral("subscriptions"));
+        QTRY_COMPARE_WITH_TIMEOUT(asked.size(), 3, 5000);
+        QCOMPARE(asked, QStringList({ QStringLiteral("UCtyped"), QStringLiteral("UClinked"), QStringLiteral("UCfile") }));
     }
 };
 

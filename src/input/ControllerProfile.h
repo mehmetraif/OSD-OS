@@ -18,9 +18,13 @@ class QProcessEnvironment;
 // shares one, as does every node of one keyboard or remote.
 namespace controllers {
 
-// What a pad's buttons are called, in the hints and on its page. Auto takes
-// what the pad says it is; an arcade stick's buttons are numbered.
-enum class LabelStyle { Auto, Xbox, PlayStation, Nintendo, Arcade };
+// What a pad's buttons are called, in the hints and on its page (BUTTON
+// NAMES): letters with A at the bottom (A B X Y, the south button A) or with
+// A on the right (B A Y X), shapes (X O SQ TR), or numbers, an arcade
+// stick's. Auto takes what the pad says it is. config.json has them as
+// "auto", "a_below", "a_right", "shapes" and "numbers"; the names an older
+// version wrote for the same four are still read (labelStyleFromName()).
+enum class LabelStyle { Auto, ABelow, ARight, Shapes, Numbers };
 LabelStyle labelStyleFromName(const QString &name);
 QString labelStyleName(LabelStyle style);
 QString labelStyleTitle(LabelStyle style);
@@ -28,7 +32,7 @@ QString labelStyleTitle(LabelStyle style);
 QStringList labelStyleNames();
 // A pad's input, input.cfg's token for it ("a", "dpup", "leftx-",
 // "lefttrigger+"), as that style prints it. Auto isn't one: InputManager
-// makes it Xbox, PlayStation, Nintendo or Arcade first.
+// makes it one of the four first.
 QString inputLabel(LabelStyle style, const QString &token);
 
 QString padKey(const QString &sdlGuid);
@@ -139,8 +143,15 @@ struct Profile {
     // "".
     QString arcadeLayout;
     QStringList arcade;
+    // The inputs last set by hand (Custom's), kept while another layout is
+    // chosen, so that Custom brings them back: kArcadeInputs tokens, or
+    // none. config.json has them as arcade.custom beside a preset's inputs,
+    // and with no layout as arcade: { layout: "default", custom }.
+    QStringList arcadeCustom;
 
-    bool isEmpty() const { return labels == LabelStyle::Auto && bindings.isEmpty() && arcadeLayout.isEmpty(); }
+    bool isEmpty() const {
+        return labels == LabelStyle::Auto && bindings.isEmpty() && arcadeLayout.isEmpty() && arcadeCustom.isEmpty();
+    }
     static Profile fromVariant(const QVariant &value);
     QVariantMap toVariant() const;
 };

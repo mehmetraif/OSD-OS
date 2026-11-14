@@ -19,38 +19,45 @@ struct Style {
     const char *title;
 };
 const Style kStyles[] = {
-    { LabelStyle::Auto,        "auto",        "Auto" },
-    { LabelStyle::Xbox,        "xbox",        "Xbox" },
-    { LabelStyle::PlayStation, "playstation", "PlayStation" },
-    { LabelStyle::Nintendo,    "nintendo",    "Nintendo" },
-    { LabelStyle::Arcade,      "arcade",      "Arcade" },
+    { LabelStyle::Auto,    "auto",    "Auto" },
+    { LabelStyle::ABelow,  "a_below", "A below" },
+    { LabelStyle::ARight,  "a_right", "A right" },
+    { LabelStyle::Shapes,  "shapes",  "Shapes" },
+    { LabelStyle::Numbers, "numbers", "Numbers" },
+};
+// The names an older version wrote in config.json for the same styles.
+const struct { const char *name; LabelStyle style; } kOldStyleNames[] = {
+    { "xbox",        LabelStyle::ABelow },
+    { "nintendo",    LabelStyle::ARight },
+    { "playstation", LabelStyle::Shapes },
+    { "arcade",      LabelStyle::Numbers },
 };
 
 // A pad's buttons and triggers as each style prints them, by input.cfg's
 // token: the face buttons by position (a is south), the rest by their place.
-// The font has no ✕ ○ □ △: PlayStation's are spelled as the hints always have.
+// The font has no ✕ ○ □ △: the shapes are spelled as the hints always have.
 struct Names {
     const char *token;
-    const char *xbox;
-    const char *playstation;
-    const char *nintendo;
-    const char *arcade;
+    const char *aBelow;
+    const char *aRight;
+    const char *shapes;
+    const char *numbers;
 };
 const Names kNames[] = {
-    { "a",             "A",        "X",        "B",       "1" },
-    { "b",             "B",        "O",        "A",       "2" },
-    { "x",             "X",        "SQ",       "Y",       "3" },
-    { "y",             "Y",        "TR",       "X",       "4" },
-    { "leftshoulder",  "LB",       "L1",       "L",       "5" },
-    { "rightshoulder", "RB",       "R1",       "R",       "6" },
-    { "lefttrigger+",  "LT",       "L2",       "ZL",      "7" },
-    { "righttrigger+", "RT",       "R2",       "ZR",      "8" },
-    { "back",          "BACK",     "SELECT",   "-",       "COIN" },
-    { "start",         "START",    "START",    "+",       "START" },
-    { "guide",         "GUIDE",    "PS",       "HOME",    "MODE" },
-    { "leftstick",     "LS",       "L3",       "LS",      "LS" },
-    { "rightstick",    "RS",       "R3",       "RS",      "RS" },
-    { "misc1",         "SHARE",    "MIC",      "CAPTURE", "MISC" },
+    { "a",             "A",        "B",        "X",        "1" },
+    { "b",             "B",        "A",        "O",        "2" },
+    { "x",             "X",        "Y",        "SQ",       "3" },
+    { "y",             "Y",        "X",        "TR",       "4" },
+    { "leftshoulder",  "LB",       "L",        "L1",       "5" },
+    { "rightshoulder", "RB",       "R",        "R1",       "6" },
+    { "lefttrigger+",  "LT",       "ZL",       "L2",       "7" },
+    { "righttrigger+", "RT",       "ZR",       "R2",       "8" },
+    { "back",          "BACK",     "-",        "SELECT",   "COIN" },
+    { "start",         "START",    "+",        "START",    "START" },
+    { "guide",         "GUIDE",    "HOME",     "HOME",     "MODE" },
+    { "leftstick",     "LS",       "LS",       "L3",       "LS" },
+    { "rightstick",    "RS",       "RS",       "R3",       "RS" },
+    { "misc1",         "SHARE",    "CAPTURE",  "MIC",      "MISC" },
     { "touchpad",      "TOUCHPAD", "TOUCHPAD", "TOUCHPAD", "TOUCHPAD" },
 };
 
@@ -94,7 +101,7 @@ struct Layout {
     const char *inputs[kArcadeInputs];   // none for default and custom
 };
 const Layout kLayouts[] = {
-    { "default",   "Default",    {} },
+    { "default",   "Engine's", {} },
     { "fighting6", "Fighting 6", { "x", "y", "rightshoulder", "a", "b", "righttrigger+",
                                    "leftshoulder", "lefttrigger+", "back", "start" } },
     { "neogeo4",   "Neo Geo 4",  { "a", "b", "x", "y", "leftshoulder", "rightshoulder",
@@ -287,6 +294,10 @@ LabelStyle labelStyleFromName(const QString &name) {
         if (name.compare(QLatin1String(s.name), Qt::CaseInsensitive) == 0)
             return s.style;
     }
+    for (const auto &old : kOldStyleNames) {
+        if (name.compare(QLatin1String(old.name), Qt::CaseInsensitive) == 0)
+            return old.style;
+    }
     return LabelStyle::Auto;
 }
 
@@ -324,7 +335,7 @@ QString inputLabel(LabelStyle style, const QString &token) {
         const bool minus = token.endsWith('-');
         const QString arrow = across ? (minus ? QStringLiteral("◄") : QStringLiteral("►"))
                                      : (minus ? QStringLiteral("▲") : QStringLiteral("▼"));
-        const QString stick = left ? (style == LabelStyle::Arcade ? QStringLiteral("JOYSTICK") : QStringLiteral("L STICK"))
+        const QString stick = left ? (style == LabelStyle::Numbers ? QStringLiteral("JOYSTICK") : QStringLiteral("L STICK"))
                                    : QStringLiteral("R STICK");
         return stick + QLatin1Char(' ') + arrow;
     }
@@ -333,11 +344,11 @@ QString inputLabel(LabelStyle style, const QString &token) {
         if (token != QLatin1String(n.token))
             continue;
         switch (style) {
-        case LabelStyle::PlayStation: return QString::fromUtf8(n.playstation);
-        case LabelStyle::Nintendo:    return QString::fromUtf8(n.nintendo);
-        case LabelStyle::Arcade:      return QString::fromUtf8(n.arcade);
+        case LabelStyle::Shapes:  return QString::fromUtf8(n.shapes);
+        case LabelStyle::ARight:  return QString::fromUtf8(n.aRight);
+        case LabelStyle::Numbers: return QString::fromUtf8(n.numbers);
         case LabelStyle::Auto:
-        case LabelStyle::Xbox:        return QString::fromUtf8(n.xbox);
+        case LabelStyle::ABelow:  return QString::fromUtf8(n.aBelow);
         }
     }
     // The paddles and anything else: as input.cfg names it.
@@ -470,20 +481,29 @@ Profile Profile::fromVariant(const QVariant &value) {
     // all without a Coin and a Start.
     const QVariantMap arcade = map.value(QStringLiteral("arcade")).toMap();
     const QString layout = arcade.value(QStringLiteral("layout")).toString().toLower();
+    const auto read = [](const QVariantMap &inputs) {
+        QStringList list;
+        for (int i = 0; i < kArcadeInputs; ++i) {
+            const QString token = inputs.value(arcadeInputName(i)).toString().toLower();
+            list << (isArcadeToken(token) && !list.contains(token) ? token : QString());
+        }
+        if (list.value(kArcadeCoin).isEmpty() || list.value(kArcadeStart).isEmpty())
+            list.clear();
+        return list;
+    };
     if (layout != QLatin1String("default") && arcadeLayouts().contains(layout)) {
         const QVariantMap inputs = arcade.value(QStringLiteral("inputs")).toMap();
-        p.arcade = inputs.isEmpty() ? arcadeLayoutInputs(layout) : QStringList();
-        if (p.arcade.isEmpty()) {
-            for (int i = 0; i < kArcadeInputs; ++i) {
-                const QString token = inputs.value(arcadeInputName(i)).toString().toLower();
-                p.arcade << (isArcadeToken(token) && !p.arcade.contains(token) ? token : QString());
-            }
-        }
+        p.arcade = inputs.isEmpty() ? arcadeLayoutInputs(layout) : read(inputs);
         if (p.arcade.value(kArcadeCoin).isEmpty() || p.arcade.value(kArcadeStart).isEmpty())
             p.arcade.clear();
         else
             p.arcadeLayout = layout;
     }
+    // Custom's inputs, kept beside another layout's; Custom's own are its.
+    if (p.arcadeLayout == QLatin1String("custom"))
+        p.arcadeCustom = p.arcade;
+    else
+        p.arcadeCustom = read(arcade.value(QStringLiteral("custom")).toMap());
     return p;
 }
 
@@ -495,12 +515,22 @@ QVariantMap Profile::toVariant() const {
                      { QStringLiteral("kind"), kind },
                      { QStringLiteral("labels"), labelStyleName(labels) },
                      { QStringLiteral("bindings"), bindingsMap } };
-    if (!arcadeLayout.isEmpty()) {
+    const auto written = [](const QStringList &tokens) {
         QVariantMap inputs;
         for (int i = 0; i < kArcadeInputs; ++i)
-            inputs.insert(arcadeInputName(i), arcade.value(i));
-        map.insert(QStringLiteral("arcade"), QVariantMap{ { QStringLiteral("layout"), arcadeLayout },
-                                                          { QStringLiteral("inputs"), inputs } });
+            inputs.insert(arcadeInputName(i), tokens.value(i));
+        return inputs;
+    };
+    // Default isn't written, unless it has Custom's inputs to keep.
+    const bool keeps = !arcadeCustom.isEmpty() && arcadeLayout != QLatin1String("custom");
+    if (!arcadeLayout.isEmpty() || keeps) {
+        QVariantMap arcadeMap{ { QStringLiteral("layout"),
+                                 arcadeLayout.isEmpty() ? QStringLiteral("default") : arcadeLayout } };
+        if (!arcadeLayout.isEmpty())
+            arcadeMap.insert(QStringLiteral("inputs"), written(arcade));
+        if (keeps)
+            arcadeMap.insert(QStringLiteral("custom"), written(arcadeCustom));
+        map.insert(QStringLiteral("arcade"), arcadeMap);
     }
     return map;
 }

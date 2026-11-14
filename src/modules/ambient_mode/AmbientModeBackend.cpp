@@ -2,6 +2,7 @@
 #include "../../util/MpvLocator.h"
 #include "../../audio/AudioOutput.h"
 #include "../../audio/MenuMusic.h"
+#include "../../util/EndProcess.h"
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -33,7 +34,7 @@ AmbientModeBackend::AmbientModeBackend(const QString &dataRoot, QObject *parent)
 
 AmbientModeBackend::~AmbientModeBackend()
 {
-    stopAudio();
+    endAudio(true);
 }
 
 QString AmbientModeBackend::mediaRoot() const
@@ -78,7 +79,7 @@ QVariantList AmbientModeBackend::getAudioFiles() const
 
 void AmbientModeBackend::startAudio(const QStringList &paths, bool shuffle)
 {
-    stopAudio();
+    endAudio(true);
 
     if (paths.isEmpty())
         return;
@@ -123,14 +124,35 @@ void AmbientModeBackend::startAudio(const QStringList &paths, bool shuffle)
 
 void AmbientModeBackend::stopAudio()
 {
-    if (!m_audioProcess)
+    endAudio(false);
+}
+
+// `wait` before the next audio starts and as the app ends: mpv is gone before
+// this returns. Stopped from the player, it is not waited for: the menus come
+// back at once, and the menu music has the card only once mpv has gone.
+void AmbientModeBackend::endAudio(bool wait)
+{
+    // One asked to end a moment ago still has the sound card.
+    if (wait && m_audioEnding && m_audioEnding->state() != QProcess::NotRunning)
+        m_audioEnding->waitForFinished(1000);
+    QProcess *process = std::exchange(m_audioProcess, nullptr);
+    if (!process)
         return;
-    if (m_audioProcess->state() != QProcess::NotRunning) {
-        m_audioProcess->terminate();
-        m_audioProcess->waitForFinished(1000);
+    if (process->state() != QProcess::NotRunning && !wait) {
+        m_audioEnding = process;
+        endProcessLater(process, this, [this]() {
+            // Not while audio is on again: its hold is the new one's.
+            if (!m_audioProcess)
+                MenuMusic::release(QStringLiteral("ambient"));
+        });
+        qDebug("[AmbientMode] audio process asked to stop");
+        return;
     }
-    m_audioProcess->deleteLater();
-    m_audioProcess = nullptr;
+    if (process->state() != QProcess::NotRunning) {
+        process->terminate();
+        process->waitForFinished(1000);
+    }
+    process->deleteLater();
     MenuMusic::release(QStringLiteral("ambient"));
     qDebug("[AmbientMode] audio process stopped");
 }

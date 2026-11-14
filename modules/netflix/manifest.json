@@ -13,6 +13,16 @@
       "description": "Browses what Netflix carries, and plays it in Netflix's own player full screen\nNeeds Chromium with Widevine (on the OSD/OS image already)"
     },
     {
+      "key": "tmdb_api_key",
+      "label": "TMDB Key",
+      "type": "text",
+      "secret": true,
+      "default": "",
+      "placeholder": "32 letters and digits",
+      "max_length": 64,
+      "description": "The key the catalogue is read with: free from themoviedb.org, Settings, API\nOne key serves Netflix and Prime Video alike"
+    },
+    {
       "key": "region",
       "label": "Catalogue Region",
       "type": "list_single",
@@ -29,7 +39,7 @@
         "AU"
       ],
       "default": "TR",
-      "description": "The country whose Netflix catalogue to list\nTitles come from TMDB, which needs a free API key in tmdb_api_key.txt\nThis product uses the TMDB API but is not endorsed or certified by TMDB\nStreaming data from JustWatch"
+      "description": "The country whose Netflix catalogue to list\nTitles come from TMDB, which needs a free API key: TMDB Key, above\nThis product uses the TMDB API but is not endorsed or certified by TMDB\nStreaming data from JustWatch"
     },
     {
       "key": "catalog_language",
@@ -62,6 +72,8 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "signOut",
+      "confirm": "Sign out of Netflix?",
+      "done": "Signed out of Netflix",
       "description": "Forgets the Netflix sign-in on this player\nThe next visit asks for it again"
     }
   ]

@@ -22,6 +22,9 @@ Rectangle {
     property string globalFont: "monospace"
     property color primaryColor: "white"
     property color surfaceColor: "black"
+    // A selected cell's box and what is written in it (Main.qml's).
+    readonly property color cursorColor: primaryColor
+    readonly property color cursorInk: surfaceColor
     property var skin: ({})
     // Main.qml's: Settings' Hint Bar, and the area the views lay out in.
     property bool hintBar: true
@@ -220,6 +223,25 @@ Rectangle {
             keyClick(Qt.Key_Return)
             compare(activatedSpy.count, 1)
             compare(root.selectsLeft, 2)
+        }
+        // A host puts an open folder's cursor on one of its entries by its
+        // path (select()): the folder with the keys, or one further back,
+        // whose spine then runs through that entry. Not a folder that isn't
+        // open, nor an entry the folder hasn't.
+        function test_selectByPath() {
+            verify(browser.select("/", "/films"))
+            compare(browser.selectedItem().path, "/films")
+            verify(!browser.select("/", "/nowhere"))
+            compare(browser.selectedItem().path, "/films")
+            verify(!browser.select("/films", "/films/two"), "not open")
+            verify(browser.openFolder())
+            verify(browser.select("/films", "/films/three"))
+            compare(browser.selectedItem().path, "/films/three")
+            verify(browser.select("/", "/projects"))
+            compare(browser.trailState()[0].sel, 0)
+            compare(browser.selectedItem().path, "/films/three")
+            while (browser.closeFolder()) {}
+            compare(browser.selectedItem().path, "/projects")
         }
         function test_referencePreview() {
             wait(250)

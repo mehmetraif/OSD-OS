@@ -30,8 +30,8 @@ class JammaPins;
 // Defaults can be overridden per-input in $DATA_ROOT/input.cfg (live-reloaded).
 //
 // The same Action/synthesized-key machinery also backs keyboard/remote-button
-// remapping (Settings > Remote Controls): an extra physical key can be bound to
-// one of the six actions via config.json's "remote_keymap.<action>" settings,
+// remapping (Settings → Controls → Keyboards & Remotes): extra physical keys
+// can be bound to an action via config.json's "remote_keymap.<action>" settings,
 // on top of (never replacing) that action's default key, see keyRemap handling
 // in eventFilter().
 //
@@ -99,38 +99,82 @@ public:
     QVariantList players() const;
     QString unlockButtons() const { return m_unlockNames.join(QStringLiteral(" + ")); }
 
-    // One controller's page: { key, name, kind, present, labels, labelsInUse,
-    // jamma, arcade, rows }; labels the style chosen ("auto"...), labelsInUse
-    // the one shown (a pad's, by its title); jamma the JAMMA board's player
-    // (1, 2) for its sticks, else 0; arcade its Arcade Buttons' layout, by
-    // its title ("Default"; "" for a controller that isn't a pad); rows
-    // [{ action, label, value }], value what fires the action on it.
+    // The key that stands for every keyboard and remote at once (All
+    // Keyboards & Remotes): its page's extra keys are config.json's
+    // app.remote_keymap, and a wait for a press of it takes every real key,
+    // Consumer Control button and mouse button.
+    Q_PROPERTY(QString allKeys READ allKeys CONSTANT)
+public:
+    static QString allKeys();
+
+    // One controller's page: { key, name, kind, present, count, labels,
+    // labelsInUse, jamma, arcade, players, player, rows }; labels the style
+    // chosen ("auto"...), labelsInUse the one shown (a pad's, by its title);
+    // jamma the JAMMA board's player (1, 2) for its sticks, else 0; arcade
+    // its Game Buttons' layout, by its title ("" for a controller that isn't
+    // a pad); players the numbers a pad plays as now, player the one chosen
+    // for it by hand (0 for Auto); rows [{ action, label, value, first,
+    // inputs [{ input, label }] }]: value what does the action on it, first
+    // the first of those, inputs the ones that can be taken away (a pad's
+    // buttons, those a pad connected has; a keyboard's or a remote's extra
+    // keys). A keyboard's value names the action's own key, then every
+    // keyboard's extra keys ("(all)"), then its own: "ENTER + MENU (ALL) + F5".
+    // kind "keys" is allKeys' page.
     Q_INVOKABLE QVariantMap controllerPage(const QString &key) const;
-    // The next input of the controller with this key is reported through
-    // controllerInputCaptured() instead of acting; "" ends it, and so do 12
-    // seconds (the page's own wait is 10), should the page go without.
+    // A wait for a press of the controller with this key: its inputs act on
+    // nothing meanwhile. A press comes as controllerInputDown() at once, as
+    // controllerInputCaptured() when it is let go (a tap: the answer), and
+    // held for a second and a half as captureHeld(), which is the way out
+    // of every wait: the one who holds answers nothing. "" ends the wait,
+    // and so do 12 seconds (the page's own wait is 10), should the page go
+    // without.
     Q_INVOKABLE void captureController(const QString &key);
     // The same for several at once: the JAMMA board's two sticks, tested
     // together.
     Q_INVOKABLE void captureControllers(const QStringList &keys);
     // An input of a controller (as controllerInputCaptured() named it) given
-    // an action; "none" takes a pad's input's action away, and a keyboard's
-    // or a remote's extra key. Returns { outcome, action, label }, action
-    // (and label) what the input does now. outcome: "set"; "already" for an
-    // input that does it already, or keeps what it does (keyCapture()); "only"
-    // for a pad's only Select / OK or Back, which stays; "other" for a key to
-    // take away that isn't one of its extra keys; "cancel" for a keyboard's or
-    // a remote's Back, which ends the wait instead.
+    // an action beside the ones that do it already (Add another); "none"
+    // takes a pad's input's action away, and a keyboard's or a remote's
+    // extra key. Returns { outcome, action, label }, action (and label) what
+    // the input does now. outcome: "set"; "already" for an input that does
+    // it already, or keeps what it does (keyCapture()); "only" for the only
+    // Select / OK, Back, Up or Down a controller has, which stays (label:
+    // that action's); "other" for a key to take away that isn't one of its
+    // extra keys; "cancel" for a keyboard's or a remote's Back, which ends
+    // the wait instead; "unsaved".
     Q_INVOKABLE QVariantMap bindControllerInput(const QString &key, const QString &input, const QString &action);
+    // The same input made the only one that does the action (Replace): the
+    // ones that did it do nothing from now on (cleared: their names). Where
+    // that would leave the controller without the Select / OK, Back, Up or
+    // Down the input was, the first of them takes it in its place
+    // ("swapped"; other: its name, otherAction: what it does now), so no
+    // order of presses is refused; "only" is left for an action that had no
+    // input to give. A keyboard's or a remote's new extra key takes the
+    // place of the action's other extra keys, at once.
+    Q_INVOKABLE QVariantMap replaceControllerInput(const QString &key, const QString &input, const QString &action);
+    // One of controllerPage()'s inputs taken away (Remove one), by its name
+    // there: "set", "only" for the last Select / OK, Back, Up or Down of a
+    // pad, or for a remote's extra key that is the one the menus were last
+    // worked with, "other", "unsaved".
+    Q_INVOKABLE QVariantMap removeControllerInput(const QString &key, const QString &input);
     // What a wait for a press makes of a keyboard's or a remote's key (a Qt
     // key, or a Consumer Control button's or a mouse button's extended id)
-    // on the controller with this key, or "" for All Keyboards & Remotes:
-    // { outcome, action, label } as bindControllerInput() returns them. A key
-    // that does Back ends the wait; one that does Select / OK, or one the
-    // menus use (the arrows, Enter, Space), keeps what it does, so that no
-    // keyboard loses them. For an action, "none" too on a controller's page.
+    // on the controller with this key (allKeys, or "", for All Keyboards &
+    // Remotes): { outcome, action, label } as bindControllerInput() returns
+    // them. A key that does Back ends the wait; one the menus use (the
+    // arrows, Enter, Space) keeps what it does; an extra key that is the
+    // Select / OK, Up or Down the menus were last worked with stays ("only"),
+    // on a remote: a keyboard has the menus' own keys beside it. For an
+    // action, "none" too on a controller's page.
     Q_INVOKABLE QVariantMap keyCapture(const QString &key, int id, const QString &action) const;
-    // A pad's button labels: "auto", "xbox", "playstation", "nintendo", "arcade".
+    // What an input of a controller is, for its test: { action, game }: the
+    // menus' action it does ("Select / OK", "" for none), and for a pad what
+    // it is in the games: one of its Game Buttons ("Button 4", "Coin"),
+    // "Joystick" (the D-pad and the left stick), "MAME's menu" (Guide),
+    // "Engine's" for a button the emulators number themselves (Default),
+    // "" for none.
+    Q_INVOKABLE QVariantMap inputRoles(const QString &key, const QString &input) const;
+    // A pad's button names: "auto", "a_below", "a_right", "shapes", "numbers".
     Q_INVOKABLE void setControllerLabels(const QString &key, const QString &style);
     Q_INVOKABLE void resetController(const QString &key);
     // A pad's Arcade Buttons page: { key, name, present, jamma, layout,
@@ -174,12 +218,22 @@ public:
     // A player's controller: a connected pad's key, or "" for Auto. A pad is
     // one player at a time, unless two of its model are connected.
     Q_INVOKABLE void setPlayer(int player, const QString &key);
+    // The same from the pad's side (its page's PLAYER): the number it plays
+    // as, 0 for Auto. A number another pad was chosen for swaps the two
+    // (that one takes this pad's, or goes back to Auto if this one had
+    // none); one a pad played as by Auto leaves that pad to Auto. Returns
+    // { outcome ("set", "already", "away" for a pad not connected), other,
+    // otherPlayer }: the pad that had the number, by name, and the number it
+    // plays as now (0 for none); "" where no pad moved.
+    Q_INVOKABLE QVariantMap setPadPlayer(const QString &key, int player);
+    // Every player back to Auto.
+    Q_INVOKABLE void resetPlayers();
 
     // Human-readable name for a Qt::Key value (e.g. "Return", "O", "F5"), for
     // the remap screen to show what's currently bound. Used from QML.
     Q_INVOKABLE QString keyDisplayName(int qtKey) const;
     // What a pad's own labels call one of its buttons, by input.cfg's token
-    // ("back", "start"): "COIN" on a JAMMA stick, "BACK" on an Xbox pad. ""
+    // ("back", "start"): "COIN" on a JAMMA stick, "BACK" on most pads. ""
     // for a controller that isn't a pad.
     Q_INVOKABLE QString buttonLabel(const QString &key, const QString &token) const;
     // While a JAMMA stick's page tests the board's controls: the board's
@@ -196,15 +250,6 @@ public:
     // as ten seconds with nothing held do.
     Q_INVOKABLE void captureUnlockButtons(bool on);
 
-    // Remap-capture mode, held on by the remap screen while its "press a
-    // button" overlay is up. While active, remap delivery is suspended and
-    // every real input — keyboard key, Consumer Control button, mouse button —
-    // is reported through auxButtonPressed() instead of acting, so the overlay
-    // sees the physical input itself even when it's already bound to an action
-    // (the eventFilter would otherwise consume it and synthesize that action's
-    // default key). Synthesized gamepad key events keep flowing to QML so a
-    // pad's Back button can still cancel the overlay.
-    Q_INVOKABLE void setRemapCapture(bool active);
 
     // Close every open SDL game controller so a child that takes the screen
     // (RetroArch, MAME) can open the same pads with its own SDL. Player env
@@ -227,19 +272,22 @@ signals:
     // was let go, to MpvController::releaseKeys.
     void mpvKeyRequested(const QString &key, bool autoRepeat);
     void mpvKeysReleased();
-    // Capture-mode reporting (see setRemapCapture): a raw press on any of the
-    // three remappable input paths — a real keyboard key (its Qt::Key), a
-    // Consumer Control button (kEvdevKeyBase + Linux KEY_* code; Linux only,
-    // see scanNodes()), or a mouse button (kMouseButtonBase +
-    // Qt::MouseButton). keyDisplayName() and the remote_keymap.* settings
-    // accept all three id spaces alike. Only emitted while capture is active.
-    void auxButtonPressed(int extendedKeyId);
     void controllersChanged();
     void activeControllerChanged();
     void playersChanged();
     // captureController()'s: the input, as bindControllerInput() takes it, and
-    // what it is called.
+    // what it is called: pressed (Down), let go before the hold time (a tap,
+    // Captured), or held for it (captureHeld(), which says only whose wait
+    // it stops). A pad's input is input.cfg's token; a keyboard's or a
+    // remote's key, and with allKeys every real key (its Qt::Key), Consumer
+    // Control button (kEvdevKeyBase + its Linux code) and mouse button
+    // (kMouseButtonBase + its Qt::MouseButton), is its id as a number, which
+    // keyDisplayName() and the extra keys' settings take alike. With allKeys,
+    // synthesized gamepad keys keep flowing to QML, so a pad's Back still
+    // cancels the wait.
+    void controllerInputDown(const QString &key, const QString &input, const QString &label);
     void controllerInputCaptured(const QString &key, const QString &input, const QString &label);
+    void captureHeld(const QString &key);
     // watchJammaPins()'s: a pin pressed or let go, its player (1, 2; 0 for an
     // expander that is neither's), expander ("0x20") and name ("B1"), with the
     // input osdos-jamma's mapping makes of it ("tl2"); or why none come,
@@ -293,6 +341,23 @@ private:
     static bool parsePadInput(const QString &token, int *button, int *axis, int *sign);
     static Action padInputAction(const Pad &pad, const QString &input);
     int padInputsFor(SDL_JoystickID id, Action a) const;
+    // A pad's inputs that do an action, input.cfg's tokens, buttons first:
+    // with its controller (one connected), only those it has.
+    static QStringList padTokensFor(const Pad &pad, SDL_GameController *gc, Action a);
+    // The key of a pad connected by its key, -1 for one away.
+    SDL_JoystickID padIdOf(const QString &key) const;
+    // An extra key (keyboard, remote, or allKeys' shared ones) given an
+    // action, or with None taken away; false if it couldn't be saved.
+    bool setExtraKey(const QString &key, int id, Action a);
+    bool saveKeyRemap();
+    // The extra keys that do an action on a keyboard's or a remote's page
+    // (allKeys: the shared ones), by name.
+    QList<int> extraKeysFor(const QString &key, Action a) const;
+    // Whether an extra key that does an action can stop doing it: the action
+    // isn't one the menus need, or the controller is a keyboard (it has the
+    // menus' own keys), or the menus were last worked with something else.
+    bool canLoseKey(const QString &key, int id, Action a) const;
+    static QString defaultKeyName(Action a);
     Action keyActionOn(const QString &key, int id) const;
     Action defaultKeyAction(int id) const;
     static QString actionName(Action a);
@@ -317,6 +382,14 @@ private:
     void noteController(const QString &key);
     Action profileAction(const QString &key, const QString &input) const;
     bool capturing(const QString &key) const;
+    // A wait's presses (captureController()): one pressed, reported as down
+    // and kept until it is let go (a tap, reported) or the oldest of them
+    // has been held long enough (the wait's way out).
+    void capturePressed(const QPair<QString, int> &held, const QString &key, const QString &input,
+                        const QString &label);
+    bool captureReleased(const QPair<QString, int> &held);
+    void armCaptureStop();
+    void captureHeldOut();
     static QString buttonToken(int button);
     static QString axisToken(int axis, int sign);
 #ifdef Q_OS_LINUX
@@ -430,7 +503,7 @@ private:
         bool arcade = false;
         QHash<int, Action> buttons;
         QHash<int, QPair<Action, Action>> axes;
-        controllers::LabelStyle labels = controllers::LabelStyle::Xbox;   // never Auto
+        controllers::LabelStyle labels = controllers::LabelStyle::ABelow; // never Auto
         // Its input that is MAME's coin (input.cfg's token), its Arcade
         // Buttons' Coin as it acts on the pad (controllers::arcadeActing()):
         // Back unless they say.
@@ -450,6 +523,19 @@ private:
     QHash<QString, Seen> m_seenAs;
     QString m_activeController;
     QStringList m_captureControllers;                // captureController()'s keys
+    struct CapturePress {
+        QPair<QString, int> held;                    // the input held down (HeldInput)
+        QString key;
+        QString input;
+        QString label;
+        qint64 at = 0;                               // m_clock's time it was pressed
+    };
+    QList<CapturePress> m_capturePresses;            // held down, the oldest first
+    QTimer m_captureStopTimer;                       // the oldest held long enough
+    // What each action was last done with: a key's id, -1 for a pad.
+    QHash<int, int> m_lastActionBy;
+    // The pad buttons input.cfg has a line for (loadUserMapping()).
+    QSet<int> m_cfgButtons;
     JammaPins *m_jammaPins = nullptr;
     qint64 m_captureEnds = 0;                        // m_clock's time it ends at
     QStringList m_playerKeys;                        // config.json app.players: chosen, "" for Auto
@@ -522,7 +608,7 @@ private:
     QList<QPair<QString, QString>> m_captureHeld;
     QTimer m_captureHoldTimer;
     QTimer m_captureIdleTimer;
-    bool m_remapCapture = false;                     // see setRemapCapture()
+
     int  m_wheelTurn = 0;                            // the mouse wheel's turn short of a notch (eventFilter())
 
 #ifdef Q_OS_LINUX
