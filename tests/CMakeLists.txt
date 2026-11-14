@@ -487,6 +487,11 @@ set_tests_properties(main_menu_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offs
 add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# What comes over a view, each on its own: the on-screen keyboard
+# (views/Components/OnScreenKeyboard.qml).
+add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
+                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # About (views/About.qml): System Information first, the device's name its
 # value, opening its page; OSD/OS's lines and the arcade's, each licence a
 # page of its own, against stand-ins for the licence files and the name.

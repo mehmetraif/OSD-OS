@@ -279,12 +279,15 @@ FocusScope {
                     // The last row's keys share the grid's width.
                     readonly property real keyW: keys.length === 10 ? osk.cellW : osk.cellW * 10 / keys.length
                     function keyAt(c) { return keyRepeater.itemAt(c) }
+                    // A key for each place in the row, made once: SHIFT (and
+                    // SHOW) change what the keys say, not the keys, which
+                    // would otherwise all be made again at each press.
                     Repeater {
                         id: keyRepeater
-                        model: keyRow.keys
+                        model: keyRow.keys.length
                         Item {
                             required property int index
-                            required property string modelData
+                            readonly property string label: keyRow.keys[index] || ""
                             readonly property bool current: osk.row === keyRow.index && osk.col === index
                             width: keyRow.keyW
                             height: osk.cellH
@@ -299,7 +302,7 @@ FocusScope {
                                 id: keyText
                                 anchors.centerIn: parent
                                 textFormat: Text.PlainText
-                                text: modelData
+                                text: parent.label
                                 color: parent.current && osk.live ? root.surfaceColor : root.primaryColor
                                 font.family: root.globalFont
                                 font.pixelSize: osk.fontSize
