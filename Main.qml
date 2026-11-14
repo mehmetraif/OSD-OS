@@ -1120,24 +1120,38 @@ Window {
     // Block the screen saver while mpv is playing so it never flashes during or
     // immediately after playback. The core guard is in IdleTracker (mpvActive
     // property), which also resets the idle timer on windowChange.
+    // A video left playing behind the menus (Transparent Background) has the
+    // screen no longer: the menus do, and left alone the saver comes over
+    // them as over any menu, the video playing on under it, sound and all.
+    // Taken back full screen, it holds the saver off again.
+    function videoHoldsSaver() {
+        return mpvController.videoActive && !mpvController.background
+    }
     Connections {
         target: mpvController
         function onPositionChanged(ms) {
-            if (ms > 0 && !idleTracker.mpvActive) {
+            if (ms > 0 && !idleTracker.mpvActive && !mpvController.background) {
                 idleTracker.mpvActive = true
                 idleTracker.resetActivity()
                 root.dismissScreenSaver()
             }
         }
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
-            // A video left playing behind the menus is still playing.
-            idleTracker.mpvActive = mpvController.videoActive
+            idleTracker.mpvActive = root.videoHoldsSaver()
             idleTracker.resetActivity()
             root.dismissScreenSaver()
         }
         function onVideoActiveChanged() {
-            idleTracker.mpvActive = mpvController.videoActive
+            idleTracker.mpvActive = root.videoHoldsSaver()
             idleTracker.resetActivity()
+        }
+        function onBackgroundChanged() {
+            idleTracker.mpvActive = root.videoHoldsSaver()
+            idleTracker.resetActivity()
+            // Full screen again without a key (a card tapped): no saver
+            // stays up over its player.
+            if (!mpvController.background)
+                root.dismissScreenSaver()
         }
     }
 

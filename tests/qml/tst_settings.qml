@@ -178,6 +178,24 @@ Rectangle {
         id: bootProgress
         property bool available: true
     }
+    // The screen saver's tracker (IdleTracker), as the pages that hold the
+    // saver off use it.
+    QtObject {
+        id: idleTracker
+        property bool viewActive: false
+        property int resets: 0
+        function resetActivity() { resets++ }
+    }
+    // Export to OSD/OS Setup's codes (SetupExporter): one, made at once.
+    QtObject {
+        id: setupExport
+        property var links: ["https://osdos.tv/setup/#1"]
+        property bool busy: false
+        property var missing: []
+        property var carried: []
+        function make(version) {}
+        function clear() {}
+    }
     QtObject {
         id: wifiManager
         property bool supported: false
@@ -1254,6 +1272,76 @@ Rectangle {
             compare(page.offReason(0), "")
             keyClick(Qt.Key_Return)
             compare(root.navigations[root.navigations.length - 1].path, "views/Wifi.qml")
+        }
+    }
+
+    // Settings' pages that are read with no key pressed hold the screen saver
+    // off while they are (IdleTracker's viewActive), and let it come again
+    // as they go.
+    TestCase {
+        name: "SaverHeldOff"
+        when: windowShown
+
+        function init() {
+            idleTracker.viewActive = false
+            idleTracker.resets = 0
+            root.backs = 0
+        }
+        function cleanup() {
+            loader.source = ""
+        }
+
+        // Export to OSD/OS Setup (views/SetupExport.qml): its question is a
+        // menu like any other; once the codes are up, which a phone reads,
+        // the saver waits, until the page goes. Left at the question, it
+        // never held it.
+        function test_exportCodes() {
+            loader.setSource(Qt.resolvedUrl("../../views/SetupExport.qml"), { navParams: {} })
+            var page = loader.item
+            verify(page !== null, "loaded SetupExport.qml")
+            page.forceActiveFocus()
+            verify(page.asking)
+            verify(!idleTracker.viewActive)
+            keyClick(Qt.Key_Return)
+            verify(!page.asking)
+            verify(idleTracker.viewActive)
+            compare(idleTracker.resets, 0)
+            loader.source = ""
+            tryVerify(function() { return !idleTracker.viewActive })
+            compare(idleTracker.resets, 1)
+            idleTracker.resets = 0
+            loader.setSource(Qt.resolvedUrl("../../views/SetupExport.qml"), { navParams: {} })
+            loader.item.forceActiveFocus()
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            loader.source = ""
+            wait(50)
+            verify(!idleTracker.viewActive)
+            compare(idleTracker.resets, 0)
+        }
+
+        // A Bluetooth pairing's code (views/BluetoothPrompt.qml), typed on
+        // the device or compared with its own: the saver waits while it is
+        // up, and may come again once the pairing is done, or the page goes
+        // with it up.
+        function test_pairingCode() {
+            loader.setSource(Qt.resolvedUrl("../../views/BluetoothPrompt.qml"), { prompt: {} })
+            var prompt = loader.item
+            verify(prompt !== null, "loaded BluetoothPrompt.qml")
+            verify(!prompt.visible)
+            verify(!idleTracker.viewActive)
+            prompt.prompt = { kind: "passkey", code: "123456", entered: 0, name: "Keyboard" }
+            verify(prompt.visible)
+            verify(idleTracker.viewActive)
+            prompt.prompt = {}
+            verify(!prompt.visible)
+            verify(!idleTracker.viewActive)
+            compare(idleTracker.resets, 1)
+            prompt.prompt = { kind: "confirm", code: "123456", name: "Pad" }
+            verify(idleTracker.viewActive)
+            loader.source = ""
+            tryVerify(function() { return !idleTracker.viewActive })
+            compare(idleTracker.resets, 2)
         }
     }
 

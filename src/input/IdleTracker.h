@@ -18,16 +18,19 @@ class IdleTracker : public QObject {
     Q_PROPERTY(int threshold READ threshold WRITE setThreshold NOTIFY thresholdChanged)
     // Master switch — when false the timer never fires active.
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
-    // Blocks activation while a media session is active (mpv playing).
-    // Prevents the screen saver from showing on top of playback.
+    // Blocks activation while a media session has the screen (mpv playing).
+    // Prevents the screen saver from showing on top of playback. A video
+    // left playing behind the menus doesn't hold it (Main.qml's
+    // videoHoldsSaver()): the menus have the screen then.
     Q_PROPERTY(bool mpvActive READ isMpvActive WRITE setMpvActive NOTIFY mpvActiveChanged)
     // Blocks activation while a user script is running (see the scripts module).
     // A separate flag rather than sharing mpvActive: two independent producers
     // sharing one flag means whichever session ends first unblocks the other.
     Q_PROPERTY(bool scriptActive READ isScriptActive WRITE setScriptActive NOTIFY scriptActiveChanged)
     // Blocks activation while a view that is itself a screen to leave running
-    // is up (Weather): a flag of its own too, so leaving it can't unblock the
-    // saver over a video still playing behind the menus.
+    // is up (Weather, Test Patterns), or one that is read with no key pressed
+    // (Export to OSD/OS Setup's codes, a Bluetooth pairing's code): a flag of
+    // its own too, so leaving it can't unblock the saver over a video.
     Q_PROPERTY(bool viewActive READ isViewActive WRITE setViewActive NOTIFY viewActiveChanged)
 
 public:

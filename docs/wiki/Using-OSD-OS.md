@@ -286,7 +286,7 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 - **It also ends** when its playlist has played out, when you play anything else, and when you turn the setting off.
 - It ends too when something else takes the screen: a script, an Arcade game, Netflix or Prime Video's browser.
 - **With OSD Background on Window**, only the window lies over the video.
-- The effects, the menu music and the screen saver rest while a video plays behind the menus.
+- The effects and the menu music rest while a video plays behind the menus. The screen saver comes over the menus as usual, and the video plays on under it.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -323,7 +323,8 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 - The screen saver puts OSD/OS's logo bouncing across a black screen, to spare a CRT's phosphor.
 - It comes in the menus after the set seconds without a key, and during a video paused that long.
 - The first key only wakes it. Moving the mouse wakes it too, unless Mouse Pointer is Off.
-- It never comes while a video plays (behind the menus too), while a script runs, or over the boot screen.
+- It never comes while a video plays full screen, while a script runs, or over the boot screen. With a video playing behind the menus it comes over the menus as usual.
+- It waits while a page that is read with no key pressed is up: a Test Pattern, Export to OSD/OS Setup's codes, a Bluetooth pairing's code.
 
 | Setting (Settings → Screen) | Values | Default | Config key |
 |---|---|---|---|

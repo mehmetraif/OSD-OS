@@ -81,7 +81,7 @@ A strip runs along the foot of every screen: the date and a clock in the place's
 | Pause or resume the music | ▼ | D-pad down | For this visit only; the Music setting is unchanged |
 | Leave | Esc | B | Back to the main menu; the music stops |
 
-While the module is open, the screen saver stays away.
+While the module is open, the screen saver stays away. Once it is left the screen saver comes again in the menus, with a video playing behind them too.
 
 ## Where the numbers come from
 

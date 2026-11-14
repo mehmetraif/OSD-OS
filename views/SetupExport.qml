@@ -54,6 +54,7 @@ FocusScope {
             setupExport.make(maxVersion)
     }
     Component.onDestruction: {
+        holdSaver(false)
         if (setupExport)
             setupExport.clear()
     }
@@ -61,6 +62,21 @@ FocusScope {
     function show() {
         asking = false
         part = 0
+    }
+
+    // A code is read with a phone, with no key pressed here meanwhile: the
+    // screen saver waits while the codes are up (IdleTracker's viewActive,
+    // as Test Patterns holds it), and may come again once the page is left.
+    // The question before them is a menu like any other.
+    property bool holdingSaver: false
+    onAskingChanged: holdSaver(!asking)
+    function holdSaver(on) {
+        if (on === holdingSaver || typeof idleTracker === "undefined" || !idleTracker)
+            return
+        holdingSaver = on
+        idleTracker.viewActive = on
+        if (!on)
+            idleTracker.resetActivity()
     }
 
     Keys.onPressed: function(event) {
