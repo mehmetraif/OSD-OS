@@ -918,6 +918,35 @@ private slots:
         QCOMPARE(redactSecrets(text), blanked);
     }
 
+    // The same of a video played inside the window (Transparent Background),
+    // whose messages mpv hands the app one by one: a playlist's address it
+    // could not open, as it goes on to the next, without its sign-in and
+    // without the server's token.
+    void aSignInInAnAddressStaysOutOfTheLogInsideTheWindowToo() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        LogCapture log;
+        // A scheme no mpv has a protocol for (nothing is looked up or
+        // reached), then a picture mpv makes itself.
+        m_mpv->loadAndPlay(QStringLiteral("nosuch://ann:made-up-password@nas.example/films/a.mkv?ApiKey=made-up-key"),
+                           0, -1, -1, {}, {}, false, -1, 0, QString(), true, QString(), false, {}, 0, false, {},
+                           QString(), {QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10")});
+        // mpv's own line on it, not the launch line's.
+        static const QRegularExpression mpvSaid(QStringLiteral("\\[mpv\\] [^\\n]*nosuch://[^\\n]*"));
+        QTRY_VERIFY2_WITH_TIMEOUT(mpvSaid.match(log.text()).hasMatch(), qPrintable(log.text()), 10000);
+        const QString text = log.text();
+        QVERIFY2(mpvSaid.match(text).captured().contains(
+                     QLatin1String("nosuch://REDACTED@nas.example/films/a.mkv?ApiKey=REDACTED")),
+                 qPrintable(text));
+        for (const char *secret : {"made-up-password", "ann:", "made-up-key"})
+            QVERIFY2(!text.contains(QLatin1String(secret)), qPrintable(text));
+    }
+
     // An mpv that starts and never shows a picture (a hardware decoder that
     // hands no frame back): its player no longer stands on a black screen
     // for good. With no word from it, another mpv takes its place, started

@@ -8,8 +8,9 @@
 // Jellyfin's in its Authorization header, and the sign-in before an
 // address's host (scheme://user:password@host), which a card's tag file, an
 // .m3u or a playlist may hold and mpv prints as it was given. The host
-// stays: it is what a log is read for. Header only: what an mpv process
-// prints goes through it on its way to the log (MpvController).
+// stays: it is what a log is read for. Header only: what mpv says goes
+// through it wherever it is logged, a process's output (MpvController) and
+// libmpv's messages (EmbeddedMpv) alike.
 // scripts/save-logs.sh does the same to the logs it copies (hide()).
 inline QString redactSecrets(QString text) {
     static const QRegularExpression kApiKey(QStringLiteral("Api[_-]?Key=[^&\\s]+"),
