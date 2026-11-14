@@ -695,6 +695,13 @@ QString configText(const Launch &launch) {
     set("savestate_directory", launch.stateDir);
     set("rgui_config_directory", launch.configDir);
     set("libretro_log_level", QStringLiteral("1"));
+    // RetroArch's own records of what was played: its history list, and how
+    // long each game ran. OSD/OS keeps both itself (Recently Played, play
+    // time), so they are not written to the card at every game, the second
+    // of them outside OSD/OS's folder (~/.config/retroarch/playlists/logs).
+    set("history_list_enable", on(false));
+    set("content_runtime_log", on(false));
+    set("content_runtime_log_aggregate", on(false));
     // The credits bought, put in by OSD/OS once the game runs: player 1's
     // network RetroPad, on this machine's UDP port (coinPort), else none.
     set("network_remote_enable", on(launch.coinPort != 0));
