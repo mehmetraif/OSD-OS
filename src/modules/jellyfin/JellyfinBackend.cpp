@@ -356,16 +356,21 @@ void JellyfinBackend::quick_connect_initiate(const QString &serverUrl) {
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray body = reply->readAll();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            emit quickConnectFailed("CONNECTION FAILED: " + reply->errorString());
-            return;
-        }
+        // The server's refusal first, by its status: Qt marks every answer of
+        // 400 and above as an error too, and asked first the error took them
+        // all, in Qt's words for it ("Host requires authentication" for a
+        // server with Quick Connect off). What is left as an error had no
+        // such answer: nothing at the address, or a connection that broke.
         if (status >= 400) {
             qWarning("[JellyfinBackend] QC Initiate HTTP %d", status);
             if (status == 401)
                 emit quickConnectFailed("QUICK CONNECT NOT ENABLED ON SERVER");
             else
                 emit quickConnectFailed("SERVER ERROR (HTTP " + QString::number(status) + ")");
+            return;
+        }
+        if (reply->error() != QNetworkReply::NoError) {
+            emit quickConnectFailed("CONNECTION FAILED: " + reply->errorString());
             return;
         }
 
@@ -462,13 +467,15 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray body = reply->readAll();
 
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH FAILED: " + reply->errorString());
-            return;
-        }
+        // As the start above: the server's refusal by its status, then an
+        // exchange that got no such answer, in the network's words.
         if (status >= 400) {
             qWarning("[JellyfinBackend] QC Auth HTTP %d", status);
             emit errorOccurred("AUTH FAILED (HTTP " + QString::number(status) + ")");
+            return;
+        }
+        if (reply->error() != QNetworkReply::NoError) {
+            emit errorOccurred("AUTH FAILED: " + reply->errorString());
             return;
         }
 
