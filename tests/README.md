@@ -71,6 +71,7 @@ ctest --test-dir build-tests --output-on-failure
   - What can't be used is there but empty (Video 1's colours, OSD/OS's own window, no effect), an Arcade screen's look it hasn't left out, and null is as left out.
   - An id is a folder's name, never a path.
   - The licences About shows (`licenseText`): LICENSE, or a file of the app's by its path, its paragraphs each on a line; nothing outside the app's folder, by a path up or an absolute one.
+  - The icon provider (`OsdIconProvider`) reads an icon's file once: asked for again, in another colour too, the icon comes though its file is gone, drawn as the first reading drew it; a file that gave none is not looked for again; Settings' Theme or Skin changing (`lookChanged()`) has it read anew, and no other setting does.
 - **media_servers** (`media_servers_test.cpp`): the Jellyfin, Emby and Plex backends against a stand-in network, whose replies the test completes when it chooses.
   - Jellyfin's settings page learns what the server can do with the choices it asks for, the server asked once. A Plex profile switch that fails from Settings puts the Current User setting back and sends its choices again; a `config.json` that can't be read is not written over.
   - Of two lists asked for in a row, only the second is shown: the first's reply, coming last, is dropped.

@@ -466,6 +466,12 @@ int main(int argc, char *argv[]) {
     // The title bar's logos, in the theme's colour on the art-pixel grid
     // (image://osdicon/…). The engine owns it.
     engine.addImageProvider(QStringLiteral("osdicon"), new OsdIconProvider);
+    // It keeps what each icon's file gave. Settings' Theme or Skin changed,
+    // the icons are another folder's, or the same one's as they are now:
+    // forgotten here, before Main.qml (loaded below, so told after) asks for
+    // them again.
+    QObject::connect(&appCore, &AppCore::appSettingChanged, &appCore,
+                     [](const QString &key) { OsdIconProvider::lookChanged(key); });
     engine.addImageProvider(QStringLiteral("osdskin"), new OsdSkinProvider);
     engine.addImageProvider(QStringLiteral("qr"), new QrImageProvider);
     // The picture of a video played inside this window (Transparent Background),

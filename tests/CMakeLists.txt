@@ -69,15 +69,18 @@ target_link_libraries(storage_search_test PRIVATE
     Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME storage_search COMMAND storage_search_test)
 
-# Themes and skins, read from the app's folder and the data folder's (AppCore).
+# Themes and skins, read from the app's folder and the data folder's (AppCore),
+# and their icons as the icon provider draws and keeps them (OsdIconProvider).
+find_package(Qt6 REQUIRED COMPONENTS Quick)
 add_executable(looks_test
     looks_test.cpp
     ../src/AppCore.cpp
+    ../src/util/OsdIconProvider.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(looks_test PRIVATE ../src)
 target_compile_definitions(looks_test PRIVATE OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
+target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 
 # The Jellyfin, Emby and Plex backends against a stand-in network: a list
