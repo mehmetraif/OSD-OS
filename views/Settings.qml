@@ -628,6 +628,28 @@ FocusScope {
                 moduleId: ""
             })
         }
+        // DISPLAY — which of a computer's displays OSD/OS opens on, and mpv
+        // plays on (app.display_index, read as it starts: main.cpp). With
+        // one display, as a Pi has, there is nothing to choose.
+        var displays = Qt.application.screens
+        var displayOpts = []
+        var displayVals = []
+        for (var d = 0; d < displays.length; d++) {
+            displayOpts.push((d + 1) + ": " + (displays[d].name || "Display") + " " + displays[d].width + "x" + displays[d].height)
+            displayVals.push(String(d))
+        }
+        var displayAt = displayVals.indexOf(String(parseInt(appSettings["display_index"]) || 0))
+        items.push({
+            type: "list_single",
+            key: "display_index",
+            label: "Display",
+            options: displayOpts,
+            values: displayVals,
+            value: displayOpts[Math.max(0, displayAt)] || "",
+            description: "Which display OSD/OS opens on and plays its videos on, from its next start",
+            unavailable: displays.length > 1 ? "" : "Only with more than one display",
+            moduleId: ""
+        })
         // MONITOR — a monitor turned on its side for vertical games (TATE):
         // Main.qml turns what it draws to stand upright on it, MAME, RetroArch
         // and mpv their pictures, from the next game or video.
@@ -909,6 +931,30 @@ FocusScope {
     // SYSTEM: OSD/OS Setup's settings, the update, About, and the modules
     // of no group, each a page.
     function systemRows(items) {
+        // TIME ZONE and KEYBOARD — the system's, as its files say
+        // (systemSettings). On the OSD/OS image select opens the list to pick
+        // another from, which its root helper sets (osdos-system.socket);
+        // elsewhere they are the system's own settings' to change.
+        var system = settingsRoot.system
+        var systemOff = system && system.available ? "" : "Only on the OSD/OS image, from its launcher at level 10: elsewhere, in the system's own settings"
+        items.push({
+            type: "submenu",
+            key: "time_zone",
+            label: "Time Zone",
+            value: !system ? "" : system.busy ? "Setting" : system.timeZone !== "" ? system.timeZone : "Not Set",
+            description: "The time zone the clock goes by: Weather's, a film's dates and the logs'",
+            unavailable: systemOff,
+            moduleId: ""
+        })
+        items.push({
+            type: "submenu",
+            key: "keyboard",
+            label: "Keyboard",
+            value: !system ? "" : system.busy ? "Setting" : system.keyboardName !== "" ? system.keyboardName : "Not Set",
+            description: "The keyboard's layout at Exit to Terminal, where a name and a password are typed: OSD/OS's own menus take any keyboard as it is",
+            unavailable: systemOff,
+            moduleId: ""
+        })
         // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
         // set at once (pasteSetup(), AppCore::applySetupText()), where there
         // is a clipboard to paste them from: a computer's.
@@ -1113,6 +1159,20 @@ FocusScope {
             value: infoOpts[infoIdx < 0 ? infoVals.indexOf("3") : infoIdx],
             description: "A film's details in Netflix, Prime Video and YouTube\n[KEY] With right on a film  [SEC] Also on its own once the cursor rests on it",
             unavailable: infoRead ? "" : "Only with Netflix, Prime Video or YouTube enabled",
+            moduleId: ""
+        })
+
+        // VIDEO ARGUMENTS — mpv's options for how a video is put on the
+        // screen and decoded, typed in place of those OSD/OS picks for the
+        // device (MpvController's videoArgs): for a setup its own don't
+        // suit. Nothing typed is OSD/OS's own.
+        var videoArgs = String(appSettings["mpv_video_args"] || "").trim()
+        items.push({
+            type: "submenu",
+            key: "mpv_video_args",
+            label: "Video Arguments",
+            value: videoArgs !== "" ? videoArgs : "Default",
+            description: "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for this device, such as --vo=gpu --hwdec=no. From the next video\n[DEFAULT] Nothing typed: OSD/OS's own",
             moduleId: ""
         })
 
@@ -1513,6 +1573,10 @@ FocusScope {
                     settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
                 else if (row.key === "cabinet_lock")
                     settingsRoot.navigateTo("views/CabinetLock.qml", {}, settingsRoot.listState())
+                else if (row.key === "time_zone" || row.key === "keyboard")
+                    settingsRoot.openSystemPicker(row.key)
+                else if (row.key === "mpv_video_args")
+                    videoArgsKeyboard.open(String(appSettings["mpv_video_args"] || ""))
                 else if (row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade")
                     settingsRoot.navigateTo("views/Settings.qml", { group: row.key.substring(6) },
                                             settingsRoot.listState())
@@ -1847,6 +1911,107 @@ FocusScope {
                 return
             settingsRoot.outputFailure = reason
             outputFailed.open()
+        }
+    }
+
+    // TIME ZONE and KEYBOARD: the list to pick from, the one in force under
+    // the cursor; ◄ ► from region to region, or letter to letter.
+    // The system's time zone and keyboard (SystemSettings), where the app
+    // has it.
+    readonly property var system: typeof systemSettings !== "undefined" && systemSettings ? systemSettings : null
+    property string systemPicking: ""
+    function openSystemPicker(key) {
+        if (!system || !system.available || system.busy)
+            return
+        systemPicking = key
+        if (key === "time_zone") {
+            systemPicker.title = "Time Zone"
+            systemPicker.message = "The time zone the clock goes by"
+            systemPicker.groupName = "REGION"
+            systemPicker.entries = system.timeZones.map(function(z) {
+                return { label: z.name.replace(/_/g, " "), value: z.name, group: z.region }
+            })
+            // A card not yet given a zone is on Etc/UTC, the list's UTC.
+            systemPicker.open(system.timeZone === "Etc/UTC" ? "UTC" : system.timeZone)
+        } else {
+            systemPicker.title = "Keyboard"
+            systemPicker.message = "The keyboard's layout at Exit to Terminal"
+            systemPicker.groupName = "LETTER"
+            systemPicker.entries = system.keyboards.map(function(k) {
+                return { label: k.name, value: k.code, group: k.name.charAt(0).toUpperCase() }
+            })
+            systemPicker.open(system.keyboard)
+        }
+    }
+    ListPicker {
+        id: systemPicker
+        objectName: "systemPicker"
+        onPicked: function(value) {
+            if (!settingsRoot.system)
+                return
+            if (settingsRoot.systemPicking === "time_zone")
+                settingsRoot.system.setTimeZone(value)
+            else
+                settingsRoot.system.setKeyboard(value)
+        }
+        onClosed: settingsList.forceActiveFocus()
+    }
+    // The rows follow the system as it is read again, and as one is on its
+    // way (Setting); one that couldn't be set says why.
+    Connections {
+        target: settingsRoot.system
+        ignoreUnknownSignals: true
+        function onChanged() { settingsRoot.followSystem() }
+        function onBusyChanged() { settingsRoot.followSystem() }
+        function onMessageChanged() {
+            if (settingsRoot.system.message.indexOf(" not set: ") > 0)
+                systemNotice.open()
+        }
+    }
+    // Made again only while the two rows are on the page, the cursor kept,
+    // and never under a value being changed in two steps.
+    function followSystem() {
+        if (editIndex < 0 && settingsItems.some(function(row) { return row.key === "time_zone" }))
+            buildModel(settingsList.currentIndex)
+    }
+    ChoiceOverlay {
+        id: systemNotice
+        objectName: "systemNotice"
+        anchors.fill: parent
+        promptKind: "notice"
+        readonly property var parts: (settingsRoot.system ? settingsRoot.system.message : "").split(": ")
+        promptText: parts[0] || ""
+        subtitleText: parts.slice(1).join(": ")
+        choices: []
+        onClosed: {
+            settingsList.forceActiveFocus()
+            if (settingsRoot.system)
+                settingsRoot.system.clearMessage()
+        }
+    }
+
+    // VIDEO ARGUMENTS: typed on the on-screen keyboard, over the page; kept
+    // on OK without the spaces at its ends, nothing typed being OSD/OS's own.
+    OnScreenKeyboard {
+        id: videoArgsKeyboard
+        objectName: "videoArgsKeyboard"
+        anchors.fill: parent
+        visible: false
+        title: "Video Arguments"
+        caseSensitive: true
+        allowEmpty: true
+        maxLength: 120
+        onAccepted: function(text) {
+            videoArgsKeyboard.close()
+            settingsList.forceActiveFocus()
+            if (appCore.save_setting("", "mpv_video_args", text.trim())) {
+                settingsRoot.appSettings = Object.assign({}, settingsRoot.appSettings, { mpv_video_args: text.trim() })
+                settingsRoot.buildModel(settingsList.currentIndex)
+            }
+        }
+        onCanceled: {
+            videoArgsKeyboard.close()
+            settingsList.forceActiveFocus()
         }
     }
 

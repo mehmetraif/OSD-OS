@@ -38,6 +38,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its fir
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | A logo in a corner of the picture while a video plays | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
 | Logo Image | OSD/OS Logo, or a PNG, JPG, JPEG, SVG, GIF, BMP or WebP picked on the file browser | OSD/OS | Your own picture as the channel logo, as tall as OSD/OS's. A PNG with a clear background works best. Only while Channel Logo isn't Off | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
 | Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
+| Video Arguments | Default, or a line typed on the on-screen keyboard | Default | For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)). From the next video | `app.mpv_video_args` |
 
 <table>
 <tr><th width="50%">Channel Logo</th><th width="50%">Under the menus</th></tr>
@@ -183,6 +184,7 @@ The Arcade screen shows them at its bottom right. A module turned off takes its 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Display Output | Those this Pi has of: HDMI, Composite NTSC, Composite PAL, GPIO Composite NTSC, GPIO Composite PAL, SCART RGB NTSC, SCART RGB PAL, SCART RGB 240p, SCART RGB 288p, JAMMA 240p 15 kHz (720x240), JAMMA 240p 15 kHz (320x240), JAMMA 240p 15 kHz (1920x240), JAMMA 288p 15 kHz (720x288), JAMMA 288p 15 kHz (1920x288), JAMMA 480i 15 kHz (720x480), JAMMA 480i 15 kHz (640x480), JAMMA 576i 15 kHz (720x576), JAMMA 25 kHz (496x384), JAMMA 31 kHz (640x480) | The image's build setting, HDMI unless built otherwise | Where the picture goes ([below](#display-output)). On the OSD/OS image only | None: the preset is copied over `/boot/firmware/osdos-display.txt` |
+| Display | Each display there is, by number, name and size | The first | Which display OSD/OS opens on, and mpv plays on, from its next start. Dimmed with one display, as on a Pi | `app.display_index`: `0` for the first |
 | Monitor | Horizontal, Turned Right, Turned Left | Horizontal | For a monitor turned on its side (TATE): menus, games and videos stand upright on it. **Turned Right**: its top is on the right as you face it. **Turned Left**: on the left ([A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)). On a desktop, turn the screen in the system's settings instead. For a monitor turned only for a vertical game, use Arcade → Emulator Video → Vertical Games | `app.monitor` |
 | Test Patterns | A page | | Pictures to set the screen up by ([below](#test-patterns)) | None |
 | Screen Saver | OFF, 30, 60, 120 | OFF | Seconds without a key or a mouse move before a black screen with the OSD/OS logo bouncing across it, in the menus (with a video playing behind them too) and over a paused video. It waits while a Test Pattern, Export to OSD/OS Setup's codes or a Bluetooth pairing's code is up. The first key only wakes it | `app.screensaver_timeout`: `"OFF"` or the seconds |
@@ -356,6 +358,8 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
+| Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image, from a launcher at level 10; elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
+| Keyboard | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
 | Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
 | Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
@@ -366,7 +370,7 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 1. On [OSD/OS Setup](https://osdos.tv/setup/), choose the settings, then **Copy for a computer**.
 2. Select on this row. OSD/OS's own settings and the RetroAchievements account are set at once.
 
-- A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard.
+- A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard (the time zone and the keyboard have rows of their own above).
 - The page's file does the same at the next start, put in the data folder or beside the app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
 
 ### Export to OSD/OS Setup
@@ -525,12 +529,10 @@ Select asks **Really quit?**. Run by hand, or on a Mac, the answers are **Yes** 
 
 ## Settings without a row
 
-A few app settings have no row. Set them in `config.json` by hand, with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)):
+Two older keys have no row, and are read only while their successors are unset. Set them in `config.json` by hand, with OSD/OS stopped ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#editing-by-hand)):
 
 | Key | Values | What it does |
 |---|---|---|
-| `app.display_index` | A number, `0` by default | The display the menus open on, and mpv plays on, when a Mac or a Linux desktop has several. The log lists them at start: `[main] display index 1: "…" 1280x720 at (3840,0)`. Out of range falls back to 0 |
-| `app.mpv_video_args` | A string of mpv flags, separated by spaces | Replaces the video output and decoder flags OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)) |
 | `app.auto_crop` | `On`, `Off` | Read only while `app.video_scaling` is unset: `On` means Pan & Scan |
 | `app.theme` | A skin's folder name | Read as the Skin only while `app.skin` is unset |
 

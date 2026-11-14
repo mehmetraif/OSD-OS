@@ -357,7 +357,7 @@ The key levers are which decoder and which DRM plane the frames land on:
 - **Pi 5** 
     - boots Full KMS, so plain `--vo=drm` direct-renders. when testing `auto-safe` I found no working VA-API/V4L2 path (the V3D VA-API driver fails to open) and it selects FFmpeg's Vulkan video decoder (`vulkan-copy`) on the V3D GPU for both H264 and HEVC. HEVC reaches the Pi5's hardware HEVC block this way — ~15% for 1080p, ~45% for 4K; H.264 goes through the same Vulkan path and stays light (~20–27% for 1080p). Because it's a `-copy` decoder the frames land on the primary draw plane, so I found this path is smooth and supports crop.
 
-Advanced users can override the auto-detected flags with the app-level `mpv_video_args` setting in `config.json` (a space-separated flag string under `"app"`); it is read at each launch, so changes apply on the next playback without a rebuild — useful for on-hardware tuning.
+Advanced users can override the auto-detected flags with the app-level `mpv_video_args` setting (Settings → TV / Movie → Video Arguments, a space-separated flag string under `"app"` in `config.json`); it is read at each launch, so changes apply on the next playback without a rebuild — useful for on-hardware tuning.
 
 ### How mpv flags are layered (the precedence cascade)
 
@@ -734,6 +734,15 @@ Settings → System → About → **System Information** (`views/SystemInfo.qml`
 - **Read again** as the page opens and every 3 s while it is up (`refresh()`), which tells the page only when a row or the name has changed; what doesn't change while OSD/OS runs (the model, OS, processor, the memory there is) is read once (`readFixed()`), the rest each time (`readChanging()`). The page puts lines in its list only as they come or go (`shownRows`, a connection's), its cursor put back on its line by its key, as a list's new model takes it back to the first; read again, a line's value and help change in place (`latest`, by key), so that a value scrolling through goes on scrolling.
 - **Renaming** (`renameAvailable`: launcher API 8 and `osdos-name.sock` in `/run`, `OSDOS_RUN_DIR`): select on the name opens the `OnScreenKeyboard` on it, and `rename(typed)` makes a hostname of what was typed (`hostnameFor()`: small letters, spaces and underscores as hyphens, then RFC 1123's letters, digits and hyphens, 63 at most, no hyphen at either end; why not, otherwise) and sends it to `osdos-stop device-name`, which sets it as root with `hostnamectl`, names it on `/etc/hosts`' `127.0.1.1` line in place of the old name, the names made of it (`<old>.lan`) following it and the line's other names kept (the new file written aside and put in place once `hostnamectl` has the name, the old name asked back should that fail) and restarts avahi-daemon ([The device name's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-device-names-socket)). `renaming` holds while it is on its way, and `message` says how it went (**Now called …**, or why not), in the help line on the name. The page reads the system again whatever the answer.
 - **The image's root helpers**, Display Output's At Next Start, Wi-Fi's country, the device's name and Settings → System's time zone and keyboard, are all asked the same way (`src/util/RootRequest`), each by its stem (`display`, `wifi`, `name`, `system`: `osdos-<stem>.socket` on `/run/osdos-<stem>.sock`). `rootrequest::available(stem, api)` says whether it can be (the launcher's API, the socket there), and `rootrequest::ask()` sends a line and takes a line back, `ok` or why not; without one, why there is none (the unit isn't listening, the helper ended without a word, or no answer in time).
+
+## Time Zone and Keyboard (SystemSettings)
+
+Settings → System's first two rows, `SystemSettings` (`src/system`), the `systemSettings` context property.
+
+- **What the system has** is read from its files (`src/system/SystemLocale.h`, which the export to OSD/OS Setup reads through too): the zone `/etc/localtime` links to, else `/etc/timezone`'s; the first of `XKBLAYOUT`'s layouts in `/etc/default/keyboard`, shown by its name in OSD/OS Setup's list (`schema-extra.json`'s `keyboards`, built into the app). `OSDOS_SYSTEM_ROOT` stands before the paths in tests.
+- **The lists**: `timeZones`, every zone the time zone database lists by country (`zone.tab`) and UTC, as `[{ name, region }]`; `keyboards`, the page's layouts that the system has a file for, as `[{ name, code }]`.
+- **Setting one** (`available`: launcher API 10 and `osdos-system.sock` in `/run`): `setTimeZone(zone)` and `setKeyboard(code)` take one of the lists that isn't the one in force, and send `time-zone <zone>` or `keyboard <layout>` to the image's root helper (`rootrequest::ask()`, stem `system`), where `osdos-stop system-setting` checks it again and has `timedatectl` or `raspi-config` set it. `busy` while it is on its way, then the system read again whatever the answer, and `message` saying how it went.
+- **The rows** are dimmed where it isn't available, the system's own shown on them. Select opens a `ListPicker` on the one in force; the rows are made again as the system changes, and a refusal is a notice.
 
 ## Test Patterns (views/TestPatterns.qml)
 
@@ -1183,6 +1192,18 @@ Local Files lists the USB drives plugged in (sticks, disks, a card in a reader) 
 ### OnScreenKeyboard (`views/Components/OnScreenKeyboard.qml`)
 
 Typing with a remote: a grid of letters and digits under the line being typed, the way a deck's menu spells a title. The arrows move the box, Select types what is in it (or `SPACE`, `DEL`, `OK` on the last row), Back cancels; a real keyboard types straight in (`typeIn()`, which a view can hand a letter to). It covers its parent below the title bar: `open(initial)`, the box on OK when there is text to edit, then `accepted(text)` or `canceled()`; hidden (`close()`), it lets go of the keys (`focus = false`) for its view's own. For a name, a password or an address, `caseSensitive` adds two rows of signs, every one a keyboard has (`signs`, then `moreSigns`, which `SHIFT` changes as it does the letters: `/` and `:` stay, the pairs under each other), and gives the text back as it was typed, untrimmed; `masked` shows a star for each character, and `SHOW` on the last row shows it as typed (`revealed`, `HIDE` hides it again). The mouse moves the box to the key under it (`hoverAt(x, y)`, for `Hover.js`), so a click, which is select, types it; `keyItem(row, column)` is the key drawn there. Jellyfin's and Emby's sign-in screens open it from their fields (select on one), as the Wi-Fi password, the Arcade's account and a playlist's name do. `inline` lays it in another view's window instead (the Arcade screen's Search, in its picture's frame), the line and the keys alone across its own width in letters of `fontSize`, which the view shows and gives the keys to: the box and the cursor show only while it has them (`live`), OK and back leave it up (`accepted`, `canceled`), and ◄ ► pressed at the end of a row of keys emit `pastEnd(direction)` for the view rather than going round the row, not while held. `allowEmpty` has OK take nothing typed; a view reads the text as it is typed from its `textChanged`.
+
+### ListPicker (`views/Components/ListPicker.qml`)
+
+A long list to pick one of, in the standard window (`PromptScreen`): Settings' Time Zone and Keyboard. ▲ ▼ go one at a time, round the ends; ◄ ► go from group to group (the time zones' regions, the layouts' first letters); select picks, back leaves it as it was.
+
+| Member | Description |
+|---|---|
+| `title`, `message` | The window's title and the line under it |
+| `entries` | `[{ label, value, group }]`, in the order shown |
+| `groupName` | What ◄ ► step by, as the hint bar names it (`"REGION"`) |
+| `open(value)` | Shows it with the cursor on the entry of that value |
+| `picked(value)`, `closed()` | Select on an entry, after it has closed; closed either way |
 
 ### ChoiceOverlay (`views/Components/ChoiceOverlay.qml`)
 

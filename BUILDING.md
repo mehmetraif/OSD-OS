@@ -523,7 +523,7 @@ OSD/OS detects your device at startup and attempts to launch with the most effic
 
 **Overriding the decode flags**
 
-If you find the need to tune for your hardware, you can add an `mpv_video_args` string under `"app"` in `config.json`.  It accepts a a space-separated list of mpv flags to replace the auto-detected `--vo` / `--hwdec` params that OSD/OS sets (and, on a Pi 5, the `--drm-*` ones that point mpv at the display preset's output).
+If you find the need to tune for your hardware, you can type the flags in Settings → TV / Movie → **Video Arguments**, or add an `mpv_video_args` string under `"app"` in `config.json`.  It accepts a a space-separated list of mpv flags to replace the auto-detected `--vo` / `--hwdec` params that OSD/OS sets (and, on a Pi 5, the `--drm-*` ones that point mpv at the display preset's output).
 
 ```json
 {
@@ -541,7 +541,7 @@ The trade-off with this approach: the copy path didn't look like it could reliab
 
 ## Choosing the display (display_index)
 
-On a multi-monitor machine (macOS or desktop Linux), the UI launches fullscreen on the primary display by default. To launch it on a different display (a dedicated TV, projector, or CRT) without making that display the OS primary you can use the app-level `display_index` setting. Video playback will also follow automatically and mpv will open fullscreen on the same display. There are three steps:
+On a multi-monitor machine (macOS or desktop Linux), the UI launches fullscreen on the primary display by default. To launch it on a different display (a dedicated TV, projector, or CRT) without making that display the OS primary, choose it in Settings → Screen → **Display**, which sets the app-level `display_index` setting. Video playback will also follow automatically and mpv will open fullscreen on the same display. There are three steps:
 
 **1. Find the index of the display you want.** At startup the app logs every attached display with its index, name, and resolution, e.g.:
 

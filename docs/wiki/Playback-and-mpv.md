@@ -205,7 +205,7 @@ On mpv's command line a later flag overrides an earlier one, and the command lin
 
 ## mpv_video_args
 
-`mpv_video_args` in `config.json` replaces the device decode layer: the `--vo`, `--gpu-context` and `--hwdec` flags, and on a Pi 5 the `--drm-*` flags too.
+Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.json`) replaces the device decode layer: the `--vo`, `--gpu-context` and `--hwdec` flags, and on a Pi 5 the `--drm-*` flags too.
 
 ```json
 {

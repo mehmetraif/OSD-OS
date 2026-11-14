@@ -24,6 +24,7 @@ LoadingScreen LoadingScreen.qml
 PromptScreen PromptScreen.qml
 PlaybackNotice PlaybackNotice.qml
 MenuList MenuList.qml
+ListPicker ListPicker.qml
 PlaylistAdder PlaylistAdder.qml
 OsdGround OsdGround.qml
 SkinImage SkinImage.qml

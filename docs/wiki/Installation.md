@@ -504,7 +504,7 @@ OSD/OS runs on Apple Silicon Macs (not Intel ones), and plays videos with Homebr
 On a Mac:
 
 - Settings dims Bluetooth, Display Output and Audio Output: use macOS's own settings.
-- With several displays, OSD/OS opens on the main one. For another, find its number in the log (`[main] display index 1: …`) and set `display_index` in `config.json` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)):
+- With several displays, OSD/OS opens on the main one. For another, choose it in Settings → Screen → **Display**, or find its number in the log (`[main] display index 1: …`) and set `display_index` in `config.json` ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files)):
 
   ```json
   {

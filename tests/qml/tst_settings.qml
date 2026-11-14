@@ -196,6 +196,29 @@ Rectangle {
         function make(version) {}
         function clear() {}
     }
+    // SystemSettings as the page uses it: what the system has, the lists to
+    // pick from, and what was asked of it.
+    QtObject {
+        id: systemSettings
+        property bool available: false
+        property string timeZone: "Europe/Istanbul"
+        property string keyboard: "tr"
+        property string keyboardName: "Turkish (Q)"
+        readonly property var timeZones: [{ name: "America/New_York", region: "America" },
+                                          { name: "Asia/Tokyo", region: "Asia" },
+                                          { name: "Europe/Berlin", region: "Europe" },
+                                          { name: "Europe/Istanbul", region: "Europe" },
+                                          { name: "UTC", region: "UTC" }]
+        readonly property var keyboards: [{ name: "English (US)", code: "us" }, { name: "German", code: "de" },
+                                          { name: "Turkish (Q)", code: "tr" }]
+        property bool busy: false
+        property string message: ""
+        property var asked: []
+        signal changed()
+        function setTimeZone(zone) { asked = asked.concat(["time-zone " + zone]); return true }
+        function setKeyboard(code) { asked = asked.concat(["keyboard " + code]); return true }
+        function clearMessage() { message = "" }
+    }
     QtObject {
         id: wifiManager
         property bool supported: false
@@ -243,6 +266,13 @@ Rectangle {
             root.setFrame([], 0, false)
             wifiManager.supported = false
             wifiManager.launcherTooOld = false
+            systemSettings.available = false
+            systemSettings.timeZone = "Europe/Istanbul"
+            systemSettings.keyboard = "tr"
+            systemSettings.keyboardName = "Turkish (Q)"
+            systemSettings.busy = false
+            systemSettings.message = ""
+            systemSettings.asked = []
             bootProgress.available = true
             root.transitionPresets = ["Fade"]
             root.unusableTransitions = []
@@ -349,12 +379,13 @@ Rectangle {
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
-                { tag: "screen", lines: ["Display Output", "Monitor", "Test Patterns", "Screen Saver", "Mouse Pointer",
-                                         "Window Mode"] },
+                { tag: "screen", lines: ["Display Output", "Display", "Monitor", "Test Patterns", "Screen Saver",
+                                         "Mouse Pointer", "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
                 { tag: "startup", lines: ["Start on Module", "Play at Startup", "Startup From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update", "About", "# Modules", "Scripts", "Radio"] }
+                { tag: "system", lines: ["Time Zone", "Keyboard", "Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update",
+                                         "About", "# Modules", "Scripts", "Radio"] }
             ]
         }
         function test_pages(data) {
@@ -431,6 +462,144 @@ Rectangle {
         // select hands the clipboard's text to AppCore, the notice it answers
         // with shows over the rows, made again as they are now, and back
         // closes it.
+        // A child of the page by its objectName.
+        function named(page, name) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].objectName === name)
+                    return page.children[i]
+            }
+            return null
+        }
+
+        // Time Zone and Keyboard, first on System's page: the system's own,
+        // dimmed with why where OSD/OS can't set them; on the image, select
+        // opens the list on the one in force, ◄ ► step by region, select
+        // asks the system for it, the row says Setting meanwhile and follows
+        // the system as it changes, and a refusal is said.
+        function test_systemRows() {
+            var page = open({ group: "system" })
+            compare(lines(page).slice(0, 2), ["Time Zone", "Keyboard"])
+            compare(row(page, "Time Zone").value, "Europe/Istanbul")
+            compare(row(page, "Keyboard").value, "Turkish (Q)")
+            verify(page.offReason(0).indexOf("Only on the OSD/OS image") === 0)
+            verify(page.offReason(1).indexOf("Only on the OSD/OS image") === 0)
+            // The cursor stops on a dimmed row, and select opens nothing.
+            compare(cursor(page), "Time Zone")
+            keyClick(Qt.Key_Return)
+            verify(!named(page, "systemPicker").visible)
+            loader.source = ""
+
+            systemSettings.available = true
+            page = open({ group: "system" })
+            compare(page.offReason(0), "")
+            compare(cursor(page), "Time Zone")
+            var picker = named(page, "systemPicker")
+            verify(picker !== null)
+            verify(!picker.visible)
+            keyClick(Qt.Key_Return)
+            verify(picker.visible)
+            compare(picker.title, "Time Zone")
+            compare(picker.entries.length, 5)
+            compare(picker.entries[0].label, "America/New York")
+            compare(picker.entries[picker.index].value, "Europe/Istanbul")
+            // ◄ ► from region to region, round.
+            keyClick(Qt.Key_Right)
+            compare(picker.entries[picker.index].value, "UTC")
+            keyClick(Qt.Key_Right)
+            compare(picker.entries[picker.index].value, "America/New_York")
+            keyClick(Qt.Key_Left)
+            compare(picker.entries[picker.index].value, "UTC")
+            keyClick(Qt.Key_Left)
+            compare(picker.entries[picker.index].value, "Europe/Berlin")
+            keyClick(Qt.Key_Up)
+            compare(picker.entries[picker.index].value, "Asia/Tokyo")
+            // Back leaves it as it was.
+            keyClick(Qt.Key_Escape)
+            verify(!picker.visible)
+            compare(systemSettings.asked, [])
+            compare(cursor(page), "Time Zone")
+            // Select asks for the one under the cursor.
+            keyClick(Qt.Key_Right)
+            verify(picker.visible)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(!picker.visible)
+            compare(systemSettings.asked, ["time-zone Europe/Berlin"])
+            // On its way, then as the system has it.
+            systemSettings.busy = true
+            compare(row(page, "Time Zone").value, "Setting")
+            keyClick(Qt.Key_Return)
+            verify(!picker.visible)
+            systemSettings.timeZone = "Europe/Berlin"
+            systemSettings.busy = false
+            systemSettings.changed()
+            compare(row(page, "Time Zone").value, "Europe/Berlin")
+            compare(cursor(page), "Time Zone")
+
+            // The keyboard's layouts, by letter.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(picker.visible)
+            compare(picker.title, "Keyboard")
+            compare(picker.entries[picker.index].value, "tr")
+            keyClick(Qt.Key_Right)
+            compare(picker.entries[picker.index].value, "us")
+            keyClick(Qt.Key_Return)
+            compare(systemSettings.asked, ["time-zone Europe/Berlin", "keyboard us"])
+            // Refused: said, and gone with its message once read.
+            var notice = named(page, "systemNotice")
+            verify(!notice.visible)
+            systemSettings.message = "Keyboard set"
+            verify(!notice.visible)
+            systemSettings.message = "Keyboard not set: raspi-config couldn't set it"
+            verify(notice.visible)
+            compare(notice.promptText, "Keyboard not set")
+            compare(notice.subtitleText, "raspi-config couldn't set it")
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible)
+            compare(systemSettings.message, "")
+        }
+
+        // Video Arguments, on TV / Movie's page: Default until something is
+        // typed on the on-screen keyboard, kept without the spaces at its
+        // ends, and Default again once nothing is.
+        function test_videoArguments() {
+            var page = open({ group: "tv" })
+            compare(lines(page).indexOf("Video Arguments"), lines(page).indexOf("Info Screen") + 1)
+            compare(row(page, "Video Arguments").value, "Default")
+            moveTo(page, "Video Arguments")
+            var keyboard = named(page, "videoArgsKeyboard")
+            verify(keyboard !== null)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.text, "")
+            keyboard.accepted("  --vo=gpu --hwdec=no ")
+            verify(!keyboard.visible)
+            compare(appCore.values.mpv_video_args, "--vo=gpu --hwdec=no")
+            compare(row(page, "Video Arguments").value, "--vo=gpu --hwdec=no")
+            compare(cursor(page), "Video Arguments")
+            // Opened again on what is saved; back keeps it.
+            keyClick(Qt.Key_Right)
+            verify(keyboard.visible)
+            compare(keyboard.text, "--vo=gpu --hwdec=no")
+            keyboard.canceled()
+            compare(appCore.values.mpv_video_args, "--vo=gpu --hwdec=no")
+            keyClick(Qt.Key_Return)
+            keyboard.accepted("")
+            compare(appCore.values.mpv_video_args, "")
+            compare(row(page, "Video Arguments").value, "Default")
+        }
+
+        // Display, on Screen's page: the displays there are, by number, name
+        // and size, and nothing to choose with one.
+        function test_displayRow() {
+            var page = open({ group: "screen" })
+            var display = row(page, "Display")
+            compare(display.options.length, Qt.application.screens.length)
+            verify(display.value.indexOf("1: ") === 0, display.value)
+            compare(page.offReason(lines(page).indexOf("Display")) === "", Qt.application.screens.length > 1)
+        }
+
         function test_pasteSetup() {
             var page = open({ group: "system" })
             var all = lines(page)
@@ -621,9 +790,9 @@ Rectangle {
             loader.source = ""
             page = open({ group: "system" })
             list = listOf(page)
-            hover(middle(list.itemAtIndex(3)))
+            hover(middle(list.itemAtIndex(5)))
             compare(cursor(page), "About")
-            hover(middle(list.itemAtIndex(4)))
+            hover(middle(list.itemAtIndex(6)))
             compare(cursor(page), "About")
         }
 
