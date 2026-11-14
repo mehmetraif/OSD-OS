@@ -6,6 +6,10 @@ import QtQuick
 // Look → Status Icons). The logo is in the bar's colour, a fifth taller than the bar
 // so it stands out of it above and below, with an art pixel of space either
 // side of it.
+//
+// In a monitor layout's frame (Settings → Look → Menu Layout, Main.qml's
+// root.chrome) the frame writes the title in its own place, the layout's
+// way: the bar tells it what it holds and draws nothing, keeping its room.
 Item {
     id: appBar
 
@@ -16,6 +20,26 @@ Item {
     // A note at the bar's right end, before the status icons: Settings'
     // address on the network.
     property string note: ""
+    // Where the view is, from the top level down to it, for a layout that
+    // writes the way (Flat Panel's ">Settings >Network >Wi-Fi"): the steps
+    // the view adds to the way to it, which the frame keeps. Unless set, the
+    // title and then the subtitle's parts ("Look / Effects"). A view whose
+    // subtitle is no step of the way (an address, a version) sets its own.
+    property var path: null
+    // What a monitor layout's frame writes in the title's place as it is,
+    // in place of the way: a question, the main menu's name.
+    property string frameTitle: ""
+    // Its part in a layout's frame, and whether the frame draws it.
+    readonly property string frameRole: "title"
+    readonly property bool handed: root.monitorInk === true
+    function tellFrame() {
+        if (root.chrome)
+            root.chrome.shown(appBar, visible)
+    }
+    onVisibleChanged: tellFrame()
+    Component.onCompleted: tellFrame()
+    Component.onDestruction: if (root.chrome) root.chrome.shown(appBar, false)
+    opacity: handed ? 0 : 1
 
     readonly property bool hasLogo: iconSource.toString() !== "" && logo.status === Image.Ready
     // No room for the subtitle beside a title that fills the bar.
@@ -140,7 +164,7 @@ Item {
                 // Started (and started over) a turn of the event loop after
                 // the layout changes, as MenuRow's is: the animation keeps
                 // the distance it started with.
-                readonly property bool scrolls: appBar.visible && titleText.implicitWidth > width
+                readonly property bool scrolls: appBar.visible && !appBar.handed && titleText.implicitWidth > width
                 readonly property real scrollBy: width - titleText.implicitWidth
                 onScrollsChanged: Qt.callLater(updateScroll)
                 onScrollByChanged: Qt.callLater(updateScroll)

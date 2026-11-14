@@ -19,8 +19,13 @@ Item {
 
     // Where it draws, on the screen.
     property rect area
+    // Its two colours: the ground's (OsdGround).
+    property color ink: root.primaryColor
+    property color paper: root.surfaceColor
+    // Not under a layer that leaves a layout's frame round it (OsdGround).
+    property bool wanted: true
 
-    visible: root.backgroundShader !== "" && !root.effectsRest && !root.screenSaverActive
+    visible: wanted && root.backgroundShader !== "" && !root.effectsRest && !root.screenSaverActive
 
     // Made only while it shows: a shader effect without its shader would
     // draw the default one, which wants a picture this has none of.
@@ -38,8 +43,8 @@ Item {
             property size size: Qt.size(width, height)
             property point origin: Qt.point(Math.round(fx.area.x / root.px), Math.round(fx.area.y / root.px))
             property real time: root.fxTime
-            property color ink: root.primaryColor
-            property color paper: root.surfaceColor
+            property color ink: fx.ink
+            property color paper: fx.paper
             onStatusChanged: {
                 if (status === ShaderEffect.Error)
                     console.warn("[Effect] " + fragmentShader + " can't be used" + (log ? ": " + log : ""))

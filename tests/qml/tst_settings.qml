@@ -25,8 +25,27 @@ Rectangle {
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
+    // A monitor layout's frame, which the shell draws under the views
+    // (Main.qml's frameChrome): up in a monitor layout, the views' bars
+    // telling it what to write, its place for their rows the pane.
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    Components.MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+        icons: root.menuLayout === "Studio Monitor" ? root.frameIcons.map(function(entry) { return entry.icon }) : []
+        iconIndex: root.frameIndex
+        iconsActive: root.frameActive
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
@@ -1166,13 +1185,10 @@ Rectangle {
             compare(lines(page)[0], "Display Output")
         }
 
-        // The monitor layouts' frame: the one drawn, its title and guide.
+        // The monitor layouts' frame: the shell's, which the page's title
+        // bar, help line and hint bar speak to; its title and guide.
         function chromeOf(page) {
-            for (var i = 0; i < page.children.length; i++) {
-                if (page.children[i].guide !== undefined && page.children[i].pageTo !== undefined)
-                    return page.children[i]
-            }
-            return null
+            return root.chrome
         }
 
         // Studio Monitor: the pages as icons in the window's strip, STATUS
@@ -1325,7 +1341,7 @@ Rectangle {
             root.menuLayout = "Flat Panel"
             var page = open({ group: "look" })
             var chrome = chromeOf(page)
-            compare(chrome.title, ">Look")
+            compare(chrome.title, ">Settings >Look")
             var list = listOf(page)
             var per = Math.floor(list.height / chrome.rowHeight + 0.001)
             verify(page.settingsItems.length > per, "Look's rows take two pages")
@@ -1355,7 +1371,7 @@ Rectangle {
             compare(root.backs, 1)
             loader.source = ""
             page = open({ group: "effects" })
-            compare(chromeOf(page).title, ">Look >Effects")
+            compare(chromeOf(page).title, ">Settings >Look >Effects")
         }
 
         // Menu Layout changed to and from a monitor layout: Studio Monitor's

@@ -26,7 +26,8 @@ FocusScope {
     // Quit) has its first-screen row there, which ► or select opens. A page
     // opened from the rows (Look's Effects) has the column too, its
     // heading's icon framed. Studio Monitor does the same in a monitor's
-    // window (Components/MonitorChrome), a STATUS page first, what is set,
+    // window (the shell's frame, Components/MonitorChrome), a STATUS page
+    // first, what is set,
     // read alone (statusRows()). Broadcast and Flat Panel are lists, as
     // Standard is, in a monitor's look: a value changed in two steps
     // (editIndex), and Cabinet Lock at the first screen's foot as Key
@@ -36,7 +37,8 @@ FocusScope {
     readonly property bool studio: layout === "Studio Monitor"
     readonly property bool broadcast: layout === "Broadcast"
     readonly property bool flat: layout === "Flat Panel"
-    // Drawn by MonitorChrome and MonitorRow, in the layout's own colours.
+    // In the shell's frame (Main.qml's root.chrome, a MonitorChrome), its
+    // rows drawn by MonitorRow, in the layout's own colours.
     readonly property bool monitor: studio || broadcast || flat
     // The pages as icons beside the rows: Camcorder's column, Studio
     // Monitor's strip.
@@ -174,15 +176,18 @@ FocusScope {
             return v < 0 ? "Off" : v + "%"
         return v === undefined || v === null ? "" : String(v)
     }
-    // A monitor layout's title: Studio Monitor's tab names the page shown;
-    // Broadcast's MENU or the page's name; Flat Panel's the path to it.
-    readonly property string monitorTitle: {
-        var page = group !== "" ? (groupTitles[group] || "") : ""
-        if (studio)
-            return page !== "" ? page : ((camPages[camIndex] || {}).row || {}).label || "Settings"
-        if (flat)
-            return page !== "" ? ">" + page.split(" / ").join(" >") : "Menu"
-        return page !== "" ? page : "Menu"
+    // Where the page is, from Settings down, for a monitor layout's frame,
+    // which writes it its own way (MonitorChrome's title): Studio Monitor's
+    // tab the page shown, Broadcast the way under Settings, Flat Panel the
+    // whole path. With the pages as icons, the first screen is on the page
+    // under the cursor.
+    readonly property var pagePath: {
+        if (group === "effects")
+            return ["Settings", "Look", "Effects"]
+        if (group !== "")
+            return ["Settings", groupTitles[group] || ""]
+        var page = iconMenu ? ((camPages[camIndex] || {}).row || {}).label || "" : ""
+        return page !== "" ? ["Settings", page] : ["Settings"]
     }
     // Its key guide, as a monitor's: Broadcast's three lines, a value's
     // second step its own.
@@ -1411,9 +1416,11 @@ FocusScope {
     // from source ("dev"), which About names. A group's page: its name. The
     // first page's: the IP address at the bar's right end.
     AppBar {
-        visible: !settingsRoot.monitor
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
+        path: settingsRoot.pagePath
+        // Broadcast's first screen, as a monitor's menu is headed.
+        frameTitle: settingsRoot.broadcast && settingsRoot.group === "" ? "Menu" : ""
         subtitle: settingsRoot.group !== "" ? (settingsRoot.groupTitles[settingsRoot.group] || "")
                   : settingsRoot.camcorder ? (settingsRoot.camPages[settingsRoot.camIndex] ? settingsRoot.camPages[settingsRoot.camIndex].row.label : "")
                   : root.devBuild ? "" : root.appVersion
@@ -1463,18 +1470,10 @@ FocusScope {
     }
 
     // A monitor layout's window, title, icons, help line and key guide,
-    // under the rows (Settings → Look → Menu Layout).
-    MonitorChrome {
-        id: chrome
-        anchors.fill: parent
-        visible: settingsRoot.monitor
-        title: settingsRoot.monitorTitle
-        icons: settingsRoot.studio ? settingsRoot.camPages.map(function(page) { return page.icon }) : []
-        iconIndex: settingsRoot.camIndex
-        iconsActive: settingsRoot.inIcons()
-        helpText: settingsRoot.monitor && root.helpLine ? settingsRoot.helpText : ""
-        guide: settingsRoot.monitorGuide
-    }
+    // under the rows (Settings → Look → Menu Layout): the shell's frame
+    // (Main.qml's root.chrome), which says where the rows go, and is told
+    // the rest by the title bar, the help line and the hint bar below.
+    readonly property var chrome: root.chrome
 
     ListView {
         id: settingsList
@@ -1494,7 +1493,7 @@ FocusScope {
         onHeightChanged: if (settingsRoot.flat) Qt.callLater(settingsRoot.showCurrent)
         // Flat Panel's last page filled out to a whole page, and the view
         // left where its page puts it (not moved to follow the cursor).
-        footer: Item { width: 1; height: chrome.pageFill(settingsList.count) }
+        footer: Item { width: 1; height: settingsRoot.flat ? chrome.pageFill(settingsList) : 0 }
         highlightFollowsCurrentItem: !settingsRoot.flat
         clip: true
         focus: true
@@ -1829,22 +1828,23 @@ FocusScope {
         color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
-    // Camcorder's icons, the first screen's pages, at the left of the rows:
-    // the layout's frame, which the shell draws (Main.qml's setFrame()) and
-    // keeps beside the pages opened from here.
+    // Camcorder's icons, the first screen's pages, at the left of the rows,
+    // and Studio Monitor's in its strip: the layout's frame, which the shell
+    // draws (Main.qml's setFrame()) and keeps beside the pages opened from
+    // here.
     readonly property bool inFrame: true
     readonly property bool ownsFrame: true
     readonly property bool frameKeys: inIcons()
     // The icons as readAll() listed them, the one list handed each time: a
     // move changes which is boxed, not the icons.
     function handFrame() {
-        if (camcorder && camPages.length > 0)
+        if (iconMenu && camPages.length > 0)
             root.setFrame(pageIconList, camIndex, frameKeys, false)
     }
     onCamPagesChanged: handFrame()
     onCamIndexChanged: handFrame()
     onFrameKeysChanged: handFrame()
-    onCamcorderChanged: handFrame()
+    onIconMenuChanged: handFrame()
 
     // --- HELP TEXT --- (shown when a focused row has a description), on one
     // line that scrolls when it is too long for the box.
@@ -1858,7 +1858,7 @@ FocusScope {
                                        + ((helpRow && helpRow.description) || "").split("[ENTER]").join(root.hints.select)
     HelpLine {
         objectName: "helpLine"
-        visible: !settingsRoot.monitor && text !== ""
+        visible: text !== ""
         text: settingsRoot.helpText
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -1869,7 +1869,7 @@ FocusScope {
     // --- FOOTER ---
     HintBar {
         id: footer
-        visible: !settingsRoot.monitor
+        guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (settingsRoot.inIcons() ? root.hints.browse + ":OPEN " : root.hints.change + ":CHANGE ")
               + root.hints.select + ":SELECT"

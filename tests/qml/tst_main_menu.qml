@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import "../../views/Components" as Components
 
 // The main menu, views/ModuleList.qml, against a stand-in for AppCore: the
 // modules turned on, a row each; select opens one, back opens Settings. With
@@ -21,8 +22,27 @@ Rectangle {
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
+    // A monitor layout's frame, which the shell draws under the views
+    // (Main.qml's frameChrome): up in a monitor layout, the views' bars
+    // telling it what to write, its place for their rows the pane.
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    Components.MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+        icons: root.menuLayout === "Studio Monitor" ? root.frameIcons.map(function(entry) { return entry.icon }) : []
+        iconIndex: root.frameIndex
+        iconsActive: root.frameActive
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
@@ -210,13 +230,10 @@ Rectangle {
             compare(root.navigations[2].path, "views/Settings.qml")
         }
 
-        // The monitor layouts' frame.
+        // The monitor layouts' frame: the shell's, which the menu's title
+        // bar and hint bar speak to.
         function chromeOf(menu) {
-            for (var i = 0; i < menu.children.length; i++) {
-                if (menu.children[i].guide !== undefined && menu.children[i].pageTo !== undefined)
-                    return menu.children[i]
-            }
-            return null
+            return root.chrome
         }
 
         // Studio Monitor: Camcorder's groups, their icons in the window's

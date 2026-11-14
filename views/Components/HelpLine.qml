@@ -7,11 +7,25 @@ import QtQuick
 // Settings' HELP LINE (root.helpLine) hides every one at once, by its opacity,
 // so a host's own visible binding holds and its menu keeps its shape; one
 // whose lines are the page itself (ABOUT's) stays, with always.
+//
+// In a monitor layout's frame (Settings → Look → Menu Layout, Main.qml's
+// root.chrome) the frame shows the line in its own place, with one of these
+// of its own (ofFrame): a view's tells it its text and draws nothing.
 Rectangle {
     id: help
 
     property string text: ""
     property bool always: false
+    // The frame's own, which draws; a view's is handed to the frame.
+    property bool ofFrame: false
+    readonly property string frameRole: "help"
+    readonly property bool handed: !ofFrame && root.monitorInk === true
+    function tellFrame() {
+        if (!ofFrame && root.chrome)
+            root.chrome.shown(help, visible)
+    }
+    Component.onCompleted: tellFrame()
+    Component.onDestruction: if (!ofFrame && root.chrome) root.chrome.shown(help, false)
     // Its text and outline: the scheme's colour, or a monitor layout's
     // (MonitorChrome), which may leave the box unframed.
     property color ink: root.primaryColor
@@ -37,18 +51,22 @@ Rectangle {
     border.width: framed ? root.px : 0
     border.color: ink
     antialiasing: false
-    opacity: shown ? 1 : 0
+    opacity: shown && !handed ? 1 : 0
 
     function restart() {
         ticker.stop()
         travel = 0
-        if (scrolls && visible && shown)
+        if (scrolls && visible && shown && !handed)
             ticker.start()
     }
     // Deferred, so the text has its new width before it is measured.
     onLineChanged: Qt.callLater(restart)
-    onVisibleChanged: Qt.callLater(restart)
+    onVisibleChanged: {
+        tellFrame()
+        Qt.callLater(restart)
+    }
     onShownChanged: Qt.callLater(restart)
+    onHandedChanged: Qt.callLater(restart)
     onScrollsChanged: Qt.callLater(restart)
 
     Item {

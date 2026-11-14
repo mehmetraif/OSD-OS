@@ -94,7 +94,7 @@ Window {
     }
     // Under everything: what OSD BACKGROUND puts around its window (black
     // but for FULL). OsdGround draws the ground itself, over it.
-    color: root.osdBackground === "Full" ? root.surfaceColor : "#000000"
+    color: root.osdBackground === "Full" ? root.schemePaper : "#000000"
 
     // --- Color Schemes ---
     readonly property var schemes: ({
@@ -297,14 +297,25 @@ Window {
     // The loaders in a module that show a video's view now. They die with
     // the module, so a new view in moduleLoader clears them.
     property var playbackLoaders: []
-    // `loader` showing `source` (changeWindow()'s every change).
-    function showView(loader, source, properties) {
+    // `loader` showing `source` (changeWindow()'s every change). `base`,
+    // where given, is the way to the new view (frameBase), set as it comes.
+    // Whether the view is in the layout's frame (viewInFrame) is held while
+    // it is made, and read once it is there.
+    function showView(loader, source, properties, base) {
         var loaders = loader === moduleLoader ? []
                       : playbackLoaders.filter(function(l) { return l !== loader })
         if (loader !== moduleLoader && playbackView.test(String(source)))
             loaders.push(loader)
         playbackLoaders = loaders
+        if (base !== undefined)
+            frameBase = base
+        // No page of the last view's rows (Flat Panel's) over the next.
+        frameChrome.pageTo(null)
+        viewLoading++
         loader.setSource(source, properties)
+        viewLoading--
+        if (viewLoading === 0)
+            viewInFrame = liveInFrame
     }
     readonly property bool effectsRest: videoActive || screenHandedOff || restLayers.length > 0
                                         || playbackLoaders.length > 0
@@ -492,18 +503,18 @@ Window {
     // Loader.setSource has them), as Settings → Look → Effects → Transition has it. Never into
     // or out of a video's views (a player's, a launch's), nor while the
     // effects rest, nor at the very start.
-    function changeWindow(loader, source, properties) {
+    function changeWindow(loader, source, properties, base) {
         var from = String(loader.source), to = String(source)
         if (windowChange.capturing)
             windowCaught(true)
         if (transition === "" || windowChange.changing || effectsRest || bootActive || startupHolding
                 || from === "" || playbackView.test(from) || playbackView.test(to)) {
-            showView(loader, source, properties)
+            showView(loader, source, properties, base)
             return
         }
         if (windowChange.running)
             transitionAnimation.complete()
-        windowChange.pending = function() { showView(loader, source, properties) }
+        windowChange.pending = function() { showView(loader, source, properties, base) }
         windowChange.capturing = true
         lastFace.scheduleUpdate()
         catchTimeout.restart()
@@ -567,15 +578,19 @@ Window {
     // Components/MonitorChrome and MonitorRow): "Studio Monitor", a black
     // window over the picture with a strip of the pages' icons; "Broadcast",
     // plain blue, a value changed in two steps; "Flat Panel", black, mixed
-    // case, a page of rows at a time. The Arcade module's screens keep their
-    // own. Read as the window is made, before the main menu is, so that it
-    // opens laid out as it will stay.
+    // case, a page of rows at a time. Every view that takes its place in the
+    // layout's frame (below) is laid out by it; the Arcade module's screens,
+    // a player and a page with a poster keep their own. Read as the window is
+    // made, before the main menu is, so that it opens laid out as it will
+    // stay.
     property string menuLayout: menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
     // The monitor layouts' colours, whatever the colour scheme: the ground,
     // the text, a row that can't be used, the strips and bars (accent), the
     // text on them and the guide (soft), the cursor's mark or a value being
     // changed (mark), and Flat Panel's selected row (bar). null in Standard
-    // and Camcorder, which draw in the scheme's two colours.
+    // and Camcorder, which draw in the scheme's two colours. While a monitor
+    // layout's frame is up (monitorInk) the ink and the ground are the two
+    // colours every view draws in, primaryColor and surfaceColor.
     readonly property var menuPalette: ({
         "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
                             soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
@@ -584,8 +599,13 @@ Window {
         "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
                             soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
     })[menuLayout] || null
-    property string primaryColor:   osdOff ? lighterOf(scheme.primary, scheme.surface) : scheme.primary
-    property string surfaceColor:   osdOff ? "#000000" : scheme.surface
+    // The scheme's two, as OSD BACKGROUND has them: what the screen's own
+    // ground (OsdGround), the boot screen and the loading screen are in,
+    // whatever the layout.
+    readonly property string schemeInk:   osdOff ? lighterOf(scheme.primary, scheme.surface) : scheme.primary
+    readonly property string schemePaper: osdOff ? "#000000" : scheme.surface
+    property string primaryColor:   monitorInk ? menuPalette.ink : schemeInk
+    property string surfaceColor:   monitorInk ? menuPalette.ground : schemePaper
     // Two colours only, like a deck's on-screen display: everything is drawn in
     // the scheme's primary colour on its surface colour. A selection is a solid
     // box with its text in the surface colour, and anything dimmed is dithered
@@ -682,6 +702,14 @@ Window {
     // the frame (a view's `inFrame`): the icon of the page it was opened from
     // framed, the view's rows in the pane beside the column. `tall` is the
     // main menu's column, which has no help line under it.
+    // A monitor layout's (Studio Monitor, Broadcast, Flat Panel) is all that
+    // is round a view's rows, drawn here once (frameChrome, a MonitorChrome:
+    // root.chrome): the window or ground, the title or path, Studio
+    // Monitor's strip of the same icons, the help line and the key guide. A
+    // view in it draws only what is in the pane: its title bar, hint bar and
+    // help line hand what they hold to the frame (AppBar, HintBar, HelpLine),
+    // its rows are drawn the layout's way (MenuRow, MonitorRow), and its two
+    // colours are the layout's.
     property var frameIcons: []
     property int frameIndex: 0
     property bool frameActive: false
@@ -727,18 +755,60 @@ Window {
     // The frame that is up: the open module's, else the one handed over.
     readonly property var shownFrameIcons: moduleFrame ? moduleFrame.icons : frameIcons
     readonly property int shownFrameIndex: moduleFrame ? moduleFrame.index : frameIndex
-    readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0
-                                   && !!moduleLoader.item && moduleLoader.item.inFrame === true
+    // Whether the view shown takes its place in the frame (its `inFrame`, a
+    // module's router handing on its own view's). Held while a view is being
+    // made (showView()): the view open until then says nothing of the next,
+    // and a view laid out for no frame, then for one, would be laid out
+    // twice.
+    readonly property bool liveInFrame: !!moduleLoader.item && moduleLoader.item.inFrame === true
+    property bool viewInFrame: false
+    property int viewLoading: 0
+    onLiveInFrameChanged: if (viewLoading === 0) viewInFrame = liveInFrame
+    readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0 && viewInFrame
+    // A monitor layout's frame is up: its chrome drawn, the view's rows in
+    // its pane.
+    readonly property bool monitorFramed: menuPalette !== null && viewInFrame
+    // A layer that takes the whole screen over the view, in the scheme's
+    // colours (the on-screen keyboard, an info screen: an OsdGround that is
+    // not laid `inLayout`), is outside the frame, and so is whatever rests
+    // the effects (a loading screen, a player's menu) and the screens that
+    // come before the menus.
+    readonly property bool frameCovered: selectors.some(function(e) { return e.cover && e.item.inLayout !== true })
+    // The frame's colours and chrome are in force: the views draw in the
+    // layout's ink on its ground, and their bars are the frame's to write.
+    readonly property bool monitorInk: monitorFramed && !frameCovered && restLayers.length === 0
+                                       && !bootActive && !startupHolding
+    // The monitor layouts' frame itself (Components/MonitorChrome), which
+    // the views' bars speak to.
+    readonly property alias chrome: frameChrome
+    // The way to the view that is open, from the top level down to the view
+    // it was opened from: what the frame's path starts with. The main menu
+    // is above the top level, so a view opened from it starts the way. Kept
+    // with each level of the nav stack, and set as its view comes
+    // (showView()).
+    property var frameBase: []
     // Where the column stands, in a view's own coordinates, for whatever
     // draws it: the shell, under the views, and a question window, which
     // draws it again over its own ground (PromptScreen), so that a question
     // is asked in the layout, its answers in the pane.
     readonly property rect frameColumn: Qt.rect(sw * 0.115625, sh * 0.25, sw * 0.084375, //74, 120, 54
         frameTall || moduleFrame ? sh * 0.525 + hintRoom : sh * 0.4666667 + helpRoom + hintRoom) //252 : 224
-    // The pane: where a view's rows go, beside the frame's column or, with no
-    // frame, where every view has its list.
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625 //134 : 74
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875 //432 : 492
+    // The pane: where a view's rows go, beside the frame's column, where a
+    // monitor layout's frame has its rows or, with no frame, where every
+    // view has its list. Across, paneX and paneWidth. Down, a menu's rows
+    // start at listY and take listHeight, one row short of the help line, or
+    // tallListHeight where the view has none (the main menu, a module's
+    // list); anything else (a tree, a question) has from paneTop to
+    // paneBottom.
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625 //134 : 74
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875 //432 : 492
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25 //120
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight
+                                                     : sh * 0.4666667 + helpRoom + hintRoom //224
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom //252
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333 //100
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom
+                                     : hintBar ? sh * 0.8333333 : contentBox.y + contentBox.height //400, 430
     // The room Settings' Hint Bar and Help Line leave when they are off, which
     // the content takes; the window stays as it is. A menu's list grows a row
     // (menuRowHeight) for the hint bar (hintRoom) and, over a help line, a row
@@ -1049,9 +1119,10 @@ Window {
             root.appNavStack.push({
                 source: moduleLoader.source,
                 params: root.appCurrentParams,
-                listState: {}
+                listState: {},
+                base: []
             })
-            moduleLoader.setSource(entryPoint, { "navParams": params })
+            root.showView(moduleLoader, entryPoint, { "navParams": params }, [])
         }
     }
 
@@ -1077,15 +1148,15 @@ Window {
         if (!entry)
             return
         dismissScreenSaver()
-        appNavStack = [{ source: Qt.resolvedUrl("views/ModuleList.qml"), params: {}, listState: {} }]
+        appNavStack = [{ source: Qt.resolvedUrl("views/ModuleList.qml"), params: {}, listState: {}, base: [] }]
         appCurrentParams = {}
-        changeWindow(moduleLoader, entry, { "navParams": {} })
+        changeWindow(moduleLoader, entry, { "navParams": {} }, [])
     }
     function openMainMenu() {
         dismissScreenSaver()
         appNavStack = []
         appCurrentParams = {}
-        changeWindow(moduleLoader, Qt.resolvedUrl("views/ModuleList.qml"), { "navParams": {} })
+        changeWindow(moduleLoader, Qt.resolvedUrl("views/ModuleList.qml"), { "navParams": {} }, [])
     }
     function setCabinetLock(on) {
         cabinetLockOn = on
@@ -1233,10 +1304,10 @@ Window {
     // ("Default"), whatever the theme or colour scheme.
     property bool bootThemed: true
     property bool loadingThemed: true
-    readonly property string bootInk: bootThemed ? primaryColor : schemes["Video 1"].primary
-    readonly property string bootPaper: bootThemed ? surfaceColor : schemes["Video 1"].surface
-    readonly property string loadingInk: loadingThemed ? primaryColor : schemes["Video 1"].primary
-    readonly property string loadingPaper: loadingThemed ? surfaceColor : schemes["Video 1"].surface
+    readonly property string bootInk: bootThemed ? schemeInk : schemes["Video 1"].primary
+    readonly property string bootPaper: bootThemed ? schemePaper : schemes["Video 1"].surface
+    readonly property string loadingInk: loadingThemed ? schemeInk : schemes["Video 1"].primary
+    readonly property string loadingPaper: loadingThemed ? schemePaper : schemes["Video 1"].surface
 
     // "transparent_background": how solid the menus' ground is over a video
     // behind them, 0 (TRANSPARENT) to 100 (SOLID: none of it shows, but it
@@ -1456,6 +1527,27 @@ Window {
                 height: root.frameColumn.height
             }
 
+            // A monitor layout's frame (Studio Monitor, Broadcast, Flat
+            // Panel): its window or ground, title, strip, help line and key
+            // guide, under the views as Camcorder's column is, and kept up
+            // from one view in the frame to the next. The views' bars tell
+            // it what to write (MonitorChrome's shown()).
+            MonitorChrome {
+                id: frameChrome
+                z: -0.25
+                y: root.stageY
+                width: root.sw
+                height: root.sh
+                visible: root.monitorFramed
+                screen: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
+                // Studio Monitor's strip: the icons Camcorder's column has.
+                icons: root.menuLayout === "Studio Monitor" ? root.shownFrameIcons : []
+                iconIndex: root.shownFrameIndex
+                iconsActive: root.frameActive && !root.moduleFrame
+                             && !!moduleLoader.item && moduleLoader.item.ownsFrame === true
+                basePath: root.frameBase
+            }
+
             // --- MODULE LOADER ---
             Loader {
                 id: moduleLoader;
@@ -1492,9 +1584,12 @@ Window {
                     ignoreUnknownSignals: true
 
                     function onNavigateTo(path, params, listState) {
-                        root.appNavStack.push({ source: moduleLoader.source, params: root.appCurrentParams, listState: listState || {} })
+                        // The way to the view opened: this view's own, as
+                        // the frame has it; kept, for the way back.
+                        root.appNavStack.push({ source: moduleLoader.source, params: root.appCurrentParams,
+                                                listState: listState || {}, base: root.frameBase })
                         root.appCurrentParams = params || {}
-                        root.changeWindow(moduleLoader, path, { "navParams": params || {} })
+                        root.changeWindow(moduleLoader, path, { "navParams": params || {} }, frameChrome.viewPath)
                     }
 
                     function onGoBack() {
@@ -1514,7 +1609,7 @@ Window {
                         // card's hand-off) has no property of its own for it.
                         var restored = Object.assign({}, prev.params)
                         restored.navListState = prev.listState || {}
-                        root.changeWindow(moduleLoader, prev.source, { "navParams": restored })
+                        root.changeWindow(moduleLoader, prev.source, { "navParams": restored }, prev.base || [])
                     }
 
                 }

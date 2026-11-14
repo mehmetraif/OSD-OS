@@ -7,10 +7,29 @@ import QtQuick
 // steps it down only as far as a long hint line needs to fit the safe width.
 // Settings' HINT BAR (root.hintBar) hides every one at once: by its opacity,
 // so a view's own visible binding holds, and the window keeps its shape.
+//
+// In a monitor layout's frame (Settings → Look → Menu Layout, Main.qml's
+// root.chrome) the frame writes the keys as the layout's guide, made from
+// this line (or `guide`, a view's own lines for it): the bar tells it and
+// draws nothing, keeping its room.
 Text {
     id: hint
 
-    opacity: root.hintBar ? 1 : 0
+    // The key guide's lines in a monitor layout, where a view words them
+    // itself (Settings'); else the frame makes them from the hint line.
+    property var guide: []
+    // Its part in a layout's frame, and whether the frame draws it.
+    readonly property string frameRole: "hints"
+    readonly property bool handed: root.monitorInk === true
+    function tellFrame() {
+        if (root.chrome)
+            root.chrome.shown(hint, visible)
+    }
+    onVisibleChanged: tellFrame()
+    Component.onCompleted: tellFrame()
+    Component.onDestruction: if (root.chrome) root.chrome.shown(hint, false)
+
+    opacity: root.hintBar && !handed ? 1 : 0
 
     readonly property real largest: root.sh * 0.0375 //18
     readonly property real smallest: root.sh * 0.0291667 //14

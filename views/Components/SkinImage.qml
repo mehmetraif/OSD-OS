@@ -19,6 +19,10 @@ Item {
     // or nothing.
     property var part
     readonly property bool shown: !!(part && part.source) && image.status === Image.Ready
+    // The two colours it is drawn in: the menus', unless its host says (the
+    // screen's ground keeps the scheme's under a monitor layout's frame).
+    property color ink: root.primaryColor
+    property color paper: root.surfaceColor
     readonly property int tileMode: !part ? BorderImage.Stretch
                                   : part.tile === "repeat" ? BorderImage.Repeat
                                   : part.tile === "round" ? BorderImage.Round
@@ -32,8 +36,8 @@ Item {
         scale: root.px
         transformOrigin: Item.TopLeft
         source: skinImage.part && skinImage.part.source
-                ? "image://osdskin/" + String(root.primaryColor).replace("#", "") + "/"
-                  + String(root.surfaceColor).replace("#", "") + "/" + skinImage.part.source
+                ? "image://osdskin/" + String(skinImage.ink).replace("#", "") + "/"
+                  + String(skinImage.paper).replace("#", "") + "/" + skinImage.part.source
                 : ""
         border.left: skinImage.side(0)
         border.top: skinImage.side(1)
