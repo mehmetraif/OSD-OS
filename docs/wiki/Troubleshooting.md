@@ -24,7 +24,7 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
 | `stall-report.txt`, `crash-report.txt` | The reports, when there is one |
 | `retroarch-last.log` | RetroArch's log of the last FinalBurn Neo game |
 
-- Tokens in addresses are blanked, and so is the sign-in in one: `https://user:password@host/…` reads `https://HIDDEN@host/…`, the host kept. mpv's own log is left out. The newest ten folders are kept.
+- Tokens in addresses are blanked, and so is the sign-in in one: `https://user:password@host/…` reads `https://HIDDEN@host/…`, and `?username=…&password=…` reads `?username=HIDDEN&password=HIDDEN`, the host and the rest kept. mpv's own log is left out. The newest ten folders are kept.
 - After a problem: Quit → Save Logs, then Power Off, and put the card in a computer.
 - When the Pi is stuck: wait a minute, switch it off and on, then Save Logs. The stuck run is in `app-previous-run.log`.
 
@@ -68,9 +68,9 @@ cp ~/.local/share/OSD-OS/crash-report.txt ~/.local/share/OSD-OS/stall-report.txt
 
 ### mpv's own log
 
-- mpv's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked, and the sign-in in an address (`user:password@`, as `REDACTED@`).
+- mpv's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked, and the sign-in in an address (`user:password@` as `REDACTED@`, `?username=…&password=…` as `?username=REDACTED&password=REDACTED`).
 - mpv also writes a verbose log of the latest video to `/tmp/osdos-mpv.log` (on a Mac, `$TMPDIR`). It starts afresh for each video, so copy it before playing the next.
-- That file holds each video's full address, and a media server's token with it. Look through it before you post it.
+- That file holds each video's full address, and a media server's token or a sign-in with it. Look through it before you post it.
 
 ### What a build from source adds
 
