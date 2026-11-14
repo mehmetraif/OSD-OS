@@ -221,6 +221,25 @@ Rectangle {
             compare(activatedSpy.count, 1)
             compare(root.selectsLeft, 2)
         }
+        // A host puts an open folder's cursor on one of its entries by its
+        // path (select()): the folder with the keys, or one further back,
+        // whose spine then runs through that entry. Not a folder that isn't
+        // open, nor an entry the folder hasn't.
+        function test_selectByPath() {
+            verify(browser.select("/", "/films"))
+            compare(browser.selectedItem().path, "/films")
+            verify(!browser.select("/", "/nowhere"))
+            compare(browser.selectedItem().path, "/films")
+            verify(!browser.select("/films", "/films/two"), "not open")
+            verify(browser.openFolder())
+            verify(browser.select("/films", "/films/three"))
+            compare(browser.selectedItem().path, "/films/three")
+            verify(browser.select("/", "/projects"))
+            compare(browser.trailState()[0].sel, 0)
+            compare(browser.selectedItem().path, "/films/three")
+            while (browser.closeFolder()) {}
+            compare(browser.selectedItem().path, "/projects")
+        }
         function test_referencePreview() {
             wait(250)
             var image = grabImage(root)

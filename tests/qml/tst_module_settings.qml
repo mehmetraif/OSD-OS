@@ -78,6 +78,45 @@ Rectangle {
             return true
         }
         function get_module_settings_schema(id) { return id === "com.osdos.other" ? otherSchema : schema }
+
+        // The file picker's (views/FilePicker.qml): the places, and a
+        // folder's entries (folders: path -> entries), read off the app's
+        // thread: asked for (asked), nothing until the test hands them over
+        // (deliver()), then folderEntriesReady. folderEntries() is the read
+        // on the app's thread, counted. With cacheKept, what was handed over
+        // before the picker opened is in at once. Kept in `picks`, changed in
+        // place: as AppCore's own, these calls change no property a binding
+        // follows.
+        property var folders: ({})
+        readonly property var picks: ({ asked: [], arrived: {}, readsOnThread: 0, cacheKept: false })
+        signal folderEntriesReady(string path)
+        function filePlaces() {
+            return [{ name: "Home", path: "/home/me" }, { name: "Media", path: "/media" }, { name: "Root", path: "/" }]
+        }
+        function listed(path, types) {
+            return (folders[path] || []).filter(function(entry) {
+                return entry.isFolder || types.indexOf(entry.name.replace(/^.*\./, "")) >= 0
+            }).map(function(entry) { return Object.assign({}, entry) })
+        }
+        function clearFolderCache() {
+            if (!picks.cacheKept)
+                picks.arrived = {}
+        }
+        function requestFolderEntries(path, types) {
+            if (picks.arrived[path])
+                return listed(path, types)
+            if (picks.asked.indexOf(path) < 0)
+                picks.asked.push(path)
+            return undefined
+        }
+        function folderEntries(path, types) {
+            picks.readsOnThread++
+            return listed(path, types)
+        }
+        function deliver(path) {
+            picks.arrived[path] = true
+            folderEntriesReady(path)
+        }
     }
 
     // The pages the view opens (navigateTo), as the router would.
@@ -119,6 +158,11 @@ Rectangle {
             appCore.otherValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
+            appCore.folders = {}
+            appCore.picks.asked = []
+            appCore.picks.arrived = {}
+            appCore.picks.readsOnThread = 0
+            appCore.picks.cacheKept = false
             root.navigations = []
             root.helpLine = true
             root.theme = {}
@@ -879,6 +923,144 @@ Rectangle {
             compare(value.width, value.implicitWidth)
             verify(value.mapToItem(label.parent, value.width, 0).x <= label.parent.width)
             verify(value.parent.width >= value.implicitWidth)
+        }
+
+        // The file picker (views/FilePicker.qml), as a directory_browser row
+        // opens it: a drive's folders, and the picker's tree and its open
+        // folders' paths.
+        function folder(name, path) { return { name: name, path: path, isFolder: true } }
+        function file(name, path) { return { name: name, path: path, isFolder: false } }
+        readonly property var driveFolders: ({
+            "/media": [folder("card", "/media/card"), folder("usb", "/media/usb")],
+            "/media/usb": [folder("films", "/media/usb/films"), folder("music", "/media/usb/music"),
+                           file("logo.png", "/media/usb/logo.png"), file("notes.txt", "/media/usb/notes.txt")],
+            "/media/usb/films": [folder("drama", "/media/usb/films/drama"), folder("horror", "/media/usb/films/horror"),
+                                 file("a.mkv", "/media/usb/films/a.mkv")],
+            "/media/usb/films/horror": [folder("old", "/media/usb/films/horror/old")]
+        })
+        function openPicker(params) {
+            loader.setSource(Qt.resolvedUrl("../../views/FilePicker.qml"),
+                             { navParams: Object.assign({ moduleId: "com.osdos.test", settingKey: "folder",
+                                                          label: "Folder" }, params) })
+            verify(loader.item !== null, "loaded FilePicker.qml")
+            loader.item.forceActiveFocus()
+            return loader.item
+        }
+        function treeOf(picker) {
+            for (var i = 0; i < picker.children.length; i++) {
+                if (picker.children[i].trailState !== undefined)
+                    return picker.children[i]
+            }
+            return null
+        }
+        function openFolders(tree) {
+            return tree.trailState().map(function(column) { return column.path })
+        }
+        function cursorIn(tree, path) {
+            var column = tree.trailState().filter(function(c) { return c.path === path })[0]
+            return column ? column.sel : -1
+        }
+
+        // The picker opens down to the folder chosen now without reading a
+        // folder on the app's thread: each folder on the way is asked for and
+        // opened on trust, saying loading… until it is in, whatever order
+        // they come in, and then has its cursor on the way on. Select on USE
+        // THIS FOLDER picks the folder.
+        function test_filePickerOpensWithoutWaiting() {
+            appCore.folders = driveFolders
+            var picker = openPicker({ currentPath: "/media/usb/films/horror", defaultLabel: "Default Folder" })
+            var tree = treeOf(picker)
+            verify(tree !== null)
+            compare(appCore.picks.readsOnThread, 0)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"])
+            // The places: the default, Home, Media, Root.
+            compare(cursorIn(tree, "places"), 2)
+            var onTheWay = ["/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"]
+            for (var i = 0; i < onTheWay.length; i++)
+                verify(appCore.picks.asked.indexOf(onTheWay[i]) >= 0, onTheWay[i] + " asked for")
+            verify(findText(picker, "loading…") !== null)
+            compare(tree.folderName, "horror")
+            compare(tree.currentEntry, null)
+
+            // The folder chosen comes in first: the cursor on USE THIS FOLDER.
+            appCore.deliver("/media/usb/films/horror")
+            compare(tree.currentEntry.kind, "choose")
+            compare(tree.currentEntry.target, "/media/usb/films/horror")
+            // Then one in the middle: its cursor on the folder that leads on.
+            appCore.deliver("/media/usb")
+            compare(cursorIn(tree, "/media/usb"), 1)
+            // The cursor moved meanwhile stays where it was put: a folder
+            // coming in later moves its own alone.
+            keyClick(Qt.Key_Down)
+            compare(tree.currentEntry.name, "old")
+            appCore.deliver("/media/usb/films")
+            compare(cursorIn(tree, "/media/usb/films"), 2)
+            appCore.deliver("/media")
+            compare(cursorIn(tree, "/media"), 2)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"])
+            compare(tree.currentEntry.name, "old")
+            compare(appCore.picks.readsOnThread, 0)
+
+            keyClick(Qt.Key_Up)
+            var back = signalSpy.createObject(picker, { target: picker, signalName: "goBack" })
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.folder, "/media/usb/films/horror")
+            compare(back.count, 1)
+        }
+
+        // A folder on the way gone since (deleted, its drive taken out): once
+        // the folder that held it is in, the folders opened on trust beyond
+        // it close, and the tree stops at the last folder there is.
+        function test_filePickerFolderGone() {
+            appCore.folders = driveFolders
+            var picker = openPicker({ currentPath: "/media/usb/gone/deeper" })
+            var tree = treeOf(picker)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/gone", "/media/usb/gone/deeper"])
+            appCore.deliver("/media/usb/gone/deeper")
+            appCore.deliver("/media/usb")
+            compare(openFolders(tree), ["places", "/media", "/media/usb"])
+            compare(tree.currentEntry.kind, "choose")
+            compare(tree.currentEntry.target, "/media/usb")
+            appCore.deliver("/media")
+            compare(cursorIn(tree, "/media"), 2)
+            compare(openFolders(tree), ["places", "/media", "/media/usb"])
+            compare(appCore.picks.readsOnThread, 0)
+        }
+
+        // Picking a file: the tree opens down to its folder, and the cursor
+        // goes on the file once the folder is in; select picks it.
+        function test_filePickerFile() {
+            appCore.folders = driveFolders
+            var picker = openPicker({ settingKey: "logo", mode: "file", types: ["png"],
+                                      currentPath: "/media/usb/logo.png", defaultLabel: "OSD/OS Logo" })
+            var tree = treeOf(picker)
+            compare(openFolders(tree), ["places", "/media", "/media/usb"])
+            verify(findText(picker, "loading…") !== null)
+            appCore.deliver("/media")
+            appCore.deliver("/media/usb")
+            // The folders, then the files of the types asked for.
+            compare(tree.currentEntry.path, "/media/usb/logo.png")
+            compare(cursorIn(tree, "/media/usb"), 2)
+            compare(appCore.picks.readsOnThread, 0)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.logo, "/media/usb/logo.png")
+        }
+
+        // What is in already as the picker opens (nothing is, in the app,
+        // which reads the folders afresh at each visit) has its cursor on the
+        // way on at once, and only the rest is opened on trust.
+        function test_filePickerFoldersInAlready() {
+            appCore.folders = driveFolders
+            appCore.picks.cacheKept = true
+            appCore.picks.arrived = { "/media": true, "/media/usb": true }
+            var picker = openPicker({ currentPath: "/media/usb/films/horror" })
+            var tree = treeOf(picker)
+            compare(openFolders(tree), ["places", "/media", "/media/usb", "/media/usb/films", "/media/usb/films/horror"])
+            compare(cursorIn(tree, "/media"), 2)
+            compare(cursorIn(tree, "/media/usb"), 1)
+            appCore.deliver("/media/usb/films")
+            compare(cursorIn(tree, "/media/usb/films"), 2)
+            compare(appCore.picks.readsOnThread, 0)
         }
 
         Component {
