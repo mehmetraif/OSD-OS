@@ -24,7 +24,7 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
 | `stall-report.txt`, `crash-report.txt` | The reports, when there is one |
 | `retroarch-last.log` | RetroArch's log of the last FinalBurn Neo game |
 
-- Tokens in addresses are blanked, and mpv's own log is left out. The newest ten folders are kept.
+- Tokens in addresses are blanked, and so is the sign-in in one: `https://user:password@host/…` reads `https://HIDDEN@host/…`, the host kept. mpv's own log is left out. The newest ten folders are kept.
 - After a problem: Quit → Save Logs, then Power Off, and put the card in a computer.
 - When the Pi is stuck: wait a minute, switch it off and on, then Save Logs. The stuck run is in `app-previous-run.log`.
 
@@ -68,7 +68,7 @@ cp ~/.local/share/OSD-OS/crash-report.txt ~/.local/share/OSD-OS/stall-report.txt
 
 ### mpv's own log
 
-- mpv's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked.
+- mpv's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked, and the sign-in in an address (`user:password@`, as `REDACTED@`).
 - mpv also writes a verbose log of the latest video to `/tmp/osdos-mpv.log` (on a Mac, `$TMPDIR`). It starts afresh for each video, so copy it before playing the next.
 - That file holds each video's full address, and a media server's token with it. Look through it before you post it.
 
@@ -79,7 +79,7 @@ A Release build (every release, and the image) leaves out OSD/OS's debug lines. 
 - `[main] dataRoot = …` at start;
 - `[AppCore] Loaded manifest: com.osdos.youtube` for each module;
 - `[AppCore] Setting saved: app.video_scaling = 14:9` at each change;
-- `[MpvController] launch: mpv …`, each video's full command line, tokens blanked.
+- `[MpvController] launch: mpv …`, each video's full command line, tokens and sign-ins blanked.
 
 ### Qt's own switches
 

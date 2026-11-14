@@ -12,6 +12,7 @@
 #include "../util/LegacyNames.h"
 #include "../util/Diagnostics.h"
 #include "../util/InstallHint.h"
+#include "../util/RedactSecrets.h"
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QImageReader>
@@ -236,7 +237,9 @@ QString withoutStatusLines(const QString &text) {
 // mpv's line on what went wrong, among its output: the first that says an
 // error or a failure, past the decoders' complaints about a damaged frame,
 // which a video plays on through, and mpv's "Exiting... (Errors when loading
-// file)", which says nothing of why. Cut short for a notice.
+// file)", which says nothing of why. Cut short for a notice, so it is given
+// the output with its secrets out already (redactSecrets()): one cut in two
+// would no longer be known for one.
 QString firstErrorLine(const QString &text) {
     static const QRegularExpression kError(QStringLiteral("\\b(error|failed|cannot|unable)\\b"),
                                            QRegularExpression::CaseInsensitiveOption);
@@ -249,20 +252,6 @@ QString firstErrorLine(const QString &text) {
         return line.size() > 160 ? line.left(159) + QChar(0x2026) : line;
     }
     return {};
-}
-
-// Text for the log with every token the modules hand mpv blanked out: a
-// server's in a URL's query (Jellyfin's ApiKey, Emby's api_key), Plex's in
-// its header, Jellyfin's in its Authorization header.
-QString redactSecrets(QString text) {
-    static const QRegularExpression kApiKey(QStringLiteral("Api[_-]?Key=[^&\\s]+"),
-                                            QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression kPlexToken(QStringLiteral("X-Plex-Token[=:][^&\\s]+"));
-    static const QRegularExpression kQuotedToken(QStringLiteral("Token=\"[^\"]+\""));
-    text.replace(kApiKey, QStringLiteral("ApiKey=REDACTED"));
-    text.replace(kPlexToken, QStringLiteral("X-Plex-Token=REDACTED"));
-    text.replace(kQuotedToken, QStringLiteral("Token=\"REDACTED\""));
-    return text;
 }
 
 } // namespace
@@ -1146,15 +1135,16 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         endAtOnce(QStringLiteral("failed"));
     });
     // mpv's own output, to the journal: what it plays among it, so without
-    // the tokens, and without its status line (AV: 00:12:34 / ..., a few
-    // times a second for the whole film, which buried the lines that matter
-    // and wrote the journal to the card all the while).
+    // the tokens and an address's sign-in (redactSecrets()), and without its
+    // status line (AV: 00:12:34 / ..., a few times a second for the whole
+    // film, which buried the lines that matter and wrote the journal to the
+    // card all the while).
     connect(m_process, &QProcess::readyRead, this, [this]() {
-        const QString out = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
+        const QString out = redactSecrets(withoutStatusLines(QString::fromUtf8(m_process->readAll())));
         if (!out.isEmpty())
-            qWarning("[mpv] %s", qPrintable(redactSecrets(out)));
+            qWarning("[mpv] %s", qPrintable(out));
         if (m_firstMpvError.isEmpty())
-            m_firstMpvError = redactSecrets(firstErrorLine(out));
+            m_firstMpvError = firstErrorLine(out);
         // Its picture is set up ("VO: [drm] 1920x1080 yuv420p"), which mpv
         // does with the first frame in hand: started, whatever becomes of
         // its control connection (watchStart()).
@@ -1548,11 +1538,11 @@ QString MpvController::endOfSilent(int positionMs, int durationMs) {
 void MpvController::onProcessFinished() {
     int exitCode = m_process ? m_process->exitCode() : -1;
     if (m_process) {
-        const QString remaining = withoutStatusLines(QString::fromUtf8(m_process->readAll()));
+        const QString remaining = redactSecrets(withoutStatusLines(QString::fromUtf8(m_process->readAll())));
         if (!remaining.isEmpty())
-            qWarning("[mpv] %s", qPrintable(redactSecrets(remaining)));
+            qWarning("[mpv] %s", qPrintable(remaining));
         if (m_firstMpvError.isEmpty())
-            m_firstMpvError = redactSecrets(firstErrorLine(remaining));
+            m_firstMpvError = firstErrorLine(remaining);
     }
     if (exitCode != 0)
         qWarning("[MpvController] mpv exited with code %d", exitCode);

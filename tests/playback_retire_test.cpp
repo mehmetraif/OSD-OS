@@ -3,13 +3,15 @@
 // stand-in for mpv, a shell script first on PATH that writes down when it
 // starts, is told to quit (SIGTERM) and exits, and whether an earlier one was
 // still alive as it started. And what becomes of a video its menu's Browse
-// left as the next is asked for; and how a tube's shape, whose pixels aren't
-// square, reaches mpv.
+// left as the next is asked for; how a tube's shape, whose pixels aren't
+// square, reaches mpv; and what of an address mpv prints reaches the log and
+// the Playback failed notice: none of its sign-in, nor a server's token.
 #include "player/MpvController.h"
 #include "player/EmbeddedMpv.h"
 #include "player/VideoSurface.h"
 #include "audio/MenuMusic.h"
 #include "util/DisplayHandoff.h"
+#include "util/RedactSecrets.h"
 #include "AppCore.h"
 #include <QBuffer>
 #include <QDir>
@@ -18,6 +20,7 @@
 #include <QGuiApplication>
 #include <QImageReader>
 #include <QLocalServer>
+#include <QMutex>
 #include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -27,6 +30,7 @@ static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
 media=""
 for a in "$@"; do media="$a"; done
+address="$media"
 media=$(basename "$media" .mp4)
 if [ -f "$log.pids" ]; then
   while read -r pid name; do
@@ -41,7 +45,13 @@ echo "start $media" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then
   echo "[ffmpeg/video] h264: error while decoding MB 1 2"
   echo "[ffmpeg] https: HTTP error 404 Not Found"
-  echo "Failed to open $media.mp4."
+  printf 'Failed to open %s.\n' "$address"
+  echo 'Exiting... (Errors when loading file)'
+  exit 2
+fi
+if [ "$FAKE_MPV_MODE" = noprotocol ]; then
+  echo "[ffmpeg] Protocol not found. Make sure ffmpeg/Libav is compiled with networking support."
+  printf 'Failed to open %s.\n' "$address"
   echo 'Exiting... (Errors when loading file)'
   exit 2
 fi
@@ -67,6 +77,43 @@ while [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done
 // The stand-in takes this long to quit when told to: the time the app would
 // stand still if it waited for it.
 static const char kTermDelay[] = "0.8";
+
+// What the app logs while this is there, as its log file and the journal get
+// it, from whatever thread; the test's own log gets it too.
+class LogCapture {
+public:
+    LogCapture() {
+        QMutexLocker lock(&s_mutex);
+        s_lines = &m_lines;
+        s_previous = qInstallMessageHandler(handle);
+    }
+    ~LogCapture() {
+        QMutexLocker lock(&s_mutex);
+        qInstallMessageHandler(s_previous);
+        s_lines = nullptr;
+    }
+    QString text() const {
+        QMutexLocker lock(&s_mutex);
+        return m_lines.join(QLatin1Char('\n'));
+    }
+
+private:
+    static void handle(QtMsgType type, const QMessageLogContext &context, const QString &message) {
+        QtMessageHandler previous = nullptr;
+        {
+            QMutexLocker lock(&s_mutex);
+            if (s_lines)
+                s_lines->append(message);
+            previous = s_previous;
+        }
+        if (previous)
+            previous(type, context, message);
+    }
+    QStringList m_lines;
+    static inline QMutex s_mutex;
+    static inline QStringList *s_lines = nullptr;
+    static inline QtMessageHandler s_previous = nullptr;
+};
 
 class PlaybackRetireTest : public QObject {
     Q_OBJECT
@@ -756,6 +803,148 @@ private slots:
         QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not play it"));
         QCOMPARE(m_mpv->lastErrorDetail(), QStringLiteral("[ffmpeg] https: HTTP error 404 Not Found"));
         QVERIFY(!m_mpv->playerFailed());
+    }
+
+    // A sign-in in an address (scheme://user:password@host, as a card's tag
+    // file, an .m3u or a playlist may give one): mpv prints the address it
+    // could not open as it was given, and neither the log nor the Playback
+    // failed notice gets the sign-in, the host kept. In the notice where the
+    // address is mpv's first word on the failure, and cut to the notice's
+    // length only once the sign-in is out of it: a password that long (a
+    // token used as one) was cut before its "@", and so shown.
+    void aSignInInAnAddressReachesNeitherTheLogNorTheNotice_data() {
+        QTest::addColumn<QByteArray>("mode");
+        QTest::addColumn<QString>("address");
+        QTest::addColumn<QString>("logged");
+        QTest::addColumn<QString>("detail");
+        QTest::newRow("a server's stream, with its token")
+            << QByteArray("fail")
+            << QStringLiteral("https://ann:made-up-password@nas.example:8096/Videos/7/stream?static=true&ApiKey=made-up-key")
+            << QStringLiteral("Failed to open https://REDACTED@nas.example:8096/Videos/7/stream?static=true&ApiKey=REDACTED")
+            << QStringLiteral("[ffmpeg] https: HTTP error 404 Not Found");
+        QTest::newRow("an address mpv has no protocol for")
+            << QByteArray("noprotocol") << QStringLiteral("smb://ann:made-up-password@nas.example/films/a.mkv")
+            << QStringLiteral("Failed to open smb://REDACTED@nas.example/films/a.mkv.")
+            << QStringLiteral("Failed to open smb://REDACTED@nas.example/films/a.mkv.");
+        QTest::newRow("a password longer than the notice")
+            << QByteArray("noprotocol")
+            << QStringLiteral("smb://ann:made-up-password-") + QString(200, QLatin1Char('x'))
+                   + QStringLiteral("@nas.example/films/a.mkv")
+            << QStringLiteral("Failed to open smb://REDACTED@nas.example/films/a.mkv.")
+            << QStringLiteral("Failed to open smb://REDACTED@nas.example/films/a.mkv.");
+    }
+    void aSignInInAnAddressReachesNeitherTheLogNorTheNotice() {
+        QFETCH(QByteArray, mode);
+        QFETCH(QString, address);
+        QFETCH(QString, logged);
+        QFETCH(QString, detail);
+        qputenv("FAKE_MPV_MODE", mode);
+        LogCapture log;
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        m_mpv->loadAndPlay(address, 0, -1, -1);
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
+        // The line mpv printed, among the "[mpv]" ones.
+        const QString text = log.text();
+        const qsizetype mpvSaid = text.indexOf(QLatin1String("[mpv] "));
+        QVERIFY2(mpvSaid >= 0, qPrintable(text));
+        QVERIFY2(text.mid(mpvSaid).contains(logged), qPrintable(text));
+        // Nowhere in the log, the launch line among it, nor in the notice.
+        for (const char *secret : {"made-up-password", "ann:", "made-up-key"}) {
+            QVERIFY2(!text.contains(QLatin1String(secret)), qPrintable(text));
+            QVERIFY2(!m_mpv->lastErrorDetail().contains(QLatin1String(secret)), qPrintable(m_mpv->lastErrorDetail()));
+        }
+        QCOMPARE(m_mpv->lastErrorDetail(), detail);
+    }
+
+    // What is blanked of an address and what is left (redactSecrets()): the
+    // sign-in before the host in each way one is written, the host and the
+    // rest kept; and nothing of an address without one, whose "@" is in its
+    // path or its query. The tokens as before.
+    void anAddressLosesItsSignInAndKeepsItsHost_data() {
+        QTest::addColumn<QString>("text");
+        QTest::addColumn<QString>("blanked");
+        auto row = [](const char *name, const char *text, const char *blanked) {
+            QTest::newRow(name) << QString::fromUtf8(text) << QString::fromUtf8(blanked);
+        };
+        auto kept = [&row](const char *name, const char *text) { row(name, text, text); };
+        row("a name and a password", "Failed to open https://ann:made-up@nas.example:8096/Videos/7/stream.",
+            "Failed to open https://REDACTED@nas.example:8096/Videos/7/stream.");
+        row("a name alone, a token perhaps", "rtsp://made-up-token@cam.example/live",
+            "rtsp://REDACTED@cam.example/live");
+        row("a name and no password", "ftp://ann:@nas.example/a.mkv", "ftp://REDACTED@nas.example/a.mkv");
+        row("a password of digits", "ftp://ann:5550100@nas.example:21/a.mkv", "ftp://REDACTED@nas.example:21/a.mkv");
+        row("percent-encoded", "https://ann%40home:made%2Fup@nas.example/a.mkv", "https://REDACTED@nas.example/a.mkv");
+        // A password's own "@", "/", "?" or "#" written as it is (the last
+        // three make an address no player can open, which mpv then prints):
+        // none of the password is left.
+        row("an @ in the password", "https://ann:made@up@nas.example/a.mkv", "https://REDACTED@nas.example/a.mkv");
+        row("a / in the password", "https://ann:made/up@nas.example/a.mkv", "https://REDACTED@nas.example/a.mkv");
+        row("an @ and a / in the password", "https://ann:ma@de/up@nas.example/a.mkv",
+            "https://REDACTED@nas.example/a.mkv");
+        row("a ? and a # in the password", "https://ann:made?up#1@nas.example/a.mkv",
+            "https://REDACTED@nas.example/a.mkv");
+        row("an IPv6 host", "http://ann:made-up@[fe80::1]:8096/a.mkv", "http://REDACTED@[fe80::1]:8096/a.mkv");
+        row("in quotes", "Opening 'https://ann:made-up@nas.example/a.ts' for reading",
+            "Opening 'https://REDACTED@nas.example/a.ts' for reading");
+        row("two on a line", "--sub-file=https://ann:made-up@nas.example/a.srt -- smb://bob:made-up-too@nas.example/a.mkv",
+            "--sub-file=https://REDACTED@nas.example/a.srt -- smb://REDACTED@nas.example/a.mkv");
+        row("a name alone, an @ in the query", "https://made-up-token@nas.example/a?mail=me@home.example",
+            "https://REDACTED@nas.example/a?mail=me@home.example");
+        // The price of a password's own "@" or "/" never showing: with a
+        // password, an "@" further on in the address takes the host with it.
+        row("a password, and an @ further on", "https://ann:made-up@nas.example/a?mail=me@home.example",
+            "https://REDACTED@home.example");
+        kept("blanked already", "https://REDACTED@nas.example:8096/a.mkv");
+        kept("no sign-in", "https://nas.example:8096/Videos/7/stream?static=true");
+        kept("no sign-in, an @ in the path", "https://www.youtube.com/@channel/videos");
+        kept("no sign-in, a port, an @ in the query", "http://nas.example:8096/Items?searchTerm=a@b");
+        kept("no sign-in, an IPv6 host, an @ in the path", "http://[fe80::1]:8096/Users/@me");
+        kept("a file's address", "file:///media/films/a@b.mkv");
+        kept("a file's name", "Failed to open /media/films/a@b: c.mkv.");
+        kept("a picture mpv makes", "av://lavfi:color=c=gray:s=64x48:r=10");
+        row("Jellyfin's key", "https://nas.example/Videos/7/stream?static=true&ApiKey=made-up&x=1",
+            "https://nas.example/Videos/7/stream?static=true&ApiKey=REDACTED&x=1");
+        row("Emby's key", "https://nas.example/Videos/7/stream?api_key=made-up",
+            "https://nas.example/Videos/7/stream?ApiKey=REDACTED");
+        row("Plex's token", "--http-header-fields=X-Plex-Token:made-up https://nas.example:32400/a?X-Plex-Token=made-up",
+            "--http-header-fields=X-Plex-Token=REDACTED https://nas.example:32400/a?X-Plex-Token=REDACTED");
+        row("Jellyfin's header", "--http-header-fields=Authorization:MediaBrowser Token=\"made-up\"",
+            "--http-header-fields=Authorization:MediaBrowser Token=\"REDACTED\"");
+    }
+    void anAddressLosesItsSignInAndKeepsItsHost() {
+        QFETCH(QString, text);
+        QFETCH(QString, blanked);
+        QCOMPARE(redactSecrets(text), blanked);
+    }
+
+    // The same of a video played inside the window (Transparent Background),
+    // whose messages mpv hands the app one by one: a playlist's address it
+    // could not open, as it goes on to the next, without its sign-in and
+    // without the server's token.
+    void aSignInInAnAddressStaysOutOfTheLogInsideTheWindowToo() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        LogCapture log;
+        // A scheme no mpv has a protocol for (nothing is looked up or
+        // reached), then a picture mpv makes itself.
+        m_mpv->loadAndPlay(QStringLiteral("nosuch://ann:made-up-password@nas.example/films/a.mkv?ApiKey=made-up-key"),
+                           0, -1, -1, {}, {}, false, -1, 0, QString(), true, QString(), false, {}, 0, false, {},
+                           QString(), {QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10")});
+        // mpv's own line on it, not the launch line's.
+        static const QRegularExpression mpvSaid(QStringLiteral("\\[mpv\\] [^\\n]*nosuch://[^\\n]*"));
+        QTRY_VERIFY2_WITH_TIMEOUT(mpvSaid.match(log.text()).hasMatch(), qPrintable(log.text()), 10000);
+        const QString text = log.text();
+        QVERIFY2(mpvSaid.match(text).captured().contains(
+                     QLatin1String("nosuch://REDACTED@nas.example/films/a.mkv?ApiKey=REDACTED")),
+                 qPrintable(text));
+        for (const char *secret : {"made-up-password", "ann:", "made-up-key"})
+            QVERIFY2(!text.contains(QLatin1String(secret)), qPrintable(text));
     }
 
     // An mpv that starts and never shows a picture (a hardware decoder that

@@ -44,10 +44,21 @@ logs="$card/Logs"
 dir="$logs/$(date +%Y-%m-%d_%H-%M-%S)"
 mkdir -p "$dir" || exit 1
 
-# A token in an address blanked on the way, as the app's own log does: a
-# media server's (t=, token=, X-Plex-Token=, api_key=), whatever wrote it.
+# A secret in an address blanked on the way, as the app's own log does
+# (redactSecrets()), whatever wrote the line: a media server's token (t=,
+# token=, X-Plex-Token=, api_key=), and the sign-in before a host
+# (scheme://user:password@host), the host kept. The sign-in in two steps:
+# with a password (a name, a colon, and what follows is no port number), up
+# to the word's last @, so that a password written with its own @, /, ? or #
+# leaves no tail; then without one (a name alone, a password of digits), up
+# to the last @ before the path. An @ in a path or a query alone is none.
+# Byte by byte (LC_ALL=C): under a UTF-8 locale sed matches no byte that isn't
+# UTF-8, and a secret with one in it would stay.
 hide() {
-    sed -E 's/([?&;]([Tt]|[Tt]oken|X-Plex-Token|api_?key|[Aa]pi[Kk]ey)=)[^&;[:space:]"]*/\1HIDDEN/g'
+    LC_ALL=C sed -E \
+        -e 's/([?&;]([Tt]|[Tt]oken|X-Plex-Token|api_?key|[Aa]pi[Kk]ey)=)[^&;[:space:]"]*/\1HIDDEN/g' \
+        -e 's|://[^/?#[:space:]:@["]*:[0-9]*[^0-9/?#[:space:]][^[:space:]]*@|://HIDDEN@|g' \
+        -e 's|://[^/?#[:space:]]*@|://HIDDEN@|g'
 }
 
 # A flood folded: a line saying what one of the last four lines said (its

@@ -1,6 +1,7 @@
 #include "EmbeddedMpv.h"
 #include "../util/Diagnostics.h"
 #include "../util/LegacyNames.h"
+#include "../util/RedactSecrets.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
@@ -586,7 +587,8 @@ bool EmbeddedMpv::start(const QStringList &args) {
     auto set = [&](const QString &name, const QString &value) {
         const int err = a.setOptionString(mpv, name.toUtf8().constData(), value.toUtf8().constData());
         if (err < 0)
-            qWarning("[EmbeddedMpv] --%s=%s: %s", qPrintable(name), qPrintable(value), a.errorString(err));
+            qWarning("[EmbeddedMpv] --%s=%s: %s", qPrintable(name), qPrintable(redactSecrets(value)),
+                     a.errorString(err));
     };
     // What libmpv leaves off and the mpv command line has on. Idle "once"
     // waits for the playlist below, and quits once it has played out.
@@ -958,7 +960,9 @@ void EmbeddedMpv::drainEvents() {
         case MPV_EVENT_LOG_MESSAGE: {
             const auto *msg = static_cast<mpv_event_log_message *>(event->data);
             const QByteArray text = QByteArray(msg->text).trimmed();
-            qWarning("[mpv] %s: %s", msg->prefix, text.constData());
+            // What it plays is among what it says: without the tokens and
+            // an address's sign-in, as a process's output is logged.
+            qWarning("[mpv] %s: %s", msg->prefix, qPrintable(redactSecrets(QString::fromUtf8(text))));
             // mpv draws nothing where the GPU can't take a hardware decoder's
             // frames, and doesn't fall back by itself: the copy-back modes
             // hand them over in memory, for this session and the next.
