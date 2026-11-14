@@ -245,7 +245,8 @@ A server video downloads as its original file from `/Items/<id>/Download`, signe
 - Queued videos start downloading 15 seconds after OSD/OS starts. A video put on an offline list joins the queue at once.
 - With the Playlists module turned off, nothing downloads; a download under way stops and waits. Turned on again, the queue goes on.
 - A download stays at 100% for a moment while the file is written out to the card, and only then counts as **READY**.
-- A failed download is tried again each time OSD/OS starts, and with **Retry Downloads**. A **NOT ALLOWED** one is tried only with Retry Downloads.
+- A download that failed for the network (nothing answered, the transfer was cut, the server was still starting, or yt-dlp gave up) is tried again by itself: a minute later, then after twice as long each time it fails again, up to an hour.
+- Every failed download is also tried again each time OSD/OS starts, and with **Retry Downloads**. A **NOT ALLOWED** one is tried only with Retry Downloads.
 - A downloaded file deleted from outside OSD/OS shows **QUEUED** and downloads again the next time OSD/OS starts.
 
 ### When a download is deleted

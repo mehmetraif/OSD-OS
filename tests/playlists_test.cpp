@@ -6,6 +6,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QScopeGuard>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -15,8 +17,9 @@
 // A playlist's m3u (PlaylistsBackend::prepare): owner-only, written whole,
 // the one before removed once it is; one that can't be written (a full card)
 // says so, plays nothing, and leaves the one before. And an offline list's
-// downloads: only while the module is on, and what a server's download cut
-// short by the power going left in its folder cleared as they start.
+// downloads: only while the module is on, what a server's download cut
+// short by the power going left in its folder cleared as they start, and
+// one that failed for the network tried again once a while has passed.
 
 // A media server signed in to, whose downloads are asked of url.
 class StandInServer : public MediaServer {
@@ -174,6 +177,91 @@ private slots:
             QVERIFY2(!exists(path), qPrintable(path));
         for (const QString &path : kept)
             QVERIFY2(exists(path), qPrintable(path));
+    }
+
+    // A download that fails for the network (nothing answers: the router not
+    // back yet after a power cut) is tried again after a while, a longer
+    // while each time, and is on the device once the network is back, with
+    // no start of the app in between. One the server refuses is not tried
+    // again by itself.
+    void downloadThatFailedForTheNetworkIsTriedAgain() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        // The network: down at first (whoever connects is dropped), then the
+        // server, which refuses one of its items.
+        QTcpServer network;
+        QVERIFY(network.listen(QHostAddress::LocalHost));
+        bool up = false;
+        int dropped = 0;
+        QStringList answered;
+        connect(&network, &QTcpServer::newConnection, &network, [&]() {
+            while (QTcpSocket *socket = network.nextPendingConnection()) {
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+                if (!up) {
+                    ++dropped;
+                    socket->abort();
+                    continue;
+                }
+                connect(socket, &QTcpSocket::readyRead, socket, [socket, &answered]() {
+                    if (socket->property("answered").toBool())
+                        return;
+                    socket->setProperty("answered", true);
+                    const QString path = QString::fromLatin1(socket->readAll().split(' ').value(1));
+                    answered << path;
+                    socket->write(path.contains(QLatin1String("/refused/"))
+                                      ? QByteArray("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                                      : QByteArray("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 4\r\n"
+                                                   "Connection: close\r\n\r\nfilm"));
+                    socket->disconnectFromHost();
+                });
+            }
+        });
+        StandInServer server;
+        server.url = QUrl(QStringLiteral("http://127.0.0.1:%1").arg(network.serverPort()));
+        PlaylistsBackend playlists(data.path(), nullptr, nullptr, nullptr,
+                                   { { QStringLiteral("com.osdos.jellyfin"), &server } });
+        // A tenth of a second in place of the minute.
+        playlists.m_retryMs = 100;
+        const QString id = playlists.createPlaylist(QStringLiteral("Away"), QStringLiteral("offline"));
+        const auto add = [&](const char *itemId, const char *title) {
+            return playlists.addEntry(id, QStringLiteral("com.osdos.jellyfin"),
+                                      { { QStringLiteral("itemId"), QString::fromLatin1(itemId) },
+                                        { QStringLiteral("title"), QString::fromLatin1(title) } })
+                .value(QStringLiteral("ok")).toBool();
+        };
+        const auto item = [&](int at, const char *field) {
+            return playlists.playlist(id).value(QStringLiteral("items")).toList().value(at).toMap()
+                .value(QString::fromLatin1(field)).toString();
+        };
+        QVERIFY(add("abc123", "Film"));
+        QVERIFY(add("refused", "Refused"));
+
+        // Nothing answers: both fail, saying what the network did.
+        QTRY_COMPARE_WITH_TIMEOUT(item(0, "state"), QStringLiteral("failed"), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(item(1, "state"), QStringLiteral("failed"), 10000);
+        QVERIFY(item(0, "reason") != QLatin1String("not allowed"));
+        QVERIFY(answered.isEmpty());
+        // Tried again a while later, the network still down: failed again,
+        // and the next wait is a longer one.
+        const int before = dropped;
+        QTRY_VERIFY_WITH_TIMEOUT(dropped > before, 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(playlists.m_retryMs > 100, 10000);
+        QVERIFY(answered.isEmpty());
+
+        // The network back: the film is on the device at the next try.
+        up = true;
+        QTRY_COMPARE_WITH_TIMEOUT(item(0, "state"), QStringLiteral("ready"), 30000);
+        QFile film(data.path() + QStringLiteral("/media/Playlists/Jellyfin/Film [abc123].mp4"));
+        QVERIFY(film.open(QIODevice::ReadOnly));
+        QCOMPARE(film.readAll(), QByteArray("film"));
+        // What the server refuses is asked for once, says so, and is left
+        // for Retry Downloads: nothing waits to be tried again.
+        QTRY_COMPARE_WITH_TIMEOUT(item(1, "reason"), QStringLiteral("not allowed"), 10000);
+        QCOMPARE(answered.count(QStringLiteral("/Items/refused/Download")), 1);
+        QVERIFY(playlists.m_retryKeys.isEmpty());
+        QVERIFY(!playlists.m_retryTimer->isActive());
+        // A download made: the next failure waits the first while again.
+        QCOMPARE(playlists.m_retryMs, 60 * 1000);
     }
 };
 

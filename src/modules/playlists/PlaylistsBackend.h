@@ -11,6 +11,7 @@ class AppCore;
 class LocalFilesBackend;
 class MediaServer;
 class QProcess;
+class QTimer;
 class ServerDownload;
 class YouTubeBackend;
 
@@ -121,6 +122,10 @@ private:
         int percent = 0;
         // The finished file is on its way to the card (finish()).
         bool flushing = false;
+        // Its failure may pass by itself (the network's, as the download
+        // says: ServerDownload's mayPass, or yt-dlp's own): tried again
+        // after a while (retryFailed()).
+        bool mayPass = false;
     };
 
     void load();
@@ -136,6 +141,12 @@ private:
     void dropUnreferenced();
 
     void queueOfflineItems();
+    // Queues again the downloads that failed in a way that may pass (no
+    // network yet after a power cut, a server still starting), a while after
+    // they did: the app's next start is no longer what it takes. Not those
+    // that fail whatever the network does (refused, signed out, no yt-dlp,
+    // a folder or a card that can't be written).
+    void retryFailed();
     // Whether it is to be downloaded (not when on the device already).
     bool enqueue(const QString &key);
     void startNext();
@@ -188,4 +199,9 @@ private:
 
     QStringList m_queue;
     Active m_active;
+    // The failed downloads retryFailed() tries again, the timer that has it
+    // do so, and how long it waits (longer each time they fail again).
+    QSet<QString> m_retryKeys;
+    QTimer *m_retryTimer = nullptr;
+    int m_retryMs = 0;
 };
