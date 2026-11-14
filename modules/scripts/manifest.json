@@ -31,6 +31,7 @@
       "label": "Rescan Scripts",
       "type": "action",
       "action_slot": "rescanScripts",
+      "done": "Scripts folder read again",
       "description": "Re-read the scripts folder and create any missing .txt files"
     }
   ]

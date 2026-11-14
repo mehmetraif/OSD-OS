@@ -113,7 +113,10 @@ public:
     ~AppCore() override;
     Q_INVOKABLE QVariant get_module_info(const QString &moduleId);
     Q_INVOKABLE QVariant get_module_settings_schema(const QString &moduleId);
-    Q_INVOKABLE void invoke_module_action(const QString &moduleId, const QString &slotName);
+    // The slot called on the module's backend, queued. False when it has no
+    // backend, or the backend no such slot: a settings page's action row
+    // then says it wasn't done (views/ModuleSettings.qml).
+    Q_INVOKABLE bool invoke_module_action(const QString &moduleId, const QString &slotName);
     Q_INVOKABLE QVariant get_installed_modules();
     Q_INVOKABLE QVariantMap getCustomColorScheme() const;
     Q_INVOKABLE QVariantMap getCustomColorSchemes() const;

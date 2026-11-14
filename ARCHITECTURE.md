@@ -170,7 +170,7 @@ An optional `"settings_group"` says where Settings lists the module's page: `"tv
 | `slider` | A value from 0 to 100 on the deck's tape bar (`OsdTapeBar`), in whole lines under its label, as Settings' Transparent Background; ◄ ► a step toward either end, in force at once and written to `config.json` once the steps rest (`save_setting_soon`) | `default` (a number), `step` (10 unless given), `start_text` and `end_text`, the names under its ends |
 | `text` | A line typed on the on-screen keyboard, over the page: an address, a place's name, a key. Select or ► opens the keyboard on what is saved; OK keeps it, without the spaces at its ends, and back leaves it. The row shows what was typed, `Not Set` when empty | `default` (a string), `placeholder` (for OSD/OS Setup's field), `max_length` (64 unless given), `secret` (a key or a password: typed hidden, shown as `Set`), `apply_slot` |
 | `text_list` | A list of typed lines, on a page of its own (`views/TextListSettings.qml`): the lines, and ADD under them. Select on ADD types a new line; select on a line changes it or takes it out. Saved whole at every change as a list of strings, and read by the backend as one (`get_setting(...).toList()`); the row shows how many there are, `None` when empty. OSD/OS Setup has it as a box of lines, and the QR export carries it | `max_length` (a line's, 64 unless given), `max_lines` (50 unless given), `apply_slot` (called after each change), `placeholder` (for OSD/OS Setup's box) |
-| `action` | Button that calls a backend slot | `action_slot` |
+| `action` | Select calls a slot on the module's backend (`invoke_module_action`, queued), and the help line says what became of it until the cursor moves, whatever Settings' Help Line is (`ModuleSettings.qml`'s `notice`): the row's `done`, else its label and `done`, or that it wasn't done where the backend has no such slot. A row that deletes or signs out carries `confirm`: the question is asked first in the standard window (a `ChoiceOverlay`, so a `PromptScreen`), what the row does (its `description`) under it, Yes or No with No under the cursor, and back is No | `action_slot`; `done`, a few words (`"Watch Later deleted"`); `confirm`, a question (`"Delete Watch Later?"`) |
 
 Additional fields any setting may carry:
 
@@ -256,7 +256,7 @@ A real example (Plex) — note `requires_auth`, dynamic options, and apply slots
 | `get_module_info(moduleId)` | Returns `{name, icon}` for a module |
 | `moduleEntryPoint(moduleId)` | An enabled module's QML entry point (`startupModuleEntryPoint()` is the startup module's) |
 | `get_module_settings_schema(moduleId)` | Returns the module's settings array |
-| `invoke_module_action(moduleId, slotName)` | Routes to the registered backend via `QMetaObject::invokeMethod` |
+| `invoke_module_action(moduleId, slotName)` | Routes to the registered backend via `QMetaObject::invokeMethod`, queued; false where the module has no backend, or the backend no such slot |
 | `get_module_auth_state(moduleId)` | Returns the module's auth state (for `requires_auth` settings) |
 | `getCustomColorScheme()` | Returns the user's custom color scheme |
 | `themes()` / `theme(id)` | Settings → Look → Theme: the themes there are (`[{ id, name }]`: the app's own in `assets/themes` and the data folder's `themes`, one there in place of the app's of the same folder name), and one read for QML (`root.theme`): its colours, skin, effects and music (see [Themes](#themes-settings--theme)) |

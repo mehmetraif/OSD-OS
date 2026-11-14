@@ -613,17 +613,18 @@ QVariant AppCore::get_module_settings_schema(const QString &moduleId) {
     return m ? QVariant(m->settings) : QVariant(QVariantList{});
 }
 
-void AppCore::invoke_module_action(const QString &moduleId, const QString &slotName) {
+bool AppCore::invoke_module_action(const QString &moduleId, const QString &slotName) {
     auto it = m_backends.find(moduleId);
     if (it == m_backends.end()) {
         qWarning("[AppCore] invoke_module_action: no backend for '%s'", qPrintable(moduleId));
-        return;
+        return false;
     }
     bool ok = QMetaObject::invokeMethod(it.value(), slotName.toLatin1().constData(),
                                         Qt::QueuedConnection);
     if (!ok)
         qWarning("[AppCore] invoke_module_action: slot '%s' not found on backend '%s'",
                  qPrintable(slotName), qPrintable(moduleId));
+    return ok;
 }
 
 void AppCore::registerModule(const QString &moduleId, const QString &contextProperty,

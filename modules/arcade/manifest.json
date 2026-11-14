@@ -328,6 +328,7 @@
       "label": "Read the Games Again",
       "type": "action",
       "action_slot": "rescan",
+      "done": "Reading the games again",
       "description": "Ask MAME about every game in the folder again\nEvery game's pictures are then looked for too, as Pictures From allows, a game a second, in the background"
     }
   ]

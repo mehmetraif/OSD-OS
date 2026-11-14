@@ -65,6 +65,8 @@ Each setting is an object:
 | `options_source`, `options_slot` | `list_single`, `multiselect_submenu` | `"dynamic"`, and the backend slot that sends the choices ([part 3](#part-3-a-c-backend)) |
 | `apply_slot` | `list_single` with dynamic choices | A backend slot called after each change |
 | `action_slot` | `action` | The backend slot select calls |
+| `done` | `action` | What the help line says once the slot has been called, in a few words (`"Scripts folder read again"`), until the cursor moves. Without it, the label and `done` |
+| `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Yes or No, with No under the cursor. The row's `description` is shown under it |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
 | `settings` | `submenu` | Its own rows, in this same format |
 | `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |
@@ -84,7 +86,7 @@ The types, as Settings shows and saves them:
 | `module_view` | Select opens the module itself, its `Root.qml` with `params` | Nothing |
 | `directory_browser` | Select opens the folder picker. The row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |
 | `slider` | The deck's tape bar under its label; ◄ ► move it a `step`. Each step reaches `onSettingChanged()` and `get_setting()` at once; `config.json` has it once the steps rest | A number from 0 to 100 |
-| `action` | Select calls `action_slot` | Nothing |
+| `action` | Select calls `action_slot`, after its `confirm` question when it has one, and the help line says what became of it (`done`) | Nothing |
 
 There is no free-text type. A view of your own can open the `OnScreenKeyboard`.
 

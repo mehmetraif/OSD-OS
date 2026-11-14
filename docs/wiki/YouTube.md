@@ -291,10 +291,10 @@ Settings → TV / Movie → **YouTube**:
 | Subscriptions | A list of lines, 50 at most | None | [Your channels](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#channels-and-subscriptions). Select ADD to type one; select a line to change it or take it out. | `modules.com.osdos.youtube.subscriptions` |
 | Playlists | A list of lines, 50 at most | None | [Your playlists](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#playlists). | `modules.com.osdos.youtube.playlists` |
 | Advanced | Opens a submenu | | [The Advanced settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#the-advanced-settings-and-what-yt-dlp-is-asked-for). | |
-| Delete Watch Later | Select | | Deletes `youtube_watch_later.json` at once. | |
-| Delete Recently Watched | Select | | Deletes `youtube_history.json` at once: Recently Watched and every resume point. | |
+| Delete Watch Later | Select | | Asks first, then deletes `youtube_watch_later.json`. | |
+| Delete Recently Watched | Select | | Asks first, then deletes `youtube_history.json`: Recently Watched and every resume point. | |
 | Sign in | Select | | See [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). | |
-| Sign out | Select | | Deletes the sign-in's browser profile. Does nothing while the browser is open. | |
+| Sign out | Select | | Asks first, then deletes the sign-in's browser profile. Does nothing while the browser is open. | |
 
 App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Startup From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
 

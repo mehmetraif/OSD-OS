@@ -72,6 +72,8 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "signOut",
+      "confirm": "Sign out of Prime Video?",
+      "done": "Signed out of Prime Video",
       "description": "Forgets the Prime Video sign-in on this player\nThe next visit asks for it again"
     }
   ]

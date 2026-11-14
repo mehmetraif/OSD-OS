@@ -507,6 +507,31 @@ FocusScope {
         return !!item && !item._off && (item.type === "toggle" || item.type === "list_single")
     }
 
+    // An action row (manifest "type": "action"): select calls its slot on
+    // the module's backend, and the help line says what became of it until
+    // the cursor moves, with Settings' Help Line off too: the row's own
+    // words ("done": "Watch Later deleted"), else its label and "done", or
+    // that it wasn't done where the backend has no such slot. A row that
+    // deletes or signs out carries "confirm", a question asked first in the
+    // standard window: Yes or No, No under the cursor, and back is No.
+    property string notice: ""
+    property var asking: null
+    function activateAction(item) {
+        notice = ""
+        if (!item.confirm) {
+            runAction(item)
+            return
+        }
+        asking = item
+        confirmPrompt.open()
+        confirmPrompt.choiceIndex = 1
+    }
+    function runAction(item) {
+        var called = appCore.invoke_module_action(moduleOf(item), item.action_slot)
+        notice = called === false ? "Not done: " + (item.label || item.action_slot) + " isn't offered by the module now"
+                                  : item.done ? String(item.done) : (item.label || "") + ": done"
+    }
+
     // Forward dynamicOptionsReady from appCore into our local cache
     Connections {
         target: appCore
@@ -645,8 +670,10 @@ FocusScope {
             else if (moduleSettingsRoot.opens(item))
                 openRow(item)
             else if (item.type === "action")
-                appCore.invoke_module_action(moduleSettingsRoot.moduleOf(item), item.action_slot)
+                moduleSettingsRoot.activateAction(item)
         }
+        // What an action did is said until the cursor moves on.
+        onCurrentIndexChanged: moduleSettingsRoot.notice = ""
 
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
@@ -709,10 +736,15 @@ FocusScope {
     // --- HELP TEXT --- (shown when a focused row has a description), on one
     // line that scrolls when it is too long for the box.
     // A dimmed row's says first why it can't be used now.
+    // What an action did (notice) in their place, said whatever Settings'
+    // Help Line is.
     HelpLine {
+        objectName: "helpLine"
         property var currentRow: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[settingsList.currentIndex])
-        visible: !!(currentRow && (currentRow.description || currentRow._off))
-        text: (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
+        visible: moduleSettingsRoot.notice !== "" || !!(currentRow && (currentRow.description || currentRow._off))
+        always: moduleSettingsRoot.notice !== ""
+        text: moduleSettingsRoot.notice !== "" ? moduleSettingsRoot.notice
+              : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.helpLineMargin
@@ -727,6 +759,24 @@ FocusScope {
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50
         anchors.leftMargin: root.sw * 0.125 //80
+    }
+
+    // An action row's question (its "confirm"), what it does under it. The
+    // answer is taken once the window has closed and the list has the keys
+    // again; back, or No, does nothing.
+    ChoiceOverlay {
+        id: confirmPrompt
+        objectName: "confirmPrompt"
+        anchors.fill: parent
+        promptText: moduleSettingsRoot.asking ? String(moduleSettingsRoot.asking.confirm) : ""
+        subtitleText: moduleSettingsRoot.asking ? (moduleSettingsRoot.asking.description || "") : ""
+        choices: [{ label: "Yes", action: "yes" }, { label: "No", action: "no" }]
+        onActivated: function(action) {
+            var item = moduleSettingsRoot.asking
+            if (action === "yes" && item)
+                moduleSettingsRoot.runAction(item)
+        }
+        onClosed: settingsList.forceActiveFocus()
     }
 
     // A "text" row's keyboard: an address, a place's name, a key. Upper and

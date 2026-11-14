@@ -45,6 +45,19 @@ Rectangle {
                            browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
     function selectorShown(item, shown) {}
     function skinIcon(url) { return url }
+    // What a layer over the page is drawn on (OsdGround): the keyboard's,
+    // and the window an action row's question is asked in.
+    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
+    property rect osdWindow: contentBox
+    property string osdBackground: "Full"
+    property string osdFrame: "On"
+    property var backgroundEffect: ({})
+    property string backgroundShader: ""
+    property bool effectsRest: true
+    property real fxTime: 0
+    property bool videoBehind: false
+    property int backdropSolidity: 100
+    function coverShown(item, shown) {}
     // The theme in force (Settings → Look → Theme), as AppCore::theme() reads
     // it: {} for none.
     property var theme: ({})
@@ -72,7 +85,15 @@ Rectangle {
             calls.states++
             return authState
         }
-        function invoke_module_action(id, slot) { actions = actions.concat([slot]) }
+        // A slot called on the module's backend; false where it has none
+        // such (noSuchAction), as AppCore says.
+        property bool noSuchAction: false
+        function invoke_module_action(id, slot) {
+            if (noSuchAction)
+                return false
+            actions = actions.concat([slot])
+            return true
+        }
         // How many times config.json was written, and what is held back
         // from it: a slider's steps (save_setting_soon()), each its value
         // at once, written together by flush_settings() or the next save.
@@ -206,6 +227,7 @@ Rectangle {
             appCore.otherValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
+            appCore.noSuchAction = false
             appCore.authState = ""
             appCore.calls.schemas = appCore.calls.states = 0
             appCore.writes = 0
@@ -1131,6 +1153,136 @@ Rectangle {
             compare(value.width, value.implicitWidth)
             verify(value.mapToItem(label.parent, value.width, 0).x <= label.parent.width)
             verify(value.parent.width >= value.implicitWidth)
+        }
+
+        // An action row calls its slot, and the help line says what became
+        // of it, in the row's own words ("done") or with its label, with
+        // Settings' Help Line off too, until the cursor moves on; where the
+        // backend has no such slot, that it wasn't done.
+        function test_actionSaysWhatItDid() {
+            appCore.schema = [
+                { key: "rescan", label: "Rescan Scripts", type: "action", action_slot: "rescanScripts",
+                  done: "Scripts folder read again", description: "Re-read the scripts folder" },
+                { key: "tidy", label: "Tidy Up", type: "action", action_slot: "tidy" },
+                { key: "video", label: "Video", type: "list_single", options: ["Auto", "OpenGL"], default: "Auto" }
+            ]
+            var page = open()
+            var help = findChild(page, "helpLine")
+            verify(help !== null)
+            compare(help.text, "Re-read the scripts folder")
+            root.helpLine = false
+            verify(!help.shown)
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["rescanScripts"])
+            compare(help.text, "Scripts folder read again")
+            verify(help.visible)
+            verify(help.shown, "said with Help Line off too")
+            compare(help.opacity, 1)
+            root.helpLine = true
+            // No question was asked.
+            verify(!findChild(page, "confirmPrompt").visible)
+
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "tidy")
+            verify(!help.visible, "a row with nothing to say")
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["rescanScripts", "tidy"])
+            compare(help.text, "Tidy Up: done")
+            verify(help.visible)
+
+            appCore.noSuchAction = true
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["rescanScripts", "tidy"])
+            compare(help.text, "Not done: Tidy Up isn't offered by the module now")
+            keyClick(Qt.Key_Up)
+            compare(help.text, "Re-read the scripts folder")
+        }
+
+        // A row that deletes or signs out (its "confirm") asks first, in the
+        // standard question window: the question, what the row does under
+        // it, Yes and No with No under the cursor. No and back do nothing
+        // and leave nothing said; Yes calls the slot, and the help line says
+        // what became of it.
+        function test_actionAsksFirst() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "delete_history", label: "Delete Recently Watched", type: "action",
+                  action_slot: "delete_history", confirm: "Delete Recently Watched?",
+                  done: "Recently Watched deleted", description: "Empties Recently Watched" }
+            ]
+            var page = open()
+            keyClick(Qt.Key_Down)
+            var prompt = findChild(page, "confirmPrompt")
+            var help = findChild(page, "helpLine")
+            verify(prompt !== null && !prompt.visible)
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            compare(appCore.actions, [])
+            compare(prompt.promptText, "Delete Recently Watched?")
+            compare(prompt.promptKind, "question")
+            compare(prompt.subtitleText, "Empties Recently Watched")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Yes", "No"])
+            compare(prompt.choices[prompt.choiceIndex].label, "No")
+
+            // No.
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(appCore.actions, [])
+            compare(help.text, "Empties Recently Watched")
+            // Back.
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            compare(prompt.choices[prompt.choiceIndex].label, "No")
+            keyClick(Qt.Key_Escape)
+            verify(!prompt.visible)
+            compare(appCore.actions, [])
+            compare(help.text, "Empties Recently Watched")
+            // Yes.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            compare(prompt.choices[prompt.choiceIndex].label, "Yes")
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(appCore.actions, ["delete_history"])
+            compare(help.text, "Recently Watched deleted")
+            compare(cursor(page), "delete_history")
+            // The list has the keys again.
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "enabled")
+            verify(!help.visible)
+        }
+
+        // A sign-out row dimmed while no one is signed in asks nothing and
+        // does nothing. Signed in, it asks; signed out by it, the row is
+        // dimmed again where it stands, and what it did is still said.
+        function test_signOutAsksFirst() {
+            appCore.schema = [
+                { key: "logout", label: "Sign out", type: "action", action_slot: "logout",
+                  confirm: "Sign out of Plex?", done: "Signing out of Plex", requires_auth: true }
+            ]
+            var page = open()
+            var prompt = findChild(page, "confirmPrompt")
+            var help = findChild(page, "helpLine")
+            compare(off(page, "logout"), "Only once signed in")
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(appCore.actions, [])
+
+            appCore.authState = "user"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(off(page, "logout"), "")
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            compare(prompt.promptText, "Sign out of Plex?")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(appCore.actions, ["logout"])
+            compare(help.text, "Signing out of Plex")
+            appCore.authState = ""
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(off(page, "logout"), "Only once signed in")
+            compare(help.text, "Signing out of Plex")
+            verify(menuRow(page, 0).dimmed)
         }
 
         // The file picker (views/FilePicker.qml), as a directory_browser row

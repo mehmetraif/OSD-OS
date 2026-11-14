@@ -62,6 +62,15 @@ protected:
     }
 };
 
+// A module's backend with one slot, for AppCore::invoke_module_action().
+class ActionBackend : public QObject {
+    Q_OBJECT
+public:
+    int runs = 0;
+public slots:
+    void rescan() { ++runs; }
+};
+
 class ReliabilityTest : public QObject {
     Q_OBJECT
     static QByteArray contents(const QString &path) { QFile file(path); file.open(QIODevice::ReadOnly); return file.readAll(); }
@@ -988,6 +997,69 @@ private slots:
             QVERIFY2(!names.contains(entry.value("name").toString()), qPrintable(entry.value("name").toString()));
             names << entry.value("name").toString();
         }
+    }
+
+    // A module's action rows (a manifest's "type": "action", which a
+    // settings page's select runs, views/ModuleSettings.qml): each of the
+    // app's own modules' names its slot and says what it did ("done"), and
+    // one that deletes or signs out asks first ("confirm", a question).
+    // invoke_module_action() says whether there was a slot to call, which
+    // the page tells the user.
+    void moduleActionsAskAndSay() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(QStringLiteral(OSDOS_SOURCE_DIR), data.path());
+        int actions = 0, asking = 0;
+        QStringList wrong;
+        std::function<void(const QString &, const QVariantList &)> walk =
+                [&](const QString &id, const QVariantList &rows) {
+            for (const QVariant &entry : rows) {
+                const QVariantMap row = entry.toMap();
+                if (row.value("type").toString() == QLatin1String("submenu"))
+                    walk(id, row.value("settings").toList());
+                if (row.value("type").toString() != QLatin1String("action"))
+                    continue;
+                ++actions;
+                const QString name = id + QStringLiteral(": ") + row.value("label").toString();
+                const QString confirm = row.value("confirm").toString();
+                const QString what = (row.value("label").toString() + QLatin1Char(' ') + row.value("key").toString()
+                                      + QLatin1Char(' ') + row.value("action_slot").toString()).toLower();
+                bool destroys = false;
+                for (const char *word : { "delete", "sign out", "sign_out", "signout", "logout", "remove",
+                                          "forget", "reset", "clear", "erase" })
+                    destroys = destroys || what.contains(QLatin1String(word));
+                if (row.value("action_slot").toString().isEmpty())
+                    wrong << name + QStringLiteral(" names no slot");
+                if (row.value("done").toString().trimmed().isEmpty())
+                    wrong << name + QStringLiteral(" doesn't say what it did");
+                if (destroys && confirm.isEmpty())
+                    wrong << name + QStringLiteral(" deletes or signs out without asking");
+                if (!confirm.isEmpty() && (confirm.size() < 4 || !confirm.endsWith(QLatin1Char('?'))))
+                    wrong << name + QStringLiteral(" asks no question: ") + confirm;
+                asking += !confirm.isEmpty();
+            }
+        };
+        const QVariantList modules = core.get_installed_modules().toList();
+        QVERIFY(modules.size() >= 10);
+        for (const QVariant &module : modules) {
+            const QString id = module.toMap().value("id").toString();
+            walk(id, core.get_module_settings_schema(id).toList());
+        }
+        QVERIFY2(wrong.isEmpty(), qPrintable(wrong.join(QStringLiteral("; "))));
+        // Arcade's and Scripts' rescans, six sign-outs and YouTube's two lists.
+        QVERIFY2(actions >= 10, qPrintable(QString::number(actions)));
+        QVERIFY2(asking >= 8, qPrintable(QString::number(asking)));
+
+        ActionBackend backend;
+        QTest::ignoreMessage(QtWarningMsg, "[AppCore] invoke_module_action: no backend for 'com.osdos.none'");
+        QVERIFY(!core.invoke_module_action("com.osdos.none", "rescan"));
+        core.registerModule("com.osdos.action_test", "actionBackend", &backend, nullptr);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("invoke_module_action: slot 'nothing' not found"));
+        QVERIFY(!core.invoke_module_action("com.osdos.action_test", "nothing"));
+        QVERIFY(core.invoke_module_action("com.osdos.action_test", "rescan"));
+        // Queued: run once the app is back at its loop.
+        QCOMPARE(backend.runs, 0);
+        QTRY_COMPARE(backend.runs, 1);
     }
 
     // config.json is read once and kept while the file stays as it was: a

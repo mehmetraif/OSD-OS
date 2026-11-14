@@ -84,6 +84,9 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "logout",
+      "confirm": "Sign out of Emby?",
+      "done": "Signing out of Emby",
+      "description": "Removes this device from the server and forgets the sign-in here",
       "requires_auth": true
     }
   ]

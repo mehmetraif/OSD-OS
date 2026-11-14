@@ -72,6 +72,8 @@
       "label": "Sign out",
       "type": "action",
       "action_slot": "signOut",
+      "confirm": "Sign out of Netflix?",
+      "done": "Signed out of Netflix",
       "description": "Forgets the Netflix sign-in on this player\nThe next visit asks for it again"
     }
   ]
