@@ -1494,7 +1494,15 @@ private slots:
         QCOMPARE(rowValue(im.controllerPage(kbd), "left"), QString("Arrow key + F6"));
         QCOMPARE(rowValue(im.controllerPage(remote), "select"), QString("Enter + Menu"));
         QCOMPARE(rowValue(im.controllerPage(InputManager::allKeys()), "select"), QString("Enter + Menu"));
-        QCOMPARE(rowValue(im.controllerPage(InputManager::allKeys()), "back"), QString("Esc + Home"));
+        // A remote's Consumer Control button has its name on Linux, where
+        // such buttons are read (InputManager::evdevKeyName()); elsewhere a
+        // code from a Linux's config.json is shown by its number.
+#ifdef Q_OS_LINUX
+        const QString home = QStringLiteral("Home");
+#else
+        const QString home = QStringLiteral("Button 172");
+#endif
+        QCOMPARE(rowValue(im.controllerPage(InputManager::allKeys()), "back"), QStringLiteral("Esc + ") + home);
         QCOMPARE(im.keyCapture(QString(), Qt::Key_Menu, "select").value("outcome").toString(), QString("already"));
 
         // A layout chosen, then Custom again: the inputs set by hand are back.
