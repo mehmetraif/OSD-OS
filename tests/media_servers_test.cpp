@@ -23,8 +23,9 @@
 // forgotten at sign-out, Plex's PIN is polled for no longer once it expires
 // or the sign-in is left, every request turned away with a 498 while one
 // refresh runs is retried after it, a refused key registration is tried
-// again at the next start, Auto quality caps no transcode, and a live
-// channel left while it tuned plays in no one's player.
+// again at the next start, Auto quality caps no transcode, a live channel
+// left while it tuned plays in no one's player, and a Plex server that
+// moved is found again at the address it has now.
 
 class Reply : public QNetworkReply {
 public:
@@ -37,6 +38,14 @@ public:
     void fail(int status) {
         setAttribute(QNetworkRequest::HttpStatusCodeAttribute, status);
         setError(status == 404 ? ContentNotFoundError : UnknownContentError, QStringLiteral("HTTP %1").arg(status));
+        setFinished(true);
+        emit errorOccurred(error());
+        emit finished();
+    }
+    // No answer at all: nothing at the address (the server moved, the
+    // network down), so no status either.
+    void drop() {
+        setError(ConnectionRefusedError, QStringLiteral("Connection refused"));
         setFinished(true);
         emit errorOccurred(error());
         emit finished();
@@ -647,6 +656,102 @@ private slots:
         backend.cancel_stream();
         failing->fail(500);
         QCOMPARE(errors.count(), 0);
+    }
+
+    // A server that no longer answers at the address kept for it since the
+    // sign-in (the router gave it another over a power cut): its connections
+    // are asked of plex.tv again and probed, the one that answers is kept,
+    // and the libraries come from there. With none answering the failure is
+    // said and the address stays; a refusal (an HTTP status) probes nothing.
+    void plexServerThatMovedIsFoundAgain() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QJsonObject auth = backend.loadAuth();
+        auth["active_server_machine_id"] = QStringLiteral("machine");
+        auth["servers"] = QJsonArray{
+            QJsonObject{ { "machineId", "other" }, { "name", "AWAY" }, { "uri", "http://other" } },
+            QJsonObject{ { "machineId", "machine" }, { "name", "HOME" }, { "uri", "http://server" } } };
+        backend.saveAuth(auth);
+        QSignalSpy libraries(&backend, &PlexBackend::librariesLoaded);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        const auto resources = [](const QJsonArray &connections) {
+            return QJsonDocument(QJsonArray{
+                QJsonObject{ { "clientIdentifier", "other" }, { "provides", "server" },
+                             { "connections", QJsonArray{ QJsonObject{ { "uri", "http://elsewhere" }, { "local", true } } } } },
+                QJsonObject{ { "clientIdentifier", "machine" }, { "provides", "server" },
+                             { "connections", connections } } }).toJson();
+        };
+        const auto uris = [&backend]() {
+            QStringList list;
+            for (const auto &v : backend.loadAuth()["servers"].toArray())
+                list << v.toObject()["uri"].toString();
+            return list;
+        };
+
+        backend.load_libraries_impl();
+        network->last()->drop();    // Continue Watching
+        Reply *sections = network->last();
+        QVERIFY(sections->url().path().endsWith(QLatin1String("/library/sections")));
+        sections->drop();
+        Reply *asked = network->last();
+        QCOMPARE(asked->url().host(), QStringLiteral("plex.tv"));
+        QVERIFY(asked->url().path().endsWith(QLatin1String("/api/v2/resources")));
+        QCOMPARE(errors.count(), 0);
+        // Its local connections first, then the relay: the first doesn't
+        // answer, the second does.
+        asked->complete(resources({ QJsonObject{ { "uri", "http://relay" }, { "relay", true } },
+                                    QJsonObject{ { "uri", "http://old" }, { "local", true } },
+                                    QJsonObject{ { "uri", "http://moved" }, { "local", true } } }));
+        QCOMPARE(network->last()->url().host(), QStringLiteral("old"));
+        network->last()->drop();
+        QCOMPARE(network->last()->url().host(), QStringLiteral("moved"));
+        network->last()->complete(QByteArray());
+        QCOMPARE(backend.loadAuth()["active_server_uri"].toString(), QStringLiteral("http://moved"));
+        QCOMPARE(uris(), QStringList({ QStringLiteral("http://other"), QStringLiteral("http://moved") }));
+        // The libraries, asked for again there.
+        QCOMPARE(network->last()->url().host(), QStringLiteral("moved"));
+        network->last()->complete(plexContainer({}));    // Continue Watching
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/library/sections")));
+        QCOMPARE(network->last()->url().host(), QStringLiteral("moved"));
+        network->last()->complete(plexContainer({ { "Directory", QJsonArray{ QJsonObject{
+            { "key", "1" }, { "title", "Films" }, { "type", "movie" } } } } }));
+        network->last()->complete(plexContainer({}));    // /livetv/dvrs
+        QCOMPARE(libraries.count(), 1);
+        QCOMPARE(errors.count(), 0);
+
+        // Nothing answers where plex.tv says it is: said once, the address kept.
+        backend.load_libraries_impl();
+        network->last()->drop();
+        network->last()->drop();
+        network->last()->complete(resources({ QJsonObject{ { "uri", "http://gone" }, { "local", true } } }));
+        QCOMPARE(network->last()->url().host(), QStringLiteral("gone"));
+        network->last()->drop();
+        QCOMPARE(errors.count(), 1);
+        QVERIFY(errors.first().at(0).toString().startsWith(QLatin1String("LOAD LIBRARIES FAILED")));
+        QCOMPARE(backend.loadAuth()["active_server_uri"].toString(), QStringLiteral("http://moved"));
+
+        // The server's own refusal: nothing probed.
+        backend.load_libraries_impl();
+        network->last()->drop();
+        Reply *refused = network->last();
+        refused->fail(500);
+        QCOMPARE(network->last(), refused);
+        QCOMPARE(errors.count(), 2);
+
+        // Probed once for each failure: the address it found failing too is
+        // said, not probed for again without end.
+        backend.load_libraries_impl();
+        network->last()->drop();
+        network->last()->drop();
+        network->last()->complete(resources({ QJsonObject{ { "uri", "http://moved" }, { "local", true } } }));
+        network->last()->complete(QByteArray());    // the probe
+        network->last()->drop();                    // Continue Watching
+        Reply *again = network->last();
+        again->drop();                              // the libraries
+        QCOMPARE(network->last(), again);
+        QCOMPARE(errors.count(), 3);
     }
 };
 

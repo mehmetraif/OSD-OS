@@ -322,6 +322,9 @@ private:
                           std::function<void(QString)> callback);
     void probeNext(const QList<QString> &uris, int index,
                    std::function<void(QString)> callback);
+    // The active server looked for again where plex.tv now says it is, when
+    // it no longer answers at the address kept since the sign-in.
+    void probeActiveServer(std::function<void(bool found)> done);
 
     // Browse implementation (separated so startup check can wrap it)
     void load_libraries_impl();
@@ -386,6 +389,7 @@ private:
     bool    m_refreshInFlight  = false;
     bool    m_deviceVerified   = false; // set after first successful plex.tv check per session
     bool    m_serverAuthRetried = false; // guards the one-shot token re-fetch on a PMS 401
+    bool    m_serverProbeRetried = false; // guards the one-shot probe for a server that doesn't answer
 
     // Live TV session state. m_liveDvrId is cached from the last load_live_channels.
     // The rest are set by tune_channel and drive the timeline keep-alive that stops

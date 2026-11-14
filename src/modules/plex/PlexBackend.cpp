@@ -1398,6 +1398,57 @@ void PlexBackend::probeNext(const QList<QString> &uris, int index,
     });
 }
 
+// The active server's connections asked of plex.tv again and probed as at the
+// sign-in, and the one that answers kept for it (servers[].uri and
+// active_server_uri): the address found then is otherwise the only one ever
+// tried. found is false, and nothing changed, when plex.tv doesn't answer,
+// no longer lists the server, or none of its connections does.
+void PlexBackend::probeActiveServer(std::function<void(bool found)> done) {
+    const QString machineId = loadAuth()["active_server_machine_id"].toString();
+    if (machineId.isEmpty()) { done(false); return; }
+
+    QUrl resUrl(PLEX_TV + "/api/v2/resources");
+    QUrlQuery q;
+    q.addQueryItem("includeHttps", "1");
+    q.addQueryItem("includeRelay", "1");
+    q.addQueryItem("includeIPv6", "1");
+    resUrl.setQuery(q);
+    auto *resReply = plexGet(resUrl, accountToken());
+    connect(resReply, &QNetworkReply::finished, this, [this, resReply, machineId, done]() {
+        resReply->deleteLater();
+        QJsonArray connections;
+        if (resReply->error() == QNetworkReply::NoError) {
+            for (const auto &rv : QJsonDocument::fromJson(resReply->readAll()).array()) {
+                const QJsonObject res = rv.toObject();
+                if (res["clientIdentifier"].toString() == machineId
+                    && res["provides"].toString().contains("server")) {
+                    connections = res["connections"].toArray();
+                    break;
+                }
+            }
+        }
+        probeConnections(connections, [this, machineId, done](QString uri) {
+            QJsonObject auth = loadAuth();
+            // None answered; or signed out, or another server chosen, meanwhile.
+            if (uri.isEmpty() || auth["active_server_machine_id"].toString() != machineId) {
+                done(false);
+                return;
+            }
+            QJsonArray servers = auth["servers"].toArray();
+            for (int i = 0; i < servers.size(); ++i) {
+                QJsonObject s = servers[i].toObject();
+                if (s["machineId"].toString() != machineId) continue;
+                s["uri"] = uri;
+                servers[i] = s;
+            }
+            auth["servers"]           = servers;
+            auth["active_server_uri"] = uri;
+            saveAuth(auth);
+            done(true);
+        });
+    });
+}
+
 // ---------------------------------------------------------------------------
 // load_users_from_cache
 // ---------------------------------------------------------------------------
@@ -1568,6 +1619,8 @@ void PlexBackend::load_libraries_impl() {
             secReply->deleteLater();
             int secStatus = secReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (secReply->error() != QNetworkReply::NoError) {
+                const bool probed = m_serverProbeRetried;
+                m_serverProbeRetried = false;
                 if (secStatus == 498) {
                     handle498([this]{ load_libraries_impl(); });
                 } else if (secStatus == 401) {
@@ -1609,12 +1662,31 @@ void PlexBackend::load_libraries_impl() {
                                   "SIGN OUT AND SIGN IN AGAIN."
                                 : "SERVER REJECTED THIS DEVICE. PLEASE TRY AGAIN.");
                     }
+                } else if (secStatus == 0 && !probed) {
+                    // No answer at all, as against a refusal: the server is no
+                    // longer at the address kept for it since the sign-in (the
+                    // router gave it another, or it was linked from another
+                    // network or through the relay). Its connections are probed
+                    // again, and the libraries asked for once more at the one
+                    // that answers; m_serverProbeRetried keeps that to one go.
+                    m_serverProbeRetried = true;
+                    const QString failure = secReply->errorString();
+                    qWarning("[PlexBackend] server not reached — probing its connections again");
+                    probeActiveServer([this, failure](bool found) {
+                        if (found) {
+                            load_libraries_impl();
+                            return;
+                        }
+                        m_serverProbeRetried = false;
+                        emit errorOccurred("LOAD LIBRARIES FAILED: " + failure);
+                    });
                 } else {
                     emit errorOccurred("LOAD LIBRARIES FAILED: " + secReply->errorString());
                 }
                 return;
             }
             m_serverAuthRetried = false; // this server accepted our token; re-arm the retry
+            m_serverProbeRetried = false;
             QJsonArray sections = QJsonDocument::fromJson(secReply->readAll())
                                   .object()["MediaContainer"].toObject()["Directory"].toArray();
 

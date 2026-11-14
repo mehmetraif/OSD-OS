@@ -44,7 +44,7 @@ At sign-in OSD/OS tries each server's addresses in this order, 3 seconds each, a
 2. remote addresses (the server's own address on the internet);
 3. relay addresses (Plex's relay service).
 
-The addresses are tried only at sign-in. If a server moves (a new IP address, a new router), sign out and sign in again.
+The address that answers is saved with the sign-in. If the server no longer answers there as its libraries are read (a new IP address, a new router), OSD/OS asks plex.tv for its addresses again and keeps the first that answers.
 
 To use another server:
 
@@ -260,7 +260,7 @@ Two files in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `
 | The code was entered but it still says **Waiting…** | The code may have expired. Back out, open Plex again and enter the fresh code |
 | **FAILED TO LOAD ACCOUNT: …** | plex.tv did not return the account's profiles; try again |
 | **Select Server** is empty | Check the server is running and signed in to the same account (or shared with it) |
-| **NO SERVER CONFIGURED**, or **LOAD LIBRARIES FAILED: …** | The server is off, or it moved (new IP). **Settings → TV / Movie → Plex → Sign out**, then sign in again |
+| **NO SERVER CONFIGURED**, or **LOAD LIBRARIES FAILED: …** | The server is off or out of reach: its saved address and those plex.tv has for it now were tried. Check the server and the network and open Plex again; if it stays, **Settings → TV / Movie → Plex → Sign out**, then sign in again |
 | **SERVER REJECTED THIS DEVICE. PLEASE TRY AGAIN.** | Try again; if it stays, sign out and in |
 | **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS asleep, the Wi-Fi dropped); a request is given up after 30 seconds. Wake the server or check the network, then open the list again |
 | **PLEX DID NOT ISSUE A SERVER TOKEN FOR THIS DEVICE…** | Sign out and sign in again |
