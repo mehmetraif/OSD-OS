@@ -13,6 +13,8 @@ import QtTest
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
 // keyboard (its signs, SHOW, the mouse). And Local Files' player: a remote's
 // channel or page keys step through the folder's films.
+// A playlist's page (Playlists) keeps its cursor on the video moved up or
+// down, and on the place of one taken off.
 Rectangle {
     id: root
     color: surfaceColor
@@ -277,10 +279,36 @@ Rectangle {
     ServerBackend { id: embyBackend }
 
     // PlaylistsBackend as its player uses it: a list, the m3u written for
-    // it, and where it stopped.
+    // it, and where it stopped; and as its page does: its videos moved and
+    // taken off, the page told.
     QtObject {
         id: playlistsBackend
-        function playlist(id) { return { id: id, name: "Night", kind: "online", items: [{ id: "v1" }, { id: "v2" }] } }
+        property string kind: "online"
+        property var items: [{ id: "v1" }, { id: "v2" }]
+        signal playlistsChanged()
+        signal downloadProgress(string key, int percent)
+        function playlist(id) { return { id: id, name: "Night", kind: kind, items: items } }
+        function indexOfItem(itemId) {
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].id === itemId)
+                    return i
+            }
+            return -1
+        }
+        // As the backend does: past either end, nothing moves and no one is told.
+        function moveItem(playlistId, itemId, delta) {
+            var from = indexOfItem(itemId), to = from + delta
+            if (from < 0 || to < 0 || to >= items.length)
+                return
+            var list = items.slice()
+            list.splice(to, 0, list.splice(from, 1)[0])
+            items = list
+            playlistsChanged()
+        }
+        function removeItem(playlistId, itemId) {
+            items = items.filter(function(item) { return item.id !== itemId })
+            playlistsChanged()
+        }
         function prepare(id, fromItemId) {
             return { file: "/data/" + id + ".m3u", count: 2, youtube: false, images: false,
                      startIndex: -1, resumeIndex: 0, resumeMs: 0 }
@@ -328,6 +356,8 @@ Rectangle {
             plexBackend.cardAsks = 0
             plexBackend.queueAsks = 0
             plexBackend.authState = "authed"
+            playlistsBackend.kind = "online"
+            playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
             for (var backend of [jellyfinBackend, embyBackend]) {
                 backend.cancels = 0
                 backend.asks = 0
@@ -850,6 +880,130 @@ Rectangle {
             compare(notice.detail, "On macOS: brew install mpv")
             keyClick(Qt.Key_Return)
             compare(mpvController.loads, 2)
+        }
+
+        // A playlist's page (modules/playlists/views/Playlist.qml): its list
+        // (MenuList), the video under its cursor, the cursor taken to a
+        // video, and select on that video with its nth choice (Play from
+        // Here, Move Up, Move Down, Remove from Playlist).
+        function menuOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].shownHeight !== undefined)
+                    return page.children[i]
+            }
+            return null
+        }
+        function videoUnderCursor(page) {
+            var row = page.currentRow
+            return row && row.type === "item" ? row.item.id : ""
+        }
+        function cursorTo(page, itemId) {
+            for (var n = 0; n <= page.rows.length; n++) {
+                if (videoUnderCursor(page) === itemId)
+                    return
+                keyClick(Qt.Key_Down)
+            }
+            fail("no video " + itemId + " on the page")
+        }
+        function chooseForVideo(n) {
+            keyClick(Qt.Key_Return)
+            for (var i = 0; i < n; i++)
+                keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+        }
+        function videos(ids, failed) {
+            return ids.split("").map(function(id) {
+                return { id: id, key: "local:/films/" + id + ".mkv", title: "Film " + id.toUpperCase(),
+                         module: "com.osdos.local_files", state: id === failed ? "failed" : "ready",
+                         reason: id === failed ? "no answer" : "" }
+            })
+        }
+        function videoOrder() {
+            return playlistsBackend.items.map(function(item) { return item.id }).join("")
+        }
+        // The cursor's row is one of the rows the list shows whole.
+        function cursorInView(menu) {
+            var row = root.sh * 0.0583333
+            var top = menu.currentIndex * row
+            return top >= menu.contentY - 0.5 && top + row <= menu.contentY + menu.height + 0.5
+        }
+
+        // A video moved up or down takes the cursor with it, into view where
+        // it left the rows shown; one that can't move leaves it where it is.
+        // A video taken off leaves the cursor on the one that took its
+        // place, the last one's on the new last.
+        function test_playlistPageKeepsTheCursorOnItsVideo() {
+            playlistsBackend.items = videos("abcdefghijkl", "")
+            var page = open("playlists", "Playlist.qml", { playlistId: "p1" })
+            var menu = menuOf(page)
+            verify(menu !== null)
+
+            // The last row in view, moved down: out of it, and shown again.
+            cursorTo(page, "b")
+            compare(menu.contentY, 0)
+            verify(!cursorInView({ currentIndex: menu.currentIndex + 1, contentY: menu.contentY, height: menu.height }))
+            chooseForVideo(2)
+            compare(videoOrder(), "acbdefghijkl")
+            compare(videoUnderCursor(page), "b")
+            verify(cursorInView(menu))
+            chooseForVideo(1)
+            compare(videoOrder(), "abcdefghijkl")
+            compare(videoUnderCursor(page), "b")
+            verify(cursorInView(menu))
+
+            // The first can't go up, the last can't go down.
+            cursorTo(page, "a")
+            chooseForVideo(1)
+            compare(videoOrder(), "abcdefghijkl")
+            compare(videoUnderCursor(page), "a")
+            cursorTo(page, "l")
+            chooseForVideo(2)
+            compare(videoOrder(), "abcdefghijkl")
+            compare(videoUnderCursor(page), "l")
+            verify(cursorInView(menu))
+
+            // Taken off: the next one in its place; the last: the new last.
+            cursorTo(page, "c")
+            chooseForVideo(3)
+            compare(videoOrder(), "abdefghijkl")
+            compare(videoUnderCursor(page), "d")
+            cursorTo(page, "l")
+            chooseForVideo(3)
+            compare(videoOrder(), "abdefghijk")
+            compare(videoUnderCursor(page), "k")
+            verify(cursorInView(menu))
+            // And the list not left scrolled past its new end.
+            verify(menu.contentY <= page.rows.length * root.sh * 0.0583333 - menu.height + 0.5)
+        }
+
+        // The lines above the videos come and go (Retry Downloads, with a
+        // download that failed): the cursor keeps to its video as one fails,
+        // and to the video that took the place of the failed one taken off.
+        function test_playlistPageKeepsTheCursorAsItsLinesChange() {
+            playlistsBackend.kind = "offline"
+            playlistsBackend.items = videos("abcd", "")
+            var page = open("playlists", "Playlist.qml", { playlistId: "p1" })
+            cursorTo(page, "c")
+            var rows = page.rows.length
+            playlistsBackend.items = videos("abcd", "b")
+            playlistsBackend.playlistsChanged()
+            compare(page.rows.length, rows + 1)
+            compare(videoUnderCursor(page), "c")
+
+            cursorTo(page, "b")
+            chooseForVideo(3)
+            compare(page.rows.length, rows - 1)
+            compare(videoOrder(), "acd")
+            compare(videoUnderCursor(page), "c")
+
+            // The only video taken off: a line of the menu, none left to be on.
+            playlistsBackend.items = videos("a", "")
+            playlistsBackend.playlistsChanged()
+            cursorTo(page, "a")
+            chooseForVideo(3)
+            compare(videoOrder(), "")
+            verify(page.currentRow !== undefined)
+            compare(page.currentRow.type, "delete")
         }
     }
 }

@@ -67,8 +67,8 @@ Select on a video opens its choices:
 | Choice | What it does |
 |---|---|
 | **Play from Here** | Plays the list starting with this video, without asking about where it stopped |
-| **Move Up** / **Move Down** | Moves it one place in the list |
-| **Remove from Playlist** | Takes it off. On an offline list its download is stopped or deleted, unless another offline playlist has the video |
+| **Move Up** / **Move Down** | Moves it one place in the list; the cursor stays on it |
+| **Remove from Playlist** | Takes it off; the cursor is then on the video that took its place. On an offline list its download is stopped or deleted, unless another offline playlist has the video |
 
 ## Adding videos
 
