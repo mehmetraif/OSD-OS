@@ -61,7 +61,9 @@ Item {
     readonly property real arrowX: Math.round(width * 0.496)
     readonly property real valueX: Math.round(width * 0.545)
     // Where the value ends: before the icons and a Studio Monitor line's ►.
-    readonly property real iconsWidth: icons.length > 0 ? iconRow.width + pad : 0
+    // As a list, whatever a host being taken down hands on meanwhile.
+    readonly property var iconList: icons || []
+    readonly property real iconsWidth: iconList.length > 0 ? iconRow.width + pad : 0
     readonly property real valueEnd: width - pad - iconsWidth - (opens && !flat && !broadcast ? arrow.width + pad : 0)
     // The line from the label's start to the value's end, the least of it a
     // value is left (a third, if it wants it), and the label's share.
@@ -188,13 +190,13 @@ Item {
     // The icons, against the line's end.
     Row {
         id: iconRow
-        visible: line.icons.length > 0
+        visible: line.iconList.length > 0
         x: line.width - line.pad - width
         y: Math.round((line.height - height) / 2 / root.px) * root.px
         spacing: line.pad
 
         Repeater {
-            model: line.icons
+            model: line.iconList
             PixelIcon {
                 required property string modelData
                 name: modelData

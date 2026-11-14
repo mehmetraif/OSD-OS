@@ -201,12 +201,12 @@ FocusScope {
         model: controllersRoot.rows
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
+        anchors.topMargin: root.listY //120
         anchors.leftMargin: root.paneX
         width: root.paneWidth
         // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        // line more for each bar that is off (Main.qml's listHeight).
+        height: root.listHeight //224
         clip: true
         focus: true
         // Lines come and go as controllers do: no sliding.
