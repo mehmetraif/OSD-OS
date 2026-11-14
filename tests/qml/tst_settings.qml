@@ -95,8 +95,18 @@ Rectangle {
         property var values: ({})
         // Modules installed besides the ones below, for a test.
         property var moreModules: []
-        function get_settings() { return { app: values, modules: {} } }
+        // How often the page asked for the settings, the modules, the themes
+        // and the skins (counted in place: no binding follows them), and a
+        // setting changed by another hand than the page's, as AppCore tells
+        // it.
+        readonly property var calls: ({ settings: 0, modules: 0, themes: 0, skins: 0 })
+        signal appSettingChanged(string key, string value)
+        function get_settings() {
+            calls.settings++
+            return { app: values, modules: {} }
+        }
         function get_installed_modules() {
+            calls.modules++
             return moreModules.concat(
                    [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
                     { id: "com.osdos.highscores", name: "High Scores", has_settings: true, settings_group: "arcade", enabled: false },
@@ -115,8 +125,8 @@ Rectangle {
         signal logsSaved(bool ok, string detail)
         function canSaveLogs() { return canLogs }
         function saveLogs() { logSaves++; return true }
-        function themes() { return [] }
-        function skins() { return [] }
+        function themes() { calls.themes++; return [] }
+        function skins() { calls.skins++; return [] }
         function getCustomColorSchemes() { return ({}) }
         function getCustomColorScheme() { return ({}) }
         function localIpAddress() { return "" }
@@ -289,6 +299,7 @@ Rectangle {
             appCore.logSaves = 0
             appCore.writes = 0
             appCore.held = []
+            appCore.calls.settings = appCore.calls.modules = appCore.calls.themes = appCore.calls.skins = 0
             root.navigations = []
             root.backs = 0
             root.menuLayout = "Standard"
@@ -994,6 +1005,104 @@ Rectangle {
             verify(page.inIcons())
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // Camcorder and Studio Monitor: a move along the icons makes the rows
+        // of the page moved to, once, and nothing else. The settings, the
+        // modules, the first screen's rows and the icons are as they were
+        // read when the page was made: not read again for each icon passed,
+        // nor the icons handed to the frame anew. Look's themes and skins
+        // are listed as its rows are made, once a visit.
+        function test_iconMovesMakeOnlyThePagesRows_data() {
+            return [{ tag: "Camcorder", layout: "Camcorder", first: 0 },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", first: 1 }]
+        }
+        function test_iconMovesMakeOnlyThePagesRows(data) {
+            root.menuLayout = data.layout
+            var page = open()
+            verify(page.inIcons())
+            compare(appCore.calls.settings, 1)
+            compare(appCore.calls.modules, 1)
+            // Studio Monitor opens on Status, which reads the theme's name
+            // from Look's rows.
+            var listed = data.first
+            compare(appCore.calls.themes, listed)
+            compare(appCore.calls.skins, listed)
+            var pages = page.camPages
+            var icons = root.frameIcons
+            var shown = []
+            // Down every page, round to the first, and back up over two.
+            for (var i = 0; i < pages.length + 2; i++) {
+                keyClick(i < pages.length ? Qt.Key_Down : Qt.Key_Up)
+                shown.push(lines(page)[0])
+            }
+            compare(page.camIndex, pages.length - 2)
+            compare(appCore.calls.settings, 1)
+            compare(appCore.calls.modules, 1)
+            verify(page.camPages === pages, "the pages as they were made")
+            if (data.layout === "Camcorder")
+                verify(root.frameIcons === icons, "the icons as they were handed")
+            // Every page's rows as its own page has them: each page's first.
+            var firstRows = ["Scaling", "Arcade", "Theme", "Display Output", "Audio Output", "Controls", "Wi-Fi",
+                             "Start on Module", "Time Zone", "Quit"]
+            if (data.first === 1)
+                firstRows.unshift("Output")
+            var expected = []
+            for (i = 0; i < pages.length; i++)
+                expected.push(firstRows[(i + 1) % pages.length])
+            expected.push(firstRows[pages.length - 1], firstRows[pages.length - 2])
+            compare(shown, expected)
+            // Look was passed once on the way: its themes and skins listed
+            // once for its rows (and once more for Status, passed once).
+            compare(appCore.calls.themes, listed + 1 + data.first)
+            compare(appCore.calls.skins, listed + 1 + data.first)
+        }
+
+        // What a page's row was set to is what it shows when the icons come
+        // back to the page, a slider's step too, without the settings read
+        // again; a setting another hand changed meanwhile is read before the
+        // next rows are made.
+        function test_iconMovesKeepWhatWasSet() {
+            root.menuLayout = "Camcorder"
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            var page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines(page)[0], "Theme")
+            keyClick(Qt.Key_Right)
+            moveTo(page, "Hint Bar")
+            compare(row(page, "Hint Bar").value, "On")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.hint_bar, "Off")
+            keyClick(Qt.Key_Escape)
+            verify(page.inIcons())
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines(page)[0], "Audio Output")
+            keyClick(Qt.Key_Right)
+            moveTo(page, "Music Volume")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.menu_music_volume, 50)
+            keyClick(Qt.Key_Escape)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(row(page, "Hint Bar").value, "Off")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(row(page, "Music Volume").value, 50)
+            compare(appCore.calls.settings, 1)
+
+            // Another hand's: Window Mode's key, a setup file taken, a module.
+            appCore.values = Object.assign({}, appCore.values, { screensaver_timeout: "60" })
+            appCore.appSettingChanged("screensaver_timeout", "60")
+            compare(appCore.calls.settings, 1)
+            keyClick(Qt.Key_Up)
+            compare(lines(page)[0], "Display Output")
+            compare(row(page, "Screen Saver").value, "60")
+            compare(appCore.calls.settings, 2)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Down)
+            compare(appCore.calls.settings, 2)
         }
 
         // Camcorder: a page that is a view of its own (Arcade's) shows its

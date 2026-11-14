@@ -81,13 +81,16 @@ FocusScope {
                  rowIndex: settingsList.currentIndex, camRows: !camIcons }
     }
     // The icons: the page above (-1) or below (1), round, its rows beside
-    // them at once.
+    // them at once. Only that page's rows are made (showRows()): the
+    // settings, the modules, the first screen's rows and the icons are as
+    // they were read, and read again only if a setting changed under the
+    // page.
     function moveIcon(direction) {
         var n = camPages.length
         if (n === 0)
             return
         camIndex = (camIndex + direction + n) % n
-        buildModel(0)
+        showRows(0)
     }
     // ► or select on an icon: into the page's rows, or a view of its own
     // opened. STATUS is read from the icons.
@@ -267,25 +270,70 @@ FocusScope {
           .concat(saveLogsOption)
           .concat([{ label: "No",  action: "cancel" }])
 
-    // `at`: the row the cursor stays on, else the one it was on last.
+    // The page made, or made again where what it is made from may have
+    // changed (a theme chosen, settings pasted, the layout, a row another
+    // row follows). `at`: the row the cursor stays on, else the one it was
+    // on last.
     function buildModel(at) {
+        readAll()
+        showRows(at)
+    }
+
+    // What every page's rows are made from: the settings, the modules, the
+    // first screen's rows and, with icons, its pages (Studio Monitor's
+    // STATUS first) and their icons for the layout's frame. Read as the page
+    // is made, not at each move along the icons: a read of config.json's
+    // whole content, the modules and the first screen for every icon passed.
+    property var firstScreen: []
+    property var pageIconList: []
+    function readAll() {
         var cfg = appCore.get_settings()
         appSettings = cfg.app || {}
+        stale = false
         installedModules = appCore.get_installed_modules()
         autostartSession = appCore.isAutostartSession()
         canRestart = appCore.canRestartSystem()
         canSaveLogs = appCore.canSaveLogs()
 
-        // The first screen's rows, and with icons its pages (Studio
-        // Monitor's STATUS first): the page shown is the icon's, a page
-        // opened from one has its heading's.
         var first = []
         firstRows(first)
+        firstScreen = first
         builtLayout = layout
         builtIcons = iconMenu
-        editIndex = -1
         var pages = iconMenu ? (studio ? [statusPage] : []).concat(first) : []
-        camPages = pages.map(function(row) { return { row: row, icon: pageIcons[pageKey(row)] || "" } })
+        var icons = pages.map(function(row) { return { icon: pageIcons[pageKey(row)] || "" } })
+        pageIconList = icons
+        camPages = pages.map(function(row, i) { return { row: row, icon: icons[i].icon } })
+    }
+    // The settings as readAll() read them are no longer what is saved: one
+    // was changed by another hand than this page's (onAppSettingChanged; its
+    // own saves keep appSettings in step, save()). Read again before the
+    // next rows are made.
+    property bool stale: false
+    property bool saving: false
+
+    // A row's value saved, and kept in appSettings, which the rows are made
+    // from: a page's rows made again as the icons come back to it show what
+    // was just set. `soon`, a slider's step, written once the steps rest
+    // (AppCore::save_setting_soon()). False when it couldn't be saved.
+    function save(row, value, soon) {
+        saving = true
+        var saved = soon ? appCore.save_setting_soon(row.moduleId, row.key, value)
+                         : appCore.save_setting(row.moduleId, row.key, value)
+        saving = false
+        if (saved)
+            appSettings[row.key] = value
+        return saved
+    }
+
+    // The rows of the page shown, made from what readAll() read: the first
+    // screen's, a heading's page's, or with icons those of the page the
+    // cursor's icon is (a page opened from one has its heading's icon).
+    function showRows(at) {
+        if (stale)
+            readAll()
+        editIndex = -1
+        var pages = camPages.map(function(page) { return page.row })
         if (iconMenu && group !== "") {
             var heading = "group_" + (group === "effects" ? "look" : group)
             camIndex = Math.max(0, pages.findIndex(function(row) { return row.key === heading }))
@@ -315,7 +363,7 @@ FocusScope {
         else if (iconMenu && group === "")
             items = [pages[camIndex]]
         else
-            items = first
+            items = firstScreen.slice()
 
         settingsItems = items
         // Audio Output's cards are on this page: read again as it stays open.
@@ -1511,7 +1559,7 @@ FocusScope {
                 return
             }
             var v = Math.max(0, Math.min(100, row.value + direction * row.step))
-            if (v === row.value || !appCore.save_setting_soon(row.moduleId, row.key, v))
+            if (v === row.value || !settingsRoot.save(row, v, true))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: v }))
         }
@@ -1521,7 +1569,7 @@ FocusScope {
         function toggleSlider() {
             var row = settingsItems[currentIndex]
             var on = !row.on
-            if (appCore.save_setting(row.moduleId, row.key, on ? row.value : row.offValue))
+            if (settingsRoot.save(row, on ? row.value : row.offValue))
                 replaceCurrentRow(Object.assign({}, row, { on: on }))
         }
 
@@ -1536,7 +1584,7 @@ FocusScope {
             var opts = row.options
             if (newIdx < 0 || opts[newIdx] === row.value)
                 return
-            if (!appCore.save_setting(row.moduleId, row.key, row.values ? row.values[newIdx] : opts[newIdx]))
+            if (!settingsRoot.save(row, row.values ? row.values[newIdx] : opts[newIdx]))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")
@@ -1550,11 +1598,11 @@ FocusScope {
         function setSlider(v) {
             var row = settingsItems[currentIndex]
             if (v < 0) {
-                if (row.on !== false && appCore.save_setting(row.moduleId, row.key, row.offValue))
+                if (row.on !== false && settingsRoot.save(row, row.offValue))
                     replaceCurrentRow(Object.assign({}, row, { on: false }))
                 return
             }
-            if ((v === row.value && row.on !== false) || !appCore.save_setting(row.moduleId, row.key, v))
+            if ((v === row.value && row.on !== false) || !settingsRoot.save(row, v))
                 return
             replaceCurrentRow(Object.assign({}, row, row.on !== undefined ? { value: v, on: true } : { value: v }))
         }
@@ -1787,9 +1835,11 @@ FocusScope {
     readonly property bool inFrame: true
     readonly property bool ownsFrame: true
     readonly property bool frameKeys: inIcons()
+    // The icons as readAll() listed them, the one list handed each time: a
+    // move changes which is boxed, not the icons.
     function handFrame() {
         if (camcorder && camPages.length > 0)
-            root.setFrame(camPages.map(function(page) { return { icon: page.icon } }), camIndex, frameKeys, false)
+            root.setFrame(pageIconList, camIndex, frameKeys, false)
     }
     onCamPagesChanged: handFrame()
     onCamIndexChanged: handFrame()
@@ -1903,6 +1953,10 @@ FocusScope {
         target: appCore
         ignoreUnknownSignals: true
         function onAppSettingChanged(key, value) {
+            // Not this page's own save: the settings it read are behind,
+            // and are read again before its rows are next made (showRows()).
+            if (!settingsRoot.saving)
+                settingsRoot.stale = true
             if (key !== "window_mode" || !settingsRoot.desktopWindow)
                 return
             var shown = settingsRoot.settingsItems.filter(function(r) { return r.key === "window_mode" })[0]
