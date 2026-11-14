@@ -27,7 +27,7 @@ A button that sends none of these keys can be given an action in [Settings → C
 | Key | What it does |
 |---|---|
 | ▲ ▼ ◄ ►, Enter, Esc, Space, I | As in the table above. The keypad's Enter selects too |
-| Backspace | Back. On the on-screen keyboard it deletes the last letter. In a browser OSD/OS opened it is the browser's |
+| Backspace | Back. On the on-screen keyboard it deletes the last letter, and is back once nothing is typed. In a browser OSD/OS opened it is the browser's |
 | Right Shift | Back. While a text field has the focus it is Shift again |
 | Letters, digits, punctuation | Type straight into the on-screen keyboard; Enter then finishes. Delete deletes the last letter there |
 | Ctrl+Q (⌘Q on a Mac) | Quits OSD/OS at once, without asking. Started with the system, that powers the Pi off. Not while [Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock) holds the cabinet |

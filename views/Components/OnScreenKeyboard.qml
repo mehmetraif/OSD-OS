@@ -6,6 +6,8 @@ import QtQuick
 // back cancels. A real keyboard types straight in, which moves the box to OK
 // so Enter then finishes. The mouse moves the box to the key under it, so a
 // click types that key. Opened on text already there, the box starts on OK.
+// A line longer than its box keeps its end in view. Backspace deletes a
+// letter, and with none typed it is back too: a remote's back key may be it.
 // It covers its parent below the title bar.
 //     OnScreenKeyboard { anchors.fill: parent; onAccepted: (text) => … }
 // For a password, a key or an address (caseSensitive), letters in both cases
@@ -154,15 +156,26 @@ FocusScope {
         case Qt.Key_Return:
         case Qt.Key_Enter: press(rows[row][col]); return
         case Qt.Key_Escape:
-        case Qt.Key_Back:
-            if (!inline)
-                close()
-            canceled()
-            return
-        case Qt.Key_Backspace:
+        case Qt.Key_Back: cancel(); return
+        case Qt.Key_Backspace: backspace(event.isAutoRepeat); return
         case Qt.Key_Delete: press("DEL"); return
         }
         typeIn(event.text)
+    }
+    function cancel() {
+        if (!inline)
+            close()
+        canceled()
+    }
+    // Backspace: with a letter to delete, it deletes it. With none typed it
+    // is back, as in every view, or a remote whose back key is Backspace
+    // would have no way out (OK takes nothing typed); not while held, so
+    // that a line deleted by holding the key stays up.
+    function backspace(held) {
+        if (text !== "")
+            press("DEL")
+        else if (!held)
+            cancel()
     }
     // Typed on a real keyboard: straight in, and the box goes to OK. Not a
     // control character (a Delete's U+007F).
@@ -238,7 +251,11 @@ FocusScope {
             antialiasing: false
             clip: true
             Row {
-                x: root.sw * 0.0125 //8
+                // From the box's left edge, until the line is longer than
+                // the box: then its end, where the next letter goes, stays
+                // in view, and its start runs out at the left.
+                readonly property real margin: root.sw * 0.0125 //8
+                x: Math.min(margin, parent.width - margin - typed.width - caret.width)
                 anchors.verticalCenter: parent.verticalCenter
                 Text {
                     id: typed
@@ -250,6 +267,7 @@ FocusScope {
                     font.pixelSize: osk.fontSize
                 }
                 Rectangle {
+                    id: caret
                     width: Math.round(osk.fontSize * 0.55)
                     height: Math.round(osk.fontSize * 0.75)
                     anchors.verticalCenter: typed.verticalCenter

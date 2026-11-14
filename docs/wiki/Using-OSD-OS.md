@@ -123,7 +123,7 @@ Select on **Search** opens an on-screen keyboard: the letters A to Z, the digits
 |---|---|
 | The arrows | Move the box, round from one edge to the other |
 | Select | Types what is in the box, or presses SPACE, DEL or OK |
-| Backspace | Deletes the last letter (here it isn't back) |
+| Backspace | Deletes the last letter. With nothing typed it is back, and cancels |
 | Back (Esc, or a gamepad's back) | Cancels |
 | A real keyboard's keys | Type straight in; Enter then searches |
 | The mouse | A click types the key under the pointer |
