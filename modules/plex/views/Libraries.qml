@@ -126,10 +126,10 @@ FocusScope {
         model: libraries
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
+        anchors.topMargin: root.listY //120
         anchors.leftMargin: root.paneX
         width: root.paneWidth
-        height: root.sh * 0.525 + root.hintRoom //252
+        height: root.tallListHeight //252
         clip: true
         focus: true
 
@@ -182,8 +182,20 @@ FocusScope {
             width: libraryList.width
             height: root.sh * 0.0583333 //28
 
+            // The row as a monitor layout draws one, in its frame (Main.qml's):
+            // the layout's cursor, its case, its colours.
+            Loader {
+                anchors.fill: parent
+                active: root.monitorInk === true
+                sourceComponent: MonitorRow {
+                    label: rowText.text
+                    selected: libraryList.currentIndex === index
+                }
+            }
+
             Item {
                 id: textClip
+                visible: root.monitorInk !== true
                 width: Math.min(rowText.implicitWidth, libraryList.width)
                 height: parent.height
                 clip: true
@@ -226,6 +238,10 @@ FocusScope {
             }
         }
     }
+
+    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
+    // frame says which.
+    ListPager { list: libraryList }
 
     // Footer
     HintBar {

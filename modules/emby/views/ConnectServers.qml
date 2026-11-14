@@ -6,6 +6,9 @@ import Components
 // (embyBackend.connect_select_server); Root.qml routes to Libraries on success.
 FocusScope {
     id: pickerRoot
+    // In the layout's frame (Main.qml): its list in the pane, beside the
+    // column a layout keeps on the screen.
+    readonly property bool inFrame: true
     focus: true
 
     property var navParams: ({})
@@ -64,10 +67,10 @@ FocusScope {
         visible: !pickerRoot.waiting
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 + root.hintRoom //252
+        anchors.topMargin: root.listY //120
+        anchors.leftMargin: root.paneX //74
+        width: root.paneWidth //492
+        height: root.tallListHeight //252
         clip: true
         focus: true
 
@@ -87,8 +90,20 @@ FocusScope {
             width: serverList.width
             height: root.sh * 0.0583333 //28
 
+            // The row as a monitor layout draws one, in its frame (Main.qml's):
+            // the layout's cursor, its case, its colours.
+            Loader {
+                anchors.fill: parent
+                active: root.monitorInk === true
+                sourceComponent: MonitorRow {
+                    label: rowText.text
+                    selected: serverList.currentIndex === index
+                }
+            }
+
             Item {
                 id: textClip
+                visible: root.monitorInk !== true
                 width: Math.min(rowText.implicitWidth, serverList.width)
                 height: parent.height
                 clip: true
@@ -143,12 +158,17 @@ FocusScope {
         anchors.horizontalCenter: parent.horizontalCenter
         // Over the hint bar, or in its place with it off, clear of the list
         // that grows into its room.
-        anchors.bottom: root.hintBar ? footer.top : footer.bottom
-        anchors.bottomMargin: root.hintBar ? root.sh * 0.0333333 : 0 //16
+        anchors.bottom: root.monitorFramed === true ? parent.bottom : root.hintBar ? footer.top : footer.bottom
+        anchors.bottomMargin: root.monitorFramed === true ? parent.height - root.paneBottom
+                            : root.hintBar ? root.sh * 0.0333333 : 0 //16
         width: root.sw * 0.5
         wrapMode: Text.WordWrap
         font.pixelSize: root.sh * 0.0333333 //16
     }
+
+    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
+    // frame says which.
+    ListPager { list: serverList }
 
     // Footer
     HintBar {

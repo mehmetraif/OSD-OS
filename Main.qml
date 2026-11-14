@@ -606,6 +606,14 @@ Window {
     readonly property string schemePaper: osdOff ? "#000000" : scheme.surface
     property string primaryColor:   monitorInk ? menuPalette.ink : schemeInk
     property string surfaceColor:   monitorInk ? menuPalette.ground : schemePaper
+    // A selected cell's box and what is written in it, where a view draws
+    // its own (the letters beside a library's list): the two colours the
+    // other way round, or in a monitor layout's frame its mark with the
+    // ground's colour on it, Flat Panel's bar with its text's.
+    readonly property string cursorColor: !monitorInk ? primaryColor
+                                        : menuLayout === "Flat Panel" ? menuPalette.bar : menuPalette.mark
+    readonly property string cursorInk: !monitorInk ? surfaceColor
+                                      : menuLayout === "Flat Panel" ? menuPalette.ink : menuPalette.ground
     // Two colours only, like a deck's on-screen display: everything is drawn in
     // the scheme's primary colour on its surface colour. A selection is a solid
     // box with its text in the surface colour, and anything dimmed is dithered

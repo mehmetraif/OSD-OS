@@ -491,11 +491,11 @@ FocusScope {
         model: rows
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
+        anchors.topMargin: root.listY //120
         anchors.leftMargin: root.paneX
         // The pane's, less the letters' room beside it.
         width: root.paneWidth - (showLetterNav ? root.sw * 0.096875 : 0) //430 or 492
-        height: root.sh * 0.525 + root.hintRoom //252
+        height: root.tallListHeight //252
         clip: true
         focus: true
 
@@ -542,8 +542,20 @@ FocusScope {
             width: itemList.width
             height: root.sh * 0.0583333 //28
 
+            // The row as a monitor layout draws one, in its frame (Main.qml's):
+            // the layout's cursor, its case, its colours.
+            Loader {
+                anchors.fill: parent
+                active: root.monitorInk === true
+                sourceComponent: MonitorRow {
+                    label: rowText.text
+                    selected: itemList.currentIndex === index && !letterNavActive
+                }
+            }
+
             Item {
                 id: textClip
+                visible: root.monitorInk !== true
                 width: Math.min(rowText.implicitWidth, itemList.width)
                 height: parent.height
                 clip: true
@@ -662,7 +674,7 @@ FocusScope {
             height: root.sh * 0.04375 //21
 
             Rectangle {
-                color: root.accentColor
+                color: root.cursorColor
                 anchors.fill: parent
                 visible: letterList.currentIndex === index && letterNavActive
             }
@@ -670,7 +682,7 @@ FocusScope {
             Text {
                 text: modelData.letter
                 color: (letterList.currentIndex === index && letterNavActive)
-                       ? root.surfaceColor : root.primaryColor
+                       ? root.cursorInk : root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0354167 //17
@@ -688,6 +700,10 @@ FocusScope {
         anchors.fill: letterList
         visible: letterList.visible && !letterNavActive
     }
+
+    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
+    // frame says which.
+    ListPager { list: itemList }
 
     // Footer
     HintBar {

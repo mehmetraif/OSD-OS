@@ -18,6 +18,9 @@ Rectangle {
     property string globalFont: "monospace"
     property color primaryColor: "white"
     property color surfaceColor: "black"
+    // A selected cell's box and what is written in it (Main.qml's).
+    readonly property color cursorColor: primaryColor
+    readonly property color cursorInk: surfaceColor
     property var skin: ({})
     property bool hintBar: true
     property bool helpLine: true

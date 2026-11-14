@@ -43,7 +43,7 @@ Item {
     // The mark, an art pixel short of the line's start.
     Rectangle {
         visible: box.marked
-        width: Math.round(root.sh * 0.0229167 / root.px) * root.px //11, MonitorRow's
+        width: Math.round(root.sh * 0.05 * 0.4583 / root.px) * root.px //11, MonitorRow's
         height: width
         x: -width - root.px
         y: Math.round((box.height - height) / 2 / root.px) * root.px
