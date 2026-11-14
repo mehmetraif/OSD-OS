@@ -378,13 +378,15 @@ FocusScope {
     }
 
     // STATUS (Studio Monitor): what is set, a line each, read alone; each
-    // value as its own row has it.
+    // value as its own row has it. A row OSD/OS doesn't offer here (Display
+    // Output off a Pi, Audio Output where the system picks the card) is the
+    // system's to say: System, not None, as if there were no output.
     function statusRows(items) {
         function valueOf(build, key) {
             var rows = []
             build(rows)
             var row = rows.filter(function(r) { return r.key === key || r.type === key })[0]
-            return !row || row.unavailable ? "None" : (row.value || "None")
+            return !row ? "None" : row.unavailable ? "System" : (row.value || "None")
         }
         var wifi = "None"
         if (wifiManager && wifiManager.supported) {
@@ -1309,7 +1311,33 @@ FocusScope {
     // IP address, on the first page's bar alone.
     property string ipAddress: ""
     // STATUS shows it too.
-    onIpAddressChanged: if (studio && group === "" && pageGroup((camPages[camIndex] || {}).row) === "status") buildModel(0)
+    onIpAddressChanged: if (statusShown()) buildModel(0)
+    // STATUS on the page (Studio Monitor's first), and its lines read again
+    // as what they show changes while it is: Wi-Fi's as a network is joined
+    // or left, Bluetooth's as it is turned on or off or a device connects.
+    // Made again only where a line reads otherwise.
+    function statusShown() {
+        return studio && group === "" && pageGroup((camPages[camIndex] || {}).row) === "status"
+    }
+    function followStatus() {
+        if (!statusShown())
+            return
+        var lines = []
+        statusRows(lines)
+        if (JSON.stringify(lines) !== JSON.stringify(settingsItems))
+            buildModel(0)
+    }
+    Connections {
+        target: wifiManager
+        ignoreUnknownSignals: true
+        function onStateChanged() { settingsRoot.followStatus() }
+    }
+    Connections {
+        target: bluetoothManager
+        ignoreUnknownSignals: true
+        function onAdapterChanged() { settingsRoot.followStatus() }
+        function onDevicesChanged() { settingsRoot.followStatus() }
+    }
     Timer {
         interval: 5000
         running: settingsRoot.group === "" && !root.screenSaverActive

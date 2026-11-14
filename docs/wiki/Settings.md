@@ -116,7 +116,7 @@ Every layout has the same pages and rows, and changes at once.
 |---|---|---|
 | Standard | A list, a page at a time | As [above](#getting-around) |
 | Camcorder | The pages as icons in a column, the selected page's rows beside it. The column stays on the pages opened from there (Wi-Fi, Bluetooth, Controls, About, a module's settings) | ▲ ▼ go from page to page, ► or select into the rows, back out to the icons |
-| Studio Monitor | A black window, the pages' icons in a blue strip. Its first page, **Status**, shows what is set | As Camcorder |
+| Studio Monitor | A black window, the pages' icons in a blue strip. Its first page, **Status**, shows what is set (**System** where the system picks the output), and follows it while it is open | As Camcorder |
 | Broadcast | Plain blue, a three-line key guide | A list. A value changes in two steps |
 | Flat Panel | Black, mixed case, a page of rows at a time (`1/2`) | As Broadcast. ◄ goes back |
 

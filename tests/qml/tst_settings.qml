@@ -168,6 +168,10 @@ Rectangle {
     QtObject {
         id: bluetoothManager
         property bool supported: false
+        // As BluetoothManager has them: devicesChanged is the property's own.
+        property bool powered: false
+        property var devices: []
+        signal adapterChanged()
     }
     // The boot screen there is on the OSD/OS image (BootProgress).
     QtObject {
@@ -179,6 +183,10 @@ Rectangle {
         property bool supported: false
         // Not supported for the launcher alone (WifiManager::launcherTooOld).
         property bool launcherTooOld: false
+        // As WifiManager has them: stateChanged is the property's own.
+        property bool enabled: true
+        property string state: ""
+        property var current: ({})
     }
 
     // Where the page asked to go, and how often back out of it.
@@ -222,6 +230,11 @@ Rectangle {
             root.unusableTransitions = []
             audioOutput.available = false
             audioOutput.row = { options: ["Auto"], values: [""], value: "Auto", note: "" }
+            wifiManager.state = ""
+            wifiManager.current = {}
+            bluetoothManager.supported = false
+            bluetoothManager.powered = false
+            bluetoothManager.devices = []
         }
         function cleanup() {
             loader.source = ""
@@ -831,6 +844,50 @@ Rectangle {
             page = open({ navListState: went.listState })
             compare(page.camIndex, 2)
             compare(lines(page), ["Arcade"])
+        }
+
+        // Studio Monitor's Status follows what it shows while it is open:
+        // Wi-Fi's line as a network is joined, Bluetooth's as a device
+        // connects or it is turned off, the keys still in the strip. An
+        // output OSD/OS doesn't offer here reads System, the system's own,
+        // not None. On another page nothing is made again for them.
+        function test_statusFollows() {
+            root.menuLayout = "Studio Monitor"
+            wifiManager.supported = true
+            wifiManager.state = "disconnected"
+            bluetoothManager.supported = true
+            bluetoothManager.powered = true
+            var page = open()
+            compare(row(page, "Output").value, "System")
+            compare(row(page, "Audio").value, "System")
+            compare(row(page, "Wi-Fi").value, "Not Joined")
+            compare(row(page, "Bluetooth").value, "On")
+            wifiManager.current = { ssid: "Home" }
+            wifiManager.state = "connected"
+            compare(row(page, "Wi-Fi").value, "Home")
+            bluetoothManager.devices = [{ connected: true }, { connected: false }]
+            compare(row(page, "Bluetooth").value, "1 Connected")
+            bluetoothManager.powered = false
+            bluetoothManager.adapterChanged()
+            compare(row(page, "Bluetooth").value, "Off")
+            verify(page.inIcons())
+            compare(chromeOf(page).title, "Status")
+            // A sound card OSD/OS chooses reads as its row does.
+            audioOutput.available = true
+            page.audioFollowInterval = 50
+            wifiManager.state = "disconnected"
+            compare(row(page, "Wi-Fi").value, "Not Joined")
+            compare(row(page, "Audio").value, "Auto")
+            audioOutput.row = { options: ["Auto (USB Audio)", "USB Audio"], values: ["", { card: "Device", name: "USB Audio" }],
+                                value: "Auto (USB Audio)", note: "" }
+            tryVerify(function() { return row(page, "Audio").value === "Auto (USB Audio)" }, 3000)
+            // TV / Movie's page: left as it is.
+            keyClick(Qt.Key_Down)
+            compare(lines(page)[0], "Scaling")
+            var built = page.settingsItems
+            wifiManager.state = "connected"
+            bluetoothManager.adapterChanged()
+            verify(page.settingsItems === built)
         }
 
         // Broadcast: the first screen as a list, Key Protect (Cabinet Lock)
