@@ -287,6 +287,85 @@ class MediaServersTest : public QObject {
                                     QJsonDocument(QJsonObject{ { "Items", QJsonArray{ films } } }).toJson());
     }
 
+    // The warnings written to the log while `what` runs, each as it is
+    // written.
+    static inline QStringList *s_logged = nullptr;
+    static void keepWarning(QtMsgType type, const QMessageLogContext &, const QString &message) {
+        if (type == QtWarningMsg && s_logged)
+            s_logged->append(message);
+    }
+    template <typename What> static QStringList logged(What what) {
+        QStringList lines;
+        s_logged = &lines;
+        const QtMessageHandler previous = qInstallMessageHandler(keepWarning);
+        what();
+        qInstallMessageHandler(previous);
+        s_logged = nullptr;
+        return lines;
+    }
+
+    // A detail, show or season page shows nothing when what it asked the
+    // server for doesn't come, so each such load that fails is one line in
+    // the log: what was asked for, by the item's id, the server's host, and
+    // the status it answered with or the network's own word. Neither the
+    // token nor the address asked, the user's id in it, is ever written. An
+    // answer that isn't what was asked for (a proxy's sign-in page in its
+    // place) is said too; one that is, an empty list among them, writes
+    // nothing. The page is told as before.
+    template <typename Backend> void failedPageLoadsAreLogged(const char *tag) {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        backend.m_serverUrl = QStringLiteral("http://nas.example:8096");
+        backend.m_accessToken = QStringLiteral("made-up-token");
+        backend.m_userId = QStringLiteral("made-up-user");
+        QSignalSpy errors(&backend, &Backend::errorOccurred);
+        QSignalSpy item(&backend, &Backend::itemLoaded);
+        QSignalSpy seasons(&backend, &Backend::seasonsLoaded);
+        const auto line = [tag](const char *what, const char *why) {
+            return QStringList{ QStringLiteral("[%1] %2 could not be loaded from nas.example: %3")
+                                    .arg(QLatin1String(tag), QLatin1String(what), QLatin1String(why)) };
+        };
+        QCOMPARE(logged([&] { backend.load_item_detail(QStringLiteral("film")); network->last()->fail(404); }),
+                 line("item film", "HTTP 404"));
+        QCOMPARE(logged([&] { backend.load_seasons(QStringLiteral("show")); network->last()->drop(); }),
+                 line("the seasons of show show", "Connection refused"));
+        QCOMPARE(logged([&] {
+                     backend.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+                     network->last()->fail(500);
+                 }),
+                 line("the episodes of season season", "HTTP 500"));
+        QCOMPARE(logged([&] { backend.load_series_next_up(QStringLiteral("show")); network->last()->fail(502); }),
+                 line("the next episode of show show", "HTTP 502"));
+        QCOMPARE(errors.count(), 4);
+        QVERIFY(errors.at(0).at(0).toString().startsWith(QLatin1String("LOAD ITEM DETAIL FAILED: ")));
+
+        const QByteArray signInPage = "<html><body>Sign in to go on</body></html>";
+        QCOMPARE(logged([&] { backend.load_item_detail(QStringLiteral("film")); network->last()->complete(signInPage); }),
+                 line("item film", "the answer is not the item"));
+        QCOMPARE(logged([&] { backend.load_seasons(QStringLiteral("show")); network->last()->complete(signInPage); }),
+                 line("the seasons of show show", "the answer is not a list"));
+        QCOMPARE(logged([&] {
+                     backend.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+                     network->last()->complete(signInPage);
+                 }),
+                 line("the episodes of season season", "the answer is not a list"));
+        QCOMPARE(errors.count(), 4);
+
+        // Answered: nothing to say, a show without seasons included.
+        QCOMPARE(logged([&] {
+                     backend.load_item_detail(QStringLiteral("film"));
+                     network->last()->complete(QJsonDocument(QJsonObject{ { "Id", "film" }, { "Name", "Film" } }).toJson());
+                     backend.load_seasons(QStringLiteral("show"));
+                     network->last()->complete(films({}));
+                     backend.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+                     network->last()->complete(films({ "e1" }));
+                 }),
+                 QStringList());
+        QCOMPARE(item.last().at(0).toMap().value(QStringLiteral("itemId")).toString(), QStringLiteral("film"));
+        QVERIFY(seasons.last().at(0).toList().isEmpty());
+    }
+
 private slots:
     void jellyfinLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<JellyfinBackend>(); }
     void embyLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<EmbyBackend>(); }
@@ -297,6 +376,65 @@ private slots:
         QVERIFY(network);
         const QJsonObject films{ { "key", "1" }, { "title", "Films" }, { "type", "movie" } };
         librariesSayWhyThereAreNone(backend, network, plexContainer({ { "Directory", QJsonArray{ films } } }));
+    }
+    void jellyfinFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<JellyfinBackend>("Jellyfin"); }
+    void embyFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<EmbyBackend>("Emby"); }
+    // Plex's: an item, what is under it (a show's seasons, a season's
+    // episodes) and its extras, whose failure the page isn't told of. An
+    // item the server has nothing to play of leaves its page as empty as
+    // one that didn't come, and is said as well.
+    void plexFailedPageLoadsAreLogged() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        QSignalSpy item(&backend, &PlexBackend::itemLoaded);
+        QSignalSpy extras(&backend, &PlexBackend::extrasLoaded);
+        const auto line = [](const char *what, const char *why) {
+            return QStringList{ QStringLiteral("[Plex] %1 could not be loaded from server: %2")
+                                    .arg(QLatin1String(what), QLatin1String(why)) };
+        };
+        QCOMPARE(logged([&] { backend.load_item_detail(QStringLiteral("10")); network->last()->fail(404); }),
+                 line("item 10", "HTTP 404"));
+        QCOMPARE(logged([&] { backend.load_children(QStringLiteral("20")); network->last()->drop(); }),
+                 line("the seasons or episodes of item 20", "Connection refused"));
+        QCOMPARE(errors.count(), 2);
+        QCOMPARE(logged([&] { backend.load_extras(QStringLiteral("10")); network->last()->fail(500); }),
+                 line("the extras of item 10", "HTTP 500"));
+        QCOMPARE(errors.count(), 2);
+        QCOMPARE(extras.count(), 1);
+        QVERIFY(extras.first().at(0).toList().isEmpty());
+
+        QCOMPARE(logged([&] {
+                     backend.load_item_detail(QStringLiteral("10"));
+                     network->last()->complete(plexContainer({ { "Metadata", QJsonArray() } }));
+                 }),
+                 line("item 10", "the answer has no such item"));
+        QCOMPARE(errors.count(), 3);
+        const QJsonObject bare{ { "ratingKey", "10" }, { "title", "Film" }, { "type", "movie" } };
+        QCOMPARE(logged([&] {
+                     backend.load_item_detail(QStringLiteral("10"));
+                     network->last()->complete(plexContainer({ { "Metadata", QJsonArray{ bare } } }));
+                 }),
+                 line("item 10", "the server has nothing of it to play"));
+        QCOMPARE(logged([&] {
+                     backend.load_children(QStringLiteral("20"));
+                     network->last()->complete("<html><body>Sign in to go on</body></html>");
+                 }),
+                 line("the seasons or episodes of item 20", "the answer is not a list"));
+
+        // Answered: nothing to say, an item without extras included.
+        QCOMPARE(logged([&] {
+                     backend.load_item_detail(QStringLiteral("10"));
+                     network->last()->complete(plexContainer({ { "Metadata", plexFilms({ "10" }) } }));
+                     backend.load_children(QStringLiteral("20"));
+                     network->last()->complete(plexContainer({ { "Metadata", QJsonArray() } }));
+                     backend.load_extras(QStringLiteral("10"));
+                     network->last()->complete(plexContainer({ { "size", 0 } }));
+                 }),
+                 QStringList());
+        QCOMPARE(item.last().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("10"));
     }
     void jellyfinListAskedForLaterWins() { listAskedForLaterWins<JellyfinBackend>(); }
     void embyListAskedForLaterWins() { listAskedForLaterWins<EmbyBackend>(); }

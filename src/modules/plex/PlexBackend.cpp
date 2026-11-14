@@ -1,5 +1,6 @@
 #include "PlexBackend.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/ServerLog.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -2157,12 +2158,24 @@ void PlexBackend::load_item_detail(const QString &ratingKey) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
                 handle498([this, ratingKey]{ load_item_detail(ratingKey); }); return;
             }
+            // The detail page shows nothing of an item that didn't come, so
+            // the log says which and why (serverlog): here, for an answer
+            // without the item, and for an item with nothing to play, which
+            // the page drops as it does another's.
+            serverlog::loadFailed("Plex", "item " + ratingKey, reply);
             emit errorOccurred("LOAD DETAIL FAILED: " + reply->errorString()); return;
         }
         QJsonArray metaArr = QJsonDocument::fromJson(reply->readAll())
                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
-        if (metaArr.isEmpty()) { emit errorOccurred("LOAD DETAIL FAILED: empty metadata"); return; }
-        emit itemLoaded(buildItemDetail(metaArr[0].toObject()));
+        if (metaArr.isEmpty()) {
+            serverlog::loadFailed("Plex", "item " + ratingKey, reply, QStringLiteral("the answer has no such item"));
+            emit errorOccurred("LOAD DETAIL FAILED: empty metadata"); return;
+        }
+        const QVariantMap detail = buildItemDetail(metaArr[0].toObject());
+        if (detail.isEmpty())
+            serverlog::loadFailed("Plex", "item " + ratingKey, reply,
+                                  QStringLiteral("the server has nothing of it to play"));
+        emit itemLoaded(detail);
     });
 }
 
@@ -2178,10 +2191,16 @@ void PlexBackend::load_children(const QString &ratingKey) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
                 handle498([this, ratingKey]{ load_children(ratingKey); }); return;
             }
+            // As the detail page's item: a show's page without its seasons,
+            // or a season's without its episodes, says nothing, the log does.
+            serverlog::loadFailed("Plex", "the seasons or episodes of item " + ratingKey, reply);
             emit errorOccurred("LOAD CHILDREN FAILED: " + reply->errorString()); return;
         }
-        QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())
-                              .object()["MediaContainer"].toObject()["Metadata"].toArray();
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("MediaContainer")))
+            serverlog::loadFailed("Plex", "the seasons or episodes of item " + ratingKey, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray metadata = answer["MediaContainer"].toObject()["Metadata"].toArray();
         QVariantList items;
         for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
         emit childrenLoaded(items);
@@ -2199,7 +2218,9 @@ void PlexBackend::load_extras(const QString &ratingKey) {
             }
             // No errorOccurred here: the detail views' error handlers reset
             // loading/play state, and a failed extras fetch must not do that.
-            qDebug() << "[Plex] Load extras failed:" << reply->errorString();
+            // The page then has no EXTRAS row and no word of why: the log
+            // says it, in a release build too.
+            serverlog::loadFailed("Plex", "the extras of item " + ratingKey, reply);
             emit extrasLoaded(QVariantList{}); return;
         }
         QJsonArray metadata = QJsonDocument::fromJson(reply->readAll())

@@ -130,7 +130,7 @@ qml: Routing to: modules/local_files/views/Root.qml
 | `[boot]`, `[legacy]` | The image's boot screen; moving over from 240-MP | Each held-back service settling; the data folder moved over |
 | `[DisplayOutput]`, `[AudioOutput]`, `[MenuMusic]`, `[Bluetooth]`, `[Wi-Fi]`, `[input]` | The Settings row or page of that name; gamepads, keyboards and remotes | What was chosen or found, and why something failed |
 | `[LocalFiles]`, `[HighScores]`, `[NfcReader]`, `[Weather]`, `[AmbientMode]`, `[Playlists]`, `[WebPlayer]`, `[TMDB]` | The module of that name; the web players; Netflix's and Prime Video's catalogue | What it couldn't find, read, fetch or write, and why |
-| `[PlexBackend]`, `[Plex]`, `[PlexAuth]`, `[JellyfinBackend]`, `[Jellyfin]`, `[EmbyBackend]`, `[Emby]` | The media servers | Token refreshes, a token or device the server rejected, playback reports that failed |
+| `[PlexBackend]`, `[Plex]`, `[PlexAuth]`, `[JellyfinBackend]`, `[Jellyfin]`, `[EmbyBackend]`, `[Emby]` | The media servers | Token refreshes, a token or device the server rejected, playback reports that failed, an item, its seasons or its episodes that could not be loaded |
 | `qml:` | The screens | `qml: [Effect] … can't be used`, `qml: Routing to: modules/…/Root.qml`, a module screen's error |
 
 ## A module is missing from the main menu
@@ -248,6 +248,7 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | Signed out by itself | `Token rejected — signing out`: a password changed, or the device was removed | Sign in again |
 | A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → TV / Movie → Plex → Video Quality to one of its Mbps choices, or read the server's log |
 | Plex: **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS asleep, the Wi-Fi dropped) | Wake the server or check the network, then open the list again |
+| A film's page without its details, a show's without its seasons or a season's without its episodes | The server didn't answer, or answered with an error. The log says which item, from which server and why: `[Jellyfin] the seasons of show … could not be loaded from nas.local: HTTP 404 Not Found` (`[Plex]`, `[Emby]` likewise; `Connection refused` and the like when nothing answered) | Check that the server is on and reachable, go back and open the page again. `the server has nothing of it to play` (Plex) means the file is gone from the server |
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
 Each module's settings has **Sign out**. The sign-ins are in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
