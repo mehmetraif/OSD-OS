@@ -15,6 +15,7 @@ import QtTest
 // channel or page keys step through the folder's films.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
+// The sign-in pages keep an error as long as Qt's own inside the page.
 Rectangle {
     id: root
     color: surfaceColor
@@ -255,10 +256,14 @@ Rectangle {
         signal authStateChanged()
         signal quickConnectCodeReady(string code, string secret)
         signal quickConnectFailed(string message)
+        signal quickConnectApproved()
         signal connectServersReady(var servers)
         signal connectFailed(string message)
         function get_auth_state() { return "none" }
         function quick_connect_initiate(url) { signIns = signIns.concat([["quick", url]]) }
+        function quick_connect_poll(secret) {}
+        function quick_connect_authenticate(secret) {}
+        function quick_connect_cancel() {}
         function authenticate(url, user, password) { signIns = signIns.concat([["direct", url, user, password]]) }
         function connect_authenticate(user, password) { signIns = signIns.concat([["connect", user, password]]) }
         signal streamUrlReady(string url)
@@ -718,6 +723,96 @@ Rectangle {
         function test_jellyfinKeepsTheAddressAfterQuickConnect() {
             var auth = open("jellyfin", "Auth.qml", { navListState: { serverUrl: "http://nas:8096" } })
             compare(auth.serverUrl, "http://nas:8096")
+        }
+
+        // Every line of text an item shows, itself or below it, but what is
+        // typed in a field (a TextInput, cut by its frame).
+        function shownTexts(item, found) {
+            found = found || []
+            if (!item.visible)
+                return found
+            if (item.elide !== undefined && item.contentWidth !== undefined && item.text !== "")
+                found.push(item)
+            for (var i = 0; i < item.children.length; i++)
+                shownTexts(item.children[i], found)
+            return found
+        }
+        // A line between the title bar and the hint bar (whose own line
+        // starts at 0.85 of the height).
+        function inBody(text) {
+            var top = text.mapToItem(root, 0, 0).y
+            return top > root.sh * 0.2 && top < root.sh * 0.84
+        }
+        // Drawn whole inside the page: no wider than its own line, the line
+        // within the content's width, and above the hint bar.
+        function insidePage(text) {
+            var at = text.mapToItem(root, 0, 0)
+            var box = root.contentBox
+            return text.contentWidth <= text.width + 1
+                && at.x >= box.x - 1 && at.x + text.width <= box.x + box.width + 1
+                && at.y + text.height <= root.sh * 0.85
+        }
+
+        // The sign-in pages (Jellyfin's two, Emby's, Plex's) with an error
+        // as long as Qt's own for a request the server turned down, the
+        // address in it: drawn whole inside the page, wrapped or cut, every
+        // other line of the page inside it too (Quick Connect's own address
+        // line with a long address), and what the page was waiting for no
+        // longer said beside it. A server's own address can be one long
+        // name of dots, with no place in it for a line to break (Jellyfin's
+        // and Emby's); Plex's sign-in asks plex.tv alone.
+        function test_signInErrorStaysInsideThePage_data() {
+            return [{ tag: "jellyfin", module: "jellyfin", view: "Auth.qml" },
+                    { tag: "jellyfin, quick connect", module: "jellyfin", view: "QuickConnect.qml", approved: false },
+                    { tag: "jellyfin, after the approval", module: "jellyfin", view: "QuickConnect.qml", approved: true },
+                    { tag: "emby", module: "emby", view: "Auth.qml" },
+                    { tag: "plex", module: "plex", view: "PinAuth.qml" }]
+        }
+        function test_signInErrorStaysInsideThePage(data) {
+            var address = "http://jellyfin.media.home.internal.mycompanydomain.example.com:8096"
+            var error = data.module === "plex"
+                ? "PIN REQUEST FAILED: Error transferring https://plex.tv/api/v2/pins?strong=true"
+                  + " - server replied: Service Unavailable"
+                : "CONNECTION FAILED: Error transferring " + address
+                  + "/QuickConnect/Initiate - server replied: Service Unavailable"
+            var waitingFor = ["CONNECTING...", "Connecting", "Waiting", "Approved", "Requesting Pin..."]
+            function said(page, what) {
+                return shownTexts(page).filter(function(text) { return what.indexOf(text.text) >= 0 }).length
+            }
+            var page
+            if (data.view === "QuickConnect.qml") {
+                page = open("jellyfin", data.view, { serverUrl: address, code: "123456", secret: "secret" })
+                compare(said(page, ["Waiting"]), 1)
+                for (var line of shownTexts(page).filter(inBody))
+                    verify(insidePage(line), line.text)
+                if (data.approved) {
+                    jellyfinBackend.quickConnectApproved()
+                    compare(said(page, ["Approved"]), 1)
+                    jellyfinBackend.errorOccurred(error)
+                } else {
+                    jellyfinBackend.quickConnectFailed(error)
+                }
+            } else if (data.module === "jellyfin") {
+                page = open("jellyfin", data.view, { navListState: { serverUrl: address } })
+                page.focusIndex = 1
+                keyClick(Qt.Key_Return)
+                compare(said(page, ["CONNECTING..."]), 1)
+                jellyfinBackend.quickConnectFailed(error)
+            } else if (data.module === "emby") {
+                page = open("emby", data.view, {})
+                embyBackend.errorOccurred(error)
+            } else {
+                page = open("plex", data.view, {})
+                plexBackend.pinReady("ABCD", "1")
+                compare(said(page, ["Waiting"]), 1)
+                plexBackend.errorOccurred(error)
+            }
+            compare(said(page, [error]), 1)
+            compare(said(page, waitingFor), 0)
+            var lines = shownTexts(page).filter(inBody)
+            verify(lines.length > 0)
+            for (var shown of lines)
+                verify(insidePage(shown), shown.text)
         }
 
         // Emby: each field on the keyboard in turn, OK going on to the next;

@@ -205,7 +205,9 @@ FocusScope {
             font.pixelSize: root.sh * 0.0333333 //16
         }
 
-        // Error message
+        // Error message: within its width whatever is in it (a server's
+        // address is one long name of dots, with no place for a line to
+        // break, so it breaks where the line ends), and cut after six lines.
         Text {
             visible: errorMsg !== ""
             text: errorMsg
@@ -215,7 +217,9 @@ FocusScope {
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter
             width: root.sw * 0.5
-            wrapMode: Text.WordWrap
+            wrapMode: Text.Wrap
+            maximumLineCount: 6
+            elide: Text.ElideRight
             font.pixelSize: root.sh * 0.0333333 //16
         }
     }
