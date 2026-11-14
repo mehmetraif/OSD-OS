@@ -472,6 +472,8 @@ int main(int argc, char *argv[]) {
     // them again.
     QObject::connect(&appCore, &AppCore::appSettingChanged, &appCore,
                      [](const QString &key) { OsdIconProvider::lookChanged(key); });
+    // The deck's pixel symbols (PixelIcon): a picture each, shared.
+    engine.addImageProvider(QStringLiteral("osdpixel"), new OsdPixelProvider);
     engine.addImageProvider(QStringLiteral("osdskin"), new OsdSkinProvider);
     engine.addImageProvider(QStringLiteral("qr"), new QrImageProvider);
     // The picture of a video played inside this window (Transparent Background),

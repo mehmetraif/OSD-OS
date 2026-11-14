@@ -143,3 +143,37 @@ bool OsdIconProvider::lookChanged(const QString &key) {
     forget();
     return true;
 }
+
+QImage OsdPixelProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize) {
+    // <rrggbb>/<row>,<row>,…: a colour with its alpha first (<aarrggbb>) too.
+    const int colorEnd = id.indexOf(QLatin1Char('/'));
+    if (colorEnd < 0)
+        return {};
+    const QColor color(QLatin1Char('#') + id.left(colorEnd));
+    const QStringList rows = id.mid(colorEnd + 1).split(QLatin1Char(','));
+    const int columns = rows.first().size();
+    if (!color.isValid() || columns == 0)
+        return {};
+
+    // The size asked for, a cell a pixel when none is; never a picture of a
+    // size no symbol has.
+    constexpr int kMostPixels = 2048;
+    const bool sized = requestedSize.width() > 0 && requestedSize.height() > 0;
+    const QSize full = sized ? requestedSize.boundedTo(QSize(kMostPixels, kMostPixels))
+                             : QSize(columns, int(rows.size()));
+    QImage out(full, QImage::Format_ARGB32);
+    out.fill(Qt::transparent);
+    const QRgb ink = color.rgba();
+    for (int y = 0; y < full.height(); ++y) {
+        const QString &row = rows.at(qsizetype(y) * rows.size() / full.height());
+        QRgb *line = reinterpret_cast<QRgb *>(out.scanLine(y));
+        for (int x = 0; x < full.width(); ++x) {
+            const int cell = x * columns / full.width();
+            if (cell < row.size() && row.at(cell) == QLatin1Char('1'))
+                line[x] = ink;
+        }
+    }
+    if (size)
+        *size = out.size();
+    return out;
+}

@@ -1569,4 +1569,186 @@ Rectangle {
             compare(title.x, 0)
         }
     }
+
+    // Every symbol PixelIcon has, side by side on a ground of a colour no
+    // symbol is drawn in, as the component draws them: pictures from the
+    // app's image provider.
+    Component {
+        id: pictureSheet
+        Rectangle {
+            id: sheet
+            property color ink: "white"
+            property int cell: 2
+            property var names: []
+            width: 620
+            height: flow.height
+            color: "#3a55b4"
+            Flow {
+                id: flow
+                width: parent.width
+                spacing: 3
+                Repeater {
+                    model: sheet.names
+                    Components.PixelIcon {
+                        required property string modelData
+                        name: modelData
+                        color: sheet.ink
+                        pixel: sheet.cell
+                    }
+                }
+            }
+        }
+    }
+    // The same, each painted on a Canvas of its own from its cells, a run of
+    // set cells a rectangle: how PixelIcon drew a symbol before it was a
+    // picture, and what the pictures are held to.
+    Component {
+        id: canvasSheet
+        Rectangle {
+            id: sheet
+            property color ink: "white"
+            property int cell: 2
+            property var names: []
+            property var shapes: ({})
+            property int painted: 0
+            width: 620
+            height: flow.height
+            color: "#3a55b4"
+            Flow {
+                id: flow
+                width: parent.width
+                spacing: 3
+                Repeater {
+                    model: sheet.names
+                    Canvas {
+                        required property string modelData
+                        readonly property var rows: sheet.shapes[modelData] || []
+                        width: (rows.length ? rows[0].length : 0) * sheet.cell
+                        height: rows.length * sheet.cell
+                        antialiasing: false
+                        smooth: false
+                        onPainted: sheet.painted++
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.reset()
+                            ctx.fillStyle = sheet.ink
+                            for (var y = 0; y < rows.length; ++y) {
+                                var row = rows[y]
+                                var x = 0
+                                while (x < row.length) {
+                                    if (row[x] !== "#") {
+                                        ++x
+                                        continue
+                                    }
+                                    var start = x
+                                    while (x < row.length && row[x] === "#")
+                                        ++x
+                                    ctx.fillRect(start * sheet.cell, y * sheet.cell, (x - start) * sheet.cell, sheet.cell)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: pixelIcon
+        Components.PixelIcon {}
+    }
+
+    TestCase {
+        name: "PixelIcon"
+        when: windowShown
+
+        // A symbol is a picture of its cells in its colour, the size of its
+        // cells times its pixel, and two that show the same share it; another
+        // colour, size or symbol is another picture.
+        function test_picture() {
+            var play = createTemporaryObject(pixelIcon, root, { name: "play", color: "#ff8000", pixel: 3 })
+            compare(play.width, 4 * 3)
+            compare(play.height, 7 * 3)
+            compare(play.status, Image.Ready)
+            compare(play.sourceSize, Qt.size(12, 21))
+            verify(String(play.source).indexOf("image://osdpixel/ff8000/1000,1100,1110,1111,") === 0, play.source)
+            var twin = createTemporaryObject(pixelIcon, root, { name: "play", color: "#ff8000", pixel: 3 })
+            compare(twin.source, play.source)
+            twin.color = "#ffffff"
+            verify(twin.source !== play.source)
+            compare(twin.status, Image.Ready)
+            twin.color = "#ff8000"
+            twin.pixel = 4
+            compare(twin.source, play.source)
+            compare(twin.sourceSize, Qt.size(16, 28))
+            compare(twin.status, Image.Ready)
+            // A name it hasn't: nothing drawn, no room taken, no picture asked for.
+            var none = createTemporaryObject(pixelIcon, root, { name: "no such symbol" })
+            compare(none.width, 0)
+            compare(none.height, 0)
+            compare(String(none.source), "")
+            compare(none.status, Image.Null)
+        }
+
+        // Every symbol, at each size a screen gives a pixel and in a scheme's
+        // colours, a dark one on a light ground too: pixel for pixel what a
+        // Canvas painted of it.
+        function test_sameAsPainted_data() {
+            var rows = []
+            var inks = ["#ffffff", "#000000", "#ffb000", "#1e90ff", "#102030"]
+            var cells = [1, 2, 3, 4, 6]
+            for (var c = 0; c < cells.length; c++) {
+                for (var i = 0; i < inks.length; i++)
+                    rows.push({ tag: cells[c] + " px " + inks[i], cell: cells[c], ink: inks[i] })
+            }
+            return rows
+        }
+        function test_sameAsPainted(data) {
+            var probe = createTemporaryObject(pixelIcon, root, {})
+            var shapes = probe.shapes
+            var names = Object.keys(shapes)
+            verify(names.length >= 38, "every symbol: " + names.length)
+
+            var painted = createTemporaryObject(canvasSheet, root, { ink: data.ink, cell: data.cell,
+                                                                    names: names, shapes: shapes })
+            var pictures = createTemporaryObject(pictureSheet, root, { ink: data.ink, cell: data.cell, names: names })
+            tryVerify(function() { return painted.painted >= names.length }, 5000, "every Canvas painted")
+            compare(pictures.width, painted.width)
+            compare(pictures.height, painted.height)
+            verify(pictures.height >= 7 * data.cell)
+
+            var was = grabImage(painted)
+            var now = grabImage(pictures)
+            compare(now.width, was.width)
+            compare(now.height, was.height)
+            // The two sheets the same, pixel for pixel; where they aren't,
+            // the first pixel that differs is said.
+            if (!now.equals(was)) {
+                for (var y = 0; y < was.height; y++) {
+                    for (var x = 0; x < was.width; x++) {
+                        if (!Qt.colorEqual(was.pixel(x, y), now.pixel(x, y)))
+                            fail("at " + x + "," + y + ": painted " + was.pixel(x, y) + ", the picture " + now.pixel(x, y))
+                    }
+                }
+                fail("the sheets differ, though no pixel does")
+            }
+            // And not two sheets of nothing: the first symbol, play, is its
+            // sixteen cells in the colour and twelve clear.
+            compare(names[0], "play")
+            var inked = 0, clear = 0
+            for (y = 0; y < 7 * data.cell; y++) {
+                for (x = 0; x < 4 * data.cell; x++) {
+                    if (Qt.colorEqual(now.pixel(x, y), data.ink))
+                        inked++
+                    else if (Qt.colorEqual(now.pixel(x, y), pictures.color))
+                        clear++
+                }
+            }
+            compare(inked, 16 * data.cell * data.cell)
+            compare(clear, 12 * data.cell * data.cell)
+            // Its tip a cell wide, its fourth row all four.
+            verify(Qt.colorEqual(now.pixel(0, 0), data.ink))
+            verify(Qt.colorEqual(now.pixel(data.cell, 0), pictures.color))
+            verify(Qt.colorEqual(now.pixel(4 * data.cell - 1, 3 * data.cell), data.ink))
+        }
+    }
 }

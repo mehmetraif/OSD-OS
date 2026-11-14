@@ -1422,14 +1422,15 @@ Rectangle {
         readonly property string screenshot: Qt.resolvedUrl("../../docs/screenshots/arcade-games.png")
         readonly property string widePicture: Qt.resolvedUrl("../../assets/images/cassette.png")
 
-        // The picture on the screen: the one of the two shown.
+        // The picture on the screen: the one of the two shown. Not one of
+        // the deck's pixel symbols (PixelIcon), which are pictures too.
         function shownPicture(screen) {
             var found = null
             var walk = function(item) {
                 if (found)
                     return
                 if (item.fillMode !== undefined && item.sourceSize !== undefined && item.visible
-                        && String(item.source) !== "")
+                        && String(item.source) !== "" && String(item.source).indexOf("image://osdpixel/") !== 0)
                     found = item
                 for (var i = 0; i < item.children.length; i++)
                     walk(item.children[i])

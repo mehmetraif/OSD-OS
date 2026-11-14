@@ -452,7 +452,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Gui Quick QuickTest)
-add_executable(tree_browser_test tree_browser_test.cpp)
+# The runner's engine has the app's provider of the pixel symbols' pictures
+# (PixelIcon, image://osdpixel), as main.cpp's has.
+add_executable(tree_browser_test tree_browser_test.cpp ../src/util/OsdIconProvider.cpp)
+target_include_directories(tree_browser_test PRIVATE ../src)
 target_link_libraries(tree_browser_test PRIVATE Qt6::QuickTest Qt6::Quick)
 add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_tree_browser.qml)
 set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
