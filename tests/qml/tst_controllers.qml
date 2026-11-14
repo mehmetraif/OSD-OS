@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Components
 import "../../views/Components/ArcadePanelArt.js" as Art
 
 // Settings → Controls' pages against a stand-in for InputManager:
@@ -30,15 +31,39 @@ Rectangle {
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
     // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
     // tallListHeight with no help line under them, helpedListHeight over one
     // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    // Settings → Look → Menu Layout, and a monitor layout's frame as the
+    // shell draws it under the views (Main.qml's frameChrome): up in a
+    // monitor layout, the views' bars telling it what to write.
+    property string menuLayout: "Standard"
+    readonly property var menuPalette: ({
+        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
+    })[menuLayout] || null
+    property bool videoBehind: false
+    property int backdropSolidity: 100
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
@@ -281,6 +306,8 @@ Rectangle {
         when: windowShown
 
         function init() {
+            root.menuLayout = "Standard"
+            root.chrome.basePath = []
             inputManager.controllers = [
                 { key: root.padKey, name: "8BitDo Pro 2", kind: "gamepad", count: 2, present: true, players: [2, 3] },
                 { key: root.jammaKey, name: "OSD/OS JAMMA P1", kind: "arcade", count: 1, present: true, jamma: 1, players: [1] },
@@ -1216,6 +1243,37 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
             inputManager.unlockButtons = ""
+        }
+
+        // Controls in a monitor layout's frame (Settings → Look → Menu
+        // Layout): its lines where the frame has its rows, the frame's title
+        // the way to the page, a pad's page under its name. Game Buttons
+        // alone stays a page of its own in every layout: its lines and its
+        // control panel want the screen's whole width.
+        function test_controlsInAMonitorLayout_data() {
+            return [{ tag: "Studio Monitor", layout: "Studio Monitor" }, { tag: "Broadcast", layout: "Broadcast" },
+                    { tag: "Flat Panel", layout: "Flat Panel" }]
+        }
+        function test_controlsInAMonitorLayout(data) {
+            root.menuLayout = data.layout
+            root.chrome.basePath = ["Settings"]
+            var page = open("Controllers.qml")
+            verify(page.inFrame)
+            var lines = list(page)
+            compare(lines.x, root.chrome.listX)
+            compare(lines.y, root.chrome.listY)
+            compare(lines.width, root.chrome.listWidth)
+            compare(lines.height, root.chrome.listHeight)
+            compare(root.chrome.title, data.layout === "Flat Panel" ? ">Settings >Controls" : "Controls")
+            verify(root.chrome.helpText !== "")
+            page = open("ControllerSettings.qml", { key: root.padKey })
+            verify(page.inFrame)
+            compare(list(page).y, root.chrome.listY)
+            compare(root.chrome.title, data.layout === "Studio Monitor" ? "8BitDo Pro 2"
+                                     : data.layout === "Broadcast" ? "Controls / 8BitDo Pro 2"
+                                     : ">Settings >Controls >8BitDo Pro 2")
+            page = open("ArcadeButtons.qml", { key: root.padKey })
+            verify(page.inFrame !== true)
         }
     }
 }

@@ -39,7 +39,7 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **Effects**, never over a video: text, background, selector and screen effects, and transitions between windows ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
 - **Menu music** under the menus: the theme's, or your own recording, MIDI file or tracker module ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)).
 - **Skins** in Settings: the window's shapes and icons. DOS and Rounded come with it; a new one is a folder of pictures ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)).
-- **Menu Layout** in Settings → Look: Standard, Camcorder, Studio Monitor, Broadcast or Flat Panel ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
+- **Menu Layout** in Settings → Look: Standard, Camcorder, Studio Monitor, Broadcast or Flat Panel, each kept on the pages and modules opened from the menus ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
 - **Hint Bar** and **Help Line** in Settings: the key hints and the line about the selected row, each on or off ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 
 ## The system

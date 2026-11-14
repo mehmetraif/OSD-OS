@@ -10,16 +10,17 @@
 # folder instead: the app takes it as it starts, says what became of it
 # (views/SetupNotice.qml), and its setting is in config.json, the file gone.
 # With --layout=<name>, the main menu in that Menu Layout (Settings → Look →
-# Menu Layout: Camcorder, Studio Monitor, Broadcast, Flat Panel). With
+# Menu Layout: Camcorder, Studio Monitor, Broadcast, Flat Panel); after a
+# module's folder, that module opened in it, in the layout's frame. With
 # --monitor=<name>, the Arcade module's screen on a monitor turned on its
 # side (Settings → Screen → Monitor: Turned Right, Turned Left), drawn in its
 # tall layout and turned with the rest.
-#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder | --setup | --layout=<name> | --monitor=<name>]
+#   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder [--layout=<name>] | --setup | --layout=<name> | --monitor=<name>]
 # Skipped (77) without the app, which is built apart from the tests (build/),
 # and for a module that imports a QML module of Qt's this Qt doesn't have.
 set -u
 
-APP="$1" QML="$3" FOLDER="${4:-}"
+APP="$1" QML="$3" FOLDER="${4:-}" IN="${5:-}"
 [ -x "$APP" ] || { echo "SKIP: no app at $APP (build it first, in build/)"; exit 77; }
 # Both absolute: the app runs in a folder of the test's.
 APP="$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")"
@@ -51,7 +52,13 @@ elif [ -n "$FOLDER" ] && [ "${FOLDER#--layout=}" = "$FOLDER" ]; then
     WHAT="the $FOLDER module"
     VIEW="modules/$FOLDER/$ENTRY"
     SOURCES=("$ROOT/modules/$FOLDER")
-    CONFIG="{\"app\": {\"startup_module\": \"$ID\"}, \"modules\": {\"$ID\": {\"enabled\": true}}}"
+    LAYOUT=Standard
+    if [ "${IN#--layout=}" != "$IN" ]; then
+        LAYOUT="${IN#--layout=}"
+        WHAT="the $FOLDER module in Menu Layout's $LAYOUT"
+        SOURCES=("$ROOT/Main.qml" "$ROOT/views" "$ROOT/modules/$FOLDER")
+    fi
+    CONFIG="{\"app\": {\"startup_module\": \"$ID\", \"menu_layout\": \"$LAYOUT\"}, \"modules\": {\"$ID\": {\"enabled\": true}}}"
 else
     WHAT="the main menu"
     VIEW="views/ModuleList.qml"

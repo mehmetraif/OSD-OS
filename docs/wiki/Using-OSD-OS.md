@@ -72,7 +72,7 @@ The main menu lists the modules that are turned on, in the order of their folder
 - A script marked in [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) has a row of its own, which runs it.
 - A video playing behind the menus leads the list as `► <its title>` ([Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background)).
 - ▲ ▼ go round from the last row to the first. The menu remembers the row you left.
-- Settings → Look → **Menu Layout** lays the menu out differently ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
+- Settings → Look → **Menu Layout** lays the menu out differently, and the modules opened from it with it ([Settings → Menu Layout](https://github.com/mehmetraif/OSD-OS/wiki/Settings#menu-layout)).
 
 [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) describes each module.
 
@@ -362,7 +362,7 @@ Back on the main menu opens Settings. A line has its value between the arrows th
 - Select, or ►, opens a line that ends in ►. Select turns a slider on or off.
 - Nothing is hidden: a line that can't be used is dimmed, and the help line says why (`Only with OSD Background on Window`).
 - The first screen has a line for each page, then Quit: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup** and **System**.
-- Look → **Menu Layout** offers Standard, Camcorder, Studio Monitor, Broadcast and Flat Panel. In Broadcast and Flat Panel a value changes in two steps: select, ▲ ▼, then select to save or back to leave it.
+- Look → **Menu Layout** offers Standard, Camcorder, Studio Monitor, Broadcast and Flat Panel. In Broadcast and Flat Panel a value changes in two steps: select, ▲ ▼, then select to save or back to leave it. The layout stays on the pages opened from Settings and inside the modules.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>

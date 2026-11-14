@@ -81,7 +81,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR 1-1978, and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in ([below](#color-schemes)). It has no Off | `app.color_scheme`: the scheme's name, `""` for THEME |
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, bars and selected line, and its icons ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
 | Effects | A page | | [Below](#effects) | |
-| Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How Settings and the main menu are laid out ([below](#menu-layout)) | `app.menu_layout` |
+| Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How the menus are laid out: Settings, the main menu and the pages and modules opened from them ([below](#menu-layout)) | `app.menu_layout` |
 | OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Window**: a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
 | Window Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Window | `app.osd_frame` |
 | Boot Screen Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors` |
@@ -111,15 +111,15 @@ The effects and the menu music rest while a video plays, loads or has its menu o
 <tr><td>The pages as icons, the selected one's rows beside them.</td><td>The modules in groups: TV / Movie, Arcade, More, and Settings.</td></tr>
 </table>
 
-Every layout has the same pages and rows, and changes at once.
+Every layout has the same pages and rows, and changes at once. A layout is kept on what is opened from the menus too: the pages opened from Settings (Wi-Fi, Bluetooth, Controls, About, Update, Cabinet Lock, a module's settings), the questions they ask, and the modules' lists and trees (Local Files, Playlists, YouTube, the streaming services, High Scores, Scripts, and Plex's, Jellyfin's and Emby's libraries).
 
 | Layout | How it looks | Keys |
 |---|---|---|
 | Standard | A list, a page at a time | As [above](#getting-around) |
 | Camcorder | The pages as icons in a column, the selected page's rows beside it. The column stays on the pages opened from there (Wi-Fi, Bluetooth, Controls, About, a module's settings) | ▲ ▼ go from page to page, ► or select into the rows, back out to the icons |
-| Studio Monitor | A black window, the pages' icons in a blue strip. Its first page, **Status**, shows what is set (**System** where the system picks the output), and follows it while it is open | As Camcorder |
-| Broadcast | Plain blue, a three-line key guide | A list. A value changes in two steps |
-| Flat Panel | Black, mixed case, a page of rows at a time (`1/2`) | As Broadcast. ◄ goes back |
+| Studio Monitor | A black window, the pages' icons in a blue strip. Its first page, **Status**, shows what is set (**System** where the system picks the output), and follows it while it is open. The window, the strip and the key strip stay on every page opened from there, the page drawn inside the window and named on its tab | As Camcorder |
+| Broadcast | Plain blue, the way to the page centred at the top (`NETWORK / WI-FI`), a three-line key guide | A list. A value changes in two steps |
+| Flat Panel | Black, mixed case, the path at the top (`>Settings >Network >Wi-Fi`), a page of rows at a time (`1/2`) | As Broadcast. ◄ goes back |
 
 <table>
 <tr><th width="50%">Settings</th><th width="50%">The main menu</th></tr>
@@ -128,10 +128,12 @@ Every layout has the same pages and rows, and changes at once.
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-broadcast.png" width="100%" alt="Broadcast: plain blue, LOOK centred at the top, the Look page's rows, Menu Layout's value STUDIO MONITOR boxed in white while it is being changed, and the guide TO CHANGE, TO CONFIRM, TO CANCEL" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-broadcast.png" width="100%" alt="The main menu in Broadcast: OSD/OS centred, every module with three dots after it, a filled square before Arcade, and the guide TO SELECT, TO ENTER, TO SETTINGS" /></td></tr>
 <tr><td colspan="2"><b>Broadcast.</b></td></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-flat-panel.png" width="100%" alt="Flat Panel: black, >Look at the top left and 1/2 at the top right, the rows in mixed case as Label: Value, Menu Layout's value Broadcast in yellow while it is being changed on a grey bar" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-flat-panel.png" width="100%" alt="The main menu in Flat Panel: black, OSD/OS at the top left, the modules in mixed case each with a ▶, Arcade on a grey bar" /></td></tr>
-<tr><td colspan="2"><b>Flat Panel.</b> The title is the path to the page (<code>&gt;Look &gt;Effects</code>).</td></tr>
+<tr><td colspan="2"><b>Flat Panel.</b> The title is the path to the page (<code>&gt;Settings &gt;Look &gt;Effects</code>).</td></tr>
 </table>
 
-- **Two steps** (Broadcast, Flat Panel): select starts the change, ▲ ▼ go through the choices, select saves, back cancels. ◄ ► change nothing.
+- **Two steps** (Broadcast, Flat Panel): select starts the change, ▲ ▼ go through the choices, select saves, back cancels. ◄ ► change nothing. A module's settings change the same way there.
+- **Inside a module**, Studio Monitor's strip shows the modules of its group by their logos, as Camcorder's column does, and the three monitor layouts draw the module's lists in their own colours.
+- **Outside every layout**, as they take the whole screen: a video and its loading screen, a film's or a show's page with its poster, the Arcade screen and the Arcade module's own pages, Test Patterns, Export to OSD/OS Setup's codes, the on-screen keyboard, a server's sign-in, Ambient Mode's, NFC Reader's and Weather's own pages, and a pad's Game Buttons page.
 - **Key Protect**, the last row of the first screen in Broadcast and Flat Panel, is Cabinet Lock.
 - **The main menu** in Camcorder and Studio Monitor groups the modules: **TV / Movie**, **Arcade**, **More** (Scripts), then **Settings**. Broadcast's ends with a row for Settings.
 - Studio Monitor, Broadcast and Flat Panel use colours of their own, whatever the theme. A row that can't be used is paler, not checkered.

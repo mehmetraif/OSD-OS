@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Components
 import "../../views/Components/Hover.js" as Hover
 
 // Settings → Network → Wi-Fi, views/Wifi.qml, against a stand-in for WifiManager: no
@@ -25,15 +26,39 @@ Rectangle {
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
     // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
     // tallListHeight with no help line under them, helpedListHeight over one
     // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    // Settings → Look → Menu Layout, and a monitor layout's frame as the
+    // shell draws it under the views (Main.qml's frameChrome): up in a
+    // monitor layout, the views' bars telling it what to write.
+    property string menuLayout: "Standard"
+    readonly property var menuPalette: ({
+        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
+    })[menuLayout] || null
+    property bool videoBehind: false
+    property int backdropSolidity: 100
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
@@ -121,6 +146,8 @@ Rectangle {
         when: windowShown
 
         function init() {
+            root.menuLayout = "Standard"
+            root.chrome.basePath = []
             wifiManager.available = true
             wifiManager.enabled = true
             wifiManager.state = "connected"
@@ -651,6 +678,58 @@ Rectangle {
             wifiManager.message = "Connected to Neighbour"
             keyClick(Qt.Key_Down)
             compare(wifiManager.message, "")
+        }
+
+        // In a monitor layout's frame (Settings → Look → Menu Layout: Studio
+        // Monitor, Broadcast, Flat Panel) the page's lines lie where the
+        // frame has its rows and are drawn the layout's way; the frame writes
+        // where the page is, the line's help and the keys, and a network's
+        // options are asked in it, the page's own title back once they go.
+        function test_monitorLayouts_data() {
+            return [{ tag: "Studio Monitor", layout: "Studio Monitor", title: "Wi-Fi" },
+                    { tag: "Broadcast", layout: "Broadcast", title: "Network / Wi-Fi" },
+                    { tag: "Flat Panel", layout: "Flat Panel", title: ">Settings >Network >Wi-Fi" }]
+        }
+        function test_monitorLayouts(data) {
+            root.menuLayout = data.layout
+            root.chrome.basePath = ["Settings", "Network"]
+            var page = open()
+            var list = listOf(page)
+            compare(list.x, root.chrome.listX)
+            compare(list.y, root.chrome.listY)
+            compare(list.width, root.chrome.listWidth)
+            compare(list.height, root.chrome.listHeight)
+            compare(root.chrome.title, data.title)
+            verify(root.chrome.guide.length >= 3, "the hint line as the layout's guide")
+            // A line is drawn by MonitorRow, its network's icons at its end.
+            moveTo(page, "Home")
+            var drawn = null
+            var seek = function(item) {
+                for (var i = 0; i < item.children.length && !drawn; i++) {
+                    var child = item.children[i]
+                    if (child.pal !== undefined && child.label === "Home" && child.selected)
+                        drawn = child
+                    else
+                        seek(child)
+                }
+            }
+            seek(list)
+            verify(drawn !== null, "Home's line as the layout draws one")
+            verify(drawn.iconList.length > 0)
+            verify(root.chrome.helpText !== "", "the line's help in the frame's help line")
+            // Its options: a question in the frame.
+            keyClick(Qt.Key_Return)
+            tryCompare(root.chrome, "title", "Wi-Fi")
+            verify(root.chrome.frontLayer !== null)
+            compare(root.chrome.helpText, "")
+            keyClick(Qt.Key_Escape)
+            compare(root.chrome.frontLayer, null)
+            compare(root.chrome.title, data.title)
+            // Flat Panel: a page of lines at a time.
+            if (data.layout === "Flat Panel") {
+                var per = Math.floor(list.height / root.chrome.rowHeight + 0.001)
+                compare(root.chrome.pages, Math.ceil(list.count / per))
+            }
         }
     }
 }

@@ -503,6 +503,12 @@ set_tests_properties(bluetooth_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=off
 # (views/Components/OnScreenKeyboard.qml), the choice window
 # (views/Components/ChoiceOverlay.qml) and the screen saver
 # (views/Components/ScreenSaver.qml).
+# Settings → Look → Menu Layout's monitor layouts as a frame every kind of
+# view takes its place in (views/Components/MonitorChrome.qml and the shared
+# components that hand it their content), against a stand-in for Main.qml.
+add_test(NAME monitor_frame_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_monitor_frame.qml
+                                         -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+
 add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
@@ -596,6 +602,13 @@ if(UNIX)
         get_filename_component(folder ${folder} NAME)
         add_test(NAME app_module_${folder} COMMAND bash ${smoke} ${folder})
         list(APPEND smoke_tests app_module_${folder})
+        # And in each monitor layout, whose frame the shell keeps round a
+        # module's views (Main.qml's frameChrome).
+        add_test(NAME app_module_${folder}_studio_monitor COMMAND bash ${smoke} ${folder} "--layout=Studio Monitor")
+        add_test(NAME app_module_${folder}_broadcast COMMAND bash ${smoke} ${folder} --layout=Broadcast)
+        add_test(NAME app_module_${folder}_flat_panel COMMAND bash ${smoke} ${folder} "--layout=Flat Panel")
+        list(APPEND smoke_tests app_module_${folder}_studio_monitor app_module_${folder}_broadcast
+                                app_module_${folder}_flat_panel)
     endforeach()
     # And asked a libretro core's name and version, as the Arcade module
     # asks a copy of it (--core-info), the test core's, which is built with

@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import Components
 
 // A module's settings page, views/ModuleSettings.qml, against a stand-in for
 // AppCore: rows usable only while another row has a value (manifest
@@ -25,15 +26,37 @@ Rectangle {
     property int frameIndex: 0
     property bool frameActive: false
     property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
+    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
     // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
     // tallListHeight with no help line under them, helpedListHeight over one
     // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
+    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
+    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
+    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
+    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
+    // Settings → Look → Menu Layout, and a monitor layout's frame as the
+    // shell draws it under the views (Main.qml's frameChrome): up in a
+    // monitor layout, the views' bars telling it what to write.
+    property string menuLayout: "Standard"
+    readonly property var menuPalette: ({
+        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
+                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
+        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
+                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
+        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
+                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
+    })[menuLayout] || null
+    readonly property bool monitorFramed: menuPalette !== null
+    readonly property bool monitorInk: monitorFramed
+    readonly property alias chrome: frameChrome
+    MonitorChrome {
+        id: frameChrome
+        anchors.fill: parent
+        visible: root.monitorFramed
+    }
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2
@@ -231,6 +254,8 @@ Rectangle {
         ]
 
         function init() {
+            root.menuLayout = "Standard"
+            root.chrome.basePath = []
             appCore.values = {}
             appCore.actions = []
             appCore.schema = arcadeRows
@@ -1436,6 +1461,77 @@ Rectangle {
         Component {
             id: signalSpy
             SignalSpy {}
+        }
+
+        // In a monitor layout's frame (Settings → Look → Menu Layout) a
+        // slider is its line alone, its value a number. Studio Monitor
+        // changes a value in place with ◄ ►. Broadcast and Flat Panel change
+        // one in two steps, as Settings does there: select starts it, ▲ ▼
+        // step it with nothing saved and the cursor held, back leaves it,
+        // select saves it; ► changes nothing.
+        function test_monitorLayouts_data() {
+            return [{ tag: "Studio Monitor", layout: "Studio Monitor", twoStep: false },
+                    { tag: "Broadcast", layout: "Broadcast", twoStep: true },
+                    { tag: "Flat Panel", layout: "Flat Panel", twoStep: true }]
+        }
+        function test_monitorLayouts(data) {
+            appCore.schema = [{ key: "mode", label: "Mode", type: "list_single", options: ["A", "B", "C"], default: "A" },
+                              { key: "loud", label: "Loudness", type: "slider", default: 50, step: 10 },
+                              { key: "on", label: "Loop", type: "toggle", default: "OFF" }]
+            root.menuLayout = data.layout
+            var page = open()
+            var list = menuOf(page)
+            compare(list.x, root.chrome.listX)
+            compare(list.y, root.chrome.listY)
+            compare(list.height, root.chrome.listHeight)
+            compare(root.chrome.title, data.layout === "Flat Panel" ? ">Settings >Test" : "Test")
+            // The slider: one line, "50%".
+            compare(menuRow(page, 1).value, "50%")
+            compare(menuRow(page, 1).parent.height, menuRow(page, 0).height)
+            compare(page.twoStep, data.twoStep)
+            if (!data.twoStep) {
+                keyClick(Qt.Key_Right)
+                compare(appCore.values.mode, "B")
+                compare(page.editIndex, -1)
+                keyClick(Qt.Key_Down)
+                keyClick(Qt.Key_Right)
+                compare(menuRow(page, 1).value, "60%")
+                return
+            }
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.mode, undefined)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(cursorIndex(page), 0, "the cursor stays on the row")
+            compare(menuRow(page, 0).value, "B")
+            verify(menuRow(page, 0).editing)
+            compare(appCore.values.mode, undefined)
+            keyClick(Qt.Key_Escape)
+            compare(page.editIndex, -1)
+            compare(menuRow(page, 0).value, "A")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            compare(menuRow(page, 0).value, "C")
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, -1)
+            compare(appCore.values.mode, "C")
+            // The slider, two steps up; the toggle, one.
+            keyClick(Qt.Key_Down)
+            compare(cursorIndex(page), 1)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 1).value, "70%")
+            compare(appCore.values.loud, undefined)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.loud, 70)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 2).value, "ON")
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.on, true)
         }
     }
 }
