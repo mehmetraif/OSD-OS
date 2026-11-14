@@ -490,6 +490,14 @@ Rectangle {
             verify(prompt !== null && prompt.monitor)
             var ground = find(prompt, function(item) { return item.frameRole === "layer" })
             verify(ground !== null && ground.paned, "its ground covers the pane, not the screen")
+            // What it covers has the corners of what is under it: Studio
+            // Monitor's inside is round, and the frame shows in its corners.
+            var covered = find(ground, function(item) {
+                return item.radius !== undefined && item.visible && item.width === frameChrome.cover.width
+            })
+            verify(covered !== null)
+            compare(covered.radius, frameChrome.coverCorner)
+            compare(frameChrome.coverCorner > 0, data.layout === "Studio Monitor")
             keyClick(Qt.Key_Down)
             compare(page.question.choiceIndex, 1)
             keyClick(Qt.Key_Escape)
@@ -497,6 +505,52 @@ Rectangle {
             compare(frameChrome.frontLayer, null)
             compare(frameChrome.title, own)
             compare(frameChrome.helpText, "What row 1 does")
+        }
+
+        // Studio Monitor's window is one blue shape: the tab goes down into
+        // the frame past its corner, the icons stand in the middle of its
+        // side and the key guide is written on its foot. The black inside
+        // lies within it, where the rows are.
+        function test_studioWindowIsOnePiece() {
+            frameChrome.icons = ["play", "stop", "eject"]
+            var page = open(menuPage, "Studio Monitor")
+            var part = function(name) {
+                return find(frameChrome, function(item) { return item.objectName === name })
+            }
+            var body = part("frameBody"), tab = part("frameTab"), inside = part("frameInside")
+            var strip = part("frameStrip"), guide = part("frameGuide")
+            verify(body && tab && inside && strip && guide)
+            verify(body.visible && tab.visible && inside.visible)
+            // The tab: the frame's colour, from its left side, down past its
+            // top's corner.
+            verify(Qt.colorEqual(tab.color, body.color))
+            compare(tab.x, body.x)
+            verify(tab.y < body.y)
+            verify(tab.y + tab.height >= body.y + body.radius, "the tab ends inside the frame")
+            // The inside: within the frame on every side, and where the
+            // rows and a question are laid.
+            var edge = inside.y - body.y
+            verify(edge > 0)
+            fuzzyCompare(body.x + body.width - (inside.x + inside.width), edge, 0.01)
+            compare(inside.x, frameChrome.cover.x)
+            compare(inside.width, frameChrome.cover.width)
+            verify(page.list.x >= inside.x && page.list.x + page.list.width <= inside.x + inside.width)
+            verify(page.list.y >= inside.y && page.list.y + page.list.height <= inside.y + inside.height)
+            // The icons: as much of the frame before them as after.
+            compare(strip.children.length > 0, true)
+            fuzzyCompare(strip.x - body.x, inside.x - (strip.x + strip.width), 0.01)
+            // The guide: on the foot, from the inside's end to the frame's.
+            verify(guide.visible)
+            verify(guide.text.indexOf("BACK") >= 0)
+            compare(guide.y, inside.y + inside.height)
+            fuzzyCompare(guide.y + guide.height, body.y + body.height, 0.01)
+            verify(guide.height > edge)
+            // Without the Hint Bar the foot is an edge as the others are.
+            root.hintBar = false
+            wait(0)
+            verify(!guide.visible)
+            fuzzyCompare(body.y + body.height - (inside.y + inside.height), edge, 0.01)
+            frameChrome.icons = []
         }
 
         // A layer over the whole screen takes the view out of the frame

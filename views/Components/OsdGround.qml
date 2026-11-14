@@ -96,7 +96,9 @@ Item {
         width: ground.paned ? root.chrome.cover.width : 0
         height: ground.paned ? root.chrome.cover.height : 0
         color: ground.paned && root.menuPalette ? root.menuPalette.ground : "transparent"
-        antialiasing: false
+        // Studio Monitor's inside has round corners: the frame shows in them.
+        radius: ground.paned ? root.chrome.coverCorner : 0
+        antialiasing: radius > 0
     }
 
     Rectangle {

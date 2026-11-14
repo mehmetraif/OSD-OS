@@ -4,11 +4,12 @@ import QtQuick
 // a view's rows, in the layout's own colours (root.menuPalette), after the
 // menus of three generations of studio monitors:
 //
-//   Studio Monitor  a black window over the picture, framed in blue, the
-//                   page's name on a blue tab above its top left corner, a
-//                   blue strip of the top level's icons down its left side
-//                   (the one shown on yellow), the help line in a box at its
-//                   foot and the key guide on a blue strip under it;
+//   Studio Monitor  a blue window over the picture, all of a piece: the
+//                   page's name on a tab that rises from its top left corner,
+//                   the top level's icons down its left side (the one shown
+//                   on yellow), the key guide on its foot, and inside it,
+//                   black with rounded corners, the rows and the help line
+//                   in a box under them;
 //   Broadcast       plain blue over the whole screen, where one is centred
 //                   at the top ("NETWORK / WI-FI"), the help line and a
 //                   three-line key guide ("TO SELECT  :[▲▼]") at the foot;
@@ -231,13 +232,24 @@ Item {
     // and Broadcast's mark stands in it.
     readonly property real gutter: flat ? root.sw * 0.025 : root.sw * 0.03125 //16 : 20
 
-    // Studio Monitor's window, down to the guide's strip or, without it, to
-    // where the hint bar would end.
+    // Studio Monitor's window: its black inside and the icons before it,
+    // `inset` in, down to the guide's foot or, without it, to where the hint
+    // bar would end.
     readonly property real winX: root.sw * 0.103125 //66
     readonly property real winY: root.sh * 0.1625 //78
     readonly property real winW: root.sw * 0.79375 //508
     readonly property real winBottom: root.hintBar ? root.sh * 0.8291667 : root.sh * 0.8958333 //398 : 430
     readonly property real stripW: root.sw * 0.0625 //40
+    // The blue round the inside, `edge` thick: the icons' side is that and
+    // the icons' own width, the foot goes down to where the guide ends.
+    readonly property real edge: 4 * root.px
+    readonly property real corner: 5 * root.px
+    readonly property real coverCorner: studio ? 4 * root.px : 0
+    readonly property real frameX: winX + inset - edge //64
+    readonly property real frameY: winY + inset - edge //76
+    readonly property real frameW: winW - 2 * (inset - edge) //512
+    readonly property real frameBottom: root.hintBar ? root.sh * 0.8916667 : winBottom - inset + edge //428 : 432
+    readonly property real sideW: edge + stripW //48
 
     // The help line's place, above the guide (or where it would be).
     readonly property real helpY: studio ? winBottom - inset - rowHeight - root.px
@@ -267,8 +279,8 @@ Item {
     // whose lines are the page itself: About's).
     readonly property real helpedHeight: wholeRows(helpY - root.sh * 0.0125)
     // What a layer laid over the view covers, to ask in the layout: the
-    // window's inside beside the strip, or the ground between the title and
-    // the guide.
+    // window's inside (its corners coverCorner round), or the ground between
+    // the title and the guide.
     readonly property rect cover: studio
         ? Qt.rect(winX + inset + stripW, winY + inset, winW - 2 * inset - stripW, winBottom - winY - 2 * inset)
         : Qt.rect(screen.x, root.sh * 0.1666667, screen.width, //80
@@ -318,33 +330,36 @@ Item {
     }
 
     // --- STUDIO MONITOR ---
+    // One blue shape: the frame, the tab, which goes down into it past its
+    // corner, the icons' side and the guide's foot. The black inside is laid
+    // over it.
     Rectangle {
+        objectName: "frameBody"
         visible: chrome.studio
-        x: chrome.winX
-        y: chrome.winY
-        width: chrome.winW
-        height: chrome.winBottom - chrome.winY
-        radius: 4 * root.px
-        color: chrome.pal.ground
-        border.color: chrome.pal.accent
-        border.width: root.px
+        x: chrome.frameX
+        y: chrome.frameY
+        width: chrome.frameW
+        height: chrome.frameBottom - chrome.frameY
+        radius: chrome.corner
+        color: chrome.pal.accent
     }
     Rectangle {
         id: tab
+        objectName: "frameTab"
         visible: chrome.studio && chrome.title !== ""
-        x: chrome.winX
+        x: chrome.frameX
         y: root.sh * 0.1041667 //50
         // As wide as its title, up to the status icons.
         width: Math.min(Math.round((tabText.implicitWidth + root.sw * 0.040625) / root.px) * root.px, //+26
-                        (status.visible ? status.x - root.sw * 0.0125 : chrome.winX + chrome.winW) - x)
-        height: chrome.winY - y + 2 * root.px
-        radius: 2 * root.px
+                        (status.visible ? status.x - root.sw * 0.0125 : chrome.frameX + chrome.frameW) - x)
+        height: chrome.frameY - y + 2 * chrome.corner
+        radius: chrome.corner
         color: chrome.pal.accent
 
         Text {
             id: tabText
             x: root.sw * 0.0203125 //13
-            y: Math.round((chrome.winY - tab.y - height) / 2)
+            y: Math.round((chrome.winY - tab.y - height) / 2) + root.px
             width: Math.min(implicitWidth, tab.width - x - 4 * root.px)
             elide: Text.ElideRight
             textFormat: Text.PlainText
@@ -355,16 +370,26 @@ Item {
             font.pixelSize: root.sh * 0.0375 //18
         }
     }
-    // The strip of icons, each a cell; as many as there are fit it.
     Rectangle {
-        id: strip
+        objectName: "frameInside"
         visible: chrome.studio
-        x: chrome.winX + chrome.inset
-        y: chrome.winY + chrome.inset
+        x: chrome.cover.x
+        y: chrome.cover.y
+        width: chrome.cover.width
+        height: chrome.cover.height
+        radius: chrome.coverCorner
+        color: chrome.pal.ground
+    }
+    // The icons, each a cell, in the middle of the frame's side; as many as
+    // there are fit it.
+    Item {
+        id: strip
+        objectName: "frameStrip"
+        visible: chrome.studio
+        x: chrome.frameX + (chrome.sideW - chrome.stripW) / 2
+        y: chrome.cover.y
         width: chrome.stripW
-        height: chrome.winBottom - chrome.winY - 2 * chrome.inset
-        color: chrome.pal.accent
-        antialiasing: false
+        height: chrome.cover.height
         readonly property real cell: Math.min(root.sh * 0.0666667,
                                               Math.floor(height / Math.max(1, chrome.icons.length) / root.px) * root.px) //32
 
@@ -416,28 +441,23 @@ Item {
             }
         }
     }
-    // The key guide's strip under the window.
-    Rectangle {
-        visible: chrome.studio && root.hintBar && chrome.guide.length > 0
-        x: chrome.winX
-        y: root.sh * 0.8416667 //404
-        width: chrome.winW
-        height: root.sh * 0.05 //24
-        color: chrome.pal.accent
-        antialiasing: false
-
-        Text {
-            anchors.fill: parent
-            leftPadding: root.sw * 0.01875 //12
-            rightPadding: leftPadding
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-            textFormat: Text.PlainText
-            text: chrome.guide.join("  ")
-            color: chrome.pal.soft
-            font.family: root.globalFont
-            font.pixelSize: root.sh * 0.0291667 //14
-        }
+    // The key guide, on the frame's foot.
+    Text {
+        objectName: "frameGuide"
+        visible: chrome.studio && root.hintBar
+        x: chrome.frameX
+        y: chrome.cover.y + chrome.cover.height
+        width: chrome.frameW
+        height: chrome.frameBottom - y
+        leftPadding: root.sw * 0.01875 //12
+        rightPadding: leftPadding
+        verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
+        textFormat: Text.PlainText
+        text: chrome.guide.join("  ")
+        color: chrome.pal.soft
+        font.family: root.globalFont
+        font.pixelSize: root.sh * 0.0291667 //14
     }
 
     // --- BROADCAST ---
@@ -556,9 +576,9 @@ Item {
     StatusIcons {
         id: status
         color: chrome.studio ? chrome.pal.soft : chrome.pal.ink
-        x: (chrome.studio ? chrome.winX + chrome.winW
+        x: (chrome.studio ? chrome.frameX + chrome.frameW
             : chrome.flat && pageMark.visible ? pageMark.x - root.sw * 0.0125
-            : root.sw * 0.884375) - width //574 : … : 566
+            : root.sw * 0.884375) - width //576 : … : 566
         y: root.sh * 0.1166667 //56
     }
     HelpLine {

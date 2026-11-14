@@ -255,7 +255,7 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 <table>
 <tr><th width="50%">Studio Monitor</th><th width="50%">Studio Monitor</th></tr>
 <tr><td><img src="screenshots/main-menu-studio-monitor.png" width="100%" alt="The main menu in the Studio Monitor layout" /></td><td><img src="screenshots/settings-studio-monitor.png" width="100%" alt="Settings in the Studio Monitor layout" /></td></tr>
-<tr><td>A black window over the picture, the name on a blue tab.</td><td>The pages' icons in a blue strip, a yellow square before the selected row; its first page, Status, is what is set at a glance.</td></tr>
+<tr><td>A blue window over the picture, black inside, the name on its tab and the keys on its foot.</td><td>The pages' icons down the window's left side, a yellow square before the selected row; its first page, Status, is what is set at a glance.</td></tr>
 </table>
 
 <table>
