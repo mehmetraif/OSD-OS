@@ -248,6 +248,10 @@ FocusScope {
                              mpvController.lastErrorDetail, true)
                 return
             }
+            // Failed once its picture had shown (the stream cut off): back as
+            // from any end, nothing on the screen to say why, so the log does.
+            if (reason === "failed")
+                mpvController.logFailure("YouTube Player", "\"" + (item.title || "") + "\" (" + videoId + ")")
             var pos = lastKnownPositionMs || finalPositionMs
             var dur = lastKnownDurationMs || finalDurationMs
             // Completed videos stay in history with pos 0: they list under

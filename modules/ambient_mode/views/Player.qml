@@ -59,8 +59,14 @@ FocusScope {
         // the single playbackEnded signal regardless of reason — stop the companion
         // audio and return to the menu. Back with Transparent Background leaves
         // the clip playing behind the menus: its audio plays on with it, and
-        // stops as the clip ends (main.cpp).
+        // stops as the clip ends (main.cpp). A clip mpv could not play goes
+        // back the same way, nothing on the screen to say why, so the log
+        // does.
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
+            if (reason === "failed")
+                mpvController.logFailure("AmbientMode Player",
+                                         shuffleVideo ? videoPaths.length + " clips, shuffled"
+                                                      : videoPath.split("/").pop())
             if (!mpvController.background)
                 ambientModeBackend.stopAudio()
             goBack()

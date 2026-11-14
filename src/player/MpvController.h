@@ -142,6 +142,15 @@ public:
     QString lastError() const { return m_lastError; }
     QString lastErrorDetail() const { return m_lastErrorDetail; }
     bool playerFailed() const { return m_playerFailed; }
+    // A player that goes back without a word on the screen when its video
+    // failed (no PlaybackNotice) says so in the log through this, in one
+    // line, `[<player>] <playing>: playback failed: <why>`: which player,
+    // what it was playing (a title, a name) and why, `why` where the player
+    // has it in a server's words, else lastError and lastErrorDetail. The
+    // tokens are blanked as in the controller's other lines, and every
+    // address is cut down to its scheme and host, whoever wrote it: a media
+    // server's stream has the account's token in it.
+    Q_INVOKABLE void logFailure(const QString &player, const QString &playing, const QString &why = QString());
     // The session behind the menus, full screen again where it is, for the
     // player it belongs to (backgroundNote says whose it is): false when
     // there is none, and the player starts its video as it would any.

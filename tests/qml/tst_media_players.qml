@@ -16,6 +16,9 @@ import QtTest
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
 // The sign-in pages keep an error as long as Qt's own inside the page.
+// The players that go back without a notice when their video fails (Ambient
+// Mode's, Plex's live channels and Extras, and YouTube's, the NFC Reader's
+// and Playlists' once the picture has shown) have MpvController log it.
 Rectangle {
     id: root
     color: surfaceColor
@@ -159,6 +162,7 @@ Rectangle {
         property int position: 0
         property int duration: 0
         property bool videoActive: false
+        property bool background: false
         // Why the last session failed (MpvController's lastError).
         property string lastError: ""
         property string lastErrorDetail: ""
@@ -179,6 +183,10 @@ Rectangle {
             starts = starts.concat([startSeconds || 0])
         }
         function noteSession(note) {}
+        // The failures a player had written to the log (logFailure): which
+        // player, what it played, and why where the player said.
+        property var failures: []
+        function logFailure(player, playing, why) { failures = failures.concat([[player, playing, why || ""]]) }
         function closePlayerMenu() {}
         function setVideoProperty(name, value) {}
         function sendKey(key) { keys = keys.concat([key]) }
@@ -242,6 +250,36 @@ Rectangle {
         function get_active_user_name() { return "User" }
         function get_switchable_servers() { return [] }
         function load_libraries() {}
+        // A live channel: tuned, its tuner let go of, its timeline kept.
+        property int tunes: 0
+        function tune_channel(channelId, sessionId) { tunes++ }
+        function stop_live_session(sessionId) {}
+        function update_live_timeline(state) {}
+    }
+
+    // YouTubeBackend, NfcReaderBackend and AmbientModeBackend as their
+    // players use them.
+    QtObject {
+        id: youtubeBackend
+        function playbackArgs(settings) { return [] }
+        function playbackSettings() { return ({}) }
+        function getSavedPosition(videoId) { return ({}) }
+        function savePosition(videoId, pos, title, channelName) {}
+        function isInWatchLater(videoId) { return false }
+    }
+    QtObject {
+        id: nfcReaderBackend
+        function ytdlFormatForResolution(resolution) { return "best" }
+        function getSavedPosition(path) { return ({}) }
+        function savePosition(path, pos, plPos) {}
+        function clearPosition(path) {}
+        function resetAfterPlayback() {}
+    }
+    QtObject {
+        id: ambientModeBackend
+        property int audioStops: 0
+        function startAudio(paths, shuffle) {}
+        function stopAudio() { audioStops++ }
     }
 
     // JellyfinBackend and EmbyBackend (the same) as the views use them:
@@ -353,6 +391,7 @@ Rectangle {
             mpvController.lastError = ""
             mpvController.lastErrorDetail = ""
             mpvController.playerFailed = false
+            mpvController.failures = []
             localFilesBackend.folder = []
             localFilesBackend.positions = {}
             plexBackend.cancels = 0
@@ -361,6 +400,8 @@ Rectangle {
             plexBackend.cardAsks = 0
             plexBackend.queueAsks = 0
             plexBackend.authState = "authed"
+            plexBackend.tunes = 0
+            ambientModeBackend.audioStops = 0
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
             for (var backend of [jellyfinBackend, embyBackend]) {
@@ -975,6 +1016,127 @@ Rectangle {
             compare(notice.detail, "On macOS: brew install mpv")
             keyClick(Qt.Key_Return)
             compare(mpvController.loads, 2)
+        }
+
+        // The players that go back without a word when their video fails
+        // (YouTube's, the NFC Reader's and Playlists' once the first picture
+        // has shown, Ambient Mode's and Plex's live channels at any time)
+        // have MpvController say so in the log (logFailure), once: which
+        // player and what it played, why left to MpvController's own last
+        // error. Before the first picture the three with a notice show it,
+        // and nothing is logged. A card's stream goes as its address, which
+        // logFailure cuts down to its host (playback_retire).
+        function test_failedPlaybackIsLogged_data() {
+            var stream = "https://nas.example:8096/Videos/7/stream?static=true&api_key=made-up-key"
+            return [{ tag: "youtube", module: "youtube", notice: true,
+                      params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123",
+                                        title: "A Talk", path: "abc123", name: "A Talk" } },
+                      said: ["YouTube Player", "\"A Talk\" (abc123)", ""] },
+                    { tag: "nfc_reader", module: "nfc_reader", notice: true,
+                      params: { videoPath: "/films/Night Film.mkv", title: "Night Film" },
+                      said: ["NfcReader Player", "\"Night Film\"", ""] },
+                    { tag: "nfc_reader, a stream", module: "nfc_reader", notice: true,
+                      params: { videoPath: stream, title: "" },
+                      said: ["NfcReader Player", stream, ""] },
+                    { tag: "playlists", module: "playlists", notice: true, plPos: 1,
+                      params: { playlistId: "p1" },
+                      said: ["Playlists Player", "\"Night\", video 2", ""] },
+                    { tag: "ambient_mode", module: "ambient_mode", notice: false,
+                      params: { videoPath: "/ambient/Fireplace.mp4" },
+                      said: ["AmbientMode Player", "Fireplace.mp4", ""] },
+                    { tag: "ambient_mode, shuffled", module: "ambient_mode", notice: false,
+                      params: { videoPaths: ["/ambient/A.mp4", "/ambient/B.mp4", "/ambient/C.mp4"] },
+                      said: ["AmbientMode Player", "3 clips, shuffled", ""] }]
+        }
+        function test_failedPlaybackIsLogged(data) {
+            var player = open(data.module, "Player.qml", data.params)
+            compare(mpvController.loads, 1)
+            mpvController.lastError = "mpv could not play it"
+            if (data.notice) {
+                // Before the first picture: the notice, and nothing in the log.
+                mpvController.playbackEnded(0, 0, "failed")
+                verify(noticeOf(player).visible)
+                compare(root.backs, 0)
+                compare(mpvController.failures, [])
+                keyClick(Qt.Key_Return)  // RETRY
+                compare(mpvController.loads, 2)
+                player.playbackStarted = true
+                if (data.plPos !== undefined)
+                    player.lastKnownPlaylistPos = data.plPos
+            }
+            mpvController.playbackEnded(60000, 600000, "failed")
+            compare(mpvController.failures, [data.said])
+            compare(root.backs, 1)
+            if (data.notice)
+                verify(!noticeOf(player).visible)
+            // Ambient Mode's own audio stops with the clip, as at any end.
+            compare(ambientModeBackend.audioStops, data.module === "ambient_mode" ? 1 : 0)
+        }
+
+        // A video that ends any other way is not logged as failed.
+        function test_endedPlaybackIsNotLoggedAsFailed() {
+            for (var module of ["youtube", "nfc_reader", "playlists", "ambient_mode"]) {
+                var params = module === "youtube" ? { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123" } }
+                           : module === "playlists" ? { playlistId: "p1" } : { videoPath: "/films/A.mkv" }
+                var player = open(module, "Player.qml", params)
+                if (module !== "ambient_mode")
+                    player.playbackStarted = true
+                var backs = root.backs
+                mpvController.playbackEnded(60000, 600000, "stopped")
+                compare(root.backs, backs + 1)
+                loader.source = ""
+            }
+            compare(mpvController.failures, [])
+        }
+
+        // Plex's live channels: one that can't be tuned goes back to the
+        // channel list with the channel and the server's words in the log,
+        // one mpv can't play with the channel, why left to MpvController;
+        // an error elsewhere while it plays ends nothing and logs no failure.
+        function test_plexLiveChannelFailureIsLogged() {
+            var channel = { channelId: "c5", number: "5", title: "News" }
+            open("plex", "LivePlayer.qml", { channel: channel })
+            compare(plexBackend.tunes, 1)
+            plexBackend.errorOccurred("TUNE FAILED: no playable stream")
+            compare(mpvController.failures, [["LivePlayer", "channel 5 News", "TUNE FAILED: no playable stream"]])
+            compare(root.backs, 1)
+            compare(mpvController.loads, 0)
+            loader.source = ""
+
+            var player = open("plex", "LivePlayer.qml", { channel: channel })
+            plexBackend.streamUrlReady("http://plex/live/c5.m3u8", "token")
+            compare(mpvController.loads, 1)
+            player.playbackStarted = true
+            plexBackend.errorOccurred("LOAD HUBS FAILED: timeout")
+            compare(root.backs, 1)
+            compare(mpvController.failures.length, 1)
+            mpvController.playbackEnded(0, 0, "failed")
+            compare(mpvController.failures.length, 2)
+            compare(mpvController.failures[1], ["LivePlayer", "channel 5 News", ""])
+            compare(root.backs, 2)
+        }
+
+        // Plex's Extras: the stream an extra's PLAY asked for won't come.
+        // The list has the keys again, and the log the extra and the
+        // server's words; an error with nothing launching is no failure of
+        // an extra's.
+        function test_plexExtraThatWontStreamIsLogged() {
+            var extras = open("plex", "Extras.qml", { ratingKey: "10", itemTitle: "FILM",
+                                                      extras: [{ ratingKey: "9", partKey: "/library/parts/9",
+                                                                 title: "Trailer", extraTypeLabel: "TRAILER",
+                                                                 forceTranscode: true }] })
+            plexBackend.errorOccurred("LOAD HUBS FAILED: timeout")
+            compare(mpvController.failures, [])
+            keyClick(Qt.Key_Return)
+            compare(plexBackend.transcodes, 1)
+            verify(extras.launchingExtra !== null)
+            plexBackend.errorOccurred("TRANSCODE FAILED: Forbidden")
+            compare(mpvController.failures, [["Extras", "\"Trailer\" (9)", "TRANSCODE FAILED: Forbidden"]])
+            verify(extras.launchingExtra === null)
+            compare(root.backs, 0)
+            compare(root.navigations.length, 0)
+            keyClick(Qt.Key_Return)
+            compare(plexBackend.transcodes, 2)
         }
 
         // A playlist's page (modules/playlists/views/Playlist.qml): its list

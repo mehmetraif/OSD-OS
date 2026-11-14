@@ -286,6 +286,14 @@ FocusScope {
                                      : "None of its videos would play", true, mpvController.lastErrorDetail)
                 return
             }
+            // Failed once a picture had shown (its last video would not
+            // play, a stream cut off): back as from any end, nothing on the
+            // screen to say why, so the log does: the list, and which of
+            // its videos.
+            if (reason === "failed")
+                mpvController.logFailure("Playlists Player", "\"" + (playlist.name || "") + "\""
+                                         + (playerRoot.lastKnownPlaylistPos >= 0
+                                            ? ", video " + (playerRoot.lastKnownPlaylistPos + 1) : ""))
             if (reason === "eof") {
                 playlistsBackend.clearPosition(playlistId)
             } else {

@@ -292,6 +292,18 @@ QString redactSecrets(QString text) {
     return text;
 }
 
+// Text for the log with every address in it cut down to where it leads, its
+// scheme and host: the rest of one may name a user, a password or a token
+// that redactSecrets() has no pattern for (a card's own stream, a server
+// yet to come).
+QString hostsOnly(QString text) {
+    static const QRegularExpression kAddress(
+        QStringLiteral("\\b([a-z][a-z0-9+.-]*://)(?:[^/\\s?#@]*@)?([^/\\s?#]+)\\S*"),
+        QRegularExpression::CaseInsensitiveOption);
+    text.replace(kAddress, QStringLiteral("\\1\\2"));
+    return text;
+}
+
 } // namespace
 
 MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
@@ -1666,6 +1678,21 @@ void MpvController::setFailure(const QString &error, const QString &detail, bool
     m_lastErrorDetail = detail;
     m_playerFailed = player;
     emit lastErrorChanged();
+}
+
+void MpvController::logFailure(const QString &player, const QString &playing, const QString &why) {
+    QString reason = why;
+    if (reason.isEmpty()) {
+        reason = m_lastError.isEmpty() ? QStringLiteral("mpv gave no reason") : m_lastError;
+        if (!m_lastErrorDetail.isEmpty())
+            reason += QStringLiteral(": ") + m_lastErrorDetail;
+    }
+    // One line, whatever the detail's own (how long mpv showed nothing, then
+    // its word on it).
+    static const QRegularExpression kLineBreak(QStringLiteral("\\s*\\n\\s*"));
+    reason.replace(kLineBreak, QStringLiteral("; "));
+    qWarning("[%s] %s: playback failed: %s", qPrintable(player),
+             qPrintable(hostsOnly(redactSecrets(playing))), qPrintable(hostsOnly(redactSecrets(reason))));
 }
 
 void MpvController::sendCommand(const QJsonArray &args) {

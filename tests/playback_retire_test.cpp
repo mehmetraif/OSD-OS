@@ -103,6 +103,22 @@ class PlaybackRetireTest : public QObject {
         m_mpv->loadAndPlay(m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4"),
                            startSeconds, -1, -1);
     }
+    // The warnings written to the log while `what` runs, each as it is
+    // written.
+    static inline QStringList *s_logged = nullptr;
+    static void keepWarning(QtMsgType type, const QMessageLogContext &, const QString &message) {
+        if (type == QtWarningMsg && s_logged)
+            s_logged->append(message);
+    }
+    template <typename What> static QStringList logged(What what) {
+        QStringList lines;
+        s_logged = &lines;
+        const QtMessageHandler previous = qInstallMessageHandler(keepWarning);
+        what();
+        qInstallMessageHandler(previous);
+        s_logged = nullptr;
+        return lines;
+    }
     // The run-time folder the controller's files go in (XDG_RUNTIME_DIR): the
     // test's own, and apart from its temp folder, which they used to be in.
     QString runDir() const { return m_dir.path() + QStringLiteral("/run"); }
@@ -935,6 +951,45 @@ private slots:
         QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not play it"));
         QCOMPARE(m_mpv->lastErrorDetail(), QStringLiteral("[ffmpeg] https: HTTP error 404 Not Found"));
         QVERIFY(!m_mpv->playerFailed());
+    }
+
+    // A player that goes back without a word when its video failed has it
+    // written to the log (logFailure), one line a failure: which player,
+    // what it played and why, mpv's own first words on it unless the player
+    // has a server's. Whatever it is handed, no token or password is
+    // written, and of an address no more than its host.
+    void aFailureIsLoggedInOneLine() {
+        // Nothing failed yet: said so, rather than an empty reason.
+        QCOMPARE(logged([this] { m_mpv->logFailure(QStringLiteral("AmbientMode Player"), QStringLiteral("Fireplace.mp4")); }),
+                 QStringList{ QStringLiteral("[AmbientMode Player] Fireplace.mp4: playback failed: mpv gave no reason") });
+
+        qputenv("FAKE_MPV_MODE", "fail");
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(logged([this] { m_mpv->logFailure(QStringLiteral("YouTube Player"), QStringLiteral("\"A Talk\" (abc123)")); }),
+                 QStringList{ QStringLiteral("[YouTube Player] \"A Talk\" (abc123): playback failed: "
+                                             "mpv could not play it: [ffmpeg] https: HTTP error 404 Not Found") });
+        // A card's stream, named by its address: the host alone, without the
+        // account's name, password and token.
+        QCOMPARE(logged([this] {
+                     m_mpv->logFailure(QStringLiteral("NfcReader Player"),
+                                       QStringLiteral("https://ann:made-up-password@nas.example:8096/Videos/7/stream"
+                                                      "?static=true&api_key=made-up-key"));
+                 }),
+                 QStringList{ QStringLiteral("[NfcReader Player] https://nas.example:8096: playback failed: "
+                                             "mpv could not play it: [ffmpeg] https: HTTP error 404 Not Found") });
+        // A server's words in place of mpv's, the address asked in them and
+        // a token beside it, on two lines: one line, the host, no token.
+        QCOMPARE(logged([this] {
+                     m_mpv->logFailure(QStringLiteral("LivePlayer"), QStringLiteral("channel 5 News"),
+                                       QStringLiteral("TUNE FAILED: Error transferring https://plex.example:32400/livetv/dvrs/1"
+                                                      "/channels/5/tune?X-Plex-Token=made-up-token - server replied: Forbidden\n"
+                                                      "  asked with X-Plex-Token:made-up-token"));
+                 }),
+                 QStringList{ QStringLiteral("[LivePlayer] channel 5 News: playback failed: TUNE FAILED: Error transferring "
+                                             "https://plex.example:32400 - server replied: Forbidden; "
+                                             "asked with X-Plex-Token=REDACTED") });
     }
 
     // An mpv that starts and never shows a picture (a hardware decoder that
