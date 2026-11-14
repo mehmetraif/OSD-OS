@@ -465,7 +465,7 @@ Only the newest WAV is kept, and a changed file is made again. Deleting the fold
 | What | Where |
 |---|---|
 | OSD/OS's own log | Its standard output and error. Under the autostart service: `journalctl -u osdos -b` (this boot), `journalctl -u osdos -f` (as it happens). A Mac app opened from the Finder: Console.app. On Windows: `osdos.log` in the data folder |
-| mpv's messages | In OSD/OS's log as `[mpv] …` lines, with every token blanked out |
+| mpv's messages | In OSD/OS's log as `[mpv] …` lines, with every token and an address's sign-in (`user:password@`) blanked out |
 | mpv's full log | `/tmp/osdos-mpv.log`, owner-only: the latest video's, verbose, with its command line (and tokens) |
 | The boot screen's timings (the image) | `journalctl -b -u osdos \| grep '\[boot\]'` |
 | USB drives (the image) | `journalctl -u 'osdos-usb-mount@*'` |

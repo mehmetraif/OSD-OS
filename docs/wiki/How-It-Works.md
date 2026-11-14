@@ -384,7 +384,7 @@ OSD/OS logs to its standard output and error: the terminal, or the journal under
 |---|---|
 | `[main]` | Start: the folders, the screens |
 | `[AppCore]` | Manifests, modules, settings saved |
-| `[MpvController]`, `[mpv]` | Playback, and mpv's own messages (tokens blanked out) |
+| `[MpvController]`, `[mpv]` | Playback, and mpv's own messages (tokens and sign-ins blanked out) |
 | `[EmbeddedMpv]` | Transparent Background: GPU or CPU, decoders |
 | `[DisplayHandoff]` | Screen hand-offs |
 | `[boot]` | The boot screen's timings |
