@@ -226,6 +226,8 @@ FocusScope {
         iconSource: "../../assets/images/logo.svg"
         title: "About"
         subtitle: licensePage.visible ? licensePage.title : root.appVersion
+        // The version is no step of the way here; a licence's name is.
+        path: licensePage.visible ? ["About", licensePage.title] : ["About"]
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -235,12 +237,17 @@ FocusScope {
     // The wordmark, as on the logo: the letters in the scheme's colour, the
     // slash in its own three, and SMART TV FOR CRT under a rule, in the
     // deck's own letters so a CRT reads it.
+    // In a monitor layout's frame (Main.qml's) the wordmark starts where
+    // the frame has its rows, and the lines end at its help line.
+    readonly property bool monitor: root.monitorFramed === true
+    readonly property real markTop: monitor ? root.listY : root.sh * 0.2083333 //100
+    readonly property real linesTop: markTop + root.sh * 0.1666667 //180
     Item {
         id: mark
         visible: !licensePage.visible
         // In the middle of the pane.
         x: root.paneX + root.sw * 0.009375 //80
-        y: root.sh * 0.2083333 //100
+        y: aboutRoot.markTop //100
         width: root.paneWidth - root.sw * 0.01875 //480
         height: tagline.y + tagline.height
 
@@ -289,8 +296,11 @@ FocusScope {
         // Under the wordmark: six lines, the rest on ▼, and room above them
         // for the ▲ clear of the tagline; a seventh with the hint bar off (its
         // help line stays, Help Line or not: these lines are the page).
-        anchors.topMargin: root.sh * 0.375 //180
-        height: root.sh * 0.35 + root.hintRoom //168
+        anchors.topMargin: aboutRoot.linesTop //180
+        height: aboutRoot.monitor
+                ? Math.max(1, Math.floor((root.listY + root.helpedListHeight - aboutRoot.linesTop)
+                                         / (root.sh * 0.0583333) + 0.001)) * root.sh * 0.0583333
+                : root.sh * 0.35 + root.hintRoom //168
 
         delegate: MenuRow {
             width: list.width
@@ -390,22 +400,26 @@ FocusScope {
             }
         }
 
-        // Everything under the title bar, on the ground every view has.
+        // Everything under the title bar, on the ground every view has; in
+        // a monitor layout's frame, its pane, the frame left round it.
         OsdGround {
             y: root.sh * 0.1916667 //92
             width: parent.width
             height: parent.height - y
+            inLayout: true
         }
 
         Rectangle {
             id: page
-            x: root.sw * 0.125 //80
-            y: root.sh * 0.25 //120
-            width: root.sw * 0.75 //480
+            x: aboutRoot.monitor ? root.paneX + root.sw * 0.009375 : root.sw * 0.125 //80
+            y: root.listY //120
+            width: aboutRoot.monitor ? root.paneWidth - root.sw * 0.01875 : root.sw * 0.75 //480
             // Down to just above the hint bar, the help line's room included;
             // with the hint bar off, down to where its ▼ ends at the content
-            // box's foot.
-            height: root.sh * 0.575 + (root.hintBar ? 0 : root.sh * 0.0416667) //276, 296
+            // box's foot. In the frame, down to its pane's foot, the ▼'s
+            // room left.
+            height: aboutRoot.monitor ? root.paneBottom - root.listY - root.sh * 0.0291667
+                                      : root.sh * 0.575 + (root.hintBar ? 0 : root.sh * 0.0416667) //276, 296
             color: "transparent"
             border.width: root.px
             border.color: root.primaryColor

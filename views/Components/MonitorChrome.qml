@@ -77,12 +77,20 @@ Item {
         return null
     }
     // The part of a role that speaks: the latest in the layer in front, or
-    // with no layer the latest. A layer with none has none (a question has
-    // no help line: the view's under it is not shown).
+    // with no layer the latest. A layer with no help line has none (a
+    // question's: the view's under it is not shown); one with no title or
+    // keys of its own keeps the view's (a licence's text under About's
+    // title).
     function front(role) {
         for (var i = parts.length - 1; i >= 0; --i) {
             if (parts[i].frameRole === role && (!frontLayer || within(parts[i], frontLayer)))
                 return parts[i]
+        }
+        if (role === "help")
+            return null
+        for (var j = parts.length - 1; j >= 0; --j) {
+            if (parts[j].frameRole === role)
+                return parts[j]
         }
         return null
     }
@@ -179,9 +187,12 @@ Item {
             return pairs.map(function(p) { return p.key + " " + titleCase(p.label) })
         // Broadcast: the keys that move first and back last, as a monitor's
         // guide lists them, "TO SELECT  :[▲▼]", the colons in a column.
-        var back = pairs.filter(function(p) { return p.label === "BACK" })
-        var move = pairs.filter(function(p) { return p.label === "NAVIGATE" })
-        var rest = pairs.filter(function(p) { return p.label !== "BACK" && p.label !== "NAVIGATE" })
+        var h = root.hints || ({})
+        var isBack = function(p) { return p.key === h.back }
+        var isMove = function(p) { return p.key === h.navigate || p.key === h.arrows }
+        var back = pairs.filter(isBack)
+        var move = pairs.filter(isMove)
+        var rest = pairs.filter(function(p) { return !isBack(p) && !isMove(p) })
         var words = move.concat(rest).concat(back).map(function(p) {
             return { key: p.key, word: "TO " + (broadcastWords[p.label] || p.label) }
         })
@@ -252,6 +263,9 @@ Item {
     }
     readonly property real listHeight: wholeRows(listBottom)
     readonly property real tallHeight: wholeRows(tallBottom)
+    // Over a help line that shows whatever Settings' Help Line is (one
+    // whose lines are the page itself: About's).
+    readonly property real helpedHeight: wholeRows(helpY - root.sh * 0.0125)
     // What a layer laid over the view covers, to ask in the layout: the
     // window's inside beside the strip, or the ground between the title and
     // the guide.

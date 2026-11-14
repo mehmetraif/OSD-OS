@@ -135,7 +135,7 @@ FocusScope {
         Column {
             anchors.top: parent.top
             anchors.left: parent.left
-            anchors.topMargin: root.sh * 0.25 //120
+            anchors.topMargin: root.listY //120
             // The pane's, its text in line with the title's.
             anchors.leftMargin: root.paneX + root.sw * 0.009375 //80
             width: root.paneWidth
@@ -202,11 +202,14 @@ FocusScope {
                 }
             }
 
-            // Release notes
+            // Release notes: in a monitor layout's frame, down to its
+            // pane's foot.
             Rectangle {
                 visible: updateRoot.releaseNotes !== ""
                 width: parent.width
-                height: root.sh * 0.3291667 + root.hintRoom //158
+                height: root.monitorFramed === true
+                        ? Math.max(root.sh * 0.1166667, root.paneBottom - root.listY - y) //56
+                        : root.sh * 0.3291667 + root.hintRoom //158
                 color: "transparent"
                 border.width: root.px
                 border.color: root.primaryColor

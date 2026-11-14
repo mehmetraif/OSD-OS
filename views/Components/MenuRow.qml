@@ -100,6 +100,8 @@ Item {
             dimmed: menuRow.dimmed
             editing: menuRow.editing
             icons: menuRow.icons
+            keepValue: menuRow.keepValue
+            alwaysScroll: menuRow.alwaysScroll
         }
     }
 

@@ -84,6 +84,8 @@ FocusScope {
         iconSource: "../../assets/images/logo.svg"
         title: "System Information"
         subtitle: systemInfo ? systemInfo.deviceName : ""
+        // The device's name is no step of the way here.
+        path: ["System Information"]
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -96,8 +98,8 @@ FocusScope {
         visible: !osk.visible
         focus: !osk.visible
         // Its help line stays, Help Line or not (always): a line more only
-        // with the hint bar off.
-        height: root.sh * 0.4666667 + root.hintRoom //224
+        // with the hint bar off (Main.qml's helpedListHeight).
+        height: root.helpedListHeight //224
 
         delegate: MenuRow {
             width: list.width

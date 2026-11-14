@@ -273,6 +273,8 @@ FocusScope {
         iconSource: "../../assets/images/wifi.svg"
         title: "Wi-Fi"
         subtitle: wifiRoot.current.address || ""
+        // The address is no step of the way here.
+        path: ["Wi-Fi"]
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.125 //60
@@ -285,12 +287,12 @@ FocusScope {
         model: wifiRoot.shownRows
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
+        anchors.topMargin: root.listY //120
         anchors.leftMargin: root.paneX
         width: root.paneWidth
         // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        // line more for each bar that is off (Main.qml's listHeight).
+        height: root.listHeight //224
         clip: true
         focus: true
         // Lines come and go as networks answer: no sliding.

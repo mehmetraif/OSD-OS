@@ -806,6 +806,10 @@ Window {
     readonly property real listHeight: monitorFramed ? frameChrome.listHeight
                                                      : sh * 0.4666667 + helpRoom + hintRoom //224
     readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom //252
+    // A menu's rows over a help line that shows whatever Settings' Help
+    // Line is (About's, System Information's): its room is never the rows'.
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight
+                                                           : sh * 0.4666667 + hintRoom //224
     readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333 //100
     readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom
                                      : hintBar ? sh * 0.8333333 : contentBox.y + contentBox.height //400, 430

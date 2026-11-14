@@ -24,6 +24,13 @@ Rectangle {
     property bool framed: false
     readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
     readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
+    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
+    // tallListHeight with no help line under them, helpedListHeight over one
+    // that always shows).
+    readonly property real listY: sh * 0.25
+    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
+    readonly property real tallListHeight: sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
     function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
     property real sh: height
     property real px: 2

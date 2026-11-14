@@ -43,6 +43,12 @@ Item {
     // A row more for each bar that is off (Main.qml's helpRoom, hintRoom).
     height: monitor ? root.listHeight : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
 
+    // The cursor held on its row, ▲ ▼ the host's meanwhile (heldStep): a
+    // value being changed there in two steps, as Broadcast and Flat Panel
+    // change one.
+    property bool held: false
+    signal heldStep(int delta)
+
     function isSection(i) {
         var row = view.model[i]
         return !!row && row.type === "section"
@@ -95,8 +101,8 @@ Item {
         view.forceLayout()
     }
 
-    Keys.onUpPressed: step(-1)
-    Keys.onDownPressed: step(1)
+    Keys.onUpPressed: held ? heldStep(-1) : step(-1)
+    Keys.onDownPressed: held ? heldStep(1) : step(1)
 
     // The rows wholly in view: one an edge would cut where no scroll can
     // carry on past it (a slider's several lines at the foot as the page

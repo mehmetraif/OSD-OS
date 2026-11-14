@@ -447,12 +447,57 @@ FocusScope {
         return true
     }
 
+    // Broadcast and Flat Panel (Settings → Look → Menu Layout) change a
+    // value in two steps, as Settings does there: select on a toggle, a
+    // list or a slider starts it (editIndex), ▲ ▼ step it with nothing
+    // saved (editSteps, the value it would take shown: steppedValue()),
+    // select saves it through cycleValue(), and back, or the cursor moved
+    // by the mouse, leaves it as it was. ◄ ► change nothing there.
+    readonly property bool twoStep: root.monitorFramed === true
+                                    && (root.menuLayout === "Broadcast" || root.menuLayout === "Flat Panel")
+    property int editIndex: -1
+    property int editSteps: 0
+    function stepped(item) {
+        return !!item && !item._off && (changes(item) || item.type === "slider")
+    }
+    function steppedValue(item, steps) {
+        if (item.type === "toggle")
+            return (valueOf(item) === "ON") === (steps % 2 === 0) ? "ON" : "OFF"
+        if (item.type === "slider")
+            return Math.max(0, Math.min(100, valueOf(item) + steps * (item.step || 10))) + "%"
+        var dynamic = item.options_source === "dynamic"
+        var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : (item.options || [])
+        if (opts.length === 0)
+            return currentDisplayValue(item)
+        var at = 0
+        if (dynamic) {
+            var storedId = valuesOf(item)[item.key] || null
+            for (var i = 0; i < opts.length; i++) {
+                if (opts[i].id === storedId) { at = i; break }
+            }
+        } else {
+            at = Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
+        }
+        var next = opts[((at + steps) % opts.length + opts.length) % opts.length]
+        return dynamic ? next.label : next
+    }
+    function confirmEdit() {
+        var index = editIndex, steps = editSteps
+        var item = schemaItems[index]
+        editIndex = -1
+        if (item && steppedValue(item, steps) !== steppedValue(item, 0))
+            cycleValue(index, steps)
+    }
+
+    // A row's value a step on (1) or back (-1); or, saved from a value
+    // changed in two steps, as many steps as it was moved.
     function cycleValue(index, direction) {
         var item = schemaItems[index]
         if (!item || item._off) return
 
         if (item.type === "toggle") {
-            store(item, currentDisplayValue(item) !== "ON")
+            if (direction % 2 !== 0)
+                store(item, currentDisplayValue(item) !== "ON")
             settingsList.forceLayout()
         } else if (item.type === "list_single") {
             var opts
@@ -464,7 +509,7 @@ FocusScope {
                 for (var i = 0; i < opts.length; i++) {
                     if (opts[i].id === storedId) { curIdx = i; break }
                 }
-                var newIdx = (curIdx + direction + opts.length) % opts.length
+                var newIdx = ((curIdx + direction) % opts.length + opts.length) % opts.length
                 if (store(item, opts[newIdx].id) && item.apply_slot) {
                     appCore.invoke_module_action(moduleOf(item), item.apply_slot)
                 }
@@ -475,7 +520,7 @@ FocusScope {
                 var curVal = valueOf(item) || opts[0]
                 var ci = opts.indexOf(curVal)
                 if (ci < 0) ci = 0
-                store(item, opts[(ci + direction + opts.length) % opts.length])
+                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length])
             }
             settingsList.forceLayout()
         } else if (item.type === "slider") {
@@ -651,20 +696,46 @@ FocusScope {
             }
         }
 
+        // A value being changed in two steps: the cursor stays, ▲ ▼ step
+        // the value (▲ on, ▼ back, as in Settings).
+        held: moduleSettingsRoot.editIndex >= 0
+        onHeldStep: function(delta) { moduleSettingsRoot.editSteps -= delta }
+
         Keys.onLeftPressed: {
+            if (moduleSettingsRoot.twoStep) {
+                // Flat Panel: ◄ is back, and leaves a value being changed.
+                if (root.menuLayout === "Flat Panel") {
+                    if (moduleSettingsRoot.editIndex >= 0)
+                        moduleSettingsRoot.editIndex = -1
+                    else
+                        moduleSettingsRoot.goBack()
+                }
+                return
+            }
             moduleSettingsRoot.cycleValue(currentIndex, -1)
         }
         Keys.onRightPressed: {
             var item = schemaItems[currentIndex]
+            if (moduleSettingsRoot.editIndex >= 0)
+                return
             if (moduleSettingsRoot.opens(item))
                 openRow(item)
-            else
+            else if (!moduleSettingsRoot.twoStep)
                 moduleSettingsRoot.cycleValue(currentIndex, 1)
         }
 
         Keys.onReturnPressed: {
+            if (moduleSettingsRoot.editIndex >= 0) {
+                moduleSettingsRoot.confirmEdit()
+                return
+            }
             var item = schemaItems[currentIndex]
             if (!item || item._off) return
+            if (moduleSettingsRoot.twoStep && moduleSettingsRoot.stepped(item)) {
+                moduleSettingsRoot.editSteps = 0
+                moduleSettingsRoot.editIndex = currentIndex
+                return
+            }
             if (item.type === "toggle")
                 moduleSettingsRoot.cycleValue(currentIndex, 1)
             else if (moduleSettingsRoot.opens(item))
@@ -672,12 +743,19 @@ FocusScope {
             else if (item.type === "action")
                 moduleSettingsRoot.activateAction(item)
         }
-        // What an action did is said until the cursor moves on.
-        onCurrentIndexChanged: moduleSettingsRoot.notice = ""
+        // What an action did is said until the cursor moves on; a value
+        // being changed is left as it was.
+        onCurrentIndexChanged: {
+            moduleSettingsRoot.notice = ""
+            moduleSettingsRoot.editIndex = -1
+        }
 
         Keys.onPressed: function(event) {
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                moduleSettingsRoot.goBack()
+                if (moduleSettingsRoot.editIndex >= 0)
+                    moduleSettingsRoot.editIndex = -1
+                else
+                    moduleSettingsRoot.goBack()
                 event.accepted = true
             }
         }
@@ -699,7 +777,10 @@ FocusScope {
             readonly property var row: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[index]) || modelData
             readonly property bool slider: row.type === "slider"
             readonly property real lineHeight: root.sh * 0.0583333 //28
-            readonly property int barLines: slider ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
+            // In a monitor layout's frame a slider is its line alone, its
+            // value a number ("60%"), as in Settings: every row one line.
+            readonly property bool monitor: root.monitorFramed === true
+            readonly property int barLines: slider && !monitor ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
             height: lineHeight * (1 + barLines)
 
@@ -708,8 +789,13 @@ FocusScope {
                 height: rowItem.lineHeight
                 heading: rowItem.row.type === "section"
                 label: rowItem.row.label || ""
-                value: moduleSettingsRoot.hasValue(rowItem.row)
-                    ? moduleSettingsRoot.currentDisplayValue(rowItem.row) : ""
+                value: moduleSettingsRoot.editIndex === rowItem.index
+                    ? moduleSettingsRoot.steppedValue(rowItem.row, moduleSettingsRoot.editSteps)
+                    : moduleSettingsRoot.hasValue(rowItem.row)
+                    ? moduleSettingsRoot.currentDisplayValue(rowItem.row)
+                    : rowItem.slider && rowItem.monitor
+                      ? (moduleSettingsRoot.revision, moduleSettingsRoot.valueOf(rowItem.row)) + "%" : ""
+                editing: moduleSettingsRoot.editIndex === rowItem.index
                 opens: moduleSettingsRoot.opens(rowItem.row)
                 changes: moduleSettingsRoot.changes(rowItem.row)
                 dimmed: !!rowItem.row._off
@@ -717,7 +803,7 @@ FocusScope {
             }
             Loader {
                 id: tape
-                active: rowItem.slider
+                active: rowItem.slider && !rowItem.monitor
                 visible: !rowItem.row._off
                 x: root.sw * 0.009375 //6
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
@@ -754,7 +840,11 @@ FocusScope {
     // --- FOOTER ---
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
+        text: moduleSettingsRoot.editIndex >= 0
+              ? root.hints.back + ":CANCEL " + root.hints.navigate + ":CHANGE " + root.hints.select + ":CONFIRM"
+              : moduleSettingsRoot.twoStep
+              ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+              : root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.bottomMargin: root.sh * 0.1041667 //50

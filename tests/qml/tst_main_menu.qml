@@ -33,6 +33,7 @@ Rectangle {
     readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
     readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
     readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
+    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
     readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
     readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
     Components.MonitorChrome {

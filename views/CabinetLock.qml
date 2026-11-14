@@ -152,10 +152,10 @@ FocusScope {
         model: lockRoot.rows.length
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
+        anchors.topMargin: root.listY //120
         anchors.leftMargin: root.paneX
         width: root.paneWidth
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        height: root.listHeight //224
         clip: true
         focus: true
         highlightMoveDuration: 0
