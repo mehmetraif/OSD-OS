@@ -503,15 +503,16 @@ set_tests_properties(bluetooth_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=off
 # (views/Components/OnScreenKeyboard.qml), the choice window
 # (views/Components/ChoiceOverlay.qml) and the screen saver
 # (views/Components/ScreenSaver.qml).
+add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
+                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+
 # Settings → Look → Menu Layout's monitor layouts as a frame every kind of
 # view takes its place in (views/Components/MonitorChrome.qml and the shared
 # components that hand it their content), against a stand-in for Main.qml.
 add_test(NAME monitor_frame_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_monitor_frame.qml
                                          -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-
-add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
-                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+set_tests_properties(monitor_frame_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # About (views/About.qml): System Information first, the device's name its
 # value, opening its page; OSD/OS's lines and the arcade's, each licence a
 # page of its own, against stand-ins for the licence files and the name.
