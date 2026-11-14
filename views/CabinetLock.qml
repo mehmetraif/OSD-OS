@@ -231,15 +231,20 @@ FocusScope {
             event.accepted = true
         }
 
+        // Holding is the answer here, so the way out is the other way
+        // round: nothing held. Said in the body, with the seconds left, so
+        // that it shows with Settings' Hint Bar off too.
         PromptScreen {
             objectName: "capturePrompt"
             kind: "notice"
             title: "Unlock Buttons"
-            message: "Hold the buttons that unlock the cabinet together, one to four of them, for two seconds"
+            message: "Hold the buttons that unlock the cabinet together, one to four of them, for two seconds\n"
+                     + "Let go of everything to cancel\n"
+                     + (lockRoot.heldNames === "" ? "Stops by itself in " + lockRoot.secondsLeft : "Hold them")
             choices: [lockRoot.tooMany ? "At most four: let one go" : lockRoot.heldNames !== "" ? lockRoot.heldNames
                                                                                                   : "Nothing held"]
             currentIndex: lockRoot.heldNames !== "" && !lockRoot.tooMany ? 0 : -1
-            hint: lockRoot.heldNames === "" ? "KEEPS THE OLD ONES IN " + lockRoot.secondsLeft : "HOLD THEM"
+            hint: lockRoot.heldNames === "" ? "LET GO OF EVERYTHING TO CANCEL (" + lockRoot.secondsLeft + ")" : "HOLD THEM"
         }
     }
 

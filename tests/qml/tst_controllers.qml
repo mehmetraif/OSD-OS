@@ -1276,8 +1276,12 @@ Rectangle {
             compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", true])
             verify(page.capturing)
             verify(findText(page, "Nothing held") !== null)
+            // How to cancel, and the seconds left, in the body: they show
+            // with Settings' Hint Bar off too.
+            verify(findText(page, "for two seconds\nLet go of everything to cancel\nStops by itself in 10") !== null)
             inputManager.unlockButtonsHeld("P1 START", false)
             verify(findText(page, "P1 START") !== null)
+            verify(findText(page, "Let go of everything to cancel\nHold them") !== null)
             inputManager.unlockButtonsHeld("P1 START + P2 START + P1 1 + P2 1 + P1 COIN", true)
             verify(findText(page, "At most four") !== null)
             inputManager.unlockButtonsHeld("P1 START + P2 START", false)

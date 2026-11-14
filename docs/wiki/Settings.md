@@ -334,7 +334,7 @@ Cabinet Lock keeps OSD/OS on Start on Module's module, such as a cabinet's Arcad
 | Row | What it does |
 |---|---|
 | Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**. It needs a Start on Module and unlock buttons. On with no module to stay on any more (Start on Module set to None since, or its module turned off) it locks nothing, and the row reads **On (No Module)** |
-| Unlock Buttons | Select, then hold one to four buttons together for two seconds, of any pads and keyboards. The window names them as they are held (`P1 START + P2 START`) |
+| Unlock Buttons | Select, then hold one to four buttons together for two seconds, of any pads and keyboards. The window names them as they are held (`P1 START + P2 START`). Letting go of everything cancels: after ten seconds with nothing held the old ones are kept, and the window says so and counts the seconds (`STOPS BY ITSELF IN 9`) |
 
 <table>
 <tr><th width="33%">Cabinet Lock</th><th width="33%">Unlock Buttons</th><th width="33%">Lock the cabinet?</th></tr>
