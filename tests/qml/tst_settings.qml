@@ -162,6 +162,8 @@ Rectangle {
     QtObject {
         id: wifiManager
         property bool supported: false
+        // Not supported for the launcher alone (WifiManager::launcherTooOld).
+        property bool launcherTooOld: false
     }
 
     // Where the page asked to go, and how often back out of it.
@@ -198,6 +200,7 @@ Rectangle {
             root.menuLayout = "Standard"
             root.setFrame([], 0, false)
             wifiManager.supported = false
+            wifiManager.launcherTooOld = false
         }
         function cleanup() {
             loader.source = ""
@@ -978,6 +981,17 @@ Rectangle {
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 0)
+            // Kept off by an old launcher alone, on a machine NetworkManager
+            // runs on: dimmed still, the reason what it needs, not where it
+            // would work.
+            loader.source = ""
+            wifiManager.launcherTooOld = true
+            page = open({ group: "network" })
+            verify(page.offReason(0).indexOf("Needs a newer launcher") === 0, page.offReason(0))
+            verify(page.offReason(0).indexOf("NetworkManager") < 0)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+            wifiManager.launcherTooOld = false
             loader.source = ""
             wifiManager.supported = true
             page = open({ group: "network" })

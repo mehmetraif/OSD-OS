@@ -757,12 +757,17 @@ FocusScope {
     // (BlueZ); both Linux's.
     function networkRows(items) {
         var wifi = !!(wifiManager && wifiManager.supported)
+        // Kept off by the launcher alone (an image, or an install.sh, from
+        // before the one that lets OSD/OS use NetworkManager): this machine
+        // is one where NetworkManager runs, and the reason says what it needs.
+        var oldLauncher = !!(wifiManager && wifiManager.launcherTooOld)
         items.push({
             type: "submenu",
             key: "wifi",
             label: "Wi-Fi",
             description: "The networks within reach: join one with its password, or one that doesn't say its name, and the country Wi-Fi keeps to the rules of",
-            unavailable: wifi ? "" : "Only where NetworkManager runs, as on the OSD/OS image",
+            unavailable: wifi ? "" : oldLauncher ? "Needs a newer launcher: run install.sh again, or put a newer OSD/OS image on the card"
+                                                 : "Only where NetworkManager runs, as on the OSD/OS image",
             moduleId: ""
         })
         var bluetooth = !!(bluetoothManager && bluetoothManager.supported)
