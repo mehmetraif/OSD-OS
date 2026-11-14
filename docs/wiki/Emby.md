@@ -183,7 +183,7 @@ Sign-in messages are listed [above](#what-the-sign-in-screen-can-say).
 | Offline playlist says **Not Allowed** | An administrator must allow your Emby user to download media. Then **Retry Downloads** on the playlist's page |
 | No Continue Watching or Next Up | They show only when they have something |
 
-Logs: `journalctl -u osdos -b | grep -i emby`. mpv's log is `/tmp/osdos-mpv.log` (the system's temp folder on a Mac). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
+Logs: `journalctl -u osdos -b | grep -i emby`. mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
 ## See also
 

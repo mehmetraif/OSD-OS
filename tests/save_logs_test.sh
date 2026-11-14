@@ -50,8 +50,10 @@ printf '%s\n' "this run" \
 printf '%s\n' "the run before" "GET http://jellyfin.local/Videos/1/stream?api_key=SECRET3" > "$data/osdos-previous.log"
 printf '%s\n' "retroarch" "GET https://ra.example/dorequest.php?r=login2&u=me&t=SECRET1 done" \
     "http://plex.local/library?X-Plex-Token=SECRET2" > "$data/arcade/retroarch/last.log"
-# mpv's own log, which holds a media server's token, stays where it is.
-echo "mpv" > "$TMPDIR/osdos-mpv.log"
+# mpv's own log, which holds a media server's token, stays where it is: the
+# app's run-time folder, as the service has it.
+mkdir -p "$TMPDIR/runtime-$(id -un)"
+echo "mpv" > "$TMPDIR/runtime-$(id -un)/osdos-mpv.log"
 
 # Ten folders of earlier quits, the oldest first by their names.
 for n in 01 02 03 04 05 06 07 08 09 10; do

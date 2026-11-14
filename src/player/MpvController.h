@@ -238,6 +238,9 @@ private:
     enum class VideoProfile { Pi3, Pi4, PiFullKms, Generic };
 
     void sendCommand(const QJsonArray &args);
+    // Where a session's files are (the paths below), in a folder of the
+    // user's own (util/RuntimeFiles.h); asked for each session.
+    void placeRunFiles();
     // The mpv options for a session, up to how its picture is shown; what
     // plays comes after them, behind a "--".
     QStringList sessionArgs(const QString &url, float startSeconds, int audioTrack, int subTrack,
@@ -402,6 +405,8 @@ private:
     bool          m_paused         = false;  // mirrors mpv's pause property (watchdog exemption)
     QString       m_appRoot;
     QString       m_dataRoot;
+    // The session's files (placeRunFiles()); "" where there is no folder for
+    // them, and mpv is then given none. On Windows the socket is a named pipe.
     QString       m_socketPath;
     QString       m_inputConfPath;
     QString       m_logFilePath;

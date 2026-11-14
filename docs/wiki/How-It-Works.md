@@ -235,7 +235,7 @@ sequenceDiagram
     M->>MM: hold("video"): the music stops
     M->>M: build the command line, retire the old mpv
     Note over M: 50 ms later, once the loading screen is drawn
-    M->>X: start, with --input-ipc-server=/tmp/osdos-mpv.sock
+    M->>X: start, with --input-ipc-server=/tmp/runtime-pi/osdos-mpv.sock
     M->>X: observe time-pos, duration, playlist-pos, pause
     X-->>M: property changes
     M-->>V: positionChanged, durationChanged
@@ -248,7 +248,7 @@ sequenceDiagram
 1. **The command line** comes from `sessionArgs()`. What plays comes last, after `--`.
 2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), `mpv-media-keys.lua` (media keys, the VOLUME bar), `mpv-logo.lua` (the channel logo), `mpv-screensaver.lua`, and for photos `mpv-slideshow-redraw.lua`.
 3. **The old player** is told to quit (SIGTERM), killed a second later, and given up on after five seconds. The new one waits until it is gone.
-4. **The socket.** `MpvController` sends JSON commands over `/tmp/osdos-mpv.sock`. `/tmp/osdos-input.conf` maps Escape and Backspace to `script-message osdos-menu` (back) and Enter to pause.
+4. **The socket.** `MpvController` sends JSON commands over `osdos-mpv.sock`, in a folder only OSD/OS's user can open (`/tmp/runtime-pi` on the image; [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). `osdos-input.conf` beside it maps Escape and Backspace to `script-message osdos-menu` (back) and Enter to pause.
 5. **The end.** `playbackEnded(finalPos, finalDur, reason)` comes once mpv has exited and, on a Pi, the screen is the app's again:
 
 | `reason` | When | What a module does |
@@ -398,7 +398,7 @@ OSD/OS logs to its standard output and error: the terminal, or the journal under
 | `[AtomicFile]` | A file that couldn't be saved |
 | `[Effect]` | A shader that couldn't be used |
 
-- mpv writes its own log of the last video to `/tmp/osdos-mpv.log` (the temp folder elsewhere), readable only by its owner.
+- mpv writes its own log of the last video to `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)), readable only by its owner.
 - For Qt itself: `QT_LOGGING_RULES="qt.qml.*=true"`, `QML_IMPORT_TRACE=1` and, on a Pi, `QT_QPA_EGLFS_DEBUG=1` ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting), [BUILDING.md → Debugging & logs](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#debugging--logs)).
 
 ## Environment variables

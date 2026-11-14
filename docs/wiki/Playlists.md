@@ -419,7 +419,7 @@ http://192.168.1.30:8096/Videos/20733/stream?static=true&api_key=<token>
 | A Jellyfin or Emby video doesn't play on an online list | The server must be reachable. The list streams the original file, so a file mpv can't decode won't play here |
 
 - The app's log has the module's warnings: `journalctl -u osdos -b | grep Playlists`, such as `[Playlists] download of youtube:aBcD3fGh1jK failed: <reason>` or `[Playlists] can't write playlists.json`.
-- mpv's own log is `/tmp/osdos-mpv.log` ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
+- mpv's own log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files); [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting)).
 
 ## See also
 

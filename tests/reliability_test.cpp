@@ -8,6 +8,7 @@
 #include "util/EndProcess.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/LogFile.h"
+#include "util/RuntimeFiles.h"
 #include "util/SetupFile.h"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -365,6 +366,55 @@ private slots:
 #endif
     }
 #endif
+
+    // The files made for a run and handed to mpv (util/RuntimeFiles.h) go in
+    // a folder of the user's own: the session's run-time folder; where that
+    // one isn't theirs alone, Qt's stand-in for it under the temp folder,
+    // made again when it is taken away; and where that can't be had either,
+    // a folder made for this run, kept for the rest of it.
+    void runFilesGoInAFolderOfTheUsersOwn() {
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
+        const QByteArray xdg = qgetenv("XDG_RUNTIME_DIR"), tmpdir = qgetenv("TMPDIR");
+        const bool xdgSet = qEnvironmentVariableIsSet("XDG_RUNTIME_DIR"), tmpSet = qEnvironmentVariableIsSet("TMPDIR");
+        const auto restore = qScopeGuard([xdg, tmpdir, xdgSet, tmpSet] {
+            if (xdgSet) qputenv("XDG_RUNTIME_DIR", xdg); else qunsetenv("XDG_RUNTIME_DIR");
+            if (tmpSet) qputenv("TMPDIR", tmpdir); else qunsetenv("TMPDIR");
+        });
+        // Each its owner's alone, as they are made.
+        QTemporaryDir session, temp, shared;
+        QVERIFY(session.isValid() && temp.isValid() && shared.isValid());
+        const QString tempPath = QFileInfo(temp.path()).canonicalFilePath();
+        qputenv("TMPDIR", tempPath.toUtf8());
+        qputenv("XDG_RUNTIME_DIR", session.path().toUtf8());
+        QCOMPARE(runtimefiles::dir(), session.path());
+        QCOMPARE(runtimefiles::path("osdos-mpv.log"), session.path() + "/osdos-mpv.log");
+
+        // A session's folder that others can open isn't taken.
+        QVERIFY(QFile::setPermissions(shared.path(), QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
+                                                   | QFile::ReadGroup | QFile::ExeGroup | QFile::ReadOther | QFile::ExeOther));
+        qputenv("XDG_RUNTIME_DIR", shared.path().toUtf8());
+        const QString standIn = runtimefiles::dir();
+        QVERIFY2(standIn.startsWith(tempPath + "/runtime-"), qPrintable(standIn));
+        QVERIFY(runtimefiles::ownAlone(standIn));
+        // Taken away, as a temp cleaner does: made again.
+        QVERIFY(QDir().rmdir(standIn));
+        QCOMPARE(runtimefiles::dir(), standIn);
+        QVERIFY(runtimefiles::ownAlone(standIn));
+
+        // Its name taken by something else.
+        QVERIFY(QDir().rmdir(standIn));
+        QFile taken(standIn);
+        QVERIFY(taken.open(QIODevice::WriteOnly));
+        taken.close();
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("^\\[RuntimeFiles\\] No run-time folder of the user's own"));
+        const QString thisRun = runtimefiles::dir();
+        QVERIFY2(thisRun.startsWith(tempPath + "/osdos-"), qPrintable(thisRun));
+        QVERIFY(runtimefiles::ownAlone(thisRun));
+        QCOMPARE(runtimefiles::dir(), thisRun);
+#else
+        QSKIP("The temp folder is the user's own here, and the files stay in it.");
+#endif
+    }
 
     // A download the network dropped ends with the error a cancel has (the
     // transfer's timeout): it is a failure, with its reason, and only the

@@ -460,7 +460,7 @@ Then run `sudo systemctl daemon-reload` and `sudo systemctl restart osdos`. The 
 | No resume question | The video was stopped in its first 5 seconds or its last 5%, or Resume Playback is Always or Never |
 | No subtitles | Auto Show Subtitles is Forced Only (the default): set it to On. A sidecar `.srt` must have the video's name |
 | A playlist entry is skipped | mpv couldn't open it: a relative path is taken from the playlist's folder; a drive is out; a YouTube link isn't played here |
-| A video won't play at all | See [Playback and mpv → Troubleshooting playback](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#troubleshooting-playback). mpv's log is `/tmp/osdos-mpv.log` |
+| A video won't play at all | See [Playback and mpv → Troubleshooting playback](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#troubleshooting-playback). mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)) |
 | A video from a USB drive stopped | The drive was pulled out, or went to sleep; plug it back in and choose the file again |
 | Settings vanished after editing `config.json` | The file had a JSON error. Check it with `python3 -m json.tool` first |
 

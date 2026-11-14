@@ -1015,7 +1015,7 @@ cat "$D/lists.json"; echo               # the recent list, with where it stopped
 
 - **640 × 480** is the size the views' fractions are written against. Try 1920 × 1080 too.
 - **No sound card**: a video played to its end may end as `failed` rather than `eof`. Check a video's end on a machine with sound.
-- **The log** is in `/tmp/hello.log`, mpv's own in `/tmp/osdos-mpv.log`. A QML mistake names its file and line there.
+- **The log** is in `/tmp/hello.log`, mpv's own in `$XDG_RUNTIME_DIR/osdos-mpv.log` (`/tmp/runtime-<user>/` where that is not set, the temp folder on a Mac). A QML mistake names its file and line there.
 - **The keys**: `Up`, `Down`, `Left`, `Right`, `Return` (select), `Escape` (back), `space` (play/pause).
 
 ### A test in tests/

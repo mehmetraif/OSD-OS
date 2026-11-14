@@ -582,7 +582,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs |
 | `/usr/games/mame`, `/etc/mame/mame.ini`, `/usr/bin/retroarch` | MAME, its settings, and RetroArch |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and its licences |
-| `/tmp/osdos-mpv.log` | mpv's own log |
+| `/tmp/runtime-pi/osdos-mpv.log` | mpv's own log |
 
 ## Logs
 
@@ -599,7 +599,7 @@ journalctl -u 'osdos-display@*'           # Display Output's At Next Start
 journalctl -u 'osdos-wifi@*'              # Settings → Network → Wi-Fi's country
 ```
 
-mpv's own log of the last video is `/tmp/osdos-mpv.log`, readable only by `pi`. See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs).
+mpv's own log of the last video is `/tmp/runtime-pi/osdos-mpv.log`, readable only by `pi`. See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting) and [How it works → Logs](https://github.com/mehmetraif/OSD-OS/wiki/How-It-Works#logs).
 
 ## What it is made of: NOTICE and licences
 

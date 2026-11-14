@@ -172,7 +172,7 @@ The TV's volume, or an amplifier's (a JAMMA board's knob), sets how loud it is. 
    sudo alsactl store
    ```
 
-5. **Read the log** ([the lines](#a-card-that-is-unplugged)). mpv's own log is `/tmp/osdos-mpv.log`.
+5. **Read the log** ([the lines](#a-card-that-is-unplugged)). mpv's own log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)).
 
    ```sh
    journalctl -b -u osdos | grep AudioOutput

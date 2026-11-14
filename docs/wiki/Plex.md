@@ -269,7 +269,7 @@ Two files in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `
 | A video stutters or buffers | On a weak or remote connection, pick a lower **Video Quality**. With a transcode, the server's processor may be the limit: try **Direct Play**. See [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv) |
 | Certificate errors | Plex's own `*.plex.direct` certificates are accepted. With any other HTTPS address, check the server's certificate |
 
-Logs: `journalctl -u osdos -b | grep -i plex` on the image or a Raspberry Pi install (lines start `[PlexAuth]`, `[PlexBackend]` or `[Plex]`). mpv's log is `/tmp/osdos-mpv.log` (the system's temp folder on a Mac). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
+Logs: `journalctl -u osdos -b | grep -i plex` on the image or a Raspberry Pi install (lines start `[PlexAuth]`, `[PlexBackend]` or `[Plex]`). mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
 ## See also
 

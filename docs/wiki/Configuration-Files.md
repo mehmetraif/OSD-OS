@@ -93,7 +93,7 @@ Other variables:
 
 | To | Variables |
 |---|---|
-| An mpv process | `APP_ROOT`. On Linux `FONTCONFIG_FILE=/tmp/osdos-fonts.conf` (the VCR font). `ALSA_CARD`, as for a script. On a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` is removed |
+| An mpv process | `APP_ROOT`. On Linux `FONTCONFIG_FILE` names `osdos-fonts.conf` in the [run-time folder](#logs-and-temporary-files) (the VCR font). `ALSA_CARD`, as for a script. On a Linux desktop with `DISPLAY` set, `WAYLAND_DISPLAY` is removed |
 | A script (the Scripts module) and a takeover program (`web-player.sh`, MAME) | `APP_ROOT`, `DATA_ROOT`. `OSDOS_MODE` (`console` or `takeover`) and `OSDOS_VT`, also as `MP240_MODE` and `MP240_VT`. `ALSA_CARD`, when Audio Output names a card. On a Pi 5 `SDL_KMSDRM_DEVICE_INDEX`. The players' pads: `OSDOS_PLAYER1_NAME`, `_GUID`, `_DEVICE`, and players 2 to 6's |
 
 ## What is in it
@@ -466,7 +466,7 @@ Only the newest WAV is kept, and a changed file is made again. Deleting the fold
 |---|---|
 | OSD/OS's own log | Its standard output and error. Under the autostart service: `journalctl -u osdos -b` (this boot), `journalctl -u osdos -f` (as it happens). A Mac app opened from the Finder: Console.app. On Windows: `osdos.log` in the data folder |
 | mpv's messages | In OSD/OS's log as `[mpv] …` lines, with every token blanked out |
-| mpv's full log | `/tmp/osdos-mpv.log`, owner-only: the latest video's, verbose, with its command line (and tokens) |
+| mpv's full log | `osdos-mpv.log` in the run-time folder (below: `/tmp/runtime-pi/` on the image), owner-only: the latest video's, verbose, with its command line (and tokens) |
 | The boot screen's timings (the image) | `journalctl -b -u osdos \| grep '\[boot\]'` |
 | USB drives (the image) | `journalctl -u 'osdos-usb-mount@*'` |
 | yt-dlp's updates (the image) | `journalctl -u osdos-yt-dlp-update` |
@@ -474,17 +474,27 @@ Only the newest WAV is kept, and a changed file is made again. Deleting the fold
 
 A Release build leaves out OSD/OS's debug lines, such as `[AppCore] Setting saved: app.video_scaling = 14:9` and `[MpvController] launch: mpv …` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)).
 
-OSD/OS's temporary files go in the system's temporary folder (`/tmp`, or `$TMPDIR`):
+What OSD/OS makes for a video and hands to mpv goes in its **run-time folder**, which only its user can open:
+
+| Where OSD/OS runs | The folder |
+|---|---|
+| The OSD/OS image, and the autostart service | `/tmp/runtime-pi` (`/tmp/runtime-<user>` for another user). A service has no login session, so Qt makes the folder, and the log says `QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-pi'` |
+| Linux or a BSD, started from a terminal or a desktop | `$XDG_RUNTIME_DIR`, which a login session sets: `/run/user/1000`, say. Without one, `/tmp/runtime-<user>` |
+| macOS, Windows | The temporary folder, the user's own there (`$TMPDIR`, `%TEMP%`) |
+
+- On Linux and the BSDs `/tmp` itself is every account's to write in, which is why the files are not there.
+- Where the folder can't be had (its name taken by something else), OSD/OS makes one for the run under `/tmp`, removed as it ends, and names it in the log: `[RuntimeFiles] No run-time folder of the user's own: this run's files are in /tmp/osdos-AbCdEf`.
 
 | File | What it is |
 |---|---|
-| `osdos-mpv.sock` | The IPC socket of the video playing |
+| `osdos-mpv.sock` | The IPC socket of the video playing (a named pipe on Windows) |
 | `osdos-input.conf` | The key bindings each video's mpv gets ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#back-and-the-end-of-a-video)) |
 | `osdos-mpv.log` | mpv's log, above |
 | `osdos-mpv-subinfo.json` | Subtitle tracks' names for the deck menu, while a server's sidecar subtitles play |
 | `osdos-logo.bgra` | Logo Image's picture, in mpv's overlay format |
 | `osdos-fonts.conf` | The fontconfig file that shows mpv the VCR font |
-| `osdos-menu-music-<pid>.sock`, `osdos-weather-music.sock` | The menu music's and Weather's music's mpv sockets |
+
+The menu music's and Weather's music's mpv sockets, `osdos-menu-music-<pid>.sock` and `osdos-weather-music.sock`, are in the system's temporary folder (`/tmp`, or `$TMPDIR`).
 
 ## See also
 

@@ -69,7 +69,7 @@ cp ~/.local/share/OSD-OS/crash-report.txt ~/.local/share/OSD-OS/stall-report.txt
 ### mpv's own log
 
 - mpv's messages reach OSD/OS's log as `[mpv] …` lines, with every token blanked.
-- mpv also writes a verbose log of the latest video to `/tmp/osdos-mpv.log` (on a Mac, `$TMPDIR`). It starts afresh for each video, so copy it before playing the next.
+- mpv also writes a verbose log of the latest video, `osdos-mpv.log`, in a folder only OSD/OS's user can open: `/tmp/runtime-pi/` on the image and under the autostart service, `$XDG_RUNTIME_DIR` (`/run/user/1000`, say) when OSD/OS is started from a terminal or a desktop, and the temporary folder on a Mac or Windows ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). It starts afresh for each video, so copy it before playing the next.
 - That file holds each video's full address, and a media server's token with it. Look through it before you post it.
 
 ### What a build from source adds
@@ -167,7 +167,7 @@ The loading screen comes, then **Playback failed** with why: *mpv is not install
 |---|---|---|
 | `[MpvController] mpv not found (no bundled sibling, none on PATH)` | mpv isn't installed, or isn't on the `PATH` of OSD/OS's user | Install it as the screen says (`sudo apt install mpv` on Raspberry Pi OS). On Windows, unpack mpv from mpv.io beside OSD/OS as a folder named `mpv` |
 | `Error parsing option subs-with-matching-audio (option parameter could not be parsed)`, then `[MpvController] mpv exited with code 1` | mpv is older than 0.38 | Install a newer mpv, or build 0.40 with `scripts/build-mpv.sh` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#the-appimage-and-mpv-038)) |
-| `[mpv] …` lines about the file, then `mpv exited with code 2` | mpv couldn't play the file: a codec, a file cut short, a stream refused | Try `mpv <file>` in a terminal: if mpv can't either, the file is the problem. `/tmp/osdos-mpv.log` has the details |
+| `[mpv] …` lines about the file, then `mpv exited with code 2` | mpv couldn't play the file: a codec, a file cut short, a stream refused | Try `mpv <file>` in a terminal: if mpv can't either, the file is the problem. mpv's log (`/tmp/runtime-pi/osdos-mpv.log` on the image) has the details |
 | `[MpvController] The video has shown nothing N s after mpv (pid …) started` | mpv started and showed no picture | OSD/OS starts the video again without the hardware decoder. If that fails too it says **The video did not start**. Send the lines with a bug report |
 | `[MpvController] The video played without sound: the sound card could not be opened` | Another program has the sound card, or there is none | See [No sound](#no-sound) |
 | `[MpvController] Cannot start playback: <owner> has the screen` | A takeover script or a web player holds the Pi's screen | Let it finish, or stop it |
@@ -189,7 +189,7 @@ The loading screen comes, then **Playback failed** with why: *mpv is not install
 1. **Choose the card** in Settings → Sound → Audio Output: AV Jack, HDMI or a USB sound card. A Pi 5 has no AV jack: use HDMI, or a USB sound card on a CRT.
 2. **See the cards ALSA has**: `aplay -l`, or `cat /proc/asound/cards`.
 3. **Quiet AV jack**: OSD/OS keeps the card at 0 dB. `amixer sset PCM 100%` raises it 4 dB (`sudo alsactl store` keeps it); loud sound can clip there.
-4. **Read the log**: `journalctl -b -u osdos | grep AudioOutput` shows `Sound through <card>`. `/tmp/osdos-mpv.log` says why a video's sound couldn't open.
+4. **Read the log**: `journalctl -b -u osdos | grep AudioOutput` shows `Sound through <card>`. mpv's log (`/tmp/runtime-pi/osdos-mpv.log` on the image) says why a video's sound couldn't open.
 
 A dimmed Audio Output row means a sound server (PipeWire, PulseAudio) runs: choose the output in the system's sound settings. More in [Audio Output → When there is no sound](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output#when-there-is-no-sound); `/etc/asound.conf` and `audio-device=` in `mpv.conf` are in [INSTALL.md](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md).
 
@@ -516,7 +516,7 @@ The bug report form asks for the steps, the module, the platform and how OSD/OS 
 - **The output**: composite, SCART RGB or HDMI, and the Display Output preset in use (`cat /boot/firmware/osdos-display.txt` on the image).
 - **The version**: in Settings' title bar for a release; Settings → System → About → Build has the commit and the day.
 - **mpv's version**: the first line of `mpv --version`.
-- **The log**, as text: Quit → Save Logs or `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem `/tmp/osdos-mpv.log` too, once you have looked through it for addresses and tokens.
+- **The log**, as text: Quit → Save Logs or `journalctl -u osdos -b --no-pager > osdos.log` on the image, or the terminal's output. For a playback problem mpv's log too (`/tmp/runtime-pi/osdos-mpv.log` on the image), once you have looked through it for addresses and tokens.
 - **After a crash or a freeze**: `crash-report.txt` or `stall-report.txt` from the data folder.
 - **A photo of the screen** where it helps, such as Bluetooth's Details page.
 

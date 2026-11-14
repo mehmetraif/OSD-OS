@@ -37,6 +37,7 @@ if [ -f "$log.pids" ]; then
 fi
 echo "$$ $media" >> "$log.pids"
 printf '%s\n' "$@" > "$log.args"
+printf '%s\n' "$FONTCONFIG_FILE" > "$log.fonts"
 echo "start $media" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then
   echo "[ffmpeg/video] h264: error while decoding MB 1 2"
@@ -98,9 +99,12 @@ class PlaybackRetireTest : public QObject {
         m_mpv->loadAndPlay(m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4"),
                            startSeconds, -1, -1);
     }
+    // The run-time folder the controller's files go in (XDG_RUNTIME_DIR): the
+    // test's own, and apart from its temp folder, which they used to be in.
+    QString runDir() const { return m_dir.path() + QStringLiteral("/run"); }
     // The player's control connection, stood in for by the test: mpv's
     // socket, which the controller connects to once it listens.
-    QString socketPath() const { return m_dir.path() + QStringLiteral("/osdos-mpv.sock"); }
+    QString socketPath() const { return runDir() + QStringLiteral("/osdos-mpv.sock"); }
     bool listen(QLocalServer &control) {
         QLocalServer::removeServer(socketPath());
         return control.listen(socketPath());
@@ -158,7 +162,7 @@ private slots:
             play(film);
             QTRY_VERIFY_WITH_TIMEOUT(happened(QStringLiteral("start ") + film), 5000);
             QLocalServer control;
-            const QString path = m_dir.path() + QStringLiteral("/osdos-mpv.sock");
+            const QString path = socketPath();
             QLocalServer::removeServer(path);
             QVERIFY(control.listen(path));
             QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
@@ -197,8 +201,13 @@ private slots:
         mpv.close();
         QVERIFY(mpv.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
         qputenv("PATH", bin.toUtf8() + ':' + qgetenv("PATH"));
-        // The controller's socket, logs and input.conf, away from a running app's.
+        // The controller's socket, logs and input.conf, away from a running
+        // app's: in a run-time folder of the test's own, the user's alone as
+        // a login session's is.
         qputenv("TMPDIR", m_dir.path().toUtf8());
+        QVERIFY(QDir().mkpath(runDir()));
+        QVERIFY(QFile::setPermissions(runDir(), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+        qputenv("XDG_RUNTIME_DIR", runDir().toUtf8());
         m_log = m_dir.path() + QStringLiteral("/mpv.log");
         qputenv("FAKE_MPV_LOG", m_log.toUtf8());
         qputenv("FAKE_MPV_TERM_DELAY", kTermDelay);
@@ -214,6 +223,60 @@ private slots:
     void cleanup() {
         delete m_mpv;  // ends what still plays, killing it if it must
         m_mpv = nullptr;
+    }
+
+    // What mpv is handed for a session (its control socket, log, key
+    // bindings and fontconfig file) is in the user's run-time folder, not
+    // under a fixed name in the temp folder, which other accounts write in.
+    // The bindings' file is the app's own, whole and its owner's alone: made
+    // again when it is gone or holds something else, and not named to mpv at
+    // all when it can't be written.
+    void runFilesAreTheUsersOwn() {
+        const auto read = [](const QString &path) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        };
+        const QString conf = runDir() + QStringLiteral("/osdos-input.conf");
+        const QString named = QStringLiteral("--input-conf=") + conf;
+        const QByteArray bindings = "ESC script-message osdos-menu\nBS script-message osdos-menu\nENTER cycle pause\n";
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(arguments().contains(QStringLiteral("--input-ipc-server=") + socketPath()),
+                 qPrintable(arguments().join(QLatin1Char(' '))));
+        QVERIFY(arguments().contains(QStringLiteral("--log-file=") + runDir() + QStringLiteral("/osdos-mpv.log")));
+        QVERIFY(arguments().contains(named));
+        QCOMPARE(read(conf), bindings);
+        QVERIFY(!(QFile::permissions(conf) & (QFileDevice::ReadGroup | QFileDevice::WriteGroup
+                                             | QFileDevice::ReadOther | QFileDevice::WriteOther)));
+        QCOMPARE(read(m_log + QStringLiteral(".fonts")).trimmed(),
+                 (runDir() + QStringLiteral("/osdos-fonts.conf")).toUtf8());
+        QVERIFY(read(runDir() + QStringLiteral("/osdos-fonts.conf")).contains("/assets/fonts</dir>"));
+        // Nothing of it in the temp folder.
+        QVERIFY(QDir(m_dir.path()).entryList({ QStringLiteral("osdos-*") }, QDir::AllEntries | QDir::System).isEmpty());
+
+        QVERIFY(write(conf, "ESC quit\n"));
+        play("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QVERIFY(arguments().contains(named));
+        QCOMPARE(read(conf), bindings);
+
+        QVERIFY(QFile::remove(conf));
+        play("C");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
+        QVERIFY(arguments().contains(named));
+        QCOMPARE(read(conf), bindings);
+
+        // A folder has its name: it can't be written.
+        QVERIFY(QFile::remove(conf));
+        QVERIFY(QDir().mkpath(conf + QStringLiteral("/held")));
+        const auto free = qScopeGuard([conf] { QDir(conf).removeRecursively(); });
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral(
+                                               "^\\[MpvController\\] The keys' file for mpv couldn't be written")));
+        play("D");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
+        QVERIFY2(arguments().filter(QStringLiteral("--input-conf")).isEmpty(),
+                 qPrintable(arguments().join(QLatin1Char(' '))));
+        QVERIFY(!arguments().filter(QStringLiteral("--input-ar-delay=")).isEmpty());
     }
 
     // On a tube mpv is told the screen is 4:3 whatever its pixels; on a
@@ -312,7 +375,7 @@ private slots:
         play("A");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
         QLocalServer control;
-        const QString path = m_dir.path() + QStringLiteral("/osdos-mpv.sock");
+        const QString path = socketPath();
         QLocalServer::removeServer(path);
         QVERIFY(control.listen(path));
         QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);

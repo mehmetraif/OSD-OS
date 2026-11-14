@@ -224,7 +224,7 @@ Sign-in messages are listed [above](#signing-in-with-quick-connect).
 | Changing subtitles restarts the video | It is a transcode; Direct Play switches without a restart |
 | Offline playlist says **Not Allowed** | An administrator must allow your Jellyfin user to download media. Then **Retry Downloads** on the playlist's page |
 
-Logs: `journalctl -u osdos -b | grep -i jellyfin`. mpv's log is `/tmp/osdos-mpv.log` (the system's temp folder on a Mac). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
+Logs: `journalctl -u osdos -b | grep -i jellyfin`. mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). See [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting).
 
 ## See also
 

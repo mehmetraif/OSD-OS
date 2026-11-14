@@ -7,6 +7,7 @@
 #include "../util/DisplayHandoff.h"
 #include "../util/FontconfigOverride.h"
 #include "../util/AtomicFile.h"
+#include "../util/RuntimeFiles.h"
 #include "../audio/MenuMusic.h"
 #include "../util/Board.h"
 #include "../util/LegacyNames.h"
@@ -66,6 +67,30 @@ constexpr int kPictureRemoteMs = 45000;
 // Back before a session's first picture, this long after its mpv started,
 // is worth what the mpv was doing in the log.
 constexpr int kLeftEarlyMs = 4000;
+// The key bindings every session's mpv gets, a process's and an embedded
+// session's alike (--input-conf). Back ends the video (backFromProcess), and
+// opens its player's menu if it has one; with Transparent Background it
+// returns to the menus and leaves the video playing (detachToMenus). Which is
+// decided here, not in mpv: one file for both. The deck's own menu still
+// takes back first while it is open (its bindings are forced).
+const char kInputConf[] = "ESC script-message osdos-menu\n"
+                          "BS script-message osdos-menu\n"
+                          "ENTER cycle pause\n";
+
+// Whether the file at `path` holds `text`, whole: left as it is when it does
+// (an mpv just started may be reading it), written when it doesn't or isn't
+// there (the first session's, or a cleaner took it since the last). False,
+// with the reason in the log, when it couldn't be written: mpv is then given
+// no file, rather than the name of one that isn't the app's.
+bool holdsOrWritten(const QString &path, const QByteArray &text) {
+    if (path.isEmpty())
+        return false;
+    QFile there(path);
+    if (there.open(QIODevice::ReadOnly) && there.readAll() == text)
+        return true;
+    there.close();
+    return writeFileAnew(path, text, QFile::ReadOwner | QFile::WriteOwner);
+}
 
 // The last value an option was given among these, "" if none.
 QString lastOption(const QStringList &options, const QLatin1String &name) {
@@ -279,14 +304,9 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     // mpv's control connection on Windows is a named pipe, which QLocalSocket
     // opens by the same name.
     , m_socketPath(QStringLiteral("\\\\.\\pipe\\osdos-mpv-") + QString::number(QCoreApplication::applicationPid()))
-#else
-    , m_socketPath(QDir::tempPath() + "/osdos-mpv.sock")
 #endif
-    , m_inputConfPath(QDir::tempPath() + "/osdos-input.conf")
-    , m_logFilePath(QDir::tempPath() + "/osdos-mpv.log")
-    , m_subInfoPath(QDir::tempPath() + "/osdos-mpv-subinfo.json")
-    , m_logoOverlayPath(QDir::tempPath() + "/osdos-logo.bgra")
 {
+    placeRunFiles();
     m_videoProfile = detectVideoProfile();
     qInfo("[MpvController] video profile: %s",
           m_videoProfile == VideoProfile::Pi4       ? "Pi 4 — drm + drm-copy,v4l2m2m-copy"
@@ -294,19 +314,6 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         : m_videoProfile == VideoProfile::PiFullKms ? "Pi 5 (Full KMS) — drm + auto-safe"
                                                     : "generic");
 
-    // Back ends the video (backFromProcess), and opens its player's menu if
-    // it has one; with Transparent Background it returns to the menus and
-    // leaves the video playing (detachToMenus). Which is decided here, not in
-    // mpv: one file for a process and an embedded session alike. The deck's
-    // own menu still takes back first while it is open (its bindings are
-    // forced).
-    QFile f(m_inputConfPath);
-    if (f.open(QFile::WriteOnly | QFile::Text)) {
-        f.write("ESC script-message osdos-menu\n");
-        f.write("BS script-message osdos-menu\n");
-        f.write("ENTER cycle pause\n");
-        f.close();
-    }
     // A video played inside the window ends when anything else takes the
     // screen (a takeover script, a web player, a game): left playing behind
     // the menus, or full screen still, whose player is told (endEmbedded());
@@ -426,6 +433,21 @@ MpvController::~MpvController() {
         m_handoff->releaseNow(QLatin1String(kHandoffOwner));
 }
 
+// Where a session's files go: a folder of the user's own, not the temp folder
+// every account writes in (util/RuntimeFiles.h). Asked as the app starts and
+// for each session: the folder may have been taken away since the last, and
+// is made again then. A path is "" where there is no such folder, and its
+// file is then left out of what mpv is given.
+void MpvController::placeRunFiles() {
+#ifndef Q_OS_WIN
+    m_socketPath = runtimefiles::path(QStringLiteral("osdos-mpv.sock"));
+#endif
+    m_inputConfPath = runtimefiles::path(QStringLiteral("osdos-input.conf"));
+    m_logFilePath = runtimefiles::path(QStringLiteral("osdos-mpv.log"));
+    m_subInfoPath = runtimefiles::path(QStringLiteral("osdos-mpv-subinfo.json"));
+    m_logoOverlayPath = runtimefiles::path(QStringLiteral("osdos-logo.bgra"));
+}
+
 QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
                                        int audioTrack, int subTrack,
                                        const QStringList &subFiles,
@@ -442,9 +464,11 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     const QString oscScript = m_appRoot + "/scripts/" + ((oscMode == "ambient") ? "mpv-osc-ambient.lua" : "mpv-osc.lua");
 
     QStringList args;
-    args << QString("--input-ipc-server=%1").arg(m_socketPath)
-         << QString("--log-file=%1").arg(m_logFilePath)
-         << (hasOscScript ? "--osc=no" : "--osc=yes")
+    if (!m_socketPath.isEmpty())
+        args << QString("--input-ipc-server=%1").arg(m_socketPath);
+    if (!m_logFilePath.isEmpty())
+        args << QString("--log-file=%1").arg(m_logFilePath);
+    args << (hasOscScript ? "--osc=no" : "--osc=yes")
          << "--osd-level=0";
 
     if (hasOscScript)
@@ -599,14 +623,12 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
             if (!subTitles[i].isEmpty())
                 info.insert(subFiles[i], subTitles[i]);
         }
-        QFile sf(m_subInfoPath);
-        if (!info.isEmpty() && sf.open(QFile::WriteOnly | QFile::Truncate)) {
-            sf.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
-            sf.write(QJsonDocument(info).toJson(QJsonDocument::Compact));
-            sf.close();
-            // Path is comma- and space-free, so it is safe in the script-opts list.
+        // Named to the script only once it is written whole. Path is comma-
+        // and space-free, so it is safe in the script-opts list.
+        if (!info.isEmpty() && !m_subInfoPath.isEmpty()
+                && writeFileAnew(m_subInfoPath, QJsonDocument(info).toJson(QJsonDocument::Compact),
+                                 QFile::ReadOwner | QFile::WriteOwner))
             scriptOpts << QString("subinfo-file=%1").arg(m_subInfoPath);
-        }
     }
     // Point mpv's ytdl_hook at the same user-updatable yt-dlp the app resolves,
     // so both agree on one copy even when it isn't on the global PATH (the
@@ -733,6 +755,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // Transparent Background plays inside the app's own window, where the
     // menus can lie over the picture.
     const bool embedded = transparentBackground();
+    placeRunFiles();
     QStringList args = sessionArgs(url, startSeconds, audioTrack, subTrack, subFiles, subLangs, loop,
                                    playlistStart, transcodeOffsetSec, plexToken, muteAudio, oscMode,
                                    shuffle, subTitles, imageDurationSec, imageContent, extraArgs,
@@ -744,9 +767,14 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     const QStringList media = QStringList(url) + extraUrls;
     // The deck's keys, how a held one repeats (sendKey()), and audio as the
     // clock; ahead of the video arguments, so a setting's mpv_video_args
-    // still has the last word.
-    args << QString("--input-conf=%1").arg(m_inputConfPath)
-         << QStringLiteral("--input-ar-delay=%1").arg(kMpvRepeatDelayMs)
+    // still has the last word. The keys' file only while it holds them: one
+    // that couldn't be written is not named to mpv, which then keeps its own
+    // bindings, and back still ends the video from here (backKey()).
+    if (holdsOrWritten(m_inputConfPath, kInputConf))
+        args << QString("--input-conf=%1").arg(m_inputConfPath);
+    else
+        qWarning("[MpvController] The keys' file for mpv couldn't be written: this video plays with mpv's own bindings");
+    args << QStringLiteral("--input-ar-delay=%1").arg(kMpvRepeatDelayMs)
          << QStringLiteral("--input-ar-rate=%1").arg(kMpvRepeatsPerSecond)
          << QStringLiteral("--video-sync=audio");
     if (embedded) {

@@ -347,7 +347,7 @@ The tree's help line names the problem.
 | **Could not search YouTube: check the network, and that yt-dlp is up to date.** | Check the network, then update yt-dlp. On the image: `sudo systemctl start osdos-yt-dlp-update.service`. Elsewhere: `yt-dlp -U`, or `brew upgrade yt-dlp`. A [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts#1-update-yt-dlp-console) script can do it from the remote. |
 | **Could not load the subscriptions: check the network.** | No channel's feed could be fetched. |
 | **Could not load the playlists: check the network, and that yt-dlp is installed.** | As for search. |
-| **Playback failed: Please check that yt-dlp is installed and up to date.** | Run yt-dlp by hand (below). mpv's log is `/tmp/osdos-mpv.log` (the system's temporary folder on a Mac). |
+| **Playback failed: Please check that yt-dlp is installed and up to date.** | Run yt-dlp by hand (below). mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). |
 | `No supported JavaScript runtime could be found` | Deno is missing, or not on the `PATH` of the user or service running OSD/OS. [Install it](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#on-raspberry-pi-os-steamos-and-macos). |
 | `Sign in to confirm you're not a bot` | [Sign in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in) with a spare account. If it persists, compare `--force-ipv4` with `--force-ipv6` in the command below: a check on IPv4 only points at the route. |
 | Subscriptions and Channels don't appear. | Check the file's name and place (not `.txt.txt`), and that it has a line that is neither blank nor a comment. |

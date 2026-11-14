@@ -605,7 +605,7 @@ How you read logs depends on whether you installed the autostart service:
 
 ### mpv playback logs
 
-During playback the app hands off to mpv as a subprocess (see [ARCHITECTURE.md → Playback Hand-off](ARCHITECTURE.md#playback-hand-off-mpvcontroller)). mpv keeps its own log in the temp dir, `/tmp/osdos-mpv.log` (`--log-file`), next to its IPC socket (`/tmp/osdos-mpv.sock`), and what mpv prints goes into the app's own log as `[mpv]` lines — both useful when a video won't play or transcoding misbehaves.
+During playback the app hands off to mpv as a subprocess (see [ARCHITECTURE.md → Playback Hand-off](ARCHITECTURE.md#playback-hand-off-mpvcontroller)). mpv keeps its own log, `osdos-mpv.log` (`--log-file`), next to its IPC socket (`osdos-mpv.sock`) in a folder only the app's user can open: `$XDG_RUNTIME_DIR` when the app is started from a terminal or a desktop (`/run/user/1000`, say), `/tmp/runtime-<user>` without a login session, as under the autostart service (`/tmp/runtime-pi` on the image), and the temp dir on macOS and Windows, the user's own there (see [ARCHITECTURE.md → Playback Hand-off](ARCHITECTURE.md#playback-hand-off-mpvcontroller), The run's files). What mpv prints goes into the app's own log as `[mpv]` lines — both useful when a video won't play or transcoding misbehaves.
 
 ### Crash and freeze reports
 
