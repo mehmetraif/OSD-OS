@@ -207,137 +207,154 @@ FocusScope {
         }
     }
 
-    // The key drawn at row r, column c.
+    // The key drawn at row r, column c: none before the keyboard has shown.
     function keyItem(r, c) {
-        var line = keyRows.itemAt(r)
-        return line ? line.keyAt(c) : null
+        return drawn.item ? drawn.item.keyAt(r, c) : null
     }
 
     property real fontSize: root.sh * 0.05 //24
     readonly property real cellW: inline ? Math.floor(width / 10) : Math.floor(root.sw * 0.75 / 10) //48
     readonly property real cellH: inline ? Math.round(fontSize * 1.4) : root.sh * 0.0666667 //32
 
-    // Everything under the title bar, on the ground every view has (OSD
-    // BACKGROUND): a window goes on under it as it was.
-    OsdGround {
-        visible: !osk.inline
-        y: root.sh * 0.1916667 //92
-        width: parent.width
-        height: parent.height - y
-    }
+    // What it draws, the line and the keys, is made as it first shows and
+    // kept from then on: most views that carry a keyboard are left without
+    // it ever opening.
+    onVisibleChanged: if (visible) drawn.active = true
+    Component.onCompleted: if (visible) drawn.active = true
 
-    Column {
-        x: osk.inline ? 0 : root.sw * 0.125 //80
-        y: osk.inline ? 0 : root.sh * 0.2083333 //100
-        spacing: osk.inline ? Math.round(osk.fontSize * 0.4) : root.sh * 0.025 //12
+    Loader {
+        id: drawn
+        anchors.fill: parent
+        active: false
+        sourceComponent: Item {
+            function keyAt(r, c) {
+                var line = keyRows.itemAt(r)
+                return line ? line.keyAt(c) : null
+            }
 
-        Text {
-            visible: !osk.inline
-            textFormat: Text.PlainText
-            text: osk.title
-            color: root.primaryColor
-            font.family: root.globalFont
-            font.capitalization: Font.AllUppercase
-            font.pixelSize: root.sh * 0.0375 //18
-        }
+            // Everything under the title bar, on the ground every view has (OSD
+            // BACKGROUND): a window goes on under it as it was.
+            OsdGround {
+                visible: !osk.inline
+                y: root.sh * 0.1916667 //92
+                width: parent.width
+                height: parent.height - y
+            }
 
-        // What has been typed, with a block where the next letter goes.
-        Rectangle {
-            width: osk.cellW * 10
-            height: osk.cellH + 2 * root.px
-            color: "transparent"
-            border.width: root.px
-            border.color: root.primaryColor
-            antialiasing: false
-            clip: true
-            Row {
-                // From the box's left edge, until the line is longer than
-                // the box: then its end, where the next letter goes, stays
-                // in view, and its start runs out at the left.
-                readonly property real margin: root.sw * 0.0125 //8
-                x: Math.min(margin, parent.width - margin - typed.width - caret.width)
-                anchors.verticalCenter: parent.verticalCenter
+            Column {
+                x: osk.inline ? 0 : root.sw * 0.125 //80
+                y: osk.inline ? 0 : root.sh * 0.2083333 //100
+                spacing: osk.inline ? Math.round(osk.fontSize * 0.4) : root.sh * 0.025 //12
+
                 Text {
-                    id: typed
+                    visible: !osk.inline
                     textFormat: Text.PlainText
-                    text: osk.masked && !osk.revealed ? "*".repeat(osk.text.length) : osk.text
+                    text: osk.title
                     color: root.primaryColor
                     font.family: root.globalFont
-                    font.capitalization: osk.caseSensitive ? Font.MixedCase : Font.AllUppercase
-                    font.pixelSize: osk.fontSize
+                    font.capitalization: Font.AllUppercase
+                    font.pixelSize: root.sh * 0.0375 //18
                 }
-                Rectangle {
-                    id: caret
-                    width: Math.round(osk.fontSize * 0.55)
-                    height: Math.round(osk.fontSize * 0.75)
-                    anchors.verticalCenter: typed.verticalCenter
-                    color: root.primaryColor
-                    antialiasing: false
-                    visible: blink.on && osk.live
-                }
-            }
-            Timer {
-                id: blink
-                property bool on: true
-                interval: 500
-                repeat: true
-                running: osk.visible && osk.live
-                onTriggered: on = !on
-            }
-        }
 
-        Column {
-            Repeater {
-                id: keyRows
-                model: osk.rows.length
-                Row {
-                    id: keyRow
-                    required property int index
-                    readonly property var keys: osk.rows[index]
-                    // The last row's keys share the grid's width.
-                    readonly property real keyW: keys.length === 10 ? osk.cellW : osk.cellW * 10 / keys.length
-                    function keyAt(c) { return keyRepeater.itemAt(c) }
-                    // A key for each place in the row, made once: SHIFT (and
-                    // SHOW) change what the keys say, not the keys, which
-                    // would otherwise all be made again at each press.
+                // What has been typed, with a block where the next letter goes.
+                Rectangle {
+                    width: osk.cellW * 10
+                    height: osk.cellH + 2 * root.px
+                    color: "transparent"
+                    border.width: root.px
+                    border.color: root.primaryColor
+                    antialiasing: false
+                    clip: true
+                    Row {
+                        // From the box's left edge, until the line is longer than
+                        // the box: then its end, where the next letter goes, stays
+                        // in view, and its start runs out at the left.
+                        readonly property real margin: root.sw * 0.0125 //8
+                        x: Math.min(margin, parent.width - margin - typed.width - caret.width)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            id: typed
+                            textFormat: Text.PlainText
+                            text: osk.masked && !osk.revealed ? "*".repeat(osk.text.length) : osk.text
+                            color: root.primaryColor
+                            font.family: root.globalFont
+                            font.capitalization: osk.caseSensitive ? Font.MixedCase : Font.AllUppercase
+                            font.pixelSize: osk.fontSize
+                        }
+                        Rectangle {
+                            id: caret
+                            width: Math.round(osk.fontSize * 0.55)
+                            height: Math.round(osk.fontSize * 0.75)
+                            anchors.verticalCenter: typed.verticalCenter
+                            color: root.primaryColor
+                            antialiasing: false
+                            visible: blink.on && osk.live
+                        }
+                    }
+                    Timer {
+                        id: blink
+                        property bool on: true
+                        interval: 500
+                        repeat: true
+                        running: osk.visible && osk.live
+                        onTriggered: on = !on
+                    }
+                }
+
+                Column {
                     Repeater {
-                        id: keyRepeater
-                        model: keyRow.keys.length
-                        Item {
+                        id: keyRows
+                        model: osk.rows.length
+                        Row {
+                            id: keyRow
                             required property int index
-                            readonly property string label: keyRow.keys[index] || ""
-                            readonly property bool current: osk.row === keyRow.index && osk.col === index
-                            width: keyRow.keyW
-                            height: osk.cellH
-                            SelectionBox {
-                                anchors.centerIn: parent
-                                width: keyText.implicitWidth + 2 * root.sw * 0.009375
-                                height: parent.height
-                                visible: parent.current && osk.live
-                                skinned: false
-                            }
-                            Text {
-                                id: keyText
-                                anchors.centerIn: parent
-                                textFormat: Text.PlainText
-                                text: parent.label
-                                color: parent.current && osk.live ? root.surfaceColor : root.primaryColor
-                                font.family: root.globalFont
-                                font.pixelSize: osk.fontSize
+                            readonly property var keys: osk.rows[index]
+                            // The last row's keys share the grid's width.
+                            readonly property real keyW: keys.length === 10 ? osk.cellW : osk.cellW * 10 / keys.length
+                            function keyAt(c) { return keyRepeater.itemAt(c) }
+                            // A key for each place in the row, made once: SHIFT (and
+                            // SHOW) change what the keys say, not the keys, which
+                            // would otherwise all be made again at each press.
+                            Repeater {
+                                id: keyRepeater
+                                model: keyRow.keys.length
+                                Item {
+                                    required property int index
+                                    readonly property string label: keyRow.keys[index] || ""
+                                    readonly property bool current: osk.row === keyRow.index && osk.col === index
+                                    width: keyRow.keyW
+                                    height: osk.cellH
+                                    SelectionBox {
+                                        anchors.centerIn: parent
+                                        width: keyText.implicitWidth + 2 * root.sw * 0.009375
+                                        height: parent.height
+                                        visible: parent.current && osk.live
+                                        skinned: false
+                                    }
+                                    Text {
+                                        id: keyText
+                                        anchors.centerIn: parent
+                                        textFormat: Text.PlainText
+                                        text: parent.label
+                                        color: parent.current && osk.live ? root.surfaceColor : root.primaryColor
+                                        font.family: root.globalFont
+                                        font.pixelSize: osk.fontSize
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    }
 
-    HintBar {
-        visible: !osk.inline
-        text: root.hints.back + ":CANCEL " + root.hints.navigate + ":MOVE " + root.hints.select + ":TYPE"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+            HintBar {
+                visible: !osk.inline
+                text: root.hints.back + ":CANCEL " + root.hints.navigate + ":MOVE " + root.hints.select + ":TYPE"
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.bottomMargin: root.sh * 0.1041667 //50
+                anchors.leftMargin: root.sw * 0.125 //80
+            }
+        }
     }
 }

@@ -406,6 +406,69 @@ Rectangle {
             compare(wifiManager.calls, ["startSearch", "stopSearch", "stopSearch"])
         }
 
+        // The PromptScreen an item holds, or null.
+        function promptIn(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                var kid = item.children[i]
+                if (kid.maxChoices !== undefined && typeof kid.hoverRow === "function")
+                    return kid
+                var deeper = promptIn(kid)
+                if (deeper)
+                    return deeper
+            }
+            return null
+        }
+
+        // What the page opens over itself is not made with it: the
+        // keyboard's keys, a network's options and the country's chooser
+        // each come as they first open, and stay.
+        function test_madeWhenOpened() {
+            var page = open()
+            var keyboard = keyboardOf(page)
+            var overlay = overlayOf(page)
+            var chooser = chooserOf(page)
+            verify(keyboard !== null && overlay !== null && chooser !== null)
+            compare(keyboard.keyItem(0, 0), null)
+            compare(promptIn(overlay), null)
+            compare(promptIn(chooser), null)
+            // The keyboard, for a password.
+            moveTo(page, "Neighbour")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            var key = keyboard.keyItem(0, 0)
+            verify(key !== null)
+            compare(promptIn(overlay), null)
+            compare(promptIn(chooser), null)
+            keyClick(Qt.Key_Escape)
+            compare(keyboard.keyItem(0, 0), key)
+            // A saved network's options.
+            moveTo(page, "Cafe")
+            keyClick(Qt.Key_Return)
+            verify(overlay.visible)
+            var options = promptIn(overlay)
+            verify(options !== null)
+            compare(options.message, "Cafe")
+            compare(promptIn(chooser), null)
+            keyClick(Qt.Key_Escape)
+            compare(promptIn(overlay), options)
+            // The country's chooser, a line for each country.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(page), "Country")
+            keyClick(Qt.Key_Return)
+            verify(chooser.visible)
+            var countries = promptIn(chooser)
+            verify(countries !== null)
+            compare(countries.title, "Wi-Fi Country")
+            compare(countries.choices.length, wifiManager.countries.length)
+            compare(countries.currentIndex, chooser.index)
+            keyClick(Qt.Key_Escape)
+            compare(promptIn(chooser), countries)
+            compare(wifiManager.calls, [])
+        }
+
         // The cursor keeps to its network as the list changes: joined, it
         // moves from NETWORKS to SAVED, the cursor with it.
         function test_cursorKept() {

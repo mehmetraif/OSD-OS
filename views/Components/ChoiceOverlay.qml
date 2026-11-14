@@ -91,14 +91,24 @@ FocusScope {
             event.accepted = true
     }
 
-    PromptScreen {
-        kind: overlayRoot.promptKind
-        title: overlayRoot.promptText
-        message: overlayRoot.subtitleText
-        choices: overlayRoot.choices
-        currentIndex: overlayRoot.choiceIndex
-        hint: overlayRoot.hintText
-        // The answer under the mouse becomes the cursor's.
-        onHovered: function(index) { overlayRoot.choiceIndex = index }
+    // The window it draws is made as it first shows and kept from then on:
+    // most views that carry a question are left without it being asked.
+    onVisibleChanged: if (visible) drawn.active = true
+    Component.onCompleted: if (visible) drawn.active = true
+
+    Loader {
+        id: drawn
+        anchors.fill: parent
+        active: false
+        sourceComponent: PromptScreen {
+            kind: overlayRoot.promptKind
+            title: overlayRoot.promptText
+            message: overlayRoot.subtitleText
+            choices: overlayRoot.choices
+            currentIndex: overlayRoot.choiceIndex
+            hint: overlayRoot.hintText
+            // The answer under the mouse becomes the cursor's.
+            onHovered: function(index) { overlayRoot.choiceIndex = index }
+        }
     }
 }

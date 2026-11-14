@@ -4,7 +4,9 @@ import QtTest
 // What comes over a view, each on its own: the on-screen keyboard
 // (views/Components/OnScreenKeyboard.qml), whose keys stay the keys they are
 // as SHIFT and SHOW change what they say, whose line keeps its end in view
-// however long it is, and which Backspace leaves once nothing is typed.
+// however long it is, and which Backspace leaves once nothing is typed; and
+// the choice window (views/Components/ChoiceOverlay.qml). Neither draws
+// anything before it first shows.
 Rectangle {
     id: root
     color: surfaceColor
@@ -50,6 +52,34 @@ Rectangle {
     SignalSpy {
         id: canceledSpy
         signalName: "canceled"
+    }
+    SignalSpy {
+        id: activatedSpy
+        signalName: "activated"
+    }
+    SignalSpy {
+        id: closedSpy
+        signalName: "closed"
+    }
+
+    // How many items an item holds, all the way down.
+    function itemsIn(item) {
+        var count = 0
+        for (var i = 0; i < item.children.length; i++)
+            count += 1 + itemsIn(item.children[i])
+        return count
+    }
+    // The PromptScreen an item holds, or null.
+    function promptIn(item) {
+        for (var i = 0; i < item.children.length; i++) {
+            var kid = item.children[i]
+            if (kid.maxChoices !== undefined && typeof kid.hoverRow === "function")
+                return kid
+            var deeper = promptIn(kid)
+            if (deeper)
+                return deeper
+        }
+        return null
     }
 
     TestCase {
@@ -131,6 +161,31 @@ Rectangle {
             keyboard.moveTo(1, 0)
             keyClick(Qt.Key_Return)
             compare(keyboard.text, "k")
+        }
+
+        // Nothing of it is made with its view: the line and the keys come
+        // as it first shows, are kept once it is closed, and are the same
+        // ones when it opens again. One a view shows from the start (the
+        // Arcade screen's Search, as its first filter) has them at once.
+        function test_madeAsItFirstShows() {
+            var keyboard = keyboardWith({ caseSensitive: true })
+            verify(!keyboard.visible)
+            // The loader that will hold them, and no more.
+            compare(root.itemsIn(keyboard), 1)
+            compare(keyboard.keyItem(0, 0), null)
+            keyboard.open("")
+            verify(root.itemsIn(keyboard) > 100)
+            var keys = keysOf(keyboard)
+            compare(saidBy(keyboard, 0, 0), "a")
+            keyClick(Qt.Key_Escape)
+            verify(!keyboard.visible)
+            verify(sameKeys(keyboard, keys), "kept once closed")
+            keyboard.open("abc")
+            verify(sameKeys(keyboard, keys), "the same keys opened again")
+            compare(lineOf(keyboard, "abc").text.text, "abc")
+
+            var shown = keyboardWith({ inline: true, visible: true })
+            verify(shown.keyItem(0, 0) !== null)
         }
 
         // The line typed as it is drawn (the stars of a hidden one): its
@@ -233,6 +288,82 @@ Rectangle {
             keyClick(Qt.Key_Backspace)
             compare(canceledSpy.count, 1)
             verify(keyboard.visible)
+        }
+    }
+
+    TestCase {
+        name: "ChoiceOverlay"
+        when: windowShown
+
+        function cleanup() {
+            loader.source = ""
+        }
+
+        // The list of answers a PromptScreen draws.
+        function answersOf(prompt) {
+            var answers = null
+            var find = function(item) {
+                if (typeof item.keep === "function" && typeof item.itemAtIndex === "function")
+                    answers = item
+                for (var i = 0; i < item.children.length && !answers; i++)
+                    find(item.children[i])
+            }
+            find(prompt)
+            return answers
+        }
+
+        // Its window (PromptScreen) is not made with its view: it comes as
+        // the question is first asked, with all its answers there at once,
+        // takes the keys as ever, stays once closed, and is the same window
+        // when the question is asked again.
+        function test_madeAsItFirstShows() {
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Install update?", subtitleText: "v2.0",
+                               choices: [{ label: "Apply", action: "apply" }, { label: "Discard", action: "discard" }] })
+            var overlay = loader.item
+            verify(overlay !== null, "loaded ChoiceOverlay.qml")
+            activatedSpy.target = overlay
+            activatedSpy.clear()
+            closedSpy.target = overlay
+            closedSpy.clear()
+            verify(!overlay.visible)
+            compare(root.promptIn(overlay), null)
+            // The loader that will hold it, and no more.
+            compare(root.itemsIn(overlay), 1)
+
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            verify(prompt !== null)
+            verify(prompt.visible)
+            compare(prompt.title, "Install update?")
+            compare(prompt.message, "v2.0")
+            compare(prompt.width, root.width)
+            compare(prompt.height, root.height)
+            // Both answers drawn already, the cursor's the first.
+            var answers = answersOf(prompt)
+            verify(answers !== null)
+            verify(answers.itemAtIndex(0) !== null && answers.itemAtIndex(1) !== null)
+            verify(answers.itemAtIndex(0).current)
+            keyClick(Qt.Key_Down)
+            compare(prompt.currentIndex, 1)
+            verify(answers.itemAtIndex(1).current)
+            keyClick(Qt.Key_Return)
+            compare(activatedSpy.count, 1)
+            compare(activatedSpy.signalArguments[0][0], "discard")
+            compare(closedSpy.count, 1)
+            verify(!overlay.visible)
+            compare(root.promptIn(overlay), prompt)
+
+            // Asked again, with other answers: the same window, on the first.
+            overlay.choices = [{ label: "Yes", action: "yes" }, { label: "No", action: "no" },
+                               { label: "Later", action: "later" }]
+            overlay.open()
+            compare(root.promptIn(overlay), prompt)
+            compare(prompt.choices.length, 3)
+            compare(prompt.currentIndex, 0)
+            keyClick(Qt.Key_Escape)
+            compare(closedSpy.count, 2)
+            compare(activatedSpy.count, 1)
         }
     }
 }

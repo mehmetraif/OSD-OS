@@ -488,7 +488,8 @@ add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # What comes over a view, each on its own: the on-screen keyboard
-# (views/Components/OnScreenKeyboard.qml).
+# (views/Components/OnScreenKeyboard.qml) and the choice window
+# (views/Components/ChoiceOverlay.qml).
 add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")

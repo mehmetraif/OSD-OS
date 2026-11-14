@@ -140,7 +140,11 @@ Item {
                 id: answers
                 readonly property real rowHeight: root.sh * 0.0583333 //28
                 width: parent.width
-                height: Math.min(count, prompt.maxChoices) * rowHeight
+                // By the answers it is given, which it has as it is made,
+                // not by its count, which it has only once made: a window
+                // made as its question opens (ChoiceOverlay) then draws all
+                // its answers at once, not from the next frame on.
+                height: Math.min(prompt.choices.length, prompt.maxChoices) * rowHeight
                 clip: true
                 interactive: false
                 highlightFollowsCurrentItem: false

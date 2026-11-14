@@ -432,6 +432,9 @@ FocusScope {
 
         readonly property var entries: wifiManager ? wifiManager.countries : []
         property int index: 0
+        // Its window, a line for every country there is, is made as it
+        // first opens: most visits to the page never choose a country.
+        property bool made: false
 
         function open() {
             var code = wifiRoot.country !== "" ? wifiRoot.country : (wifiManager ? wifiManager.suggestedCountry : "")
@@ -440,6 +443,7 @@ FocusScope {
                 if (entries[i].code === code)
                     index = i
             }
+            made = true
             visible = true
             forceActiveFocus()
         }
@@ -494,14 +498,18 @@ FocusScope {
             }
         }
 
-        PromptScreen {
-            title: "Wi-Fi Country"
-            message: "The country the Pi is used in: Wi-Fi keeps to its rules"
-            choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
-            currentIndex: countries.index
-            onHovered: function(index) { countries.index = index }
-            hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
-                  + root.hints.select + ":SELECT"
+        Loader {
+            anchors.fill: parent
+            active: countries.made
+            sourceComponent: PromptScreen {
+                title: "Wi-Fi Country"
+                message: "The country the Pi is used in: Wi-Fi keeps to its rules"
+                choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
+                currentIndex: countries.index
+                onHovered: function(index) { countries.index = index }
+                hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
+                      + root.hints.select + ":SELECT"
+            }
         }
     }
 }
