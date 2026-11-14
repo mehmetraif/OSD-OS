@@ -160,6 +160,10 @@ Rectangle {
     QtObject {
         id: audioOutput
         property bool available: false
+        // Its row as AudioOutput::settingRow() gives it, from the cards
+        // there are as it is asked.
+        property var row: ({ options: ["Auto"], values: [""], value: "Auto", note: "" })
+        function settingRow() { return row }
     }
     QtObject {
         id: bluetoothManager
@@ -216,6 +220,8 @@ Rectangle {
             bootProgress.available = true
             root.transitionPresets = ["Fade"]
             root.unusableTransitions = []
+            audioOutput.available = false
+            audioOutput.row = { options: ["Auto"], values: [""], value: "Auto", note: "" }
         }
         function cleanup() {
             loader.source = ""
@@ -935,6 +941,51 @@ Rectangle {
             verify(lines(page).indexOf("Key Protect") > 0)
             root.menuLayout = "Camcorder"
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
+        }
+
+        // Audio Output's cards are read again while Sound's page stays open:
+        // a card plugged in is offered and one taken out goes, or reads
+        // (Unplugged) while it is the one chosen, the cursor kept where it
+        // is; while nothing changes the page is left as it is, and so it is
+        // under a value being changed in two steps.
+        function test_audioOutputFollowsTheCards() {
+            var hdmi = { card: "vc4hdmi0", name: "HDMI" }
+            var usb = { card: "Device", name: "USB Audio" }
+            audioOutput.available = true
+            audioOutput.row = { options: ["Auto", "HDMI"], values: ["", hdmi], value: "Auto", note: "No USB sound card" }
+            var page = open({ group: "sound" })
+            page.audioFollowInterval = 50
+            compare(row(page, "Audio Output").options, ["Auto", "HDMI"])
+            verify(row(page, "Audio Output").description.indexOf("No USB sound card") > 0)
+            moveTo(page, "Menu Music")
+            var built = page.settingsItems
+            wait(300)
+            verify(page.settingsItems === built, "left as it is while the cards stay")
+            audioOutput.row = { options: ["Auto", "HDMI", "USB Audio"], values: ["", hdmi, usb], value: "Auto", note: "" }
+            tryVerify(function() { return row(page, "Audio Output").options.length === 3 }, 3000)
+            compare(row(page, "Audio Output").options, ["Auto", "HDMI", "USB Audio"])
+            compare(cursor(page), "Menu Music")
+            // Chosen, then taken out.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.audio_output, usb)
+            audioOutput.row = { options: ["Auto", "HDMI", "USB Audio (Unplugged)"], values: ["", hdmi, usb],
+                                value: "USB Audio (Unplugged)", note: "No USB sound card" }
+            tryVerify(function() { return row(page, "Audio Output").value === "USB Audio (Unplugged)" }, 3000)
+            compare(cursor(page), "Audio Output")
+            // Broadcast: not under a value being changed.
+            loader.source = ""
+            root.menuLayout = "Broadcast"
+            page = open({ group: "sound" })
+            page.audioFollowInterval = 50
+            keyClick(Qt.Key_Return)
+            verify(page.editIndex >= 0)
+            audioOutput.row = { options: ["Auto", "HDMI"], values: ["", hdmi], value: "Auto", note: "" }
+            wait(300)
+            verify(page.editIndex >= 0)
+            compare(row(page, "Audio Output").options.length, 3)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return row(page, "Audio Output").options.length === 2 }, 3000)
         }
 
         // A part's row (the eight a theme sets) whose saved value is not

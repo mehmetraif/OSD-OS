@@ -33,7 +33,7 @@ The word in brackets is the card's **id**. After the dash comes its **short name
 
 HDMI cards are numbered as the board's ports are printed, `HDMI0` and `HDMI1`. A Bluetooth speaker isn't an ALSA card, so it isn't listed.
 
-◄ ► on the row go through **Auto** ([Auto](#auto)), each card there now, and a chosen card that isn't plugged in, marked **(Unplugged)**. The list is read as Settings opens.
+◄ ► on the row go through **Auto** ([Auto](#auto)), each card there now, and a chosen card that isn't plugged in, marked **(Unplugged)**. The list is read as the page opens, and again every two seconds while it stays open: a card plugged in or taken out shows within moments.
 
 With no USB sound card in the list, the help line says what the system sees of one. The log has the same, after `[AudioOutput]`.
 

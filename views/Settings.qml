@@ -318,6 +318,8 @@ FocusScope {
             items = first
 
         settingsItems = items
+        // Audio Output's cards are on this page: read again as it stays open.
+        audioListed = (shown === "sound" || shown === "status") && !!audioOutput && audioOutput.available
 
         // Restore saved position, or default to first selectable row
         var start = at !== undefined ? Math.min(at, items.length - 1)
@@ -700,6 +702,7 @@ FocusScope {
             // Without a USB sound card to choose: what the system sees of one
             // (note).
             var audio = audioOutput.settingRow()
+            audioShown = JSON.stringify(audio)
             var usbNote = audio.note || ""
             items.push({
                 type: "list_single",
@@ -758,6 +761,29 @@ FocusScope {
             shownWith: { key: "menu_music", not: "Off" },
             moduleId: ""
         })
+    }
+
+    // Audio Output's cards are read as its row is made (settingRow()), and
+    // again every couple of seconds while the row is on the page (Sound's,
+    // or STATUS's Audio line): a USB sound card plugged in or taken out
+    // shows there, and (Unplugged) comes and goes, without leaving the page.
+    // The page is made again only where the answer changed (audioShown, what
+    // the row was made from), the cursor kept, and never under a value being
+    // changed in two steps.
+    property bool audioListed: false
+    property string audioShown: ""
+    property int audioFollowInterval: 2000
+    function followAudio() {
+        if (editIndex >= 0 || !audioOutput || !audioOutput.available)
+            return
+        if (JSON.stringify(audioOutput.settingRow()) !== audioShown)
+            buildModel(settingsList.currentIndex)
+    }
+    Timer {
+        interval: settingsRoot.audioFollowInterval
+        repeat: true
+        running: settingsRoot.audioListed
+        onTriggered: settingsRoot.followAudio()
     }
 
     // NETWORK: joining a Wi-Fi network (NetworkManager), pairing Bluetooth
