@@ -64,7 +64,14 @@ Rectangle {
         signal moduleAuthStateChanged(string mid)
         function get_settings() { return { modules: { "com.osdos.test": values, "com.osdos.other": otherValues } } }
         function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }, { id: "com.osdos.other", name: "Other" }] }
-        function get_module_auth_state(id) { return "" }
+        // Who is signed in, and how often the page asked for that and for a
+        // schema (counted in place: no binding follows them).
+        property string authState: ""
+        readonly property var calls: ({ schemas: 0, states: 0 })
+        function get_module_auth_state(id) {
+            calls.states++
+            return authState
+        }
         function invoke_module_action(id, slot) { actions = actions.concat([slot]) }
         // How many times config.json was written, and what is held back
         // from it: a slider's steps (save_setting_soon()), each its value
@@ -115,7 +122,10 @@ Rectangle {
             settingsNotSaved()
             return false
         }
-        function get_module_settings_schema(id) { return id === "com.osdos.other" ? otherSchema : schema }
+        function get_module_settings_schema(id) {
+            calls.schemas++
+            return id === "com.osdos.other" ? otherSchema : schema
+        }
 
         // The file picker's (views/FilePicker.qml): the places, and a
         // folder's entries (folders: path -> entries), read off the app's
@@ -196,6 +206,8 @@ Rectangle {
             appCore.otherValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
+            appCore.authState = ""
+            appCore.calls.schemas = appCore.calls.states = 0
             appCore.writes = 0
             appCore.held = []
             appCore.folders = {}
@@ -276,6 +288,100 @@ Rectangle {
                     return found
             }
             return null
+        }
+
+        // The page's list (MenuList), for where it is scrolled to.
+        function menuOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].contentY !== undefined && page.children[i].shownHeight !== undefined)
+                    return page.children[i]
+            }
+            return null
+        }
+
+        // What dims a row changes (the row it goes with, what the server can
+        // do, a sign-in): the rows dimmed or usable otherwise change in
+        // place. No line of the list is made again, the list stays where it
+        // was scrolled to with the cursor on its row, the help line follows,
+        // and the schema isn't asked for again.
+        function test_rowsFollowInPlace() {
+            var rows = []
+            for (var i = 0; i < 10; i++)
+                rows.push({ key: "fill" + i, label: "Fill " + i, type: "toggle", default: "OFF" })
+            rows.push({ key: "screen", label: "Screen", type: "list_single", options: ["Original", "Arcade"],
+                        default: "Original" })
+            rows.push({ key: "border", label: "Border", type: "toggle", default: "ON",
+                        shown_with: { key: "screen", value: "Arcade" }, description: "A border round the list" })
+            rows.push({ key: "skip", label: "Skip Intros", type: "toggle", default: "ON",
+                        requires_capability: "mediasegments" })
+            rows.push({ key: "server", label: "Server", type: "toggle", default: "ON", requires_auth: true })
+            appCore.schema = rows
+            var page = open()
+            compare(appCore.calls.schemas, 1)
+            compare(appCore.calls.states, 1)
+            // To the list's foot, then back up to Screen, the last rows in view.
+            for (i = 0; i < 13; i++)
+                keyClick(Qt.Key_Down)
+            for (i = 0; i < 3; i++)
+                keyClick(Qt.Key_Up)
+            compare(cursor(page), "screen")
+            var menu = menuOf(page)
+            verify(menu !== null)
+            var scrolled = menu.contentY
+            verify(scrolled > 0)
+            var lines = [menuRow(page, 10), menuRow(page, 11), menuRow(page, 12), menuRow(page, 13)]
+            for (i = 0; i < lines.length; i++)
+                verify(lines[i] !== null, "line " + (10 + i) + " drawn")
+            verify(lines[1].dimmed && lines[2].dimmed && lines[3].dimmed)
+            var model = page.schemaItems
+            // Each line still the one it was, and the list where it was.
+            var kept = function(what) {
+                for (var n = 0; n < lines.length; n++)
+                    verify(menuRow(page, 10 + n) === lines[n], what + ": line " + (10 + n) + " not made again")
+                verify(page.schemaItems === model, what + ": the list's rows not given anew")
+                compare(menu.contentY, scrolled)
+                compare(cursor(page), "screen")
+                compare(appCore.calls.schemas, 1)
+            }
+
+            // The row Border goes with.
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.screen, "Arcade")
+            compare(off(page, "border"), "")
+            verify(!lines[1].dimmed)
+            verify(lines[1].changes)
+            verify(lines[2].dimmed && lines[3].dimmed)
+            kept("a row's value")
+
+            // What the server can do.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["mediasegments"])
+            compare(off(page, "skip"), "")
+            verify(!lines[2].dimmed)
+            verify(lines[3].dimmed)
+            kept("the capabilities")
+
+            // A sign-in: the state asked for again, not the schema.
+            appCore.authState = "user"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(off(page, "server"), "")
+            verify(!lines[3].dimmed)
+            compare(appCore.calls.states, 2)
+            kept("a sign-in")
+
+            // And back: dimmed again in place, the help line saying why.
+            keyClick(Qt.Key_Left)
+            compare(off(page, "border"), "Only with Screen on Arcade")
+            verify(lines[1].dimmed)
+            verify(!lines[1].changes)
+            kept("the value back")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "border")
+            verify(findText(page, "Only with Screen on Arcade") !== null)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "Only with Screen on Arcade") === null)
+            verify(findText(page, "A border round the list") !== null)
         }
 
         // A toggle's and a list's value stand between the ◄ and ► that

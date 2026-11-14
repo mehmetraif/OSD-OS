@@ -76,9 +76,21 @@ FocusScope {
         return row && row.type === "submenu" ? row : null
     }
 
-    // `keepId`: the row the cursor stays on (rowId()), as the rows are made
-    // again round it.
+    // The page made: the schemas and the sign-in states read, and the list
+    // given its rows. `keepId`: the row the cursor stays on (rowId()), where
+    // the rows are made again round it. What dims a row changing later
+    // (another row's value, a sign-in, what the server can do) doesn't make
+    // the page again: followRows().
     function buildModel(keepId) {
+        readSchemas()
+        readAuth()
+        placeRows(offeredRows(), keepId)
+    }
+
+    // The schemas, this module's (its submenu's rows, on a submenu's page)
+    // and the group's other modules': a manifest's, which stays as it is
+    // while the app runs, so read as the page is made and not again.
+    function readSchemas() {
         var schema = appCore.get_module_settings_schema(moduleId)
         fullSchema = schema
         if (submenuKey !== "") {
@@ -87,23 +99,72 @@ FocusScope {
             schema = submenu ? (submenu.settings || []) : []
         }
         menuSchema = schema
-        authState = needsAuth(schema) ? appCore.get_module_auth_state(moduleId) : ""
         var schemas = {}
+        for (var a = 0; a < alsoModules.length; a++)
+            schemas[alsoModules[a]] = appCore.get_module_settings_schema(alsoModules[a]) || []
+        alsoSchemas = schemas
+    }
+
+    // Who is signed in, for the modules with a row that asks.
+    function readAuth() {
+        authState = needsAuth(menuSchema) ? appCore.get_module_auth_state(moduleId) : ""
         var states = {}
         for (var a = 0; a < alsoModules.length; a++) {
             var mid = alsoModules[a]
-            schemas[mid] = appCore.get_module_settings_schema(mid) || []
-            states[mid] = needsAuth(schemas[mid]) ? appCore.get_module_auth_state(mid) : ""
+            states[mid] = needsAuth(alsoSchemas[mid]) ? appCore.get_module_auth_state(mid) : ""
         }
-        alsoSchemas = schemas
         alsoAuthStates = states
-        var filtered = offered(schema, "")
-        for (a = 0; a < alsoModules.length; a++) {
-            var rows = offered(schemas[alsoModules[a]], alsoModules[a])
+    }
+
+    // The page's rows as they are offered now: this menu's, then each other
+    // module's under its name as a heading.
+    function offeredRows() {
+        var filtered = offered(menuSchema, "")
+        for (var a = 0; a < alsoModules.length; a++) {
+            var rows = offered(alsoSchemas[alsoModules[a]], alsoModules[a])
             if (rows.length > 0)
                 filtered = filtered.concat([{ type: "section", label: moduleNames[alsoModules[a]] || alsoModules[a] }], rows)
         }
+        return filtered
+    }
+
+    // Counted up as a row changes in place (followRows()), so the lines
+    // read theirs again: the list keeps its model, its lines and its place.
+    property int revision: 0
+
+    // What dims a row may have changed: another row's value, a sign-in, what
+    // the server can do. The rows are worked out again, and those that are
+    // dimmed or usable otherwise are put in their places, the others and the
+    // list left as they are: no line is made again, the list isn't scrolled,
+    // the cursor is where it was. The rows are the same rows whatever is
+    // dimmed (none is ever hidden); were they not, the list is given the
+    // new ones, the cursor kept on its row.
+    function followRows() {
+        var rows = offeredRows()
+        var same = rows.length === schemaItems.length
+        for (var i = 0; same && i < rows.length; i++)
+            same = rows[i].type === schemaItems[i].type && rows[i].key === schemaItems[i].key
+                   && rows[i]._module === schemaItems[i]._module
+        if (!same) {
+            placeRows(rows, currentKey())
+            return
+        }
+        var changed = false
+        for (i = 0; i < rows.length; i++) {
+            if (rows[i]._off === schemaItems[i]._off && rows[i]._offBy === schemaItems[i]._offBy)
+                continue
+            schemaItems[i] = rows[i]
+            changed = true
+        }
+        if (changed)
+            revision++
+    }
+
+    // The list given its rows, the cursor on the row to keep, else where it
+    // was left (navListState), never on a heading.
+    function placeRows(filtered, keepId) {
         schemaItems = filtered
+        revision++
 
         if (filtered.length > 0) {
             var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
@@ -424,8 +485,10 @@ FocusScope {
             if (v === at) return
             store(item, v, true)
         }
+        // The rows that go with this one's value: dimmed or not as it is
+        // now, in place.
         if (rowsFollow(item.key, item._module)) {
-            buildModel(rowId(item))
+            followRows()
             requestOptions(false)
         }
     }
@@ -454,17 +517,18 @@ FocusScope {
             updated[optionKey(own, key)] = items
             moduleSettingsRoot.dynamicOptions = updated
             readAgain(mid, own, key)
-            // The rows made again, the cursor kept on its row, when the
-            // choices decide which are offered: the capabilities
-            // (requires_capability) or a row others follow (shown_with).
+            // The rows dimmed or not anew, in place, when the choices decide
+            // which can be used: the capabilities (requires_capability) or
+            // a row others follow (shown_with).
             if (key === "_capabilities" || rowsFollow(key, own))
-                buildModel(currentKey())
+                followRows()
             else
                 settingsList.forceLayout()
         }
         function onModuleAuthStateChanged(mid) {
             if (mid !== moduleSettingsRoot.moduleId && moduleSettingsRoot.alsoModules.indexOf(mid) < 0) return
-            buildModel(currentKey())
+            readAuth()
+            followRows()
             requestOptions(true)
         }
     }
@@ -602,7 +666,11 @@ FocusScope {
             id: rowItem
             required property var modelData
             required property int index
-            readonly property bool slider: modelData.type === "slider"
+            // The row as it is now, read again as one is dimmed or not in
+            // place (followRows(), revision): the list's own copy of it
+            // (modelData) is as the list was given it.
+            readonly property var row: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[index]) || modelData
+            readonly property bool slider: row.type === "slider"
             readonly property real lineHeight: root.sh * 0.0583333 //28
             readonly property int barLines: slider ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
@@ -611,28 +679,28 @@ FocusScope {
             MenuRow {
                 width: parent.width
                 height: rowItem.lineHeight
-                heading: rowItem.modelData.type === "section"
-                label: rowItem.modelData.label || ""
-                value: moduleSettingsRoot.hasValue(rowItem.modelData)
-                    ? moduleSettingsRoot.currentDisplayValue(rowItem.modelData) : ""
-                opens: moduleSettingsRoot.opens(rowItem.modelData)
-                changes: moduleSettingsRoot.changes(rowItem.modelData)
-                dimmed: !!rowItem.modelData._off
+                heading: rowItem.row.type === "section"
+                label: rowItem.row.label || ""
+                value: moduleSettingsRoot.hasValue(rowItem.row)
+                    ? moduleSettingsRoot.currentDisplayValue(rowItem.row) : ""
+                opens: moduleSettingsRoot.opens(rowItem.row)
+                changes: moduleSettingsRoot.changes(rowItem.row)
+                dimmed: !!rowItem.row._off
                 selected: settingsList.currentIndex === rowItem.index
             }
             Loader {
                 id: tape
                 active: rowItem.slider
-                visible: !rowItem.modelData._off
+                visible: !rowItem.row._off
                 x: root.sw * 0.009375 //6
                 y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
                 width: parent.width - 2 * x
                 sourceComponent: OsdTapeBar {
                     changes: true
                     fontSize: root.sh * 0.0333333 //16
-                    value: moduleSettingsRoot.valueOf(rowItem.modelData) / 100
-                    startText: rowItem.modelData.start_text || ""
-                    endText: rowItem.modelData.end_text || ""
+                    value: moduleSettingsRoot.valueOf(rowItem.row) / 100
+                    startText: rowItem.row.start_text || ""
+                    endText: rowItem.row.end_text || ""
                 }
             }
         }
@@ -642,7 +710,7 @@ FocusScope {
     // line that scrolls when it is too long for the box.
     // A dimmed row's says first why it can't be used now.
     HelpLine {
-        property var currentRow: moduleSettingsRoot.schemaItems[settingsList.currentIndex]
+        property var currentRow: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[settingsList.currentIndex])
         visible: !!(currentRow && (currentRow.description || currentRow._off))
         text: (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
         anchors.bottom: parent.bottom
