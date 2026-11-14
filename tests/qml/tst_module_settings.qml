@@ -66,16 +66,54 @@ Rectangle {
         function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }, { id: "com.osdos.other", name: "Other" }] }
         function get_module_auth_state(id) { return "" }
         function invoke_module_action(id, slot) { actions = actions.concat([slot]) }
-        function save_setting(module, key, value) {
-            if (saveFails)
-                return false
+        // How many times config.json was written, and what is held back
+        // from it: a slider's steps (save_setting_soon()), each its value
+        // at once, written together by flush_settings() or the next save.
+        // Should that write fail (saveFails), the settings are as they were
+        // before the steps, and settingsNotSaved() says so.
+        property int writes: 0
+        property var held: []
+        signal settingsNotSaved()
+        function put(module, key, value) {
             var v = Object.assign({}, module === "com.osdos.other" ? otherValues : values)
-            v[key] = value
+            if (value === undefined)
+                delete v[key]
+            else
+                v[key] = value
             if (module === "com.osdos.other")
                 otherValues = v
             else
                 values = v
+        }
+        function save_setting(module, key, value) {
+            if (saveFails)
+                return false
+            put(module, key, value)
+            writes++
+            held = []
             return true
+        }
+        function save_setting_soon(module, key, value) {
+            if (!held.some(function(h) { return h.module === module && h.key === key })) {
+                var saved = module === "com.osdos.other" ? otherValues : values
+                held = held.concat([{ module: module, key: key, before: saved[key] }])
+            }
+            put(module, key, value)
+            return true
+        }
+        function flush_settings() {
+            if (held.length === 0)
+                return true
+            var lost = held
+            held = []
+            if (!saveFails) {
+                writes++
+                return true
+            }
+            for (var i = 0; i < lost.length; i++)
+                put(lost[i].module, lost[i].key, lost[i].before)
+            settingsNotSaved()
+            return false
         }
         function get_module_settings_schema(id) { return id === "com.osdos.other" ? otherSchema : schema }
 
@@ -158,6 +196,8 @@ Rectangle {
             appCore.otherValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
+            appCore.writes = 0
+            appCore.held = []
             appCore.folders = {}
             appCore.picks.asked = []
             appCore.picks.arrived = {}
@@ -716,6 +756,68 @@ Rectangle {
             compare(appCore.values.ground, 0)
             keyClick(Qt.Key_Down)
             compare(cursor(page), "video")
+        }
+
+        // A slider's steps are its value at once, on the page and in the
+        // settings, but config.json isn't written at each: they are held
+        // (save_setting_soon()) and written once, as the page is left; a
+        // toggle or a list is written at once, as ever, the steps with it.
+        function test_sliderWrittenOnce() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10 }
+            ]
+            var page = open()
+            keyClick(Qt.Key_Down)
+            for (var ground = 90; ground >= 50; ground -= 10) {
+                keyClick(Qt.Key_Left)
+                compare(appCore.values.ground, ground)
+                compare(page.valueOf(page.schemaItems[1]), ground)
+            }
+            compare(appCore.writes, 0)
+            compare(appCore.held.length, 1)
+            loader.source = ""
+            compare(appCore.writes, 1)
+            compare(appCore.held.length, 0)
+            compare(appCore.values.ground, 50)
+
+            page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.writes, 1)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.enabled, true)
+            compare(appCore.writes, 2)
+            compare(appCore.held.length, 0)
+            loader.source = ""
+            compare(appCore.writes, 2)
+        }
+
+        // Steps the card can't take: once the write has failed (AppCore's
+        // settingsNotSaved) the slider is back on what is saved, the cursor
+        // still on its row.
+        function test_sliderNotSaved() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10 }
+            ]
+            appCore.values = { ground: 80 }
+            var page = open()
+            keyClick(Qt.Key_Down)
+            appCore.saveFails = true
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(page.valueOf(page.schemaItems[1]), 60)
+            // The steps at rest, as AppCore's timer has it.
+            verify(!appCore.flush_settings())
+            compare(appCore.values.ground, 80)
+            compare(page.valueOf(page.schemaItems[1]), 80)
+            compare(cursor(page), "ground")
+            compare(appCore.writes, 0)
+            appCore.saveFails = false
+            keyClick(Qt.Key_Right)
+            compare(page.valueOf(page.schemaItems[1]), 90)
         }
 
         // A slider the list's foot would cut as the page opens is left out

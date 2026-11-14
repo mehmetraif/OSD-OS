@@ -83,7 +83,7 @@ The types, as Settings shows and saves them:
 | `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` | Its rows' keys, flat under `modules.<id>` |
 | `module_view` | Select opens the module itself, its `Root.qml` with `params` | Nothing |
 | `directory_browser` | Select opens the folder picker. The row shows the path, or `Default` | The folder's path; `""` for **Default Folder**, which the module gives a meaning |
-| `slider` | The deck's tape bar under its label; ◄ ► move it a `step` | A number from 0 to 100 |
+| `slider` | The deck's tape bar under its label; ◄ ► move it a `step`. Each step reaches `onSettingChanged()` and `get_setting()` at once; `config.json` has it once the steps rest | A number from 0 to 100 |
 | `action` | Select calls `action_slot` | Nothing |
 
 There is no free-text type. A view of your own can open the `OnScreenKeyboard`.
@@ -500,7 +500,7 @@ APP_ROOT=$(pwd) ./build/osdos
 <tr><td>The video modules' rows, on the TV / Movie page (<code>"settings_group": "tv"</code>). Hello Channel names no group, so its row is on the System page.</td><td>A settings page made from a manifest, Local Files' here.</td></tr>
 </table>
 
-Changing a row saves it at once. With Sort Order on Z to A and Loop Playback on, `config.json` has:
+Changing a row saves it at once (a slider's steps, half a second after the last, or as the page is left). With Sort Order on Z to A and Loop Playback on, `config.json` has:
 
 ```json
 {

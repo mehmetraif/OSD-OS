@@ -341,6 +341,7 @@ A module's settings are under `modules.<module id>`, with the keys its `manifest
 - **Read from the disk.** `appCore.get_setting(moduleId, key)` returns what `config.json` holds now, `get_settings()` the whole file. A key with one dot reads one level down: `get_setting("", "remote_keymap.back")` is `app.remote_keymap.back`.
 - **Written whole.** `appCore.save_setting(moduleId, key, value)` changes the one key and writes the file again, atomically (`writeFileAtomically()`), as every state file is. A crash or a full disk leaves the old file.
 - **Then announced** with `appSettingChanged` or `moduleSettingChanged`. A change that couldn't be written is not announced, and `save_setting` returns `false`.
+- **A slider's steps are written once.** Each step of ◄ ► on a slider row is announced, and is `get_setting()`'s, at once (`appCore.save_setting_soon()`), but the file is written half a second after the last step, or sooner: as the page is left, with the next setting saved, or as OSD/OS quits. Should that write fail, the setting is as the file has it again and is announced again with that value.
 - **A missing file** reads as `{ "app": { "color_scheme": "Video 1" }, "modules": {} }`, and the first change writes a new file.
 - **An invalid file is left alone.** A `config.json` that isn't valid JSON reads as those defaults but is never written over: every `save_setting` returns `false` until it is fixed. `lists.json` is kept the same way.
 

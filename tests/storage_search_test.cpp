@@ -14,6 +14,12 @@
 #include <sys/resource.h>
 #endif
 
+// A file as it is on the disk now.
+static QByteArray fileContents(const QString &path) {
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
 class StorageSearchTest : public QObject {
     Q_OBJECT
 private slots:
@@ -343,6 +349,185 @@ private slots:
         QCOMPARE(core.get_setting("", "color_scheme").toString(), QString("Video 2"));
         QCOMPARE(core.get_setting("com.osdos.arcade", "video").toString(), QString("BGFX"));
 #endif
+    }
+
+    // A setting changed in steps (a slider's, save_setting_soon()): each step
+    // is told and is get_setting()'s at once, an app's and a module's, while
+    // config.json stays as it was; once the steps rest it is written, with
+    // the last value of each, and told no more.
+    void steppedSettingIsWrittenOnceTheStepsRest() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString path = tmp.path() + "/config.json";
+        AppCore core(tmp.path(), tmp.path());
+        QVERIFY(core.save_setting("", "menu_music_volume", 60));
+        QVERIFY(core.save_setting("com.osdos.arcade", "info_background", 100));
+        const QByteArray before = fileContents(path);
+        QVERIFY(!before.isEmpty());
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QSignalSpy module(&core, &AppCore::moduleSettingChanged);
+
+        for (int volume = 50; volume >= 0; volume -= 10) {
+            QVERIFY(core.save_setting_soon("", "menu_music_volume", volume));
+            QCOMPARE(app.last().at(0).toString(), QString("menu_music_volume"));
+            QCOMPARE(app.last().at(1).toString(), QString::number(volume));
+            QCOMPARE(core.get_setting("", "menu_music_volume").toInt(), volume);
+            QCOMPARE(fileContents(path), before);
+        }
+        QVERIFY(core.save_setting_soon("com.osdos.arcade", "info_background", 40));
+        QCOMPARE(app.size(), 6);
+        QCOMPARE(module.size(), 1);
+        QCOMPARE(module.last().at(2).toInt(), 40);
+        QCOMPARE(core.get_settings().toMap().value("app").toMap().value("menu_music_volume").toInt(), 0);
+        QCOMPARE(core.get_setting("com.osdos.arcade", "info_background").toInt(), 40);
+        QCOMPARE(fileContents(path), before);
+
+        // At rest: on the card, as another reader of the file finds it.
+        QTRY_VERIFY_WITH_TIMEOUT(fileContents(path) != before, 10 * AppCore::kSettleMs);
+        AppCore reader(tmp.path(), tmp.path());
+        QCOMPARE(reader.get_setting("", "menu_music_volume").toInt(), 0);
+        QCOMPARE(reader.get_setting("com.osdos.arcade", "info_background").toInt(), 40);
+        QCOMPARE(core.get_setting("", "menu_music_volume").toInt(), 0);
+        // Written the once, and nothing told for it.
+        const QByteArray written = fileContents(path);
+        const QDateTime at = QFileInfo(path).lastModified();
+        QTest::qWait(2 * AppCore::kSettleMs);
+        QCOMPARE(fileContents(path), written);
+        QCOMPARE(QFileInfo(path).lastModified(), at);
+        QCOMPARE(app.size(), 6);
+        QCOMPARE(module.size(), 1);
+    }
+
+    // What is held back is written without waiting: as a page is left
+    // (flush_settings()), with the next setting saved at once, and as the
+    // AppCore goes, though the step was a moment before.
+    void heldSettingIsWrittenWhenAskedAndAtTheEnd() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString path = tmp.path() + "/config.json";
+        const auto stored = [&tmp](const QString &moduleId, const QString &key) {
+            AppCore reader(tmp.path(), tmp.path());
+            return reader.get_setting(moduleId, key);
+        };
+        {
+            AppCore core(tmp.path(), tmp.path());
+            QVERIFY(core.flush_settings());   // nothing held: nothing to do
+            QVERIFY(!QFile::exists(path));
+            QVERIFY(core.save_setting_soon("", "transparent_background", 30));
+            QVERIFY(!QFile::exists(path));
+            QVERIFY(core.flush_settings());
+            QCOMPARE(stored("", "transparent_background").toInt(), 30);
+
+            QVERIFY(core.save_setting_soon("", "transparent_background", 40));
+            QCOMPARE(stored("", "transparent_background").toInt(), 30);
+            QVERIFY(core.save_setting("", "hint_bar", "Off"));
+            QCOMPARE(stored("", "transparent_background").toInt(), 40);
+            QCOMPARE(stored("", "hint_bar").toString(), QString("Off"));
+            // Written with it: not again a moment later.
+            const QDateTime at = QFileInfo(path).lastModified();
+            QTest::qWait(2 * AppCore::kSettleMs);
+            QCOMPARE(QFileInfo(path).lastModified(), at);
+
+            // Another hand writes the file while a step is held (a backend
+            // saving its token): both are in it once the step is written.
+            QVERIFY(core.save_setting_soon("", "transparent_background", 50));
+            {
+                AppCore other(tmp.path(), tmp.path());
+                QVERIFY(other.save_setting("com.osdos.plex", "token", "abc"));
+            }
+            QCOMPARE(core.get_setting("com.osdos.plex", "token").toString(), QString("abc"));
+            QCOMPARE(core.get_setting("", "transparent_background").toInt(), 50);
+            QVERIFY(core.flush_settings());
+            QCOMPARE(stored("com.osdos.plex", "token").toString(), QString("abc"));
+            QCOMPARE(stored("", "transparent_background").toInt(), 50);
+
+            QVERIFY(core.save_setting_soon("", "transparent_background", 60));
+            QCOMPARE(stored("", "transparent_background").toInt(), 50);
+        }
+        // The AppCore gone with a step held.
+        QCOMPARE(stored("", "transparent_background").toInt(), 60);
+    }
+
+    // Steps a full card can't take (a file size limit, which holds for root
+    // too): told as they are made, and once the write fails the settings
+    // are as config.json has them again, each told so with its saved value,
+    // and the pages told to show their rows as saved (settingsNotSaved).
+    void steppedSettingACardCantTake() {
+#ifndef Q_OS_UNIX
+        QSKIP("Requires a Unix file size limit");
+#else
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString path = tmp.path() + "/config.json";
+        AppCore core(tmp.path(), tmp.path());
+        QVERIFY(core.save_setting("", "menu_music_volume", 60));
+        QVERIFY(core.save_setting("com.osdos.arcade", "info_background", 100));
+        const QByteArray before = fileContents(path);
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QSignalSpy module(&core, &AppCore::moduleSettingChanged);
+        QSignalSpy unsaved(&core, &AppCore::settingsNotSaved);
+        QVERIFY(core.save_setting_soon("", "menu_music_volume", 50));
+        QVERIFY(core.save_setting_soon("", "menu_music_volume", 40));
+        QVERIFY(core.save_setting_soon("com.osdos.arcade", "info_background", 90));
+        QCOMPARE(core.get_setting("", "menu_music_volume").toInt(), 40);
+
+        std::signal(SIGXFSZ, SIG_IGN);
+        rlimit limit{};
+        QCOMPARE(getrlimit(RLIMIT_FSIZE, &limit), 0);
+        const rlimit full{ 1, limit.rlim_max };
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &full), 0);
+        const bool written = core.flush_settings();
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &limit), 0);
+        QVERIFY(!written);
+        QCOMPARE(fileContents(path), before);
+        QCOMPARE(unsaved.size(), 1);
+        QCOMPARE(core.get_setting("", "menu_music_volume").toInt(), 60);
+        QCOMPARE(core.get_setting("com.osdos.arcade", "info_background").toInt(), 100);
+        QCOMPARE(app.size(), 3);
+        QCOMPARE(app.last().at(1).toString(), QString("60"));
+        QCOMPARE(module.size(), 2);
+        QCOMPARE(module.last().at(2).toInt(), 100);
+        // Nothing is held any more: nothing written later, or as it goes.
+        QVERIFY(core.flush_settings());
+        QCOMPARE(fileContents(path), before);
+#endif
+    }
+
+    // A config.json that is there but can't be read is not written over by a
+    // step either: refused, nothing told, nothing held.
+    void steppedSettingWithAnUnreadableConfig() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString path = tmp.path() + "/config.json";
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        const QByteArray broken = "{ \"app\": { \"color_scheme\": \"Video 2\", } }";
+        QCOMPARE(file.write(broken), broken.size());
+        file.close();
+        AppCore core(tmp.path(), tmp.path());
+        QSignalSpy app(&core, &AppCore::appSettingChanged);
+        QVERIFY(!core.save_setting_soon("", "menu_music_volume", 50));
+        QCOMPARE(app.size(), 0);
+        QVERIFY(core.flush_settings());
+        QCOMPARE(fileContents(path), broken);
+    }
+
+    // The app quitting with a step held (QCoreApplication::aboutToQuit):
+    // written before the event loop is left, well before the steps would
+    // have rested.
+    void heldSettingIsWrittenAsTheAppQuits() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        QVERIFY(core.save_setting_soon("", "menu_music_volume", 20));
+        QVERIFY(!QFile::exists(tmp.path() + "/config.json"));
+        QElapsedTimer quitting;
+        quitting.start();
+        QTimer::singleShot(0, QCoreApplication::instance(), &QCoreApplication::quit);
+        QCoreApplication::exec();
+        QVERIFY(quitting.elapsed() < AppCore::kSettleMs);
+        AppCore reader(tmp.path(), tmp.path());
+        QCOMPARE(reader.get_setting("", "menu_music_volume").toInt(), 20);
     }
 
     // A token or a key is owner-only from its first write on; any other file

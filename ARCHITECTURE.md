@@ -167,7 +167,7 @@ An optional `"settings_group"` says where Settings lists the module's page: `"tv
 | `submenu` | A page of its own for a group of settings, like YouTube's ADVANCED | `settings`: its rows, in this same format (a submenu may hold another) |
 | `module_view` | Opens the module itself on one of its own views, like Netflix's SIGN IN | `params`: the `navParams` its `Root.qml` routes on |
 | `directory_browser` | A folder, picked on the file picker's tree ([FilePicker](#filepicker-viewsfilepickerqml)); `""` is the module's own | `default` (path string, may be empty) |
-| `slider` | A value from 0 to 100 on the deck's tape bar (`OsdTapeBar`), in whole lines under its label, as Settings' Transparent Background; ◄ ► a step toward either end | `default` (a number), `step` (10 unless given), `start_text` and `end_text`, the names under its ends |
+| `slider` | A value from 0 to 100 on the deck's tape bar (`OsdTapeBar`), in whole lines under its label, as Settings' Transparent Background; ◄ ► a step toward either end, in force at once and written to `config.json` once the steps rest (`save_setting_soon`) | `default` (a number), `step` (10 unless given), `start_text` and `end_text`, the names under its ends |
 | `text` | A line typed on the on-screen keyboard, over the page: an address, a place's name, a key. Select or ► opens the keyboard on what is saved; OK keeps it, without the spaces at its ends, and back leaves it. The row shows what was typed, `Not Set` when empty | `default` (a string), `placeholder` (for OSD/OS Setup's field), `max_length` (64 unless given), `secret` (a key or a password: typed hidden, shown as `Set`), `apply_slot` |
 | `text_list` | A list of typed lines, on a page of its own (`views/TextListSettings.qml`): the lines, and ADD under them. Select on ADD types a new line; select on a line changes it or takes it out. Saved whole at every change as a list of strings, and read by the backend as one (`get_setting(...).toList()`); the row shows how many there are, `None` when empty. OSD/OS Setup has it as a box of lines, and the QR export carries it | `max_length` (a line's, 64 unless given), `max_lines` (50 unless given), `apply_slot` (called after each change), `placeholder` (for OSD/OS Setup's box) |
 | `action` | Button that calls a backend slot | `action_slot` |
@@ -249,6 +249,7 @@ A real example (Plex) — note `requires_auth`, dynamic options, and apply slots
 | `get_setting(moduleId, key)` | Returns a single setting value |
 | `save_setting(moduleId, key, value)` | Writes to `config.json`; supports dot-notation keys. False when the file couldn't be written (a full or read-only card): nothing changes then, and no setting changed is signalled |
 | `save_settings(moduleId, { key: value, … })` | Several settings of one section in one write of the file, each told as `save_setting` tells one (a theme chosen sets nine): a write is synced to the card, and costs tens of milliseconds and more there |
+| `save_setting_soon(moduleId, key, value)` / `flush_settings()` | A setting changed in quick steps, a slider's ◄ ► in Settings and a module's settings page: told at once as `save_setting` tells one, and `get_setting()`'s from then on, but held back from the file, which is written once: 500 ms after the last step (`kSettleMs`), at `flush_settings()` (the two pages call it as they are left), with the next `save_setting()`, as the app quits (`aboutToQuit`) or as `AppCore` goes. Only the changes are held, and put into the file as it then is, so a backend that wrote `config.json` itself meanwhile is not written over. A write that fails (`flush_settings()` false) leaves the settings as the file has them: each is told again with its saved value, and `settingsNotSaved` has the pages show their rows as saved. False, with nothing told, for a `config.json` that can't be read |
 | `get_list(moduleId, name)` | One of a module's lists of entries (`recent`, `favorites`), newest first, from `lists.json` |
 | `add_to_list(moduleId, name, entry, limit)` | Puts an entry first, in place of one with its `path`, and keeps the newest `limit` (50 unless given) |
 | `remove_from_list(moduleId, name, path)` / `list_contains(moduleId, name, path)` | Takes an entry off a list / says whether one is on it |
@@ -266,7 +267,7 @@ A real example (Plex) — note `requires_auth`, dynamic options, and apply slots
 
 ### Signals
 
-`modulesLoaded`, `appSettingChanged`, `moduleSettingChanged(moduleId, key, value)`, `dynamicOptionsReady(moduleId, key, options)`, `moduleAuthStateChanged(moduleId)`, `statusIconsChanged`.
+`modulesLoaded`, `appSettingChanged`, `moduleSettingChanged(moduleId, key, value)`, `settingsNotSaved`, `dynamicOptionsReady(moduleId, key, options)`, `moduleAuthStateChanged(moduleId)`, `statusIconsChanged`.
 
 ### Properties
 

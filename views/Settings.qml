@@ -1337,9 +1337,17 @@ FocusScope {
         return idx
     }
 
+    // A slider's steps wait to be written to config.json until they rest
+    // (moveSlider()): leaving the page writes them at once. AppCore as the
+    // page opened, for that: the context property may read null while the
+    // view Loader tears down.
+    property var core: null
+    Component.onDestruction: if (core) core.flush_settings()
+
     // Back on Camcorder's first screen: the page, its row and where the keys
     // were, as listState() left them.
     Component.onCompleted: {
+        core = appCore
         if (iconMenu && group === "") {
             // The first screen's row, after Studio Monitor's STATUS.
             camIndex = navListState.currentIndex === undefined || navListState.page === "group_status" ? 0
@@ -1488,10 +1496,14 @@ FocusScope {
             settingsRoot.revision++
         }
 
-        // A slider's step toward one end (-1 left, 1 right), saved and kept.
+        // A slider's step toward one end (-1 left, 1 right), kept and in
+        // force at once, and saved once the steps rest or the page is left
+        // (AppCore::save_setting_soon()): saved at every step, the key held
+        // down wrote config.json to the card ten times across the bar.
         // One that is off turns on instead, where its bar waits. A row whose
         // value couldn't be saved (a full card) stays on what is saved, here
-        // and in the list ones below.
+        // and in the list ones below; a slider's goes back to it once the
+        // write has failed (onSettingsNotSaved).
         function moveSlider(direction) {
             var row = settingsItems[currentIndex]
             if (row.on === false) {
@@ -1499,7 +1511,7 @@ FocusScope {
                 return
             }
             var v = Math.max(0, Math.min(100, row.value + direction * row.step))
-            if (v === row.value || !appCore.save_setting(row.moduleId, row.key, v))
+            if (v === row.value || !appCore.save_setting_soon(row.moduleId, row.key, v))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: v }))
         }
@@ -1896,6 +1908,11 @@ FocusScope {
             var shown = settingsRoot.settingsItems.filter(function(r) { return r.key === "window_mode" })[0]
             if (shown && shown.value !== (value === "On" ? "On" : "Off"))
                 settingsRoot.buildModel(settingsList.currentIndex)
+        }
+        // A slider's steps couldn't be written (a full card): its row made
+        // again from what is saved, the cursor where it is.
+        function onSettingsNotSaved() {
+            settingsRoot.buildModel(settingsList.currentIndex)
         }
     }
 

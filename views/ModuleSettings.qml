@@ -34,7 +34,8 @@ FocusScope {
     property var alsoAuthStates: ({}) // module id -> its sign-in state
     property var moduleNames: ({})    // module id -> its name
 
-    function loadSettings() {
+    // `keepId`: the row the cursor stays on, as in buildModel().
+    function loadSettings(keepId) {
         var allSettings = appCore.get_settings()
         var saved = allSettings.modules || {}
         currentValues = saved[moduleId] || {}
@@ -50,7 +51,7 @@ FocusScope {
         moduleNames = names
         moduleName = names[moduleId] || ""
 
-        buildModel()
+        buildModel(keepId)
     }
 
     // The module a row is of, and its name among the page's rows: its key,
@@ -364,8 +365,14 @@ FocusScope {
 
     // A row's new value, saved in its module and shown. One that couldn't be
     // saved (a full card) leaves the row on what is still saved: false.
-    function store(item, value) {
-        if (!appCore.save_setting(moduleOf(item), item.key, value))
+    // `soon`, a slider's step: in force at once, and written to config.json
+    // once the steps rest or the page is left (AppCore::save_setting_soon()),
+    // not at every step with the key held down; should that write fail, the
+    // row goes back to what is saved (onSettingsNotSaved).
+    function store(item, value, soon) {
+        var saved = soon ? appCore.save_setting_soon(moduleOf(item), item.key, value)
+                         : appCore.save_setting(moduleOf(item), item.key, value)
+        if (!saved)
             return false
         var updated = Object.assign({}, valuesOf(item))
         updated[item.key] = value
@@ -415,7 +422,7 @@ FocusScope {
             var at = valueOf(item)
             var v = Math.max(0, Math.min(100, at + direction * (item.step || 10)))
             if (v === at) return
-            store(item, v)
+            store(item, v, true)
         }
         if (rowsFollow(item.key, item._module)) {
             buildModel(rowId(item))
@@ -462,7 +469,22 @@ FocusScope {
         }
     }
 
+    // A slider's steps that couldn't be written (a full card): the values
+    // read again as saved, the cursor kept on its row.
+    Connections {
+        target: appCore
+        ignoreUnknownSignals: true
+        function onSettingsNotSaved() { moduleSettingsRoot.loadSettings(moduleSettingsRoot.currentKey()) }
+    }
+
+    // A slider's steps wait to be written until they rest: leaving the page
+    // writes them at once. AppCore as the page opened, for that: the context
+    // property may read null while the view Loader tears down.
+    property var core: null
+    Component.onDestruction: if (core) core.flush_settings()
+
     Component.onCompleted: {
+        core = appCore
         loadSettings()
         // Kick off loading dynamic option lists for any dynamic settings
         requestOptions(true)

@@ -46,6 +46,15 @@ static bool readJsonObject(const QString &path, QJsonObject *out, QString *why =
 AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *parent)
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot)
 {
+    // What save_setting_soon() holds back is written once its steps rest,
+    // and as the app quits, though the last step was a moment before.
+    m_settle = new QTimer(this);
+    m_settle->setSingleShot(true);
+    m_settle->setInterval(kSettleMs);
+    connect(m_settle, &QTimer::timeout, this, [this]() { flush_settings(); });
+    if (QCoreApplication *app = QCoreApplication::instance())
+        connect(app, &QCoreApplication::aboutToQuit, this, [this]() { flush_settings(); });
+
     QDir modulesDir(appRoot + "/modules");
     const QStringList dirs = modulesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QString &folder : dirs) {
@@ -88,7 +97,20 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
 // Config helpers
 // ---------------------------------------------------------------------------
 
+// Left with a setting held back (the app's own end comes through
+// aboutToQuit first): written, with no one left to tell if it can't be.
+AppCore::~AppCore() {
+    writeHeld(false);
+}
+
 QJsonObject AppCore::loadConfig(bool *broken) const {
+    QJsonObject config = storedConfig(broken);
+    for (const HeldSetting &held : m_held)
+        putSetting(&config, held.moduleId, held.key, held.value);
+    return config;
+}
+
+QJsonObject AppCore::storedConfig(bool *broken) const {
     const QString path = m_dataRoot + "/config.json";
     // As last read, while the file is as it was then (its time and size):
     // the settings are asked for by the dozen as a video starts, and the
@@ -123,11 +145,14 @@ QJsonObject AppCore::loadConfig(bool *broken) const {
     };
 }
 
-bool AppCore::saveConfig(const QJsonObject &config) const {
+bool AppCore::saveConfig(const QJsonObject &config) {
     const QString path = m_dataRoot + "/config.json";
     m_configCacheValid = false;
     if (!writeFileAtomically(path, QJsonDocument(config).toJson(QJsonDocument::Indented)))
         return false;
+    // What was held back was in it.
+    m_held.clear();
+    m_settle->stop();
     // What was written is what the next read would find: kept, so that the
     // file isn't read and parsed again after each save.
     const QFileInfo info(path);
@@ -289,27 +314,8 @@ bool AppCore::saveSettings(const QString &moduleId, const QList<std::pair<QStrin
         return false;
     }
 
-    // The target section
-    QJsonObject target = moduleId.isEmpty() ? config["app"].toObject()
-                                            : config["modules"].toObject()[moduleId].toObject();
-    for (const auto &[key, value] : values) {
-        // Dot-notation: "libraries.somekey" -> target["libraries"]["somekey"]
-        const QStringList parts = key.split('.', Qt::KeepEmptyParts);
-        if (parts.size() == 2) {
-            QJsonObject sub = target[parts[0]].toObject();
-            sub[parts[1]] = QJsonValue::fromVariant(value);
-            target[parts[0]] = sub;
-        } else {
-            target[key] = QJsonValue::fromVariant(value);
-        }
-    }
-    if (moduleId.isEmpty()) {
-        config["app"] = target;
-    } else {
-        QJsonObject modules = config["modules"].toObject();
-        modules[moduleId] = target;
-        config["modules"] = modules;
-    }
+    for (const auto &[key, value] : values)
+        putSetting(&config, moduleId, key, value);
 
     // Only a setting on the card is one the backends take up: one that
     // couldn't be saved would be gone at the next start, and get_setting()
@@ -323,15 +329,99 @@ bool AppCore::saveSettings(const QString &moduleId, const QList<std::pair<QStrin
         qDebug("[AppCore] Setting saved: %s.%s = %s",
                qPrintable(moduleId.isEmpty() ? "app" : moduleId),
                qPrintable(key), qPrintable(value.toString()));
-        if (moduleId.isEmpty())
-            emit appSettingChanged(key, value.toString());
-        else
-            emit moduleSettingChanged(moduleId, key, value);
-        // A module turned on or off: its status icons come or go.
-        if (!moduleId.isEmpty() && key == QLatin1String("enabled"))
-            updateStatusIcons();
+        tellSetting(moduleId, key, value);
     }
     return true;
+}
+
+void AppCore::putSetting(QJsonObject *config, const QString &moduleId, const QString &key, const QVariant &value) {
+    // The target section
+    QJsonObject target = moduleId.isEmpty() ? config->value("app").toObject()
+                                            : config->value("modules").toObject()[moduleId].toObject();
+    // Dot-notation: "libraries.somekey" -> target["libraries"]["somekey"]
+    const QStringList parts = key.split('.', Qt::KeepEmptyParts);
+    if (parts.size() == 2) {
+        QJsonObject sub = target[parts[0]].toObject();
+        sub[parts[1]] = QJsonValue::fromVariant(value);
+        target[parts[0]] = sub;
+    } else {
+        target[key] = QJsonValue::fromVariant(value);
+    }
+    if (moduleId.isEmpty()) {
+        config->insert("app", target);
+    } else {
+        QJsonObject modules = config->value("modules").toObject();
+        modules[moduleId] = target;
+        config->insert("modules", modules);
+    }
+}
+
+void AppCore::tellSetting(const QString &moduleId, const QString &key, const QVariant &value) {
+    if (moduleId.isEmpty())
+        emit appSettingChanged(key, value.toString());
+    else
+        emit moduleSettingChanged(moduleId, key, value);
+    // A module turned on or off: its status icons come or go.
+    if (!moduleId.isEmpty() && key == QLatin1String("enabled"))
+        updateStatusIcons();
+}
+
+// A slider stepped across its bar saved at every step: ten writes of the
+// file, each synced to the card (AtomicFile.h), tens of milliseconds and more
+// each on an SD card, on the app's thread with the key held. The value is
+// told at each step and the file written once.
+bool AppCore::save_setting_soon(const QString &moduleId, const QString &key, const QVariant &rawValue) {
+    bool broken = false;
+    storedConfig(&broken);
+    if (broken) {
+        qWarning("[AppCore] Setting not saved: config.json is there but isn't valid JSON, "
+                 "and saving %s.%s would write the defaults over it",
+                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+        return false;
+    }
+    const QVariant value = plainValue(rawValue);
+    const auto held = std::find_if(m_held.begin(), m_held.end(), [&](const HeldSetting &h) {
+        return h.moduleId == moduleId && h.key == key;
+    });
+    if (held != m_held.end())
+        held->value = value;
+    else
+        m_held.append({ moduleId, key, value });
+    m_settle->start();
+    tellSetting(moduleId, key, value);
+    return true;
+}
+
+bool AppCore::flush_settings() {
+    return writeHeld(true);
+}
+
+bool AppCore::writeHeld(bool tell) {
+    m_settle->stop();
+    if (m_held.isEmpty())
+        return true;
+    const QList<HeldSetting> held = m_held;
+    bool broken = false;
+    const QJsonObject config = loadConfig(&broken);
+    if (!broken && saveConfig(config)) {
+        qDebug("[AppCore] Settings saved: %s.%s = %s, changed in steps%s",
+               qPrintable(held.last().moduleId.isEmpty() ? "app" : held.last().moduleId),
+               qPrintable(held.last().key), qPrintable(held.last().value.toString()),
+               held.size() > 1 ? ", and the others held with it" : "");
+        return true;
+    }
+    // Not on the card: what the file has is what holds, as after a
+    // save_setting() that failed. Whatever took the new values up is told the
+    // saved ones, and the pages show their rows as saved.
+    m_held.clear();
+    qWarning("[AppCore] Setting not saved: %s.%s, changed in steps, is as config.json has it again",
+             qPrintable(held.last().moduleId.isEmpty() ? "app" : held.last().moduleId), qPrintable(held.last().key));
+    if (!tell)
+        return false;
+    for (const HeldSetting &h : held)
+        tellSetting(h.moduleId, h.key, get_setting(h.moduleId, h.key));
+    emit settingsNotSaved();
+    return false;
 }
 
 void AppCore::setSetupNotice(const QString &title, const QString &detail) {

@@ -120,10 +120,35 @@ Rectangle {
         function getCustomColorSchemes() { return ({}) }
         function getCustomColorScheme() { return ({}) }
         function localIpAddress() { return "" }
+        // How many times config.json was written, and the settings held
+        // back from it: a slider's steps (save_setting_soon()), which are
+        // its value at once and written with flush_settings() or the next
+        // save. settingsNotSaved() is what AppCore says when that write
+        // fails.
+        property int writes: 0
+        property var held: []
+        signal settingsNotSaved()
         function save_setting(module, key, value) {
             var v = Object.assign({}, values)
             v[key] = value
             values = v
+            writes++
+            held = []
+            return true
+        }
+        function save_setting_soon(module, key, value) {
+            var v = Object.assign({}, values)
+            v[key] = value
+            values = v
+            if (held.indexOf(key) < 0)
+                held = held.concat([key])
+            return true
+        }
+        function flush_settings() {
+            if (held.length > 0) {
+                writes++
+                held = []
+            }
             return true
         }
         // Several at once, and how many times that was asked.
@@ -131,6 +156,8 @@ Rectangle {
         function save_settings(module, some) {
             batches++
             values = Object.assign({}, values, some)
+            writes++
+            held = []
             return true
         }
         // Paste OSD/OS Setup: what was pasted, and a setting it sets.
@@ -260,6 +287,8 @@ Rectangle {
             appCore.pasted = ""
             appCore.canLogs = false
             appCore.logSaves = 0
+            appCore.writes = 0
+            appCore.held = []
             root.navigations = []
             root.backs = 0
             root.menuLayout = "Standard"
@@ -439,6 +468,58 @@ Rectangle {
             compare(appCore.values.menu_music, "File")
             compare(page.offReason(all.indexOf("Music File")), "")
             compare(page.offReason(all.indexOf("Music Volume")), "")
+        }
+
+        // A slider's steps (Music Volume) are its value at once, on the row
+        // and in the settings, but config.json is not written at each: the
+        // steps are held (save_setting_soon()) and written once, as the page
+        // is left. Another row saved meanwhile is written at once, as ever.
+        function test_sliderWrittenOnce() {
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            var page = open({ group: "sound" })
+            moveTo(page, "Music Volume")
+            for (var volume = 50; volume >= 20; volume -= 10) {
+                keyClick(Qt.Key_Left)
+                compare(appCore.values.menu_music_volume, volume)
+                compare(row(page, "Music Volume").value, volume)
+            }
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.menu_music_volume, 30)
+            compare(appCore.writes, 0)
+            compare(appCore.held, ["menu_music_volume"])
+            // Leaving the page (back, or a page opened from it) writes it.
+            loader.source = ""
+            compare(appCore.writes, 1)
+            compare(appCore.held, [])
+            compare(appCore.values.menu_music_volume, 30)
+
+            // A page left with nothing held writes nothing.
+            page = open({ group: "sound" })
+            moveTo(page, "Menu Music")
+            keyClick(Qt.Key_Left)
+            compare(appCore.writes, 2)
+            loader.source = ""
+            compare(appCore.writes, 2)
+        }
+
+        // Steps the card couldn't take (AppCore's settingsNotSaved, once the
+        // write has failed): the row is back on what is saved, the cursor
+        // still on it.
+        function test_sliderNotSaved() {
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            var page = open({ group: "sound" })
+            moveTo(page, "Music Volume")
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(row(page, "Music Volume").value, 40)
+            // As AppCore does: the settings as the file has them, then told.
+            appCore.values = { menu_music: "File", menu_music_volume: 60 }
+            appCore.held = []
+            appCore.settingsNotSaved()
+            compare(row(page, "Music Volume").value, 60)
+            compare(cursor(page), "Music Volume")
+            keyClick(Qt.Key_Right)
+            compare(row(page, "Music Volume").value, 70)
         }
 
         // Window Mode, on Screen's page, can be used where the menus can be
