@@ -6,7 +6,7 @@ Settings is OSD/OS's own menu. This page lists every page and row in screen orde
 
 ## Getting around
 
-Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar). Its first screen lists the pages: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup**, **System**, then **Quit**.
+Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so does the **Settings** row at the foot of the Standard and Broadcast menus. Its first screen lists the pages: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup**, **System**, then **Quit**.
 
 | Action | Keyboard | Gamepad | What it does in Settings |
 |---|---|---|---|

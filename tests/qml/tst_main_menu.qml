@@ -131,11 +131,12 @@ Rectangle {
             return ""
         }
 
-        // Standard: every module's row in the order they come; select opens
-        // one, back opens Settings.
+        // Standard: every module's row in the order they come, then, after a
+        // gap the cursor passes over, a row for Settings; select opens a row,
+        // and back opens Settings too.
         function test_standard() {
             var menu = open()
-            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts"])
+            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts", "", "Settings"])
             verify(!menu.camcorder)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
@@ -143,6 +144,15 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(root.navigations[1].path, "views/Settings.qml")
             verify(hint(menu).indexOf("GROUPS") < 0)
+            // With no Back to press: up from the first row, round to
+            // Settings' row, over the gap, and select.
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(cursor(menu), "Settings")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[2].path, "views/Settings.qml")
+            keyClick(Qt.Key_Down)
+            compare(cursor(menu), "Arcade")
         }
 
         // Camcorder: the groups' icons, the rows of the one the cursor is
@@ -277,7 +287,7 @@ Rectangle {
             compare(names(menu), ["Local Files", "Plex"])
             compare(cursor(menu), "Plex")
             root.menuLayout = "Standard"
-            tryVerify(function() { return names(menu).length === 5 })
+            tryVerify(function() { return names(menu).length === 7 })
             compare(cursor(menu), "Plex")
         }
     }

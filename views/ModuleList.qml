@@ -43,8 +43,9 @@ FocusScope {
     // from group to group, ► or select into the group's rows; on Settings'
     // they open Settings. Studio Monitor does the same in a monitor's window
     // (Components/MonitorChrome), the icons in its strip. Broadcast and Flat
-    // Panel are lists as Standard is, in a monitor's look: Broadcast's ends
-    // in a row for Settings after a gap, Flat Panel's goes a page at a time.
+    // Panel are lists as Standard is, in a monitor's look. Standard's and
+    // Broadcast's end in a row for Settings after a gap, so Settings opens
+    // without a Back button too; Flat Panel's goes a page at a time.
     readonly property string layout: root.menuLayout
     readonly property bool camcorder: layout === "Camcorder"
     readonly property bool studio: layout === "Studio Monitor"
@@ -174,8 +175,11 @@ FocusScope {
         } else {
             groups = []
             groupIcons = false
-            // Broadcast's Settings, after a gap the cursor passes over.
-            if (broadcast) {
+            // Standard's and Broadcast's Settings, after a gap the cursor
+            // passes over: a row as well as Back, for a remote or a pad
+            // whose Back isn't set up yet (Settings → Controls is where it
+            // would be).
+            if (broadcast || !monitor) {
                 rows.push({ name: "", gap: true })
                 rows.push({ name: "Settings", entry_point: "views/Settings.qml" })
                 index = keptRow(rows, keep)
