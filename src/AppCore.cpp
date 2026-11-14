@@ -1056,7 +1056,19 @@ QVariantList AppCore::filePlaces() const {
     if (!user.isEmpty())
         add(QStringLiteral("Drives"), QStringLiteral("/run/media/") + user);
     add(QStringLiteral("Volumes"), QStringLiteral("/Volumes"));
+#ifdef Q_OS_WIN
+    // Windows has no one root: "/" is the drive OSD/OS runs from alone. Each
+    // drive there is, a second disk's, a USB stick's or a mapped network
+    // drive's, is a place by its letter ("D:"); one with nothing in it (a
+    // card reader's empty slot) is no folder, and is left out.
+    const QFileInfoList drives = QDir::drives();
+    for (const QFileInfo &drive : drives) {
+        const QString path = drive.absoluteFilePath();   // "D:/"
+        add(path.left(2), path);
+    }
+#else
     add(QStringLiteral("Root"), QStringLiteral("/"));
+#endif
     return places;
 }
 

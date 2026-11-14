@@ -260,7 +260,7 @@ A real example (Plex) — note `requires_auth`, dynamic options, and apply slots
 | `themes()` / `theme(id)` | Settings → Look → Theme: the themes there are (`[{ id, name }]`: the app's own in `assets/themes` and the data folder's `themes`, one there in place of the app's of the same folder name), and one read for QML (`root.theme`): its colours, skin, effects and music (see [Themes](#themes-settings--theme)) |
 | `skins()` / `skin(id)` | Settings → Look → Skin: the skins there are (`[{ id, name }]`, found as themes are, in `assets/skins` and the data folder's `skins`), and one read for QML (`root.skin`): a picture of each of the window's parts it dresses, and its icons (see [Skins](#skins-settings--skin)) |
 | `effectShader(name)` | A shader built into the app as a URL (`"effects"`: `qrc:/shaders/effects.frag.qsb`), `""` in a build without it |
-| `filePlaces()` / `folderEntries(path, types)` | The file picker's places (home, `/media`, `/run/media/<user>`, `/Volumes`, the root, those there are) and a folder's entries: its folders, then its files of those types, hidden ones left out |
+| `filePlaces()` / `folderEntries(path, types)` | The file picker's places (home, `/media`, `/run/media/<user>`, `/Volumes`, the root, those there are; on Windows each drive, `C:`, `D:`…, in the root's place) and a folder's entries: its folders, then its files of those types, hidden ones left out |
 | `licenseText(file)` | A licence's text from the app's folder, its paragraphs each on one line, for Settings → System → About: `LICENSE` when `file` is empty, else the file at that path in the folder (`assets/licenses/zlib.txt`); nothing for a path outside it |
 
 ### Signals

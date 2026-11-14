@@ -64,6 +64,11 @@ FocusScope {
     // The tree opened down to what is chosen now, from the deepest place that
     // holds it: the cursor on USE THIS FOLDER in a folder, on a file in its
     // folder, on the default when it is the default.
+    // A place that is a root ends in its "/" ("/", a Windows drive's "D:/"):
+    // what is in it follows that at once.
+    function inside(folder) {
+        return folder.charAt(folder.length - 1) === "/" ? folder : folder + "/"
+    }
     function trailTo(target) {
         var trail = [{ path: "places", sel: 0, name: "", pushed: false }]
         target = String(target || "")
@@ -75,7 +80,7 @@ FocusScope {
         var best = -1
         for (var i = 0; i < top.length; i++) {
             var p = top[i].path
-            if (top[i].isFolder && (target === p || target.indexOf(p === "/" ? "/" : p + "/") === 0)
+            if (top[i].isFolder && (inside(target) === inside(p) || target.indexOf(inside(p)) === 0)
                     && (best < 0 || p.length > top[best].path.length))
                 best = i
         }
@@ -88,7 +93,7 @@ FocusScope {
         for (var j = 0; j < rest.length; j++) {
             if (rest[j] === "")
                 continue
-            var next = (folder === "/" ? "" : folder) + "/" + rest[j]
+            var next = inside(folder) + rest[j]
             var entries = entriesOf(folder)
             var idx = -1
             for (var k = 0; k < entries.length && idx < 0; k++) {

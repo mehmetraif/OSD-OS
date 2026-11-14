@@ -966,6 +966,29 @@ private slots:
 #endif
     }
 
+    // The file picker's places (filePlaces()): Home first, each a folder
+    // that is there, by a name of its own, and the root last. Windows has
+    // each of its drives by its letter in the root's place, which no test
+    // here reaches.
+    void filePickerPlaces() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        AppCore core(dir.path(), dir.path());
+        const QVariantList places = core.filePlaces();
+        QVERIFY(places.size() >= 2);
+        QCOMPARE(places.first().toMap().value("name").toString(), QString("Home"));
+        QCOMPARE(places.first().toMap().value("path").toString(), QDir::homePath());
+        QCOMPARE(places.last().toMap().value("name").toString(), QString("Root"));
+        QCOMPARE(places.last().toMap().value("path").toString(), QString("/"));
+        QStringList names;
+        for (const QVariant &place : places) {
+            const QVariantMap entry = place.toMap();
+            QVERIFY2(QFileInfo(entry.value("path").toString()).isDir(), qPrintable(entry.value("path").toString()));
+            QVERIFY2(!names.contains(entry.value("name").toString()), qPrintable(entry.value("name").toString()));
+            names << entry.value("name").toString();
+        }
+    }
+
     // config.json is read once and kept while the file stays as it was: a
     // setting saved by OSD/OS, or the file edited by hand (its time or size
     // changed), is read afresh.
