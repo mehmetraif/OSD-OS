@@ -531,6 +531,10 @@ void WeatherBackend::onSettingChanged(const QString &moduleId, const QString &ke
         m_resolved = false;
         resolveLocation();
     }
+    // The other places: looked up again beside the place there is. With no
+    // place yet there is nothing to show them beside.
+    if (key == QLatin1String("other_places") && m_resolved)
+        resolveLocation();
 }
 
 void WeatherBackend::getDisplays() {
@@ -578,7 +582,10 @@ void WeatherBackend::stop() {
 // ── Music ────────────────────────────────────────────────────────────────────
 
 QStringList WeatherBackend::musicPlaylist() const {
-    QStringList entries = readListFile(music_file_path());
+    // Settings' Music List, else weather_music.txt, else the built-in tracks.
+    QStringList entries = settingLines("music_list");
+    if (entries.isEmpty())
+        entries = readListFile(music_file_path());
     if (entries.isEmpty()) {
         for (const char *track : kBuiltInMusic)
             entries << QString::fromUtf8(track);
@@ -757,6 +764,19 @@ QStringList WeatherBackend::readLocationLines() const {
     return readListFile(location_file_path());
 }
 
+// One of the module's lists typed in Settings or OSD/OS Setup
+// (modules.<id>.<key>, a list of lines): its lines that say something.
+QStringList WeatherBackend::settingLines(const char *key) const {
+    QStringList lines;
+    const QJsonArray typed = moduleConfig()[QLatin1String(key)].toArray();
+    for (const QJsonValue &v : typed) {
+        const QString line = v.toString().trimmed();
+        if (!line.isEmpty() && !line.startsWith(QLatin1Char('#')) && !lines.contains(line))
+            lines << line;
+    }
+    return lines;
+}
+
 // "42.3601, -71.0589" or "42.3601, -71.0589, BOSTON".
 //
 // Explicit coordinates are the reliable escape hatch when a place name is
@@ -789,6 +809,7 @@ void WeatherBackend::resolveLocation() {
     // Settings' Location (modules.<id>.location) is the place; the file's
     // lines after its first are the other places then, and with no file there
     // are none. Without the setting the file says both, as it always has.
+    // Settings' Other Places come before the file's.
     const QString chosen = moduleConfig()[QStringLiteral("location")].toString().trimmed();
     QFile probe(location_file_path());
     if (chosen.isEmpty()) {
@@ -801,7 +822,11 @@ void WeatherBackend::resolveLocation() {
     if (chosen.isEmpty() && lines.isEmpty()) { emitError(QStringLiteral("empty")); return; }
 
     const QString primary = chosen.isEmpty() ? lines.first() : chosen;
-    const QStringList others = lines.mid(1);
+    QStringList others = settingLines("other_places");
+    for (const QString &line : lines.mid(1)) {
+        if (!others.contains(line))
+            others << line;
+    }
 
     double lat = 0.0, lon = 0.0;
     QString label;

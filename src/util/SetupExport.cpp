@@ -80,6 +80,9 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
             out.insert(key, row.value(QLatin1String("default")).toDouble(0));
         } else if (type == QLatin1String("directory_browser") || type == QLatin1String("text")) {
             out.insert(key, row.value(QLatin1String("default")).toString());
+        } else if (type == QLatin1String("text_list")) {
+            // A list of typed lines: none unless some were typed.
+            out.insert(key, QJsonArray());
         }
     }
 }

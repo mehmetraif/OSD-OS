@@ -201,8 +201,8 @@ YouTube searches, lists and plays through yt-dlp. A problem shows in the help li
 |---|---|---|
 | **Searching needs yt-dlp, which is not installed**, then how to install it | No yt-dlp at `bin/yt-dlp` in the data folder, beside OSD/OS's binary, or on the `PATH` | Install it as the line says (`sudo apt install yt-dlp` on Raspberry Pi OS). On the AppImage, put it at `~/.local/share/OSD-OS/bin/yt-dlp` and `chmod +x` it |
 | **Could not search YouTube: check the network, and that yt-dlp is up to date** | No network, or a yt-dlp too old | Update yt-dlp (below) |
-| **Could not load the playlists: check the network, and that yt-dlp is installed** | The same, for `youtube_playlists.txt` | The same |
-| **Could not load the subscriptions: check the network** | The channels' feeds didn't come | Check the network, and the channel ids in `youtube_subscriptions.txt` |
+| **Could not load the playlists: check the network, and that yt-dlp is installed** | The same, for the playlists in Settings and in `youtube_playlists.txt` | The same |
+| **Could not load the subscriptions: check the network** | The channels' feeds didn't come | Check the network, and the channel ids in Settings' Subscriptions and in `youtube_subscriptions.txt` |
 
 - **Updating yt-dlp.** The image updates its own after each boot, once a day, and as the YouTube module opens; `~/.local/share/OSD-OS/bin/yt-dlp --update` updates it now, and `journalctl -u osdos-yt-dlp-update` shows the last update. Elsewhere: `sudo yt-dlp -U` for a copy in `/usr/local/bin`, `brew upgrade yt-dlp` on a Mac.
 - **Deno.** yt-dlp needs a JavaScript runtime for YouTube; without one, a video plays in few formats or none ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)). Deno must be on the `PATH` of the user or service that runs OSD/OS, such as `/usr/local/bin`. The image has it; `brew install deno` on a Mac.

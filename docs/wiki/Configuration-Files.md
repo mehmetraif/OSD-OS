@@ -106,16 +106,16 @@ Other variables:
 ├── nfc_reader_history.json     the NFC Reader's resume points
 ├── youtube_history.json        YouTube's Recently Watched, with resume points
 ├── youtube_watch_later.json    YouTube's Watch Later
-├── youtube_subscriptions.txt   you write it: YouTube channel ids, one a line
-├── youtube_playlists.txt       you write it: YouTube playlists, one a line
+├── youtube_subscriptions.txt   you write it, if you like: YouTube channel ids beside Settings' Subscriptions
+├── youtube_playlists.txt       you write it, if you like: YouTube playlists beside Settings' Playlists
 ├── playlists.json              the Playlists module's lists, where each stopped, its downloads
 ├── playlists/                  the m3u a list was last played from
 ├── plex_auth.json              the Plex sign-in            (owner-only)
 ├── plex_key.pem                Plex's key for this device  (owner-only)
 ├── jellyfin_auth.json          the Jellyfin sign-in        (owner-only)
 ├── emby_auth.json              the Emby sign-in            (owner-only)
-├── tmdb_api_key.txt            you write it: the TMDB key for Netflix and Prime Video
-├── weather_location.txt        you write it: Weather's places
+├── tmdb_api_key.txt            you write it, if you like: the TMDB key, where Settings' TMDB Key is empty
+├── weather_location.txt        you write it, if you like: Weather's places, beside Settings' Location and Other Places
 ├── weather_music.txt           you write it, if you like: Weather's music
 ├── custom_color_schemes.json   you write it, if you like: color schemes of your own
 ├── custom_color_scheme.json    you write it, if you like: the scheme called Custom

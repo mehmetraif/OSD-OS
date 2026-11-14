@@ -130,6 +130,52 @@ private slots:
         QCOMPARE(backend.m_locationName, QString("PARIS"));
     }
 
+    // Weather's two lists typed in Settings (lists of lines): the other
+    // places before the file's, each once, looked up again as they change;
+    // the music in place of the file's and the built-in tracks.
+    void weatherListsFromTheirSettings() {
+        QTemporaryDir tmp;
+        const auto config = [&tmp](const QByteArray &rest) {
+            QFile file(tmp.path() + "/config.json");
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"41.01, 28.98, Istanbul\"" + rest + "}}}");
+        };
+        const auto others = [](const WeatherBackend &backend) {
+            QStringList names;
+            for (const QVariant &point : backend.m_otherPoints)
+                names << point.toMap().value("name").toString();
+            return names;
+        };
+        WeatherBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        {
+            QFile file(backend.location_file_path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("0.0, 0.0, Passed Over\n52.52, 13.40, Berlin\n60.0, 10.0, Oslo\n");
+        }
+        config("");
+        backend.resolveLocation();
+        QCOMPARE(others(backend), QStringList({ "BERLIN", "OSLO" }));
+
+        config(",\"other_places\":[\"48.85, 2.35, Paris\",\" \",\"60.0, 10.0, Oslo\"]");
+        backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
+        QCOMPARE(others(backend), QStringList({ "PARIS", "OSLO", "BERLIN" }));
+
+        // Music: the built-in tracks, then the file's, then Settings'.
+        const QStringList builtIn = backend.musicPlaylist();
+        QVERIFY(!builtIn.isEmpty());
+        {
+            QFile file(backend.music_file_path());
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("filed.ogg\n");
+        }
+        QCOMPARE(backend.musicPlaylist(), QStringList({ tmp.path() + "/filed.ogg" }));
+        config(",\"music_list\":[\"http://music.example/a b.mp3\",\"typed.ogg\"]");
+        QCOMPARE(backend.musicPlaylist(),
+                 QStringList({ "http://music.example/a%20b.mp3", tmp.path() + "/typed.ogg" }));
+    }
+
     void markerFailureDoesNotArmUpdate() {
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());

@@ -287,7 +287,7 @@ FocusScope {
     // Rows that show their current value after the dots.
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
-               || item.type === "text"
+               || item.type === "text" || item.type === "text_list"
     }
 
     function currentDisplayValue(item) {
@@ -319,6 +319,13 @@ FocusScope {
         if (type === "text") {
             var typed = String(valuesOf(item)[key] || "")
             return typed === "" ? "Not Set" : item.secret ? "Set" : typed
+        }
+
+        // A list of typed lines (its own page): how many there are.
+        if (type === "text_list") {
+            var lines = valuesOf(item)[key]
+            var count = lines && lines.length !== undefined && typeof lines !== "string" ? lines.length : 0
+            return count === 0 ? "None" : String(count)
         }
 
         return ""
@@ -392,7 +399,7 @@ FocusScope {
     function opens(item) {
         return !!item && !item._off && (item.type === "submenu" || item.type === "multiselect_submenu"
                                         || item.type === "module_view" || item.type === "directory_browser"
-                                        || item.type === "text")
+                                        || item.type === "text" || item.type === "text_list")
     }
     // A line whose value ◄ ► change on it: between a ◄ and a ►.
     function changes(item) {
@@ -469,6 +476,19 @@ FocusScope {
                 moduleSettingsRoot.navigateTo(appCore.module_entry_point(moduleSettingsRoot.moduleOf(item)),
                                               item.params || {},
                                               { currentIndex: settingsList.currentIndex })
+            } else if (item.type === "text_list") {
+                // A list of typed lines, on a page of its own.
+                var owner = moduleSettingsRoot.moduleOf(item)
+                moduleSettingsRoot.navigateTo("views/TextListSettings.qml", {
+                    moduleId: owner,
+                    moduleName: owner === moduleSettingsRoot.moduleId ? moduleName : (moduleNames[owner] || owner),
+                    settingKey: item.key,
+                    settingLabel: item.label,
+                    help: item.description || "",
+                    applySlot: item.apply_slot || "",
+                    maxLength: item.max_length || 64,
+                    maxLines: item.max_lines || 50
+                }, { currentIndex: settingsList.currentIndex })
             } else if (item.type === "text") {
                 // Typed on the on-screen keyboard, over the page: what is
                 // saved to start from, kept on OK, left as it was on back.

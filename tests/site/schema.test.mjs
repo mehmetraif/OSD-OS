@@ -279,6 +279,15 @@ test("the rows of the page's Basic and Logins views", () => {
         assert.equal(row.type, "text", `${scope}.${row.key}`);
         assert.equal(!!row.secret, row.key === "tmdb_api_key", `${scope}.${row.key}`);
     }
+    // A list of typed lines (a manifest's "text_list" row) is a line each
+    // here, none unless typed, no more or longer than the app takes.
+    const lists = rows.filter(([, r]) => r.type === "lines").map(([scope, r]) => `${scope}.${r.key}`).sort();
+    assert.deepEqual(lists, ["com.osdos.weather.music_list", "com.osdos.weather.other_places",
+                             "com.osdos.youtube.playlists", "com.osdos.youtube.subscriptions"]);
+    for (const [scope, row] of rows.filter(([, r]) => r.type === "lines")) {
+        assert.deepEqual(row.default, [], `${scope}.${row.key}`);
+        assert.ok(row.max_length > 0 && row.max_lines > 0, `${scope}.${row.key}`);
+    }
     // A module's views name its own rows.
     const extra = JSON.parse(read("site/setup/schema-extra.json"));
     for (const [id, more] of Object.entries(extra.modules)) {

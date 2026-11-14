@@ -430,6 +430,19 @@ function settingLine(scope, row) {
                 " " + label)));
         break;
     }
+    case "lines": {
+        // A list typed a line each (channels, places, links): its count on
+        // the line, the lines under it, kept as the app keeps them.
+        const lines = Array.isArray(value) ? value.map(String) : [];
+        const count = lines.length === 0 ? "None" : lines.length === 1 ? "1 line" : `${lines.length} lines`;
+        const wrap = line(row.label, el("span", { class: "value", id: id + "-count", text: count }),
+                          { id, help: row.help, changed, onReset: () => unset(scope, row.key) });
+        wrap.firstChild.after(el("textarea", {
+            id, spellcheck: "false", placeholder: row.placeholder || "One a line",
+            onchange: e => setValue(scope, row.key, core.listLines(e.target.value, row)),
+        }, lines.join("\n")));
+        return wrap;
+    }
     default:
         // A key or a password of a module's ("secret"): hidden until shown,
         // as the Wi-Fi's is.

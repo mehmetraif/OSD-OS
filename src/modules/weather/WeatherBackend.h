@@ -113,7 +113,9 @@ private:
     QStringList readListFile(const QString &path) const;
     // Shared by the primary location and the extras.
     QStringList readLocationLines() const;
-    // The music playlist: weather_music.txt if present, otherwise the built-in
+    // A list typed in Settings (Other Places, Music List): its lines.
+    QStringList settingLines(const char *key) const;
+    // The music playlist: Settings' Music List, else weather_music.txt, else the built-in
     // list. Entries are mpv-ready — URLs percent-encoded, local paths absolute.
     QStringList musicPlaylist() const;
     static bool parseCoordLine(const QString &line, double *lat, double *lon, QString *label);

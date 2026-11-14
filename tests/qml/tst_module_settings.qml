@@ -396,6 +396,104 @@ Rectangle {
             compare(page.currentDisplayValue(page.schemaItems[2]), "Not Set")
         }
 
+        // A list of typed lines (text_list): its count on the row, its own
+        // page from it, there a line added on the keyboard, changed, not
+        // listed twice, taken out, and no more than the row takes.
+        function test_textList() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "channels", label: "Channels", type: "text_list", max_length: 30, max_lines: 3,
+                  description: "A line each", apply_slot: "channelsChanged" }
+            ]
+            appCore.values = { channels: ["UCone", "UCtwo"] }
+            var page = open()
+            compare(page.currentDisplayValue(page.schemaItems[1]), "2")
+            verify(page.opens(page.schemaItems[1]))
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/TextListSettings.qml")
+            var params = root.navigations[0].params
+            compare(params.settingKey, "channels")
+            compare(params.maxLines, 3)
+            appCore.values = {}
+            compare(page.currentDisplayValue(page.schemaItems[1]), "2")
+            loader.source = ""
+            appCore.values = {}
+            page = open()
+            compare(page.currentDisplayValue(page.schemaItems[1]), "None")
+            loader.source = ""
+
+            appCore.values = { channels: ["UCone", " ", "UCtwo"] }
+            loader.setSource(Qt.resolvedUrl("../../views/TextListSettings.qml"), { navParams: params })
+            var list = loader.item
+            verify(list !== null, "loaded TextListSettings.qml")
+            list.forceActiveFocus()
+            var keyboard = null, options = null, lines = null
+            for (var i = 0; i < list.children.length; i++) {
+                var child = list.children[i]
+                if (child.objectName === "keyboard") keyboard = child
+                if (child.objectName === "options") options = child
+                if (child.objectName === "lines") lines = child
+            }
+            verify(keyboard && options && lines)
+            compare(list.lines, ["UCone", "UCtwo"])
+            compare(lines.count, 3)
+            // ADD, the last row: a line typed, kept at the foot, the cursor
+            // left on ADD.
+            lines.currentIndex = 2
+            verify(lines.onAdd)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.title, "Channels")
+            compare(keyboard.maxLength, 30)
+            keyboard.accepted("  UCthree ")
+            verify(!keyboard.visible)
+            compare(appCore.values.channels, ["UCone", "UCtwo", "UCthree"])
+            compare(appCore.actions, ["channelsChanged"])
+            compare(lines.count, 4)
+            verify(lines.onAdd)
+            // Full: ADD opens nothing.
+            verify(list.full)
+            keyClick(Qt.Key_Return)
+            verify(!keyboard.visible)
+            // A line: change it, or take it out.
+            lines.currentIndex = 0
+            keyClick(Qt.Key_Return)
+            verify(options.visible)
+            compare(options.subtitleText, "UCone")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            compare(keyboard.text, "UCone")
+            // One already there isn't listed twice: the line goes.
+            keyboard.accepted("UCtwo")
+            compare(appCore.values.channels, ["UCtwo", "UCthree"])
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            keyboard.accepted("UCfirst")
+            compare(appCore.values.channels, ["UCfirst", "UCthree"])
+            compare(lines.currentIndex, 0)
+            // Remove, the second answer.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(!options.visible)
+            compare(appCore.values.channels, ["UCthree"])
+            compare(lines.currentIndex, 0)
+            // Not saved (a full card): the page stays on what is saved.
+            appCore.saveFails = true
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(list.lines, ["UCthree"])
+            // Back leaves the page.
+            var left = 0
+            list.goBack.connect(function() { left++ })
+            keyClick(Qt.Key_Escape)
+            compare(left, 1)
+        }
+
         function test_unsaved() {
             var page = open()
             keyClick(Qt.Key_Down)

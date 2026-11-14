@@ -41,7 +41,7 @@ A MIDI file is played by FluidSynth with a SoundFont, which Homebrew's FluidSynt
 brew install yt-dlp deno
 ```
 
-mpv's ytdl hook uses `yt-dlp` to resolve YouTube URLs at playback time, and the YouTube module's Search runs it too. Two optional files in the data directory add to the module's tree (`#` comments allowed in both; each file only gates its own entries): `youtube_subscriptions.txt` (one channel ID per line — adds Subscriptions/Channels; see the wiki's [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#channels-and-subscriptions) page) and `youtube_playlists.txt` (one playlist URL or ID per line, optional `My Name | <url>` display-name prefix — adds Playlists; contents are fetched by running `yt-dlp` directly).
+mpv's ytdl hook uses `yt-dlp` to resolve YouTube URLs at playback time, and the YouTube module's Search runs it too. Settings' Subscriptions and Playlists, and two optional files in the data directory beside them, add to the module's tree (`#` comments allowed in both files; each list only gates its own entries): `youtube_subscriptions.txt` (one channel ID per line — adds Subscriptions/Channels; see the wiki's [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#channels-and-subscriptions) page) and `youtube_playlists.txt` (one playlist URL or ID per line, optional `My Name | <url>` display-name prefix — adds Playlists; contents are fetched by running `yt-dlp` directly).
 
 For full YouTube support, current yt-dlp versions also use an external JavaScript runtime. Deno is the recommended runtime. See yt-dlp's [EJS setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS) for the currently supported runtimes and versions.
 
