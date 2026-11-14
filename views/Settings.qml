@@ -829,7 +829,10 @@ FocusScope {
 
         // Startup From — where that favourite begins. Either way it begins
         // without asking: a resume prompt is no question to put to a player
-        // switched on to play. For a favourite set above (shownWith).
+        // switched on to play. For a favourite set above (shownWith), of a
+        // module whose player reads it, Local Files' or YouTube's: an Arcade
+        // game, or a Netflix or Prime Video title, has nowhere to resume.
+        var resumes = ["com.osdos.local_files", "com.osdos.youtube"]
         items.push({
             type: "list_single",
             key: "startup_from",
@@ -838,6 +841,8 @@ FocusScope {
             value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
             description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
             shownWith: { key: "startup_favorite", not: "None" },
+            unavailable: favName !== "" && resumes.indexOf(startupFav.module) < 0
+                         ? "Only with a Local Files or YouTube favourite" : "",
             moduleId: ""
         })
 

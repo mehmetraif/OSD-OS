@@ -319,7 +319,7 @@ Problems are in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Trou
 |---|---|---|---|---|
 | Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start. A module turned off later is never opened | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
 | Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. Choose it in its module (► on the entry, then **Play at Startup**); here you can only turn it off | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
-| Startup From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite | `app.startup_from` |
+| Startup From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite of Local Files' or YouTube's, whose players resume | `app.startup_from` |
 | Cabinet Lock | A page: On, Off | Off | Keeps OSD/OS on Start on Module's module ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
 
 The Scripts module's **Auto-Run On Startup** needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).

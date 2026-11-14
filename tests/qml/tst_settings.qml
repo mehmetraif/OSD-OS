@@ -928,6 +928,32 @@ Rectangle {
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
         }
 
+        // Startup From, on Startup's page, is for a favourite that can be
+        // resumed, Local Files' or YouTube's: with none it waits for Play at
+        // Startup; with an Arcade game's, or a web player's title's, it is
+        // dimmed, saying whose it is for, and ◄ ► leave it as it is.
+        function test_startupFromRow() {
+            var page = open({ group: "startup" })
+            var at = lines(page).indexOf("Startup From")
+            compare(page.offReason(at), "Off while Play at Startup is None")
+            var favorites = [{ module: "com.osdos.local_files", usable: true },
+                             { module: "com.osdos.youtube", usable: true },
+                             { module: "com.osdos.arcade", usable: false },
+                             { module: "com.osdos.netflix", usable: false }]
+            for (var i = 0; i < favorites.length; i++) {
+                loader.source = ""
+                appCore.values = { startup_favorite: { module: favorites[i].module, path: "p", name: "Favourite" } }
+                page = open({ group: "startup" })
+                compare(row(page, "Play at Startup").value, "Favourite")
+                compare(page.offReason(at), favorites[i].usable ? "" : "Only with a Local Files or YouTube favourite")
+                moveTo(page, "Startup From")
+                compare(menuRow(page, at).dimmed, !favorites[i].usable)
+                keyClick(Qt.Key_Right)
+                compare(appCore.values.startup_from, favorites[i].usable ? "Beginning" : undefined)
+            }
+            verify(helpOf(page).text.indexOf("Only with a Local Files or YouTube favourite") === 0, helpOf(page).text)
+        }
+
         // Boot Screen Colors, on Look's page: a row like the others on the
         // OSD/OS image, which has a boot screen; anywhere else dimmed, the
         // help line saying where it is for, ◄ ► leaving it as it is.
