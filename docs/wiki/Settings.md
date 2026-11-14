@@ -288,6 +288,7 @@ Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 - A network joined is saved and joined by itself from then on.
 - A network that wants a user name too (WPA Enterprise) can't be joined here.
 - A character the on-screen keyboard hasn't (`/`, `:`, a bracket) can be typed on a real keyboard.
+- Back from a network not listed's password, or from the question before it, keeps the name you typed: **Network Not Listed** opens on it again.
 - The help line says how it went: **Connected to …**, or why not (**wrong password?**, **it gave no address (DHCP)**, **it is out of reach**).
 - Without NetworkManager or Wi-Fi hardware the page says **No Wi-Fi**. On a Mac, join networks in the Mac's own settings.
 - The Wi-Fi row is dimmed where OSD/OS can't use NetworkManager. With a launcher older than level 7 its help line says **Needs a newer launcher**: run `install.sh` again, or put a newer image on the card.

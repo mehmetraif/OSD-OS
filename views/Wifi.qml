@@ -199,6 +199,16 @@ FocusScope {
         keyboard.open("")
     }
 
+    // The network not listed is asked for by the name typed, which is kept
+    // until now: back from its password, from the question before it or
+    // from the name itself comes to a keyboard that opens on the name
+    // again, not on nothing.
+    function joinHidden(password) {
+        var name = hiddenName
+        hiddenName = ""
+        wifiManager.connectHidden(name, password)
+    }
+
     function activate(row) {
         if (!row || !wifiManager)
             return
@@ -220,11 +230,13 @@ FocusScope {
             else
                 wifiManager.startSearch()
         } else if (row.type === "hidden") {
+            // On the name typed before, where back left it before its join
+            // was asked (hiddenName).
             typing = "hiddenName"
             keyboard.title = "Network Name"
             keyboard.masked = false
             keyboard.maxLength = 32
-            keyboard.open("")
+            keyboard.open(hiddenName)
         } else if (row.type === "network") {
             var n = row.network
             if (n.busy !== "")
@@ -382,7 +394,7 @@ FocusScope {
                 return
             }
             if (action === "hiddenOpen") {
-                wifiManager.connectHidden(wifiRoot.hiddenName, "")
+                wifiRoot.joinHidden("")
                 return
             }
             var n = wifiRoot.optionsNetwork
@@ -426,11 +438,15 @@ FocusScope {
                 options.open()
                 return
             } else if (typed === "hiddenPassword") {
-                wifiManager.connectHidden(wifiRoot.hiddenName, text)
+                wifiRoot.joinHidden(text)
             }
             list.forceActiveFocus()
         }
         onCanceled: {
+            // A name left half typed is kept as far as it got; a password
+            // never is.
+            if (wifiRoot.typing === "hiddenName")
+                wifiRoot.hiddenName = keyboard.text
             wifiRoot.typing = ""
             keyboard.text = ""
             list.forceActiveFocus()

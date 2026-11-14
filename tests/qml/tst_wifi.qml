@@ -8,10 +8,10 @@ import "../../views/Components/Hover.js" as Hover
 // Network Not Listed, the saved networks and the others, each with its lock and
 // signal, a saved one out of reach marked so); a new network's password on the
 // keyboard, an open one joined at once; a saved one's and the joined one's
-// options; one not listed by its name, then its password or none; the
-// cursor kept on its network as the list changes; what the page opens over
-// itself made as it first opens; and the lines changed where they are as
-// NetworkManager says more.
+// options; one not listed by its name, then its password or none, its name
+// kept while it is left unjoined; the cursor kept on its network as the list
+// changes; what the page opens over itself made as it first opens; and the
+// lines changed where they are as NetworkManager says more.
 Rectangle {
     id: root
     color: surfaceColor
@@ -391,6 +391,72 @@ Rectangle {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(wifiManager.calls, ["connectHidden Attic Hidden99", "connectHidden Barn "])
+        }
+
+        // One not listed, left before it was joined: the name typed is there
+        // when it is asked for again, the box on OK, after back from its
+        // password, from the question before it, and from the name itself
+        // as far as it was typed. A password typed never is. Once the join
+        // is asked, the next one starts from nothing.
+        function test_hiddenNameKept() {
+            var page = open()
+            moveTo(page, "Network Not Listed")
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(page)
+            compare(keyboard.text, "")
+            type("Attic")
+            keyClick(Qt.Key_Return)
+            var overlay = overlayOf(page)
+            verify(overlay.visible)
+            // Back from its password.
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            verify(keyboard.masked)
+            type("Hid")
+            keyClick(Qt.Key_Escape)
+            verify(!keyboard.visible)
+            compare(cursor(page), "Network Not Listed")
+            keyClick(Qt.Key_Return)
+            verify(keyboard.visible)
+            verify(!keyboard.masked)
+            compare(keyboard.title, "Network Name")
+            compare(keyboard.text, "Attic")
+            compare(keyboard.row, keyboard.rows.length - 1)
+            compare(keyboard.col, keyboard.okCol)
+            // Back from the question.
+            keyClick(Qt.Key_Return)
+            verify(overlay.visible)
+            compare(overlay.subtitleText, "Attic")
+            keyClick(Qt.Key_Escape)
+            verify(!overlay.visible)
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "Attic")
+            // Back from the name, two letters on.
+            type("12")
+            keyClick(Qt.Key_Escape)
+            verify(!keyboard.visible)
+            compare(wifiManager.calls, [])
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "Attic12")
+            // On to its password, which starts from nothing, and joined.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            verify(keyboard.masked)
+            compare(keyboard.text, "")
+            type("Hidden99")
+            keyClick(Qt.Key_Return)
+            compare(wifiManager.calls, ["connectHidden Attic12 Hidden99"])
+            keyClick(Qt.Key_Return)
+            compare(keyboard.title, "Network Name")
+            compare(keyboard.text, "")
+            // An open one asked: nothing kept either.
+            type("Barn")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(wifiManager.calls[1], "connectHidden Barn ")
+            keyClick(Qt.Key_Return)
+            compare(keyboard.text, "")
         }
 
         // Search starts and stops it, SEARCHING trailing dots; leaving the
