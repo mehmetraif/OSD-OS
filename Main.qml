@@ -1009,13 +1009,11 @@ Window {
     property bool screenSaverActive: false
 
     // Playback counts as user activity even when no key started it (an NFC
-    // card tap launches mpv directly). If the saver was showing at launch,
-    // nothing key-driven ever reaches its dismiss handler — focus has moved
-    // into the module's player view — so clear it on playback windowChange.
+    // card tap launches mpv directly), so the saver is cleared on playback
+    // windowChange too, not only by a key. As it goes, the saver hands the
+    // keys to whoever has them under it (ScreenSaver's keysTo, below).
     function dismissScreenSaver() {
-        if (!screenSaverActive) return
         screenSaverActive = false
-        moduleLoader.forceActiveFocus()
     }
 
     // --- APP-LEVEL NAV STACK ---
@@ -1583,19 +1581,10 @@ Window {
                 // Only show on active → true; never hide here — the overlay's
                 // key handler owns dismissal, preventing the C++ event filter's
                 // synchronous reset from stealing the key from QML. Never over the
-                // boot screen, which would lose focus to it.
-                if (idleTracker.active && idleTracker.enabled && !root.bootActive) {
-                    if (!screenSaverActive) {
-                        var usableW = screenSaverOverlay.width - bounceLogo.width
-                        var usableH = screenSaverOverlay.height - bounceLogo.height
-                        bounceLogo.x = Math.random() * (usableW > 0 ? usableW : 1)
-                        bounceLogo.y = Math.random() * (usableH > 0 ? usableH : 1)
-                        bounceLogo.vx = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 1.5)
-                        bounceLogo.vy = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 1.5)
-                        screenSaverActive = true
-                        screenSaverOverlay.forceActiveFocus()
-                    }
-                }
+                // boot screen, which would lose focus to it. The overlay takes
+                // the keys as it shows.
+                if (idleTracker.active && idleTracker.enabled && !root.bootActive)
+                    screenSaverActive = true
             }
         }
 
@@ -1636,72 +1625,26 @@ Window {
             onLoaded: item.forceActiveFocus()
         }
 
-        Item {
+        // The screen saver (Components/ScreenSaver.qml), over all of them. The
+        // keys are its own while it is up, whatever opens under it, and as
+        // it goes it hands them to whoever has them there, the top-most
+        // first: the window asking to keep a display output, OSD/OS Setup's
+        // notice, the boot screen, else the views, and through their loader
+        // the question open in one. A key only wakes it.
+        ScreenSaver {
             id: screenSaverOverlay
             anchors.fill: parent
-            visible: screenSaverActive
             z: 9999
-            focus: visible
-
-            // Solid black background — no transparency so it serves as a true
-            // CRT burn-in prevention black frame between the logo bounces.
-            Rectangle {
-                anchors.fill: parent
-                color: "#000000"
-            }
-
-            // Bouncing logo — classic DVD player screen saver
-            Image {
-                id: bounceLogo
-                source: "assets/images/logo.svg"
-                sourceSize.width: root.sw * 0.05
-                sourceSize.height: root.sw * 0.05
-                fillMode: Image.PreserveAspectFit
-                antialiasing: true
-
-                property real vx: 0
-                property real vy: 0
-
-                // Physics tick at ~60 fps while the overlay is visible
-                Timer {
-                    interval: 16
-                    repeat: true
-                    running: screenSaverActive
-                    onTriggered: {
-                        bounceLogo.x += bounceLogo.vx
-                        bounceLogo.y += bounceLogo.vy
-
-                        if (bounceLogo.x + bounceLogo.width > screenSaverOverlay.width) {
-                            bounceLogo.x = screenSaverOverlay.width - bounceLogo.width
-                            bounceLogo.vx = -Math.abs(bounceLogo.vx)
-                        } else if (bounceLogo.x < 0) {
-                            bounceLogo.x = 0
-                            bounceLogo.vx = Math.abs(bounceLogo.vx)
-                        }
-
-                        if (bounceLogo.y + bounceLogo.height > screenSaverOverlay.height) {
-                            bounceLogo.y = screenSaverOverlay.height - bounceLogo.height
-                            bounceLogo.vy = -Math.abs(bounceLogo.vy)
-                        } else if (bounceLogo.y < 0) {
-                            bounceLogo.y = 0
-                            bounceLogo.vy = Math.abs(bounceLogo.vy)
-                        }
-                    }
-                }
-            }
-
-            // Capture any keypress to dismiss — consumes the event so the
-            // underlying view never sees it, preventing accidental navigation.
-            // Ctrl+Q still quits (moduleLoader's handler is a sibling, so it
-            // can't see keys focused here — handle the chord directly).
-            Keys.onPressed: (event) => {
-                event.accepted = true
-                if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Q && !root.cabinetLocked()) {
+            shown: root.screenSaverActive
+            keysTo: [displayKeepLoader.item, setupNoticeLoader.item, bootScreenLoader.item, moduleLoader]
+            onWoken: root.dismissScreenSaver()
+            // Ctrl+Q quits from here too; under Cabinet Lock it is a key
+            // like any other.
+            onQuitAsked: {
+                if (root.cabinetLocked())
+                    root.dismissScreenSaver()
+                else
                     Qt.quit()
-                    return
-                }
-                screenSaverActive = false
-                moduleLoader.forceActiveFocus()
             }
         }
 

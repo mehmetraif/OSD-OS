@@ -323,6 +323,7 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 - The screen saver puts OSD/OS's logo bouncing across a black screen, to spare a CRT's phosphor.
 - It comes in the menus after the set seconds without a key, and during a video paused that long.
 - The first key only wakes it. Moving the mouse wakes it too, unless Mouse Pointer is Off.
+- A question or a notice that came up under it (an update ready to install, OSD/OS Setup's notice) is still there once it has gone, and takes the next key.
 - It never comes while a video plays full screen, while a script runs, or over the boot screen. With a video playing behind the menus it comes over the menus as usual.
 - It waits while a page that is read with no key pressed is up: a Test Pattern, Export to OSD/OS Setup's codes, a Bluetooth pairing's code.
 

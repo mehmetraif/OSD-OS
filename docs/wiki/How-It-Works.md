@@ -110,7 +110,7 @@ flowchart TD
 - **Views read the shell through `root.*`**, `Main.qml`'s own properties (`root.hints`, `root.videoActive`…), not context properties, whose bindings throw errors when a `Loader` swaps views.
 - **Sizes**: `root.sw` and `root.sh` are the screen's width and height, `root.px` one pixel of a 240-line picture (`sh / 240`), `root.contentBox` the area views lay out in ([Overscan and the safe area](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#overscan-and-the-safe-area)).
 - **The look** is resolved here from Settings and the theme: `root.primaryColor`, `root.surfaceColor` and `root.skin` ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)).
-- **The layers above the views** take the keys while they are up: the boot screen, the display question, the screen saver.
+- **The layers above the views** take the keys while they are up: the boot screen, the display question, the screen saver. The screen saver keeps them whatever opens under it, and as it goes hands them back to the layer, or the question in a view, that has them there.
 
 ## Navigation
 

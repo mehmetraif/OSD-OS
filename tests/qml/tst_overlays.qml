@@ -1,12 +1,16 @@
 import QtQuick
 import QtTest
+import Components
 
 // What comes over a view, each on its own: the on-screen keyboard
 // (views/Components/OnScreenKeyboard.qml), whose keys stay the keys they are
 // as SHIFT and SHOW change what they say, whose line keeps its end in view
 // however long it is, and which Backspace leaves once nothing is typed; and
 // the choice window (views/Components/ChoiceOverlay.qml). Neither draws
-// anything before it first shows.
+// anything before it first shows. And the screen saver
+// (views/Components/ScreenSaver.qml) over a view and a notice, laid out as
+// Main.qml lays them: the keys its own while it is up, and back to whoever
+// has them under it as it goes.
 Rectangle {
     id: root
     color: surfaceColor
@@ -47,6 +51,58 @@ Rectangle {
         id: loader
         anchors.fill: parent
         focus: true
+    }
+
+    // The screen saver as Main.qml has it: over the views' loader, whose
+    // view has a question it asks by itself (the update's, as its download
+    // ends), and over a notice that takes the keys as it comes (OSD/OS
+    // Setup's, at startup).
+    property bool saverUp: false
+    property int viewKeys: 0
+    property int noticeKeys: 0
+    property int quits: 0
+    Loader {
+        id: viewLoader
+        anchors.fill: parent
+        active: false
+        // As Main.qml's moduleLoader gives a view the keys.
+        onLoaded: item.forceActiveFocus()
+        sourceComponent: FocusScope {
+            property alias content: content
+            property alias question: question
+            Item {
+                id: content
+                anchors.fill: parent
+                focus: true
+                Keys.onPressed: function(event) { root.viewKeys++; event.accepted = true }
+            }
+            ChoiceOverlay {
+                id: question
+                anchors.fill: parent
+                promptText: "Install update?"
+                choices: [{ label: "Apply", action: "apply" }, { label: "Discard", action: "discard" }]
+                onClosed: content.forceActiveFocus()
+            }
+        }
+    }
+    Loader {
+        id: noticeLoader
+        anchors.fill: parent
+        z: 9400
+        active: false
+        sourceComponent: FocusScope {
+            Keys.onPressed: function(event) { root.noticeKeys++; event.accepted = true }
+        }
+        onLoaded: item.forceActiveFocus()
+    }
+    ScreenSaver {
+        id: saver
+        anchors.fill: parent
+        z: 9999
+        shown: root.saverUp
+        keysTo: [noticeLoader.item, viewLoader]
+        onWoken: root.saverUp = false
+        onQuitAsked: root.quits++
     }
 
     SignalSpy {
@@ -364,6 +420,135 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(closedSpy.count, 2)
             compare(activatedSpy.count, 1)
+        }
+    }
+
+    TestCase {
+        name: "ScreenSaver"
+        when: windowShown
+
+        property var view: null
+
+        function init() {
+            root.saverUp = false
+            noticeLoader.active = false
+            viewLoader.active = true
+            view = viewLoader.item
+            verify(view !== null)
+            verify(view.content.activeFocus)
+            activatedSpy.target = view.question
+            activatedSpy.clear()
+            root.viewKeys = 0
+            root.noticeKeys = 0
+            root.quits = 0
+        }
+        function cleanup() {
+            root.saverUp = false
+            noticeLoader.active = false
+            viewLoader.active = false
+        }
+
+        // Over a view: the first key wakes it and goes no further, the next
+        // is the view's.
+        function test_aKeyOnlyWakesIt() {
+            verify(!saver.visible)
+            root.saverUp = true
+            verify(saver.visible)
+            verify(saver.activeFocus)
+            keyClick(Qt.Key_Return)
+            verify(!root.saverUp)
+            verify(!saver.visible)
+            compare(root.viewKeys, 0)
+            verify(view.content.activeFocus)
+            keyClick(Qt.Key_Return)
+            compare(root.viewKeys, 1)
+        }
+
+        // A question the view asks while the saver is up (the update's, as
+        // its download ends) opens under it without the keys: the saver
+        // keeps them, the key that wakes it answers nothing, and the
+        // question has them once the saver has gone.
+        function test_aQuestionAskedUnderIt() {
+            root.saverUp = true
+            view.question.open()
+            verify(view.question.visible)
+            verify(saver.activeFocus, "the keys still the saver's")
+            verify(!view.question.activeFocus)
+            keyClick(Qt.Key_Return)
+            verify(!root.saverUp, "a key still wakes it")
+            compare(activatedSpy.count, 0)
+            verify(view.question.visible)
+            verify(view.question.activeFocus, "the keys the question's")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(activatedSpy.count, 1)
+            compare(activatedSpy.signalArguments[0][0], "discard")
+            compare(root.viewKeys, 0)
+            // Answered, the keys are the view's again.
+            keyClick(Qt.Key_Left)
+            compare(root.viewKeys, 1)
+        }
+
+        // A notice shown at startup, over the views, the saver come and
+        // gone: the notice has the keys again, not the view under it. Once
+        // it has gone, they go back to the view.
+        function test_aNoticeUnderIt() {
+            noticeLoader.active = true
+            verify(noticeLoader.item.activeFocus)
+            root.saverUp = true
+            verify(saver.activeFocus)
+            keyClick(Qt.Key_Return)
+            verify(!root.saverUp)
+            compare(root.noticeKeys, 0)
+            verify(noticeLoader.item.activeFocus, "the keys the notice's")
+            keyClick(Qt.Key_Return)
+            compare(root.noticeKeys, 1)
+            compare(root.viewKeys, 0)
+            noticeLoader.active = false
+            viewLoader.forceActiveFocus()
+            root.saverUp = true
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            compare(root.viewKeys, 1)
+        }
+
+        // A notice that comes while the saver is up takes the keys as it is
+        // made: the saver has them back at once, and the notice after it.
+        function test_aNoticeComesUnderIt() {
+            root.saverUp = true
+            noticeLoader.active = true
+            verify(noticeLoader.item !== null)
+            verify(saver.activeFocus, "the keys still the saver's")
+            keyClick(Qt.Key_Escape)
+            verify(!root.saverUp)
+            compare(root.noticeKeys, 0)
+            keyClick(Qt.Key_Return)
+            compare(root.noticeKeys, 1)
+            compare(root.viewKeys, 0)
+        }
+
+        // Put away without a key (the mouse moved, a video started): the
+        // keys go back the same way.
+        function test_putAwayWithoutAKey() {
+            root.saverUp = true
+            view.question.open()
+            root.saverUp = false
+            verify(view.question.activeFocus)
+            keyClick(Qt.Key_Return)
+            compare(activatedSpy.count, 1)
+            compare(activatedSpy.signalArguments[0][0], "apply")
+        }
+
+        // Ctrl+Q as a keyboard sends it, Ctrl and then Q: Ctrl is a key like
+        // any other and wakes the saver, and the Q after it is the view's
+        // (Main.qml's loader quits on it). The saver asks its host to quit
+        // (quitAsked) only for a Ctrl+Q that comes as one key.
+        function test_ctrlQ() {
+            root.saverUp = true
+            keyClick(Qt.Key_Q, Qt.ControlModifier)
+            verify(!root.saverUp)
+            compare(root.quits, 0)
+            compare(root.viewKeys, 1)
         }
     }
 }

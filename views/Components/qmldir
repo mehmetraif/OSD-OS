@@ -20,6 +20,7 @@ InfoPanel InfoPanel.qml
 EntryOptions EntryOptions.qml
 PlayerMenu PlayerMenu.qml
 MousePointer MousePointer.qml
+ScreenSaver ScreenSaver.qml
 LoadingScreen LoadingScreen.qml
 PromptScreen PromptScreen.qml
 PlaybackNotice PlaybackNotice.qml
