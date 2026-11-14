@@ -487,6 +487,12 @@ set_tests_properties(main_menu_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offs
 add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# Settings → Network → Bluetooth (views/Bluetooth.qml) against a stand-in for
+# BluetoothManager: its lines, a device's options, and the lines changed where
+# they are as BlueZ says more.
+add_test(NAME bluetooth_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_bluetooth.qml
+                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(bluetooth_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # What comes over a view, each on its own: the on-screen keyboard
 # (views/Components/OnScreenKeyboard.qml) and the choice window
 # (views/Components/ChoiceOverlay.qml).

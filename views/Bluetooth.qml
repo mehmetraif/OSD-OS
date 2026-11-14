@@ -29,6 +29,11 @@ FocusScope {
 
     // The lines: { type: "power" | "details" | "search" | "section" | "note" | "device", … }.
     property var rows: []
+    // The lines the list is made of, given it anew only as lines come, go or
+    // change places: one whose name or value changes (a device connecting,
+    // a search) is changed where it is, from rows, so a device's every
+    // property doesn't make every line again.
+    property var shownRows: []
     // A device whose options are open.
     property var optionsDevice: null
     // The dots after SEARCHING, one more each half second.
@@ -102,6 +107,15 @@ FocusScope {
         }
         rows = items
 
+        // The same lines in the same places, a device by its path (two may
+        // share a name): the list and its cursor are left as they are.
+        var same = items.length === shownRows.length
+        for (var s = 0; s < items.length && same; s++)
+            same = lineId(items[s]) === lineId(shownRows[s])
+        if (same)
+            return
+        shownRows = items
+
         var index = -1
         if (current) {
             for (var k = 0; k < items.length && index < 0; k++) {
@@ -118,6 +132,9 @@ FocusScope {
     }
 
     function selectable(row) { return !!row && row.type !== "section" && row.type !== "note" }
+
+    // Which line a row is, whatever it says now.
+    function lineId(row) { return row.type + ":" + (row.type === "device" ? row.device.path : row.label) }
 
     // The first line that can be chosen from index on, going by step, round.
     function selectableFrom(index, step) {
@@ -182,7 +199,7 @@ FocusScope {
 
     ListView {
         id: list
-        model: bluetoothRoot.rows
+        model: bluetoothRoot.shownRows
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
@@ -229,15 +246,18 @@ FocusScope {
         // Lines read like a camcorder's menu: "KEYBOARD······CONNECTED", and
         // the groups' headings like Settings': "PAIRED ─────".
         delegate: MenuRow {
-            readonly property string trail: modelData.busy ? ".".repeat(bluetoothRoot.dots) : ""
+            // The line as it is now (rows), which the list's own (shownRows)
+            // may be behind.
+            readonly property var row: bluetoothRoot.rows[index] || modelData
+            readonly property string trail: row.busy ? ".".repeat(bluetoothRoot.dots) : ""
             width: list.width
             height: root.sh * 0.0583333 //28
-            heading: modelData.type === "section"
-            label: (modelData.label || "") + (modelData.type === "note" ? trail : "")
-            value: modelData.value ? modelData.value + trail : ""
+            heading: row.type === "section"
+            label: (row.label || "") + (row.type === "note" ? trail : "")
+            value: row.value ? row.value + trail : ""
             // A long name is cut, not CONNECTED or PAIRED after it.
-            keepValue: modelData.type === "device"
-            selected: list.currentIndex === index && bluetoothRoot.selectable(modelData)
+            keepValue: row.type === "device"
+            selected: list.currentIndex === index && bluetoothRoot.selectable(row)
         }
     }
 

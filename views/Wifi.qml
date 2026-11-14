@@ -36,6 +36,11 @@ FocusScope {
 
     // The lines: { type: "power" | "country" | "search" | "hidden" | "section" | "note" | "network", … }.
     property var rows: []
+    // The lines the list is made of, given it anew only as lines come, go or
+    // change places: one whose value, icons or help change (a signal, a
+    // join under way, a search) is changed where it is, from rows, so a
+    // scan's answers don't make every line again each time.
+    property var shownRows: []
     // The network whose options are open.
     property var optionsNetwork: null
     // What the keyboard is typing: "password" (for typingFor), "hiddenName",
@@ -148,6 +153,15 @@ FocusScope {
         }
         rows = items
 
+        // The same lines in the same places: the list and its cursor are
+        // left as they are.
+        var same = items.length === shownRows.length
+        for (var s = 0; s < items.length && same; s++)
+            same = items[s].type === shownRows[s].type && items[s].label === shownRows[s].label
+        if (same)
+            return
+        shownRows = items
+
         var index = -1
         if (current) {
             for (var k = 0; k < items.length && index < 0; k++) {
@@ -256,7 +270,7 @@ FocusScope {
     ListView {
         id: list
         visible: !keyboard.visible
-        model: wifiRoot.rows
+        model: wifiRoot.shownRows
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.25 //120
@@ -304,15 +318,18 @@ FocusScope {
         // and signal, and the groups' headings like Settings': "SAVED ─────".
         // A network's name gives way to its value and icons.
         delegate: MenuRow {
-            readonly property string trail: modelData.busy ? ".".repeat(wifiRoot.dots) : ""
+            // The line as it is now (rows), which the list's own (shownRows)
+            // may be behind.
+            readonly property var row: wifiRoot.rows[index] || modelData
+            readonly property string trail: row.busy ? ".".repeat(wifiRoot.dots) : ""
             width: list.width
             height: root.sh * 0.0583333 //28
-            heading: modelData.type === "section"
-            label: (modelData.label || "") + (modelData.type === "note" ? trail : "")
-            value: modelData.value ? modelData.value + trail : ""
-            icons: modelData.icons || []
-            keepValue: modelData.type === "network"
-            selected: list.currentIndex === index && wifiRoot.selectable(modelData)
+            heading: row.type === "section"
+            label: (row.label || "") + (row.type === "note" ? trail : "")
+            value: row.value ? row.value + trail : ""
+            icons: row.icons || []
+            keepValue: row.type === "network"
+            selected: list.currentIndex === index && wifiRoot.selectable(row)
         }
     }
 

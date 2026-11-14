@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import "../../views/Components/Hover.js" as Hover
 
 // Settings → Network → Wi-Fi, views/Wifi.qml, against a stand-in for WifiManager: no
 // Wi-Fi; Wi-Fi off with no country, which select on WI-FI asks for first; the
@@ -7,8 +8,10 @@ import QtTest
 // Network Not Listed, the saved networks and the others, each with its lock and
 // signal, a saved one out of reach marked so); a new network's password on the
 // keyboard, an open one joined at once; a saved one's and the joined one's
-// options; one not listed by its name, then its password or none; and the
-// cursor kept on its network as the list changes.
+// options; one not listed by its name, then its password or none; the
+// cursor kept on its network as the list changes; what the page opens over
+// itself made as it first opens; and the lines changed where they are as
+// NetworkManager says more.
 Rectangle {
     id: root
     color: surfaceColor
@@ -467,6 +470,92 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(promptIn(chooser), countries)
             compare(wifiManager.calls, [])
+        }
+
+        // The symbols a line draws at its end (its PixelIcons), by name.
+        function iconsOn(line) {
+            var found = []
+            var walk = function(item) {
+                if (item.name !== undefined && item.visible && /^(lock|signal)/.test(item.name))
+                    found.push(item)
+                for (var i = 0; i < item.children.length; i++)
+                    walk(item.children[i])
+            }
+            walk(line)
+            return found
+        }
+
+        // What NetworkManager says while the page is up changes the lines
+        // where they are: a network's signal, a join under way and a search
+        // make no line again, and the cursor and the list stay put. Only a
+        // line that comes or goes gives the list its lines anew, the cursor
+        // still on its network; the mouse still passes over a heading.
+        function test_linesChangeInPlace() {
+            var page = open()
+            var list = listOf(page)
+            moveTo(page, "Neighbour")
+            var at = list.currentIndex
+            var line = list.itemAtIndex(at)
+            var cafe = list.itemAtIndex(at - 3)
+            verify(line !== null && cafe !== null)
+            compare(line.label, "Neighbour")
+            compare(line.icons, ["lock", "signal3"])
+            compare(cafe.label, "Cafe")
+            var cafeIcons = iconsOn(cafe)
+            compare(cafeIcons.length, 1)
+            var networks = function(bars, busy) {
+                return [
+                    root.network("Home", { bars: 4, known: true, active: true }),
+                    root.network("Cafe", { bars: 2, security: "open", secured: false, known: true }),
+                    root.network("Office", { bars: 0, security: "", secured: false, known: true, heard: false }),
+                    root.network("Neighbour", { bars: bars, busy: busy }),
+                    root.network("Free", { bars: 0, security: "open", secured: false }),
+                    root.network("Corp", { bars: 2, security: "enterprise" })
+                ]
+            }
+            var y = list.contentY
+            // Its signal a bar down.
+            wifiManager.networks = networks(2, "")
+            compare(row(page, "Neighbour").icons, ["lock", "signal2"])
+            verify(list.itemAtIndex(at) === line, "the same line, its signal changed")
+            compare(line.icons, ["lock", "signal2"])
+            verify(list.itemAtIndex(at - 3) === cafe, "the line of a network that didn't change")
+            verify(iconsOn(cafe).length === 1 && iconsOn(cafe)[0] === cafeIcons[0], "and its signal's symbol")
+            // The same again, as every scan says it: nothing made.
+            wifiManager.networks = networks(2, "")
+            verify(list.itemAtIndex(at) === line, "the same line, nothing changed")
+            // A join under way, and a search.
+            wifiManager.state = "connecting"
+            wifiManager.networks = networks(2, "connecting")
+            wifiManager.searching = true
+            verify(list.itemAtIndex(at) === line, "the same line, joining")
+            verify(line.value.indexOf("Connecting.") === 0)
+            compare(list.itemAtIndex(2).value.indexOf("Searching."), 0)
+            compare(cursor(page), "Neighbour")
+            compare(list.currentIndex, at)
+            compare(list.contentY, y)
+            // The mouse over the heading above it moves nothing; over the
+            // line above that, the cursor.
+            var hover = function(item) {
+                var p = item.mapToItem(root, item.width / 2, item.height / 2)
+                Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+            }
+            compare(page.rows[at - 1].type, "section")
+            hover(list.itemAtIndex(at - 1))
+            compare(cursor(page), "Neighbour")
+            hover(list.itemAtIndex(at - 2))
+            compare(cursor(page), "Office")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "Neighbour")
+            // A network heard for the first time: a line more, the cursor
+            // on its network a line down.
+            wifiManager.networks = [root.network("Attic", { bars: 4 })].concat(networks(2, "connecting"))
+            compare(lines(page), ["Wi-Fi", "Country", "Search", "Network Not Listed", "# Saved", "Home", "Cafe",
+                                  "Office", "# Networks", "Attic", "Neighbour", "Free", "Corp"])
+            compare(cursor(page), "Neighbour")
+            compare(list.currentIndex, at + 1)
+            compare(list.itemAtIndex(at + 1).label, "Neighbour")
+            compare(list.itemAtIndex(at).label, "Attic")
         }
 
         // The cursor keeps to its network as the list changes: joined, it
