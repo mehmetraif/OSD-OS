@@ -243,7 +243,7 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | Plex: the Server, Current User and Libraries settings are dimmed | The module isn't signed in | Open Plex and sign in first |
 | Plex asks for a profile's PIN | The Plex Home profile has a PIN | Type it. A card tapped on the NFC Reader never asks for one |
 | Plex asks to sign in again | `[PlexBackend] Device no longer authorized — triggering reauth`: plex.tv answered 401, as for a device removed from the account | Sign in again |
-| Jellyfin: **CONNECTION FAILED: Host requires authentication** as Quick Connect starts | The server answered 401 to Quick Connect | Turn Quick Connect on in the server's settings, then enter the code at `<server>/web/#quickconnect` |
+| Jellyfin: **QUICK CONNECT NOT ENABLED ON SERVER** as Quick Connect starts | The server answered 401 to Quick Connect: it is turned off there | Turn Quick Connect on in the server's settings, then enter the code at `<server>/web/#quickconnect` |
 | Jellyfin or Emby: **CONNECTION FAILED: …**, or nothing | The server URL lacks the scheme or the port | Type the whole URL (`http://192.168.1.20:8096`). A self-signed certificate on your own server is accepted; an expired one isn't |
 | Signed out by itself | `Token rejected — signing out`: a password changed, or the device was removed | Sign in again |
 | A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → TV / Movie → Plex → Video Quality to one of its Mbps choices, or read the server's log |
