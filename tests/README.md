@@ -15,6 +15,10 @@ ctest --test-dir build-tests --output-on-failure
   - SIGTERM stops it within 15 seconds, with 143 (128 + the signal), as the service's stop helper expects.
   - Skipped without the app, and for a module that imports a QML module of Qt's the Qt in use doesn't have.
 - **app_core_info** (`app_core_info_test.sh`, where the arcade test's core is built): the app asked a libretro core's name and version (`--core-info`), as the Arcade module asks a copy of it, with nothing of an environment (no display, no platform for Qt, no data folder): it prints the test core's (`arcade_test_core`), and refuses a file that isn't a core, saying why. Skipped without the app.
+- **retroarch_tls** (`retroarch_tls_test.sh <retroarch>`, as root; not one of `ctest`'s, the `retroarch` action runs it on a new build): the RetroArch OSD/OS builds for its Linux arm64 package (`scripts/build-retroarch.sh`), started on a game with a core of the test's (`retroarch_tls/core.c`) against a stand-in for RetroAchievements' site (`retroarch_tls/server.py`), in a mount namespace where the certificates file has the test's roots and `/etc/hosts` names this machine as the site.
+  - With a good certificate (an EC chain, an RSA one with chunked answers, an EC one under an RSA root) it asks over https on its own, signs in, earns an achievement and keeps the token.
+  - With one signed by a root the system doesn't trust, one for another name and one out of date, it asks nothing of the site, so the password stays on the machine, and says the sign-in failed. A RetroArch built with mbedTLS fails these three.
+  - Skipped (77) without root, python3, openssl, a C compiler or `unshare`.
 - **tree_browser** (`qml/tst_tree_browser.qml`, run by `tree_browser_test.cpp` on Qt Quick Test, offscreen, with the software renderer): the `TreeBrowser` on its own, over a made-up tree.
   - With `expandedFolderPreviews`, a folder's branch holds all its entries, and the folders in the one under the cursor branch once more; an empty folder off the spine has no branch.
   - Only the branch off the folder under the cursor, and its line, are drawn in full; every other is faint, expanded or compact.

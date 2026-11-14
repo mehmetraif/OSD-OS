@@ -132,8 +132,17 @@ the image.
   licence, which also brings in MAME's: it may be used and shared, never
   sold, and a project that uses it may not ask for donations. The
   licence's full text is in /opt/osdos/share/osdos/fbneo/license.txt. No
-  ROM images come with it. RetroArch itself is Debian's retroarch package
-  (GPL-3.0).
+  ROM images come with it.
+
+- RetroArch (https://github.com/libretro/RetroArch), by libretro and its
+  contributors, under the GNU General Public License, version 3: Debian's
+  retroarch package, and /opt/osdos/lib/osdos/retroarch, which comes with
+  the app and is the one the games play in. That one is the same version,
+  built unchanged from libretro's source at the commit scripts/engines.env
+  names in OSD/OS's source, by scripts/build-retroarch.sh there, with TLS.
+  Its licence and those of the libraries built into it from its source
+  (BearSSL, FLAC, rcheevos, SPIRV-Cross and others) are in
+  /opt/osdos/share/osdos/retroarch/licenses.txt.
 
 - Widevine (the libwidevinecdm0 package), Google's content decryption
   module, which the Netflix and Prime Video players need. It is installed

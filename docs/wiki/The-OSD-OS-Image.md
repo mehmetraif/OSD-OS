@@ -44,7 +44,7 @@ Against Raspberry Pi OS Lite with `scripts/install.sh` and its autostart service
 | USB drives | Not mounted | Mounted read-only under `/media/usb` |
 | Chromium, Widevine, cage, wtype | Install yourself | Included |
 | yt-dlp, Deno | Install yourself | Included; yt-dlp updates itself |
-| MAME, RetroArch | Install yourself | Included: Debian's MAME 0.276 and RetroArch |
+| MAME, RetroArch | Install yourself | Included: Debian's MAME 0.276 and RetroArch, and OSD/OS's own RetroArch with TLS |
 | Settings → Screen → Display Output | Not offered | Offered |
 | Bluetooth blocked by rfkill | Stays blocked | Unblocked |
 | Wi-Fi power saving | On | Off ([Wi-Fi](#wi-fi)) |
@@ -583,6 +583,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, and what became of it |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs |
 | `/usr/games/mame`, `/etc/mame/mame.ini`, `/usr/bin/retroarch` | MAME, its settings, and RetroArch |
+| `/opt/osdos/lib/osdos/retroarch` | The RetroArch the games play in: the same version, built by OSD/OS with TLS. It comes with the app, and an update brings a new one |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and its licences |
 | `/tmp/runtime-pi/osdos-mpv.log` | mpv's own log |
 
@@ -727,7 +728,7 @@ The parts are the folders of [`os/stage-osdos`](https://github.com/mehmetraif/OS
 | `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
 | `06-youtube` | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build; Deno, pinned (today `v2.9.7`); the update timer | `OSDOS_YOUTUBE=0` |
 | `07-usb` | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
-| `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names | `OSDOS_ARCADE=0` |
+| `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names, and the app's own RetroArch started once | `OSDOS_ARCADE=0` |
 
 To put another package on the image, add its name to [`os/stage-osdos/00-packages/00-packages-nr`](https://github.com/mehmetraif/OSD-OS/blob/main/os/stage-osdos/00-packages/00-packages-nr), for example a line with `mc` for Midnight Commander.
 

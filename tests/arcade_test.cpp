@@ -6972,6 +6972,72 @@ private slots:
         QCOMPARE(setsOf(arcade.lanRooms()), QStringList({ QStringLiteral("akatana"), QStringLiteral("sf2") }));
     }
 
+    // The RetroArch a package brings (the Linux arm64 one's, built with
+    // TLS): played with before the system's, beside FinalBurn Neo's cores;
+    // not without the system's certificates, which it would end without at
+    // its first request, nor once it was left.
+    void packagedRetroArch() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString program = dir.path() + QStringLiteral("/retroarch");
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, false), QString());
+        writeFile(program, "#!/bin/sh\n");
+        // A file that can't be run is no program.
+        QVERIFY(QFile::setPermissions(program, QFile::ReadOwner | QFile::WriteOwner));
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, false), QString());
+        QVERIFY(QFile::setPermissions(program, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, false), program);
+        QCOMPARE(libretro::packagedProgramToPlay(program, false, false), QString());
+        QCOMPARE(libretro::packagedProgramToPlay(program, true, true), QString());
+        QCOMPARE(libretro::packagedProgramToPlay(QString(), true, false), QString());
+        QCOMPARE(QFileInfo(libretro::packagedProgram()).path(), QFileInfo(libretro::packagedCore()).path());
+        QCOMPARE(QFileInfo(libretro::packagedProgram()).fileName(), QStringLiteral("retroarch"));
+    }
+
+    // A package's RetroArch that doesn't start (a library it needs isn't on
+    // the system): the system's is played with instead, and its version is
+    // the one read.
+    void packagedRetroArchThatDoesNotStart() {
+        if (!QFileInfo::exists(QLatin1String(libretro::kSystemCertificates)))
+            QSKIP("The system has no certificates file: the package's RetroArch is never played with");
+        QTemporaryDir data;
+        QTemporaryDir prefix;
+        QTemporaryDir system;
+        QVERIFY(data.isValid() && prefix.isValid() && system.isValid());
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([path] {
+            qputenv("PATH", path);
+            libretro::setPackagePrefix(QString());
+        });
+        libretro::setPackagePrefix(prefix.path());
+        const QString packaged = libretro::packagedProgram();
+        QCOMPARE(packaged, prefix.path() + QStringLiteral("/lib/osdos/retroarch"));
+        writeFile(packaged, "#!/bin/sh\necho 'error while loading shared libraries: libSDL2-2.0.so.0' >&2\nexit 127\n");
+        writeFile(system.path() + QStringLiteral("/retroarch"), fixture("retroarch"));
+        for (const QString &program : { packaged, system.path() + QStringLiteral("/retroarch") })
+            QVERIFY(QFile::setPermissions(program, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("PATH", system.path().toLocal8Bit() + ':' + path);
+        // The package's first, then the user's own over it.
+        QCOMPARE(libretro::programPath(data.path()), packaged);
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
+        arcade.setVersionReadTimeout(3000);
+        const auto ours = [&arcade](const char *key) { return arcade.lobby().value(QLatin1String(key)).toString(); };
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+        arcade.refreshRooms();
+        QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArch"), QStringLiteral("1.22.2"), 8000);
+        QCOMPARE(libretro::programPath(data.path()), system.path() + QStringLiteral("/retroarch"));
+        // Asked for again, it is the package's once more: left only until
+        // the app starts again.
+        libretro::setPackagePrefix(prefix.path());
+        QCOMPARE(libretro::programPath(data.path()), packaged);
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/retroarch"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        QCOMPARE(libretro::programPath(data.path()), data.path() + QStringLiteral("/bin/retroarch"));
+    }
+
     // Our RetroArch's and core's versions, which the lobby's rooms are
     // matched against: still being read, then read; a read too slow asked
     // once more (a core loads faster the second time), and a file whose read

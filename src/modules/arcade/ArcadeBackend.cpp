@@ -4743,9 +4743,21 @@ void ArcadeBackend::readOwnVersions() {
             // The file before's version isn't this one's.
             m_retroarchVersion.clear();
             m_versionRead = askVersion(program, { QStringLiteral("--version") },
-                                       [this, programStamp, doneWith](const QByteArray &output, bool timedOut) {
+                                       [this, program, programStamp, doneWith](const QByteArray &output, bool timedOut) {
                 m_versionRead = nullptr;
                 m_retroarchVersion = libretro::readVersion(output);
+                if (m_retroarchVersion.isEmpty() && !timedOut && program == libretro::packagedProgram()) {
+                    // The package's own, which didn't start (a library it
+                    // needs isn't on this system: Debian's retroarch package
+                    // brings them all): the system's RetroArch from here on,
+                    // whose version is asked next.
+                    qWarning("[Arcade] the RetroArch that came with OSD/OS did not start, the system's is used: %s",
+                             qPrintable(QString::fromUtf8(output).simplified().left(200)));
+                    libretro::leavePackagedProgram();
+                    forgetPrograms();
+                    QTimer::singleShot(0, this, &ArcadeBackend::readOwnVersions);
+                    return;
+                }
                 if (doneWith(programStamp, timedOut && m_retroarchVersion.isEmpty()))
                     m_retroarchVersionOf = programStamp;
                 raiseOwnDownloads();
@@ -5233,7 +5245,10 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("canDownloadRetroarch"), ProgramInstaller::retroarch(m_dataRoot).available },
              { QStringLiteral("retroarchDownloadVersion"), ProgramInstaller::retroarch(m_dataRoot).version },
              { QStringLiteral("retroarchDownloaded"), !retroarchPath().isEmpty()
-                                                      && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) } };
+                                                      && retroarchPath() == libretro::downloadedRetroArch(m_dataRoot) },
+             // The package's own, built with TLS (the Linux arm64 one's).
+             { QStringLiteral("retroarchPackaged"), !retroarchPath().isEmpty()
+                                                    && retroarchPath() == libretro::packagedProgram() } };
 }
 
 QString ArcadeBackend::fbneoLicenseText() const {

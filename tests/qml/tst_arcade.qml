@@ -1207,6 +1207,15 @@ Rectangle {
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
             verify(findText(page, "Installed") !== null)
+            // The package's own (the Linux arm64 one's, built with TLS):
+            // said so, with what it is for in place of its path.
+            arcadeBackend.fbneo = { retroarch: "/opt/osdos/lib/osdos/retroarch", core: "", coreDate: "", downloaded: false,
+                                    games: 0, license: "", canDownload: true, canDownloadRetroarch: false,
+                                    retroarchDownloadVersion: "", retroarchDownloaded: false, retroarchPackaged: true }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return findText(page, "With OSD/OS") !== null }, 1000)
+            verify(findText(page, "over https") !== null)
+            verify(findText(page, "/opt/osdos/lib/osdos/retroarch") === null)
 
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)

@@ -18,12 +18,33 @@ namespace mame { struct Machine; }
 namespace libretro {
 
 // RetroArch's program: <data>/bin/retroarch (one of the user's own, as
-// MAME's drop-in is), else retroarch on the PATH, else Debian's
-// /usr/bin/retroarch, the BSDs' /usr/local/bin/retroarch or the Mac's
-// RetroArch.app; on Windows the one Settings → Arcade → FinalBurn Neo
-// downloaded (downloadedRetroArch()), a RetroArch folder beside OSD/OS, or
-// where its builds and installers commonly put it. "" for none.
+// MAME's drop-in is), else the package's own (packagedProgram()), else
+// retroarch on the PATH, else Debian's /usr/bin/retroarch, the BSDs'
+// /usr/local/bin/retroarch or the Mac's RetroArch.app; on Windows the one
+// Settings → Arcade → FinalBurn Neo downloaded (downloadedRetroArch()), a
+// RetroArch folder beside OSD/OS, or where its builds and installers
+// commonly put it. "" for none.
 QString programPath(const QString &dataRoot);
+// The RetroArch OSD/OS's Linux arm64 package brings, beside FinalBurn Neo's
+// cores (<prefix>/lib/osdos/retroarch, scripts/build-retroarch.sh): the
+// version every machine plays with, built with TLS, where Debian's has none
+// and asks RetroAchievements over plain HTTP. "" where no package has one.
+// It is played with while the system's certificates are where it reads them
+// (kSystemCertificates: without the file it ends at its first request), and
+// until it is found not to start (leavePackagedProgram()).
+QString packagedProgram();
+inline constexpr char kSystemCertificates[] = "/etc/ssl/certs/ca-certificates.crt";
+// The package's RetroArch said nothing when asked its version (a library it
+// needs isn't on this system): the system's own from here on, until the app
+// starts again.
+void leavePackagedProgram();
+// programPath()'s choice between the package's and the others, for the
+// tests: the package's program, whether the certificates are there, and
+// whether it was left.
+QString packagedProgramToPlay(const QString &program, bool certificates, bool left);
+// For the tests: a folder taken for the prefix the app is installed under
+// ("" for the app's own again), with the package's RetroArch not left.
+void setPackagePrefix(const QString &prefix);
 // Where Settings → Arcade → FinalBurn Neo puts RetroArch on Windows:
 // <data>/arcade/retroarch/RetroArch-Win64/retroarch.exe.
 QString downloadedRetroArch(const QString &dataRoot);
