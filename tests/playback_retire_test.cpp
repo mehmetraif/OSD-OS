@@ -1039,10 +1039,11 @@ private slots:
                                              "asked with X-Plex-Token=REDACTED") });
     }
 
-    // A sign-in in an address (scheme://user:password@host, as a card's tag
-    // file, an .m3u or a playlist may give one): mpv prints the address it
-    // could not open as it was given, and neither the log nor the Playback
-    // failed notice gets the sign-in, the host kept. In the notice where the
+    // A sign-in in an address (scheme://user:password@host, or in its query:
+    // ?username=...&password=..., as a card's tag file, an .m3u or a playlist
+    // may give one): mpv prints the address it could not open as it was
+    // given, and neither the log nor the Playback failed notice gets the
+    // sign-in, the host and the rest of the query kept. In the notice where the
     // address is mpv's first word on the failure, and cut to the notice's
     // length only once the sign-in is out of it: a password that long (a
     // token used as one) was cut before its "@", and so shown.
@@ -1066,6 +1067,13 @@ private slots:
                    + QStringLiteral("@nas.example/films/a.mkv")
             << QStringLiteral("Failed to open smb://REDACTED@nas.example/films/a.mkv.")
             << QStringLiteral("Failed to open smb://REDACTED@nas.example/films/a.mkv.");
+        // The sign-in in the query, as a television provider's addresses
+        // have it.
+        QTest::newRow("a name and a password in the query")
+            << QByteArray("noprotocol")
+            << QStringLiteral("http://tv.example:8080/get.php?username=made-up-name&password=made-up-password&type=m3u_plus")
+            << QStringLiteral("Failed to open http://tv.example:8080/get.php?username=REDACTED&password=REDACTED&type=m3u_plus.")
+            << QStringLiteral("Failed to open http://tv.example:8080/get.php?username=REDACTED&password=REDACTED&type=m3u_plus.");
     }
     void aSignInInAnAddressReachesNeitherTheLogNorTheNotice() {
         QFETCH(QByteArray, mode);
@@ -1084,7 +1092,7 @@ private slots:
         QVERIFY2(mpvSaid >= 0, qPrintable(text));
         QVERIFY2(text.mid(mpvSaid).contains(logged), qPrintable(text));
         // Nowhere in the log, the launch line among it, nor in the notice.
-        for (const char *secret : {"made-up-password", "ann:", "made-up-key"}) {
+        for (const char *secret : {"made-up-password", "ann:", "made-up-key", "made-up-name"}) {
             QVERIFY2(!text.contains(QLatin1String(secret)), qPrintable(text));
             QVERIFY2(!m_mpv->lastErrorDetail().contains(QLatin1String(secret)), qPrintable(m_mpv->lastErrorDetail()));
         }
@@ -1092,9 +1100,10 @@ private slots:
     }
 
     // What is blanked of an address and what is left (redactSecrets()): the
-    // sign-in before the host in each way one is written, the host and the
-    // rest kept; and nothing of an address without one, whose "@" is in its
-    // path or its query. The tokens as before.
+    // sign-in before the host in each way one is written, and the one in
+    // the query, the host and the rest kept; and nothing of an address
+    // without one, whose "@" is in its path or its query, or whose keys only
+    // look like a sign-in's. The tokens as before.
     void anAddressLosesItsSignInAndKeepsItsHost_data() {
         QTest::addColumn<QString>("text");
         QTest::addColumn<QString>("blanked");
@@ -1130,6 +1139,31 @@ private slots:
         row("a password, and an @ further on", "https://ann:made-up@nas.example/a?mail=me@home.example",
             "https://REDACTED@home.example");
         kept("blanked already", "https://REDACTED@nas.example:8096/a.mkv");
+        // In the query: the value of a key that is, or ends in, "password",
+        // "passwd", "pwd" or "token", or is "pass", "pw", "username", "user"
+        // or "login", in any case, up to the next "&".
+        row("a name and a password in the query",
+            "http://tv.example:8080/get.php?username=made-up&password=made-up&type=m3u_plus",
+            "http://tv.example:8080/get.php?username=REDACTED&password=REDACTED&type=m3u_plus");
+        row("the short keys, the last in the query", "Failed to open http://tv.example/live.m3u8?user=made-up&pass=made-up.",
+            "Failed to open http://tv.example/live.m3u8?user=REDACTED&pass=REDACTED");
+        row("the other keys for them", "http://tv.example/a?login=made-up&passwd=made-up&pwd=made-up&pw=made-up&x=1",
+            "http://tv.example/a?login=REDACTED&passwd=REDACTED&pwd=REDACTED&pw=REDACTED&x=1");
+        row("in capitals, the key kept as written", "http://tv.example/a?USERNAME=made-up&Password=made-up",
+            "http://tv.example/a?USERNAME=REDACTED&Password=REDACTED");
+        row("a key ending in it", "http://tv.example/a?stream_password=made-up&userPwd=made-up&id=7",
+            "http://tv.example/a?stream_password=REDACTED&userPwd=REDACTED&id=7");
+        row("a token in the query", "http://tv.example/a.m3u8?token=made-up&access_token=made-up&x=1",
+            "http://tv.example/a.m3u8?token=REDACTED&access_token=REDACTED&x=1");
+        row("a password with a # and a ; of its own", "http://tv.example/a?password=made#up;made-up&x=1",
+            "http://tv.example/a?password=REDACTED&x=1");
+        row("a mail address for a name, behind a port", "http://tv.example:8080/a?username=made-up@home.example&password=made@up",
+            "http://tv.example:8080/a?username=REDACTED&password=REDACTED");
+        row("a sign-in before the host and one in the query", "http://ann:made-up@tv.example/a?password=made-up",
+            "http://REDACTED@tv.example/a?password=REDACTED");
+        kept("an empty name and password", "http://tv.example/get.php?username=&password=&type=m3u");
+        kept("keys that only look like them",
+             "http://tv.example/a?bypass=1&compass=n&userid=7&passes=2&password_hint=x&page=2&q=password");
         kept("no sign-in", "https://nas.example:8096/Videos/7/stream?static=true");
         kept("no sign-in, an @ in the path", "https://www.youtube.com/@channel/videos");
         kept("no sign-in, a port, an @ in the query", "http://nas.example:8096/Items?searchTerm=a@b");

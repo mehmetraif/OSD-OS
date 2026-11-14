@@ -2,8 +2,9 @@
 # scripts/save-logs.sh, which the app runs as it quits on the OSD/OS image, on
 # a stand-in card partition and data folder, with a stand-in journalctl: the
 # logs copied into Logs/<date_time>/ with their tokens and their addresses'
-# sign-ins (scheme://user:password@host) blanked, the newest ten folders kept,
-# and nothing done for a partition that isn't there or can't be written.
+# sign-ins (scheme://user:password@host, ?username=...&password=...) blanked,
+# the newest ten folders kept, and nothing done for a partition that isn't
+# there or can't be written.
 #
 #   save_logs_test.sh <path to save-logs.sh>
 set -euo pipefail
@@ -50,8 +51,8 @@ printf '%s\n' "this run" \
     "20:33:03.104 Failed to commit atomic request (code=-13)" \
     "20:33:03.159 [input] joysticks released" > "$data/osdos.log"
 # Among the run before's: what mpv prints of an address it could not open,
-# the sign-in each way one is written, and addresses with none, whose @ is in
-# the path or the query.
+# the sign-in each way one is written, before the host and in the query, and
+# addresses with none, whose @ is in the path or the query.
 printf '%s\n' "the run before" "GET http://jellyfin.local/Videos/1/stream?api_key=SECRET3" \
     "[mpv] [ffmpeg] https: HTTP error 403 Forbidden" \
     "Failed to open https://ann:SECRET5@nas.example:8096/Videos/7/stream?static=true&ApiKey=SECRET6." \
@@ -62,6 +63,11 @@ printf '%s\n' "the run before" "GET http://jellyfin.local/Videos/1/stream?api_ke
     "an @ and a / in it: https://ann:SECRET12@SECRET13/SECRET14@nas.example/a.mkv" \
     "an IPv6 host: http://ann:SECRET15@[fe80::1]:8096/a.mkv" \
     "two: --sub-file=https://ann:SECRET16@nas.example/a.srt -- smb://bob:SECRET17@nas.example/a.mkv" \
+    "in the query: http://tv.example:8080/get.php?username=SECRET20&password=SECRET21&type=m3u_plus" \
+    "in capitals, a key ending in it: http://tv.example/a?USER=SECRET22&Stream_Password=SECRET23&x=1" \
+    "a mail address for a name, a # in the password: http://tv.example:8080/a?login=SECRET24@home.example&pwd=SECRET25#SECRET26" \
+    "a token in the query: http://tv.example/a.m3u8?access_token=SECRET27;SECRET28&x=1" \
+    "keys that only look like them: http://tv.example/a?bypass=1&userid=7&password_hint=x&username=&q=password" \
     "no sign-in: https://nas.example:8096/Videos/7/stream?static=true" \
     "no sign-in: https://www.youtube.com/@channel/videos" \
     "no sign-in: http://nas.example:8096/Items?searchTerm=a@b" \
@@ -115,6 +121,11 @@ a / in the password: https://HIDDEN@nas.example/a.mkv
 an @ and a / in it: https://HIDDEN@nas.example/a.mkv
 an IPv6 host: http://HIDDEN@[fe80::1]:8096/a.mkv
 two: --sub-file=https://HIDDEN@nas.example/a.srt -- smb://HIDDEN@nas.example/a.mkv
+in the query: http://tv.example:8080/get.php?username=HIDDEN&password=HIDDEN&type=m3u_plus
+in capitals, a key ending in it: http://tv.example/a?USER=HIDDEN&Stream_Password=HIDDEN&x=1
+a mail address for a name, a # in the password: http://tv.example:8080/a?login=HIDDEN&pwd=HIDDEN
+a token in the query: http://tv.example/a.m3u8?access_token=HIDDEN&x=1
+keys that only look like them: http://tv.example/a?bypass=1&userid=7&password_hint=x&username=&q=password
 no sign-in: https://nas.example:8096/Videos/7/stream?static=true
 no sign-in: https://www.youtube.com/@channel/videos
 no sign-in: http://nas.example:8096/Items?searchTerm=a@b
