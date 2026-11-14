@@ -26,8 +26,9 @@
 // again at the next start, Auto quality caps no transcode, a live channel
 // left while it tuned plays in no one's player, a Plex server that moved is
 // found again at the address it has now, Emby Connect tries a server's
-// address from outside when its LAN address gives no sign-in, and Settings'
-// Libraries are told why there are none when the server can't be reached.
+// address from outside when its LAN address gives no sign-in, Settings'
+// Libraries are told why there are none when the server can't be reached,
+// and Jellyfin's Quick Connect says a server's refusal by its status.
 
 class Reply : public QNetworkReply {
 public:
@@ -730,6 +731,93 @@ private slots:
         QCOMPARE(changed.count(), 0);
         backend.logout();
         QCOMPARE(changed.count(), 1);
+    }
+
+    // Quick Connect says what the server answered, as it starts and at the
+    // exchange after the approval: a 401 to the start is Quick Connect
+    // turned off on the server, any other refusal the server's error with
+    // its status, and only no answer at all, with no status either, a
+    // connection that failed, in the network's own words. Qt marks every
+    // answer of 400 and above as an error too: asked first, the error hid
+    // the status behind Qt's words for it.
+    void jellyfinQuickConnectSaysWhatTheServerAnswered() {
+        QTemporaryDir tmp;
+        JellyfinBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        QSignalSpy failed(&backend, &JellyfinBackend::quickConnectFailed);
+        QSignalSpy errors(&backend, &JellyfinBackend::errorOccurred);
+        QSignalSpy code(&backend, &JellyfinBackend::quickConnectCodeReady);
+        QSignalSpy approved(&backend, &JellyfinBackend::quickConnectApproved);
+        QSignalSpy changed(&backend, &JellyfinBackend::authStateChanged);
+        const QString server = QStringLiteral("http://server");
+
+        // The start.
+        backend.quick_connect_initiate(server);
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/QuickConnect/Initiate")));
+        network->last()->fail(401);
+        QCOMPARE(failed.count(), 1);
+        QCOMPARE(failed.at(0).at(0).toString(), QStringLiteral("QUICK CONNECT NOT ENABLED ON SERVER"));
+        backend.quick_connect_initiate(server);
+        network->last()->fail(503);
+        QCOMPARE(failed.count(), 2);
+        QCOMPARE(failed.at(1).at(0).toString(), QStringLiteral("SERVER ERROR (HTTP 503)"));
+        backend.quick_connect_initiate(server);
+        network->last()->drop();
+        QCOMPARE(failed.count(), 3);
+        QCOMPARE(failed.at(2).at(0).toString(), QStringLiteral("CONNECTION FAILED: Connection refused"));
+        QCOMPARE(code.count(), 0);
+        backend.quick_connect_initiate(server);
+        network->last()->complete(QJsonDocument(QJsonObject{ { "Code", "123456" }, { "Secret", "secret" } }).toJson());
+        QCOMPARE(code.count(), 1);
+        QCOMPARE(code.at(0).at(0).toString(), QStringLiteral("123456"));
+        QCOMPARE(failed.count(), 3);
+
+        // The wait for the approval, which reads the status first already: a
+        // poll that didn't get through says nothing, the next one asks again.
+        backend.quick_connect_poll(QStringLiteral("secret"));
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/QuickConnect/Connect")));
+        network->last()->drop();
+        QCOMPARE(failed.count(), 3);
+        backend.quick_connect_poll(QStringLiteral("secret"));
+        network->last()->fail(404);
+        QCOMPARE(failed.count(), 4);
+        QCOMPARE(failed.at(3).at(0).toString(), QStringLiteral("CODE EXPIRED — RETRY"));
+        backend.quick_connect_poll(QStringLiteral("secret"));
+        network->last()->fail(500);
+        QCOMPARE(failed.count(), 5);
+        QCOMPARE(failed.at(4).at(0).toString(), QStringLiteral("SERVER ERROR (HTTP 500)"));
+        QCOMPARE(approved.count(), 0);
+        backend.quick_connect_poll(QStringLiteral("secret"));
+        network->last()->complete(QJsonDocument(QJsonObject{ { "Authenticated", true } }).toJson());
+        QCOMPARE(approved.count(), 1);
+        QCOMPARE(errors.count(), 0);
+
+        // The exchange after the approval.
+        backend.quick_connect_authenticate(QStringLiteral("secret"));
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/Users/AuthenticateWithQuickConnect")));
+        network->last()->fail(401);
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(errors.at(0).at(0).toString(), QStringLiteral("AUTH FAILED (HTTP 401)"));
+        backend.quick_connect_authenticate(QStringLiteral("secret"));
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 2);
+        QCOMPARE(errors.at(1).at(0).toString(), QStringLiteral("AUTH FAILED (HTTP 500)"));
+        backend.quick_connect_authenticate(QStringLiteral("secret"));
+        network->last()->drop();
+        QCOMPARE(errors.count(), 3);
+        QCOMPARE(errors.at(2).at(0).toString(), QStringLiteral("AUTH FAILED: Connection refused"));
+        QVERIFY(!backend.has_auth());
+        QCOMPARE(changed.count(), 0);
+        backend.quick_connect_authenticate(QStringLiteral("secret"));
+        network->last()->complete(QJsonDocument(QJsonObject{
+            { "AccessToken", "token" },
+            { "User", QJsonObject{ { "Id", "user" }, { "Name", "User" } } } }).toJson());
+        QVERIFY(backend.has_auth());
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(errors.count(), 3);
+        QCOMPARE(failed.count(), 5);
     }
 
     // Plex's Continue Watching is a list like the others: a library left
