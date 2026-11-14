@@ -716,8 +716,10 @@ private slots:
         QCOMPARE(AudioOutput::card(), QString("Device"));
         QCOMPARE(given(), QString("Device"));
         QCOMPARE(AudioOutput::mpvArgs(), QStringList());
-        // Inside the app ALSA is the only output mpv is to try.
+        // Inside the app ALSA is the only output mpv is to try, and for
+        // the menu music's mpv, which reads no mpv.conf either.
         QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
+        QCOMPARE(AudioOutput::alsaAlone(), QStringList({ "--ao=alsa" }));
         QCOMPARE(AudioOutput::mpvDevice(), QString("alsa/default:CARD=Device"));
         QCOMPARE(autoLabel(), QString("Auto (USB Audio Device)"));
         QCOMPARE(audio.settingRow().value("value").toString(), QString("Auto (USB Audio Device)"));

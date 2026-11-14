@@ -310,6 +310,8 @@ private:
     void closeIpc(bool drain, int *pos, int *dur);
     // Transparent Background is on, and libmpv is there to play inside the app.
     bool transparentBackground() const;
+    // The setting alone, without opening libmpv to see whether it is there.
+    bool transparentBackgroundAsked() const;
     // The decode and drawing flags for a session played inside the app, as
     // it is drawn: on the GPU (gpu), or by the software renderer.
     void appendEmbeddedVideoArgs(QStringList &args, bool gpu) const;

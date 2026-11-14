@@ -27,7 +27,9 @@ Item {
     readonly property var pal: root.menuPalette || ({})
     // A mark before the line rather than a bar under it.
     readonly property bool marked: monitor && root.menuLayout !== "Flat Panel"
-    readonly property color ink: monitor ? pal.ink : root.surfaceColor
+    // The palette's colours with the scheme's to fall back on: as a layout
+    // is changed the palette goes a moment before `monitor` follows it.
+    readonly property color ink: monitor && pal.ink !== undefined ? pal.ink : root.surfaceColor
 
     SkinImage {
         id: skinnedBar
@@ -37,7 +39,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: !skinnedBar.shown && !box.marked
-        color: box.monitor ? box.pal.bar : root.primaryColor
+        color: box.monitor && box.pal.bar !== undefined ? box.pal.bar : root.primaryColor
         antialiasing: false
     }
     // The mark, an art pixel short of the line's start.
@@ -47,7 +49,7 @@ Item {
         height: width
         x: -width - root.px
         y: Math.round((box.height - height) / 2 / root.px) * root.px
-        color: box.marked ? box.pal.mark : "transparent"
+        color: box.marked && box.pal.mark !== undefined ? box.pal.mark : "transparent"
         antialiasing: false
     }
 

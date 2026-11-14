@@ -42,6 +42,22 @@ function frameRect(ctx, x, y, w, h, color, width) {
     fillRect(ctx, x, y + width, width, h - 2 * width, color);
     fillRect(ctx, x + w - width, y + width, width, h - 2 * width, color);
 }
+// A Rectangle with a radius: its corners in whole pixels, a row at a time.
+function fillRound(ctx, x, y, w, h, radius, color) {
+    const x0 = snap(x), y0 = snap(y), x1 = snap(x + w), y1 = snap(y + h);
+    if (x1 <= x0 || y1 <= y0)
+        return;
+    const r = Math.max(0, Math.min(Math.round(radius), Math.floor((x1 - x0) / 2), Math.floor((y1 - y0) / 2)));
+    ctx.fillStyle = color;
+    for (let i = 0; i < r; ++i) {
+        // How far in from the side the arc is at the middle of this row.
+        const up = r - i - 0.5;
+        const cut = Math.round(r - Math.sqrt(r * r - up * up));
+        ctx.fillRect(x0 + cut, y0 + i, x1 - x0 - 2 * cut, 1);
+        ctx.fillRect(x0 + cut, y1 - 1 - i, x1 - x0 - 2 * cut, 1);
+    }
+    ctx.fillRect(x0, y0 + r, x1 - x0, y1 - y0 - 2 * r);
+}
 const rgba = (hex, alpha) => `rgba(${bytesOf(hex).join(",")},${alpha})`;
 
 // --- Letters: a Text's line, its box `top` after its top padding.
@@ -442,8 +458,8 @@ export const MENU_PALETTES = {
 
 // The main menu in a monitor layout, as views/ModuleList.qml lays it out
 // with Components/MonitorChrome and MonitorRow (the main menu has no help
-// line): Studio Monitor's window over the ground, Camcorder's groups in its
-// blue strip; Broadcast's plain blue with a gap and Settings after the
+// line): Studio Monitor's blue window over the ground, all of a piece,
+// Camcorder's groups in its side; Broadcast's plain blue with a gap and Settings after the
 // modules; Flat Panel's black, a page of rows at a time. The rows'
 // selection is a mark, not a box: no selector effect plays round it.
 function drawMonitorMenu(ctx, look, ui) {
@@ -470,17 +486,24 @@ function drawMonitorMenu(ctx, look, ui) {
         title = groups[at].label;
         index = Math.max(0, groups[at].rows.indexOf(rows[ui.index]));
         rows = groups[at].rows;
-        // The window, framed; the title's tab over its top left corner.
-        fillRect(ctx, winX, winY, winW, winBottom - winY, pal.ground);
-        frameRect(ctx, winX, winY, winW, winBottom - winY, pal.accent, PX);
+        // The window, one blue shape: the frame, the title's tab down into
+        // it past its corner, the icons' side and the guide's foot; its black
+        // inside is laid over it (MonitorChrome's edge, corner and cover).
+        const edge = 4 * PX, corner = 5 * PX;
+        const frameX = winX + inset - edge, frameY = winY + inset - edge, frameW = winW - 2 * (inset - edge);
+        const frameBottom = look.hintBar ? SH * 0.8916667 : winBottom - inset + edge;
+        const insideX = winX + inset + stripW, insideY = winY + inset;
+        const insideW = winW - 2 * inset - stripW, insideH = winBottom - winY - 2 * inset;
+        fillRound(ctx, frameX, frameY, frameW, frameBottom - frameY, corner, pal.accent);
         const tabSize = SH * 0.0375, tabY = SH * 0.1041667;
         const tabW = Math.round((measure(ctx, tabSize, title.toUpperCase()) + SW * 0.040625) / PX) * PX;
-        fillRect(ctx, winX, tabY, tabW, winY - tabY + 2 * PX, pal.accent);
-        drawText(ctx, title.toUpperCase(), winX + SW * 0.0203125,
-                 tabY + Math.round((winY - tabY - lineHeight(tabSize)) / 2), tabSize, pal.soft);
-        // The strip of the groups' icons, the one shown framed.
-        const stripX = winX + inset, stripY = winY + inset, stripH = winBottom - winY - 2 * inset;
-        fillRect(ctx, stripX, stripY, stripW, stripH, pal.accent);
+        fillRound(ctx, frameX, tabY, tabW, frameY - tabY + 2 * corner, corner, pal.accent);
+        fillRound(ctx, insideX, insideY, insideW, insideH, 4 * PX, pal.ground);
+        drawText(ctx, title.toUpperCase(), frameX + SW * 0.0203125,
+                 tabY + Math.round((winY - tabY - lineHeight(tabSize)) / 2) + PX, tabSize, pal.soft);
+        // The groups' icons in the middle of the frame's side, the one shown
+        // framed.
+        const stripX = frameX + edge / 2, stripY = insideY, stripH = insideH;
         const cell = Math.min(SH * 0.0666667, Math.floor(stripH / Math.max(1, groups.length) / PX) * PX);
         groups.forEach((group, i) => {
             const cy = stripY + i * cell;
@@ -490,11 +513,11 @@ function drawMonitorMenu(ctx, look, ui) {
                      cy + Math.round((cell - iconHeight(group.icon)) / 2 / PX) * PX, pal.soft);
         });
         if (status.length)
-            drawStatus(ctx, status, winX + winW - statusWidth(status), SH * 0.1166667, pal.soft);
+            drawStatus(ctx, status, frameX + frameW - statusWidth(status), SH * 0.1166667, pal.soft);
         if (look.hintBar) {
-            const gy = SH * 0.8416667, gh = SH * 0.05, size = SH * 0.0291667;
-            fillRect(ctx, winX, gy, winW, gh, pal.accent);
-            drawText(ctx, "[▲▼]:MENU/ITEM  [◄]:GROUPS  [ESC]:SETTINGS", winX + SW * 0.01875,
+            // The key guide, on the frame's foot.
+            const gy = insideY + insideH, gh = frameBottom - gy, size = SH * 0.0291667;
+            drawText(ctx, "[▲▼]:MENU/ITEM  [◄]:GROUPS  [ESC]:SETTINGS", frameX + SW * 0.01875,
                      gy + (gh - lineHeight(size)) / 2, size, pal.soft);
         }
     } else if (broadcast) {

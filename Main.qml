@@ -342,8 +342,20 @@ Window {
     // the latest box in front: inside the latest ground's layer, if any is
     // laid over the view, so a dialog's answer, not the line under it.
     property var selectors: []
+    // The grounds alone, the latest last: what frameCovered reads. Not the
+    // boxes with them: a box comes and goes with the frame's ink itself (in
+    // a monitor layout's ink a line has no SelectionBox to show), so a list
+    // the boxes are in, read to say whether the frame is covered, would be
+    // changed by its own answer (a binding loop, as Qt 6.8 says).
+    property var covers: []
     function selectorShown(box, shown) { listShown(box, shown, false) }
-    function coverShown(ground, shown) { listShown(ground, shown, true) }
+    function coverShown(ground, shown) {
+        listShown(ground, shown, true)
+        var list = covers.filter(function(g) { return g !== ground })
+        if (shown)
+            list.push(ground)
+        covers = list
+    }
     function listShown(item, shown, cover) {
         var list = selectors.filter(function(e) { return e.item !== item })
         if (shown)
@@ -781,7 +793,7 @@ Window {
     // not laid `inLayout`), is outside the frame, and so is whatever rests
     // the effects (a loading screen, a player's menu) and the screens that
     // come before the menus.
-    readonly property bool frameCovered: selectors.some(function(e) { return e.cover && e.item.inLayout !== true })
+    readonly property bool frameCovered: covers.some(function(g) { return g.inLayout !== true })
     // The frame's colours and chrome are in force: the views draw in the
     // layout's ink on its ground, and their bars are the frame's to write.
     readonly property bool monitorInk: monitorFramed && !frameCovered && restLayers.length === 0
@@ -1550,7 +1562,11 @@ Window {
                 y: root.stageY
                 width: root.sw
                 height: root.sh
-                visible: root.monitorFramed
+                // Not under a layer that takes the whole screen in the
+                // scheme's colours (the on-screen keyboard, an info screen):
+                // such a layer's ground is the stage's, narrower than the
+                // chrome, whose tab and corners showed round it.
+                visible: root.monitorInk
                 screen: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
                 // Studio Monitor's strip: the icons Camcorder's column has.
                 icons: root.menuLayout === "Studio Monitor" ? root.shownFrameIcons : []
