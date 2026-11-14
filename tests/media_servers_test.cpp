@@ -24,8 +24,9 @@
 // or the sign-in is left, every request turned away with a 498 while one
 // refresh runs is retried after it, a refused key registration is tried
 // again at the next start, Auto quality caps no transcode, a live channel
-// left while it tuned plays in no one's player, and a Plex server that
-// moved is found again at the address it has now.
+// left while it tuned plays in no one's player, a Plex server that moved is
+// found again at the address it has now, and Emby Connect tries a server's
+// address from outside when its LAN address gives no sign-in.
 
 class Reply : public QNetworkReply {
 public:
@@ -752,6 +753,77 @@ private slots:
         again->drop();                              // the libraries
         QCOMPARE(network->last(), again);
         QCOMPARE(errors.count(), 3);
+    }
+
+    // Emby Connect lists a server with its LAN address and the one it has
+    // from outside. The LAN one is tried first; when it gives no exchange (a
+    // server in another house, or in a container that names an address of
+    // its own) the other is, and the sign-in is with that one. The failure
+    // is said only when both fail, and at once for a server with one address.
+    void embyConnectTriesTheRemoteAddress() {
+        QTemporaryDir tmp;
+        EmbyBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        backend.m_connectUserId = QStringLiteral("exampleplayer");
+        backend.m_connectAccessToken = QStringLiteral("Tok123exampleABC");
+        QSignalSpy failed(&backend, &EmbyBackend::connectFailed);
+        QSignalSpy changed(&backend, &EmbyBackend::authStateChanged);
+        QSignalSpy picker(&backend, &EmbyBackend::connectServersReady);
+        const auto server = [](const char *name, const char *local, const char *remote, const char *key) {
+            return QJsonObject{ { "Name", name }, { "LocalAddress", local }, { "Url", remote },
+                                { "AccessKey", key }, { "SystemId", name } };
+        };
+
+        // One server: exchanged at once, at its LAN address.
+        backend.fetchConnectServers();
+        network->last()->complete(QJsonDocument(QJsonArray{
+            server("Away", "http://172.17.0.2:8096/", "https://away.example:8920", "KeyAway123") }).toJson());
+        Reply *local = network->last();
+        QCOMPARE(local->url().host(), QStringLiteral("172.17.0.2"));
+        QVERIFY(local->url().path().endsWith(QLatin1String("/Connect/Exchange")));
+        local->drop();
+        Reply *remote = network->last();
+        QVERIFY(remote != local);
+        QCOMPARE(remote->url().host(), QStringLiteral("away.example"));
+        QVERIFY(remote->url().path().endsWith(QLatin1String("/Connect/Exchange")));
+        QCOMPARE(remote->request().rawHeader("X-Emby-Token"), QByteArray("KeyAway123"));
+        QCOMPARE(failed.count(), 0);
+        remote->complete(QJsonDocument(QJsonObject{ { "LocalUserId", "user" },
+                                                    { "AccessToken", "Tok456exampleDEF" } }).toJson());
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("https://away.example:8920"));
+        QCOMPARE(backend.m_accessToken, QStringLiteral("Tok456exampleDEF"));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(failed.count(), 0);
+
+        // Two servers, picked from as the picker does (by address and key):
+        // both addresses failing is said once, after the second.
+        backend.fetchConnectServers();
+        network->last()->complete(QJsonDocument(QJsonArray{
+            server("Home", "http://192.168.1.50:8096", "https://home.example", "KeyHome123"),
+            server("Cabin", "", "https://cabin.example", "KeyCabin123") }).toJson());
+        QCOMPARE(picker.count(), 1);
+        const QVariantList listed = picker.first().at(0).toList();
+        QCOMPARE(listed.size(), 2);
+        const QVariantMap home = listed.at(0).toMap(), cabin = listed.at(1).toMap();
+        backend.connect_select_server(home.value(QStringLiteral("address")).toString(),
+                                      home.value(QStringLiteral("accessKey")).toString());
+        QCOMPARE(network->last()->url().host(), QStringLiteral("192.168.1.50"));
+        network->last()->fail(404);    // something else answers there
+        QCOMPARE(failed.count(), 0);
+        QCOMPARE(network->last()->url().host(), QStringLiteral("home.example"));
+        network->last()->fail(502);
+        QCOMPARE(failed.count(), 1);
+        QCOMPARE(failed.first().at(0).toString(), QStringLiteral("SERVER EXCHANGE FAILED (HTTP 502)"));
+        // One address only: its failure at once, nothing else tried.
+        backend.connect_select_server(cabin.value(QStringLiteral("address")).toString(),
+                                      cabin.value(QStringLiteral("accessKey")).toString());
+        Reply *only = network->last();
+        QCOMPARE(only->url().host(), QStringLiteral("cabin.example"));
+        only->drop();
+        QCOMPARE(network->last(), only);
+        QCOMPARE(failed.count(), 2);
     }
 };
 

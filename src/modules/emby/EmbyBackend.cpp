@@ -456,6 +456,8 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
 // Step 3: GET  {serverUrl}/Connect/Exchange?format=json&ConnectUserId={id}
 //         with X-MediaBrowser-Token: {AccessKey}
 //         -> LocalUserId + AccessToken (the normal per-server credentials)
+//         at the server's LocalAddress first, then at its Url when that
+//         gives none
 // ---------------------------------------------------------------------------
 
 void EmbyBackend::connect_authenticate(const QString &usernameOrEmail, const QString &password) {
@@ -531,15 +533,19 @@ void EmbyBackend::fetchConnectServers() {
 
         QJsonArray arr = QJsonDocument::fromJson(reply->readAll()).array();
         QVariantList servers;
+        m_connectRemotes.clear();
         for (const QJsonValue &v : arr) {
             QJsonObject s = v.toObject();
             const QString local  = normalizeServerUrl(s["LocalAddress"].toString());
             const QString remote = normalizeServerUrl(s["Url"].toString());
             // Prefer the LAN address (a CRT device usually shares the network with
-            // its server); fall back to the remote/WAN address.
+            // its server); fall back to the remote/WAN address, which is also
+            // tried when the LAN one gives no exchange (connect_select_server).
             const QString address = !local.isEmpty() ? local : remote;
             if (address.isEmpty())
                 continue;
+            if (!remote.isEmpty() && remote != address)
+                m_connectRemotes.insert(s["AccessKey"].toString(), remote);
             servers.append(QVariantMap{
                 {"name",          s["Name"].toString()},
                 {"address",       address},
@@ -570,12 +576,21 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
         emit connectFailed("INVALID SERVER SELECTION");
         return;
     }
+    // The address Emby Connect has for the server from outside, for when the
+    // one chosen (its LAN address, where it names one) gives no exchange: a
+    // server in another house, or one in a container that names an address of
+    // the container's own.
+    const QString remote = m_connectRemotes.value(accessKey);
+    exchangeConnectKey(normalized, accessKey, remote == normalized ? QString() : remote);
+}
 
+void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &accessKey,
+                                     const QString &fallbackUrl) {
     // Set the server URL up front so ignoreSslErrors() matches the exchange
     // reply's host (self-signed LAN servers).
-    m_serverUrl = normalized;
+    m_serverUrl = serverUrl;
 
-    QUrl url(normalized + "/Connect/Exchange");
+    QUrl url(serverUrl + "/Connect/Exchange");
     { QUrlQuery q; q.addQueryItem("format", "json"); q.addQueryItem("ConnectUserId", m_connectUserId); url.setQuery(q); }
 
     QNetworkRequest req(url);
@@ -587,11 +602,20 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
 
     auto *reply = m_nam->get(req);
     ignoreSslErrors(reply);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, accessKey, fallbackUrl]() {
         reply->deleteLater();
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        // No exchange at this address (nothing there, or something else that
+        // answers in the server's place on this network): the server's other
+        // address is tried before the failure is said.
+        const auto failed = [this, accessKey, fallbackUrl](const QString &message) {
+            if (fallbackUrl.isEmpty())
+                emit connectFailed(message);
+            else
+                exchangeConnectKey(fallbackUrl, accessKey, QString());
+        };
         if (reply->error() != QNetworkReply::NoError) {
-            emit connectFailed("SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")");
+            failed("SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")");
             return;
         }
 
@@ -599,7 +623,7 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
         const QString localUserId = data["LocalUserId"].toString();
         const QString token       = data["AccessToken"].toString();
         if (localUserId.isEmpty() || token.isEmpty()) {
-            emit connectFailed("INVALID EXCHANGE RESPONSE");
+            failed("INVALID EXCHANGE RESPONSE");
             return;
         }
 

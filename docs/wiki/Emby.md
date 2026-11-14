@@ -39,7 +39,8 @@ The username and password go to the server only. The password is never stored. U
 ### Emby Connect
 
 - With more than one server on the account, **Choose a Server** lists them. Select one.
-- If that server doesn't answer, the error shows on the same list, to pick another.
+- A server is tried at its address on your network first, then at its address on the internet: a server in another house, or one in a container that reports the container's own address.
+- If it gives no sign-in at either, the error shows on the same list, to pick another.
 - After sign-in Emby Connect isn't needed again.
 
 ### What the sign-in screen can say
@@ -55,7 +56,7 @@ The username and password go to the server only. The password is never stored. U
 | **EMBY CONNECT SIGN IN FAILED (HTTP …)**, **INVALID EMBY CONNECT RESPONSE** | emby.media refused or answered oddly |
 | **FAILED TO LOAD SERVERS: …** | The account's server list couldn't be fetched |
 | **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or use Local Server |
-| **SERVER EXCHANGE FAILED (HTTP …)**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account, or didn't answer (HTTP 0). Pick another, or use Local Server |
+| **SERVER EXCHANGE FAILED (HTTP …)**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account, or answered at neither of its addresses (HTTP 0). Pick another, or use Local Server |
 | **INVALID SERVER SELECTION** | Emby Connect listed the server without an access key |
 
 ### Fill in the address beforehand
