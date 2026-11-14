@@ -1345,7 +1345,7 @@ private slots:
         // By Auto, in the order they came; the list says so too.
         QCOMPARE(plays(k1), QList<int>({ 1 }));
         QCOMPARE(plays(k3), QList<int>({ 3 }));
-        QCOMPARE(entry(im, "OSD/OS Second Pad").value("players").toList(), QVariantList({ 2 }));
+        QCOMPARE(entry(im, "OSD/OS Second Pad").value("players").toList(), QVariantList{ 2 });
         QCOMPARE(im.controllerPage(k3).value("player").toInt(), 0);
 
         // The third made player 1: the first, there by Auto, goes on to the
@@ -1478,7 +1478,7 @@ private slots:
         QCOMPARE(page.value("labelsInUse").toString(), QString("A right"));
         QCOMPARE(rowValue(page, "select"), QString("A"));      // the east button, by that style's name
         QCOMPARE(page.value("player").toInt(), 2);
-        QCOMPARE(page.value("players").toList(), QVariantList({ 2 }));
+        QCOMPARE(page.value("players").toList(), QVariantList{ 2 });
         QCOMPARE(page.value("arcade").toString(), QString("Custom"));
         QCOMPARE(im.arcadeLabel(key, "1"), QString("Y"));      // x, as that style names it
         QCOMPARE(im.arcadeLabel(key, "6"), QString("ZR"));
