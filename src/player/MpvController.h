@@ -75,6 +75,10 @@ public:
                                   const QStringList &extraArgs = {},
                                   const QString &jellyfinToken = {},
                                   const QStringList &extraUrls = {});
+    // What a video inside the window needs, loaded ahead off the app's
+    // thread where videos play there (Transparent Background): libmpv and
+    // the libraries under it, which the first video otherwise waits for.
+    void warmUp();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seekTo(int positionMs);
     // A key for mpv, as its keypress command takes it ("UP", "ENTER"). Back,

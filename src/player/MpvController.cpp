@@ -1,4 +1,5 @@
 #include "MpvController.h"
+#include <QThreadPool>
 #include "EmbeddedMpv.h"
 #include "../AppCore.h"
 #include "../audio/AudioOutput.h"
@@ -1143,9 +1144,13 @@ void MpvController::logStartState(const char *what) {
     const bool process = m_process && m_process->state() != QProcess::NotRunning;
     const QString who = process ? QStringLiteral("mpv (pid %1)").arg(m_process->processId())
                                 : QStringLiteral("mpv inside the window");
-    qWarning("[MpvController] The video %s %.1f s after %s started (control connection %s, %s)", what,
-             m_startClock.elapsed() / 1000.0, qPrintable(who),
-             m_ipc->state() == QLocalSocket::ConnectedState ? "made" : "not made",
+    // A process is spoken to over its control connection; mpv inside the
+    // window has none to make.
+    const char *connection = !process ? ""
+                           : m_ipc->state() == QLocalSocket::ConnectedState ? "control connection made, "
+                                                                            : "control connection not made, ";
+    qWarning("[MpvController] The video %s %.1f s after %s started (%s%s)", what,
+             m_startClock.elapsed() / 1000.0, qPrintable(who), connection,
              m_hardwareDecode ? "hardware decoder asked for" : "decoded on the CPU");
     if (process) {
         const QStringList threads = diagnostics::threadStates(m_process->processId());
@@ -1869,6 +1874,12 @@ bool MpvController::embeddedAvailable() const {
     return EmbeddedMpv::available();
 }
 
+void MpvController::warmUp() {
+    if (!transparentBackground())
+        return;
+    QThreadPool::globalInstance()->start([] { EmbeddedMpv::available(); });
+}
+
 bool MpvController::transparentBackground() const {
     if (!m_appCore)
         return false;
@@ -1973,6 +1984,12 @@ void MpvController::appendEmbeddedVideoArgs(QStringList &args, bool gpu) const {
 #endif
         break;
     }
+    // A Pi 4's and a Pi 3's frames reach the GPU one way, as DRM buffers
+    // (drmprime). Left to itself under the render API, mpv sets up every way
+    // it was built with at every video, NVIDIA's among them, whose library
+    // the journal is told is missing each time ("Cannot load libcuda.so.1").
+    if (gpu && (m_videoProfile == VideoProfile::Pi4 || m_videoProfile == VideoProfile::Pi3))
+        args << QStringLiteral("--gpu-hwdec-interop=drmprime");
     if (gpu)
         args << QStringLiteral("--fbo-format=rgba8");
     if (gpu && m_videoProfile != VideoProfile::Generic)

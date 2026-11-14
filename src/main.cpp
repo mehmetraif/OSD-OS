@@ -566,6 +566,12 @@ int main(int argc, char *argv[]) {
         });
     }
 
+    // Where videos play inside the window (Transparent Background), libmpv is
+    // loaded ahead, off the app's thread, a moment after the menus are up.
+    // Its libraries, FFmpeg's among them, take a second and more to load from
+    // a card, and the first video's start held the menus still for it.
+    QTimer::singleShot(3000, &mpvController, &MpvController::warmUp);
+
     // On the OS image the services held back for the app start once its first
     // frame is on screen. The timer is a backstop for a platform whose window
     // never reports a swap; markReady() only acts once.
