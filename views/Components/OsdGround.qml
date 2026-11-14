@@ -95,7 +95,7 @@ Item {
         y: ground.paned ? root.chrome.cover.y - ground.y : 0
         width: ground.paned ? root.chrome.cover.width : 0
         height: ground.paned ? root.chrome.cover.height : 0
-        color: ground.paned ? root.menuPalette.ground : "transparent"
+        color: ground.paned && root.menuPalette ? root.menuPalette.ground : "transparent"
         antialiasing: false
     }
 

@@ -96,7 +96,7 @@ Rectangle {
     MonitorChrome {
         id: frameChrome
         anchors.fill: parent
-        visible: root.monitorFramed
+        visible: root.monitorInk
     }
 
     // A menu's page, as the pages opened from Settings are made: Wi-Fi's
@@ -512,9 +512,13 @@ Rectangle {
             verify(Qt.colorEqual(root.primaryColor, root.schemeInk))
             compare(page.bar.opacity, 1)
             compare(page.list.y, frameChrome.listY)
+            // The chrome goes with the ink: the layer's ground is the
+            // stage's, and the tab and the window's corners showed round it.
+            verify(!frameChrome.visible, "no chrome round the layer")
             coverLoader.active = false
             wait(0)
             verify(root.monitorInk)
+            verify(frameChrome.visible)
             compare(page.bar.opacity, 0)
         }
 
