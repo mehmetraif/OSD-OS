@@ -79,7 +79,10 @@ Rectangle {
     property var selectorPresets: ["Sparkles"]
     property var screenPresets: ({ "Scanlines": {} })
     property var transitionPresets: ["Fade"]
-    function transitionUsable(kind) { return true }
+    // The transitions this system can't play (Main.qml: those that are
+    // shaders, without a GPU).
+    property var unusableTransitions: []
+    function transitionUsable(kind) { return unusableTransitions.indexOf(kind) < 0 }
     function osdBackgroundOf(raw) { return raw === "Window" || raw === "Off" ? raw : "Full" }
     function osdFrameOf(raw) { return raw === "Off" || raw === "Shadow" ? raw : "On" }
     function backgroundOn(raw) { return false }
@@ -211,6 +214,8 @@ Rectangle {
             wifiManager.supported = false
             wifiManager.launcherTooOld = false
             bootProgress.available = true
+            root.transitionPresets = ["Fade"]
+            root.unusableTransitions = []
         }
         function cleanup() {
             loader.source = ""
@@ -930,6 +935,62 @@ Rectangle {
             verify(lines(page).indexOf("Key Protect") > 0)
             root.menuLayout = "Camcorder"
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
+        }
+
+        // A part's row (the eight a theme sets) whose saved value is not
+        // among its choices shows what is drawn in its place, not its first
+        // choice: a color scheme removed since Video 1, a skin gone from its
+        // folder None, an effect's unknown name Off, a transition this
+        // system can't play Fade and an unknown one Off; Menu Music's is the
+        // theme's. ◄ ► go on from what is shown. A value among the choices
+        // shows as itself.
+        function test_partRowsInForce() {
+            root.transitionPresets = ["Fade", "Cube", "Ripple"]
+            root.unusableTransitions = ["Ripple"]
+            var saved = { osd_theme: "vhs", color_scheme: "My Scheme", skin: "gone", text_effect: "Sparkle",
+                          background_effect: "Gone", selector_effect: "Gone", screen_effect: "Gone",
+                          transition: "Ripple", menu_music: "Gone" }
+            appCore.values = saved
+            var page = open({ group: "look" })
+            compare(row(page, "Color Scheme").options, ["Theme", "Video 1", "Late Night"])
+            compare(row(page, "Color Scheme").value, "Video 1")
+            compare(row(page, "Skin").options, ["Theme", "None"])
+            compare(row(page, "Skin").value, "None")
+            moveTo(page, "Color Scheme")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.color_scheme, "Late Night")
+            loader.source = ""
+            appCore.values = saved
+            page = open({ group: "effects" })
+            compare(row(page, "Text Effect").value, "Off")
+            compare(row(page, "Background Effect").value, "Off")
+            compare(row(page, "Selector Effect").value, "Off")
+            compare(row(page, "Screen Effect").value, "Off")
+            compare(row(page, "Transition").options, ["Theme", "Off", "Fade", "Cube"])
+            compare(row(page, "Transition").value, "Fade")
+            loader.source = ""
+            appCore.values = saved
+            page = open({ group: "sound" })
+            compare(row(page, "Menu Music").value, "Theme")
+            // A transition of no name there is: none plays.
+            loader.source = ""
+            appCore.values = { osd_theme: "vhs", transition: "Gone", color_scheme: "Late Night", text_effect: "" }
+            page = open({ group: "effects" })
+            compare(row(page, "Transition").value, "Off")
+            compare(row(page, "Text Effect").value, "Theme")
+            loader.source = ""
+            page = open({ group: "look" })
+            compare(row(page, "Color Scheme").value, "Late Night")
+            // Without a theme: the same, where there is no THEME to show.
+            loader.source = ""
+            appCore.values = { color_scheme: "My Scheme", transition: "Ripple", selector_effect: "Gone", skin: "gone" }
+            page = open({ group: "look" })
+            compare(row(page, "Color Scheme").value, "Video 1")
+            compare(row(page, "Skin").value, "None")
+            loader.source = ""
+            page = open({ group: "effects" })
+            compare(row(page, "Transition").value, "Fade")
+            compare(row(page, "Selector Effect").value, "Off")
         }
 
         // Info Screen, on TV / Movie's page, is Netflix's, Prime Video's and

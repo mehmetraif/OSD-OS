@@ -98,7 +98,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | What goes on behind the menus, in the window. Needs a GPU | `app.background_effect` |
 | Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | What goes on round the selected line. Works everywhere | `app.selector_effect` |
 | Screen Effect | THEME, Off, Scanlines, CRT, VHS | A picture tube's or a tape's look over the whole screen. Needs a GPU | `app.screen_effect` |
-| Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade | `app.transition` |
+| Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade, and one saved before plays, and reads, as Fade | `app.transition` |
 
 The effects and the menu music rest while a video plays, loads or has its menu open, and while a player has the screen ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
 

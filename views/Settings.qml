@@ -451,12 +451,16 @@ FocusScope {
         // scheme's colours (AppCore::skins(); read in Main.qml as root.skin).
         // Saved by folder name, shown by the skin's name.
         // A skin chosen before skins had their name was saved as app.theme.
+        var skinSaved = appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || "")
         var skinRow = lookRow("skin", "Skin", "Theme", appCore.skins(),
             "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors\n[THEME] The theme's  [NONE] OSD/OS's own  A new one is a folder in the data folder's skins, see the wiki",
-            appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || ""))
+            skinSaved)
         skinRow.options.splice(1, 0, "None")
         skinRow.values.splice(1, 0, "Off")
-        if (appSettings["skin"] === "Off" || (!appSettings["osd_theme"] && skinRow.value === "Theme"))
+        // A skin saved and gone from its folder since is drawn as none
+        // (Main.qml's skinChosen): None, not the theme's.
+        var skinGone = skinRow.value === "Theme" && skinSaved !== "" && skinSaved !== "Off"
+        if (appSettings["skin"] === "Off" || skinGone || (!appSettings["osd_theme"] && skinRow.value === "Theme"))
             skinRow.value = "None"
         if (!appSettings["osd_theme"]) {
             skinRow.options.shift()
@@ -1158,14 +1162,31 @@ FocusScope {
     // A row for one of the theme's parts: THEME (saved as "", as the theme
     // has it) while there is a theme, OFF (with `off`, saved as "Off") and
     // the choices. Without a theme, "" shows as the first of those, what it
-    // is then.
+    // is then. A saved value that isn't among the choices (a custom scheme
+    // removed since, an effect this system can't draw) shows as what is
+    // drawn in its place (partInForce()), not as the row's first choice.
     function partRow(key, label, choices, off, description) {
         var themed = !!appSettings["osd_theme"]
         var options = (themed ? ["Theme"] : []).concat(off ? ["Off"] : [], choices)
         var values = (themed ? [""] : []).concat(off ? ["Off"] : [], choices)
-        var at = values.indexOf(appSettings[key] === undefined ? "" : String(appSettings[key]))
+        var saved = appSettings[key] === undefined ? "" : String(appSettings[key])
+        var at = values.indexOf(saved)
+        if (at < 0)
+            at = values.indexOf(partInForce(key, saved))
         return { type: "list_single", key: key, label: label, options: options, values: values,
                  value: options[Math.max(0, at)], description: description, moduleId: "" }
+    }
+    // What Main.qml makes of a part's saved value that names nothing it has:
+    // a scheme not there is Video 1 (root.scheme), an effect's unknown name
+    // none (effectOf(), nameOf()), a transition this system can't play
+    // (Ripple, Wave or Drop without a GPU) Fade (windowCaught()) and an
+    // unknown one none. Menu Music's is the theme's, the row's first choice.
+    function partInForce(key, saved) {
+        if (key === "color_scheme")
+            return "Video 1"
+        if (key === "transition")
+            return root.transitionPresets.indexOf(saved) >= 0 ? "Fade" : "Off"
+        return key === "menu_music" ? undefined : "Off"
     }
 
     // The theme's parts, each set back to THEME as a theme is chosen (to what
