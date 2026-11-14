@@ -188,6 +188,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-display.socket` | Enabled. Display Output's At Next Start |
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
+| `osdos-system.socket` | Enabled. The time zone and the keyboard |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
@@ -456,8 +457,9 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | 7 | The polkit rule and `osdos-wifi.socket`: Settings offers Wi-Fi |
 | 8 | `osdos-name.socket`: System Information renames the device |
 | 9 | Exits 39 and 59: JAMMA 480i at 640 across |
+| 10 | `osdos-system.socket`: Settings → System sets the time zone and the keyboard |
 
-The image's launcher is level 9, as `install.sh`'s is.
+The image's launcher is level 10, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -481,6 +483,14 @@ Settings → System → About → System Information renames the device through 
 
 ```sh
 journalctl -u 'osdos-name@*' -b    # what renaming the device did
+```
+
+### The time zone's and the keyboard's socket
+
+Settings → System → **Time Zone** and **Keyboard** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
+
+```sh
+journalctl -u 'osdos-system@*' -b    # what setting the time zone or the keyboard did
 ```
 
 ### Exit to Terminal
@@ -557,7 +567,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | `/dev/tty0` for the `tty` group, USB drives, `/dev/uinput` for the `input` group |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/run/osdos/ready` | Written at OSD/OS's first frame |
-| `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock` | The three sockets |
+| `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock`, `/run/osdos-system.sock` | The four sockets |
 | `/run/osdos-display-boot.txt` | The display preset this boot started on |
 | `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` |

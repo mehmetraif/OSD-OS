@@ -136,13 +136,16 @@ extract WIFI_SOCKET     > "${STAGE}/02-system/files/osdos-wifi.socket"
 extract WIFI_SERVICE    > "${STAGE}/02-system/files/osdos-wifi@.service"
 extract NAME_SOCKET     > "${STAGE}/02-system/files/osdos-name.socket"
 extract NAME_SERVICE    > "${STAGE}/02-system/files/osdos-name@.service"
+extract SYSTEM_SOCKET   > "${STAGE}/02-system/files/osdos-system.socket"
+extract SYSTEM_SERVICE  > "${STAGE}/02-system/files/osdos-system@.service"
 extract POLKIT_RULE     > "${STAGE}/02-system/files/50-osdos-networkmanager.rules"
 for f in 01-app/files/osdos-launcher 02-system/files/osdos-stop; do
     head -n1 "${STAGE}/${f}" | grep -q '^#!' \
         || { echo "error: could not extract ${f} from scripts/install.sh" >&2; exit 1; }
 done
 for f in osdos-terminal.service osdos-display.socket osdos-display@.service \
-         osdos-wifi.socket osdos-wifi@.service osdos-name.socket osdos-name@.service; do
+         osdos-wifi.socket osdos-wifi@.service osdos-name.socket osdos-name@.service \
+         osdos-system.socket osdos-system@.service; do
     head -n1 "${STAGE}/02-system/files/${f}" | grep -q '^\[Unit\]' \
         || { echo "error: could not extract ${f} from scripts/install.sh" >&2; exit 1; }
 done

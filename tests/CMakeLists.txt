@@ -236,6 +236,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(system_info_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
     add_test(NAME system_info COMMAND system_info_test)
 
+    # Settings → System's Time Zone and Keyboard (SystemSettings): what the
+    # system has from a stand-in root, the lists it offers, and a new one sent
+    # through a stand-in for osdos-system.socket.
+    add_executable(system_settings_test
+        system_settings_test.cpp
+        ../src/system/SystemSettings.cpp
+        ../src/util/LegacyNames.cpp
+        ../src/util/RootRequest.cpp)
+    target_include_directories(system_settings_test PRIVATE ../src)
+    target_compile_definitions(system_settings_test PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
+    target_link_libraries(system_settings_test PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+    add_test(NAME system_settings COMMAND system_settings_test)
+
     # Settings → Network → Wi-Fi (WifiManager) against a stand-in for NetworkManager
     # (fake_networkmanager) on a D-Bus of the test's own, and for the country
     # against a stand-in boot partition and osdos-wifi.socket. Built where Qt

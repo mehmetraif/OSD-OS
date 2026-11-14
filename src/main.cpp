@@ -47,6 +47,7 @@
 #include "bluetooth/BluetoothManager.h"
 #include "wifi/WifiManager.h"
 #include "system/SystemInfo.h"
+#include "system/SystemSettings.h"
 #include "util/ExecPath.h"
 #include "util/DisplayHandoff.h"
 #include "util/OsdIconProvider.h"
@@ -349,6 +350,7 @@ int main(int argc, char *argv[]) {
     // Settings → System → About → System Information, the films' drive Local Files'
     // folder's.
     SystemInfo          systemInfo(dataRoot, [&localFiles] { return localFiles.mediaRoot(); });
+    SystemSettings      systemSettings;
 
     // Playback follows the UI's display: mpv gets a --fs-screen* arg derived
     // from this on macOS / desktop Linux (no-op at index 0 and on headless).
@@ -433,6 +435,7 @@ int main(int argc, char *argv[]) {
     ctx->setContextProperty("bluetoothManager", &bluetoothManager);
     ctx->setContextProperty("wifiManager", &wifiManager);
     ctx->setContextProperty("systemInfo", &systemInfo);
+    ctx->setContextProperty("systemSettings", &systemSettings);
     // Settings → System → Export to OSD/OS Setup: the settings as QR codes
     // (image://qr/), which open OSD/OS Setup's page with them.
     SetupExporter setupExport(dataRoot, &appCore, &displayOutput, &wifiManager);

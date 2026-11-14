@@ -270,7 +270,9 @@ INSTALL_DIR="/opt/osdos"
 #    → About → System Information can rename it.
 # 9: osdos-stop also writes JAMMA 480i at 640 across on exit 39 (and powers
 #    off after it on 59), so Display Output offers it.
-export OSDOS_LAUNCHER_API=9
+# 10: osdos-stop also sets the time zone and the keyboard through
+#    osdos-system.socket, so Settings → System offers Time Zone and Keyboard.
+export OSDOS_LAUNCHER_API=10
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -499,7 +501,8 @@ if [ -n "${SERVICE_USER}" ]; then
 # next-start, by osdos-display.socket instead: Display Output's At Next Start;
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
 # device-name, by osdos-name.socket: Settings → System → About → System Information's
-# Device Name.
+# Device Name; with system-setting, by osdos-system.socket: Settings → System's
+# Time Zone and Keyboard.
 
 # What comes in is read as the C locale reads it, whatever the system's
 # language: under en_GB.UTF-8, Raspberry Pi OS's own, a range such as A-Z
@@ -666,11 +669,51 @@ device_name() {
     echo ok
 }
 
+# Settings → System's Time Zone and Keyboard: a line from the app, through the
+# socket, "time-zone Europe/Istanbul" or "keyboard tr", and "ok" back, or why
+# not. A time zone only as the time zone database names one (letters, digits,
+# _ + and -, two slashes at most) and has one, a keyboard only as XKB names a
+# layout and has it; neither echoed. timedatectl sets the zone, now and for
+# every start after, and raspi-config the keyboard, the console's, where a
+# name and a password are typed at Exit to Terminal: as OSD/OS Setup's file
+# has them set. What they say goes to the journal, not into the answer.
+ZONES=/usr/share/zoneinfo
+LAYOUTS=/usr/share/X11/xkb/symbols
+system_setting() {
+    local line what value
+    IFS= read -r -t 5 -n 96 line || [ -n "$line" ] || { refuse "nothing named"; return; }
+    what="${line%% *}"
+    value="${line#* }"
+    [ "$what" != "$line" ] || value=""
+    case "$what" in
+        time-zone)
+            [[ "$value" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$ ]] || { refuse "no such time zone"; return; }
+            [ -f "$ZONES/$value" ] || { refuse "no such time zone"; return; }
+            timedatectl set-timezone "$value" < /dev/null >&2 \
+                || { refuse "timedatectl couldn't set it"; return; }
+            ;;
+        keyboard)
+            [[ "$value" =~ ^[a-z]{2,5}$ ]] || { refuse "no such keyboard"; return; }
+            [ -f "$LAYOUTS/$value" ] || { refuse "no such keyboard"; return; }
+            raspi-config nonint do_configure_keyboard "$value" < /dev/null >&2 \
+                || { refuse "raspi-config couldn't set it"; return; }
+            ;;
+        *)
+            refuse "nothing this sets"
+            return
+            ;;
+    esac
+    # On the card before the answer: the root file system only.
+    sync -f /etc
+    echo ok
+}
+
 MODE="${1:-}"
 case "$MODE" in
-    next-start)   next_start;   exit 0 ;;
-    wifi-country) wifi_country; exit 0 ;;
-    device-name)  device_name;  exit 0 ;;
+    next-start)     next_start;     exit 0 ;;
+    wifi-country)   wifi_country;   exit 0 ;;
+    device-name)    device_name;    exit 0 ;;
+    system-setting) system_setting; exit 0 ;;
 esac
 
 case "${EXIT_STATUS:-}" in
@@ -801,6 +844,44 @@ PrivateTmp=yes
 ProtectHome=yes
 NAME_SERVICE
 
+    # Settings → System's Time Zone and Keyboard, while the app runs: it writes
+    # which and its value to this socket, which only its user may, and
+    # osdos-stop system-setting, as root, sets it and answers.
+    sudo tee /etc/systemd/system/osdos-system.socket > /dev/null << 'SYSTEM_SOCKET'
+[Unit]
+Description=OSD/OS time zone and keyboard (Settings → System)
+
+[Socket]
+ListenStream=/run/osdos-system.sock
+SocketUser=root
+SocketGroup=@OSDOS_GROUP@
+SocketMode=0660
+Accept=yes
+MaxConnections=1
+
+[Install]
+WantedBy=sockets.target
+SYSTEM_SOCKET
+    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-system.socket
+    sudo tee /etc/systemd/system/osdos-system@.service > /dev/null << 'SYSTEM_SERVICE'
+[Unit]
+Description=OSD/OS time zone and keyboard, one request
+# One unit a request: gone once it has run, however it ended.
+CollectMode=inactive-or-failed
+
+[Service]
+ExecStart=/usr/local/bin/osdos-stop system-setting
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+NoNewPrivileges=yes
+# timedatectl talks to its daemon over D-Bus, whose socket is a file's: the
+# unit itself has no network of its own.
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectHome=yes
+SYSTEM_SERVICE
+
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
     # osdos.service's OnFailure= once the app has failed three times running, and
@@ -822,7 +903,7 @@ Restart=no
 TERMINAL_UNIT
 
     sudo systemctl daemon-reload
-    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket
+    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
     # A service kept as it was stays enabled or not, as it was left, and the
     # login on tty1 with it.
     if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then

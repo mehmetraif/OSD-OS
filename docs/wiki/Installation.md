@@ -419,7 +419,7 @@ On the OSD/OS image it asks neither, and keeps the image's own service. The inst
 | The app | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against its SHA-256, into `/opt/osdos` (`bin`, `lib`, `share`), owned by the user OSD/OS runs as |
 | 240-MP | A 240-MP install (`/opt/240mp`, `240mp.service`) is removed. OSD/OS moves its data folder over on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland, X11, or straight on the screen (Qt's EGLFS) |
-| The service | After **y**: `/etc/systemd/system/osdos.service`, the login on `tty1` masked (`getty@tty1`, `autovt@`), and `/etc/systemd/logind.conf.d/osdos.conf`. With any service: `/usr/local/bin/osdos-stop`, `osdos-terminal.service`, and `osdos-display.socket`, `osdos-wifi.socket` and `osdos-name.socket` with their `@.service` units |
+| The service | After **y**: `/etc/systemd/system/osdos.service`, the login on `tty1` masked (`getty@tty1`, `autovt@`), and `/etc/systemd/logind.conf.d/osdos.conf`. With any service: `/usr/local/bin/osdos-stop`, `osdos-terminal.service`, and `osdos-display.socket`, `osdos-wifi.socket`, `osdos-name.socket` and `osdos-system.socket` with their `@.service` units |
 
 #### The autostart service
 
@@ -667,12 +667,13 @@ yt-dlp updates itself on the image (`osdos-yt-dlp-update.timer`).
 **On Raspberry Pi OS,** remove the service (if you installed it), then the app, its launcher and its udev rule, and last your settings:
 
 ```sh
-sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket
+sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
 sudo systemctl unmask getty@tty1.service autovt@.service
 sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
 sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
 sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
 sudo rm -f /etc/systemd/system/osdos-name.socket /etc/systemd/system/osdos-name@.service
+sudo rm -f /etc/systemd/system/osdos-system.socket /etc/systemd/system/osdos-system@.service
 sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos
