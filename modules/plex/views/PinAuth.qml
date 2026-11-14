@@ -3,6 +3,9 @@ import Components
 
 FocusScope {
     id: pinAuthRoot
+    // In the layout's frame (Main.qml): what it says in the middle of the
+    // pane, beside the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
 
@@ -95,6 +98,11 @@ FocusScope {
     // Body
     Column {
         anchors.centerIn: parent
+        // In the middle of the pane, in a layout's frame (Main.qml's).
+        anchors.horizontalCenterOffset: root.framed || root.monitorFramed === true
+                                        ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
+        anchors.verticalCenterOffset: root.monitorFramed === true
+                                      ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
         spacing: root.sh * 0.05 //24
 
         Text {
@@ -166,7 +174,7 @@ FocusScope {
             color: root.accentColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
-            width: root.sw * 0.76875 //492
+            width: root.paneWidth //492
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter

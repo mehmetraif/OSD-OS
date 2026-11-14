@@ -111,7 +111,7 @@ The effects and the menu music rest while a video plays, loads or has its menu o
 <tr><td>The pages as icons, the selected one's rows beside them.</td><td>The modules in groups: TV / Movie, Arcade, More, and Settings.</td></tr>
 </table>
 
-Every layout has the same pages and rows, and changes at once. A layout is kept on what is opened from the menus too: the pages opened from Settings (Wi-Fi, Bluetooth, Controls, About, Update, Cabinet Lock, a module's settings), the questions they ask, and the modules' lists and trees (Local Files, Playlists, YouTube, the streaming services, High Scores, Scripts, and Plex's, Jellyfin's and Emby's libraries).
+Every layout has the same pages and rows, and changes at once. A layout is kept on what is opened from the menus too: the pages opened from Settings (Wi-Fi, Bluetooth, Controls, About, Update, Cabinet Lock, a module's settings), the questions they ask, and the modules' lists and trees (Local Files, Playlists, YouTube, the streaming services, High Scores, Scripts, and Plex's, Jellyfin's and Emby's libraries), with Plex's sign-in, NFC Reader's page and Weather's setup page.
 
 | Layout | How it looks | Keys |
 |---|---|---|
@@ -133,7 +133,7 @@ Every layout has the same pages and rows, and changes at once. A layout is kept 
 
 - **Two steps** (Broadcast, Flat Panel): select starts the change, ▲ ▼ go through the choices, select saves, back cancels. ◄ ► change nothing. A module's settings change the same way there.
 - **Inside a module**, Studio Monitor's strip shows the modules of its group by their logos, as Camcorder's column does, and the three monitor layouts draw the module's lists in their own colours.
-- **Outside every layout**, as they take the whole screen: a video and its loading screen, a film's or a show's page with its poster, the Arcade screen and the Arcade module's own pages, Test Patterns, Export to OSD/OS Setup's codes, the on-screen keyboard, a server's sign-in, Ambient Mode's, NFC Reader's and Weather's own pages, and a pad's Game Buttons page.
+- **Outside every layout**, as they take the whole screen: a video and its loading screen, a film's or a show's page with its poster, the Arcade screen and the Arcade module's own pages, Test Patterns, Export to OSD/OS Setup's codes, the on-screen keyboard, Jellyfin's and Emby's Connect to Server pages, Ambient Mode's page, and a pad's Game Buttons page.
 - **Key Protect**, the last row of the first screen in Broadcast and Flat Panel, is Cabinet Lock.
 - **The main menu** in Camcorder and Studio Monitor groups the modules: **TV / Movie**, **Arcade**, **More** (Scripts), then **Settings**. Broadcast's ends with a row for Settings.
 - Studio Monitor, Broadcast and Flat Panel use colours of their own, whatever the theme. A row that can't be used is paler, not checkered.

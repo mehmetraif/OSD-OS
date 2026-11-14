@@ -3,6 +3,9 @@ import Components
 
 FocusScope {
     id: itemsRoot
+    // In the layout's frame (Main.qml): what it says in the middle of the
+    // pane, beside the column a layout keeps on the screen.
+    readonly property bool inFrame: true
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
@@ -32,9 +35,11 @@ FocusScope {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: root.sh * 0.2604167 //125
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 //252
+        // The pane's, in a layout's frame (Main.qml's): down to its foot in
+        // a monitor layout's.
+        anchors.leftMargin: root.paneX //74
+        width: root.paneWidth //492
+        height: root.monitorFramed === true ? Math.min(root.sh * 0.525, root.paneBottom - y) : root.sh * 0.525 //252
 
         Item {
             anchors.centerIn: parent
