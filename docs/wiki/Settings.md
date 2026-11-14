@@ -83,7 +83,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How Settings and the main menu are laid out ([below](#menu-layout)) | `app.menu_layout` |
 | OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Window**: a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
 | Window Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Window | `app.osd_frame` |
-| Boot Screen Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue | `app.boot_colors` |
+| Boot Screen Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors` |
 | Hint Bar | On, Off | On | The key hints at the foot of every screen. Off gives every menu a row more; the keys work as before | `app.hint_bar` |
 | Help Line | On, Off | On | The line about the selected row under a menu. Off hides it everywhere but About | `app.help_line` |
 | Status Icons | On, Off | On | What is on, at the right end of every title bar ([below](#status-icons)) | `app.status_icons` |

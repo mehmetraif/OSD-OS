@@ -159,6 +159,11 @@ Rectangle {
         id: bluetoothManager
         property bool supported: false
     }
+    // The boot screen there is on the OSD/OS image (BootProgress).
+    QtObject {
+        id: bootProgress
+        property bool available: true
+    }
     QtObject {
         id: wifiManager
         property bool supported: false
@@ -201,6 +206,7 @@ Rectangle {
             root.setFrame([], 0, false)
             wifiManager.supported = false
             wifiManager.launcherTooOld = false
+            bootProgress.available = true
         }
         function cleanup() {
             loader.source = ""
@@ -920,6 +926,29 @@ Rectangle {
             verify(lines(page).indexOf("Key Protect") > 0)
             root.menuLayout = "Camcorder"
             tryVerify(function() { return page.camIndex === 3 && page.inIcons() })
+        }
+
+        // Boot Screen Colors, on Look's page: a row like the others on the
+        // OSD/OS image, which has a boot screen; anywhere else dimmed, the
+        // help line saying where it is for, ◄ ► leaving it as it is.
+        function test_bootScreenColorsRow() {
+            var page = open({ group: "look" })
+            var at = lines(page).indexOf("Boot Screen Colors")
+            compare(page.offReason(at), "")
+            moveTo(page, "Boot Screen Colors")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.boot_colors, "Default")
+            loader.source = ""
+            appCore.values = {}
+            bootProgress.available = false
+            page = open({ group: "look" })
+            compare(page.offReason(at), "Only on the OSD/OS image, which has a boot screen")
+            moveTo(page, "Boot Screen Colors")
+            verify(menuRow(page, at).dimmed)
+            verify(helpOf(page).text.indexOf("Only on the OSD/OS image") === 0, helpOf(page).text)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.boot_colors, undefined)
         }
 
         // Cabinet Lock's row says what the lock does now: On while there is a

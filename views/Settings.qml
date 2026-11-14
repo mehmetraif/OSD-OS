@@ -506,7 +506,9 @@ FocusScope {
 
         // BOOT SCREEN COLORS — the boot screen in the colours in force, as
         // the loading screen's are (TV / Movie). Read in Main.qml
-        // (root.bootInk).
+        // (root.bootInk). The boot screen is the OSD/OS image's
+        // (BootProgress's available): elsewhere there is none to colour.
+        var bootScreen = typeof bootProgress !== "undefined" && !!bootProgress && bootProgress.available
         items.push({
             type: "list_single",
             key: "boot_colors",
@@ -514,6 +516,7 @@ FocusScope {
             options: ["Theme", "Default"],
             value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
             description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
+            unavailable: bootScreen ? "" : "Only on the OSD/OS image, which has a boot screen",
             moduleId: ""
         })
 

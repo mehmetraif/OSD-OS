@@ -36,6 +36,7 @@ BootProgress::BootProgress(QObject *parent)
     const QString unitsFile = legacy::env("BOOT_UNITS_FILE");
     if (unitsFile.isEmpty() || !loadSteps(unitsFile))
         return;
+    m_available = true;
 
     // Only while systemd is still booting: starting the app again later (an
     // in-app update, Exit to Terminal and back, systemctl restart) must not
