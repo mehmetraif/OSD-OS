@@ -53,6 +53,14 @@ public:
     // libmpv can be loaded, with everything this needs from it.
     static bool available();
 
+    // The OpenGL function mpv is given for `name`, `real` being the
+    // context's own: every one as it is, but glFenceSync, which is one that
+    // makes no fence (EmbeddedMpv.cpp says why: mpv would leave one behind
+    // for every picture, a file descriptor each on a Pi 4). How many it has
+    // been asked for and not made, for the tests.
+    static void *glFunctionFor(const char *name, void *real);
+    static quint64 fencesNotMade();
+
     explicit EmbeddedMpv(QObject *parent = nullptr);
     ~EmbeddedMpv() override;
 

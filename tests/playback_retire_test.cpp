@@ -235,6 +235,33 @@ private slots:
     // The bindings' file is the app's own, whole and its owner's alone: made
     // again when it is gone or holds something else, and not named to mpv at
     // all when it can't be written.
+    // mpv is given every OpenGL function as the context has it, but
+    // glFenceSync: one that makes no fence. mpv 0.40 leaves a fence behind
+    // for every picture it draws for the render API, and on a Pi 4 each is a
+    // file descriptor: a film's length of them used up all the app may open.
+    // Where the context has no fences, mpv is given none.
+    void mpvIsGivenNoFences() {
+        int marker = 0;
+        void *real = &marker;
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glClear", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glDeleteSync", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glClientWaitSync", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glFenceSyncAPPLE", real), real);
+        QCOMPARE(EmbeddedMpv::glFunctionFor("glFenceSync", nullptr), static_cast<void *>(nullptr));
+        void *given = EmbeddedMpv::glFunctionFor("glFenceSync", real);
+        QVERIFY(given != nullptr);
+        QVERIFY(given != real);
+        const quint64 before = EmbeddedMpv::fencesNotMade();
+#if defined(Q_OS_WIN) && !defined(Q_OS_WIN64)
+        using FenceSync = void *(__stdcall *)(unsigned int, unsigned int);
+#else
+        using FenceSync = void *(*)(unsigned int, unsigned int);
+#endif
+        // GL_SYNC_GPU_COMMANDS_COMPLETE, as mpv asks.
+        QCOMPARE(reinterpret_cast<FenceSync>(given)(0x9117, 0), static_cast<void *>(nullptr));
+        QCOMPARE(EmbeddedMpv::fencesNotMade(), before + 1);
+    }
+
     void runFilesAreTheUsersOwn() {
         const auto read = [](const QString &path) {
             QFile file(path);

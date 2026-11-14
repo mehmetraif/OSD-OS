@@ -91,6 +91,7 @@ ctest --test-dir build-tests --output-on-failure
   - A card mapped again has the new file in place of the old; a new file a full card can't take (a file size limit, which holds for root too) leaves the old file and the card as they were, and an old file that can't be removed takes the new one back.
   - A title too long for a name is cut to 255 bytes or fewer with its `.txt`, whatever its letters take (two bytes, four), never in the middle of one; `safeFileName()` cut to a number of letters or of bytes keeps whole letters, and its own rules after the cut.
 - **playback_retire** (`playback_retire_test.cpp`, Linux only). A video is asked for while another plays in an mpv process, against a stand-in for mpv: a shell script first on `PATH` that writes down when it starts, is told to quit and exits.
+  - mpv is given the context's OpenGL functions as they are, but `glFenceSync`: one that makes no fence (mpv 0.40 leaves one behind for every picture, a file descriptor each on a Pi 4), and none where the context has none.
   - What mpv is handed (its control socket, log, key bindings and fontconfig file) is in the run-time folder (`XDG_RUNTIME_DIR`, the test's own), with nothing of it in the temp folder; the bindings' file is whole and its owner's alone, written again when it is gone or holds something else, and left out of mpv's options when it can't be written.
   - The app goes on while the old player quits, and the new one starts only once it has gone.
   - Of several videos asked for in a row, only the last plays.
@@ -120,6 +121,7 @@ ctest --test-dir build-tests --output-on-failure
   - A MIDI file is made into a WAV by FluidSynth with the SoundFont beside it, else the data folder's first, and played; the next time, the WAV made then. A failed one isn't tried again, and one held while it is being made is stopped, nothing half made kept, and made again.
   - A tracker's module plays as it is; one mpv can't play, openmpt123 makes into a WAV for it.
 - **diagnostics** (`diagnostics_test.cpp`, Linux only). The crash and freeze reports (`util/Diagnostics`), each from a child process, the test itself run again, that crashes or freezes on purpose.
+  - With more than a thousand files open, the memory line names the kinds there are most of (`most of them: 1100 /dev/null, …`), and no longer once they are closed.
   - A crash is written to `crash-report.txt` with where it was, and still ends the process as a crash.
   - Started again in place (`startAgain()`), the app takes none of its child processes with it: a child running before is gone after, and the new start says why it is one.
   - What a process's threads are doing (`threadStates()`): a sleeping one by its name, nothing for a process that is gone.
