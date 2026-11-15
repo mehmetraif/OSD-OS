@@ -313,13 +313,15 @@ h1 em { font-style: normal; }
 }
 .hero-photo figcaption { bottom: 17px; left: 15px; }
 
-/* --- The strip of words. */
+/* --- The strip of words: its band as wide as the window, its words within
+   the page's width (.wrap's), the first at its left edge and the last at its
+   right, however wide the window is. */
 .signal-strip {
     list-style: none;
     margin: 0;
-    padding: 17px 35px;
+    padding: 17px max(40px, calc((100% - 1240px) / 2));
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px 24px;
     background: var(--ink);
@@ -783,7 +785,7 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .hero-photo { min-height: 410px; }
     h1 { font-size: clamp(40px, 5.3vw, 60px); }
     .hero-copy p { font-size: 16px; }
-    .signal-strip { font-size: 13px; }
+    .signal-strip { font-size: 13px; padding-inline: 24px; }
     .theme-workbench { gap: 30px; }
     .theme-buttons button { font-size: 13px; }
     /* Smaller, so that the six tabs fit side by side down to 851 px. */
@@ -839,7 +841,7 @@ dd { margin: 0; font-size: 16px; line-height: 1.5; }
     .text-link { font-size: 13px; }
     .actions { gap: 20px; }
     .hero-photo { box-shadow: 5px 5px 0 var(--shadow); }
-    .signal-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 19px 18px; font-size: 12px; }
+    .signal-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 19px 16px; font-size: 12px; }
     .signal-strip li::before { margin-right: 8px; }
     .intro-section, .arcade-section, .together-section, .hardware-section, .faq-section, .themes-section, .setup-section { padding-block: 42px; }
     .together-specs { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 32px; }
