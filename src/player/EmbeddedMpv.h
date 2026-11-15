@@ -100,6 +100,11 @@ public:
     // Asks mpv to quit, as its own quit command does: finished() follows.
     void quit();
     bool running() const { return m_mpv != nullptr; }
+    // Why mpv called the last file's end an error, in its own words
+    // (mpv_error_string: "audio output initialization failed"); "" for any
+    // other end. From the core's own event, so it is there as finished()
+    // comes, whatever the control connection has passed on by then.
+    QString lastEndError() const { return m_lastEndError; }
     // This session is drawn on the GPU (gpuFrame()), not into frame().
     bool gpuRendering() const { return m_gpu; }
 
@@ -150,6 +155,7 @@ private:
     Renderer           *m_renderer = nullptr;
     std::atomic<bool>   m_drainQueued { false };
     QString             m_lastEndReason;
+    QString             m_lastEndError;
     // The thread destroying a retired core (retire()), none between; each
     // numbered, so a late word from an earlier one counts for nothing.
     std::atomic<bool>   m_retiring { false };

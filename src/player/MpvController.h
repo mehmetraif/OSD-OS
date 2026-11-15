@@ -121,6 +121,14 @@ public:
     Q_INVOKABLE bool embeddedAvailable() const;
     bool videoActive() const;
     bool background() const { return m_background; }
+    // Whether back is this controller's now, whichever view has the keys: a
+    // session on its way, an mpv process playing (the screen is its, and on a
+    // Pi the app's window is hidden meanwhile), or a video inside the app's
+    // window in front of the menus, which covers every view. Nothing of the
+    // app's can be asking for back then but the player that would send it
+    // here (sendKey()). InputManager asks at each back (main.cpp), and sends
+    // it here at once, as it sends the media keys.
+    bool takesBack() const;
     // Ends a session playing behind the menus.
     Q_INVOKABLE void stopBackground();
     // Called by a player right after loadAndPlay(): how to take the session

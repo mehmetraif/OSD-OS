@@ -260,6 +260,13 @@ public:
     // Open the pads again once the display is back (deferred: see
     // finishReclaimJoysticks()).
     void reclaimJoysticksAfterHandoff();
+    // Who says whether back is the player's now (MpvController::takesBack(),
+    // main.cpp): asked at each back. While it is, back goes to the player at
+    // once (mpvKeyRequested), from whatever it comes (a key, a pad's or a
+    // remote's button, a click), and not by way of the view that has the
+    // keys: a video has the screen then, and back is the one key that leaves
+    // it.
+    void setBackTaker(std::function<bool()> takes);
 
 signals:
     void lastInputDeviceChanged();
@@ -458,6 +465,12 @@ private:
     void replayKey(const QKeyEvent &ke, const QString &device);
     void deliverPress(Action a, bool autoRepeat);
     void deliverRelease(Action a, bool autoRepeat);
+    // Whether this back is the player's (setBackTaker()), said in the log
+    // with what it came from.
+    bool backIsThePlayers(const QString &from);
+    // A key that went on to the views while a video has the screen, and who
+    // has the keys there: said in the log once for each.
+    void noteKeyToViews(const QString &name);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
     bool windowActive() const;
     // The item with the focus takes a coin (see the class's comment).
@@ -581,6 +594,12 @@ private:
     // Keys whose press a wait for a press took (Qt::Key): swallowed until let
     // go, as their repeats would act as what they were just given.
     QSet<int> m_capturedKeys;
+    // setBackTaker()'s, the back keys held that went to the player (Qt::Key:
+    // their repeats and their release go nowhere else), and what
+    // noteKeyToViews() has said.
+    std::function<bool()> m_playerTakesBack;
+    QSet<int> m_backToPlayer;
+    QSet<QString> m_keysToViewsSaid;
     // Cabinet Lock: whether it is on (config.json app.cabinet_lock), its
     // unlock buttons (padInputId()) and their names (app.unlock_buttons).
     bool m_lockOn = false;

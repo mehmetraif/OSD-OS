@@ -1576,6 +1576,87 @@ private slots:
         QCOMPARE(released.count(), 1);
     }
 
+    // Back while a video has the screen (setBackTaker(), as main.cpp gives
+    // it MpvController::takesBack()) goes to the player at once, whichever
+    // view has the keys: Esc and a remote's Back as ESC, Backspace as BS,
+    // once per press, its repeats and its release with it and to no view;
+    // a right click and a pad's button the same. With no video there, back
+    // is the views' as ever, and no other key is taken at any time.
+    void backGoesToThePlayerWhileAVideoHasTheScreen() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        bool video = false;
+        im.setBackTaker([&video] { return video; });
+        // A window that says which keys reached it.
+        struct Window : QWindow {
+            QList<int> pressed, released;
+            void keyPressEvent(QKeyEvent *e) override { pressed << e->key(); }
+            void keyReleaseEvent(QKeyEvent *e) override { released << e->key(); }
+        } window;
+        const auto key = [&window](QEvent::Type type, int qtKey, bool repeat = false) {
+            QKeyEvent event(type, qtKey, Qt::NoModifier, QString(), repeat);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        // No video: back is the views'.
+        for (int back : { int(Qt::Key_Escape), int(Qt::Key_Back), int(Qt::Key_Backspace) }) {
+            key(QEvent::KeyPress, back);
+            key(QEvent::KeyRelease, back);
+        }
+        QCOMPARE(keys.count(), 0);
+        QCOMPARE(window.pressed, QList<int>({ Qt::Key_Escape, Qt::Key_Back, Qt::Key_Backspace }));
+        QCOMPARE(window.released, window.pressed);
+        window.pressed.clear();
+        window.released.clear();
+        // A video has the screen: the player's, and no view's.
+        video = true;
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(the .* key\\) while a video has the screen"));
+        key(QEvent::KeyPress, Qt::Key_Escape);
+        key(QEvent::KeyRelease, Qt::Key_Escape);
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(the .* key\\) while a video has the screen"));
+        key(QEvent::KeyPress, Qt::Key_Back);
+        key(QEvent::KeyRelease, Qt::Key_Back);
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(the .* key\\) while a video has the screen"));
+        key(QEvent::KeyPress, Qt::Key_Backspace);
+        key(QEvent::KeyPress, Qt::Key_Backspace, true);
+        key(QEvent::KeyPress, Qt::Key_Backspace, true);
+        key(QEvent::KeyRelease, Qt::Key_Backspace);
+        QCOMPARE(keysOf(keys), QStringList({ "ESC", "ESC", "BS" }));
+        for (const QList<QVariant> &args : keys)
+            QCOMPARE(args.at(1).toBool(), false);
+        QVERIFY(window.pressed.isEmpty());
+        QVERIFY(window.released.isEmpty());
+        // Any other key is the views' still (its player sends it on), said
+        // once with who has the keys.
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] .* goes to the views while a video has the screen: the keys are with no item"));
+        key(QEvent::KeyPress, Qt::Key_Left);
+        key(QEvent::KeyRelease, Qt::Key_Left);
+        key(QEvent::KeyPress, Qt::Key_Left);
+        key(QEvent::KeyRelease, Qt::Key_Left);
+        QCOMPARE(window.pressed, QList<int>({ Qt::Key_Left, Qt::Key_Left }));
+        QCOMPARE(keys.count(), 3);
+        // A right click, back where nothing else is bound to it.
+        keys.clear();
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(a button\\) while a video has the screen"));
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::RightButton, Qt::RightButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(&window, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(1, 1), QPointF(1, 1), Qt::RightButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(&window, &release);
+        QCOMPARE(keysOf(keys), QStringList({ "ESC" }));
+        // The video gone: a back held through its end is let go for no one,
+        // and the next is the views' again.
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(the .* key\\) while a video has the screen"));
+        key(QEvent::KeyPress, Qt::Key_Escape);
+        video = false;
+        key(QEvent::KeyRelease, Qt::Key_Escape);
+        QVERIFY(window.released.count(Qt::Key_Escape) == 0);
+        window.pressed.clear();
+        key(QEvent::KeyPress, Qt::Key_Escape);
+        QCOMPARE(window.pressed, QList<int>({ Qt::Key_Escape }));
+    }
+
     // A remote's OK, however it comes, is Select / OK: keypad Enter, which
     // most views don't take, and the Select and OK keys (Qt::Key_Select from
     // Qt's own evdev keymap; from libinput's, which has no symbol for them, a

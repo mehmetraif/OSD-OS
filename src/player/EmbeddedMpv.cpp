@@ -776,6 +776,7 @@ bool EmbeddedMpv::start(const QStringList &args) {
 
     m_mpv = mpv;
     m_lastEndReason.clear();
+    m_lastEndError.clear();
     a.setWakeupCallback(mpv, &EmbeddedMpv::onWakeup, this);
 
     // The playlist, mixed (shuffle) and started (playlist-start) as the
@@ -1022,9 +1023,13 @@ void EmbeddedMpv::drainEvents() {
             }
             break;
         }
-        case MPV_EVENT_END_FILE:
-            m_lastEndReason = endReasonName(static_cast<mpv_event_end_file *>(event->data)->reason);
+        case MPV_EVENT_END_FILE: {
+            const auto *end = static_cast<mpv_event_end_file *>(event->data);
+            m_lastEndReason = endReasonName(end->reason);
+            m_lastEndError = end->reason == MPV_END_FILE_REASON_ERROR
+                             ? QString::fromUtf8(api().errorString(end->error)) : QString();
             break;
+        }
         case MPV_EVENT_SHUTDOWN: {
             const QString reason = m_lastEndReason;
             // Gone on a thread of its own, as a replaced core goes: what is

@@ -595,7 +595,15 @@ Window {
     // a player and a page with a poster keep their own. Read as the window is
     // made, before the main menu is, so that it opens laid out as it will
     // stay.
-    property string menuLayout: menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
+    // appCore is gone as the app shuts down, and the binding is read once
+    // more then: the layout stays what it was (layoutRead), rather than
+    // the read failing, or every view being laid out anew on its way out.
+    readonly property var layoutRead: ({ name: "Standard" })
+    property string menuLayout: {
+        if (appCore)
+            layoutRead.name = menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
+        return layoutRead.name
+    }
     // The monitor layouts' colours, whatever the colour scheme: the ground,
     // the text, a row that can't be used, the strips and bars (accent), the
     // text on them and the guide (soft), the cursor's mark or a value being

@@ -466,8 +466,13 @@ private slots:
     // so and take it. Without the connection it comes all the same.
     void backActsAtOnce() {
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        // Nothing playing: back is the views'. A session on its way, and an
+        // mpv process playing: the controller's (takesBack()).
+        QVERIFY(!m_mpv->takesBack());
         play("A");
+        QVERIFY(m_mpv->takesBack());
         QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY(m_mpv->takesBack());
         QLocalServer control;
         const QString path = socketPath();
         QLocalServer::removeServer(path);
@@ -507,6 +512,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(happened("exit B"), 5000);
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 3000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("menu"));
+        // Ended, with its player's menu up: back is the menu's.
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->takesBack(), 3000);
     }
 
     // Transparent Background: back leaves the video playing behind the
@@ -532,9 +539,13 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
         QCOMPARE(m_mpv->videoFrame().size(), QSize(640, 480));
         QVERIFY(!m_mpv->background());
+        // In front of the menus back is the controller's; behind them, the
+        // menus' (takesBack()).
+        QVERIFY(m_mpv->takesBack());
         m_mpv->sendKey(QStringLiteral("ESC"));
         // Before any event is handled.
         QVERIFY(m_mpv->background());
+        QVERIFY(!m_mpv->takesBack());
         QCOMPARE(background.count(), 1);
         QCOMPARE(ended.count(), 1);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("stopped"));
@@ -551,6 +562,31 @@ private slots:
         m_mpv->stopBackground();
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoActive(), 5000);
         QCOMPARE(ended.count(), 1);
+    }
+
+    // Transparent Background: a video whose sound card can't be opened (none
+    // on the machine, as on these tests' runners) plays without sound, and
+    // mpv calls the whole file an error as it ends. Its player is told the
+    // end it had, never that it failed, whether or not the word of it came
+    // over the control connection before the core went.
+    void anEmbeddedVideoWithoutSoundEndsAsItPlayed() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        QVERIFY(core.save_setting(QString(), QStringLiteral("transparent_background"), QStringLiteral("On")));
+        delete m_mpv;
+        m_mpv = new MpvController(m_dir.path(), data.path(), &core);
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        // A second of picture and of sound that mpv makes itself.
+        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:testsrc=size=64x48:rate=10:duration=1[out0];sine=duration=1[out1]"),
+                           0, -1, -1, {}, {}, false, -1, 0, QString(), true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 20000);
+        QVERIFY2(ended.first().at(2).toString() != QLatin1String("failed"), "a video that played was called failed");
+        QVERIFY(m_mpv->lastError().isEmpty());
     }
 
     // Transparent Background: Settings → TV / Movie → Scaling and Video

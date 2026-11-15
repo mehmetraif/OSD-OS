@@ -493,6 +493,9 @@ int main(int argc, char *argv[]) {
     // the QML focus item even when another window (mpv) holds OS focus.
     QQuickWindow *rootWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
     inputManager.setTargetWindow(rootWindow);
+    // Back while a video has the screen is the player's at once, whichever
+    // view has the keys (MpvController::takesBack()).
+    inputManager.setBackTaker([&mpvController] { return mpvController.takesBack(); });
 
     // A child given the screen on a headless Pi (a game, a video, a web
     // player) puts back, as it ends, what it found there: with

@@ -1452,19 +1452,31 @@ void MpvController::releaseKeys() {
 // (their bindings are forced, and they say when they show); otherwise it is
 // acted on here, at once. A keyboard's own Esc to an mpv process still comes
 // the old way.
+//
+// What became of each back is said in the log: it is the one key that leaves
+// a video, and a back that did nothing is otherwise nowhere to be seen.
 void MpvController::backKey(const QString &key) {
     if ((m_oscMenuShown || m_saverShown) && m_ipc->state() == QLocalSocket::ConnectedState) {
+        qInfo("[MpvController] back: to mpv, whose own %s is up", m_saverShown ? "screen saver" : "menu");
         sendCommand({"keypress", key});
         return;
     }
     if (videoActive()) {
         // Behind the menus, or under its player's menu, nothing is left to
         // do for it.
-        if (!m_background)
-            detachToMenus();
+        if (m_background) {
+            qInfo("[MpvController] back: nothing to do, the video is behind the menus already%s",
+                  m_playerMenu ? " (its player's menu is open)" : "");
+            return;
+        }
+        qInfo("[MpvController] back: the video goes behind %s",
+              m_sessionNote.value(QStringLiteral("menu")).toBool() ? "its player's menu" : "the menus");
+        detachToMenus();
         return;
     }
     if ((m_process && m_process->state() != QProcess::NotRunning) || m_launchPending) {
+        qInfo("[MpvController] back: %s%s", m_launchPending ? "the video is not started" : "mpv ends",
+              m_sessionNote.value(QStringLiteral("menu")).toBool() ? ", for its player's menu" : "");
         backFromProcess();
         return;
     }
@@ -1922,6 +1934,12 @@ bool MpvController::videoActive() const {
     return m_embedded && m_embedded->running();
 }
 
+bool MpvController::takesBack() const {
+    if (m_launchPending || (m_process && m_process->state() != QProcess::NotRunning))
+        return true;
+    return videoActive() && !m_background;
+}
+
 QImage MpvController::videoFrame() const {
     return m_embedded ? m_embedded->frame() : QImage();
 }
@@ -2124,6 +2142,11 @@ void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
     // menus; not so a player with its menu open over it.
     if (wasBackground && !wasMenu)
         return;
+    // Why mpv called the end an error, from the core itself: the same word
+    // over the control connection may not have been read as the core went,
+    // and a video that only played without sound was then called failed.
+    if (lastEndReason == QLatin1String("error") && m_lastEndFileError.isEmpty() && m_embedded)
+        m_lastEndFileError = m_embedded->lastEndError();
     // The same reasons as a process's: a file mpv couldn't play is "failed",
     // the playlist played out "eof", anything else (quit) "stopped".
     QString reason;
