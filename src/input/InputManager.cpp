@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QInputMethodQueryEvent>
+#include <QQmlContext>
+#include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QKeyEvent>
@@ -2839,10 +2841,39 @@ void InputManager::releaseHeld(const QString &source) {
 // When mpv isn't running either, sendKey is a no-op, so background presses
 // while the user is in another app do nothing — same as keyboard.
 void InputManager::deliverPress(Action a, bool autoRepeat) {
-    if (windowActive())
+    // Back while a video has the screen: the player's, whatever the window
+    // and its views are doing (setBackTaker()).
+    const bool players = a == Action::Back && backIsThePlayers(QStringLiteral("a button"));
+    if (windowActive() && !players)
         postKey(qtKeyForAction(a), QEvent::KeyPress, autoRepeat);
     else
         emit mpvKeyRequested(mpvKeyForAction(a), autoRepeat);
+}
+
+void InputManager::setBackTaker(std::function<bool()> takes) {
+    m_playerTakesBack = std::move(takes);
+}
+
+bool InputManager::backIsThePlayers(const QString &from) {
+    if (!m_playerTakesBack || !m_playerTakesBack())
+        return false;
+    qInfo("[input] back (%s) while a video has the screen: to its player", qPrintable(from));
+    return true;
+}
+
+void InputManager::noteKeyToViews(const QString &name) {
+    QString holder = QStringLiteral("no item");
+    if (const QQuickItem *item = m_window ? m_window->activeFocusItem() : nullptr) {
+        holder = QString::fromLatin1(item->metaObject()->className());
+        if (const QQmlContext *context = qmlContext(item))
+            holder += QStringLiteral(" of ") + context->baseUrl().fileName();
+    }
+    const QString said = name + QLatin1Char('|') + holder;
+    if (m_keysToViewsSaid.contains(said))
+        return;
+    m_keysToViewsSaid.insert(said);
+    qInfo("[input] %s goes to the views while a video has the screen: the keys are with %s",
+          qPrintable(name), qPrintable(holder));
 }
 
 // A key that stood for an action (eventFilter()) let go: the action's key is
@@ -3259,6 +3290,27 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         }
     }
 
+    // Back while a video has the screen (setBackTaker()): the player's at
+    // once, as the media keys below are, with its repeats and its release.
+    // By way of the view that has the keys it was the one key that could be
+    // lost with no way left out of the video. A key bound to something else
+    // went that way above.
+    if (!synthetic && defaultKeyAction(id) == Action::Back) {
+        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
+            if (backIsThePlayers(QStringLiteral("the ") + keyDisplayName(id) + QStringLiteral(" key"))) {
+                m_backToPlayer.insert(ke->key());
+                emit mpvKeyRequested(ke->key() == Qt::Key_Backspace ? QStringLiteral("BS") : QStringLiteral("ESC"),
+                                     false);
+                return true;
+            }
+            m_backToPlayer.remove(ke->key());
+        } else if (m_backToPlayer.contains(ke->key())) {
+            if (type == QEvent::KeyRelease && !ke->isAutoRepeat())
+                m_backToPlayer.remove(ke->key());
+            return true;
+        }
+    }
+
 #ifdef Q_OS_LINUX
     // A key libinput's keymap has no symbol for, known by its scan code (the
     // code plus 8): a remote's channel keys from its keyboard node, delivered
@@ -3295,6 +3347,12 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         }
         return true;
     }
+    // On to the views. While a video has the screen, which key and who has
+    // the keys there is worth a line (once each): its player, or the key is
+    // lost.
+    if (!synthetic && type == QEvent::KeyPress && !ke->isAutoRepeat() && obj && obj->isWindowType()
+            && m_playerTakesBack && m_playerTakesBack())
+        noteKeyToViews(keyDisplayName(id));
     return false;
 }
 

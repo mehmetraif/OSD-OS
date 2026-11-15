@@ -466,8 +466,13 @@ private slots:
     // so and take it. Without the connection it comes all the same.
     void backActsAtOnce() {
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        // Nothing playing: back is the views'. A session on its way, and an
+        // mpv process playing: the controller's (takesBack()).
+        QVERIFY(!m_mpv->takesBack());
         play("A");
+        QVERIFY(m_mpv->takesBack());
         QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY(m_mpv->takesBack());
         QLocalServer control;
         const QString path = socketPath();
         QLocalServer::removeServer(path);
@@ -507,6 +512,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(happened("exit B"), 5000);
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 3000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("menu"));
+        // Ended, with its player's menu up: back is the menu's.
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->takesBack(), 3000);
     }
 
     // Transparent Background: back leaves the video playing behind the
@@ -532,9 +539,13 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
         QCOMPARE(m_mpv->videoFrame().size(), QSize(640, 480));
         QVERIFY(!m_mpv->background());
+        // In front of the menus back is the controller's; behind them, the
+        // menus' (takesBack()).
+        QVERIFY(m_mpv->takesBack());
         m_mpv->sendKey(QStringLiteral("ESC"));
         // Before any event is handled.
         QVERIFY(m_mpv->background());
+        QVERIFY(!m_mpv->takesBack());
         QCOMPARE(background.count(), 1);
         QCOMPARE(ended.count(), 1);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("stopped"));
