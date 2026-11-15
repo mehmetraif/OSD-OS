@@ -4298,8 +4298,9 @@ bool ArcadeBackend::askForPorts() {
     }
     const QHostAddress host(m_pendingJoin->host);
     // Asking afresh: what is left of the answers to an earlier join (a
-    // second answer never read) isn't this one's.
-    if (m_pendingJoin->asked == 0) {
+    // second answer never read) isn't this one's. A socket not bound yet
+    // (the first join) has none, and Qt warns of being asked.
+    if (m_pendingJoin->asked == 0 && m_claimAsk->state() == QAbstractSocket::BoundState) {
         while (m_claimAsk->hasPendingDatagrams())
             m_claimAsk->receiveDatagram(0);
     }
