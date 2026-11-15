@@ -757,46 +757,15 @@ Item {
                                             readonly property bool before: row.index === 0 && arcadeScreen.page > 0
                                             readonly property bool after: row.index === arcadeScreen.perPage - 1
                                                                           && arcadeScreen.page < arcadeScreen.pages - 1
-                                            Item {
-                                                id: nameClip
+                                            ScrolledLetters {
                                                 x: 10
                                                 width: (mark.visible ? mark.x - 8 : (arrow.visible ? arrow.x - 8 : rowSheet.w - 8)) - x
                                                 height: rowSheet.h
-                                                clip: true
-                                                Letters {
-                                                    id: nameText
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    width: row.on ? implicitWidth : Math.min(implicitWidth, nameClip.width)
-                                                    text: row.game.name || ""
-                                                    elide: Text.ElideRight
-                                                    color: rowSheet.ink
-                                                    font.pixelSize: arcadeScreen.nameLines
-                                                    onTextChanged: Qt.callLater(nameClip.updateScroll)
-                                                }
-                                                readonly property bool scrolls: row.on && !look.resting && nameText.implicitWidth > width
-                                                readonly property real scrollBy: width - nameText.implicitWidth
-                                                onScrollsChanged: Qt.callLater(updateScroll)
-                                                onScrollByChanged: Qt.callLater(updateScroll)
-                                                function updateScroll() {
-                                                    if (scrolls)
-                                                        scroll.restart()
-                                                    else
-                                                        scroll.stop()
-                                                }
-                                                SequentialAnimation {
-                                                    id: scroll
-                                                    loops: Animation.Infinite
-                                                    onRunningChanged: if (!running) nameText.x = 0
-                                                    PauseAnimation { duration: 1500 }
-                                                    NumberAnimation {
-                                                        target: nameText
-                                                        property: "x"
-                                                        to: nameClip.scrollBy
-                                                        duration: Math.abs(to) * 20
-                                                    }
-                                                    PauseAnimation { duration: 2000 }
-                                                    PropertyAction { target: nameText; property: "x"; value: 0 }
-                                                }
+                                                on: row.on
+                                                resting: look.resting
+                                                text: row.game.name || ""
+                                                color: rowSheet.ink
+                                                pixelSize: arcadeScreen.nameLines
                                             }
                                             PixelIcon {
                                                 id: mark
@@ -826,7 +795,8 @@ Item {
                                 }
                             }
 
-                            // The tab's letters: the filter's name, ◄ ► where
+                            // The tab's letters: the filter's name, scrolled
+                            // through while it is too long for the tab, ◄ ► where
                             // there are others, and the page of so many (on
                             // Search, how many games its words find); under
                             // the tab, where a filter has nothing, why.
@@ -847,17 +817,15 @@ Item {
                                         text: "◄"
                                         color: look.glow
                                     }
-                                    Letters {
+                                    ScrolledLetters {
                                         x: 50
-                                        anchors.verticalCenter: parent.verticalCenter
                                         width: pageText.x - 12 - x
+                                        height: tab.h
+                                        on: true
+                                        resting: look.resting
                                         text: arcadeScreen.filter ? arcadeScreen.filter.name : ""
-                                        elide: Text.ElideRight
-                                        font.pixelSize: arcadeScreen.nameLines
-                                        // Smaller, down to the hint bar's
-                                        // smallest, before it is cut short.
-                                        fontSizeMode: Text.HorizontalFit
-                                        minimumPixelSize: 21
+                                        color: look.letters
+                                        pixelSize: arcadeScreen.nameLines
                                     }
                                     Letters {
                                         id: pageText

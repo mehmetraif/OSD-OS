@@ -2403,6 +2403,18 @@ void InputManager::readNode(Node *node) {
 
         const Action a = keyActionOn(node->key, extendedId);
         if (a == Action::None) {
+            // A remote's volume keys: a step of the player's volume at each
+            // press, however long the key seems held. Such a node's release
+            // can come late, or not until the next key (a radio remote's
+            // lost report), and a key held for its repeats (eventFilter())
+            // then ran the volume to its end from one press. Qt's copy of
+            // the press, its repeats and its release go no further.
+            const QString volume = volumeKeyForEvdev(ev.code);
+            if (!volume.isEmpty()) {
+                m_consumerTaken.pressed(node->key, ev.code, m_clock.elapsed());
+                emit mpvKeyRequested(volume, false);
+                continue;
+            }
             // A button no action takes goes to the views as the key it is,
             // where they act on one (the channel keys, which Qt's keymap has
             // no key for): once per press, with its release, and Qt's copy,
@@ -2435,6 +2447,16 @@ int InputManager::qtKeyForEvdev(int linuxCode) {
     case KEY_PAGEUP:      return Qt::Key_PageUp;
     case KEY_PAGEDOWN:    return Qt::Key_PageDown;
     default:              return 0;
+    }
+}
+
+// A Consumer Control node's volume keys, as mpv's names for them
+// (mpvKeyForMediaEvent()'s): readNode() steps the volume once per press.
+QString InputManager::volumeKeyForEvdev(int linuxCode) {
+    switch (linuxCode) {
+    case KEY_VOLUMEUP:   return QStringLiteral("VOLUME_UP");
+    case KEY_VOLUMEDOWN: return QStringLiteral("VOLUME_DOWN");
+    default:             return QString();
     }
 }
 
@@ -3331,6 +3353,8 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     // never reach us — mpv binds the same names natively.
     const QString mediaKey = mpvKeyForMediaEvent(ke);
     if (!mediaKey.isEmpty()) {
+        // A keyboard's volume keys (a remote's Consumer Control node's are
+        // stepped once per press, readNode()).
         // A held volume key's repeats hold the key down in mpv, which turns
         // the volume at its own pace until the key is let go
         // (MpvController::sendKey): sent as presses, as the keyboard repeats

@@ -1831,6 +1831,78 @@ private slots:
         QTRY_VERIFY(entry(im, "Remote Consumer Control").value("present").toBool() == false);
     }
 
+    // A remote's volume keys, from its Consumer Control node: a step of the
+    // volume at each press, and nothing more however long the key seems
+    // held. Such a remote's release can go missing, and Qt, which has the
+    // key too, then repeats it for good: held in mpv for those repeats, one
+    // press ran the volume to its end. Qt's copy of the press, its repeats
+    // and its release go no further. A keyboard's volume key, which no node
+    // took, is still held for its repeats and let go with its release.
+    void remoteVolumeKeysStepOncePerPress() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QSignalSpy released(&im, &InputManager::mpvKeysReleased);
+        QQuickWindow window;
+        im.setTargetWindow(&window);
+        int fds[2];
+        QVERIFY(::pipe2(fds, O_NONBLOCK | O_CLOEXEC) == 0);
+        im.adoptNodeForTest(fds[0], "Remote Consumer Control");
+        const auto button = [&fds](int code, int value) {
+            struct input_event ev = {};
+            ev.type = EV_KEY;
+            ev.code = code;
+            ev.value = value;
+            return ::write(fds[1], &ev, sizeof(ev)) == ssize_t(sizeof(ev));
+        };
+        // Qt's copy of a key, by its scan code (the code plus 8).
+        const auto qtKey = [&window](QEvent::Type type, int key, int code, bool repeat = false) {
+            QKeyEvent event(type, key, Qt::NoModifier, code + 8, 0, 0, QString(), repeat);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        // Each row of the spy: the key, and whether it is held for a repeat.
+        const auto sent = [&keys] {
+            QStringList all;
+            for (const QList<QVariant> &args : keys)
+                all << args.at(0).toString() + (args.at(1).toBool() ? QStringLiteral(" held") : QString());
+            return all;
+        };
+
+        // A press whose release never comes: one step, and Qt's repeats of
+        // it are nothing.
+        QVERIFY(button(KEY_VOLUMEUP, 1));
+        QTRY_COMPARE(sent(), QStringList({ "VOLUME_UP" }));
+        qtKey(QEvent::KeyPress, Qt::Key_VolumeUp, KEY_VOLUMEUP);
+        for (int i = 0; i < 5; ++i)
+            qtKey(QEvent::KeyPress, Qt::Key_VolumeUp, KEY_VOLUMEUP, true);
+        QCOMPARE(sent(), QStringList({ "VOLUME_UP" }));
+        // Pressed again, the release still missing: one step more.
+        QVERIFY(button(KEY_VOLUMEUP, 1));
+        QTRY_COMPARE(sent(), QStringList({ "VOLUME_UP", "VOLUME_UP" }));
+        qtKey(QEvent::KeyPress, Qt::Key_VolumeUp, KEY_VOLUMEUP);
+        qtKey(QEvent::KeyPress, Qt::Key_VolumeUp, KEY_VOLUMEUP, true);
+        // Let go at last: nothing was held in mpv, so nothing is let go.
+        QVERIFY(button(KEY_VOLUMEUP, 0));
+        qtKey(QEvent::KeyRelease, Qt::Key_VolumeUp, KEY_VOLUMEUP);
+        QVERIFY(button(KEY_VOLUMEDOWN, 1));
+        QTRY_COMPARE(sent(), QStringList({ "VOLUME_UP", "VOLUME_UP", "VOLUME_DOWN" }));
+        qtKey(QEvent::KeyPress, Qt::Key_VolumeDown, KEY_VOLUMEDOWN);
+        QVERIFY(button(KEY_VOLUMEDOWN, 0));
+        qtKey(QEvent::KeyRelease, Qt::Key_VolumeDown, KEY_VOLUMEDOWN);
+        QTest::qWait(50);
+        QCOMPARE(sent(), QStringList({ "VOLUME_UP", "VOLUME_UP", "VOLUME_DOWN" }));
+        QCOMPARE(released.size(), 0);
+
+        // A keyboard's own volume key, which no node read: held as before.
+        keys.clear();
+        qtKey(QEvent::KeyPress, Qt::Key_VolumeUp, KEY_VOLUMEUP);
+        qtKey(QEvent::KeyPress, Qt::Key_VolumeUp, KEY_VOLUMEUP, true);
+        qtKey(QEvent::KeyRelease, Qt::Key_VolumeUp, KEY_VOLUMEUP);
+        QCOMPARE(sent(), QStringList({ "VOLUME_UP", "VOLUME_UP held" }));
+        QCOMPARE(released.size(), 1);
+        ::close(fds[1]);
+    }
+
     // The same keys from a remote's keyboard node reach Qt itself, as a key
     // of 0 known by its scan code (libinput's keymap has no symbol for the
     // channel keys): delivered as the keys they are, held as held, and let

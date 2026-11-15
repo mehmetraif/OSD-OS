@@ -676,28 +676,29 @@ export class OrbLook {
                     drawText(ctx, arrow, arrowX, (ROW_H - lineHeight(24)) / 2, 24, css(on ? rowInk : glow));
             });
         });
-        // The tab's letters: the filter's name, ◄ ► where there are others,
-        // and the page of so many (on Search, how many games its words find).
+        // The tab's letters: the filter's name, scrolled through while it is
+        // too long for the tab (from when it came there), ◄ ► where there
+        // are others, and the page of so many (on Search, how many games its
+        // words find).
         {
             const w = PANEL_W, h = PANEL.tabBottom - PANEL.top;
             const arrows = ARCADE_FILTERS.length > 1;
             const right = (onSearch ? `${count - 1} Found` : count === 0 ? "" : `${page + 1}/${pages}`).toUpperCase();
             const label = filter.name.toUpperCase();
-            sheet("tab", node(listPanel, { y: PANEL_H / 2 - h / 2, z: 20 }), w, h, 1, `${label}|${right}|${letters}|${glow}`, ctx => {
+            if (!this.tabName || this.tabName.label !== label)
+                this.tabName = { label, since: now };
+            const rightX = w - (arrows ? 50 : 20) - measure(this.measurer, TEXT, right);
+            const room = rightX - 12 - 50;
+            const full = measure(this.measurer, NAME, label);
+            const by = full > room ? Math.round(scrollOffset(now - this.tabName.since, room - full) * SHEET_SCALE) / SHEET_SCALE : 0;
+            sheet("tab", node(listPanel, { y: PANEL_H / 2 - h / 2, z: 20 }), w, h, 1, `${label}|${right}|${by}|${letters}|${glow}`, ctx => {
                 const middle = size => (h - lineHeight(size)) / 2;
-                const rightX = w - (arrows ? 50 : 20) - measure(ctx, TEXT, right);
                 if (arrows) {
                     drawText(ctx, "◄", 18, middle(TEXT), TEXT, css(glow));
                     drawText(ctx, "►", w - 20 - measure(ctx, TEXT, "►"), middle(TEXT), TEXT, css(glow));
                 }
                 drawText(ctx, right, rightX, middle(TEXT), TEXT, css(letters));
-                // Smaller, down to the hint bar's smallest, before it is cut
-                // short.
-                const room = rightX - 12 - 50;
-                let size = NAME;
-                while (size > 21 && measure(ctx, size, label) > room)
-                    --size;
-                drawText(ctx, elided(ctx, size, label, room), 50, middle(size), size, css(letters));
+                clipped(ctx, 50, 0, room, h, () => drawText(ctx, label, 50 + by, middle(NAME), NAME, css(letters)));
             });
         }
         // Under Search's own row, that its words find no game.

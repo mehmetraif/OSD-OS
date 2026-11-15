@@ -408,6 +408,7 @@ private:
     void drainNodes();
     void closeNode(Node *node);
     static int qtKeyForEvdev(int linuxCode);
+    static QString volumeKeyForEvdev(int linuxCode);
 #endif
     static QString evdevKeyName(int linuxCode);
     static QString mouseButtonName(int qtButton);

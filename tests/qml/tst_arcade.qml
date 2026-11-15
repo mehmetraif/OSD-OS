@@ -3902,5 +3902,53 @@ Rectangle {
             compare(screen.selected, 1)
             compare(screen.selectedRow, 1)
         }
+
+        // The Orb look's letters (ScrolledLetters.qml: a selected game's name
+        // in its bar, the list's name on its tab), without the look, which
+        // needs Qt Quick 3D. On and too long for their room they are whole,
+        // not cut, and scrolled through after a pause, no further than their
+        // end; not on they are cut short with the dots and stand still, as
+        // do letters that fit; resting they are back at their start; and a
+        // name put in their place starts from its own.
+        function test_orbLettersScroll() {
+            var component = Qt.createComponent(Qt.resolvedUrl("../../modules/arcade/views/ScrolledLetters.qml"))
+            compare(component.status, Component.Ready, component.errorString())
+            var longName = "Shooter / Flying Vertical and Sideways At Once"
+            var title = createTemporaryObject(component, root, { width: 120, height: 40, on: true, text: longName, pixelSize: 36 })
+            var row = createTemporaryObject(component, root, { y: 50, width: 120, height: 40, text: longName, pixelSize: 27 })
+            var fits = createTemporaryObject(component, root, { y: 100, width: 400, height: 40, on: true, text: "Fits" })
+            verify(title !== null && row !== null && fits !== null)
+            compare(title.pixelSize, 36)
+            tryVerify(function() { return title.scrolls })
+            verify(title.scrollBy < 0)
+            verify(!title.cut)
+            compare(title.offset, 0)
+            tryVerify(function() { return title.offset < -5 }, 4000, "scrolled after its pause")
+            verify(title.offset >= title.scrollBy - 0.5)
+            verify(!row.scrolls)
+            verify(row.cut)
+            compare(row.offset, 0)
+            verify(!fits.scrolls)
+            verify(!fits.cut)
+            compare(fits.offset, 0)
+            title.resting = true
+            tryCompare(title, "offset", 0)
+            verify(!title.scrolls)
+            title.resting = false
+            tryVerify(function() { return title.scrolls })
+            title.text = "Fits"
+            tryVerify(function() { return !title.scrolls })
+            compare(title.offset, 0)
+            title.text = "Another Very Long Name Of A List Indeed"
+            tryVerify(function() { return title.scrolls })
+            compare(title.offset, 0)
+            tryVerify(function() { return title.offset < -5 }, 4000, "the new name scrolled from its start")
+            // Selected, a row's name is whole and scrolled; let go of, cut.
+            row.on = true
+            tryVerify(function() { return row.scrolls && !row.cut })
+            row.on = false
+            tryVerify(function() { return !row.scrolls && row.cut })
+            compare(row.offset, 0)
+        }
     }
 }
