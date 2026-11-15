@@ -2124,6 +2124,11 @@ void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
     // menus; not so a player with its menu open over it.
     if (wasBackground && !wasMenu)
         return;
+    // Why mpv called the end an error, from the core itself: the same word
+    // over the control connection may not have been read as the core went,
+    // and a video that only played without sound was then called failed.
+    if (lastEndReason == QLatin1String("error") && m_lastEndFileError.isEmpty() && m_embedded)
+        m_lastEndFileError = m_embedded->lastEndError();
     // The same reasons as a process's: a file mpv couldn't play is "failed",
     // the playlist played out "eof", anything else (quit) "stopped".
     QString reason;

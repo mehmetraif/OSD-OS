@@ -553,6 +553,31 @@ private slots:
         QCOMPARE(ended.count(), 1);
     }
 
+    // Transparent Background: a video whose sound card can't be opened (none
+    // on the machine, as on these tests' runners) plays without sound, and
+    // mpv calls the whole file an error as it ends. Its player is told the
+    // end it had, never that it failed, whether or not the word of it came
+    // over the control connection before the core went.
+    void anEmbeddedVideoWithoutSoundEndsAsItPlayed() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        QVERIFY(core.save_setting(QString(), QStringLiteral("transparent_background"), QStringLiteral("On")));
+        delete m_mpv;
+        m_mpv = new MpvController(m_dir.path(), data.path(), &core);
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        // A second of picture and of sound that mpv makes itself.
+        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:testsrc=size=64x48:rate=10:duration=1[out0];sine=duration=1[out1]"),
+                           0, -1, -1, {}, {}, false, -1, 0, QString(), true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 20000);
+        QVERIFY2(ended.first().at(2).toString() != QLatin1String("failed"), "a video that played was called failed");
+        QVERIFY(m_mpv->lastError().isEmpty());
+    }
+
     // Transparent Background: Settings → TV / Movie → Scaling and Video
     // Levels reach a video playing behind the menus at once, as a session
     // starts with them (mpv asked what it has over its own socket, as another
