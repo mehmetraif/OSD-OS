@@ -227,3 +227,24 @@ for (const button of document.querySelectorAll(".command .copy")) {
         timer = setTimeout(() => { button.textContent = "Copy"; }, 2000);
     });
 }
+
+// --- What comes up as it nears the screen (style.css's .rise): a section's
+// opening, a screen, a card, each once. Nothing in a tab's panel, which is
+// hidden until its tab is chosen and would stay unseen. Not for a visitor
+// who asked for less motion, nor where the browser can't say what is near.
+if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const rising = document.querySelectorAll(".section-intro, .screen-demo, .feature-list article, .needs li, "
+        + ".together-specs, .theme-buttons, .theme-monitor, .hardware-tabs, .steps article, .faq details, .closing");
+    const watcher = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting)
+                continue;
+            entry.target.classList.add("risen");
+            watcher.unobserve(entry.target);
+        }
+    }, { rootMargin: "0px 0px -8% 0px" });
+    for (const item of rising) {
+        item.classList.add("rise");
+        watcher.observe(item);
+    }
+}

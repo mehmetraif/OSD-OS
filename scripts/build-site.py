@@ -441,6 +441,16 @@ def copy_fonts(folder):
     shutil.copy2(ROOT / "assets/fonts/LICENSE-vcr-osd-mono.txt", folder / "fonts")
 
 
+def logo_on_the_page(svg):
+    """The logo for the landing page: without its own blue ground, the first
+    rect, so that it lies on the page's, in the bar the page shows through
+    and at the page's foot, with no box round it."""
+    bare, found = re.subn(r'<rect width="440" height="150"[^>]*/>\n?', "", svg, count=1)
+    if not found:
+        raise SystemExit("build-site: the logo's ground isn't where it was (docs/images/osdos-logo.svg)")
+    return bare
+
+
 def write_icons(folder, logo=True):
     """The tab's icon, OSD/OS's own, in the sizes a browser picks from (the
     app's window's, assets/images/app-icon), and the app's logo where the
@@ -540,8 +550,9 @@ def main():
     recordings = sorted(p for ext in RECORDINGS for p in IMAGES.glob(f"theme-*{ext}"))
     for path in sorted((SITE / "assets").glob("*.png")) + recordings:
         shutil.copy2(path, out / "assets" / path.name)
-    for name in ("tour.mp4", "osdos-on-a-crt.jpg", "osdos-logo.svg"):
+    for name in ("tour.mp4", "osdos-on-a-crt.jpg"):
         shutil.copy2(IMAGES / name, out / "assets" / name)
+    (out / "assets/osdos-logo.svg").write_text(logo_on_the_page((IMAGES / "osdos-logo.svg").read_text()))
     shutil.copy2(SCREENSHOTS / "arcade-list-3d-curved.png", out / "assets/arcade-screen.png")
     shutil.copy2(SCREENSHOTS / "arcade-screen-lan.png", out / "assets/arcade-lan.png")
     (out / "themes.json").write_text(json.dumps(landing_themes(data["looks"]), indent=1, ensure_ascii=False) + "\n")

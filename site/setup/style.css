@@ -1,6 +1,10 @@
-/* OSD/OS Setup, in the look of OSD/OS's own menus: Video 1's blue and white,
-   the deck's letters (VCR OSD Mono), a title bar, headings with a rule to the
-   line's end, and lines of label, dots and value. */
+/* OSD/OS Setup, in the landing page's look and the app's own menus': Video
+   1's blue lit from behind and deepening down the page, a bar that stays on
+   top, each part of the form a card, and in a card a menu's own lines of
+   label, dots and value, with headings ruled to the line's end. Titles,
+   labels, values and buttons are in the deck's letters (VCR OSD Mono); what
+   is read at length, the opening and each line's help, in the system's own
+   face. */
 @font-face {
     font-family: "VCR OSD Mono";
     src: url("fonts/VCR_OSD_MONO_1.001.ttf") format("truetype");
@@ -16,6 +20,21 @@
     --warn: #FFD900;
     --error: #FF8A80;
     --px: 2px;
+    /* A card's ground and its hairline, a darker ground, a soft shadow. */
+    --card: rgba(255, 255, 255, 0.055);
+    --card-lit: rgba(255, 255, 255, 0.095);
+    --card-line: rgba(255, 255, 255, 0.22);
+    --well: rgba(0, 4, 78, 0.6);
+    --glow: rgba(120, 150, 255, 0.45);
+    --drop: rgba(0, 0, 60, 0.5);
+    --deck: "VCR OSD Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+    --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* The form's column, what it keeps clear at each side, and the live
+       preview's width with its border: beside the form on a wide screen. */
+    --form: 960px;
+    --side: 24px;
+    --screen: calc(640px + 2 * var(--px));
+    --bar: 64px;
     color-scheme: dark;
 }
 
@@ -25,10 +44,30 @@ html, body {
     margin: 0;
     background: var(--surface);
     color: var(--primary);
-    font-family: "VCR OSD Mono", ui-monospace, "DejaVu Sans Mono", monospace;
-    font-size: 18px;
-    line-height: 1.35;
+    font-family: var(--text);
+    font-size: 16px;
+    line-height: 1.6;
 }
+html { scroll-padding-top: calc(var(--bar) + 20px); }
+body { -webkit-font-smoothing: antialiased; }
+/* The ground, fixed behind the page, as the landing page's: light from
+   behind, the blue deepening towards the foot, and a tube's lines. */
+body::before, body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+}
+body::before {
+    background:
+        radial-gradient(900px 640px at calc(50% + 360px) 8%, rgba(90, 120, 255, 0.55), transparent 68%),
+        linear-gradient(180deg, #0110c5 0, #010da8 55%, #010a8c 100%);
+}
+body::after { background: repeating-linear-gradient(0deg, rgba(0, 0, 40, 0.14) 0 1px, transparent 1px 3px); }
+/* The deck's letters: what names a thing or is pressed. */
+h1, h2, h3, summary, button, .button, label, .label, .step, .kind-name, .tab, .pick, .state,
+input, select, textarea, .card-art { font-family: var(--deck); }
 
 a { color: var(--accent); }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
@@ -37,22 +76,34 @@ summary:focus-visible {
     outline-offset: 2px;
 }
 
+/* Room at the foot for the bar of actions, which stays over the page's end. */
 main {
-    max-width: 880px;
+    max-width: calc(var(--form) + 2 * var(--side));
     margin: 0 auto;
-    padding: 32px 16px 64px;
+    padding: 36px var(--side) 150px;
 }
 
-/* --- The title bar: the cassette, then the title, as AppBar draws it. --- */
+/* --- The title bar: the cassette, then the title, as AppBar draws it, in a
+   bar that stays on top, the page showing through it blurred; its ends are
+   the form's. --- */
 .appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     display: flex;
-    align-items: stretch;
-    gap: 6px;
-    min-height: 44px;
-    margin-bottom: 20px;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--bar);
+    padding: 10px max(var(--side), calc((100% - var(--form)) / 2));
+    background: rgba(1, 16, 197, 0.84);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--card-line);
 }
 .appbar .icon {
-    width: 64px;
+    width: 56px;
+    height: 38px;
+    border-radius: 8px;
     background: var(--primary);
     display: grid;
     place-items: center;
@@ -67,38 +118,41 @@ main {
 .appbar h1 {
     flex: 1;
     margin: 0;
-    background: var(--primary);
-    color: var(--surface);
-    font-size: 26px;
+    font-size: 22px;
     font-weight: normal;
-    padding: 0 12px;
     display: flex;
     align-items: center;
     gap: 14px;
     letter-spacing: 1px;
 }
 .appbar h1 small {
-    font-size: 15px;
-    border-left: var(--px) solid var(--surface);
-    padding-left: 12px;
+    font-size: 13px;
+    color: var(--secondary);
+    border-left: 1px solid var(--card-line);
+    padding-left: 14px;
 }
 /* Back to the website, and to the repository, at the bar's end. */
 .appbar .home,
 .appbar .repo {
     display: flex;
     align-items: center;
-    padding: 0 12px;
-    background: var(--primary);
-    color: var(--surface);
-    font-size: 15px;
+    height: 38px;
+    padding: 0 14px;
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 8px;
+    color: var(--primary);
+    font-family: var(--deck);
+    font-size: 13px;
     letter-spacing: 1px;
     text-decoration: none;
     white-space: nowrap;
+    transition: background 0.15s;
 }
 .appbar .home:hover,
-.appbar .repo:hover { text-decoration: underline; }
+.appbar .repo:hover { background: var(--card-lit); }
 @media (max-width: 480px) {
-    .appbar h1 { font-size: 20px; }
+    .appbar h1 { font-size: 18px; }
     .appbar h1 small { display: none; }
     .appbar .home span { display: none; }
     /* The repository's link stays in the text below the bar. */
@@ -109,59 +163,85 @@ main {
    pixel icons, then the details. --- */
 .icon-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .pixel-icon { fill: currentColor; shape-rendering: crispEdges; }
-.intro p { margin: 0 0 10px; }
-.intro .lead { font-size: 20px; margin-bottom: 16px; }
+.intro { margin-bottom: 34px; }
+.intro p { max-width: 820px; margin: 0 0 12px; color: var(--secondary); }
+.intro p strong { color: var(--primary); }
+.intro .lead { max-width: 860px; font-size: 21px; line-height: 1.5; color: var(--primary); margin-bottom: 26px; }
 .howto {
     list-style: none;
-    margin: 0 0 18px;
+    margin: 0 0 26px;
     padding: 0;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: 16px;
 }
 .howto li {
     display: flex;
-    gap: 12px;
+    gap: 14px;
     align-items: flex-start;
-    padding: 12px;
-    border: var(--px) solid var(--primary);
+    padding: 20px;
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 14px;
 }
 .howto .pixel-icon { flex: none; width: 32px; height: 32px; }
-.howto .step { display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
-.howto .what { display: block; font-size: 15px; line-height: 1.35; color: var(--secondary); }
+.howto .step { display: block; margin-bottom: 6px; font-size: 18px; line-height: 1.3; text-transform: uppercase; letter-spacing: 1px; }
+.howto .what { display: block; font-size: 14px; line-height: 1.5; color: var(--secondary); }
 .note { color: var(--secondary); }
 
-/* --- The import and export bar. --- */
+/* --- The import and export bar: over the page's foot, in reach wherever the
+   form has got to; what it last did is said over it (.status). --- */
 .toolbar {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    z-index: 30;
+    transform: translateX(-50%);
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 18px 0 26px;
+    gap: 8px;
+    max-width: calc(100% - 2 * var(--side));
+    padding: 10px;
+    background: rgba(0, 6, 110, 0.8);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 50, 0.6);
 }
+.toolbar button { white-space: nowrap; }
 button, .button {
-    font: inherit;
-    font-size: 16px;
+    font-size: 14px;
+    line-height: 1.35;
     color: var(--surface);
     background: var(--primary);
-    border: 0;
-    padding: 6px 12px;
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+    padding: 9px 14px;
     cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 1px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 button.secondary {
     color: var(--primary);
-    background: transparent;
-    border: var(--px) solid var(--primary);
+    background: var(--card);
+    border-color: var(--card-line);
 }
-button:hover { background: var(--accent); color: var(--surface); }
+button:hover { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 button:disabled { opacity: 0.5; cursor: default; }
 
-/* --- A section: a heading with a rule to the line's end. --- */
-section { margin: 0 0 30px; }
+/* --- A section: a card, its heading with a rule to the line's end. --- */
+section { margin: 0 0 18px; }
+#form > section, main > section:not(.intro) {
+    padding: 24px 26px;
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 16px;
+}
 section > h2, details > summary {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: normal;
+    line-height: 1.35;
     margin: 0 0 8px;
     display: flex;
     align-items: center;
@@ -172,7 +252,7 @@ section > h2, details > summary {
 section > h2::after, details > summary::after {
     content: "";
     flex: 1;
-    border-bottom: var(--px) solid var(--primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
 }
 details > summary {
     cursor: pointer;
@@ -183,15 +263,19 @@ details > summary {
 details > summary::-webkit-details-marker { display: none; }
 details > summary::before { content: "►"; font-size: 13px; }
 details[open] > summary::before { content: "▼"; }
-.section-help { color: var(--secondary); margin: 0 0 10px; font-size: 16px; }
+.section-help { color: var(--secondary); margin: 0 0 14px; font-size: 15px; }
 
 /* --- A line: the label, dots, then the value against the line's end. --- */
 .row {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 36px;
-    padding: 2px 6px;
+    min-height: 40px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    font-family: var(--deck);
+    font-size: 17px;
+    line-height: 1.35;
 }
 .row > label, .row > .label {
     text-transform: uppercase;
@@ -201,7 +285,7 @@ details[open] > summary::before { content: "▼"; }
     flex: 1;
     min-width: 16px;
     align-self: center;
-    border-bottom: var(--px) dotted var(--primary);
+    border-bottom: var(--px) dotted rgba(255, 255, 255, 0.55);
     transform: translateY(4px);
 }
 .row:focus-within {
@@ -218,25 +302,28 @@ details[open] > summary::before { content: "▼"; }
     flex: none;
     width: 30px;
     font-size: 13px;
-    padding: 2px 0;
+    padding: 3px 0;
+    border-radius: 6px;
     visibility: hidden;
 }
 .row.changed .reset { visibility: visible; }
 
 .help {
     color: var(--secondary);
-    font-size: 15px;
-    margin: -2px 6px 8px;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 8px 10px;
 }
 .help.warn { color: var(--warn); }
 .help.error, .error { color: var(--error); }
 
 input[type="text"], input[type="password"], select, textarea {
-    font: inherit;
     font-size: 16px;
+    line-height: 1.35;
     color: var(--surface);
     background: var(--primary);
     border: var(--px) solid var(--primary);
+    border-radius: 6px;
     padding: 4px 8px;
     max-width: 100%;
 }
@@ -256,6 +343,7 @@ input[type="checkbox"] {
     height: 24px;
     margin: 0;
     border: var(--px) solid currentColor;
+    border-radius: 5px;
     background: transparent;
     display: grid;
     place-items: center;
@@ -265,6 +353,7 @@ input[type="checkbox"]:checked::after {
     content: "";
     width: 12px;
     height: 12px;
+    border-radius: 2px;
     background: currentColor;
 }
 .toggle { display: inline-flex; align-items: center; gap: 8px; }
@@ -285,10 +374,23 @@ input[type="checkbox"]:checked::after {
     min-width: 58px;
 }
 
+/* What the bar of actions last did, said over it; nothing there until then. */
 .status {
-    min-height: 1.4em;
-    margin: -12px 0 18px;
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    z-index: 30;
+    transform: translateX(-50%);
+    max-width: calc(100% - 2 * var(--side));
+    margin: 0;
+    padding: 9px 16px;
+    background: rgba(0, 6, 110, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0, 0, 50, 0.55);
+    font-size: 15px;
 }
+.status:empty { display: none; }
 .status.ok { color: var(--accent); }
 
 /* --- On the card: the steps, and the card as it ends up, in letters. --- */
@@ -298,8 +400,9 @@ input[type="checkbox"]:checked::after {
     gap: 6px 32px;
     align-items: start;
 }
-.steps { padding-left: 22px; }
-.steps li { margin-bottom: 6px; }
+.steps { padding-left: 22px; margin-block: 8px; }
+.steps li { margin-bottom: 8px; }
+main > section p { margin: 8px 0; }
 .card-art {
     margin: 2px 0 0;
     font-size: 15px;
@@ -308,21 +411,36 @@ input[type="checkbox"]:checked::after {
     overflow: hidden;
 }
 code {
-    font-family: inherit;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.92em;
     color: var(--accent);
 }
 
 footer {
-    margin-top: 40px;
+    margin-top: 36px;
     color: var(--secondary);
     font-size: 14px;
 }
 
+/* The bar of actions in the page, under the opening, where it would cover
+   too much of a narrow screen. */
+@media (max-width: 900px) {
+    main { padding-bottom: 64px; }
+    .toolbar {
+        position: static;
+        transform: none;
+        flex-wrap: wrap;
+        max-width: none;
+        margin: 0 0 16px;
+    }
+    .status { position: static; transform: none; max-width: none; margin: 0 0 18px; box-shadow: none; }
+}
+
 @media (max-width: 640px) {
-    html, body { font-size: 16px; }
+    :root { --side: 16px; }
     .intro .lead { font-size: 18px; }
+    #form > section, main > section:not(.intro) { padding: 18px 14px; border-radius: 14px; }
     .howto, .finish { grid-template-columns: 1fr; }
-    .kinds { grid-auto-flow: row; }
     .card-art { font-size: 14px; }
     .row { flex-wrap: wrap; }
     .row > .dots { display: none; }
@@ -374,10 +492,14 @@ details > *:not(summary) { margin-left: 18px; }
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 10px 12px;
-    border: var(--px) solid var(--primary);
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--card-line);
+    border-radius: 12px;
     cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
 }
+.kind:hover { background: var(--card-lit); border-color: rgba(255, 255, 255, 0.45); }
 .kind input {
     position: absolute;
     opacity: 0;
@@ -385,14 +507,21 @@ details > *:not(summary) { margin-left: 18px; }
 }
 .kind.chosen {
     background: var(--primary);
+    border-color: var(--primary);
     color: var(--surface);
+    box-shadow: 0 10px 30px var(--drop);
 }
 .kind:focus-within {
     outline: var(--px) solid var(--accent);
     outline-offset: 2px;
 }
-.kind-name { font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
-.kind-about { font-size: 15px; }
+.kind-name { font-size: 19px; line-height: 1.35; text-transform: uppercase; letter-spacing: 1px; }
+.kind-about { font-family: var(--text); font-size: 14px; line-height: 1.5; }
+/* One under another on a phone, where three abreast would be wider than its
+   screen. After the rule above, which it changes. */
+@media (max-width: 640px) {
+    .kinds { grid-auto-flow: row; }
+}
 .kind:not(.chosen) .kind-about { color: var(--secondary); }
 
 /* --- The live preview: the app's screens, its pixels kept square. --- */
@@ -400,12 +529,13 @@ details > *:not(summary) { margin-left: 18px; }
 .preview .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
 .preview .tab {
     color: var(--primary);
-    background: transparent;
-    border: var(--px) solid var(--primary);
+    background: var(--card);
+    border-color: var(--card-line);
 }
 .preview .tab.chosen {
     color: var(--surface);
     background: var(--primary);
+    border-color: var(--primary);
 }
 .preview canvas {
     display: block;
@@ -415,20 +545,33 @@ details > *:not(summary) { margin-left: 18px; }
     height: auto;
     aspect-ratio: 4 / 3;
     image-rendering: pixelated;
-    border: var(--px) solid var(--primary);
+    border: var(--px) solid rgba(255, 255, 255, 0.6);
+    border-radius: 10px;
+    box-shadow: 0 30px 70px rgba(0, 0, 50, 0.6), 0 0 90px var(--glow);
 }
 .preview canvas:focus-visible { outline: var(--px) solid var(--accent); outline-offset: 2px; }
-.preview figcaption { color: var(--secondary); font-size: 15px; margin-top: 6px; }
-/* A screen with room for both: the form and the preview side by side, the
-   preview kept in sight as the rows are changed. */
-@media (min-width: 1600px) and (min-height: 720px) {
-    main { margin-left: max(0px, calc((100vw - 1572px) / 2)); }
+.preview figcaption { color: var(--secondary); font-size: 14px; line-height: 1.5; margin-top: 10px; }
+/* A screen with room for both: the form and the preview side by side, under
+   the bar and clear of the actions at the foot, the preview kept in sight as
+   the rows are changed. The form gives way down to 1600 px (20 px left for a
+   scroll bar), and the two together stay in the window's middle. */
+@media (min-width: 1600px) and (min-height: 800px) {
+    :root {
+        --form: min(960px, calc(100vw - var(--screen) - 48px - 2 * var(--side) - 20px));
+        --both: calc(var(--form) + 48px + var(--screen) + 2 * var(--side));
+    }
+    main { margin-left: max(0px, calc((100% - var(--both)) / 2)); }
+    .appbar { padding-inline: calc(max(0px, (100% - var(--both)) / 2) + var(--side)); }
     .preview {
         position: fixed;
-        top: 32px;
-        left: calc(max(0px, (100vw - 1572px) / 2) + 16px + 848px + 48px);
-        width: calc(640px + 2 * var(--px));
+        top: calc(var(--bar) + 36px);
+        left: calc(max(0px, (100% - var(--both)) / 2) + var(--side) + var(--form) + 48px);
+        width: var(--screen);
         margin: 0;
     }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
 }
 .slider .end { font-size: 12px; }
