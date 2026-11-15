@@ -409,6 +409,19 @@ bool looksLikeUsbAudioHid(const QString &name) {
     return false;
 }
 
+bool hasMouseButtons(const QSet<int> &keys) {
+#ifdef Q_OS_LINUX
+    for (const int k : keys) {
+        if ((k >= BTN_JOYSTICK && k < BTN_DIGI) || (k >= BTN_TRIGGER_HAPPY && k <= BTN_TRIGGER_HAPPY40))
+            return false;
+    }
+    return keys.contains(BTN_LEFT) || keys.contains(BTN_RIGHT);
+#else
+    Q_UNUSED(keys)
+    return false;
+#endif
+}
+
 NodeKind classifyNode(const QSet<int> &keys) {
 #ifdef Q_OS_LINUX
     // A joystick's or a gamepad's buttons: SDL's to read.
