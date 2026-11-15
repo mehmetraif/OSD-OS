@@ -1631,6 +1631,8 @@ QVariantList InputManager::controllers() const {
     }
 #ifdef Q_OS_LINUX
     for (const Node *node : m_nodes) {
+        if (node->kind == controllers::NodeKind::None)
+            continue;   // a mouse, read for its buttons alone (nodeClick())
         const bool keyboard = node->kind == controllers::NodeKind::Keyboard;
         add(node->key, node->name, keyboard ? QStringLiteral("keyboard") : QStringLiteral("remote"), keyboard ? 1 : 2);
     }
@@ -2300,14 +2302,19 @@ void InputManager::scanNodes() {
             ::close(fd);
             continue;
         }
+        // A mouse's node too, its buttons its own or beside a remote's keys:
+        // they are read from it while the window can't take a click
+        // (nodeClick()).
         const controllers::NodeKind kind = controllers::classifyNode(keys);
-        if (kind == controllers::NodeKind::None) {
+        const bool mouse = controllers::hasMouseButtons(keys);
+        if (kind == controllers::NodeKind::None && !mouse) {
             ::close(fd);
             continue;
         }
         addNode(fd, path, nodeName,
-                controllers::evdevKey(id.bustype, id.vendor, id.product), kind);
-        changed = true;
+                controllers::evdevKey(id.bustype, id.vendor, id.product), kind, mouse);
+        // A mouse alone is no device of the list's.
+        changed = changed || kind != controllers::NodeKind::None;
     }
 
     if (!denied)
@@ -2323,17 +2330,23 @@ void InputManager::scanNodes() {
 // A node opened: read as its events come (readNode()), and listed under its
 // device.
 void InputManager::addNode(int fd, const QString &path, const QString &name, const QString &key,
-                           controllers::NodeKind kind) {
+                           controllers::NodeKind kind, bool mouse) {
     Node *node = new Node;
     node->fd = fd;
     node->path = path;
     node->key = key;
     node->name = name;
     node->kind = kind;
+    node->mouse = mouse;
     node->consumer = node->name.contains(QStringLiteral("Consumer Control"), Qt::CaseInsensitive);
     node->notifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
     connect(node->notifier, &QSocketNotifier::activated, this, [this, node] { readNode(node); });
     m_nodes.append(node);
+    // A mouse alone: read for its buttons, and no device of the list's.
+    if (kind == controllers::NodeKind::None) {
+        qInfo("[input] mouse: %s (%s)", qPrintable(name), qPrintable(path));
+        return;
+    }
     // As the list names a device of several nodes: by its shortest name.
     const auto seen = m_seenAs.constFind(node->key);
     if (seen == m_seenAs.cend() || node->name.size() < seen->name.size())
@@ -2343,10 +2356,32 @@ void InputManager::addNode(int fd, const QString &path, const QString &name, con
           qPrintable(name), qPrintable(path), qPrintable(node->key));
 }
 
-void InputManager::adoptNodeForTest(int fd, const QString &name) {
+void InputManager::adoptNodeForTest(int fd, const QString &name, bool mouse) {
     addNode(fd, QStringLiteral("test:") + name, name, QStringLiteral("test-") + name,
-            controllers::NodeKind::Remote);
+            mouse ? controllers::NodeKind::None : controllers::NodeKind::Remote, mouse);
     emit controllersChanged();
+}
+
+// A mouse's button as its node reports it: an air mouse's OK and Back are
+// its left and right. Qt has the click as well, and acts on it (eventFilter()),
+// while the window is there to take it. While a video's own process has the
+// screen the window is hidden (main.cpp's drawing switch), and Qt gives a
+// click no window can take to nobody: OK and Back did nothing in a film
+// played with Transparent Background off. Then the press is acted on from
+// here. Its release lets go of what its press began wherever it is seen
+// first, here or in Qt's own event.
+void InputManager::nodeClick(Qt::MouseButton button, bool press) {
+    const HeldInput held{ QStringLiteral("mouse"), int(button) };
+    if (!press) {
+        if (m_heldInputs.contains(held))
+            releaseAction(m_heldInputs.take(held));
+        return;
+    }
+    // Not twice: a press Qt took a moment before the window went.
+    const bool hidden = m_window && !m_window->isVisible();
+    if (!hidden || !m_playerTakesBack || !m_playerTakesBack() || m_heldInputs.contains(held))
+        return;
+    clickActs(button, true);
 }
 
 void InputManager::readNode(Node *node) {
@@ -2367,6 +2402,18 @@ void InputManager::readNode(Node *node) {
             return;
         }
         if (ev.type != EV_KEY || ev.value == 2)   // ignore autorepeat and non-key events
+            continue;
+        if (node->mouse) {
+            const Qt::MouseButton clicked = ev.code == BTN_LEFT ? Qt::LeftButton
+                                          : ev.code == BTN_RIGHT ? Qt::RightButton
+                                          : ev.code == BTN_MIDDLE ? Qt::MiddleButton : Qt::NoButton;
+            if (clicked != Qt::NoButton) {
+                nodeClick(clicked, ev.value == 1);
+                continue;
+            }
+        }
+        // A mouse alone: nothing else of it is read.
+        if (node->kind == controllers::NodeKind::None)
             continue;
         if (!node->consumer) {
             // Qt has the key too, and acts on it (eventFilter()); this only
@@ -3083,6 +3130,38 @@ void InputManager::replayKey(const QKeyEvent &ke, const QString &device) {
                                                         ke.isAutoRepeat(), quint16(ke.count())));
 }
 
+// A mouse's button pressed or let go, from Qt's event or, while the window
+// can take none, from the mouse's node (nodeClick()): whether it was taken,
+// reported to a wait or acted on as what it does.
+bool InputManager::clickActs(Qt::MouseButton pressed, bool isPress) {
+    const int extendedId = kMouseButtonBase + int(pressed);
+    // Its release lets go of what its press began, as a pad's does.
+    const HeldInput button{ QStringLiteral("mouse"), int(pressed) };
+    if (!isPress && captureReleased(button))
+        return true;
+    if (!isPress && m_heldInputs.contains(button)) {
+        releaseAction(m_heldInputs.take(button));
+        return true;
+    }
+
+    if (capturing(allKeys())) {
+        if (isPress)
+            capturePressed(button, allKeys(), QString::number(extendedId), keyDisplayName(extendedId));
+        return true;
+    }
+
+    const Action does = keyActionOn(QString(), extendedId);
+    if (does != Action::None) {
+        if (isPress) {
+            m_heldInputs.insert(button, does);
+            m_lastActionBy.insert(int(does), extendedId);
+            pressFrom(QStringLiteral("keyboard"), does);
+        }
+        return true;
+    }
+    return false;
+}
+
 // ── Active-device tracking & footer hints ─────────────────────────────────────
 
 bool InputManager::eventFilter(QObject *obj, QEvent *event) {
@@ -3124,33 +3203,7 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
         // A fast second press arrives as DblClick instead of Press — for a
         // remapped button it must count as a press, or every other click
         // leaks into the UI as a real one.
-        const bool isPress = type != QEvent::MouseButtonRelease;
-        const int extendedId = kMouseButtonBase + int(me->button());
-        // Its release lets go of what its press began, as a pad's does.
-        const HeldInput button{ QStringLiteral("mouse"), int(me->button()) };
-        if (!isPress && captureReleased(button))
-            return true;
-        if (!isPress && m_heldInputs.contains(button)) {
-            releaseAction(m_heldInputs.take(button));
-            return true;
-        }
-
-        if (capturing(allKeys())) {
-            if (isPress)
-                capturePressed(button, allKeys(), QString::number(extendedId), keyDisplayName(extendedId));
-            return true;
-        }
-
-        const Action does = keyActionOn(QString(), extendedId);
-        if (does != Action::None) {
-            if (isPress) {
-                m_heldInputs.insert(button, does);
-                m_lastActionBy.insert(int(does), extendedId);
-                pressFrom(QStringLiteral("keyboard"), does);
-            }
-            return true;
-        }
-        return false;
+        return clickActs(me->button(), type != QEvent::MouseButtonRelease);
     }
 
     if (type != QEvent::KeyPress && type != QEvent::KeyRelease)

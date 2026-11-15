@@ -53,6 +53,9 @@ QString legacyJammaKey(const QString &sdlGuid, const QString &name);
 // elsewhere.
 enum class NodeKind { None, Keyboard, Remote };
 NodeKind classifyNode(const QSet<int> &keys);
+// Whether a node has a mouse's buttons (left or right) and none of a pad's:
+// a mouse, or the mouse an air-mouse remote also is.
+bool hasMouseButtons(const QSet<int> &keys);
 // A USB sound card's Consumer Control / volume HID by the name the kernel or
 // SDL gives it (CM108 and the like). Not a pad or a remote: Settings →
 // Sound → Audio Output is where that device belongs.

@@ -87,7 +87,7 @@ public:
 #ifdef Q_OS_LINUX
     // A remote's node of the tests' own: a descriptor written as the kernel
     // writes /dev/input's nodes (input_event), read as they are.
-    void adoptNodeForTest(int fd, const QString &name);
+    void adoptNodeForTest(int fd, const QString &name, bool mouse = false);
 #endif
     // Every pad taken for one SDL hears only through its reports, as its
     // HIDAPI driver's (the tests' virtual pads say what is held as they open).
@@ -403,12 +403,13 @@ private:
     struct Node;
     void watchNodes();
     void addNode(int fd, const QString &path, const QString &name, const QString &key,
-                 controllers::NodeKind kind);
+                 controllers::NodeKind kind, bool mouse = false);
     void readNode(Node *node);
     void drainNodes();
     void closeNode(Node *node);
     static int qtKeyForEvdev(int linuxCode);
     static QString volumeKeyForEvdev(int linuxCode);
+    void nodeClick(Qt::MouseButton button, bool press);
 #endif
     static QString evdevKeyName(int linuxCode);
     static QString mouseButtonName(int qtButton);
@@ -465,6 +466,7 @@ private:
     std::optional<bool> unlockKey(const QKeyEvent *ke, int id, const QString &device);
     void replayKey(const QKeyEvent &ke, const QString &device);
     void deliverPress(Action a, bool autoRepeat);
+    bool clickActs(Qt::MouseButton pressed, bool isPress);
     void deliverRelease(Action a, bool autoRepeat);
     // Whether this back is the player's (setBackTaker()), said in the log
     // with what it came from.
@@ -646,6 +648,10 @@ private:
         QString name;
         controllers::NodeKind kind = controllers::NodeKind::None;
         bool consumer = false;
+        // A mouse's buttons are on it: read while the window can't take a
+        // click (nodeClick()). A node that is only a mouse has no kind,
+        // and is not listed.
+        bool mouse = false;
     };
     QList<Node *> m_nodes;
     QFileSystemWatcher m_nodeWatcher;

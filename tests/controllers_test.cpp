@@ -1831,6 +1831,85 @@ private slots:
         QTRY_VERIFY(entry(im, "Remote Consumer Control").value("present").toBool() == false);
     }
 
+    // An air mouse's OK and Back are a mouse's left and right buttons. While
+    // a video's own process has the screen the window is hidden and Qt gives
+    // it no click, so the buttons are acted on from the mouse's node: Back
+    // to the player, OK as ENTER to mpv, once per press, each let go with
+    // its release. With the window there Qt has the click and the node's
+    // copy is nothing; with no video the node's is nothing either. A mouse
+    // alone is no device of the list's.
+    void aMouseButtonReachesAVideoThroughItsNode() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QQuickWindow window;
+        im.setTargetWindow(&window);
+        bool video = true;
+        im.setBackTaker([&video] { return video; });
+        int fds[2];
+        QVERIFY(::pipe2(fds, O_NONBLOCK | O_CLOEXEC) == 0);
+        im.adoptNodeForTest(fds[0], "Remote Mouse", true);
+        QVERIFY(entry(im, "Remote Mouse").isEmpty());
+        const auto button = [&fds](int code, int value) {
+            struct input_event ev = {};
+            ev.type = EV_KEY;
+            ev.code = code;
+            ev.value = value;
+            return ::write(fds[1], &ev, sizeof(ev)) == ssize_t(sizeof(ev));
+        };
+
+        // The window hidden, a video with the screen: Back, then OK.
+        QVERIFY(!window.isVisible());
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(a button\\) while a video has the screen"));
+        QVERIFY(button(BTN_RIGHT, 1));
+        QTRY_COMPARE(keysOf(keys), QStringList({ "ESC" }));
+        QVERIFY(button(BTN_RIGHT, 0));
+        QVERIFY(button(BTN_LEFT, 1));
+        QTRY_COMPARE(keysOf(keys), QStringList({ "ESC", "ENTER" }));
+        QVERIFY(button(BTN_LEFT, 0));
+        // Let go: pressed again, each is a press again.
+        QVERIFY(button(BTN_LEFT, 1));
+        QTRY_COMPARE(keysOf(keys), QStringList({ "ESC", "ENTER", "ENTER" }));
+        QVERIFY(button(BTN_LEFT, 0));
+        // A button the app does nothing with.
+        QVERIFY(button(BTN_SIDE, 1));
+        QVERIFY(button(BTN_SIDE, 0));
+
+        // No video: the node's click is nothing (a game has the screen, say).
+        video = false;
+        QVERIFY(button(BTN_RIGHT, 1));
+        QVERIFY(button(BTN_RIGHT, 0));
+        QVERIFY(button(BTN_LEFT, 1));
+        QVERIFY(button(BTN_LEFT, 0));
+        QTest::qWait(50);
+        QCOMPARE(keys.count(), 3);
+
+        // The window there: the click is Qt's to give, and the node's copy
+        // of it is nothing.
+        video = true;
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(button(BTN_RIGHT, 1));
+        QVERIFY(button(BTN_RIGHT, 0));
+        QTest::qWait(50);
+        QCOMPARE(keys.count(), 3);
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(a button\\) while a video has the screen"));
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::RightButton, Qt::RightButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(&window, &press);
+        QCOMPARE(keys.count(), 4);
+        // Its release from the node, should Qt's go astray as the window
+        // goes: let go, and the next press is one.
+        window.hide();
+        QVERIFY(button(BTN_RIGHT, 0));
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression("^\\[input\\] back \\(a button\\) while a video has the screen"));
+        QVERIFY(button(BTN_RIGHT, 1));
+        QTRY_COMPARE(keys.count(), 5);
+        QVERIFY(button(BTN_RIGHT, 0));
+        ::close(fds[1]);
+        QTest::qWait(50);
+    }
+
     // A remote's volume keys, from its Consumer Control node: a step of the
     // volume at each press, and nothing more however long the key seems
     // held. Such a remote's release can go missing, and Qt, which has the
