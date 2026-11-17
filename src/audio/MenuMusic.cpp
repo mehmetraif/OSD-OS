@@ -385,8 +385,21 @@ void MenuMusic::stopNow() {
         return;
     m_process = nullptr;
     if (process->state() != QProcess::NotRunning) {
-        // Killed and waited for: the sound card is free when this returns.
+        // Ended and waited for: the sound card is free when this returns.
+        // Asked to end first (SIGTERM), as mpv closes the card then, and
+        // killed only if it hasn't in a moment. Killed at once, the card was
+        // closed by the kernel as the process died, with the kill pending:
+        // the Pi's own sound driver (bcm2835-audio) couldn't close its
+        // connection to the firmware then, and said so in the journal
+        // ("failed to close VCHI service connection") at a theme's change.
+        // Windows has no such signal for a program without a window: killed.
+#ifdef Q_OS_WIN
         process->kill();
+#else
+        process->terminate();
+        if (!process->waitForFinished(300))
+            process->kill();
+#endif
         process->waitForFinished(300);
     }
     QFile::remove(m_socketPath);
