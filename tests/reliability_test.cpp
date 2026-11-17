@@ -582,7 +582,8 @@ private slots:
     // interfaces, the keyboard left out), one the driver
     // took that ALSA made no card of, the Pi's power having dropped (the
     // firmware's flags, or the hwmon's alarm where the kernel has no such
-    // file), a USB card with no output; none once ALSA has the card.
+    // file), a USB card with no output; none once ALSA has the card. A
+    // remote's or a keyboard's microphone is no sound card of the note's.
     void usbSoundCardNote() {
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
@@ -607,6 +608,29 @@ private slots:
         AudioOutput audio(&core);
         const auto note = [](const AudioOutput &output) { return output.settingRow().value("note").toString(); };
         QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        // A remote's receiver with a microphone for its voice key: a sound
+        // interface that records, beside a boot keyboard's and a boot mouse's,
+        // and ALSA's card of it an input alone. No sound card of the note's.
+        QVERIFY(write(usb + "/1-1.5/product", "USB Composite Device\n"));
+        QVERIFY(write(usb + "/1-1.5/idVendor", "1915\n"));
+        QVERIFY(write(usb + "/1-1.5/idProduct", "1025\n"));
+        QVERIFY(write(usb + "/1-1.5:1.0/bInterfaceClass", "01\n"));
+        QVERIFY(write(usb + "/1-1.5:1.1/bInterfaceClass", "01\n"));
+        for (const char *hid : { "/1-1.5:1.2", "/1-1.5:1.3" }) {
+            QVERIFY(write(usb + hid + "/bInterfaceClass", "03\n"));
+            QVERIFY(write(usb + hid + "/bInterfaceSubClass", "01\n"));
+        }
+        QVERIFY(write(usb + "/1-1.5:1.2/bInterfaceProtocol", "01\n"));
+        QVERIFY(write(usb + "/1-1.5:1.3/bInterfaceProtocol", "02\n"));
+        QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        QVERIFY(write(asound + "/cards", " 0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones\n"
+                                         "                      bcm2835 Headphones\n"
+                                         " 2 [Device_1       ]: USB-Audio - USB Composite Device\n"
+                                         "                      XING WEI 2.4G USB USB Composite Device at usb-0000:01:00.0-1.5, full speed\n"));
+        QVERIFY(QDir().mkpath(asound + "/card2/pcm0c") && write(asound + "/card2/usbid", "1915:1025\n"));
+        QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));
+        QVERIFY(write(asound + "/cards", " 0 [Headphones     ]: bcm2835_headpho - bcm2835 Headphones\n"
+                                         "                      bcm2835 Headphones\n"));
         QVERIFY(write(usb + "/1-1.4/product", "Keyboard\n"));
         QVERIFY(write(usb + "/1-1.4:1.0/bInterfaceClass", "03\n"));
         QCOMPARE(note(audio), QString("No USB sound card is plugged in, as far as the system can tell"));

@@ -15,6 +15,9 @@ import Components
 // is asked about as it is typed and as the page opens.
 FocusScope {
     id: accountRoot
+    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
+    // inFrame).
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()

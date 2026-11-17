@@ -2,6 +2,7 @@
 #include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/InstallHint.h"
+#include "util/NetInterfaces.h"
 #include "util/SetupFile.h"
 #include <QDir>
 #include <QFile>
@@ -1242,23 +1243,19 @@ QString AppCore::localIpAddress() const {
     QString best;
     int bestScore = -1;
 
-    const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &iface : interfaces) {
-        const QNetworkInterface::InterfaceFlags flags = iface.flags();
-        if (!flags.testFlag(QNetworkInterface::IsUp)) continue;
-        if (!flags.testFlag(QNetworkInterface::IsRunning)) continue;
-        if (flags.testFlag(QNetworkInterface::IsLoopBack)) continue;
-        if (iface.type() == QNetworkInterface::Virtual) continue;
-        if (kVirtualIface.match(iface.name()).hasMatch()) continue;
+    const QList<netif::Interface> interfaces = netif::list();
+    for (const netif::Interface &iface : interfaces) {
+        if (!iface.up || !iface.running) continue;
+        if (iface.kind == netif::Kind::Loopback || iface.kind == netif::Kind::Virtual) continue;
+        if (kVirtualIface.match(iface.name).hasMatch()) continue;
 
         int score = 0;
-        if (iface.type() == QNetworkInterface::Ethernet) score = 2;
-        else if (iface.type() == QNetworkInterface::Wifi) score = 1;
+        if (iface.kind == netif::Kind::Ethernet) score = 2;
+        else if (iface.kind == netif::Kind::Wifi) score = 1;
         if (score <= bestScore) continue;
 
-        const QList<QNetworkAddressEntry> entries = iface.addressEntries();
-        for (const QNetworkAddressEntry &entry : entries) {
-            const QHostAddress addr = entry.ip();
+        for (const netif::Address &entry : iface.addresses) {
+            const QHostAddress addr = entry.ip;
             if (addr.protocol() != QAbstractSocket::IPv4Protocol) continue;
             if (addr.isLoopback() || addr.isLinkLocal()) continue;
             best = addr.toString();

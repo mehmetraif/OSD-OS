@@ -2,6 +2,7 @@
 #include "../util/Board.h"
 #include "../util/DeviceName.h"
 #include "../util/LegacyNames.h"
+#include "../util/NetInterfaces.h"
 #include "../util/RootRequest.h"
 
 #include <QCoreApplication>
@@ -332,38 +333,36 @@ void SystemInfo::readChanging(Facts *facts, const QString &dataRoot, const QStri
         }
     }
 
-    const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &iface : interfaces) {
-        const QNetworkInterface::InterfaceFlags flags = iface.flags();
-        if (flags.testFlag(QNetworkInterface::IsLoopBack))
+    const QList<netif::Interface> interfaces = netif::list();
+    for (const netif::Interface &iface : interfaces) {
+        if (iface.kind == netif::Kind::Loopback)
             continue;
-        const QString name = iface.name();
+        const QString name = iface.name;
 #if defined(Q_OS_LINUX)
         // A device's own, not a bridge's, a tunnel's or a container's.
         const QString sys = QStringLiteral("/sys/class/net/") + name;
         if (!QFileInfo::exists(systemPath(sys + QStringLiteral("/device"))))
             continue;
-        const bool wifi = iface.type() == QNetworkInterface::Wifi
+        const bool wifi = iface.kind == netif::Kind::Wifi
                           || QFileInfo::exists(systemPath(sys + QStringLiteral("/wireless")))
                           || QFileInfo::exists(systemPath(sys + QStringLiteral("/phy80211")));
 #elif defined(Q_OS_MACOS)
         // en0, en1: the Mac's own, not its tunnels' and bridges'.
         if (!name.startsWith(QLatin1String("en")))
             continue;
-        const bool wifi = iface.type() == QNetworkInterface::Wifi;
+        const bool wifi = iface.kind == netif::Kind::Wifi;
 #else
-        const bool wifi = iface.type() == QNetworkInterface::Wifi;
-        if (!wifi && iface.type() != QNetworkInterface::Ethernet)
+        const bool wifi = iface.kind == netif::Kind::Wifi;
+        if (!wifi && iface.kind != netif::Kind::Ethernet)
             continue;
 #endif
         Connection connection;
         connection.name = name;
         connection.wifi = wifi;
-        connection.mac = iface.hardwareAddress();
-        if (flags.testFlag(QNetworkInterface::IsUp) && flags.testFlag(QNetworkInterface::IsRunning)) {
-            const QList<QNetworkAddressEntry> entries = iface.addressEntries();
-            for (const QNetworkAddressEntry &entry : entries) {
-                const QHostAddress ip = entry.ip();
+        connection.mac = iface.hardwareAddress;
+        if (iface.up && iface.running) {
+            for (const netif::Address &entry : iface.addresses) {
+                const QHostAddress ip = entry.ip;
                 if (ip.protocol() == QAbstractSocket::IPv4Protocol)
                     connection.ipv4 << ip.toString();
                 else if (ip.protocol() == QAbstractSocket::IPv6Protocol && !ip.isLinkLocal())

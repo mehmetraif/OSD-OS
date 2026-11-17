@@ -1,6 +1,9 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
+#include <QDirIterator>
+#include <QElapsedTimer>
 #include <QQmlContext>
 #include <QUrl>
 #include <QDir>
@@ -111,6 +114,54 @@ static QString resolveDataRoot() {
     return path;
 }
 
+// The app's own QML types, under OSDOS.Video: the picture of a video played
+// inside this window (Transparent Background), a tape's noise, for the screen
+// a video loads behind (LoadingScreen), and Settings → Look → Effects →
+// Selector Effect's sparks round the selected line.
+static void registerQmlTypes() {
+    qmlRegisterType<VideoSurface>("OSDOS.Video", 1, 0, "VideoSurface");
+    qmlRegisterType<VhsNoise>("OSDOS.Video", 1, 0, "VhsNoise");
+    qmlRegisterType<SelectorFx>("OSDOS.Video", 1, 0, "SelectorFx");
+}
+
+// osdos --compile-qml: every QML file of the app's compiled into Qt's QML
+// cache (in the cache folder, OSD-OS/qmlcache), as a start compiles each as
+// it first loads it, and nothing started. A start compiles what the cache
+// hasn't, and the image's first start did it all: 12.9 s before the menus'
+// first frame on a Pi 4, where a start with the cache takes 2. The image
+// runs this as it is built (os/stage-osdos/01-app), as the user the app runs
+// as, so that the first start finds it all there: the cache is the user's,
+// kept by each file's path and time, which a file changed (an update) makes
+// it compile again. Off the screen (the offscreen platform). What can't be
+// compiled is named, and counts for nothing else.
+static int compileQml(const QString &appRoot) {
+    QQmlEngine engine;
+    engine.addImportPath(appRoot + "/views");
+    registerQmlTypes();
+    QElapsedTimer clock;
+    clock.start();
+    int compiled = 0, failed = 0;
+    QDirIterator files(appRoot, { QStringLiteral("*.qml") }, QDir::Files, QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+        const QString file = files.next();
+        QQmlComponent component(&engine);
+        component.loadUrl(QUrl::fromLocalFile(file), QQmlComponent::PreferSynchronous);
+        while (component.isLoading())
+            QCoreApplication::processEvents(QEventLoop::WaitForMoreEvents, 50);
+        if (component.isReady()) {
+            ++compiled;
+        } else {
+            ++failed;
+            std::fprintf(stderr, "osdos: %s not compiled: %s\n", qPrintable(file),
+                         qPrintable(component.errorString().trimmed()));
+        }
+    }
+    std::printf("osdos: %d QML file(s) compiled into %s in %lld ms, %d not\n", compiled,
+                qPrintable(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/qmlcache")),
+                static_cast<long long>(clock.elapsed()), failed);
+    return 0;
+}
+
 // Terminating signals must unwind normally rather than killing the process where
 // it stands. Without this, `systemctl stop`, `pkill`, or a shutdown can leave mpv
 // or another process running and with the scripts module (takeover specifically), it
@@ -163,6 +214,11 @@ int main(int argc, char *argv[]) {
     // video played inside the window is drawn on the GPU into textures it
     // shows as they are (EmbeddedMpv). Before the application exists.
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    // The QML compiled into the cache and no more (compileQml()): off the
+    // screen, which the image's build has none of.
+    const bool compileOnly = argc == 2 && std::strcmp(argv[1], "--compile-qml") == 0;
+    if (compileOnly)
+        qputenv("QT_QPA_PLATFORM", "offscreen");
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("OSD-OS");
@@ -219,6 +275,8 @@ int main(int argc, char *argv[]) {
                   qPrintable(qEnvironmentVariable(appRoot.isEmpty() ? "APP_ROOT" : "DATA_ROOT")));
         return 1;
     }
+    if (compileOnly)
+        return compileQml(appRoot);
 #if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     logfile::open(dataRoot);
 #endif
@@ -476,12 +534,7 @@ int main(int argc, char *argv[]) {
     engine.addImageProvider(QStringLiteral("osdpixel"), new OsdPixelProvider);
     engine.addImageProvider(QStringLiteral("osdskin"), new OsdSkinProvider);
     engine.addImageProvider(QStringLiteral("qr"), new QrImageProvider);
-    // The picture of a video played inside this window (Transparent Background),
-    // and a tape's noise, for the screen a video loads behind (LoadingScreen).
-    qmlRegisterType<VideoSurface>("OSDOS.Video", 1, 0, "VideoSurface");
-    qmlRegisterType<VhsNoise>("OSDOS.Video", 1, 0, "VhsNoise");
-    // Settings → Look → Effects → Selector Effect's sparks round the selected line.
-    qmlRegisterType<SelectorFx>("OSDOS.Video", 1, 0, "SelectorFx");
+    registerQmlTypes();
 
     engine.load(QUrl::fromLocalFile(appRoot + "/Main.qml"));
     if (engine.rootObjects().isEmpty()) {

@@ -7,6 +7,7 @@
 #include "../../util/DeviceName.h"
 #include "../../util/DurableFile.h"
 #include "../../util/LegacyNames.h"
+#include "../../util/NetInterfaces.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
 #include "ProgramInstaller.h"
@@ -420,17 +421,13 @@ QString retroarchMatch(const QString &theirs, const QString &ours) {
 // reaches the hosts of another.
 QList<QHostAddress> broadcastAddresses() {
     QList<QHostAddress> targets{ QHostAddress(QHostAddress::Broadcast) };
-    const QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
-    for (const QNetworkInterface &interface : interfaces) {
-        const QNetworkInterface::InterfaceFlags flags = interface.flags();
-        if (!flags.testFlag(QNetworkInterface::IsUp) || !flags.testFlag(QNetworkInterface::CanBroadcast)
-            || flags.testFlag(QNetworkInterface::IsLoopBack))
+    const QList<netif::Interface> interfaces = netif::list();
+    for (const netif::Interface &interface : interfaces) {
+        if (!interface.up || !interface.canBroadcast || interface.kind == netif::Kind::Loopback)
             continue;
-        const QList<QNetworkAddressEntry> entries = interface.addressEntries();
-        for (const QNetworkAddressEntry &entry : entries) {
-            const QHostAddress broadcast = entry.broadcast();
-            if (broadcast.protocol() == QAbstractSocket::IPv4Protocol && !targets.contains(broadcast))
-                targets << broadcast;
+        for (const netif::Address &entry : interface.addresses) {
+            if (entry.broadcast.protocol() == QAbstractSocket::IPv4Protocol && !targets.contains(entry.broadcast))
+                targets << entry.broadcast;
         }
     }
     return targets;

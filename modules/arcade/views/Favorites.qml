@@ -10,6 +10,9 @@ import Components
 // how the last one went, the file named.
 FocusScope {
     id: favoritesRoot
+    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
+    // inFrame).
+    readonly property bool inFrame: true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
