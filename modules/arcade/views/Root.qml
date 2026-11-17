@@ -57,6 +57,12 @@ FocusScope {
     readonly property bool settingsPage: !!(navParams.mame || navParams.fbneo || navParams.achievements
                                             || navParams.pictures || navParams.romCheck || navParams.favorites
                                             || navParams.onlineName)
+    // A settings page is in a monitor layout's frame (Settings → Look → Menu
+    // Layout), as Settings' own pages are: it says so (inFrame), and Main.qml
+    // draws the frame round it. The Arcade screen, a game and a page over the
+    // list (Game Details, a room's) are not.
+    readonly property bool inFrame: !playLayer.item && !pageLayer.item && !!internalLoader.item
+                                    && internalLoader.item.inFrame === true
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in

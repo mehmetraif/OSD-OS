@@ -3455,6 +3455,8 @@ Rectangle {
         // opened on it (to play, or to adjust), Main.qml goes by them
         // (hintBarShown, helpLineShown); on the tree, or on one of Settings →
         // Arcade's pages, by Settings' own (undefined), whatever they are.
+        // Settings → Arcade's pages are in a monitor layout's frame, as
+        // Settings' own are (inFrame); the Arcade screen draws its own.
         function test_rootOwnBars_data() {
             return [{ tag: "arcade screen", params: {}, own: true, file: "ArcadeScreen.qml" },
                     { tag: "screen adjustment", params: { adjustScreen: true }, own: true, file: "ArcadeScreen.qml" },
@@ -3470,6 +3472,7 @@ Rectangle {
             appCore.settings = { screen: "Arcade", hint_bar: false, help_line: true }
             var router = open("Root.qml", data.params)
             compare(shownFile(router), data.file)
+            compare(router.inFrame, !data.own)
             compare(router.hintBarShown, data.own ? false : undefined)
             compare(router.helpLineShown, data.own ? true : undefined)
             loader.source = ""
