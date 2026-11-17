@@ -156,10 +156,47 @@ QString autoCard(const QList<AlsaCard> &) {
 }
 #endif
 
+// Whether a USB device is a keyboard or a pointer with a microphone, not a
+// sound card: a remote's receiver whose voice key records (an air mouse's,
+// XING WEI's 1915:1025), or a keyboard's. Its sound interface is an input
+// alone, and it has a boot keyboard's or a boot mouse's interface (HID, class
+// 03, subclass 01, protocol 01 or 02), which no sound card has: a USB sound
+// adapter's buttons are a Consumer Control interface (protocol 00). `device`
+// is its folder in /sys/bus/usb/devices ("1-1.3").
+bool keyboardOrPointer(const QDir &devices, const QString &device) {
+    const QStringList interfaces = devices.entryList({ device + QStringLiteral(":*") },
+                                                     QDir::Dirs | QDir::NoDotAndDotDot);
+    return std::any_of(interfaces.cbegin(), interfaces.cend(), [&devices](const QString &entry) {
+        const QString protocol = readSmall(devices.filePath(entry + QStringLiteral("/bInterfaceProtocol")));
+        return readSmall(devices.filePath(entry + QStringLiteral("/bInterfaceClass"))) == QLatin1String("03")
+               && readSmall(devices.filePath(entry + QStringLiteral("/bInterfaceSubClass"))) == QLatin1String("01")
+               && (protocol == QLatin1String("01") || protocol == QLatin1String("02"));
+    });
+}
+
+// Whether ALSA's card is a keyboard's or a pointer's microphone
+// (keyboardOrPointer()), by the USB device ALSA says it is (its usbid,
+// "1915:1025").
+bool microphoneOfAnInputDevice(const AlsaCard &card) {
+    const QString usbid = readSmall(asoundDir() + QStringLiteral("/card%1/usbid").arg(card.index));
+    if (usbid.isEmpty())
+        return false;
+    const QDir devices(legacy::env("USB_DEVICES_DIR", QStringLiteral("/sys/bus/usb/devices")));
+    const QStringList entries = devices.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    return std::any_of(entries.cbegin(), entries.cend(), [&devices, &usbid](const QString &device) {
+        return !device.contains(QLatin1Char(':'))
+               && readSmall(devices.filePath(device + QStringLiteral("/idVendor"))) + QLatin1Char(':')
+                          + readSmall(devices.filePath(device + QStringLiteral("/idProduct")))
+                      == usbid
+               && keyboardOrPointer(devices, device);
+    });
+}
+
 // The USB devices plugged in that have a sound interface (class 01), by
 // their product names, as the kernel lists them, whether ALSA made a card of
 // them or not; and whether a driver (the kernel's snd-usb-audio) took one of
-// their sound interfaces, which it does by itself when it is there.
+// their sound interfaces, which it does by itself when it is there. A
+// keyboard or a remote with a microphone is none (keyboardOrPointer()).
 struct UsbSoundDevice {
     QString name;
     bool driven = false;
@@ -174,6 +211,8 @@ QList<UsbSoundDevice> usbSoundDevices() {
             || readSmall(devices.filePath(entry + QStringLiteral("/bInterfaceClass"))) != QLatin1String("01"))
             continue;
         const QString device = entry.section(QLatin1Char(':'), 0, 0);
+        if (keyboardOrPointer(devices, device))
+            continue;
         const QString product = readSmall(devices.filePath(device + QStringLiteral("/product")));
         const QString name = product.isEmpty() ? device : product;
         const bool driven = QFileInfo(devices.filePath(entry + QStringLiteral("/driver"))).isSymLink()
@@ -277,9 +316,11 @@ QString usbNote(const QList<AlsaCard> &cards) {
     if (usbCard)
         return QString();
     QString note;
-    // ALSA has a USB card, with nothing to play through: an input alone.
+    // ALSA has a USB card, with nothing to play through: an input alone. Not
+    // a remote's or a keyboard's microphone, which is no sound card: the
+    // remote's receiver read as one plugged in that had no output.
     const auto inputOnly = std::find_if(cards.cbegin(), cards.cend(), [](const AlsaCard &card) {
-        return !card.playback && card.driver == QLatin1String("USB-Audio");
+        return !card.playback && card.driver == QLatin1String("USB-Audio") && !microphoneOfAnInputDevice(card);
     });
     if (inputOnly != cards.cend()) {
         note = (inputOnly->shortName.isEmpty() ? inputOnly->id : inputOnly->shortName)
