@@ -116,14 +116,18 @@ Item {
             visible: menuRow.selected
         }
 
+        // A label too long for the line (a narrow list, beside a picture in a
+        // layout's frame) is cut short with "…" a cell before what ends it,
+        // the ► or the icons, else at the line's end, and never runs over them.
         Text {
             id: labelText
             x: menuRow.pad
             anchors.verticalCenter: parent.verticalCenter
-            width: menuRow.keepValue && menuRow.hasEnd
-                   ? Math.min(implicitWidth,
-                              Math.max(1, menuRow.endCell - menuRow.valueCells - menuRow.leadCells - 2) * menuRow.cell)
-                   : implicitWidth
+            width: Math.min(implicitWidth,
+                            Math.max(1, menuRow.keepValue && menuRow.hasEnd
+                                        ? menuRow.endCell - menuRow.valueCells - menuRow.leadCells - 2
+                                        : menuRow.endIcons.length > 0 ? menuRow.endCell - 1 : menuRow.lineCells)
+                            * menuRow.cell)
             elide: Text.ElideRight
             textFormat: Text.PlainText
             text: menuRow.label

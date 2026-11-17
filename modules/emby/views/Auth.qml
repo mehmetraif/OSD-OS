@@ -5,6 +5,15 @@ FocusScope {
     focus: true
     id: authRoot
 
+    // In a layout's frame (Settings → Look → Menu Layout), as the module's
+    // other pages are: the form in the pane (Main.qml's), as wide as it
+    // leaves for the server's field, and the user's and password's side by
+    // side.
+    readonly property bool inFrame: true
+    readonly property bool paned: root.framed === true || root.monitorFramed === true
+    readonly property real formWidth: paned ? Math.min(root.sw * 0.71875, root.paneWidth - root.sw * 0.025)
+                                            : root.sw * 0.71875 //460
+
     property var navParams: ({})
 
     signal navigateTo(string path, var params, var listState)
@@ -220,9 +229,16 @@ FocusScope {
         // Tightened from the pre-method-row values (134 / 36): the extra
         // method row made the form tall enough that the Sign In button ran
         // into the footer hints.
-        anchors.topMargin: root.sh * 0.25 //120
+        anchors.topMargin: authRoot.paned ? root.paneTop : root.sh * 0.25 //120
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: root.sh * 0.05 //24
+        anchors.horizontalCenterOffset: authRoot.paned ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
+        // Closer together in a frame's pane, which is shorter.
+        spacing: authRoot.paned ? root.sh * 0.0333333 : root.sh * 0.05 //16 : 24
+        // Not under the on-screen keyboard, whose ground starts below the
+        // title bar, above the pane's top. Drawn transparent rather than
+        // hidden, so the field the keyboard gives the keys back to can take
+        // them as it closes.
+        opacity: keyboard.visible ? 0 : 1
 
         // Reusable labelled text field. Up/Down navigation and Enter/Escape are
         // handled by authRoot.Keys — each TextInput forwards keys up by not
@@ -285,7 +301,7 @@ FocusScope {
             readonly property bool selected: authRoot.method === value
             readonly property bool rowFocused: authRoot.focusIndex === authRoot.idxMethod
 
-            width: root.sw * 0.321875 //218
+            width: authRoot.paned ? (authRoot.formWidth - root.sw * 0.1125) / 2 : root.sw * 0.321875 //218
             height: root.sh * 0.0583333 //28
             color: selected && rowFocused ? root.accentColor : root.surfaceColor
             border.color: selected ? root.accentColor : root.tertiaryColor
@@ -339,7 +355,7 @@ FocusScope {
                     label: "Server URL:"
                     index: authRoot.idxServer
                     text: authRoot.serverUrl
-                    width: root.sw * 0.71875 //460
+                    width: authRoot.formWidth //460
                     anchors.horizontalCenter: parent.horizontalCenter
                     onEdited: function(value) { authRoot.serverUrl = value }
                 }
@@ -359,7 +375,7 @@ FocusScope {
                         label: authRoot.method === 1 ? "Email:" : "Username:"
                         index: authRoot.idxUser
                         text: authRoot.username
-                        width: root.sw * 0.340625 //218
+                        width: (authRoot.formWidth - root.sw * 0.0375) / 2 //218
                         onEdited: function(value) { authRoot.username = value }
                     }
 
@@ -370,7 +386,7 @@ FocusScope {
                         index: authRoot.idxPass
                         masked: true
                         text: authRoot.password
-                        width: root.sw * 0.340625 //218
+                        width: (authRoot.formWidth - root.sw * 0.0375) / 2 //218
                         onEdited: function(value) { authRoot.password = value }
                     }
                 }
