@@ -21,3 +21,13 @@ install -D -m 644 files/NOTICE "${ROOTFS_DIR}/usr/share/doc/osdos/NOTICE"
 on_chroot << EOF
 chown -R "${FIRST_USER_NAME}:" /opt/osdos
 EOF
+
+# The app's QML compiled into the QML cache of the user it runs as
+# (osdos --compile-qml), so that the image's first start doesn't compile it
+# before the menus can be drawn: the cache is kept by each file's path and
+# time, both as they will be on the card. Off the screen, which the build
+# has none of. The build goes on without it: the first start compiles it.
+on_chroot << EOF || echo "OSD/OS's QML wasn't compiled ahead: its first start compiles it"
+timeout 600 runuser -u "${FIRST_USER_NAME}" -- env HOME="/home/${FIRST_USER_NAME}" \
+	QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml /opt/osdos/bin/osdos --compile-qml
+EOF
