@@ -898,6 +898,9 @@ Window {
     // The null guards absorb the same nulling here at app shutdown, when the
     // engine invalidates the root context itself.
     readonly property var hints: inputManager ? inputManager.hints : ({})
+    // Whether a key event is back, as every view takes it: Esc, Backspace or
+    // a remote's Back (Components/Hints.js).
+    function isBack(event) { return Hints.isBack(event) }
     readonly property string appVersion: appCore ? appCore.appVersion : ""
     // A build made from source rather than a release (CMake's APP_VERSION).
     readonly property bool devBuild: appVersion === "dev"

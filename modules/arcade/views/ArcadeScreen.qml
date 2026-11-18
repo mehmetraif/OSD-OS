@@ -949,7 +949,7 @@ FocusScope {
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (!event.isAutoRepeat)
                 holdTimer.restart()
-        } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        } else if (root.isBack(event)) {
             if (!event.isAutoRepeat)
                 arcadeScreen.goBack()
         } else {
@@ -988,7 +988,7 @@ FocusScope {
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (!event.isAutoRepeat)
                 holdTimer.restart()
-        } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        } else if (root.isBack(event)) {
             if (!event.isAutoRepeat) {
                 keepAdjustment()
                 arcadeScreen.goBack()

@@ -68,7 +68,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             // Ignore auto-repeat on Back only: holding it should behave exactly like
             // one press so that holding back to stop a script doesn't spam back through 
             // each views when your intent was to just stop the script.

@@ -60,7 +60,7 @@ FocusScope {
             return
         event.accepted = true
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        if (root.isBack(event)
                 || (enter && !canRetry)) {
             close()
             dismissed()

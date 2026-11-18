@@ -50,7 +50,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -99,7 +99,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 serverSelectRoot.goBack()
                 event.accepted = true
             }

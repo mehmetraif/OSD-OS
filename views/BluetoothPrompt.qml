@@ -53,7 +53,7 @@ FocusScope {
         if (event.modifiers & Qt.ControlModifier)
             return
         event.accepted = true
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             canceled()
         } else if (kind === "confirm") {
             if (event.key === Qt.Key_Up || event.key === Qt.Key_Down)

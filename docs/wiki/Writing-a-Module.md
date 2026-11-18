@@ -301,7 +301,7 @@ FocusScope {
                                         { currentIndex: currentIndex })
         }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 channelsRoot.goBack()
                 event.accepted = true
             }
@@ -365,7 +365,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -1101,6 +1101,7 @@ Every view also has `Main.qml`'s own properties, as `root.*`:
 - `sw`, `sh`, `px` (one pixel of a 240-line picture) and `contentBox` (the area views lay out in);
 - `menuRowHeight`, a menu's row, and the pane, where a view's rows go: `paneX` and `paneWidth` across, `listY` down, `listHeight` tall over a help line and `tallListHeight` with none;
 - `primaryColor`, `surfaceColor`, `globalFont`, `hints`, `appVersion`;
+- `isBack(event)`, whether a key is back (Esc, Backspace or a remote's Back), as every view takes it;
 - `formatTime(ms)`, `changeWindow()`, `restFor()`, `behindNote` and `videoBehind`.
 
 ## Before a pull request

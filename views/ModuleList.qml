@@ -339,7 +339,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 appRoot.navigateTo("views/Settings.qml", {}, appRoot.cursorState())
                 event.accepted = true
             } else if (event.key === Qt.Key_Space && root.videoBehind) {

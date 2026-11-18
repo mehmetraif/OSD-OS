@@ -73,7 +73,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        var back = root.isBack(event)
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
         if (back) {
             close()

@@ -324,7 +324,7 @@ FocusScope {
         Keys.onReturnPressed: openRow(aboutRoot.rows[currentIndex])
         Keys.onRightPressed: openRow(aboutRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 aboutRoot.goBack()
                 event.accepted = true
             }
@@ -382,7 +382,7 @@ FocusScope {
         Keys.onUpPressed: flick.scrollBy(-1)
         Keys.onDownPressed: flick.scrollBy(1)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 licensePage.close()
                 event.accepted = true
             }

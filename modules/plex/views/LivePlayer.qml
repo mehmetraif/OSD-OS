@@ -80,7 +80,7 @@ FocusScope {
             // Still tuning, no mpv to send the keys to: back leaves, the
             // tuner let go of, instead of waiting out a server that is slow
             // to answer.
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 teardown()
                 goBack()
             }

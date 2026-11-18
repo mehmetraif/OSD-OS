@@ -110,7 +110,7 @@ osd-os/
     TestPatterns.qml                # Settings → Screen → Test Patterns: the 240p Test Suite's pictures to set a screen up by
     FilePicker.qml                  # the folder or file a setting names, picked on a TreeBrowser
     ...
-    Components/                     # shared QML components (ModuleRouter, AppBar, HintBar, MenuRow, MenuList, LetterList, SettingRow, HelpLine, ScrollMarks, IconColumn, MonitorChrome, MonitorRow, ListPager, TreeBrowser, InfoPanel, EntryOptions, PlaylistAdder, PlayerMenu, LoadingScreen, PromptScreen, OsdGround, SkinImage, SelectionBox, BackgroundFx, MousePointer, ScreenSaver, OnScreenKeyboard, WebPlayerBrowse, WebPlayerLaunch, the MediaServer* views (Jellyfin's and Emby's libraries, lists, item pages and player: a module's view file is the component with its backend), the Osd* elements, ChoiceOverlay, MpvKeys.js, qmldir)
+    Components/                     # shared QML components (ModuleRouter, AppBar, HintBar, MenuRow, MenuList, LetterList, SettingRow, HelpLine, ScrollMarks, IconColumn, MonitorChrome, MonitorRow, ListPager, TreeBrowser, InfoPanel, EntryOptions, PlaylistAdder, PlayerMenu, LoadingScreen, PromptScreen, OsdGround, SkinImage, SelectionBox, BackgroundFx, MousePointer, ScreenSaver, OnScreenKeyboard, WebPlayerBrowse, WebPlayerLaunch, the MediaServer* views (Jellyfin's and Emby's libraries, lists, item pages and player: a module's view file is the component with its backend), the Osd* elements, ChoiceOverlay, MpvKeys.js, Hints.js, qmldir)
     BootScreen.qml                  # boot screen of the OSD/OS image (see os/README.md)
   assets/
     themes/                         # Settings → Look → Theme's own themes (Trinitron … Demoscene): theme.json and its music
@@ -637,7 +637,7 @@ All input arrives in QML as **ordinary key events** — views bind `Keys.onPress
    |---|---|---|
    | `up` / `down` / `left` / `right` | arrows | D-pad, left stick, LB/RB (left/right; not on the JAMMA board's sticks, whose buttons 5 and 6 they are) |
    | `select` | Return | A |
-   | `back` | Escape (the views take Backspace from a keyboard too) | B, Select |
+   | `back` | Escape (the views take Backspace from a keyboard and a remote's Back too: `root.isBack(event)`) | B, Select |
    | `play_pause` | Space | Start |
 
 3. **Delivery** — while the Qt window is **active**, synthesized `QKeyEvent`s are posted to the root QQuickWindow and reach the QML `activeFocusItem` like real key presses; on RPi/EGLFS the window is always active, so during playback they flow through the Player views' existing key forwarding (`mpvController.sendKey(...)`, by `MpvKeys.js`'s names). When the window is **inactive** (like on MacOS where fullscreen mpv holds OS focus) and QQuickWindow has no `activeFocusItem`; `InputManager` instead emits `mpvKeyRequested(key, autoRepeat)`, which `main.cpp` connects to `MpvController::sendKey`, and `mpvKeysReleased()` as the button is let go, connected to `releaseKeys()`. That will drive mpv directly over IPC with the same key names. The net result is that gamepads drive mpv identically to the keyboard on both platforms. **Back while a video has the screen** goes the second way whatever the window's state, and from whatever it comes (Esc, a remote's Back or Backspace, a right click, a pad's or a remote's button): `main.cpp` gives `InputManager` `MpvController::takesBack()` to ask (`setBackTaker()`), and while it says so a back is `mpvKeyRequested("ESC")` or `("BS")` at once, its repeats and its release with it and to no view. Nothing of the app's can be asking for back then but the player that would have sent it on (an mpv process has the screen, and on a Pi the window is hidden; a video in front of the menus covers every view), and back is the one key that leaves a video: by way of the view that had the keys it could be lost with no way out left. Each such back is a line in the log (`[input] back (…) while a video has the screen: to its player`), and so is any other key that goes on to the views then, once for each key and holder, with who has the keys (`[input] Left goes to the views while a video has the screen: the keys are with … of Player.qml`). Held directions auto-repeat (400 ms delay, 100 ms interval) so lists feel like keyboard repeat; during a video a repeat holds the key down in mpv, which repeats it at its own pace until the button is let go (see [Playback Hand-off](#playback-hand-off-mpvcontroller)).
@@ -885,7 +885,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -946,7 +946,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -1032,6 +1032,10 @@ A video that couldn't be played, as a `PromptScreen` notice: **Playback failed**
 ### MpvKeys (`views/Components/MpvKeys.js`)
 
 The keys a player's view sends on to mpv as its video plays, one table for every player (a `.pragma library` in `qmldir`, so `import Components` brings it): `MpvKeys.name(event.key)` is mpv's name for a key, as `mpvController.sendKey()` takes it (Esc and a remote's Back `ESC`, Backspace `BS`, the arrows, Space, Return and Enter `ENTER`), or `""` for one the view keeps or lets go on to `Main.qml`. `name(event.key, true)` adds the channel keys and the page keys, `CHANNEL_UP` and `CHANNEL_DOWN`, which step a playlist in mpv (`mpv-media-keys.lua`): the Playlists player asks for them and sends them once per press (`isChannel()`); Local Files' player steps through the folder with them itself.
+
+### Hints (`views/Components/Hints.js`)
+
+The keys as every view takes them, a `.pragma library` in `qmldir` as `MpvKeys` is, behind `Main.qml`'s own (and `StandInRoot`'s, in the tests): `root.isBack(event)`, whether a key is back (Esc, as a pad's back comes too, Backspace, or a remote's Back).
 
 ### OsdGround (`views/Components/OsdGround.qml`)
 

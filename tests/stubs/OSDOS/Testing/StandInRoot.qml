@@ -108,6 +108,8 @@ Rectangle {
                                             left: "[◄]", back: "[ESC]", select: "[ENTER]", play_pause: "[SPACE]",
                                             coin: "[5]" })
     property var hints: keyboardHints
+    // Whether a key event is back, as Main.qml has it.
+    function isBack(event) { return Hints.isBack(event) }
 
     // --- A VIDEO ---
     // None playing, none behind the menus, the screen the app's own.

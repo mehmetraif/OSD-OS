@@ -142,7 +142,7 @@ FocusScope {
         Keys.onRightPressed: multiSelectRoot.toggleItem(currentIndex)
         Keys.onReturnPressed: multiSelectRoot.toggleItem(currentIndex)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 multiSelectRoot.goBack()
                 event.accepted = true
             }

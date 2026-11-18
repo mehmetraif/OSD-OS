@@ -622,5 +622,14 @@ StandInRoot {
             page.hint.guide = ["[▲▼]:MENU/ITEM"]
             compare(root.chrome.guide, ["[▲▼]:MENU/ITEM"])
         }
+
+        // The keys that are back (Hints.js, Main.qml's root.isBack()).
+        function test_isBack() {
+            verify(root.isBack({ key: Qt.Key_Escape }))
+            verify(root.isBack({ key: Qt.Key_Backspace }))
+            verify(root.isBack({ key: Qt.Key_Back }))
+            verify(!root.isBack({ key: Qt.Key_Return }))
+            verify(!root.isBack({ key: Qt.Key_Left }))
+        }
     }
 }

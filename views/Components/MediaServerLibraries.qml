@@ -170,7 +170,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 browseRoot.goBack()
                 event.accepted = true
             }

@@ -13,8 +13,7 @@ ModuleRouter {
     // With no reader driver at all no child view ever loads, so the back keys
     // for the unavailable screen must be handled here.
     Keys.onPressed: function(event) {
-        if (!nfcReaderBackend.available &&
-            (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)) {
+        if (!nfcReaderBackend.available && root.isBack(event)) {
             moduleRoot.goBack()
             event.accepted = true
         }

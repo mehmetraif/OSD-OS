@@ -156,7 +156,7 @@ FocusScope {
         Keys.onReturnPressed: lockRoot.activate(lockRoot.rows[currentIndex])
         Keys.onEnterPressed: lockRoot.activate(lockRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 lockRoot.goBack()
                 event.accepted = true
             }
@@ -203,7 +203,7 @@ FocusScope {
             if (event.modifiers & Qt.ControlModifier)
                 return
             if (!event.isAutoRepeat
-                    && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+                    && root.isBack(event)
                     && inputManager)
                 inputManager.captureUnlockButtons(false)
             event.accepted = true

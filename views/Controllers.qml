@@ -192,7 +192,7 @@ FocusScope {
         Keys.onReturnPressed: controllersRoot.activate(controllersRoot.rows[currentIndex])
         Keys.onEnterPressed: controllersRoot.activate(controllersRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 controllersRoot.goBack()
                 event.accepted = true
             }

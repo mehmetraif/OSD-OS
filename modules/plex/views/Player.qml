@@ -110,7 +110,7 @@ FocusScope {
             return
         if (waiting) {
             // No mpv to send the keys to: back leaves.
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+            if (root.isBack(event))
                 leaveWaiting()
             event.accepted = true
         } else {

@@ -68,7 +68,7 @@ FocusScope {
             event.key === Qt.Key_AltGr) {
             return
         }
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
             return

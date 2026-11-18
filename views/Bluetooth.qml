@@ -202,7 +202,7 @@ FocusScope {
         Keys.onReturnPressed: bluetoothRoot.activate(bluetoothRoot.rows[currentIndex])
         Keys.onEnterPressed: bluetoothRoot.activate(bluetoothRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 bluetoothRoot.goBack()
                 event.accepted = true
             }
@@ -282,7 +282,7 @@ FocusScope {
             if (event.modifiers & Qt.ControlModifier)
                 return
             event.accepted = true
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+            if (root.isBack(event)
                     || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                 close()
             else if (event.key === Qt.Key_Up)

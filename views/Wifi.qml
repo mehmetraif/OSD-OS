@@ -285,7 +285,7 @@ FocusScope {
         Keys.onReturnPressed: wifiRoot.activate(wifiRoot.rows[currentIndex])
         Keys.onEnterPressed: wifiRoot.activate(wifiRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 wifiRoot.goBack()
                 event.accepted = true
             }
@@ -463,7 +463,7 @@ FocusScope {
                 return
             event.accepted = true
             var n = entries.length
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 close()
             } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && n > 0) {
                 var code = entries[index].code

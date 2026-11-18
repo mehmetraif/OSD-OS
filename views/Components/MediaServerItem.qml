@@ -222,7 +222,7 @@ FocusScope {
         }
     }
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             _saveCurrentLangs()
             // A stream still on its way is dropped as it comes, and not
             // reported to the server as playing.

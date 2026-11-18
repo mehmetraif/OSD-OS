@@ -259,7 +259,7 @@ FocusScope {
                 if (!event.isAutoRepeat)
                     lobbyRoot.open(lobbyRoot.rows[currentIndex])
                 event.accepted = true
-            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            } else if (root.isBack(event)) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.goBack()
                 event.accepted = true
@@ -292,7 +292,7 @@ FocusScope {
                 if (!event.isAutoRepeat && (lobbyRoot.lines[currentIndex] || {}).type === "join")
                     lobbyRoot.join()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            } else if (root.isBack(event)) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.close()
                 event.accepted = true

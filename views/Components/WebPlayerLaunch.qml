@@ -48,9 +48,6 @@ FocusScope {
     property string output: ""
     readonly property bool running: backend ? backend.running : false
 
-    function isBack(key) {
-        return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
-    }
     // While the browser is open, Backspace is for its text fields: holding it
     // to clear one mustn't close the browser.
     function holdsBack(key) {
@@ -158,7 +155,7 @@ FocusScope {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 launchRoot.phase = "opening"
                 launchTimer.start()
-            } else if (isBack(event.key)) {
+            } else if (root.isBack(event)) {
                 launchRoot.goBack()
             }
             return
@@ -170,7 +167,7 @@ FocusScope {
             }
             return
         }
-        if (!isBack(event.key)) return
+        if (!root.isBack(event)) return
         if (launchRoot.phase === "closed") {
             // A new press: the release went elsewhere.
             if (!event.isAutoRepeat) launchRoot.goBack()

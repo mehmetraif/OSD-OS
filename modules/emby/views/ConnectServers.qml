@@ -76,7 +76,7 @@ FocusScope {
         Keys.onEnterPressed: pickerRoot.selectCurrent()
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 pickerRoot.goBack()
                 event.accepted = true
             }

@@ -119,7 +119,7 @@ FocusScope {
                 arcadeBackend.downloadPictures()
         }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 picturesRoot.goBack()
                 event.accepted = true
             }

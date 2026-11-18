@@ -75,10 +75,6 @@ FocusScope {
     // letters (the hint bar's).
     readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
 
-    function isBack(key) {
-        return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
-    }
-
     // The loading screen first, the game a moment later (start()).
     function launch() {
         if (playRoot.phase === "opening")
@@ -167,7 +163,7 @@ FocusScope {
                 return
             }
         }
-        if (!isBack(event.key))
+        if (!root.isBack(event))
             return
         if (playRoot.phase === "opening") {
             playRoot.phase = "canceled"

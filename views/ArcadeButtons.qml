@@ -449,7 +449,7 @@ FocusScope {
         Keys.onReturnPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onEnterPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 pageRoot.goBack()
                 event.accepted = true
             }
@@ -561,7 +561,7 @@ FocusScope {
         Keys.onPressed: function(event) {
             if (event.modifiers & Qt.ControlModifier)
                 return
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+            if (root.isBack(event))
                 pageRoot.finish("cancel")
             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                 pageRoot.finish(answers[pageRoot.sumIndex].action)

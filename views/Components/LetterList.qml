@@ -255,7 +255,7 @@ FocusScope {
         Keys.onReturnPressed: letterListRoot.leaveLetters()
         Keys.onLeftPressed: letterListRoot.leaveLetters()
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 letterListRoot.leaveLetters()
                 event.accepted = true
             }

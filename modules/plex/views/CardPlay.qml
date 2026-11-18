@@ -70,7 +70,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        var back = root.isBack(event)
         // While it launches only back counts, giving the launch up: a
         // transcode still on its way is dropped as it comes.
         if (errorMessage === "") {
