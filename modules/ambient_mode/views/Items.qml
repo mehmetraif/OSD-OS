@@ -4,6 +4,12 @@ import Components
 FocusScope {
     id: itemsRoot
 
+    // In a layout's frame (Settings → Look → Menu Layout), as the other
+    // modules' pages are: the page in the pane (Main.qml's), and in a monitor
+    // layout its lines the layout's own (MonitorRow).
+    readonly property bool inFrame: true
+    readonly property bool monitorRows: root.monitorInk === true
+
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
 
@@ -115,6 +121,9 @@ FocusScope {
     // Empty state
     Column {
         anchors.centerIn: parent
+        anchors.horizontalCenterOffset: root.paneX + root.paneWidth / 2 - root.sw / 2
+        anchors.verticalCenterOffset: root.monitorFramed === true
+                                      ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
         spacing: root.sh * 0.0333333 //16
         visible: videoFiles.length === 0
         Text {
@@ -139,9 +148,10 @@ FocusScope {
 
     // Body
     Item {
-        visible: videoFiles.length > 0
+        visible: videoFiles.length > 0 && !itemsRoot.monitorRows
         anchors.centerIn: parent
-        width: root.sw * 0.76875 //492
+        anchors.horizontalCenterOffset: root.paneX + root.paneWidth / 2 - root.sw / 2
+        width: root.paneWidth //492
         height: root.sh * 0.4083333 //196
         clip: true
 
@@ -339,7 +349,7 @@ FocusScope {
                 id: playButton
                 color: focusRow === 2 ? root.accentColor : root.surfaceColor
                 border.color: focusRow === 2 ? root.accentColor : root.tertiaryColor
-                width: root.sw * 0.76875 //492
+                width: root.paneWidth //492
                 height: root.sh * 0.1166667 //56
                 border.width: root.sh * 0.003125 //2
 
@@ -351,6 +361,42 @@ FocusScope {
                     font.pixelSize: root.sh * 0.05 //24
                 }
             }
+        }
+    }
+
+    // In a monitor layout: the same lines as the layout draws them, in its
+    // pane, the values changed with ◄ ► as above.
+    Column {
+        visible: videoFiles.length > 0 && itemsRoot.monitorRows
+        x: root.paneX
+        y: root.listY
+        width: root.paneWidth
+        MonitorRow {
+            width: parent.width
+            height: root.sh * 0.0583333 //28
+            heading: true
+            label: "Playback Settings"
+        }
+        MonitorRow {
+            width: parent.width
+            height: root.sh * 0.0583333 //28
+            label: "Video"
+            value: videoValueText.text
+            selected: itemsRoot.focusRow === 0
+        }
+        MonitorRow {
+            width: parent.width
+            height: root.sh * 0.0583333 //28
+            label: "Audio"
+            value: audioValueText.text
+            selected: itemsRoot.focusRow === 1
+        }
+        MonitorRow {
+            width: parent.width
+            height: root.sh * 0.0583333 //28
+            label: "Start"
+            opens: true
+            selected: itemsRoot.focusRow === 2
         }
     }
 

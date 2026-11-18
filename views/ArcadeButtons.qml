@@ -31,6 +31,11 @@ import Components
 FocusScope {
     id: pageRoot
 
+    // In a layout's frame (Settings → Look → Menu Layout), as the pad's other
+    // pages are: the list and the control panel side by side in the pane
+    // (Main.qml's), the panel in the layout's ink (root.primaryColor).
+    readonly property bool inFrame: true
+
     signal goBack()
 
     property var navParams: ({})
@@ -453,13 +458,13 @@ FocusScope {
         model: pageRoot.rows
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
+        anchors.topMargin: root.listY //120
+        anchors.leftMargin: root.paneX //74
         // Up to the control panel's drawing.
         width: panel.x - x - root.sw * 0.0125 //8
         // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+        // line more for each bar that is off (Main.qml's listHeight).
+        height: root.listHeight //224
         clip: true
         focus: !pageRoot.capturing && !pageRoot.summing
         highlightMoveDuration: 0
@@ -504,7 +509,7 @@ FocusScope {
         lit: pageRoot.lit
         player: pageRoot.player
         visible: !pageRoot.capturing && !pageRoot.summing
-        x: root.sw * 0.884375 - width //566
+        x: root.paneX + root.paneWidth - width //566
         anchors.verticalCenter: list.verticalCenter
     }
 

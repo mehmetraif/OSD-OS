@@ -262,6 +262,24 @@ Rectangle {
         }
     }
 
+    // A line too narrow for its label, as Game Buttons' are beside the
+    // control panel in Camcorder's pane.
+    Component {
+        id: narrowRow
+        Item {
+            property alias row: row
+            MenuRow {
+                id: row
+                y: root.sh * 0.25
+                x: root.sw * 0.209375
+                width: root.sw * 0.3
+                height: root.sh * 0.0583333
+                label: "Set One By One"
+                opens: true
+            }
+        }
+    }
+
     Loader {
         id: loader
         anchors.fill: parent
@@ -611,6 +629,23 @@ Rectangle {
             verify(cursor !== null)
             compare(cursor.marked, data.layout !== "Flat Panel")
             verify(Qt.colorEqual(cursor.ink, root.menuPalette.ink))
+        }
+
+        // A label too long for its line is cut short with "…" a cell before
+        // the ► at its end, never drawn over it; one that fits is whole.
+        function test_longLabelStopsBeforeTheEnd_data() {
+            return [{ tag: "Standard", layout: "Standard" }, { tag: "Camcorder", layout: "Camcorder" }]
+        }
+        function test_longLabelStopsBeforeTheEnd(data) {
+            var row = open(narrowRow, data.layout).row
+            var label = find(row, function(item) { return item.text === "Set One By One" && item.elide !== undefined })
+            verify(label !== null)
+            verify(label.truncated, "the label is cut short")
+            verify(label.x + label.width <= row.pad + (row.endCell - 1) * row.cell + 0.5, "clear of the ►")
+            row.label = "Layout"
+            wait(0)
+            verify(!label.truncated)
+            compare(label.width, label.implicitWidth)
         }
 
         // The key guide made from a hint line, and the way joined.

@@ -5,6 +5,11 @@ FocusScope {
     focus: true
     id: authRoot
 
+    // In a layout's frame (Settings → Look → Menu Layout), as the module's
+    // other pages are: the form in the middle of the pane (Main.qml's).
+    readonly property bool inFrame: true
+    readonly property bool paned: root.framed === true || root.monitorFramed === true
+
     property var navParams: ({})
 
     signal navigateTo(string path, var params, var listState)
@@ -131,6 +136,9 @@ FocusScope {
     // Body
     Column {
         anchors.centerIn: parent
+        anchors.horizontalCenterOffset: authRoot.paned ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
+        anchors.verticalCenterOffset: root.monitorFramed === true
+                                      ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
         spacing: root.sh * 0.0333333 //16
 
         // Server URL field
@@ -216,7 +224,7 @@ FocusScope {
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
             anchors.horizontalCenter: parent.horizontalCenter
-            width: root.sw * 0.5
+            width: authRoot.paned ? Math.min(root.sw * 0.5, root.paneWidth) : root.sw * 0.5
             wrapMode: Text.Wrap
             maximumLineCount: 6
             elide: Text.ElideRight

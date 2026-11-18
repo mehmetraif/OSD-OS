@@ -1247,9 +1247,9 @@ Rectangle {
 
         // Controls in a monitor layout's frame (Settings → Look → Menu
         // Layout): its lines where the frame has its rows, the frame's title
-        // the way to the page, a pad's page under its name. Game Buttons
-        // alone stays a page of its own in every layout: its lines and its
-        // control panel want the screen's whole width.
+        // the way to the page, a pad's page under its name, and Game
+        // Buttons' lines and control panel side by side in the pane, the
+        // panel against its right side.
         function test_controlsInAMonitorLayout_data() {
             return [{ tag: "Studio Monitor", layout: "Studio Monitor" }, { tag: "Broadcast", layout: "Broadcast" },
                     { tag: "Flat Panel", layout: "Flat Panel" }]
@@ -1273,7 +1273,18 @@ Rectangle {
                                      : data.layout === "Broadcast" ? "Controls / 8BitDo Pro 2"
                                      : ">Settings >Controls >8BitDo Pro 2")
             page = open("ArcadeButtons.qml", { key: root.padKey })
-            verify(page.inFrame !== true)
+            verify(page.inFrame)
+            lines = list(page)
+            compare(lines.x, root.chrome.listX)
+            compare(lines.y, root.chrome.listY)
+            var panel = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].lit !== undefined && page.children[i].player !== undefined)
+                    panel = page.children[i]
+            }
+            verify(panel !== null)
+            compare(panel.x + panel.width, root.chrome.listX + root.chrome.listWidth)
+            verify(lines.x + lines.width < panel.x, "the lines end before the panel")
         }
     }
 }

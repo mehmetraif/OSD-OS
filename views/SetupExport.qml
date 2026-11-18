@@ -17,6 +17,11 @@ import Components
 FocusScope {
     id: exportRoot
 
+    // The question in a layout's frame (Settings → Look → Menu Layout), as
+    // Settings' own are; the codes over the whole screen, as large as it
+    // holds, the frame and all gone.
+    readonly property bool inFrame: asking
+
     signal goBack()
 
     property var navParams: ({})
