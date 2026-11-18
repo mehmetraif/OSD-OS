@@ -281,10 +281,6 @@ FocusScope {
     AppBar {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -328,10 +324,6 @@ FocusScope {
             : row.type === "video" ? row.path
             : row.type === "empty" ? "Pick a folder in Settings, Hello Channel, Video Folder"
             : "The channel's settings, and how many videos it has"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -339,10 +331,6 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (row && row.type === "video" ? root.hints.select + ":PLAY"
                  : row && row.type === "about" ? root.hints.select + ":OPEN" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }
 ```
@@ -396,10 +384,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "About"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Column {
@@ -424,10 +408,6 @@ FocusScope {
 
     HintBar {
         text: root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }
 ```
@@ -1098,10 +1078,10 @@ Every screen is drawn from the components in [`views/Components`](https://github
 
 | Component | Use it for |
 |---|---|
-| `AppBar` | The title bar: `iconSource`, `title`, `subtitle` |
-| `HintBar` | The key hints at the foot, from `root.hints` |
+| `AppBar` | The title bar: `iconSource`, `title`, `subtitle`; in its place at the top on its own |
+| `HintBar` | The key hints at the foot, from `root.hints`; in its place on its own |
 | `MenuRow`, `MenuList`, `ScrollMarks` | Menu lines, a menu of them, ▲ ▼ when lines are hidden |
-| `HelpLine` | The line about the selected row, under the menu |
+| `HelpLine` | The line about the selected row, under the menu; in its place on its own |
 | `ScrolledText` | A line too long for its room, scrolled through while it is `on` (the selected row's) and cut short with "…" while not: `text`, `on`, `font.pixelSize` |
 | `PromptScreen`, `ChoiceOverlay` | A full-screen question or notice, and a short list of answers |
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |

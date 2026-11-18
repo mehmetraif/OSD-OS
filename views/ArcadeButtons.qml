@@ -435,10 +435,6 @@ FocusScope {
         iconSource: "../../assets/images/keyboard.svg"
         title: pageRoot.present ? "Game Buttons" : "Not Connected"
         subtitle: pageRoot.name
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -489,10 +485,6 @@ FocusScope {
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
         // What became of a press is said with Help Line off too.
         always: pageRoot.notice !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -500,10 +492,6 @@ FocusScope {
         visible: !pageRoot.capturing && !pageRoot.summing
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + root.hints.select + (currentRow && currentRow.type === "setall" ? ":START" : ":CHANGE")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The layout, from a list: back leaves it as it was.

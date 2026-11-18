@@ -101,10 +101,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: tree.folderName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Nothing in the folder: what stands in the way, and where the games go.
@@ -213,10 +209,6 @@ FocusScope {
               : entry && entry.kind === "search" ? "Find a game by its name"
               : gamesRoot.scanning ? "Reading the games…"
               : "Games folder: " + gamesRoot.gamesFolder
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Footer
@@ -234,10 +226,6 @@ FocusScope {
               + (entry && (entry.kind === "unknown" || entry.kind === "message") ? ""
                  : root.hints.select + (onRoom ? ":JOIN" : onGame ? ":PLAY"
                                         : entry && entry.kind === "search" ? ":SEARCH" : ":OPEN"))
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     OnScreenKeyboard {

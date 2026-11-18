@@ -44,10 +44,6 @@ StandInRoot {
                 title: "Wi-Fi"
                 subtitle: "192.0.2.2"
                 path: ["Wi-Fi"]
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: root.sh * 0.125
-                anchors.leftMargin: root.sw * 0.125
             }
             MenuList {
                 id: list
@@ -65,18 +61,10 @@ StandInRoot {
             HelpLine {
                 id: help
                 text: parent.rows[list.currentIndex].description
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.helpLineMargin
-                anchors.leftMargin: root.sw * 0.125
             }
             HintBar {
                 id: hint
                 text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.sh * 0.1041667
-                anchors.leftMargin: root.sw * 0.125
             }
             ChoiceOverlay {
                 id: question
@@ -98,10 +86,6 @@ StandInRoot {
             AppBar {
                 title: "Local Files"
                 subtitle: tree.folderName
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: root.sh * 0.125
-                anchors.leftMargin: root.sw * 0.125
             }
             TreeBrowser {
                 id: tree
@@ -119,10 +103,6 @@ StandInRoot {
             HintBar {
                 id: hint
                 text: root.hints.back + ":BACK " + root.hints.arrows + ":NAVIGATE " + root.hints.select + ":OPEN"
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.sh * 0.1041667
-                anchors.leftMargin: root.sw * 0.125
             }
         }
     }
@@ -137,10 +117,6 @@ StandInRoot {
             AppBar {
                 title: "Jellyfin"
                 subtitle: "Movies"
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: root.sh * 0.125
-                anchors.leftMargin: root.sw * 0.125
             }
             ListView {
                 id: list
@@ -199,6 +175,38 @@ StandInRoot {
                 height: root.menuRowHeight
                 label: "Set One By One"
                 opens: true
+            }
+        }
+    }
+
+    // The bars declared bare, as a view declares them, and a hint bar a view
+    // anchors elsewhere.
+    Component {
+        id: barePage
+        FocusScope {
+            property alias bar: bar
+            property alias help: help
+            property alias hint: hint
+            property alias moved: moved
+            AppBar {
+                id: bar
+                title: "Wi-Fi"
+            }
+            HelpLine {
+                id: help
+                text: "What the row does"
+            }
+            HintBar {
+                id: hint
+                text: root.hints.back + ":BACK"
+            }
+            HintBar {
+                id: moved
+                text: root.hints.back + ":BACK"
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: 10
+                anchors.rightMargin: 5
             }
         }
     }
@@ -285,6 +293,31 @@ StandInRoot {
             var row = find(page.list, function(item) { return item.label === "Row 1" && item.handed !== undefined })
             verify(row !== null)
             verify(!row.handed, "a row draws itself, the camcorder's way")
+        }
+
+        // The title bar, the help line and the hint bar each stand in their
+        // place on their own, where every view had anchored them: the title
+        // bar the gutter in from the top left, the hint bar above the foot,
+        // the help line over it, or in its place with the hint bar off. A
+        // view's anchors win over that place.
+        function test_barsInTheirPlace() {
+            var page = open(barePage, "Standard")
+            compare(page.bar.x, root.sw * 0.125)
+            compare(page.bar.y, root.sh * 0.125)
+            compare(page.hint.x, root.sw * 0.125)
+            compare(page.hint.y, page.height - page.hint.height - root.sh * 0.1041667)
+            compare(page.help.x, root.sw * 0.125)
+            compare(page.help.y, page.height - page.help.height - root.sh * 0.1583333)
+            root.hintBar = false
+            compare(page.help.y, page.height - page.help.height - root.sh * 0.1041667)
+            // The foot followed as the view's height changes.
+            page.height = 400
+            compare(page.hint.y, 400 - page.hint.height - root.sh * 0.1041667)
+            compare(page.help.y, 400 - page.help.height - root.sh * 0.1041667)
+            compare(page.bar.y, root.sh * 0.125)
+            // Anchored elsewhere, where the anchors put it.
+            compare(page.moved.x, page.width - page.moved.width - 5)
+            compare(page.moved.y, 10)
         }
 
         // A page's bars hand what they hold to the frame and draw nothing;

@@ -109,10 +109,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: takeoverRoot.scriptName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Text {
@@ -215,10 +211,6 @@ FocusScope {
                 parts.push(root.hints.navigate + ":SCROLL")
             return parts.join(" ")
         }
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The hand-off screen. Opaque black over everything above, because on a

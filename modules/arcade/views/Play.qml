@@ -186,10 +186,6 @@ FocusScope {
         visible: !playRoot.arcade
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't.
@@ -357,10 +353,6 @@ FocusScope {
               : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.takesCoin ? root.hints.coin + ":COIN " : "")
                                   + root.hints.play_pause + ":PLAY"
               : root.hints.back + ":CANCEL"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     GameLoading {

@@ -202,10 +202,6 @@ FocusScope {
         iconSource: menuRoot.iconSource
         title: menuRoot.moduleName
         subtitle: menuRoot.title
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The lines in the place every view's list has, ▲ / ▼ while some are
@@ -250,18 +246,10 @@ FocusScope {
         property var currentRow: menuRoot.rows[list.currentIndex]
         visible: !!(currentRow && currentRow.description)
         text: (currentRow && currentRow.description) || ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         text: root.hints.back + ":VIDEO " + root.hints.navigate + ":NAVIGATE "
               + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

@@ -113,10 +113,6 @@ FocusScope {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
         subtitle: moduleName + " / " + settingLabel
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // "NAME····◄ ON ►", a heading "GENRES ─────" over its choices. A name too
@@ -161,19 +157,11 @@ FocusScope {
         visible: heading || multiSelectRoot.problem !== ""
         always: !heading
         text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- FOOTER ---
     HintBar {
         id: footer
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

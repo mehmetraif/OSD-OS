@@ -69,10 +69,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: consoleRoot.scriptName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Status line
@@ -162,9 +158,5 @@ FocusScope {
     HintBar {
         text: (consoleRoot.running ? root.hints.back + ":STOP " : root.hints.back + ":BACK ")
               + root.hints.navigate + ":SCROLL"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

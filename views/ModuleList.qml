@@ -197,10 +197,6 @@ FocusScope {
         subtitle: appRoot.camcorder && appRoot.groups[appRoot.groupIndex] ? appRoot.groups[appRoot.groupIndex].label : ""
         path: []
         frameTitle: appRoot.studio ? (appRoot.groups[appRoot.groupIndex] || { label: "OSD/OS" }).label : "OSD/OS"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Empty state
@@ -376,9 +372,5 @@ FocusScope {
         text: root.hints.back + ":SETTINGS " + root.hints.navigate + ":NAVIGATE "
               + (appRoot.camcorder ? (appRoot.groupIcons ? root.hints.browse + ":OPEN " : root.hints.left + ":GROUPS ") : "")
               + (root.videoBehind ? root.hints.play_pause + ":STOP " : "") + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

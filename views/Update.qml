@@ -110,10 +110,6 @@ FocusScope {
         iconSource: "../../assets/images/update.svg"
         title: "Update"
         //subtitle: root.appVersion
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Item {
@@ -246,10 +242,6 @@ FocusScope {
             text: root.hints.back + ":BACK "
                   + (updateRoot.releaseNotes !== "" ? root.hints.navigate + ":SCROLL " : "")
                   + (updateRoot.actionLabel !== "" ? root.hints.select + ":" + updateRoot.actionLabel : "")
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
         }
     }
 

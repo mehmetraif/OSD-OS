@@ -204,10 +204,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: lobbyRoot.room ? lobbyRoot.room.title : "RetroArch Lobby"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Text {
@@ -310,10 +306,6 @@ FocusScope {
         always: true
         text: lobbyRoot.room ? ((lobbyRoot.lines[roomLines.currentIndex] || {}).description || "")
                              : lobbyRoot.about(lobbyRoot.rows[roomList.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -323,9 +315,5 @@ FocusScope {
         text: root.hints.back + ":BACK"
               + ((lobbyRoot.room ? lobbyRoot.lines.length : lobbyRoot.rooms.length) > 1 ? " " + root.hints.navigate + ":NAVIGATE" : "")
               + (onRoom ? " " + root.hints.select + ":OPEN" : onJoin ? " " + root.hints.select + ":JOIN" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

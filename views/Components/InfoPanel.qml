@@ -194,9 +194,5 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (info.optionsHint !== "" ? info.optionsHint + " " : "")
               + root.hints.select + ":PLAY"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

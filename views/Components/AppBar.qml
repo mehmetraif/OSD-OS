@@ -53,6 +53,10 @@ Item {
     // long for it scrolls.
     width: root.sw * 0.75 //480
     height: content.height + 2 * root.px
+    // Its place on every view, the gutter in from the top left; a view's
+    // own anchors, where it gives some, win over these.
+    x: root.sw * 0.125 //80
+    y: root.sh * 0.125 //60
 
     // The logo's own ground, the background colour: through the gaps in its
     // drawing, a video playing behind the menus would show otherwise.

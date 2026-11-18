@@ -263,10 +263,6 @@ FocusScope {
         iconSource: "../../assets/images/keyboard.svg"
         title: !pageRoot.present ? "Not Connected" : pageRoot.pad ? "Menu Buttons" : "Controls"
         subtitle: pageRoot.name
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -308,10 +304,6 @@ FocusScope {
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
         // What became of a press is said with Help Line off too.
         always: pageRoot.notice !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -320,10 +312,6 @@ FocusScope {
         visible: !pageRoot.capturing
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + root.hints.select + (type === "test" ? ":TEST" : type === "reset" ? ":REMOVE" : ":CHANGE")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // What to do with an action.

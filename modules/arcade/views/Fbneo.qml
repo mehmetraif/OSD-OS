@@ -130,10 +130,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "FinalBurn Neo"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -172,10 +168,6 @@ FocusScope {
     HelpLine {
         always: true
         text: fbneoRoot.descriptionOf(fbneoRoot.keys[list.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -185,9 +177,5 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
               + (downloads ? " " + root.hints.select + ":DOWNLOAD"
                  : key === "own" && !fbneoRoot.downloading ? " " + root.hints.select + ":SELECT" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

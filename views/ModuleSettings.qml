@@ -629,10 +629,6 @@ FocusScope {
         title: "Settings"
         subtitle: moduleSettingsRoot.submenuLabel !== ""
                   ? moduleName + " / " + moduleSettingsRoot.submenuLabel : moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -808,10 +804,6 @@ FocusScope {
         always: moduleSettingsRoot.notice !== ""
         text: moduleSettingsRoot.notice !== "" ? moduleSettingsRoot.notice
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- FOOTER ---
@@ -822,10 +814,6 @@ FocusScope {
               : root.twoStep
               ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
               : root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // An action row's question (its "confirm"), what it does under it. The

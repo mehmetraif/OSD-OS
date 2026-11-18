@@ -112,10 +112,6 @@ Item {
                                              : "../../assets/images/question.svg"
         title: prompt.title
         frameTitle: prompt.title
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The space between the bars, or with the hint bar off, down to where it
@@ -262,9 +258,5 @@ Item {
               : prompt.choices.length > 0
                 ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
                 : root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

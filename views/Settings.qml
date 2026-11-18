@@ -495,10 +495,6 @@ FocusScope {
                   : settingsRoot.camcorder ? (settingsRoot.camPages[settingsRoot.camIndex] ? settingsRoot.camPages[settingsRoot.camIndex].row.label : "")
                   : root.devBuild ? "" : root.appVersion
         note: settingsRoot.group === "" ? settingsRoot.ipAddress : ""
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // IP address, on the first page's bar alone.
@@ -838,10 +834,6 @@ FocusScope {
         objectName: "helpLine"
         visible: text !== ""
         text: settingsRoot.helpText
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- FOOTER ---
@@ -851,10 +843,6 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (settingsRoot.inIcons() ? root.hints.browse + ":OPEN " : root.hints.change + ":CHANGE ")
               + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---

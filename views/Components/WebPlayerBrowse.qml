@@ -66,10 +66,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: tree.folderName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     TreeBrowser {
@@ -142,10 +138,6 @@ FocusScope {
         text: browse.catalog ? browse.catalog.problem : ""
         // A problem is said with Help Line off too.
         always: text !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -164,10 +156,6 @@ FocusScope {
                  : entry.kind === "title" ? ":PLAY"
                  : entry.kind === "search" ? ":SEARCH"
                  : entry.kind === "more" ? ":MORE" : ":OPEN")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // A title's info: the tree's last layer.

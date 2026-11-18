@@ -350,10 +350,6 @@ FocusScope {
             HintBar {
                 visible: !osk.inline
                 text: root.hints.back + ":CANCEL " + root.hints.navigate + ":MOVE " + root.hints.select + ":TYPE"
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.sh * 0.1041667 //50
-                anchors.leftMargin: root.sw * 0.125 //80
             }
         }
     }

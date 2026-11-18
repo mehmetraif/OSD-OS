@@ -68,10 +68,6 @@ FocusScope {
     AppBar {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -128,20 +124,12 @@ FocusScope {
                 + " once, then plays without the network"
             : row.kind === "offline" ? "Offline: plays the videos downloaded to the device"
             : "Online: plays each video from where it lives"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         visible: !osk.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
               + (listRoot.rows[list.currentIndex] && listRoot.rows[list.currentIndex].type === "new" ? ":NEW" : ":OPEN")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     OnScreenKeyboard {

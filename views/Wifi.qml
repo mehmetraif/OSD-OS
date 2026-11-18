@@ -263,10 +263,6 @@ FocusScope {
         subtitle: wifiRoot.current.address || ""
         // The address is no step of the way here.
         path: ["Wi-Fi"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -323,19 +319,11 @@ FocusScope {
         // that failed showed nothing at all.
         always: wifiRoot.message !== ""
         visible: text !== "" && !keyboard.visible
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         visible: !keyboard.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // A saved network's options, the one joined's, or whether one not

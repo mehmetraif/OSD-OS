@@ -38,10 +38,6 @@ Item {
         visible: !moduleRoot.arcadeScreen
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
     ArcadeBar {
         visible: moduleRoot.arcadeScreen

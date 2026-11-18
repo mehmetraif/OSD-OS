@@ -181,10 +181,6 @@ FocusScope {
         subtitle: bluetoothManager ? bluetoothManager.adapterName : ""
         // The adapter's name is no step of the way here.
         path: ["Bluetooth"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -238,18 +234,10 @@ FocusScope {
         // How a pairing went is said with Help Line off too.
         always: bluetoothRoot.message !== ""
         visible: text !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // A paired device's options.
@@ -315,10 +303,6 @@ FocusScope {
             iconSource: "../../assets/images/bluetooth.svg"
             title: "Bluetooth"
             subtitle: "Details"
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.topMargin: root.sh * 0.125 //60
-            anchors.leftMargin: root.sw * 0.125 //80
         }
 
         Flickable {
@@ -360,10 +344,6 @@ FocusScope {
 
         HintBar {
             text: root.hints.back + ":BACK " + root.hints.navigate + ":SCROLL"
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
         }
     }
 

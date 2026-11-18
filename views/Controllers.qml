@@ -176,10 +176,6 @@ FocusScope {
         title: "Controls"
         subtitle: controllersRoot.show === "keyboards" ? "Keyboards & Remotes"
                 : controllersRoot.show === "away" ? "Not Connected" : ""
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -223,19 +219,11 @@ FocusScope {
         // What a choice did is said with Help Line off too.
         always: controllersRoot.notice !== ""
         visible: text !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         property var currentRow: controllersRoot.rows[list.currentIndex]
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + root.hints.select + (currentRow && currentRow.type === "players" ? ":SET" : ":OPEN")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

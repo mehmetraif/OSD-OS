@@ -76,10 +76,6 @@ FocusScope {
     AppBar {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Empty state
@@ -208,10 +204,6 @@ FocusScope {
             if (s.confirm)  flags.push("CONFIRM")
             return [s.basename].concat(flags).join("\n")
         }
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Component.onCompleted: {
@@ -300,9 +292,5 @@ FocusScope {
               + ((itemsRoot.currentScript && itemsRoot.currentScript.favorite)
                  ? ":UNFAVORITE " : ":FAVORITE ")
               + root.hints.select + ":RUN"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

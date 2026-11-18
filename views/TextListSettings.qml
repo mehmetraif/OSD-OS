@@ -94,10 +94,6 @@ FocusScope {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
         subtitle: moduleName + " / " + settingLabel
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The lines, then ADD: dimmed once the list is full.
@@ -142,18 +138,10 @@ FocusScope {
     HelpLine {
         visible: text !== ""
         text: list.onAdd && textListRoot.full ? "The list is full: take a line out first" : textListRoot.help
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // What to do with a line.

@@ -138,10 +138,6 @@ FocusScope {
     AppBar {
         iconSource: "../../assets/images/lock.svg"
         title: "Cabinet Lock"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -183,20 +179,12 @@ FocusScope {
 
     HelpLine {
         text: lockRoot.rows[list.currentIndex].description
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (lockRoot.rows[list.currentIndex].key === "lock" ? root.hints.change + ":CHANGE " : "")
               + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- WAITING FOR THE BUTTONS ---

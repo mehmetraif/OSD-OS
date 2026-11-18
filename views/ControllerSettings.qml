@@ -187,10 +187,6 @@ FocusScope {
         // A pad away says so where a long name can't push it out of sight.
         title: pageRoot.present ? "Controls" : "Not Connected"
         subtitle: pageRoot.name
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -241,10 +237,6 @@ FocusScope {
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
         // What a choice did is said with Help Line off too.
         always: pageRoot.notice !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -254,10 +246,6 @@ FocusScope {
               + (type === "labels" || type === "pins" ? root.hints.change + ":CHANGE "
                  : root.hints.select + (type === "test" ? ":TEST" : type === "reset" ? ":RESET"
                                         : type === "player" ? ":CHANGE" : ":OPEN"))
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The player it is, from a list: back leaves it as it was.

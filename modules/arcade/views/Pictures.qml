@@ -95,10 +95,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Game Pictures"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -133,19 +129,11 @@ FocusScope {
     HelpLine {
         always: true
         text: picturesRoot.descriptionOf(picturesRoot.keys[list.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property string key: picturesRoot.keys[list.currentIndex] || ""
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
               + (key === "download" && !picturesRoot.active ? " " + root.hints.select + ":DOWNLOAD" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

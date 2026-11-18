@@ -86,10 +86,6 @@ FocusScope {
         subtitle: systemInfo ? systemInfo.deviceName : ""
         // The device's name is no step of the way here.
         path: ["System Information"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -134,20 +130,12 @@ FocusScope {
               : !infoRoot.currentRow ? ""
               : (infoRoot.currentRow.description || "")
                 + (infoRoot.onName && infoRoot.canRename ? " • " + root.hints.select + " Rename it" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         visible: !osk.visible
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
               + (infoRoot.onName && infoRoot.canRename ? " " + root.hints.select + ":RENAME" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The new name: letters, digits and hyphens, a space typed as a hyphen.

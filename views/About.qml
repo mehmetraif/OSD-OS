@@ -228,10 +228,6 @@ FocusScope {
         subtitle: licensePage.visible ? licensePage.title : root.appVersion
         // The version is no step of the way here; a licence's name is.
         path: licensePage.visible ? ["About", licensePage.title] : ["About"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The wordmark, as on the logo: the letters in the scheme's colour, the
@@ -340,10 +336,6 @@ FocusScope {
         always: true
         visible: !licensePage.visible
         text: row && row.description ? row.description.split("{select}").join(root.hints.select) : ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -352,10 +344,6 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
               + (row && row.page ? " " + root.hints.select + ":OPEN"
                  : row && row.license ? " " + root.hints.select + ":LICENSE" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // A licence, in place of the lines below the title bar: OSD/OS's with the
@@ -473,10 +461,6 @@ FocusScope {
 
         HintBar {
             text: root.hints.back + ":BACK " + root.hints.navigate + ":SCROLL"
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
         }
     }
 }

@@ -127,10 +127,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Connect to Server"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Body
@@ -236,10 +232,6 @@ FocusScope {
     HintBar {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
               + (focusIndex === 0 ? ":TYPE" : ":CONNECT")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     OnScreenKeyboard {

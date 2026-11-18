@@ -61,10 +61,6 @@ ModuleRouter {
     HintBar {
         visible: !nfcReaderBackend.available
         text: root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667
-        anchors.leftMargin: root.sw * 0.125
     }
 
     Component.onCompleted: {

@@ -149,10 +149,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: pageRoot.playlist.name || ""
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -247,10 +243,6 @@ FocusScope {
                 ? row.item.title + ": " + (row.item.reason === "not allowed" ? "the server doesn't let this user download it" : row.item.reason)
                 : row.item.title)
             : ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -258,10 +250,6 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (pageRoot.currentRow && pageRoot.currentRow.type === "order" ? root.hints.change + ":CHANGE " : "")
               + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // A video's own choices.

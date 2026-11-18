@@ -142,10 +142,6 @@ FocusScope {
     // ---
 
     AppBar {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125
-        anchors.leftMargin: root.sw * 0.125
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: itemTitle
@@ -211,10 +207,6 @@ FocusScope {
     HintBar {
         id: footer
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Launch overlay — covers the list while Plex prepares the stream so a

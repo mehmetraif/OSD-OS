@@ -35,6 +35,10 @@ Text {
     readonly property real smallest: root.sh * 0.0291667 //14
 
     width: root.sw * 0.75 //480
+    // Its place on every view, the gutter in from the bottom left; a view's
+    // own anchors, where it gives some, win over these.
+    x: root.sw * 0.125 //80
+    y: parent ? parent.height - height - root.sh * 0.1041667 : 0 //50 above the foot
     color: root.surfaceColor
     font.family: root.globalFont
     font.pixelSize: Math.max(smallest, Math.min(largest,
