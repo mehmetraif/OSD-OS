@@ -10,6 +10,7 @@ PixelIcon PixelIcon.qml
 ArcadePanel ArcadePanel.qml
 Dither Dither.qml
 MenuRow MenuRow.qml
+ScrolledText ScrolledText.qml
 HelpLine HelpLine.qml
 ScrollMarks ScrollMarks.qml
 WebPlayerLaunch WebPlayerLaunch.qml
