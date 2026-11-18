@@ -271,14 +271,54 @@ private:
     // Where a session's files are (the paths below), in a folder of the
     // user's own (util/RuntimeFiles.h); asked for each session.
     void placeRunFiles();
+    // What a player asked loadAndPlay() for, as it asked it: made once there,
+    // and handed on to what makes the session of it.
+    struct PlaybackRequest {
+        QString url;
+        float startSeconds = 0.0f;
+        int audioTrack = -1;
+        int subTrack = -1;
+        QStringList subFiles;
+        QStringList subLangs;
+        bool loop = false;
+        int playlistStart = -1;
+        float transcodeOffsetSec = 0.0f;
+        QString plexToken;
+        bool muteAudio = false;
+        QString oscMode;
+        bool shuffle = false;
+        QStringList subTitles;
+        float imageDurationSec = 0.0f;
+        bool imageContent = false;
+        QStringList extraArgs;
+        QString jellyfinToken;
+        QStringList extraUrls;
+    };
+    // loadAndPlay() past its parameters.
+    void play(const PlaybackRequest &request);
     // The mpv options for a session, up to how its picture is shown; what
-    // plays comes after them, behind a "--".
-    QStringList sessionArgs(const QString &url, float startSeconds, int audioTrack, int subTrack,
-                            const QStringList &subFiles, const QStringList &subLangs, bool loop,
-                            int playlistStart, float transcodeOffsetSec, const QString &plexToken,
-                            bool muteAudio, const QString &oscMode, bool shuffle,
-                            const QStringList &subTitles, float imageDurationSec, bool imageContent,
-                            const QStringList &extraArgs, const QString &jellyfinToken, bool embedded);
+    // plays comes after them, behind a "--". In three parts, in this order:
+    // the session's connection, log, OSD and scripts with their options
+    // (scriptArgs()); what plays and how, from where it starts and its
+    // tracks to the sound and what fetching it takes (trackArgs()); and how
+    // its picture is shown, as Settings has it (presentationArgs()).
+    QStringList sessionArgs(const PlaybackRequest &request, bool embedded);
+    QStringList scriptArgs(const PlaybackRequest &request, bool embedded);
+    // Settings → TV / Movie → Channel Logo for scriptArgs(): its corner (""
+    // while it is off, or mpv-logo.lua isn't there), and the size of Logo
+    // Image's overlay made for the session (0 for OSD/OS's own logo).
+    struct ChannelLogo {
+        QString corner;
+        int width = 0;
+        int height = 0;
+    };
+    ChannelLogo channelLogo(bool embedded);
+    QStringList trackArgs(const PlaybackRequest &request, bool embedded) const;
+    QStringList presentationArgs(bool embedded) const;
+    // Whether an option is one presentationArgs() gives: a session behind
+    // the menus chosen again is the same session whatever they are, and
+    // takes the new ones (loadAndPlay()).
+    static bool presentationOption(const QString &arg);
     // An mpv process for a session: args its options, media what plays.
     void startProcess(QStringList args, const QStringList &media);
     // `then` once the screen is free (screenBusy()), looked at again every

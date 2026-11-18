@@ -110,6 +110,14 @@ bool holdsOrWritten(const QString &path, const QByteArray &text) {
     return writeFileAnew(path, text, QFile::ReadOwner | QFile::WriteOwner);
 }
 
+// Whether a player's own mpv options (its extraArgs) say what becomes of
+// yt-dlp's hook, which is off otherwise (trackArgs()).
+bool asksForYtdl(const QStringList &extraArgs) {
+    return std::any_of(extraArgs.cbegin(), extraArgs.cend(), [](const QString &a) {
+        return a == QLatin1String("--ytdl") || a.startsWith(QLatin1String("--ytdl="));
+    });
+}
+
 // The last value an option was given among these, "" if none.
 QString lastOption(const QStringList &options, const QLatin1String &name) {
     QString value;
@@ -468,20 +476,18 @@ void MpvController::placeRunFiles() {
     m_logoOverlayPath = runtimefiles::path(QStringLiteral("osdos-logo.bgra"));
 }
 
-QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
-                                       int audioTrack, int subTrack,
-                                       const QStringList &subFiles,
-                                       const QStringList &subLangs, bool loop,
-                                       int playlistStart, float transcodeOffsetSec,
-                                       const QString &plexToken, bool muteAudio,
-                                       const QString &oscMode, bool shuffle,
-                                       const QStringList &subTitles, float imageDurationSec,
-                                       bool imageContent, const QStringList &extraArgs,
-                                       const QString &jellyfinToken, bool embedded) {
+QStringList MpvController::sessionArgs(const PlaybackRequest &request, bool embedded) {
+    QStringList args = scriptArgs(request, embedded);
+    args << trackArgs(request, embedded) << presentationArgs(embedded);
+    return args;
+}
+
+QStringList MpvController::scriptArgs(const PlaybackRequest &request, bool embedded) {
     // The Pi 3 overlay plane can't crop; a picture drawn inside the app can.
     const bool noCrop = !embedded && cropUnavailable();
-    const bool hasOscScript = (oscMode == "ambient") ? m_hasAmbientOscScript : m_hasMpvOscScript;
-    const QString oscScript = m_appRoot + "/scripts/" + ((oscMode == "ambient") ? "mpv-osc-ambient.lua" : "mpv-osc.lua");
+    const bool ambient = request.oscMode == QLatin1String("ambient");
+    const bool hasOscScript = ambient ? m_hasAmbientOscScript : m_hasMpvOscScript;
+    const QString oscScript = m_appRoot + "/scripts/" + (ambient ? "mpv-osc-ambient.lua" : "mpv-osc.lua");
 
     QStringList args;
     if (!m_socketPath.isEmpty())
@@ -513,16 +519,85 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
         }
     }
 
+    // Settings' CHANNEL LOGO (channelLogo()): its corner and picture reach
+    // the script with the script options below.
+    const ChannelLogo logo = channelLogo(embedded);
+    if (!logo.corner.isEmpty())
+        args << QString("--script=%1").arg(m_appRoot + "/scripts/mpv-logo.lua");
+
+    // Still-image playback only: mpv's KMS output (--vo=drm) won't repaint the
+    // primary plane between two consecutive same-size/format stills, so a photo
+    // playlist freezes on the first frame while the clock advances. This script
+    // nudges a render-affecting property on each playlist advance to force a
+    // page-flip. Loaded only for image content, so video playback is untouched.
+    if (request.imageContent) {
+        const QString slideshowScript = m_appRoot + "/scripts/mpv-slideshow-redraw.lua";
+        if (QFile::exists(slideshowScript))
+            args << QString("--script=%1").arg(slideshowScript);
+    }
+
+    // The scripts' options, all in the one --script-opts below: a second
+    // would replace, not append to, the first.
+    QStringList scriptOpts;
+    if (request.transcodeOffsetSec > 0.5f)
+        scriptOpts << QString("transcode-offset=%1").arg(double(request.transcodeOffsetSec), 0, 'f', 3);
+    if (screensaverTimeout > 0)
+        scriptOpts << QString("screensaver_timeout=%1").arg(screensaverTimeout);
+    if (!logo.corner.isEmpty())
+        scriptOpts << QString("logo-corner=%1").arg(logo.corner);
+    if (logo.width > 0)
+        scriptOpts << QString("logo-image=%1").arg(m_logoOverlayPath)
+                   << QString("logo-width=%1").arg(logo.width) << QString("logo-height=%1").arg(logo.height);
+    // Tell the OSC scripts to hide their CROP button on decode paths where
+    // --panscan would blank the video (Pi 3 overlay path, 1080p Playback ON).
+    if (noCrop)
+        scriptOpts << QStringLiteral("hide-crop=1");
+
+    // Hand the OSC a map of external sub-file URL -> friendly track name so it can show
+    // the real subtitle name. mpv otherwise titles an external sub from its URL basename
+    // (e.g. "Stream.srt" for Jellyfin sidecars). Purely cosmetic — it does not affect
+    // which sub mpv loads or selects.
+    QFile::remove(m_subInfoPath);
+    const QStringList &subFiles = request.subFiles;
+    const QStringList &subTitles = request.subTitles;
+    if (!subTitles.isEmpty() && subTitles.size() == subFiles.size()) {
+        QJsonObject info;
+        for (int i = 0; i < subFiles.size(); ++i) {
+            if (!subTitles[i].isEmpty())
+                info.insert(subFiles[i], subTitles[i]);
+        }
+        // Named to the script only once it is written whole. Path is comma-
+        // and space-free, so it is safe in the script-opts list.
+        if (!info.isEmpty() && !m_subInfoPath.isEmpty()
+                && writeFileAnew(m_subInfoPath, QJsonDocument(info).toJson(QJsonDocument::Compact),
+                                 QFile::ReadOwner | QFile::WriteOwner))
+            scriptOpts << QString("subinfo-file=%1").arg(m_subInfoPath);
+    }
+    // Point mpv's ytdl_hook at the same user-updatable yt-dlp the app resolves,
+    // so both agree on one copy even when it isn't on the global PATH (the
+    // SteamOS story). Merged into the single --script-opts below — a second
+    // --script-opts flag would replace, not append, clobbering the entries above.
+    // The comma guard mirrors the subinfo-file constraint (a path with a comma
+    // would break the join); realistically never hit.
+    if (asksForYtdl(request.extraArgs)) {
+        const QString ytdlPath = ytdlp::locate(m_dataRoot);
+        if (!ytdlPath.isEmpty() && !ytdlPath.contains(QLatin1Char(',')))
+            scriptOpts << QString("ytdl_hook-ytdl_path=%1").arg(ytdlPath);
+    }
+    if (!scriptOpts.isEmpty())
+        args << QString("--script-opts=%1").arg(scriptOpts.join(QStringLiteral(",")));
+    return args;
+}
+
+MpvController::ChannelLogo MpvController::channelLogo(bool embedded) {
     // Settings' CHANNEL LOGO: OSD/OS's logo in a corner of the picture, drawn
     // by mpv itself (scripts/mpv-logo.lua), so it is in the picture in both
-    // modes and under whatever the app draws over it. The corner reaches the
-    // script with the script options below; unset is off, as is anything
-    // but a corner or all four.
+    // modes and under whatever the app draws over it. Unset is off, as is
+    // anything but a corner or all four.
     // Settings → TV / Movie → Logo Image puts a picture of the user's own
     // there instead, made for the script as an overlay of the size it is
     // shown at.
-    QString logoCorner;
-    int logoWidth = 0, logoHeight = 0;
+    ChannelLogo logo;
     if (m_appCore) {
         const QString corner = m_appCore->get_setting(QString(), "video_logo").toString();
         const QString logoScript = m_appRoot + "/scripts/mpv-logo.lua";
@@ -530,8 +605,7 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
                                              QStringLiteral("bl"), QStringLiteral("br"),
                                              QStringLiteral("all") };
         if (corners.contains(corner) && QFile::exists(logoScript)) {
-            logoCorner = corner;
-            args << QString("--script=%1").arg(logoScript);
+            logo.corner = corner;
             const QString image = m_appCore->get_setting(QString(), "video_logo_image").toString();
             // What mpv draws on: the window's own session the size
             // VideoSurface asked for, in square pixels; a process the UI's
@@ -557,39 +631,33 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
                                         + QString::number(info.lastModified().toMSecsSinceEpoch()) + QLatin1Char('|')
                                         + QString::number(output.height()) + QLatin1Char('|') + QString::number(pixelAspect);
                 if (madeFor == m_logoOverlayFor && QFile::exists(m_logoOverlayPath)) {
-                    logoWidth = m_logoOverlayWidth;
-                    logoHeight = m_logoOverlayHeight;
-                } else if (writeLogoOverlay(image, m_logoOverlayPath, output.height(), pixelAspect, &logoWidth, &logoHeight)) {
+                    logo.width = m_logoOverlayWidth;
+                    logo.height = m_logoOverlayHeight;
+                } else if (writeLogoOverlay(image, m_logoOverlayPath, output.height(), pixelAspect, &logo.width, &logo.height)) {
                     m_logoOverlayFor = madeFor;
-                    m_logoOverlayWidth = logoWidth;
-                    m_logoOverlayHeight = logoHeight;
+                    m_logoOverlayWidth = logo.width;
+                    m_logoOverlayHeight = logo.height;
                 } else {
-                    logoWidth = logoHeight = 0;
+                    logo.width = logo.height = 0;
                     m_logoOverlayFor.clear();
                 }
             }
         }
     }
+    return logo;
+}
 
-    // Still-image playback only: mpv's KMS output (--vo=drm) won't repaint the
-    // primary plane between two consecutive same-size/format stills, so a photo
-    // playlist freezes on the first frame while the clock advances. This script
-    // nudges a render-affecting property on each playlist advance to force a
-    // page-flip. Loaded only for image content, so video playback is untouched.
-    if (imageContent) {
-        const QString slideshowScript = m_appRoot + "/scripts/mpv-slideshow-redraw.lua";
-        if (QFile::exists(slideshowScript))
-            args << QString("--script=%1").arg(slideshowScript);
-    }
-
-    if (playlistStart >= 0)
-        args << QString("--playlist-start=%1").arg(playlistStart);
-    if (startSeconds > 0.5f)
-        args << QString("--start=%1").arg(double(startSeconds), 0, 'f', 3);
-    if (audioTrack > 0)
-        args << QString("--aid=%1").arg(audioTrack);
-    for (const QString &sf : subFiles)
+QStringList MpvController::trackArgs(const PlaybackRequest &request, bool embedded) const {
+    QStringList args;
+    if (request.playlistStart >= 0)
+        args << QString("--playlist-start=%1").arg(request.playlistStart);
+    if (request.startSeconds > 0.5f)
+        args << QString("--start=%1").arg(double(request.startSeconds), 0, 'f', 3);
+    if (request.audioTrack > 0)
+        args << QString("--aid=%1").arg(request.audioTrack);
+    for (const QString &sf : request.subFiles)
         args << QString("--sub-file=%1").arg(sf);
+    const int subTrack = request.subTrack;
     if (subTrack > 0)
         args << QString("--sid=%1").arg(subTrack);
     else if (subTrack < -1)
@@ -601,102 +669,54 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     else if (subTrack == 0) {
         // Always display subs, even if the audio and subtitle languages match
         args << QStringLiteral("--subs-with-matching-audio=yes") << QStringLiteral("--subs-fallback=yes");
-        if (subFiles.isEmpty())
+        if (request.subFiles.isEmpty())
             // use embedded or auto-matched sub
             args << QStringLiteral("--sid=auto");
     }
     // else: external sub(s) loaded, subTrack==0 → mpv auto-selects first loaded sub
-    if (!subLangs.isEmpty())
-        args << QString("--slang=%1").arg(subLangs.join(QStringLiteral(",")));
+    if (!request.subLangs.isEmpty())
+        args << QString("--slang=%1").arg(request.subLangs.join(QStringLiteral(",")));
 
-    // yt-dlp hook intercepts HTTP media URLs and can break Plex/Jellyfin
-    // playback with spurious 401/400 errors — disabled unless the caller
-    // explicitly opts in via extraArgs (e.g. YouTube passes --ytdl=yes).
-    bool ytdlEnabled = false;
-    for (const QString &a : extraArgs) {
-        if (a == QLatin1String("--ytdl") || a.startsWith(QLatin1String("--ytdl=")))
-            ytdlEnabled = true;
-    }
-
-    QStringList scriptOpts;
-    if (transcodeOffsetSec > 0.5f)
-        scriptOpts << QString("transcode-offset=%1").arg(double(transcodeOffsetSec), 0, 'f', 3);
-    if (screensaverTimeout > 0)
-        scriptOpts << QString("screensaver_timeout=%1").arg(screensaverTimeout);
-    if (!logoCorner.isEmpty())
-        scriptOpts << QString("logo-corner=%1").arg(logoCorner);
-    if (logoWidth > 0)
-        scriptOpts << QString("logo-image=%1").arg(m_logoOverlayPath)
-                   << QString("logo-width=%1").arg(logoWidth) << QString("logo-height=%1").arg(logoHeight);
-    // Tell the OSC scripts to hide their CROP button on decode paths where
-    // --panscan would blank the video (Pi 3 overlay path, 1080p Playback ON).
-    if (noCrop)
-        scriptOpts << QStringLiteral("hide-crop=1");
-
-    // Hand the OSC a map of external sub-file URL -> friendly track name so it can show
-    // the real subtitle name. mpv otherwise titles an external sub from its URL basename
-    // (e.g. "Stream.srt" for Jellyfin sidecars). Purely cosmetic — it does not affect
-    // which sub mpv loads or selects.
-    QFile::remove(m_subInfoPath);
-    if (!subTitles.isEmpty() && subTitles.size() == subFiles.size()) {
-        QJsonObject info;
-        for (int i = 0; i < subFiles.size(); ++i) {
-            if (!subTitles[i].isEmpty())
-                info.insert(subFiles[i], subTitles[i]);
-        }
-        // Named to the script only once it is written whole. Path is comma-
-        // and space-free, so it is safe in the script-opts list.
-        if (!info.isEmpty() && !m_subInfoPath.isEmpty()
-                && writeFileAnew(m_subInfoPath, QJsonDocument(info).toJson(QJsonDocument::Compact),
-                                 QFile::ReadOwner | QFile::WriteOwner))
-            scriptOpts << QString("subinfo-file=%1").arg(m_subInfoPath);
-    }
-    // Point mpv's ytdl_hook at the same user-updatable yt-dlp the app resolves,
-    // so both agree on one copy even when it isn't on the global PATH (the
-    // SteamOS story). Merged into the single --script-opts below — a second
-    // --script-opts flag would replace, not append, clobbering the entries above.
-    // The comma guard mirrors the subinfo-file constraint (a path with a comma
-    // would break the join); realistically never hit.
-    if (ytdlEnabled) {
-        const QString ytdlPath = ytdlp::locate(m_dataRoot);
-        if (!ytdlPath.isEmpty() && !ytdlPath.contains(QLatin1Char(',')))
-            scriptOpts << QString("ytdl_hook-ytdl_path=%1").arg(ytdlPath);
-    }
-    if (!scriptOpts.isEmpty())
-        args << QString("--script-opts=%1").arg(scriptOpts.join(QStringLiteral(",")));
-
-    if (loop)
+    if (request.loop)
         args << QStringLiteral("--loop-playlist=inf");
-    if (shuffle)
+    if (request.shuffle)
         args << QStringLiteral("--shuffle");
     // How long a still image is shown before mpv advances (or EOFs back to the
     // menu). Global for the launch, so it covers every image in a mixed playlist;
     // mpv ignores it for video and animated formats.
-    if (imageDurationSec > 0.0f)
-        args << QString("--image-display-duration=%1").arg(double(imageDurationSec), 0, 'f', 1);
-    if (muteAudio)
+    if (request.imageDurationSec > 0.0f)
+        args << QString("--image-display-duration=%1").arg(double(request.imageDurationSec), 0, 'f', 1);
+    if (request.muteAudio)
         args << QStringLiteral("--no-audio");
     // Settings → Sound → Audio Output: the sound card chosen, while it is plugged in;
     // inside the app, Auto's too, which a process has as ALSA's default
     // instead (its environment, startProcess()).
     args << AudioOutput::mpvArgs(embedded);
-    // See ytdlEnabled above: default the hook off unless the caller opted in.
-    if (!ytdlEnabled)
+    // yt-dlp hook intercepts HTTP media URLs and can break Plex/Jellyfin
+    // playback with spurious 401/400 errors — disabled unless the caller
+    // explicitly opts in via extraArgs (e.g. YouTube passes --ytdl=yes).
+    if (!asksForYtdl(request.extraArgs))
         args << QStringLiteral("--ytdl=no");
-    args << extraArgs;
-    if (!plexToken.isEmpty()) {
-        args << QString("--http-header-fields=X-Plex-Token:%1").arg(plexToken);
+    args << request.extraArgs;
+    if (!request.plexToken.isEmpty()) {
+        args << QString("--http-header-fields=X-Plex-Token:%1").arg(request.plexToken);
     }
-    if (!jellyfinToken.isEmpty()) {
-        args << QString("--http-header-fields=Authorization:MediaBrowser Token=\"%1\"").arg(jellyfinToken);
+    if (!request.jellyfinToken.isEmpty()) {
+        args << QString("--http-header-fields=Authorization:MediaBrowser Token=\"%1\"").arg(request.jellyfinToken);
     }
 
     // plex.direct certs are Let's Encrypt-signed but ffmpeg's bundled CA bundle
     // may not trust the full chain (same reason Qt needs ignoreSslErrors for these
     // hosts). Disable TLS verification only for plex.direct playback URLs.
-    if (QUrl(url).host().endsWith(QStringLiteral(".plex.direct")))
+    if (QUrl(request.url).host().endsWith(QStringLiteral(".plex.direct")))
         args << QStringLiteral("--tls-verify=no");
+    return args;
+}
 
+QStringList MpvController::presentationArgs(bool embedded) const {
+    // The Pi 3 overlay plane can't crop; a picture drawn inside the app can.
+    const bool noCrop = !embedded && cropUnavailable();
+    QStringList args;
     // Scaling: how a picture of another shape fills the screen, a 16:9 film on
     // a 4:3 tube above all. 14:9 crops a little of the sides (panscan 0.43 is
     // 14:9 for a 16:9 picture), Pan & Scan all the bars' worth, and Anamorphic
@@ -745,6 +765,15 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     return args;
 }
 
+bool MpvController::presentationOption(const QString &arg) {
+    static const QLatin1String kOptions[] = {
+        QLatin1String("--keepaspect="), QLatin1String("--panscan="), QLatin1String("--monitoraspect="),
+        QLatin1String("--video-rotate="), QLatin1String("--video-output-levels="),
+    };
+    return std::any_of(std::cbegin(kOptions), std::cend(kOptions),
+                       [&arg](const QLatin1String &option) { return arg.startsWith(option); });
+}
+
 void MpvController::loadAndPlay(const QString &url, float startSeconds,
                                  int audioTrack, int subTrack,
                                  const QStringList &subFiles,
@@ -755,6 +784,31 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
                                  const QStringList &subTitles, float imageDurationSec,
                                  bool imageContent, const QStringList &extraArgs, const QString &jellyfinToken,
                                  const QStringList &extraUrls) {
+    PlaybackRequest request;
+    request.url = url;
+    request.startSeconds = startSeconds;
+    request.audioTrack = audioTrack;
+    request.subTrack = subTrack;
+    request.subFiles = subFiles;
+    request.subLangs = subLangs;
+    request.loop = loop;
+    request.playlistStart = playlistStart;
+    request.transcodeOffsetSec = transcodeOffsetSec;
+    request.plexToken = plexToken;
+    request.muteAudio = muteAudio;
+    request.oscMode = oscMode;
+    request.shuffle = shuffle;
+    request.subTitles = subTitles;
+    request.imageDurationSec = imageDurationSec;
+    request.imageContent = imageContent;
+    request.extraArgs = extraArgs;
+    request.jellyfinToken = jellyfinToken;
+    request.extraUrls = extraUrls;
+    play(request);
+}
+
+void MpvController::play(const PlaybackRequest &request) {
+    const float startSeconds = request.startSeconds;
     // The menu music stops before mpv opens the sound card; it plays again
     // once the session has ended (main.cpp) and the menus want it.
     MenuMusic::hold(QStringLiteral("video"));
@@ -774,15 +828,12 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     // menus can lie over the picture.
     const bool embedded = transparentBackground();
     placeRunFiles();
-    QStringList args = sessionArgs(url, startSeconds, audioTrack, subTrack, subFiles, subLangs, loop,
-                                   playlistStart, transcodeOffsetSec, plexToken, muteAudio, oscMode,
-                                   shuffle, subTitles, imageDurationSec, imageContent, extraArgs,
-                                   jellyfinToken, embedded);
+    QStringList args = sessionArgs(request, embedded);
     // What plays, after the options and a "--", so that a name beginning
     // with "-" is never taken for an option: mpv builds its playlist from
     // every word there. Absolute paths or URLs, extraUrls too; mpv options go
     // in extraArgs.
-    const QStringList media = QStringList(url) + extraUrls;
+    const QStringList media = QStringList(request.url) + request.extraUrls;
     // The deck's keys, how a held one repeats (sendKey()), and audio as the
     // clock; ahead of the video arguments, so a setting's mpv_video_args
     // still has the last word. The keys' file only while it holds them: one
@@ -804,25 +855,22 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
         // follows Settings as it plays (followAudioOutput()), as its Scaling
         // and Video Levels do (followVideoSetting()), and its decoding and
         // drawing flags follow where it is drawn, which a GPU that failed to
-        // take it changes since.
+        // take it changes since. How its picture is shown (presentationArgs())
+        // follows Settings too, and is compared apart.
         QStringList drawing;
         appendEmbeddedVideoArgs(drawing, true);
         appendEmbeddedVideoArgs(drawing, false);
-        auto ofThePicture = [](const QString &x) {
-            return x.startsWith(QLatin1String("--panscan=")) || x.startsWith(QLatin1String("--keepaspect="))
-                || x.startsWith(QLatin1String("--video-output-levels="));
-        };
-        auto comparable = [&drawing, &ofThePicture](QStringList a) {
-            a.erase(std::remove_if(a.begin(), a.end(), [&drawing, &ofThePicture](const QString &x) {
+        auto comparable = [&drawing](QStringList a) {
+            a.erase(std::remove_if(a.begin(), a.end(), [&drawing](const QString &x) {
                         return x.startsWith(QLatin1String("--start="))
                             || x.startsWith(QLatin1String("--audio-device="))
-                            || ofThePicture(x) || drawing.contains(x);
+                            || presentationOption(x) || drawing.contains(x);
                     }), a.end());
             return a;
         };
-        auto picture = [&ofThePicture](const QStringList &a) {
+        auto picture = [](const QStringList &a) {
             QStringList flags;
-            std::copy_if(a.cbegin(), a.cend(), std::back_inserter(flags), ofThePicture);
+            std::copy_if(a.cbegin(), a.cend(), std::back_inserter(flags), presentationOption);
             return flags;
         };
         if (m_background && m_embedded && m_embedded->running()
@@ -871,7 +919,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
             lf.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
             lf.write(QString("\n=== OSD/OS session start %1 ===\n    url: %2\n\n")
                          .arg(QDateTime::currentDateTime().toString(Qt::ISODate))
-                         .arg(redactSecrets(url))
+                         .arg(redactSecrets(request.url))
                          .toUtf8());
         }
     }
