@@ -19,8 +19,9 @@ import Components
 // down, and on the place of one taken off.
 // The sign-in pages keep an error as long as Qt's own inside the page.
 // The players that go back without a notice when their video fails (Ambient
-// Mode's, Plex's live channels and Extras, and YouTube's, the NFC Reader's
-// and Playlists' once the picture has shown) have MpvController log it.
+// Mode's, Plex's Extras, and YouTube's, the NFC Reader's and Playlists' once
+// the picture has shown) have MpvController log it; Plex's live channels say
+// why, with RETRY.
 Rectangle {
     id: root
     color: surfaceColor
@@ -292,7 +293,8 @@ Rectangle {
         // A live channel: tuned, its tuner let go of, its timeline kept.
         property int tunes: 0
         function tune_channel(channelId, sessionId) { tunes++ }
-        function stop_live_session(sessionId) {}
+        property int liveStops: 0
+        function stop_live_session(sessionId) { liveStops++ }
         function update_live_timeline(state) {}
     }
 
@@ -450,6 +452,7 @@ Rectangle {
             plexBackend.queueAsks = 0
             plexBackend.authState = "authed"
             plexBackend.tunes = 0
+            plexBackend.liveStops = 0
             plexBackend.timelines = []
             ambientModeBackend.audioStops = 0
             playlistsBackend.kind = "online"
@@ -1239,7 +1242,7 @@ Rectangle {
 
         // The players that go back without a word when their video fails
         // (YouTube's, the NFC Reader's and Playlists' once the first picture
-        // has shown, Ambient Mode's and Plex's live channels at any time)
+        // has shown, Ambient Mode's at any time)
         // have MpvController say so in the log (logFailure), once: which
         // player and what it played, why left to MpvController's own last
         // error. Before the first picture the three with a notice show it,
@@ -1308,31 +1311,45 @@ Rectangle {
             compare(mpvController.failures, [])
         }
 
-        // Plex's live channels: one that can't be tuned goes back to the
-        // channel list with the channel and the server's words in the log,
-        // one mpv can't play with the channel, why left to MpvController;
-        // an error elsewhere while it plays ends nothing and logs no failure.
-        function test_plexLiveChannelFailureIsLogged() {
+        // Plex's live channels: one that can't be tuned says why in the
+        // server's words (PlaybackNotice), its tuner let go of; RETRY tunes
+        // it again. One mpv can't play, or whose stream breaks off, says
+        // mpv's words the same way, and back leaves for the channel list.
+        // An error elsewhere while it plays ends nothing. The notice says
+        // it: nothing goes to the log.
+        function test_plexLiveChannelFailureSaysWhy() {
             var channel = { channelId: "c5", number: "5", title: "News" }
-            open("plex", "LivePlayer.qml", { channel: channel })
+            var player = open("plex", "LivePlayer.qml", { channel: channel })
             compare(plexBackend.tunes, 1)
             plexBackend.errorOccurred("TUNE FAILED: no playable stream")
-            compare(mpvController.failures, [["LivePlayer", "channel 5 News", "TUNE FAILED: no playable stream"]])
-            compare(root.backs, 1)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.reason, "The channel could not be tuned")
+            compare(notice.detail, "TUNE FAILED: no playable stream")
+            compare(plexBackend.cancels, 1)
+            compare(plexBackend.liveStops, 1)
+            compare(root.backs, 0)
             compare(mpvController.loads, 0)
-            loader.source = ""
-
-            var player = open("plex", "LivePlayer.qml", { channel: channel })
+            keyClick(Qt.Key_Return)  // RETRY
+            verify(!notice.visible)
+            compare(plexBackend.tunes, 2)
             plexBackend.streamUrlReady("http://plex/live/c5.m3u8", "token")
             compare(mpvController.loads, 1)
             player.playbackStarted = true
             plexBackend.errorOccurred("LOAD HUBS FAILED: timeout")
-            compare(root.backs, 1)
-            compare(mpvController.failures.length, 1)
+            verify(!notice.visible)
+            compare(plexBackend.liveStops, 1)
+            mpvController.lastError = "mpv could not play it"
             mpvController.playbackEnded(0, 0, "failed")
-            compare(mpvController.failures.length, 2)
-            compare(mpvController.failures[1], ["LivePlayer", "channel 5 News", ""])
-            compare(root.backs, 2)
+            verify(notice.visible)
+            compare(notice.reason, "mpv could not play it")
+            compare(plexBackend.liveStops, 2)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            compare(plexBackend.tunes, 2)
+            compare(plexBackend.liveStops, 2)
+            compare(mpvController.failures, [])
         }
 
         // Plex's Extras: the stream an extra's PLAY asked for won't come.

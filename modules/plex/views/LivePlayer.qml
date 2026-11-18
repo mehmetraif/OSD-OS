@@ -22,6 +22,9 @@ FocusScope {
     property string plexToken:     ""
     property bool   playbackStarted: false
     property bool   exiting:        false
+    // Waiting for the server to tune the channel: its failure is the
+    // channel's, not an error elsewhere's.
+    property bool   tuning:         false
 
     focus: true
 
@@ -37,18 +40,22 @@ FocusScope {
     function tune() {
         if (!channel.channelId) { goBack(); return }
         playbackStarted = false
+        streamUrl = ""
         sessionId = newSessionId()
+        tuning = true
         plexBackend.tune_channel(channel.channelId, sessionId)
     }
 
-    // A channel that would not play goes back to the channel list with
-    // nothing on the screen to say why, so the log does: the channel, and
-    // why, in the server's words (why) or, without, mpvController's own.
-    function logFailed(why) {
-        mpvController.logFailure("LivePlayer",
-                                 "channel " + ([channel.number, channel.title].filter(Boolean).join(" ")
-                                               || channel.channelId),
-                                 why || "")
+    // A channel that won't play (the server didn't tune it, or mpv couldn't
+    // play its stream) lets go of its tuner, a tune still on its way
+    // answering no one, and says why (PlaybackNotice, shown by the caller):
+    // RETRY tunes it again, back leaves for the channel list.
+    function letGo() {
+        tuning = false
+        playbackStarted = false
+        streamUrl = ""
+        plexBackend.cancel_stream()
+        plexBackend.stop_live_session(sessionId)
     }
 
     function teardown() {
@@ -119,7 +126,8 @@ FocusScope {
 
         function onStreamUrlReady(url, plexToken) {
             // Left while it tuned: the stream is nobody's.
-            if (livePlayerRoot.exiting) return
+            if (livePlayerRoot.exiting || !livePlayerRoot.tuning) return
+            livePlayerRoot.tuning = false
             livePlayerRoot.streamUrl = url
             livePlayerRoot.plexToken = plexToken
             // Live always transcodes (HLS): no separate audio/sub tracks to pick.
@@ -127,14 +135,11 @@ FocusScope {
         }
 
         function onErrorOccurred(msg) {
-            // A tune/stream failure leaves nothing playing — bail back to the
-            // list, the log told which channel (once: not for an error that
-            // comes as it leaves).
-            if (!playbackStarted) {
-                if (!exiting)
-                    logFailed(msg)
-                teardown()
-                goBack()
+            // The tune failed: nothing to play, why in the server's words.
+            // An error elsewhere (as it plays, or as it leaves) ends nothing.
+            if (livePlayerRoot.tuning && !livePlayerRoot.exiting) {
+                livePlayerRoot.letGo()
+                failure.show("The channel could not be tuned", msg, true)
             } else {
                 console.log("[LivePlayer] Backend error: " + msg)
             }
@@ -149,11 +154,15 @@ FocusScope {
         }
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
-            // Any end (user quit, stream failure, or rare eof) tears down the tuner
-            // and returns to the channel list; a failure with its line in
-            // the log.
-            if (reason === "failed")
-                logFailed()
+            // mpv couldn't play the stream, or it broke off: why, in mpv's
+            // words, with RETRY to tune the channel again.
+            if (reason === "failed" && !livePlayerRoot.exiting) {
+                livePlayerRoot.letGo()
+                failure.showMpv(true)
+                return
+            }
+            // Any other end (user quit, or rare eof) tears down the tuner
+            // and returns to the channel list.
             teardown()
             goBack()
         }
@@ -183,7 +192,18 @@ FocusScope {
             source: moduleRoot.moduleName
             title: (livePlayerRoot.channel.number ? livePlayerRoot.channel.number + "  " : "")
                    + (livePlayerRoot.channel.title || "")
-            visible: !livePlayerRoot.playbackStarted
+            visible: !livePlayerRoot.playbackStarted && !failure.visible
+        }
+    }
+
+    // The tuner was let go of as the notice came (letGo()): back leaves with
+    // nothing more to stop.
+    PlaybackNotice {
+        id: failure
+        onRetried: livePlayerRoot.tune()
+        onDismissed: {
+            livePlayerRoot.exiting = true
+            livePlayerRoot.goBack()
         }
     }
 }
