@@ -64,6 +64,10 @@ struct Machine {
     // rotation: 0 where MAME doesn't say (a vector screen).
     int     width = 0;
     int     height = 0;
+    // Its picture's shape on the glass, its width over its height, where
+    // FinalBurn Neo's list says (libretro::readDat()); 0 for MAME's own,
+    // which games.json doesn't keep.
+    double  aspect = 0;
     // Its difficulty's DIP switch, where the board has one (the first such).
     Dip     difficulty;
     bool    bios = false;  // a BIOS set (neogeo), which other games start from

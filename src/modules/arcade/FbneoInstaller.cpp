@@ -1,6 +1,7 @@
 #include "FbneoInstaller.h"
 #include "Http.h"
 #include "Libretro.h"
+#include "Mame.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>

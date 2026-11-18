@@ -96,13 +96,13 @@ class ArcadeBackend : public QObject, private ArcadePictures::Catalog {
     // waits longer before MAME takes the screen, for how to come back to be
     // read.
     Q_PROPERTY(bool played READ played NOTIFY playedChanged)
-    // The RetroAchievements account RetroArch plays FinalBurn Neo's games
-    // under (Online High Scores): its user ("" for none), and its state:
-    // "none", "checking" (RetroArch signing in with it now, with the sign-in
-    // core: checkSignIn()), "pending" (RetroArch to take the password at the
-    // next game and swap it for a token; achievementsMessage says why not
-    // now, when it was tried), "signedIn" (a token), or "failed"
-    // (achievementsMessage says why).
+    // The RetroAchievements account RetroArch plays FinalBurn Neo's games under
+    // (Online High Scores): its user ("" for none), and its state: "none",
+    // "checking" (RetroArch signing in with it now, with the sign-in core:
+    // RetroAchievementsAccount::checkSignIn()), "pending" (RetroArch to take
+    // the password at the next game and swap it for a token;
+    // achievementsMessage says why not now, when it was tried), "signedIn" (a
+    // token), or "failed" (achievementsMessage says why).
     Q_PROPERTY(QString achievementsUser READ achievementsUser NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsState READ achievementsState NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsMessage READ achievementsMessage NOTIFY achievementsChanged)
@@ -231,18 +231,18 @@ public:
     Q_INVOKABLE bool filterPending(const QString &filter) const;
     // What the screen says of a set: { set, name (its description, MAME's or
     // FinalBurn Neo's), system, maker, year, players, playTime (seconds
-    // played), pictures (file URLs, picturesOf()), picture (the first, "" for
-    // none), vertical, engine (engineOf()) }; for one under Not Recognized
-    // { set, name (its file's), unknown: true, detail (why, and what to do, a
-    // line each) }; {} for a set not in the folder.
+    // played), pictures (file URLs, ArcadePictures::picturesOf()), picture (the
+    // first, "" for none), vertical, engine (engineOf()) }; for one under Not
+    // Recognized { set, name (its file's), unknown: true, detail (why, and what
+    // to do, a line each) }; {} for a set not in the folder.
     Q_INVOKABLE QVariantMap gameDetails(const QString &set);
-    // A set's pictures downloaded as the game is shown (the Arcade screen,
-    // Game Details), as Settings → Arcade → Pictures From allows: those
+    // A set's pictures downloaded as the game is shown (the Arcade screen, Game
+    // Details), as Settings → Arcade → Pictures From allows: those
     // RetroAchievements has of its game, or its parent's, with a Web API key
     // kept, into the snap folder (once, unless they have been, are being,
-    // RetroAchievements has none this run, a try failed less than ten
-    // minutes ago or the folder can't be written); then, for a game still
-    // without any picture, progetto-SNAPS' through ArcadeDB (wantSnaps()).
+    // RetroAchievements has none this run, a try failed less than ten minutes
+    // ago or the folder can't be written); then, for a game still without any
+    // picture, progetto-SNAPS' through ArcadeDB (ArcadePictures::wantSnaps()).
     // picturesChanged() as each is in.
     Q_INVOKABLE void wantPictures(const QString &set);
     // What Settings → Arcade → Game Pictures shows: { games (the folder's),
@@ -254,7 +254,8 @@ public:
     QVariantMap picturesProgress() const;
     // manifest: download_pictures (action), and the Game Pictures page's
     // Download Pictures: every game's pictures looked for, from the sources
-    // Pictures From allows (startPictureSweep()); one under way starts anew.
+    // Pictures From allows (ArcadePictures::startPictureSweep()); one under way
+    // starts anew.
     Q_INVOKABLE void downloadPictures();
     // Settings → Arcade → Check ROMs: whether every game's files are whole,
     // for MAME (its -verifyroms) and FinalBurn Neo (the CRCs of its list
@@ -300,7 +301,7 @@ public:
     // (Auto) while Online High Scores, Online Play or LAN Play is on, which
     // only it has, or with no MAME, and always for one MAME doesn't know
     // (fbneoOnly()); else "mame".
-    Q_INVOKABLE QString engineOf(const QString &set) const;
+    QString engineOf(const QString &set) const;
     // A game's choices of engine, for its options: [{ id ("auto", "mame",
     // "fbneo"), label, current }], Auto naming the one it picks. Only Auto
     // and MAME for a set FinalBurn Neo hasn't, or without it; only Auto and
@@ -347,9 +348,13 @@ public:
     QString favoritesText(const QStringList &sets) const;
     static QStringList setsOfFavoritesText(const QString &text);
     // RetroArch, the FinalBurn Neo core and its list of games are there.
-    Q_INVOKABLE bool fbneoReady() const;
+    bool fbneoReady() const;
     // A look at the games folder's names is under way (refresh()).
     bool looking() const { return m_looking; }
+    // What was read no longer holds for a reason the folders' names wouldn't
+    // show: the next refresh() reads the folder in full rather than looking
+    // at its names. After a game (it may have left a snapshot), and Read the
+    // Games Again.
     void markChanged();
     // FinalBurn Neo can play the game: it is ready, has the set, and the set
     // is a zip or a 7z named as it looks for it (not a folder of files, not
@@ -366,7 +371,7 @@ public:
     // reads our own RetroArch's and core's versions too, once for each
     // (readOwnVersions()), roomsChanged() once each has been read. Turned
     // off, Online Play forgets the lobby and stops a read under way.
-    Q_INVOKABLE QVariantList rooms() const;
+    QVariantList rooms() const;
     Q_INVOKABLE void refreshRooms();
     // The whole lobby as last read, every core's rooms, for the RetroArch
     // Lobby page: { state ("loading" until it has been read, "ready", or
@@ -422,12 +427,12 @@ public:
     // the rooms, their lines or why there are none are other than they were.
     // Our versions are read for them as for the lobby's, and the rooms' lines
     // said again once they are. LAN Play turned off forgets the rooms.
-    Q_INVOKABLE QVariantList lanRooms() const;
+    QVariantList lanRooms() const;
     Q_INVOKABLE void refreshLanRooms();
     // What LAN Games says while it lists no game, as { name, detail }:
     // FinalBurn Neo not installed, the network still being asked, why it
     // couldn't be, or that no one there hosts a game of the folder's.
-    Q_INVOKABLE QVariantMap lanStatus() const;
+    QVariantMap lanStatus() const;
     // What a filter says in its list's place while it has no game, as
     // { name, detail } (the detail for the help line; {} for a filter that
     // says nothing): LAN Games as lanStatus(); Online Games that FinalBurn
@@ -470,10 +475,10 @@ public:
     // ArcadeDB's scraper service, progetto-SNAPS' pictures' way here: its
     // own, or a stand-in's.
     void setPictureServer(const QUrl &arcadeDb);
-    // How long the look through the games for pictures waits between two
-    // steps (sweepPictures()): a second, or a test's; and how long after a
-    // look that couldn't have every picture the next is made: ten minutes,
-    // or a test's.
+    // How long the look through the games for pictures waits between two steps
+    // (ArcadePictures::sweepPictures()): a second, or a test's; and how long
+    // after a look that couldn't have every picture the next is made: ten
+    // minutes, or a test's.
     void setPictureSweepInterval(int ms);
     void setPictureRetryInterval(int ms);
     // Whether that look is under way.
@@ -481,10 +486,11 @@ public:
 
     // Account page (Settings → Arcade → RetroAchievements Account). The
     // password is kept in memory only, for RetroArch to sign in with
-    // (RetroAchievements' own way: a launcher may not), never written but
-    // into the config of the RetroArch it goes to, which goes as it ends:
-    // at once, with the sign-in core (checkSignIn()), or else at the next
-    // game. OSD/OS Setup's alone is on disk until then (takeSetupAccount()).
+    // (RetroAchievements' own way: a launcher may not), never written but into
+    // the config of the RetroArch it goes to, which goes as it ends: at once,
+    // with the sign-in core (RetroAchievementsAccount::checkSignIn()), or else
+    // at the next game. OSD/OS Setup's alone is on disk until then
+    // (takeSetupAccount()).
     Q_INVOKABLE void signInAchievements(const QString &user, const QString &password);
     Q_INVOKABLE void signOutAchievements();
     // The account's Web API key (RetroAchievements' settings page), for
@@ -558,7 +564,7 @@ public:
     Q_INVOKABLE QString output() const;
 
     // manifest: rescan (action): MAME asked about every set again; then
-    // every game's pictures looked for (startPictureSweep()).
+    // every game's pictures looked for (ArcadePictures::startPictureSweep()).
     Q_INVOKABLE void rescan();
     // manifest: start_filter's choices (dynamicOptionsReady): All Games,
     // with Online Play on RetroArch Lobby, and Favorites, Recently Played and
@@ -582,18 +588,6 @@ public:
     // Played, as main.cpp hands them over.
     QStringList recentSets() const { return listedSets(QStringLiteral("recent")); }
 
-    // Where the emulators are and whether pictures can be saved, as last
-    // looked for (programs(), kept for a second; forgetPrograms() has them
-    // looked for anew).
-    struct Programs {
-        QString mame, retroarch, core;
-        QString snapFolder;
-        bool snapWritable = false;
-        QElapsedTimer looked;
-    };
-    mutable Programs m_programs;
-    const Programs &programs() const;
-    void forgetPrograms();
     // MAME's program: DATA_ROOT/bin/mame, else mame on the PATH, else
     // Debian's /usr/games/mame (not on a service's PATH). "" for none.
     QString mamePath() const;
@@ -680,6 +674,18 @@ signals:
     void dynamicOptionsReady(const QString &key, const QVariant &options);
 
 private:
+    // Where the emulators are and whether pictures can be saved, as last
+    // looked for (programs(), kept for a second; forgetPrograms() has them
+    // looked for anew).
+    struct Programs {
+        QString mame, retroarch, core;
+        QString snapFolder;
+        bool snapWritable = false;
+        QElapsedTimer looked;
+    };
+    mutable Programs m_programs;
+    const Programs &programs() const;
+    void forgetPrograms();
     void applySetting(const QString &key, const QVariant &value);
     void setGamesFolder(const QString &path);
     void setProblem(const QString &problem);
@@ -720,8 +726,6 @@ private:
         // (fbneoRead).
         bool fbneoRead = false;
         QString fbneoFrom;
-        QHash<QString, QString> fbneoGames;
-        QHash<QString, double> fbneoAspects;
         QHash<QString, mame::Machine> fbneoMachines;
     };
     // Off the GUI thread: the games folder (made should it not be there),
@@ -1193,9 +1197,8 @@ private:
     // Where the pictures and their record are saved, one at a time, in the
     // order they came.
     QThreadPool m_pictureSaves;
-    QHash<QString, QString> m_fbneoGames;   // set → its description, FinalBurn Neo's
-    QHash<QString, double> m_fbneoAspects;  // set → its shape, where FinalBurn Neo's list says
-    QHash<QString, mame::Machine> m_fbneoMachines;  // set → its game, as FinalBurn Neo's list describes it
+    // set → its game, as FinalBurn Neo's list describes it (its shape too).
+    QHash<QString, mame::Machine> m_fbneoMachines;
     QString m_fbneoFrom;          // the list of them read: its path, size and time
     // Check ROMs: the one under way, what the last found, and each archive's
     // stamp now, which what it found is held against.

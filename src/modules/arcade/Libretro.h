@@ -123,17 +123,16 @@ qint64 netplayStateSize(const QString &sourceFile, bool lanCore);
 // a machine of less than 2 GiB.
 qint64 netplayMemory(qint64 stateSize, bool hosting);
 
-// FinalBurn Neo's arcade games, from its DAT (ClrMame Pro's XML): each
-// game's set by its description. Not a BIOS set (neogeo), which games start
-// from but which isn't one. Empty for a file that can't be read. With
-// aspects, the shape of each game's picture on the glass, its width over its
-// height (4:3, 3:4 for a vertical one), where the DAT says (<video>). With
-// machines, each game as MAME would describe it, for a set MAME doesn't
-// know: its description, year, maker, parent, driver (named as MAME's are:
-// capcom/d_cps1.cpp is capcom/cps1.cpp), whether it works, and a vertical
-// one's rotation (90); no players, which the DAT doesn't say.
-QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects = nullptr,
-                                QHash<QString, mame::Machine> *machines = nullptr);
+// FinalBurn Neo's arcade games, from its DAT (ClrMame Pro's XML), by set:
+// each as MAME would describe it, for a set MAME doesn't know: its
+// description (its set's name for none), year, maker, parent, driver (named
+// as MAME's are: capcom/d_cps1.cpp is capcom/cps1.cpp), whether it works, a
+// vertical one's rotation (90), and the shape of its picture on the glass,
+// its width over its height (4:3, 3:4 for a vertical one), where the DAT
+// says (<video>: Machine::aspect); no players, which the DAT doesn't say.
+// Not a BIOS set (neogeo), which games start from but which isn't one.
+// Empty for a file that can't be read.
+QHash<QString, mame::Machine> readDat(const QString &path);
 
 // The shape of a game's picture in the pixels of a screen of that size and
 // shape (screenAspect, 4:3 for a tube), for RetroArch (Launch::aspect):

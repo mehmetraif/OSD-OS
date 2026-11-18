@@ -334,7 +334,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &launcherReason) {
         // A game may have left a snapshot of its own: read, not looked at,
         // at the next opening.
-        m_dirty = true;
+        markChanged();
         QString reason = launcherReason;
         QString notice;
         bool refused = false;
@@ -979,8 +979,8 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         read.fbneoRead = true;
         read.fbneoFrom = fbneoFrom;
         if (!dat.isEmpty()) {
-            read.fbneoGames = libretro::readDat(dat, &read.fbneoAspects, &read.fbneoMachines);
-            qInfo("[Arcade] %lld of FinalBurn Neo's games from %s", static_cast<long long>(read.fbneoGames.size()),
+            read.fbneoMachines = libretro::readDat(dat);
+            qInfo("[Arcade] %lld of FinalBurn Neo's games from %s", static_cast<long long>(read.fbneoMachines.size()),
                   qPrintable(dat));
         }
     }
@@ -1051,8 +1051,6 @@ void ArcadeBackend::onRead() {
     }
     if (read.fbneoRead) {
         m_fbneoFrom = read.fbneoFrom;
-        m_fbneoGames = std::move(read.fbneoGames);
-        m_fbneoAspects = std::move(read.fbneoAspects);
         m_fbneoMachines = std::move(read.fbneoMachines);
         // The games MAME doesn't know that it has, and the filters made of
         // the games it plays, made again.
@@ -1159,8 +1157,6 @@ QString ArcadeBackend::programsStamp() const {
     return stamp;
 }
 
-// What was read no longer holds for a reason the folders' names wouldn't
-// show (a game's archive replaced under its name): the next refresh() reads.
 void ArcadeBackend::markChanged() {
     m_dirty = true;
 }
@@ -1199,7 +1195,7 @@ void ArcadeBackend::readAgain() {
 
 void ArcadeBackend::rescan() {
     // Read in full, whatever a look at the folder's names would say.
-    m_dirty = true;
+    markChanged();
     // Every game's pictures too, once the games have been read again
     // (emitShown()): a look under way starts anew then.
     m_pictures->lookAgain();
@@ -1909,7 +1905,7 @@ void ArcadeBackend::checkRoms() {
         job.workDir = m_home;
         job.mameFrom = m_identity;
     }
-    if (!m_fbneoGames.isEmpty()) {
+    if (!m_fbneoMachines.isEmpty()) {
         job.dat = libretro::datPath(m_dataRoot);
         job.fbneoFrom = m_fbneoFrom;
     }
@@ -2091,9 +2087,9 @@ QString ArcadeBackend::unknownDetail(const QString &set) const {
     if (m_misnamed.contains(set))
         return looksForLowerCase(QStringLiteral("MAME"), set) + QStringLiteral("\nRename the file to ") + mameFileName(set);
     // FinalBurn Neo has it, but not as a folder of files.
-    if (m_fbneoGames.contains(set))
+    if (m_fbneoMachines.contains(set))
         return QStringLiteral("MAME has no game called %1\nFinalBurn Neo has it, but plays a zip or a 7z, not a folder").arg(set);
-    if (!m_fbneoGames.isEmpty())
+    if (!m_fbneoMachines.isEmpty())
         return QStringLiteral("Neither MAME nor FinalBurn Neo has a game called %1\nIts set may be for another version of MAME")
             .arg(set);
     return QStringLiteral("MAME has no game called %1\nIts set may be for another version of MAME").arg(set);
@@ -2622,7 +2618,7 @@ bool ArcadeBackend::integerScale() const {
 }
 
 double ArcadeBackend::gameAspect(const QString &set) const {
-    const double listed = m_fbneoAspects.value(set);
+    const double listed = m_fbneoMachines.value(set).aspect;
     if (listed > 0)
         return listed;
     const mame::Machine *machine = machineOf(set);
@@ -2939,7 +2935,7 @@ void ArcadeBackend::setDifficulty(const QString &set, const QString &name) {
 }
 
 bool ArcadeBackend::fbneoReady() const {
-    return !programs().retroarch.isEmpty() && !programs().core.isEmpty() && !m_fbneoGames.isEmpty();
+    return !programs().retroarch.isEmpty() && !programs().core.isEmpty() && !m_fbneoMachines.isEmpty();
 }
 
 bool ArcadeBackend::fbneoPlays(const QString &set) const {
@@ -2947,7 +2943,7 @@ bool ArcadeBackend::fbneoPlays(const QString &set) const {
 }
 
 bool ArcadeBackend::fbneoHas(const QString &set) const {
-    return m_fbneoGames.contains(set) && m_sets.contains(set) && !m_folders.contains(set) && !m_misnamed.contains(set);
+    return m_fbneoMachines.contains(set) && m_sets.contains(set) && !m_folders.contains(set) && !m_misnamed.contains(set);
 }
 
 int ArcadeBackend::gamePlayers(const QString &set) const {
@@ -3013,7 +3009,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         m_lastError = noCoreReason(lanCore);
         return false;
     }
-    if (!m_fbneoGames.contains(name)) {
+    if (!m_fbneoMachines.contains(name)) {
         m_lastError = noFbneoGameReason(name);
         return false;
     }
@@ -3335,8 +3331,8 @@ QString ArcadeBackend::netplayRefusal(const QString &set, bool lanCore, bool hos
     if (m_folders.contains(set))
         return fbneoFolderReason();
     if (!fbneoHas(set))
-        return m_fbneoGames.contains(set) ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), set)
-                                          : noFbneoGameReason(set);
+        return m_fbneoMachines.contains(set) ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), set)
+                                             : noFbneoGameReason(set);
     // Its files whole, as far as Check ROMs found: RetroArch with one
     // missing hosts or joins nothing.
     if (fbneoRoms(set) == -1)
@@ -4126,7 +4122,7 @@ QVariantMap ArcadeBackend::fbneoInfo() const {
              { QStringLiteral("latest"), hasPackaged && downloaded },
              { QStringLiteral("version"), QStringLiteral("%1 (%2)").arg(QLatin1String(OSDOS_FBNEO_COMMIT).left(7),
                                                                          QLatin1String(OSDOS_FBNEO_DATE)) },
-             { QStringLiteral("games"), static_cast<int>(m_fbneoGames.size()) },
+             { QStringLiteral("games"), static_cast<int>(m_fbneoMachines.size()) },
              { QStringLiteral("license"), QFileInfo::exists(license) ? license
                                           : QFileInfo::exists(imageLicense) ? imageLicense : QString() },
              { QStringLiteral("canDownload"), unpacks && !FbneoInstaller::defaultSource().core.isEmpty() },

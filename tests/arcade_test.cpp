@@ -1607,23 +1607,20 @@ private slots:
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
-        QHash<QString, double> aspects;
-        QHash<QString, mame::Machine> machines;
-        const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"), &aspects,
-                                                                &machines);
-        QCOMPARE(games.size(), 7);
+        QHash<QString, mame::Machine> machines = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"));
+        QCOMPARE(machines.size(), 7);
         // The pictures' shapes, where the list says.
-        QCOMPARE(aspects.size(), 2);
-        QVERIFY(!aspects.contains(QStringLiteral("1943")));
-        QCOMPARE(aspects.value(QStringLiteral("sf2")), 4.0 / 3.0);
-        QCOMPARE(aspects.value(QStringLiteral("galaga")), 3.0 / 4.0);
-        QCOMPARE(games.value(QStringLiteral("sf2")), QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
-        QVERIFY(games.contains(QStringLiteral("sf2ce")));
-        QVERIFY(!games.contains(QStringLiteral("neogeo")));
+        QCOMPARE(std::count_if(machines.cbegin(), machines.cend(), [](const mame::Machine &m) { return m.aspect > 0; }), 2);
+        QCOMPARE(machines.value(QStringLiteral("1943")).aspect, 0.0);
+        QCOMPARE(machines.value(QStringLiteral("sf2")).aspect, 4.0 / 3.0);
+        QCOMPARE(machines.value(QStringLiteral("galaga")).aspect, 3.0 / 4.0);
+        QCOMPARE(machines.value(QStringLiteral("sf2")).description,
+                 QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
+        QVERIFY(machines.contains(QStringLiteral("sf2ce")));
+        QVERIFY(!machines.contains(QStringLiteral("neogeo")));
         // Each game as MAME would describe it: its year and maker, a clone's
         // parent, its driver named as MAME's are, whether it works, and a
         // vertical one's rotation.
-        QCOMPARE(machines.size(), 7);
         const mame::Machine kof98 = machines.value(QStringLiteral("kof98"));
         QCOMPARE(kof98.name, QStringLiteral("kof98"));
         QCOMPARE(kof98.description, QStringLiteral("The King of Fighters '98 - The Slugfest"));
@@ -1640,8 +1637,7 @@ private slots:
         QCOMPARE(machines.value(QStringLiteral("1943")).rotate, 90);
         QCOMPARE(machines.value(QStringLiteral("sf2")).rotate, 0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).status, QStringLiteral("good"));
-        QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat"), nullptr, &machines).isEmpty());
-        QVERIFY(machines.isEmpty());
+        QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
 
         // A sign-in RetroAchievements turned down, and one that didn't reach it.
         for (const char *refused : { "Invalid user/token combination.", "Invalid token",
