@@ -87,32 +87,13 @@ FocusScope {
             event.accepted = true
             return
         }
-        // A key's repeats go as repeats: mpv holds the key down for them,
-        // and lets it go as the key is (Keys.onReleased).
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-            // Quit mpv; onPlaybackEnded drives the teardown + goBack.
-            mpvController.sendKey("ESC", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Backspace) {
-            mpvController.sendKey("BS", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Up) {
-            mpvController.sendKey("UP", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Down) {
-            mpvController.sendKey("DOWN", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Left) {
-            mpvController.sendKey("LEFT", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Right) {
-            mpvController.sendKey("RIGHT", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Space) {
-            mpvController.sendKey("SPACE", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            mpvController.sendKey("ENTER", event.isAutoRepeat)
+        // The keys mpv takes (MpvKeys.js); back quits mpv, and
+        // onPlaybackEnded drives the teardown + goBack. A key's repeats go
+        // as repeats: mpv holds the key down for them, and lets it go as
+        // the key is (Keys.onReleased).
+        var key = MpvKeys.name(event.key)
+        if (key !== "") {
+            mpvController.sendKey(key, event.isAutoRepeat)
             event.accepted = true
         }
     }

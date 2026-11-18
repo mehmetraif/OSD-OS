@@ -38,3 +38,4 @@ MonitorRow MonitorRow.qml
 PressPrompt PressPrompt.qml
 ButtonGrid ButtonGrid.qml
 WindowChange WindowChange.qml
+MpvKeys 1.0 MpvKeys.js

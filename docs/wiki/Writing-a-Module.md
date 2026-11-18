@@ -574,21 +574,10 @@ FocusScope {
 
     Component.onCompleted: play(savedPosition())
 
-    // mpv has the picture: the keys go to its on-screen controls.
+    // mpv has the picture: the keys go to its on-screen controls, by
+    // mpv's names (MpvKeys.js: Esc is ESC, Return is ENTER, …).
     Keys.onPressed: function(event) {
-        var key = ""
-        switch (event.key) {
-        case Qt.Key_Escape:
-        case Qt.Key_Back:      key = "ESC"; break
-        case Qt.Key_Backspace: key = "BS"; break
-        case Qt.Key_Up:        key = "UP"; break
-        case Qt.Key_Down:      key = "DOWN"; break
-        case Qt.Key_Left:      key = "LEFT"; break
-        case Qt.Key_Right:     key = "RIGHT"; break
-        case Qt.Key_Space:     key = "SPACE"; break
-        case Qt.Key_Return:
-        case Qt.Key_Enter:     key = "ENTER"; break
-        }
+        var key = MpvKeys.name(event.key)
         if (key !== "") {
             mpvController.sendKey(key)
             event.accepted = true
@@ -681,7 +670,7 @@ The app adds the rest: the board's decoder and output, Scaling, Video Levels, Au
 - **One handler for every end.** `playbackEnded(finalPositionMs, finalDurationMs, reason)` comes once, after mpv has gone. Every branch must go back or start the next video.
 - **The reasons**: `"eof"` (the end of the file), `"stopped"` (back, a stop, or a crash), `"failed"` (mpv's exit code 2), `"menu"` (only for a player whose note says `menu: true`).
 - **A failure says why.** OSD/OS's own players show a `PlaybackNotice` at `failed` (`showMpv(canRetry)`), as CONTRIBUTING.md asks. Hello Channel only logs it, to stay short.
-- **The keys go to mpv** through `mpvController.sendKey()`, by mpv's names (`ESC`, `ENTER`, `UP`, …). `ESC` ends the video, or first closes mpv's deck menu.
+- **The keys go to mpv** through `mpvController.sendKey()`, by mpv's names (`ESC`, `ENTER`, `UP`, …), which `MpvKeys.name(event.key)` gives for every key a player sends on. `ESC` ends the video, or first closes mpv's deck menu.
 - **The name.** A view whose file name ends in `Player.qml`, `Play.qml`, `Launch.qml`, `Takeover.qml`, `SignIn.qml` or `Console.qml` is a video's view: no effect, transition or menu music plays while it shows. A layer elsewhere says so with `root.restFor(item, true)`.
 - **Where it stopped.** `appCore.add_to_list(moduleId, name, entry, limit)` puts an entry first in `lists.json`, in place of one with its `path`, and keeps the newest `limit`. `get_list()`, `remove_from_list()` and `list_contains()` read and change the lists.
 
@@ -1169,6 +1158,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |
 | `LoadingScreen`, `PlayerMenu`, `PlaybackNotice` | The tape loading while a video starts, a video's own menu, the notice for a video that couldn't be played |
+| `MpvKeys` | mpv's names for the keys a player sends on as its video plays (`MpvKeys.name(event.key)`) |
 | `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |

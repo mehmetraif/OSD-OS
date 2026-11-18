@@ -21,7 +21,8 @@ import Components
 // The players that go back without a notice when their video fails (Plex's
 // Extras, and YouTube's, the NFC Reader's and Playlists' once the picture
 // has shown) have MpvController log it; Plex's live channels and Ambient
-// Mode's player say why, with RETRY.
+// Mode's player say why, with RETRY. Every player sends mpv the same keys,
+// through one table (views/Components/MpvKeys.js).
 Rectangle {
     id: root
     color: surfaceColor
@@ -1222,6 +1223,66 @@ Rectangle {
             keyClick(Qt.Key_PageUp)
             keyClick(Qt.Key_PageDown)
             compare(mpvController.keys, ["CHANNEL_UP", "CHANNEL_DOWN"])
+        }
+
+        // The keys a player sends on to mpv as its video plays, by mpv's
+        // names (views/Components/MpvKeys.js): back as ESC (a remote's Back
+        // too) and Backspace as BS, the arrows, play/pause and select; the
+        // channel keys and the page keys only for a player that asks for
+        // them, which sends them once per press.
+        function test_mpvKeysTable() {
+            var keys = [Qt.Key_Escape, Qt.Key_Back, Qt.Key_Backspace, Qt.Key_Up, Qt.Key_Down,
+                        Qt.Key_Left, Qt.Key_Right, Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter]
+            var names = ["ESC", "ESC", "BS", "UP", "DOWN", "LEFT", "RIGHT", "SPACE", "ENTER", "ENTER"]
+            for (var i = 0; i < keys.length; i++) {
+                compare(MpvKeys.name(keys[i]), names[i])
+                compare(MpvKeys.name(keys[i], true), names[i])
+            }
+            var channels = [Qt.Key_PageUp, Qt.Key_ChannelUp, Qt.Key_PageDown, Qt.Key_ChannelDown]
+            var channelNames = ["CHANNEL_UP", "CHANNEL_UP", "CHANNEL_DOWN", "CHANNEL_DOWN"]
+            for (var c = 0; c < channels.length; c++) {
+                compare(MpvKeys.name(channels[c]), "")
+                compare(MpvKeys.name(channels[c], true), channelNames[c])
+                verify(MpvKeys.isChannel(channelNames[c]))
+            }
+            verify(!MpvKeys.isChannel("UP"))
+            compare(MpvKeys.name(Qt.Key_A, true), "")
+            compare(MpvKeys.name(Qt.Key_Q), "")
+        }
+
+        // Every player sends mpv the same keys through that one table as
+        // its video plays: Plex's and its live channels', Jellyfin's,
+        // Emby's, Local Files', YouTube's, the NFC Reader's, Playlists' and
+        // Ambient Mode's. Of them only Playlists' takes the page keys to
+        // mpv (Local Files' step through the folder, its own way); a key
+        // mpv doesn't take isn't sent.
+        function test_playersSendMpvTheSameKeys_data() {
+            var server = { streamUrl: "http://server/stream", itemId: "e1", mediaSourceId: "e1", title: "Episode 1" }
+            return [{ tag: "plex", module: "plex",
+                      params: { streamUrl: "http://plex/10", plexToken: "token", ratingKey: "10",
+                                partKey: "/library/parts/10", title: "Episode 1" } },
+                    { tag: "plex, a live channel", module: "plex", view: "LivePlayer.qml",
+                      params: { channel: { channelId: "c5", number: "5", title: "News" } } },
+                    { tag: "jellyfin", module: "jellyfin", params: server },
+                    { tag: "emby", module: "emby", params: server },
+                    { tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                    { tag: "youtube", module: "youtube",
+                      params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" } } },
+                    { tag: "nfc_reader", module: "nfc_reader", params: { videoPath: "/films/A.mkv", title: "A" } },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" }, channels: true },
+                    { tag: "ambient_mode", module: "ambient_mode", params: { videoPath: "/ambient/Fireplace.mp4" } }]
+        }
+        function test_playersSendMpvTheSameKeys(data) {
+            open(data.module, data.view || "Player.qml", data.params)
+            if (data.view === "LivePlayer.qml")
+                plexBackend.streamUrlReady("http://plex/live/c5.m3u8", "token")
+            compare(mpvController.loads, 1)
+            for (var key of [Qt.Key_Escape, Qt.Key_Back, Qt.Key_Backspace, Qt.Key_Up, Qt.Key_Down, Qt.Key_Left,
+                             Qt.Key_Right, Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter, Qt.Key_PageUp, Qt.Key_A])
+                keyClick(key)
+            compare(mpvController.keys, ["ESC", "ESC", "BS", "UP", "DOWN", "LEFT", "RIGHT", "SPACE", "ENTER", "ENTER"]
+                                        .concat(data.channels ? ["CHANNEL_UP"] : []))
+            compare(mpvController.loads, 1)
         }
 
         // mpv missing, for a playlist: said so, not its videos blamed, with
