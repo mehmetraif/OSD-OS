@@ -177,7 +177,9 @@ void SelectorFx::emitSparkles(const QRectF &b) {
         s.x = s.lastX = corners[c].x() + uniform(-0.5f, 0.5f);
         s.y = s.lastY = corners[c].y() + uniform(-0.5f, 0.5f);
         s.vx = side * uniform(25, 75);
-        s.vy = up * uniform(2, 22) + uniform(-8, 8);
+        // Taken in turn, whatever the compiler, as the preview takes them.
+        const float rise = uniform(2, 22);
+        s.vy = up * rise + uniform(-8, 8);
         s.age = 0;
         s.life = uniform(0.45f, 1.1f);
         s.cross = uniform(0, 1) < 0.3f;

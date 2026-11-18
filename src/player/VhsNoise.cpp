@@ -101,8 +101,11 @@ void VhsNoise::tear(int from, int to) {
     to = qMin(m_frame.height(), to);
     const bool shaded = m_shade.alpha() > 0;
     for (int y = from; y < to; ++y) {
-        // The wash, not quite to the edges and never the same twice.
-        streak(int(random() % 6), y, cols - int(random() % 6), 1);
+        // The wash, not quite to the edges and never the same twice: its
+        // length taken first, then where it starts, in that order whatever
+        // the compiler.
+        const int wash = cols - int(random() % 6);
+        streak(int(random() % 6), y, wash, 1);
         // Long streaks, about one every third pixel, strong ones among them.
         const int count = cols / 3;
         for (int i = 0; i < count; ++i) {
