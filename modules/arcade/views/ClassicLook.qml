@@ -38,7 +38,7 @@ Item {
     // ---
 
     ArcadeBar {
-        visible: !arcadeScreen.orb && (arcadeScreen.adjusting || arcadeScreen.filters.length > 0)
+        visible: arcadeScreen.adjusting || arcadeScreen.filters.length > 0
         x: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
         y: Math.round(arcadeScreen.barTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.listWidth * arcadeScreen.u)
@@ -79,7 +79,7 @@ Item {
                                             + (isCurrent ? 16 : 0)
             readonly property color ink: isCurrent ? root.surfaceColor : root.primaryColor
             readonly property real gap: Math.round(10 * size * arcadeScreen.u)
-            visible: entry !== null && !arcadeScreen.orb
+            visible: entry !== null
             opacity: 1 - 0.6 * depth
             // Made smaller from its left end, which keeps to the arc; on the
             // wheel, nearer the next row as it is smaller (wheelLayout()).
@@ -197,7 +197,7 @@ Item {
     Rectangle {
         id: preview
         objectName: "preview"
-        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.onRoom && !arcadeScreen.orb
+        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.onRoom
         x: Math.round(arcadeScreen.columnX * arcadeScreen.u)
         y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
@@ -210,10 +210,7 @@ Item {
         // The picture to show, and the two that show it: the one on the
         // screen, and the next loading behind it, which takes its place once
         // it is in (or can't be), so the pictures cut from one to the next.
-        // None in the Orb look, which draws the picture itself (OrbLook):
-        // this frame is hidden then, and a picture asked for here was read
-        // from the card a second time, ahead of the one that is shown.
-        readonly property string wanted: !arcadeScreen.orb && arcadeScreen.pictures.length > 0
+        readonly property string wanted: arcadeScreen.pictures.length > 0
                                          ? arcadeScreen.pictures[arcadeScreen.pictureIndex % arcadeScreen.pictures.length]
                                          : ""
         property Image shown: pictureA
@@ -336,7 +333,7 @@ Item {
     // whole column, from its top.
     Rectangle {
         objectName: "infoBox"
-        visible: arcadeScreen.filters.length > 0 && !arcadeScreen.orb
+        visible: arcadeScreen.filters.length > 0
                  && !(arcadeScreen.portrait && arcadeScreen.filterId === "search")
         x: Math.round(arcadeScreen.boxX * arcadeScreen.u)
         y: Math.round(arcadeScreen.boxTop * arcadeScreen.v)
@@ -352,7 +349,7 @@ Item {
     // from game to game; for a game, not a room (arcadeScreen.gameBox),
     // whose box says what is said of the room.
     Item {
-        visible: arcadeScreen.gameBox && arcadeScreen.scoreRows > 0 && !arcadeScreen.orb
+        visible: arcadeScreen.gameBox && arcadeScreen.scoreRows > 0
         x: Math.round(arcadeScreen.infoX * arcadeScreen.u)
         y: Math.round(arcadeScreen.scoresTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.infoWidth * arcadeScreen.u)
@@ -441,7 +438,7 @@ Item {
             required property int index
             readonly property var detail: index < arcadeScreen.detailRows ? arcadeScreen.detailList[index]
                                           : { label: "Play Time", value: moduleRoot.playTime(arcadeScreen.details.playTime) }
-            visible: arcadeScreen.gameBox && !arcadeScreen.orb
+            visible: arcadeScreen.gameBox
             y: Math.round((arcadeScreen.playTimeTop - (arcadeScreen.detailRows - index) * arcadeScreen.scorePitch)
                           * arcadeScreen.v)
             label: detail.label
@@ -458,7 +455,6 @@ Item {
             required property int index
             objectName: "roomLine"
             readonly property var line: arcadeScreen.roomLines[index] || ({})
-            visible: !arcadeScreen.orb
             y: Math.round((arcadeScreen.roomTop + index * arcadeScreen.scorePitch) * arcadeScreen.v)
             label: line.label || ""
             value: line.value || ""
@@ -476,7 +472,7 @@ Item {
         readonly property int rowTop: !arcadeScreen.noneFound ? arcadeScreen.listTop
                                       : arcadeScreen.wheel ? arcadeScreen.wheelTops[1] || arcadeScreen.listTop
                                       : arcadeScreen.listTop + arcadeScreen.pitch
-        visible: arcadeScreen.emptyLine !== "" && !arcadeScreen.orb
+        visible: arcadeScreen.emptyLine !== ""
         x: Math.round((arcadeScreen.areaLeft + 16) * arcadeScreen.u)
         y: Math.round((rowTop + (arcadeScreen.rowHeight - arcadeScreen.nameLines) / 2) * arcadeScreen.v)
         width: Math.round((arcadeScreen.listWidth - 16) * arcadeScreen.u)
