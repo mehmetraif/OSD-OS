@@ -367,6 +367,7 @@ FocusScope {
 
                     Text {
                         id: rowText
+                        textFormat: Text.PlainText
                         text: {
                             var s = (modelData.parentIndex != null) ? ("S" + modelData.parentIndex) : ""
                             var e = modelData.index ? ("E" + modelData.index) : ""

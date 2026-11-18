@@ -309,6 +309,7 @@ FocusScope {
 
                     Text {
                         id: rowText
+                        textFormat: Text.PlainText
                         text: {
                             var label = modelData.title || ("Season " + modelData.index)
                             var count = modelData.leafCount || 0

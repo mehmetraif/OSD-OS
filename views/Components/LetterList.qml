@@ -200,6 +200,7 @@ FocusScope {
 
                 Text {
                     id: rowText
+                    textFormat: Text.PlainText
                     text: letterListRoot.labelOf(modelData)
                     color: (itemList.currentIndex === index && !letterListRoot.letterNavActive)
                        ? root.surfaceColor : root.primaryColor

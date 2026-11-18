@@ -169,6 +169,7 @@ FocusScope {
 
                 Text {
                     id: rowText
+                    textFormat: Text.PlainText
                     text: modelData.name
                     color: scriptList.currentIndex === index ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont

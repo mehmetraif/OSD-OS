@@ -145,6 +145,7 @@ FocusScope {
 
                 Text {
                     id: rowText
+                    textFormat: Text.PlainText
                     text: (modelData.number ? modelData.number + "  " : "") + (modelData.title || "")
                     color: channelList.currentIndex === index ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont

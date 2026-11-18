@@ -293,6 +293,7 @@ FocusScope {
 
                 Text {
                     id: rowText;
+                    textFormat: Text.PlainText;
                     text: modelData.name;
                     color: current ? root.surfaceColor : root.primaryColor;
                     font.family: root.globalFont;

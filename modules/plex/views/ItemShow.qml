@@ -427,6 +427,7 @@ FocusScope {
 
                     Text {
                         id: rowText
+                        textFormat: Text.PlainText
                         text: modelData.title || ""
                         color: (seasonList.currentIndex === index && focusRow === 2)
                                ? root.surfaceColor : root.primaryColor

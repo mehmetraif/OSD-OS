@@ -210,6 +210,7 @@ FocusScope {
 
                 Text {
                     id: rowText
+                    textFormat: Text.PlainText
                     text: modelData.title || ""
                     color: libraryList.currentIndex === index ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont

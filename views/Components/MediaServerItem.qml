@@ -578,6 +578,7 @@ FocusScope {
 
                     Text {
                         id: audioValueText
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: (detail && detail.audioStreams && detail.audioStreams[audioIdx])
                               ? streamLabel(detail.audioStreams[audioIdx]) : ""
@@ -658,6 +659,7 @@ FocusScope {
 
                     Text {
                         id: subtitleValueText
+                        textFormat: Text.PlainText
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
                             if (subtitleIdx === 0) return "Off"

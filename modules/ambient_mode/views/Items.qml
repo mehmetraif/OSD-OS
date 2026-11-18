@@ -218,6 +218,7 @@ FocusScope {
 
                     Text {
                         id: videoValueText
+                        textFormat: Text.PlainText
                         // The body is hidden with no videos, but still bound.
                         text: videoShuffleSelected ? "SHUFFLE" : (videoFiles.length > 0 ? videoFiles[videoIndex].name : "")
                         color: focusRow === 0 ? root.surfaceColor : root.primaryColor
@@ -301,6 +302,7 @@ FocusScope {
 
                     Text {
                         id: audioValueText
+                        textFormat: Text.PlainText
                         text: audioShuffleSelected ? "SHUFFLE"
                             : audioIndex === 0 ? "VIDEO AUDIO"
                             : audioFiles[audioIndex - 1].name

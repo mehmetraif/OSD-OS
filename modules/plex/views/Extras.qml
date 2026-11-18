@@ -201,6 +201,7 @@ FocusScope {
 
                     Text {
                         id: extraTitle
+                        textFormat: Text.PlainText
                         text: modelData.title || ""
                         color: itemList.currentIndex === index ? root.surfaceColor : root.primaryColor
                         font.family: root.globalFont
