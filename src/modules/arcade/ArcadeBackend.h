@@ -28,6 +28,7 @@ class AppCore;
 class ArcadeDb;
 class DisplayHandoff;
 class FbneoInstaller;
+class LanRooms;
 class ProgramInstaller;
 class RetroAchievements;
 class RetroAchievementsAccount;
@@ -950,43 +951,21 @@ private:
     // (FinalBurn Neo's list doesn't say), taken for one of six.
     int hostPorts(const QString &set, int *most = nullptr) const;
     // A LAN game joined once its host's OSD/OS has said which port this
-    // machine's player 1 takes (libretro::claimQuery() to the host at the
-    // claim port, asked three times at most, a quarter of a second each:
-    // askForPorts(), readPortsAnswer()), or hasn't (startPendingJoin() with
-    // no ports); running() meanwhile. An answer that comes too late, or from
-    // another host, has its ports given back. Not started after all, it is
-    // said so as a game that ended (finished(), failed_to_start, without the
-    // last game's output), the Play screen having been told it started. The
-    // ports are given back to the host's OSD/OS as the game ends
-    // (releaseClaim()).
+    // machine's player 1 takes (LanRooms::askForPorts()), or hasn't
+    // (startPendingJoin() with no ports); running() meanwhile. Not started
+    // after all, it is said so as a game that ended (finished(),
+    // failed_to_start, without the last game's output), the Play screen
+    // having been told it started. The ports are given back to the host's
+    // OSD/OS as the game ends (LanRooms::releaseClaimed()).
     struct PendingJoin {
         QString game;
         QString joinAddress;
         QString host;
-        int players = 1;
-        int asked = 0;
-        // The host's layout, as it said before the ports (Classic until it
-        // does), and whether it has; the ports that came before it did,
-        // waiting a moment for it (readPortsAnswer()).
-        libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
-        bool layoutSaid = false;
-        std::optional<libretro::PortRange> ports;
         // Hosted with OSD/OS's own core for CV1000 games (libretro::kLanCoreName).
         bool lanCore = false;
     };
-    bool askForPorts();
-    void readPortsAnswer();
-    void startPendingJoin(const std::optional<libretro::PortRange> &ports);
-    void releaseClaim(const QString &address);
-    // Hosting on the local network: the ports taken counted (m_claims, this
-    // machine's own first, 1 to own, of most, each machine joining's players
-    // no more than each), and each OSD/OS joining told the layout and given
-    // its ports at the claim port (answerClaims()), until the game ends
-    // (stopClaims()). False without the socket for it: a machine joining
-    // then takes RetroArch's first free port.
-    bool startClaims(int own, int most, int each, libretro::Launch::Layout layout);
-    void answerClaims();
-    void stopClaims();
+    // layout: the host's, as it said before the ports (Classic for none).
+    void startPendingJoin(const std::optional<libretro::PortRange> &ports, libretro::Launch::Layout layout);
     // Over the network, RetroArch's log read every so often as the game
     // starts, and joining as long as it goes on (libretro::NetplayLog): at
     // the netplay error it would play on alone after, or the host leaving,
@@ -1002,11 +981,6 @@ private:
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
-    // LAN Play's: the answers taken as they come while the query is
-    // listened for, and the rooms made of them once it has been
-    // (finishLanRead()), or why the network couldn't be asked.
-    void readLanAnswers();
-    void finishLanRead();
     // The LAN Games folder listed again, and the Arcade screen's filter with
     // it, once its entries (the rooms, their lines, or why there are none)
     // are other than they were.
@@ -1182,40 +1156,13 @@ private:
     QSet<QString> m_slowVersions;
     QStringList m_coreInfoCommand;
     int m_versionReadMs = 0;
-    // LAN Play: the socket the query goes out of and the answers come to,
-    // where it goes ("" to broadcast it), the time the answers are listened
-    // for, the rooms heard meanwhile and those of the last query (and of
-    // them, by lanKey(), those kept without being heard in it; and the LAN
-    // Games folder's entries as the views were last told of them), why the
-    // network couldn't be asked, whether it has been, and each room's id by
-    // its host and game (those no longer heard forgotten once there are
-    // many).
-    QUdpSocket *m_lanSocket = nullptr;
-    QString m_lanAddress;
-    quint16 m_lanPort = libretro::kLanPort;
-    QTimer *m_lanListen = nullptr;
-    int     m_lanListenMs = 0;
-    QList<libretro::Room> m_lanHeard;
-    QList<libretro::Room> m_lanRooms;
-    QSet<QString> m_lanMissed;
+    // LAN Play's sockets: the rooms on the local network, and the ports a
+    // game hosted there gives the machines joining it (LanRooms); the LAN
+    // Games folder's entries as the views were last told of them; and the
+    // join waiting for its ports.
+    LanRooms *m_lan = nullptr;
     QVariantList m_lanShown;
-    QString m_lanFailure;         // the query under way's
-    QString m_lanProblem;
-    bool    m_lanRead = false;
-    QHash<QString, int> m_lanIds;
-    int     m_lanNextId = 1;
-    // Six players over the network (libretro::PortClaims): hosting, the
-    // socket the machines joining ask for their ports at, and the count of
-    // the ports taken; joining, the host whose OSD/OS gave this machine its
-    // ports, given back as the game ends ("" for none).
-    QUdpSocket *m_claimSocket = nullptr;
-    libretro::PortClaims m_claims;
-    libretro::Launch::Layout m_claimLayout = libretro::Launch::Layout::Classic;
-    quint16 m_claimPort = libretro::kLanClaimPort;
     std::optional<PendingJoin> m_pendingJoin;
-    QUdpSocket *m_claimAsk = nullptr;
-    QTimer *m_claimWait = nullptr;
-    QString m_claimedFrom;
     // catver.ini's download: from where, under way, and when one that failed
     // may be tried again.
     QUrl m_genresUrl;

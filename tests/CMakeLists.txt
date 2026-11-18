@@ -326,6 +326,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         arcade_test.cpp
         ../src/modules/arcade/ArcadeBackend.cpp
         ../src/modules/arcade/ArcadePictures.cpp
+        ../src/modules/arcade/LanRooms.cpp
         ../src/modules/arcade/Mame.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp

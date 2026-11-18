@@ -6,9 +6,9 @@
 #include "../../util/AtomicFile.h"
 #include "../../util/DeviceName.h"
 #include "../../util/LegacyNames.h"
-#include "../../util/NetInterfaces.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
+#include "LanRooms.h"
 #include "ProgramInstaller.h"
 #include "Http.h"
 #include "Libretro.h"
@@ -26,8 +26,6 @@
 #include <QCoreApplication>
 #include <QHostAddress>
 #include <QNetworkAccessManager>
-#include <QNetworkDatagram>
-#include <QNetworkInterface>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
@@ -97,17 +95,6 @@ constexpr int kCacheSaveMs = 30000;
 // How long our own RetroArch, or the copy of the app asking our core, is
 // given to say its version: a core is tens of megabytes to load on a Pi.
 constexpr int kVersionReadMs = 10000;
-// LAN Play: how long the hosts on the local network are given to answer a
-// query, and the most rooms taken of the answers.
-constexpr int kLanListenMs = 1000;
-constexpr qsizetype kMostLanRooms = 64;
-// How long a host's OSD/OS is given to answer for the ports of a game joined
-// on the local network, each time it is asked, and how many times at most.
-constexpr int kClaimWaitMs = 250;
-constexpr int kClaimAskings = 3;
-// How long ports that came without the host's layout wait for it (a datagram
-// of its own, sent before them: lost, or an older OSD/OS's, which says none).
-constexpr int kLayoutWaitMs = 150;
 // Over the network, how often RetroArch's log is read as the game goes on, and
 // for how long hosting: a port it can't take it says at once, and a client it
 // turns away or that leaves ends nothing. Joining, it is read for as long as
@@ -274,17 +261,6 @@ QString searchable(const QString &text) {
     return made;
 }
 
-// A room on the local network as its id is kept: where it is joined, its
-// game and who hosts it.
-QString lanKey(const libretro::Room &room) {
-    return room.joinAddress + QLatin1Char('\n') + room.rom + QLatin1Char('\n') + room.host;
-}
-// Whether one of the rooms is joined at joinAddress: hosted there.
-bool hostedAt(const QList<libretro::Room> &rooms, const QString &joinAddress) {
-    return std::any_of(rooms.cbegin(), rooms.cend(),
-                       [&joinAddress](const libretro::Room &room) { return room.joinAddress == joinAddress; });
-}
-
 // A room's version against ours: "same", "other", or "unknown" where either
 // isn't known. A core's whole, as RetroArch itself matches them when it
 // connects; RetroArch's by its numbers (1.20 is 1.20.0).
@@ -313,23 +289,6 @@ QString noFbneoGameReason(const QString &set) {
 }
 QString fbneoFolderReason() {
     return QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
-}
-
-// Where a query reaches every host of the networks this machine is on: the
-// broadcast the system sends on its main one, and each network's own, which
-// reaches the hosts of another.
-QList<QHostAddress> broadcastAddresses() {
-    QList<QHostAddress> targets{ QHostAddress(QHostAddress::Broadcast) };
-    const QList<netif::Interface> interfaces = netif::list();
-    for (const netif::Interface &interface : interfaces) {
-        if (!interface.up || !interface.canBroadcast || interface.kind == netif::Kind::Loopback)
-            continue;
-        for (const netif::Address &entry : interface.addresses) {
-            if (entry.broadcast.protocol() == QAbstractSocket::IPv4Protocol && !targets.contains(entry.broadcast))
-                targets << entry.broadcast;
-        }
-    }
-    return targets;
 }
 
 // The pads as the menus know them, for a game's SDL (MAME's, RetroArch's):
@@ -422,9 +381,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             m_pictures->gameEnded(m_playing);
         // Over the network: no more ports given, and this machine's given
         // back to the host that gave them.
-        stopClaims();
-        if (!m_claimedFrom.isEmpty())
-            releaseClaim(std::exchange(m_claimedFrom, QString()));
+        m_lan->stopClaims();
+        m_lan->releaseClaimed();
         m_playing.clear();
         emit finished(exitCode, reason, notice);
         // The sets MAME was still to be asked about, held while it played;
@@ -527,10 +485,15 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     m_lobbyUrl = QUrl(legacy::env("LOBBY_URL", m_lobbyUrl.toString()));
     m_coreInfoCommand = { QCoreApplication::applicationFilePath(), QStringLiteral("--core-info") };
     m_versionReadMs = kVersionReadMs;
-    m_lanListen = new QTimer(this);
-    m_lanListen->setSingleShot(true);
-    m_lanListenMs = kLanListenMs;
-    connect(m_lanListen, &QTimer::timeout, this, &ArcadeBackend::finishLanRead);
+    // LAN Play: the rooms the network answered with listed again, as they
+    // may be other than they were; a join's ports, once its host has said
+    // them (or hasn't).
+    m_lan = new LanRooms(this);
+    connect(m_lan, &LanRooms::roomsRead, this, [this] {
+        emit lanRoomsChanged();
+        showLanRooms();
+    });
+    connect(m_lan, &LanRooms::portsAnswered, this, &ArcadeBackend::startPendingJoin);
 
     m_scanTimer = new QTimer(this);
     m_scanTimer->setSingleShot(true);
@@ -600,8 +563,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 ArcadeBackend::~ArcadeBackend() {
     // The ports of a game still being played go back to its host, which
     // would keep them from the next machine until its own game ended.
-    if (!m_claimedFrom.isEmpty())
-        releaseClaim(std::exchange(m_claimedFrom, QString()));
+    m_lan->releaseClaimed();
     // The pictures' records as they stand (m_pictureSaves waits for them).
     m_pictures->flushRecords();
     // The read keeps nothing of this object's: it may finish on its own.
@@ -737,13 +699,8 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         // Off: the rooms heard forgotten, so that none of them is offered
         // once it is on again, before the network has been asked.
         if (!m_lanPlay) {
-            m_lanListen->stop();
-            m_lanHeard.clear();
-            m_lanRooms.clear();
-            m_lanMissed.clear();
+            m_lan->forget();
             m_lanShown.clear();
-            m_lanProblem.clear();
-            m_lanRead = false;
         }
         emit gamesChanged();
         emit statusIconsChanged();
@@ -2335,7 +2292,7 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
         return roomEntries();
     }
     if (path == QLatin1String("lan")) {
-        if (!m_lanRead) {
+        if (!m_lan->asked()) {
             refreshLanRooms();
             return QVariant();
         }
@@ -3219,7 +3176,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // Hosting on the local network: the machines joining given their ports
     // from now on.
     if (netplay == Netplay::LanHost)
-        startClaims(launch.ports, most, lanCore ? libretro::mostPortsOn(launch.layout) : 1, launch.layout);
+        m_lan->startClaims(launch.ports, most, lanCore ? libretro::mostPortsOn(launch.layout) : 1, launch.layout);
     // FinalBurn Neo's remap file: the arcade panels' players, and those with
     // Arcade Buttons, on its 6-Button Panel; none without one, nor online.
     // One of the user's own stays as it is, loaded in its place.
@@ -3275,7 +3232,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     if (!written || !writeFileAnew(launch.config, libretro::configText(launch).toUtf8(), kOwnerOnly)) {
         m_lastError = QStringLiteral("RetroArch's settings could not be written");
         m_account->takeBack();
-        stopClaims();
+        m_lan->stopClaims();
         return false;
     }
     // This run's log: the last one's mustn't speak for it.
@@ -3299,7 +3256,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         m_lastError = error;
         if (m_account->takeBack())
             QFile::remove(launch.config);
-        stopClaims();
+        m_lan->stopClaims();
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
         resumeRomCheck();
@@ -3413,7 +3370,7 @@ bool ArcadeBackend::hostLanGame(const QString &set) {
 }
 
 bool ArcadeBackend::joinLanRoom(int id) {
-    for (const libretro::Room &room : std::as_const(m_lanRooms)) {
+    for (const libretro::Room &room : m_lan->rooms()) {
         if (room.id != id)
             continue;
         if (running()) {
@@ -3427,9 +3384,8 @@ bool ArcadeBackend::joinLanRoom(int id) {
         // (playFbneo()).
         const bool lanCore = room.core == libretro::kLanCoreName;
         m_pendingJoin = PendingJoin{ room.game, room.joinAddress, room.joinAddress.section(QLatin1Char('|'), 0, 0),
-                                     lanCore ? libretro::localPorts(controllers::playerGuids()) : 1 };
-        m_pendingJoin->lanCore = lanCore;
-        if (askForPorts())
+                                     lanCore };
+        if (m_lan->askForPorts(m_pendingJoin->host, lanCore ? libretro::localPorts(controllers::playerGuids()) : 1))
             return true;
         const PendingJoin join = *std::exchange(m_pendingJoin, std::nullopt);
         return playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, -1, 0,
@@ -3439,108 +3395,21 @@ bool ArcadeBackend::joinLanRoom(int id) {
     return false;
 }
 
-bool ArcadeBackend::askForPorts() {
-    if (!m_claimAsk) {
-        m_claimAsk = new QUdpSocket(this);
-        connect(m_claimAsk, &QUdpSocket::readyRead, this, &ArcadeBackend::readPortsAnswer);
-        m_claimWait = new QTimer(this);
-        m_claimWait->setSingleShot(true);
-        // Not answered: asked again, then joined without an answer. Ports
-        // answered without the layout, which hasn't come after them either:
-        // joined on the Classic layout.
-        connect(m_claimWait, &QTimer::timeout, this, [this] {
-            if (!m_pendingJoin)
-                return;
-            if (const std::optional<libretro::PortRange> ports = m_pendingJoin->ports) {
-                qInfo("[Arcade] %s said nothing of its layout: the Classic one", qPrintable(m_pendingJoin->host));
-                startPendingJoin(ports);
-                return;
-            }
-            if (!askForPorts())
-                startPendingJoin(std::nullopt);
-        });
-    }
-    const QHostAddress host(m_pendingJoin->host);
-    // Asking afresh: what is left of the answers to an earlier join (a
-    // second answer never read) isn't this one's. A socket not bound yet
-    // (the first join) has none, and Qt warns of being asked.
-    if (m_pendingJoin->asked == 0 && m_claimAsk->state() == QAbstractSocket::BoundState) {
-        while (m_claimAsk->hasPendingDatagrams())
-            m_claimAsk->receiveDatagram(0);
-    }
-    if (m_pendingJoin->asked >= kClaimAskings || host.isNull()
-        || (m_claimAsk->state() != QAbstractSocket::BoundState && !m_claimAsk->bind(QHostAddress(QHostAddress::AnyIPv4), 0))
-        || m_claimAsk->writeDatagram(libretro::claimQuery(m_pendingJoin->players), host, m_claimPort) < 0)
-        return false;
-    ++m_pendingJoin->asked;
-    m_claimWait->start(kClaimWaitMs);
-    return true;
-}
-
-void ArcadeBackend::readPortsAnswer() {
-    // The host's layout and its ports have both come: the game starts.
-    const auto start = [this](const libretro::PortRange &ports) {
-        m_claimWait->stop();
-        qInfo("[Arcade] %s gives this machine's %d player(s) %d port(s) from %d, on the %s layout",
-              qPrintable(m_pendingJoin->host), m_pendingJoin->players, ports.players, ports.first,
-              m_pendingJoin->layout == libretro::Launch::Layout::Panel ? "panel" : "classic");
-        startPendingJoin(ports);
-    };
-    while (m_claimAsk->hasPendingDatagrams()) {
-        const QNetworkDatagram answer = m_claimAsk->receiveDatagram(64);
-        const QHostAddress from(answer.senderAddress().toIPv4Address());
-        const bool fromHost = m_pendingJoin && from == QHostAddress(m_pendingJoin->host);
-        // The host's layout comes ahead of the ports (an older OSD/OS says
-        // none: Classic), each a datagram of its own: ports that come first
-        // wait a moment for it.
-        if (const std::optional<libretro::Launch::Layout> layout = libretro::readClaimLayout(answer.data())) {
-            if (!fromHost)
-                continue;
-            m_pendingJoin->layout = *layout;
-            m_pendingJoin->layoutSaid = true;
-            if (const std::optional<libretro::PortRange> waiting = m_pendingJoin->ports) {
-                start(*waiting);
-                return;
-            }
-            continue;
-        }
-        const std::optional<libretro::PortRange> ports = libretro::readClaimAnswer(answer.data());
-        // Neither, passed over: OSD/OS 0.0.28 to 0.0.32 said first that it
-        // played at the game's own rate (OSDOS PACE game).
-        if (!ports)
-            continue;
-        // One that comes too late, or from another host: its ports given
-        // back. But not the ports this machine plays on: a host asked twice
-        // answers twice, the second answer coming once the game has started
-        // on the first, and giving those back had the host hand them to the
-        // next machine too.
-        if (!fromHost) {
-            if (ports->first > 0 && from != QHostAddress(m_claimedFrom))
-                releaseClaim(from.toString());
-            continue;
-        }
-        if (!m_pendingJoin->layoutSaid) {
-            m_pendingJoin->ports = ports;
-            m_claimWait->start(kLayoutWaitMs);
-            continue;
-        }
-        start(*ports);
+void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &ports,
+                                     libretro::Launch::Layout layout) {
+    if (!m_pendingJoin)
         return;
-    }
-}
-
-void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &ports) {
     const PendingJoin join = *std::exchange(m_pendingJoin, std::nullopt);
     if (!ports)
         qInfo("[Arcade] %s doesn't say which ports are taken: RetroArch is asked for them", qPrintable(join.host));
     const int first = ports ? ports->first : -1;
     if (playFbneo(join.game, libretro::Launch::Netplay::LanJoin, join.joinAddress, first, ports ? ports->players : 0,
-                  ports ? join.layout : libretro::Launch::Layout::Classic, join.lanCore)) {
-        m_claimedFrom = first > 0 ? join.host : QString();
+                  ports ? layout : libretro::Launch::Layout::Classic, join.lanCore)) {
+        m_lan->setClaimedFrom(first > 0 ? join.host : QString());
         return;
     }
     if (first > 0)
-        releaseClaim(join.host);
+        m_lan->releaseClaim(join.host);
     // Not started after all, said so as a game that ended: the last game's
     // output isn't this one's.
     m_launcher->clearOutput();
@@ -3552,79 +3421,31 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
     resumeRomCheck();
 }
 
-void ArcadeBackend::releaseClaim(const QString &address) {
-    QUdpSocket socket;
-    socket.writeDatagram(libretro::claimRelease(), QHostAddress(address), m_claimPort);
-}
-
-bool ArcadeBackend::startClaims(int own, int most, int each, libretro::Launch::Layout layout) {
-    stopClaims();
-    m_claims.reset(own, most, each);
-    m_claimLayout = layout;
-    m_claimSocket = new QUdpSocket(this);
-    if (!m_claimSocket->bind(QHostAddress(QHostAddress::AnyIPv4), m_claimPort)) {
-        qWarning("[Arcade] The machines joining can't be given their ports: %s", qPrintable(m_claimSocket->errorString()));
-        stopClaims();
-        return false;
-    }
-    connect(m_claimSocket, &QUdpSocket::readyRead, this, &ArcadeBackend::answerClaims);
-    return true;
-}
-
-void ArcadeBackend::answerClaims() {
-    while (m_claimSocket->hasPendingDatagrams()) {
-        // From the local network alone, as the rooms' answers are taken.
-        const QNetworkDatagram packet = m_claimSocket->receiveDatagram(64);
-        if (!libretro::isLanSender(packet.senderAddress()))
-            continue;
-        const QString from = QHostAddress(packet.senderAddress().toIPv4Address()).toString();
-        if (const std::optional<int> players = libretro::readClaimQuery(packet.data())) {
-            // The layout first, the ports after: a joiner starts its game on
-            // the ports, and takes the layout with them; an older one reads
-            // the ports alone.
-            const libretro::PortRange ports = m_claims.claim(from, *players);
-            m_claimSocket->writeDatagram(libretro::claimLayout(m_claimLayout), packet.senderAddress(),
-                                         packet.senderPort());
-            m_claimSocket->writeDatagram(libretro::claimAnswer(ports), packet.senderAddress(), packet.senderPort());
-            qInfo("[Arcade] %s joins with %d player(s): %d port(s) from %d", qPrintable(from), *players, ports.players,
-                  ports.first);
-        } else if (libretro::isClaimRelease(packet.data())) {
-            m_claims.release(from);
-        }
-    }
-}
-
-void ArcadeBackend::stopClaims() {
-    delete m_claimSocket;
-    m_claimSocket = nullptr;
-}
-
 void ArcadeBackend::setLanDiscovery(const QString &address, quint16 port) {
-    m_lanAddress = address;
-    m_lanPort = port;
+    m_lan->setDiscovery(address, port);
 }
 
 void ArcadeBackend::setLanListenTime(int ms) {
-    m_lanListenMs = ms;
+    m_lan->setListenTime(ms);
 }
 
 void ArcadeBackend::setLanClaimPort(quint16 port) {
-    m_claimPort = port;
+    m_lan->setClaimPort(port);
 }
 
 QVariantList ArcadeBackend::lanRooms() const {
     QVariantList list;
-    if (!m_lanPlay || m_lanRooms.isEmpty() || !fbneoReady())
+    if (!m_lanPlay || m_lan->rooms().isEmpty() || !fbneoReady())
         return list;
     const QDateTime now = QDateTime::currentDateTimeUtc();
     // Whether OSD/OS's own core is here, looked for once (two files' worth).
     const bool lanCoreHere = !libretro::lanCorePath(m_dataRoot).isEmpty();
-    for (const libretro::Room &room : m_lanRooms) {
+    for (const libretro::Room &room : m_lan->rooms()) {
         // As rooms(): a game in the folder FinalBurn Neo plays, whole as far
         // as Check ROMs found, with the memory to join it on the core it is
         // hosted with (netplayRefusal(); only rooms joined without a
-        // password are kept: readLanAnswers()). One on OSD/OS's own core
-        // while it isn't here is listed all the same, saying so.
+        // password are kept: LanRooms). One on OSD/OS's own core while it
+        // isn't here is listed all the same, saying so.
         const bool lanCore = room.core == libretro::kLanCoreName;
         if (!netplayRefusal(room.game, lanCore, false).isEmpty())
             continue;
@@ -4047,109 +3868,14 @@ void ArcadeBackend::refreshLanRooms() {
         return;
     // Ours too, which the rooms are matched against.
     readOwnVersions();
-    // A query out: its answers are still being listened for.
-    if (m_lanListen->isActive())
-        return;
-    if (!m_lanSocket) {
-        m_lanSocket = new QUdpSocket(this);
-        connect(m_lanSocket, &QUdpSocket::readyRead, this, &ArcadeBackend::readLanAnswers);
-    }
-    m_lanFailure.clear();
-    if (m_lanSocket->state() != QAbstractSocket::BoundState
-        && !m_lanSocket->bind(QHostAddress(QHostAddress::AnyIPv4), 0)) {
-        m_lanFailure = m_lanSocket->errorString();
-    } else {
-        // Every host of the networks this machine is on, or a stand-in.
-        const QList<QHostAddress> targets = m_lanAddress.isEmpty() ? broadcastAddresses()
-                                                                   : QList<QHostAddress>{ QHostAddress(m_lanAddress) };
-        bool sent = false;
-        for (const QHostAddress &target : targets) {
-            if (m_lanSocket->writeDatagram(libretro::lanQuery(), target, m_lanPort) >= 0)
-                sent = true;
-            else if (m_lanFailure.isEmpty())
-                m_lanFailure = m_lanSocket->errorString();
-        }
-        if (sent)
-            m_lanFailure.clear();
-    }
-    // The answers listened for; or, sent nowhere, why said the same way, once
-    // this call is done with.
-    m_lanListen->start(m_lanFailure.isEmpty() ? m_lanListenMs : 0);
-}
-
-void ArcadeBackend::readLanAnswers() {
-    while (m_lanSocket->hasPendingDatagrams()) {
-        // A byte more than an answer, so that a bigger packet is told apart.
-        const QNetworkDatagram datagram = m_lanSocket->receiveDatagram(libretro::kLanAnswerSize + 1);
-        // One that comes once the query's rooms have been made isn't taken,
-        // nor one from outside the local network. Nothing proves where an
-        // answer comes from, and RetroArch takes them as they come too: a room
-        // only ever has RetroArch, once it is chosen, connect to the address
-        // on this network the answer came from, at the port it gave.
-        if (!m_lanListen->isActive() || !libretro::isLanSender(datagram.senderAddress()))
-            continue;
-        const QHostAddress from(datagram.senderAddress().toIPv4Address());
-        std::optional<libretro::Room> room = libretro::readLanAnswer(datagram.data(), from.toString());
-        // Only those that can be listed, so many at most: FinalBurn Neo's,
-        // without a password (RetroArch would ask for it on its own screen).
-        // A host once: the query reaches it by more than one broadcast
-        // address, and it answers each.
-        if (!room || !room->joinable || room->password || m_lanHeard.size() >= kMostLanRooms
-            || hostedAt(m_lanHeard, room->joinAddress))
-            continue;
-        // Its id, the one it had while it was heard with the same game.
-        const QString key = lanKey(*room);
-        auto id = m_lanIds.constFind(key);
-        if (id == m_lanIds.constEnd())
-            id = m_lanIds.insert(key, m_lanNextId++);
-        room->id = *id;
-        m_lanHeard << *room;
-    }
-}
-
-void ArcadeBackend::finishLanRead() {
-    const QString problem = m_lanFailure.isEmpty() ? QString()
-                            : QStringLiteral("The local network can't be reached: ") + m_lanFailure;
-    if (!problem.isEmpty() && problem != m_lanProblem)
-        qWarning("[Arcade] %s", qPrintable(problem));
-    // A room of the last query not heard in this one kept through it, unless
-    // its host answered with another: a broadcast is sent but once, and it,
-    // or the answer, can be lost on the way. Not through a second, nor a
-    // query that couldn't be sent.
-    QSet<QString> missed;
-    if (m_lanFailure.isEmpty()) {
-        for (const libretro::Room &room : std::as_const(m_lanRooms)) {
-            const QString key = lanKey(room);
-            if (m_lanMissed.contains(key) || m_lanHeard.size() >= kMostLanRooms
-                || hostedAt(m_lanHeard, room.joinAddress))
-                continue;
-            m_lanHeard << room;
-            missed.insert(key);
-        }
-    }
-    m_lanMissed = std::move(missed);
-    // In the order they were first heard, whichever answered first now.
-    std::sort(m_lanHeard.begin(), m_lanHeard.end(),
-              [](const libretro::Room &a, const libretro::Room &b) { return a.id < b.id; });
-    m_lanRooms = std::exchange(m_lanHeard, {});
-    m_lanProblem = problem;
-    m_lanRead = true;
-    // The ids of rooms no longer heard forgotten, once they are many.
-    if (m_lanIds.size() > 4 * kMostLanRooms) {
-        QHash<QString, int> kept;
-        for (const libretro::Room &room : std::as_const(m_lanRooms))
-            kept.insert(lanKey(room), room.id);
-        m_lanIds = std::move(kept);
-    }
-    emit lanRoomsChanged();
-    showLanRooms();
+    m_lan->query();
 }
 
 void ArcadeBackend::showLanRooms() {
     // Not as a game starts or plays (an answer still on its way as it was
     // chosen, a version read that ends then): the lists are made again once
     // it is over, as the rooms are asked for again.
-    if (!m_lanPlay || !m_lanRead || running())
+    if (!m_lanPlay || !m_lan->asked() || running())
         return;
     if (QVariantList shown = lanRoomEntries(); shown != m_lanShown) {
         m_lanShown = std::move(shown);
@@ -4180,11 +3906,11 @@ QVariantMap ArcadeBackend::lanStatus() const {
     if (!fbneoReady())
         return filterSays(QStringLiteral("FinalBurn Neo Not Installed"),
                           QStringLiteral("LAN games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
-    if (!m_lanRead)
+    if (!m_lan->asked())
         return filterSays(QStringLiteral("Asking the Local Network…"),
                           QStringLiteral("A game hosted on this network comes here as soon as it is found"));
-    if (!m_lanProblem.isEmpty())
-        return filterSays(QStringLiteral("Network Not Reachable"), m_lanProblem);
+    if (!m_lan->problem().isEmpty())
+        return filterSays(QStringLiteral("Network Not Reachable"), m_lan->problem());
     return filterSays(QStringLiteral("No LAN Games"),
                       QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
 }
