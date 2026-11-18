@@ -3359,6 +3359,12 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     if (engineOf(name) == QLatin1String("fbneo"))
         return playFbneo(name, libretro::Launch::Netplay::None, QString(), -1, 0, libretro::Launch::Layout::Classic,
                          false, credits);
+    // Not beside MAME's download, which puts its MAME in the folder this one
+    // may run from (mameMayRun()): FinalBurn Neo's games play meanwhile.
+    if (m_mameInstaller->running()) {
+        m_lastError = QStringLiteral("MAME is still downloading");
+        return false;
+    }
     const QString program = mamePath();
     if (program.isEmpty()) {
         m_lastError = QStringLiteral("MAME is not installed");

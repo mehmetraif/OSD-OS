@@ -7254,7 +7254,8 @@ private slots:
     // folder it runs from (Windows renames no folder a program runs from):
     // Check ROMs started meanwhile holds its part, a FinalBurn Neo game that
     // ends meanwhile starts neither it nor the asking the download stopped,
-    // and both go on once the download has ended. A game started while a
+    // a game of MAME's is refused, and both go on once the download has
+    // ended. A game started while a
     // check waits only for an asking that has answered, but not exited,
     // doesn't let the check's part go for the moment before it starts.
     void mameNotBesideItsDownload() {
@@ -7340,6 +7341,15 @@ private slots:
         QCOMPARE(runs(), QStringList({ QStringLiteral("listxml"), QStringLiteral("retroarch") }));
         QVERIFY(progress(arcade, "held").toBool());
         QVERIFY(arcade.mameDownloading());
+        // A game of MAME's is refused meanwhile, saying why: its MAME would
+        // run from the folder the download replaces.
+        finished.clear();
+        QVERIFY(!arcade.play(QStringLiteral("pacman")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("MAME is still downloading"));
+        QVERIFY(!arcade.running());
+        QTest::qWait(200);
+        QVERIFY(finished.isEmpty());
+        QCOMPARE(runs(), QStringList({ QStringLiteral("listxml"), QStringLiteral("retroarch") }));
 
         // The download ends: the set asked about again, then the check's
         // part.
