@@ -281,8 +281,12 @@ private:
                             const QStringList &extraArgs, const QString &jellyfinToken, bool embedded);
     // An mpv process for a session: args its options, media what plays.
     void startProcess(QStringList args, const QStringList &media);
+    // `then` once the screen is free (screenBusy()), looked at again every
+    // few milliseconds until it is: for the session loadAndPlay() asked for
+    // as `serial`, and never once another has been asked for since.
+    void whenScreenFree(int serial, std::function<void()> then);
     // The session loadAndPlay() asked for (serial), started once the screen
-    // is free (screenBusy()).
+    // is free (whenScreenFree()).
     void launchAfterRetirement(int serial, const QStringList &args,
                                const QStringList &media, bool embedded);
     // stop() before that session started: its player is told it stopped

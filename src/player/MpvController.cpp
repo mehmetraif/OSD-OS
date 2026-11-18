@@ -70,6 +70,21 @@ constexpr int kPictureRemoteMs = 45000;
 // Back before a session's first picture, this long after its mpv started,
 // is worth what the mpv was doing in the log.
 constexpr int kLeftEarlyMs = 4000;
+// loadAndPlay() starts its session this long later, so that its player's
+// loading screen is drawn first (see there), as relaunch() starts one again;
+// from there it looks this often for the screen to be free
+// (whenScreenFree()).
+constexpr int kLaunchTickMs = 50;
+constexpr int kScreenPollMs = 25;
+// The player's control connection is tried this often until it is made
+// (tryConnectIpc()). One lost, and not made again this long later while the
+// player still plays, is worth a line in the log.
+constexpr int kConnectRetryMs = 100;
+constexpr int kReconnectNoteMs = 3000;
+// The watchdog looks this often for a session that has said nothing of its
+// position for the second while it plays: a possible freeze, for the log.
+constexpr int kWatchdogTickMs = 10000;
+constexpr int kWatchdogSilenceMs = 30000;
 // The key bindings every session's mpv gets, a process's and an embedded
 // session's alike (--input-conf). Back ends the video (backFromProcess), and
 // opens its player's menu if it has one; with Transparent Background it
@@ -371,7 +386,7 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     connect(m_ipc, &QLocalSocket::readyRead, this, &MpvController::onIpcReadyRead);
 
     m_connectTimer = new QTimer(this);
-    m_connectTimer->setInterval(100);
+    m_connectTimer->setInterval(kConnectRetryMs);
     connect(m_connectTimer, &QTimer::timeout, this, &MpvController::tryConnectIpc);
     // The player's control connection gone while it is wanted: made again.
     // An mpv ending closes it too, a moment before its process has gone, so
@@ -383,7 +398,7 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         m_watchdogTimer->stop();
         m_connectTimer->start();
         const int serial = m_launchSerial;
-        QTimer::singleShot(3000, this, [this, serial]() {
+        QTimer::singleShot(kReconnectNoteMs, this, [this, serial]() {
             if (m_reconnecting && serial == m_launchSerial
                     && ((m_process && m_process->state() == QProcess::Running) || videoActive()))
                 qWarning("[MpvController] Control connection to the playing player lost; making it again");
@@ -397,11 +412,11 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     // property-change event refreshes m_lastIpcEventMs so the 30 s window
     // restarts fresh on resume.
     m_watchdogTimer = new QTimer(this);
-    m_watchdogTimer->setInterval(10000);
+    m_watchdogTimer->setInterval(kWatchdogTickMs);
     connect(m_watchdogTimer, &QTimer::timeout, this, [this] {
         if (m_ipc->state() != QLocalSocket::ConnectedState || m_paused) return;
         qint64 silenceMs = QDateTime::currentMSecsSinceEpoch() - m_lastIpcEventMs;
-        if (silenceMs > 30000) {
+        if (silenceMs > kWatchdogSilenceMs) {
             qWarning("[MpvController] WATCHDOG: no IPC time-pos event for %lld s — possible freeze",
                      silenceMs / 1000);
         }
@@ -874,7 +889,7 @@ void MpvController::loadAndPlay(const QString &url, float startSeconds,
     m_launchPending = true;
     m_pendingStartMs = int(startSeconds * 1000.0f);
     const int serial = ++m_launchSerial;
-    QTimer::singleShot(50, this, [this, serial, args, media, embedded]() {
+    QTimer::singleShot(kLaunchTickMs, this, [this, serial, args, media, embedded]() {
         launchAfterRetirement(serial, args, media, embedded);
     });
 }
@@ -904,46 +919,46 @@ void MpvController::retireProcess() {
     m_process = nullptr;
 }
 
-void MpvController::launchAfterRetirement(int serial, const QStringList &args,
-                                         const QStringList &media, bool embedded) {
+void MpvController::whenScreenFree(int serial, std::function<void()> then) {
     if (serial != m_launchSerial)
         return;
     if (screenBusy()) {
-        QTimer::singleShot(25, this, [this, serial, args, media, embedded]() {
-            launchAfterRetirement(serial, args, media, embedded);
+        QTimer::singleShot(kScreenPollMs, this, [this, serial, then]() {
+            whenScreenFree(serial, then);
         });
         return;
     }
-    // Played inside the app, the picture needs the screen back first, from
-    // the process retired for it.
-    if (embedded && m_headlessMode) {
-        handBackScreen([this, serial, args, media]() {
-            launchAfterRetirement(serial, args, media, true);
-        });
-        return;
-    }
-    QFile::remove(m_socketPath);
-    m_launchPending = false;
-    if (embedded)
-        startEmbedded(args);
-    else
-        startProcess(args, media);
+    then();
+}
+
+void MpvController::launchAfterRetirement(int serial, const QStringList &args,
+                                         const QStringList &media, bool embedded) {
+    whenScreenFree(serial, [this, serial, args, media, embedded]() {
+        // Played inside the app, the picture needs the screen back first, from
+        // the process retired for it.
+        if (embedded && m_headlessMode) {
+            handBackScreen([this, serial, args, media]() {
+                launchAfterRetirement(serial, args, media, true);
+            });
+            return;
+        }
+        QFile::remove(m_socketPath);
+        m_launchPending = false;
+        if (embedded)
+            startEmbedded(args);
+        else
+            startProcess(args, media);
+    });
 }
 
 void MpvController::stopAfterRetirement(int serial, int positionMs, const QString &reason) {
-    if (serial != m_launchSerial)
-        return;
-    if (screenBusy()) {
-        QTimer::singleShot(25, this, [this, serial, positionMs, reason]() {
-            stopAfterRetirement(serial, positionMs, reason);
+    whenScreenFree(serial, [this, serial, positionMs, reason]() {
+        QFile::remove(m_socketPath);
+        // Unless another session was asked for meanwhile: it is that one's now.
+        handBackScreen([this, serial, positionMs, reason]() {
+            if (serial == m_launchSerial)
+                emit playbackEnded(positionMs, 0, reason);
         });
-        return;
-    }
-    QFile::remove(m_socketPath);
-    // Unless another session was asked for meanwhile: it is that one's now.
-    handBackScreen([this, serial, positionMs, reason]() {
-        if (serial == m_launchSerial)
-            emit playbackEnded(positionMs, 0, reason);
     });
 }
 
@@ -1128,7 +1143,7 @@ void MpvController::relaunch() {
     m_firstMpvError.clear();
     m_launchPending = true;
     const int serial = ++m_launchSerial;
-    QTimer::singleShot(50, this, [this, serial]() {
+    QTimer::singleShot(kLaunchTickMs, this, [this, serial]() {
         launchAfterRetirement(serial, m_launchArgs, m_launchMedia, m_launchEmbedded);
     });
 }
