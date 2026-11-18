@@ -230,8 +230,7 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
-              + (focusIndex === 0 ? ":TYPE" : ":CONNECT")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:" + (focusIndex === 0 ? "TYPE" : "CONNECT")])
     }
 
     OnScreenKeyboard {

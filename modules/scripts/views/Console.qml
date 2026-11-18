@@ -156,7 +156,6 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: (consoleRoot.running ? root.hints.back + ":STOP " : root.hints.back + ":BACK ")
-              + root.hints.navigate + ":SCROLL"
+        text: root.hintLine([consoleRoot.running ? "back:STOP" : "back:BACK", "navigate:SCROLL"])
     }
 }

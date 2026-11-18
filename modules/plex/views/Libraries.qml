@@ -221,7 +221,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-              + (browseRoot.canSwitchServer ? " " + root.hints.change + ":SERVER" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT",
+                             browseRoot.canSwitchServer ? "change:SERVER" : ""])
     }
 }

@@ -312,8 +312,8 @@ FocusScope {
         readonly property bool onRoom: !lobbyRoot.room && !!lobbyRoot.rows[roomList.currentIndex]
                                        && lobbyRoot.rows[roomList.currentIndex].type !== "section"
         readonly property bool onJoin: !!lobbyRoot.room && (lobbyRoot.lines[roomLines.currentIndex] || {}).type === "join"
-        text: root.hints.back + ":BACK"
-              + ((lobbyRoot.room ? lobbyRoot.lines.length : lobbyRoot.rooms.length) > 1 ? " " + root.hints.navigate + ":NAVIGATE" : "")
-              + (onRoom ? " " + root.hints.select + ":OPEN" : onJoin ? " " + root.hints.select + ":JOIN" : "")
+        text: root.hintLine(["back:BACK",
+                             (lobbyRoot.room ? lobbyRoot.lines.length : lobbyRoot.rooms.length) > 1 ? "navigate:NAVIGATE" : "",
+                             onRoom ? "select:OPEN" : onJoin ? "select:JOIN" : ""])
     }
 }

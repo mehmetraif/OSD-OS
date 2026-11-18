@@ -341,9 +341,8 @@ FocusScope {
     HintBar {
         readonly property var row: aboutRoot.rows[list.currentIndex]
         visible: !licensePage.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (row && row.page ? " " + root.hints.select + ":OPEN"
-                 : row && row.license ? " " + root.hints.select + ":LICENSE" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             row && row.page ? "select:OPEN" : row && row.license ? "select:LICENSE" : ""])
     }
 
     // A licence, in place of the lines below the title bar: OSD/OS's with the
@@ -460,7 +459,7 @@ FocusScope {
         }
 
         HintBar {
-            text: root.hints.back + ":BACK " + root.hints.navigate + ":SCROLL"
+            text: root.hintLine(["back:BACK", "navigate:SCROLL"])
         }
     }
 }

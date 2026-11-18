@@ -98,7 +98,6 @@ FocusScope {
     // Footer: select opens a folder; an entry's line is only read.
     HintBar {
         readonly property var entry: tree.currentEntry
-        text: root.hints.back + ":BACK " + root.hints.arrows + ":NAVIGATE "
-              + (entry && entry.isFolder ? root.hints.select + ":OPEN" : "")
+        text: root.hintLine(["back:BACK", "arrows:NAVIGATE", entry && entry.isFolder ? "select:OPEN" : ""])
     }
 }

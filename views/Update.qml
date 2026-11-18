@@ -239,9 +239,8 @@ FocusScope {
 
         // Footer
         HintBar {
-            text: root.hints.back + ":BACK "
-                  + (updateRoot.releaseNotes !== "" ? root.hints.navigate + ":SCROLL " : "")
-                  + (updateRoot.actionLabel !== "" ? root.hints.select + ":" + updateRoot.actionLabel : "")
+            text: root.hintLine(["back:BACK", updateRoot.releaseNotes !== "" ? "navigate:SCROLL" : "",
+                                 updateRoot.actionLabel !== "" ? "select:" + updateRoot.actionLabel : ""])
         }
     }
 

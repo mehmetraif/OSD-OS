@@ -901,6 +901,11 @@ Window {
     // Whether a key event is back, as every view takes it: Esc, Backspace or
     // a remote's Back (Components/Hints.js).
     function isBack(event) { return Hints.isBack(event) }
+    // A hint bar's line from its parts, each "key:WHAT", "" for none:
+    // root.hintLine(["back:BACK", "select:SELECT"]) is "[ESC]:BACK
+    // [ENTER]:SELECT" from the keyboard, and a binding on it follows the
+    // hints to a pad's and back (Components/Hints.js).
+    function hintLine(parts) { return Hints.line(hints, parts) }
     readonly property string appVersion: appCore ? appCore.appVersion : ""
     // A build made from source rather than a release (CMake's APP_VERSION).
     readonly property bool devBuild: appVersion === "dev"

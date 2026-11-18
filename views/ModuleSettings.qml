@@ -810,10 +810,10 @@ FocusScope {
     HintBar {
         id: footer
         text: moduleSettingsRoot.editIndex >= 0
-              ? root.hints.back + ":CANCEL " + root.hints.navigate + ":CHANGE " + root.hints.select + ":CONFIRM"
+              ? root.hintLine(["back:CANCEL", "navigate:CHANGE", "select:CONFIRM"])
               : root.twoStep
-              ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-              : root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
+              ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 
     // An action row's question (its "confirm"), what it does under it. The

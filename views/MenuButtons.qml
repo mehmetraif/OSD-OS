@@ -310,8 +310,8 @@ FocusScope {
         property var currentRow: pageRoot.rows[list.currentIndex]
         readonly property string type: currentRow ? currentRow.type : ""
         visible: !pageRoot.capturing
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.select + (type === "test" ? ":TEST" : type === "reset" ? ":REMOVE" : ":CHANGE")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "select:" + (type === "test" ? "TEST" : type === "reset" ? "REMOVE" : "CHANGE")])
     }
 
     // What to do with an action.

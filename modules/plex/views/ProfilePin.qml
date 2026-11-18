@@ -203,6 +203,6 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":DIGIT " + root.hints.change + ":CHANGE " + root.hints.select + ":SUBMIT"
+        text: root.hintLine(["back:BACK", "navigate:DIGIT", "change:CHANGE", "select:SUBMIT"])
     }
 }

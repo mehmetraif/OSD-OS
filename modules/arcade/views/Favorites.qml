@@ -101,8 +101,7 @@ FocusScope {
 
     HintBar {
         readonly property string key: favoritesRoot.keys[list.currentIndex] || ""
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key === "export" ? " " + root.hints.select + ":EXPORT"
-                 : key === "import" ? " " + root.hints.select + ":IMPORT" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             key === "export" ? "select:EXPORT" : key === "import" ? "select:IMPORT" : ""])
     }
 }

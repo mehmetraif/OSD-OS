@@ -333,7 +333,7 @@ FocusScope {
     }
 
     HintBar {
-        text: launchRoot.phase === "ready" ? root.hints.back + ":BACK " + root.hints.select + ":SIGN IN"
+        text: launchRoot.phase === "ready" ? root.hintLine(["back:BACK", "select:SIGN IN"])
             : launchRoot.phase === "error" || launchRoot.phase === "failed" || launchRoot.phase === "closed"
             ? root.hints.back + ":BACK"
             : root.hints.back + " HOLD:RETURN"

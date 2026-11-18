@@ -223,7 +223,7 @@ FocusScope {
 
     HintBar {
         property var currentRow: controllersRoot.rows[list.currentIndex]
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.select + (currentRow && currentRow.type === "players" ? ":SET" : ":OPEN")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "select:" + (currentRow && currentRow.type === "players" ? "SET" : "OPEN")])
     }
 }

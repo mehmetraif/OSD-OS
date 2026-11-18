@@ -242,10 +242,10 @@ FocusScope {
     HintBar {
         property var currentRow: pageRoot.rows[list.currentIndex]
         readonly property string type: currentRow ? currentRow.type : ""
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (type === "labels" || type === "pins" ? root.hints.change + ":CHANGE "
-                 : root.hints.select + (type === "test" ? ":TEST" : type === "reset" ? ":RESET"
-                                        : type === "player" ? ":CHANGE" : ":OPEN"))
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             type === "labels" || type === "pins" ? "change:CHANGE"
+                             : "select:" + (type === "test" ? "TEST" : type === "reset" ? "RESET"
+                                            : type === "player" ? "CHANGE" : "OPEN")])
     }
 
     // The player it is, from a list: back leaves it as it was.

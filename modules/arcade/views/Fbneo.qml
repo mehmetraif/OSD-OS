@@ -174,8 +174,7 @@ FocusScope {
         readonly property string key: fbneoRoot.keys[list.currentIndex] || ""
         readonly property bool downloads: (key === "download" && !fbneoRoot.downloading)
                                           || (key === "retroarch_download" && !fbneoRoot.retroarchDownloading)
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (downloads ? " " + root.hints.select + ":DOWNLOAD"
-                 : key === "own" && !fbneoRoot.downloading ? " " + root.hints.select + ":SELECT" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             downloads ? "select:DOWNLOAD" : key === "own" && !fbneoRoot.downloading ? "select:SELECT" : ""])
     }
 }

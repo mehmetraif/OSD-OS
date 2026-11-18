@@ -211,9 +211,9 @@ FocusScope {
     HintBar {
         readonly property string key: accountRoot.currentKey
         visible: !keyboard.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key !== "" && key !== "state" && key !== "status" ? " " + root.hints.select + ":"
-                 + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             key !== "" && key !== "state" && key !== "status"
+                             ? "select:" + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : ""])
     }
 
     OnScreenKeyboard {

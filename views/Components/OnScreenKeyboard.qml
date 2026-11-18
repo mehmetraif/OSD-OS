@@ -349,7 +349,7 @@ FocusScope {
 
             HintBar {
                 visible: !osk.inline
-                text: root.hints.back + ":CANCEL " + root.hints.navigate + ":MOVE " + root.hints.select + ":TYPE"
+                text: root.hintLine(["back:CANCEL", "navigate:MOVE", "select:TYPE"])
             }
         }
     }

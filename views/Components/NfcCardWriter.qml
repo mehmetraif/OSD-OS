@@ -230,8 +230,7 @@ FocusScope {
                         ? root.hints.back + ":CANCEL"
                         : (writerRoot.phase === "done" || writerRoot.phase === "failed")
                           ? root.hints.select + ":DONE"
-                          : root.hints.back + ":CANCEL " + root.hints.navigate + ":NAVIGATE "
-                            + root.hints.select + ":SELECT"
+                          : root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
                 color: root.tertiaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0333333

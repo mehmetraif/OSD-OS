@@ -72,7 +72,7 @@ FocusScope {
         currentIndex: promptRoot.choiceIndex
         onHovered: function(index) { promptRoot.choiceIndex = index }
         hint: promptRoot.kind === "confirm"
-              ? root.hints.back + ":CANCEL " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+              ? root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
               : root.hints.back + ":CANCEL"
 
         Column {

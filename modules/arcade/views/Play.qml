@@ -346,8 +346,7 @@ FocusScope {
     HintBar {
         visible: !playRoot.loadingShown
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
-              : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.takesCoin ? root.hints.coin + ":COIN " : "")
-                                  + root.hints.play_pause + ":PLAY"
+              : playRoot.arcade ? root.hintLine(["back:CANCEL", playRoot.takesCoin ? "coin:COIN" : "", "play_pause:PLAY"])
               : root.hints.back + ":CANCEL"
     }
 

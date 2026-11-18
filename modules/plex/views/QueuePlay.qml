@@ -232,7 +232,7 @@ FocusScope {
             kind: "notice"
             title: "Playback failed"
             message: errorMessage
-            hint: root.hints.back + ":BACK " + root.hints.select + ":RETRY"
+            hint: root.hintLine(["back:BACK", "select:RETRY"])
         }
     }
 }

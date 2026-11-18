@@ -384,7 +384,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
     // PLAY prompt. Shuffle plays as a jukebox — endless random episodes drawn
     // from this season, reporting no timeline — so it must be a deliberate

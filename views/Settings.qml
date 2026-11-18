@@ -840,9 +840,8 @@ FocusScope {
     HintBar {
         id: footer
         guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (settingsRoot.inIcons() ? root.hints.browse + ":OPEN " : root.hints.change + ":CHANGE ")
-              + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", settingsRoot.inIcons() ? "browse:OPEN" : "change:CHANGE",
+                             "select:SELECT"])
     }
 
     // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---

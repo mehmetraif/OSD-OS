@@ -256,7 +256,7 @@ Item {
         id: hintBar
         text: prompt.hint !== "" ? prompt.hint
               : prompt.choices.length > 0
-                ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+                ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
                 : root.hints.back + ":BACK"
     }
 }

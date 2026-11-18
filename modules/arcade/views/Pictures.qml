@@ -133,7 +133,7 @@ FocusScope {
 
     HintBar {
         readonly property string key: picturesRoot.keys[list.currentIndex] || ""
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key === "download" && !picturesRoot.active ? " " + root.hints.select + ":DOWNLOAD" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             key === "download" && !picturesRoot.active ? "select:DOWNLOAD" : ""])
     }
 }

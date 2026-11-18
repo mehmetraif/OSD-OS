@@ -247,9 +247,9 @@ FocusScope {
 
     HintBar {
         visible: !osk.visible && !itemOptions.visible && !confirm.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (pageRoot.currentRow && pageRoot.currentRow.type === "order" ? root.hints.change + ":CHANGE " : "")
-              + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             pageRoot.currentRow && pageRoot.currentRow.type === "order" ? "change:CHANGE" : "",
+                             "select:SELECT"])
     }
 
     // A video's own choices.

@@ -323,7 +323,7 @@ FocusScope {
 
     HintBar {
         visible: !keyboard.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
 
     // A saved network's options, the one joined's, or whether one not
@@ -490,8 +490,7 @@ FocusScope {
                 choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
                 currentIndex: countries.index
                 onHovered: function(index) { countries.index = index }
-                hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
-                      + root.hints.select + ":SELECT"
+                hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:LETTER", "select:SELECT"])
             }
         }
     }

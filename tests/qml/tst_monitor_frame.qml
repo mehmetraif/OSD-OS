@@ -238,6 +238,7 @@ StandInRoot {
             root.viewInFrame = true
             root.hintBar = true
             root.helpLine = true
+            root.hints = root.keyboardHints
             root.chrome.basePath = []
             root.chrome.pageTo(null)
             wait(0)
@@ -623,8 +624,24 @@ StandInRoot {
             compare(root.chrome.guide, ["[▲▼]:MENU/ITEM"])
         }
 
-        // The keys that are back (Hints.js, Main.qml's root.isBack()).
-        function test_isBack() {
+        // A hint line made from its parts (Hints.js, Main.qml's
+        // root.hintLine()): each key's hint and what it does, a space apart,
+        // a part "" left out, what it does kept whole; a hint bar's line
+        // following the hints from the keyboard's to a pad's and back. And
+        // the keys that are back (root.isBack()).
+        function test_hintLineAndBack() {
+            compare(Hints.line(root.keyboardHints, ["back:BACK", "navigate:NAVIGATE", "select:SELECT"]),
+                    "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT")
+            compare(Hints.line(root.keyboardHints, ["back:BACK", "", "select:SIGN IN"]), "[ESC]:BACK [ENTER]:SIGN IN")
+            compare(Hints.line(root.keyboardHints, ["change:", "select:A:B"]), "[◄►]: [ENTER]:A:B")
+            compare(Hints.line(root.keyboardHints, ["", ""]), "")
+            var page = open(barePage, "Standard")
+            page.hint.text = Qt.binding(function() { return root.hintLine(["back:BACK", "select:OK"]) })
+            compare(page.hint.text, "[ESC]:BACK [ENTER]:OK")
+            root.hints = Object.assign({}, root.keyboardHints, { back: "(B)", select: "(A)" })
+            compare(page.hint.text, "(B):BACK (A):OK")
+            root.hints = root.keyboardHints
+            compare(page.hint.text, "[ESC]:BACK [ENTER]:OK")
             verify(root.isBack({ key: Qt.Key_Escape }))
             verify(root.isBack({ key: Qt.Key_Backspace }))
             verify(root.isBack({ key: Qt.Key_Back }))

@@ -287,10 +287,8 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.browse
-              + ((itemsRoot.currentScript && itemsRoot.currentScript.favorite)
-                 ? ":UNFAVORITE " : ":FAVORITE ")
-              + root.hints.select + ":RUN"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "browse:" + (itemsRoot.currentScript && itemsRoot.currentScript.favorite ? "UNFAVORITE" : "FAVORITE"),
+                             "select:RUN"])
     }
 }

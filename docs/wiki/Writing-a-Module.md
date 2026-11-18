@@ -328,9 +328,8 @@ FocusScope {
 
     HintBar {
         readonly property var row: channelsRoot.rows[list.currentIndex]
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (row && row.type === "video" ? root.hints.select + ":PLAY"
-                 : row && row.type === "about" ? root.hints.select + ":OPEN" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             row && row.type === "video" ? "select:PLAY" : row && row.type === "about" ? "select:OPEN" : ""])
     }
 }
 ```
@@ -342,7 +341,7 @@ FocusScope {
 - **Files.** `appCore.folderEntries(path, types)` returns `[{ name, path, isFolder }]`: folders, then files of those types, hidden ones left out.
 - **`MenuList`**'s cursor skips rows of `type: "section"`.
 - **`MenuRow`**: `heading` makes a group's heading, `keepValue` cuts the label short rather than the value, `opens` ends the line in a ►, `changes` puts the value between ◄ and ►.
-- **`HintBar`**'s text is built from **`root.hints`**; never type `[ESC]`, and never bind to `inputManager.hints`.
+- **`HintBar`**'s text is built from **`root.hints`**, a line of several keys by **`root.hintLine()`** (each part a hint's name and what the key does, `""` for a part not shown); never type `[ESC]`, and never bind to `inputManager.hints`.
 - **Sizes** are fractions of `root.sw` and `root.sh`, with the 640 × 480 pixels in a comment.
 - **Colours and font**: `root.primaryColor` on `root.surfaceColor`, in `root.globalFont`.
 
@@ -1101,7 +1100,7 @@ Every view also has `Main.qml`'s own properties, as `root.*`:
 - `sw`, `sh`, `px` (one pixel of a 240-line picture) and `contentBox` (the area views lay out in);
 - `menuRowHeight`, a menu's row, and the pane, where a view's rows go: `paneX` and `paneWidth` across, `listY` down, `listHeight` tall over a help line and `tallListHeight` with none;
 - `primaryColor`, `surfaceColor`, `globalFont`, `hints`, `appVersion`;
-- `isBack(event)`, whether a key is back (Esc, Backspace or a remote's Back), as every view takes it;
+- `isBack(event)`, whether a key is back (Esc, Backspace or a remote's Back), as every view takes it, and `hintLine(parts)`, a hint bar's line from `root.hints` (`["back:BACK", "select:SELECT"]`);
 - `formatTime(ms)`, `changeWindow()`, `restFor()`, `behindNote` and `videoBehind`.
 
 ## Before a pull request

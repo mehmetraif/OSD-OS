@@ -162,6 +162,6 @@ FocusScope {
     // --- FOOTER ---
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE"])
     }
 }

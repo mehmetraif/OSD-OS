@@ -128,8 +128,8 @@ FocusScope {
 
     HintBar {
         visible: !osk.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
-              + (listRoot.rows[list.currentIndex] && listRoot.rows[list.currentIndex].type === "new" ? ":NEW" : ":OPEN")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "select:" + (listRoot.rows[list.currentIndex] && listRoot.rows[list.currentIndex].type === "new" ? "NEW" : "OPEN")])
     }
 
     OnScreenKeyboard {

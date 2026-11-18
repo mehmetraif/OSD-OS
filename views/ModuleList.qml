@@ -369,8 +369,8 @@ FocusScope {
     HintBar {
         id: footer
         guide: appRoot.monitor ? appRoot.monitorGuide : []
-        text: root.hints.back + ":SETTINGS " + root.hints.navigate + ":NAVIGATE "
-              + (appRoot.camcorder ? (appRoot.groupIcons ? root.hints.browse + ":OPEN " : root.hints.left + ":GROUPS ") : "")
-              + (root.videoBehind ? root.hints.play_pause + ":STOP " : "") + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:SETTINGS", "navigate:NAVIGATE",
+                             appRoot.camcorder ? (appRoot.groupIcons ? "browse:OPEN" : "left:GROUPS") : "",
+                             root.videoBehind ? "play_pause:STOP" : "", "select:SELECT"])
     }
 }

@@ -195,10 +195,10 @@ FocusScope {
     HintBar {
         visible: !osk.visible
         readonly property var entry: tree.currentEntry
-        text: root.hints.back + ":BACK " + root.hints.arrows + ":NAVIGATE " + root.hints.select
-              + (!entry || entry.isFolder ? ":OPEN"
-                 : entry.kind === "video" ? ":ADD"
-                 : entry.kind === "search" ? ":SEARCH" : ":MORE")
+        text: root.hintLine(["back:BACK", "arrows:NAVIGATE",
+                             "select:" + (!entry || entry.isFolder ? "OPEN"
+                                          : entry.kind === "video" ? "ADD"
+                                          : entry.kind === "search" ? "SEARCH" : "MORE")])
     }
 
     OnScreenKeyboard {

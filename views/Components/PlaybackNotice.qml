@@ -74,7 +74,7 @@ FocusScope {
         kind: "notice"
         title: notice.title
         message: notice.reason
-        hint: root.hints.back + ":BACK" + (notice.canRetry ? " " + root.hints.select + ":RETRY" : "")
+        hint: root.hintLine(["back:BACK", notice.canRetry ? "select:RETRY" : ""])
 
         // As it is written: a command, a path or mpv's words keep their case.
         Text {

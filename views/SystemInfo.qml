@@ -134,8 +134,8 @@ FocusScope {
 
     HintBar {
         visible: !osk.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (infoRoot.onName && infoRoot.canRename ? " " + root.hints.select + ":RENAME" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             infoRoot.onName && infoRoot.canRename ? "select:RENAME" : ""])
     }
 
     // The new name: letters, digits and hyphens, a space typed as a hyphen.

@@ -655,10 +655,9 @@ FocusScope {
     // Footer. On PLAY, right puts the video on a playlist.
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (focusRow === 0 ? (adder.available(moduleRoot.moduleId) ? root.hints.browse + ":PLAYLIST " : "")
-                                : root.hints.change + ":CHANGE ")
-              + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             focusRow === 0 ? (adder.available(moduleRoot.moduleId) ? "browse:PLAYLIST" : "") : "change:CHANGE",
+                             "select:SELECT"])
     }
 
     // Right on PLAY: the video on one of the app's playlists.

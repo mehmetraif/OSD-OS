@@ -36,7 +36,7 @@ ChoiceOverlay {
     promptText: outcome ? outcome.title : naming ? "New playlist" : "Add to playlist?"
     subtitleText: outcome ? outcome.message : entry ? (entry.title || entry.name || "") : ""
     choices: outcome ? [] : rows
-    hintText: outcome ? root.hints.back + ":BACK " + root.hints.select + ":OK" : ""
+    hintText: outcome ? root.hintLine(["back:BACK", "select:OK"]) : ""
 
     // Whether a module's videos can go on a playlist: the Playlists module
     // there and on, and taking them.

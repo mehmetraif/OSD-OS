@@ -436,8 +436,8 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
-              + (focusIndex === idxMethod ? ":CHOOSE" : focusIndex === idxSubmit ? ":SIGN IN" : ":TYPE")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "select:" + (focusIndex === idxMethod ? "CHOOSE" : focusIndex === idxSubmit ? "SIGN IN" : "TYPE")])
     }
 
     OnScreenKeyboard {

@@ -490,8 +490,8 @@ FocusScope {
     HintBar {
         property var currentRow: pageRoot.rows[list.currentIndex]
         visible: !pageRoot.capturing && !pageRoot.summing
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.select + (currentRow && currentRow.type === "setall" ? ":START" : ":CHANGE")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "select:" + (currentRow && currentRow.type === "setall" ? "START" : "CHANGE")])
     }
 
     // The layout, from a list: back leaves it as it was.

@@ -126,7 +126,7 @@ FocusScope {
 
     HintBar {
         readonly property string key: romCheckRoot.keys[list.currentIndex] || ""
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key === "check" && !romCheckRoot.active ? " " + root.hints.select + ":CHECK" : "")
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             key === "check" && !romCheckRoot.active ? "select:CHECK" : ""])
     }
 }

@@ -182,9 +182,8 @@ FocusScope {
     }
 
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (lockRoot.rows[list.currentIndex].key === "lock" ? root.hints.change + ":CHANGE " : "")
-              + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             lockRoot.rows[list.currentIndex].key === "lock" ? "change:CHANGE" : "", "select:SELECT"])
     }
 
     // --- WAITING FOR THE BUTTONS ---

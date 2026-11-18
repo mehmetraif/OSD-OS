@@ -249,7 +249,6 @@ FocusScope {
     }
 
     HintBar {
-        text: root.hints.back + ":VIDEO " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:VIDEO", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 }

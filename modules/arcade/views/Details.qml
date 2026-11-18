@@ -297,7 +297,6 @@ FocusScope {
     }
 
     HintBar {
-        text: root.hints.back + ":BACK" + (detailsRoot.rows.length > 0 ? " " + root.hints.navigate + ":NAVIGATE" : "")
-              + " " + root.hints.select + ":PLAY"
+        text: root.hintLine(["back:BACK", detailsRoot.rows.length > 0 ? "navigate:NAVIGATE" : "", "select:PLAY"])
     }
 }

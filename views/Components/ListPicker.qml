@@ -89,7 +89,6 @@ FocusScope {
         choices: picker.entries.map(function(e) { return { label: e.label, action: e.value } })
         currentIndex: picker.index
         onHovered: function(index) { picker.index = index }
-        hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":" + picker.groupName + " "
-              + root.hints.select + ":SELECT"
+        hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:" + picker.groupName, "select:SELECT"])
     }
 }

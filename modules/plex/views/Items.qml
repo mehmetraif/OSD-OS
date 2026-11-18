@@ -391,9 +391,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: showLetterNav
-              ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.browse + ":BROWSE " + root.hints.select + ":SELECT"
-              : root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", showLetterNav ? "browse:BROWSE" : "", "select:SELECT"])
     }
 
     // Writes a card for the whole set. The ref carries the collection's or
