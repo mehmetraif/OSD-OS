@@ -424,7 +424,10 @@ jobs:
 
       - name: Build mpv (0.40 from source — apt's 0.37 is too old)
         run: |
-          echo "MPV_BIN=$(scripts/build-mpv.sh)" >> "$GITHUB_ENV"
+          # Its own line, so the build's failure fails the step: inside echo's
+          # arguments a failed $(...) is ignored, and MPV_BIN is left empty.
+          bin=$(scripts/build-mpv.sh)
+          echo "MPV_BIN=$bin" >> "$GITHUB_ENV"
 
       - name: Configure
         env:

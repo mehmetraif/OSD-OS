@@ -34,6 +34,11 @@ if [ ! -d "$MPV_SRC/.git" ]; then
     log "Cloning mpv $MPV_TAG"
     git clone --depth 1 --branch "$MPV_TAG" \
         https://github.com/mpv-player/mpv "$MPV_SRC" >&2
+elif [ "$(git -C "$MPV_SRC" describe --tags --exact-match 2>/dev/null || true)" != "$MPV_TAG" ]; then
+    # A checkout left by an earlier run, of another tag: moved to this one.
+    log "Moving the mpv checkout to $MPV_TAG"
+    git -C "$MPV_SRC" fetch --depth 1 origin tag "$MPV_TAG" >&2
+    git -C "$MPV_SRC" checkout -q "$MPV_TAG" >&2
 fi
 
 # libmpv off (we only ship the CLI player). Force Lua — the OSC, media-keys and
@@ -46,7 +51,11 @@ fi
 # enable from whatever dev packages are present. MPV_LUA overrides the Lua flavor
 # for distros that ship a different one (e.g. luajit).
 log "Configuring mpv ($MPV_TAG) against system FFmpeg"
-meson setup "$MPV_SRC/build" "$MPV_SRC" \
+# A build directory left by an earlier run is configured again rather than
+# refused.
+reconfigure=()
+[ -f "$MPV_SRC/build/build.ninja" ] && reconfigure=(--reconfigure)
+meson setup ${reconfigure[@]+"${reconfigure[@]}"} "$MPV_SRC/build" "$MPV_SRC" \
     --prefix=/usr \
     --buildtype=release \
     -Dlibmpv=false \
