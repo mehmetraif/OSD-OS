@@ -3695,6 +3695,24 @@ private slots:
             QVERIFY(online.contains(QStringLiteral("galaga")));
             QVERIFY(!online.contains(QStringLiteral("s1945")));
             QVERIFY(!online.contains(QStringLiteral("mslug")));
+            // Nor hosted, online or on the local network: a game's options
+            // offer neither, and hosting it says why before RetroArch starts.
+            arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+            QVERIFY(arcade.canHost(QStringLiteral("galaga")));
+            QVERIFY(arcade.canHostLan(QStringLiteral("galaga")));
+            for (const QString &set : { QStringLiteral("s1945"), QStringLiteral("mslug") }) {
+                QVERIFY2(!arcade.canHost(set), qPrintable(set));
+                QVERIFY2(!arcade.canHostLan(set), qPrintable(set));
+            }
+            const QString incomplete =
+                QStringLiteral("Files of it are missing for FinalBurn Neo, as Settings → Arcade → Check ROMs found");
+            QFile::remove(m_log);
+            QVERIFY(!arcade.hostGame(QStringLiteral("s1945")));
+            QCOMPARE(arcade.lastError(), incomplete);
+            QVERIFY(!arcade.hostLanGame(QStringLiteral("s1945")));
+            QCOMPARE(arcade.lastError(), incomplete);
+            QVERIFY(logLines(QStringLiteral("retroarch")).isEmpty());
+            arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
             arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
 
             // Hide Incomplete Games: mslug alone, whole in neither.

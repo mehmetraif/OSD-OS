@@ -416,6 +416,22 @@ QString retroarchMatch(const QString &theirs, const QString &ours) {
     return a.isNull() || b.isNull() ? QStringLiteral("unknown") : a == b ? QStringLiteral("same") : QStringLiteral("other");
 }
 
+// What a game started in FinalBurn Neo and a room that can't be joined say
+// alike: the core it would play on not here (OSD/OS's own for the local
+// network, or FinalBurn Neo's), a set FinalBurn Neo has no game of, and a
+// folder of files, which it doesn't play.
+QString noCoreReason(bool lanCore) {
+    return lanCore ? QStringLiteral("This OSD/OS has no core of its own for the local network: "
+                                    "OSD/OS's packages bring it")
+                   : QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+}
+QString noFbneoGameReason(const QString &set) {
+    return QStringLiteral("FinalBurn Neo has no game called %1").arg(set);
+}
+QString fbneoFolderReason() {
+    return QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
+}
+
 // Where a query reaches every host of the networks this machine is on: the
 // broadcast the system sends on its main one, and each network's own, which
 // reaches the hosts of another.
@@ -3578,10 +3594,10 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
     } else if (filter == QLatin1String("netplay") && m_onlinePlay && fbneoReady()) {
         // The games that can be hosted, and joined in the lobby, with Online
         // Play on: FinalBurn Neo's, whichever engine plays them off line, as
-        // a game online plays in it, with the memory to host them
-        // (canHost()).
+        // a game online plays in it, whole as far as Check ROMs found, with
+        // the memory to host them (canHost(), netplayRefusal()).
         for (const QString &set : index().games) {
-            if (fbneoHas(set) && fbneoRoms(set) != -1 && netplayTooBig(set, false, true).isEmpty())
+            if (canHost(set))
                 sets << set;
         }
     } else if (filter == QLatin1String("vertical")) {
@@ -3906,19 +3922,17 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     lanCore = netplay == Netplay::LanHost ? playsOnLanCore(name) : netplay == Netplay::LanJoin && lanCore;
     const QString core = lanCore ? libretro::lanCorePath(m_dataRoot) : libretro::corePath(m_dataRoot);
     if (core.isEmpty()) {
-        m_lastError = lanCore ? QStringLiteral("This OSD/OS has no core of its own for the local network: "
-                                               "OSD/OS's packages bring it")
-                              : QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
+        m_lastError = noCoreReason(lanCore);
         return false;
     }
     if (!m_fbneoGames.contains(name)) {
-        m_lastError = QStringLiteral("FinalBurn Neo has no game called ") + name;
+        m_lastError = noFbneoGameReason(name);
         return false;
     }
     // FinalBurn Neo opens a zip or a 7z, never a folder of files.
     const QString file = m_sets.value(name);
     if (file.isEmpty() || m_folders.contains(name)) {
-        m_lastError = m_folders.contains(name) ? QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder")
+        m_lastError = m_folders.contains(name) ? fbneoFolderReason()
                                                : QStringLiteral("The game is no longer in the games folder");
         return false;
     }
@@ -3926,9 +3940,11 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         m_lastError = looksForLowerCase(QStringLiteral("FinalBurn Neo"), name) + QStringLiteral(": rename the file to ") + mameFileName(name);
         return false;
     }
-    // Over the network, the memory RetroArch's states of it need.
+    // Over the network, as Playable Online, the rooms and the game's options
+    // have it (netplayRefusal()): its files whole as far as Check ROMs
+    // found, and the memory RetroArch's states of it need.
     if (netplay != Netplay::None) {
-        m_lastError = netplayTooBig(name, lanCore, netplay == Netplay::Host || netplay == Netplay::LanHost);
+        m_lastError = netplayRefusal(name, lanCore, netplay == Netplay::Host || netplay == Netplay::LanHost);
         if (!m_lastError.isEmpty())
             return false;
     }
@@ -4230,8 +4246,28 @@ QString ArcadeBackend::netplayTooBig(const QString &set, bool lanCore, bool host
         .arg(hosting ? QStringLiteral("Hosting") : QStringLiteral("Joining"), gigabytes(needs), gigabytes(m_memory));
 }
 
+QString ArcadeBackend::netplayRefusal(const QString &set, bool lanCore, bool hosting) const {
+    // FinalBurn Neo here: RetroArch, the core and its list.
+    if (!fbneoReady())
+        return noCoreReason(false);
+    // A game of the folder FinalBurn Neo plays: a zip or a 7z, of its list,
+    // by the name it looks for.
+    if (!m_sets.contains(set))
+        return QStringLiteral("%1 isn't in your games folder").arg(set);
+    if (m_folders.contains(set))
+        return fbneoFolderReason();
+    if (!fbneoHas(set))
+        return m_fbneoGames.contains(set) ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), set)
+                                          : noFbneoGameReason(set);
+    // Its files whole, as far as Check ROMs found: RetroArch with one
+    // missing hosts or joins nothing.
+    if (fbneoRoms(set) == -1)
+        return QStringLiteral("Files of it are missing for FinalBurn Neo, as Settings → Arcade → Check ROMs found");
+    return netplayTooBig(set, lanCore, hosting);
+}
+
 bool ArcadeBackend::canHost(const QString &set) const {
-    return m_onlinePlay && fbneoPlays(set) && netplayTooBig(set, false, true).isEmpty();
+    return m_onlinePlay && netplayRefusal(set, false, true).isEmpty();
 }
 
 bool ArcadeBackend::hostGame(const QString &set) {
@@ -4248,7 +4284,7 @@ bool ArcadeBackend::joinRoom(int id) {
 }
 
 bool ArcadeBackend::canHostLan(const QString &set) const {
-    return m_lanPlay && fbneoPlays(set) && netplayTooBig(set, playsOnLanCore(set), true).isEmpty();
+    return m_lanPlay && netplayRefusal(set, playsOnLanCore(set), true).isEmpty();
 }
 
 bool ArcadeBackend::hostLanGame(const QString &set) {
@@ -4463,11 +4499,13 @@ QVariantList ArcadeBackend::lanRooms() const {
     // Whether OSD/OS's own core is here, looked for once (two files' worth).
     const bool lanCoreHere = !libretro::lanCorePath(m_dataRoot).isEmpty();
     for (const libretro::Room &room : m_lanRooms) {
-        // As rooms(): a game in the folder FinalBurn Neo plays, with the
-        // memory to join it on the core it is hosted with (only rooms joined
-        // without a password are kept: readLanAnswers()).
+        // As rooms(): a game in the folder FinalBurn Neo plays, whole as far
+        // as Check ROMs found, with the memory to join it on the core it is
+        // hosted with (netplayRefusal(); only rooms joined without a
+        // password are kept: readLanAnswers()). One on OSD/OS's own core
+        // while it isn't here is listed all the same, saying so.
         const bool lanCore = room.core == libretro::kLanCoreName;
-        if (!fbneoHas(room.game) || fbneoRoms(room.game) == -1 || !netplayTooBig(room.game, lanCore, false).isEmpty())
+        if (!netplayRefusal(room.game, lanCore, false).isEmpty())
             continue;
         // What its host answered with, as the lobby's rooms are told of
         // (FinalBurn Neo is ready, so ours are what is known of them; a room
@@ -4493,11 +4531,11 @@ QVariantList ArcadeBackend::rooms() const {
     const QDateTime now = QDateTime::currentDateTimeUtc();
     for (const libretro::Room &room : m_rooms) {
         // A game in the folder FinalBurn Neo plays, joined without a
-        // password (RetroArch would ask for one on its own screen), with the
-        // memory to join it; with what the lobby says of it, as lobby() has
+        // password (RetroArch would ask for one on its own screen), whole as
+        // far as Check ROMs found, with the memory to join it
+        // (netplayRefusal()); with what the lobby says of it, as lobby() has
         // it (FinalBurn Neo is ready, so ours are what is known of them).
-        if (room.password || !fbneoHas(room.game) || fbneoRoms(room.game) == -1
-            || !netplayTooBig(room.game, false, false).isEmpty())
+        if (room.password || !netplayRefusal(room.game, false, false).isEmpty())
             continue;
         list << QVariantMap{ { QStringLiteral("id"), room.id }, { QStringLiteral("set"), room.game },
                              { QStringLiteral("title"), titleOf(room.game) },
@@ -4516,7 +4554,9 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
     const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
     // A game of the folder by its name there; any other as its host has it.
     const QString title = have ? titleOf(room.game) : room.rom.isEmpty() ? QStringLiteral("?") : room.rom;
-    // Why it can't be joined from here, as rooms() leaves it out.
+    // Why it can't be joined from here, as rooms() leaves it out: the room's
+    // own reasons, then its game's, as the lists and starting it have them
+    // (netplayRefusal()).
     QString why;
     if (!fbneo)
         why = QStringLiteral("OSD/OS joins FinalBurn Neo's games alone: this one is %1's")
@@ -4530,21 +4570,9 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
               : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
                                            : QStringLiteral("Its host's RetroArch can't be joined from here");
     else if (!ready)
-        why = lanCore ? QStringLiteral("This OSD/OS has no core of its own for the local network: "
-                                       "OSD/OS's packages bring it")
-                      : QStringLiteral("FinalBurn Neo is not installed: Settings → Arcade → FinalBurn Neo");
-    else if (!m_sets.contains(room.game))
-        why = QStringLiteral("%1 isn't in your games folder").arg(room.game);
-    else if (m_folders.contains(room.game))
-        why = QStringLiteral("FinalBurn Neo plays a game's zip or 7z, not a folder");
-    else if (!have)
-        why = m_fbneoGames.contains(room.game)
-                  ? looksForLowerCase(QStringLiteral("FinalBurn Neo"), room.game)
-                  : QStringLiteral("FinalBurn Neo has no game called %1").arg(room.game);
-    else if (fbneoRoms(room.game) == -1)
-        why = QStringLiteral("Files of it are missing for FinalBurn Neo, as Settings → Arcade → Check ROMs found");
+        why = noCoreReason(lanCore);
     else
-        why = netplayTooBig(room.game, lanCore, false);
+        why = netplayRefusal(room.game, lanCore, false);
     return { { QStringLiteral("id"), room.id }, { QStringLiteral("title"), title }, { QStringLiteral("rom"), room.rom },
              { QStringLiteral("set"), have ? room.game : QString() }, { QStringLiteral("crc"), room.crc },
              { QStringLiteral("core"), room.core }, { QStringLiteral("coreVersion"), room.coreVersion },

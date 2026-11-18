@@ -388,8 +388,9 @@ public:
     Q_INVOKABLE bool joinRoom(int id);
     Q_INVOKABLE bool hostGame(const QString &set);
     // Whether a game can be hosted: Online Play on, FinalBurn Neo there, the
-    // set its, a zip or a 7z, and this machine's memory enough for
-    // RetroArch's states of it (setMemory()).
+    // set its, a zip or a 7z, not found incomplete by Check ROMs, and this
+    // machine's memory enough for RetroArch's states of it (setMemory(),
+    // netplayRefusal()).
     Q_INVOKABLE bool canHost(const QString &set) const;
     // The lobby's address: lobby.libretro.com's, or a stand-in's (a test's,
     // or OSDOS_LOBBY_URL's).
@@ -1006,6 +1007,16 @@ private:
     // machine, on OSD/OS's LAN core (lanCore) or on
     // FinalBurn Neo's: the memory it needs (setMemory()); "" where it can.
     QString netplayTooBig(const QString &set, bool lanCore, bool hosting) const;
+    // Why set can't be hosted (hosting) or joined over the network from
+    // here, as a game of FinalBurn Neo's: FinalBurn Neo not installed, the
+    // set not in the folder, a folder of files, not one of its list or not
+    // named as it looks for it, files of it missing as Check ROMs found, or
+    // not the memory for it on the core it plays on (netplayTooBig()); ""
+    // where it can. Whether OSD/OS's LAN core is here is the caller's to
+    // know: a room on it is listed without it, saying so (roomInfo()).
+    // canHost(), canHostLan(), Playable Online, the rooms listed, what a
+    // room says and starting one over the network all go by it.
+    QString netplayRefusal(const QString &set, bool lanCore, bool hosting) const;
     // How many players set plays at once, as MAME says (up to
     // libretro::kMostPorts); 0 for a game MAME doesn't know.
     int gamePlayers(const QString &set) const;
