@@ -49,16 +49,14 @@ function firstRows(items) {
 }
 
 // STATUS (Studio Monitor): what is set, a line each, read alone; each
-// value as its own row has it. A row OSD/OS doesn't offer here (Display
-// Output off a Pi, Audio Output where the system picks the card) is the
-// system's to say: System, not None, as if there were no output.
+// value as its own row has it, from what that row's value is made of, not
+// the whole page it is on (read again as Wi-Fi, Bluetooth or the sound card
+// change: followStatus(), followAudio()). A row OSD/OS doesn't offer here
+// (Display Output off a Pi, Audio Output where the system picks the card)
+// is the system's to say: System, not None, as if there were no output.
 function statusRows(items) {
-    function valueOf(build, key) {
-        var rows = []
-        build(rows)
-        var row = rows.filter(function(r) { return r.key === key || r.type === key })[0]
-        return !row ? "None" : row.unavailable ? "System" : (row.value || "None")
-    }
+    var output = displayOutput && displayOutput.available ? (displayOutputValue() || "None") : "System"
+    var audio = audioOutput && audioOutput.available ? (audioSetting().value || "None") : "System"
     var wifi = "None"
     if (wifiManager && wifiManager.supported) {
         wifi = wifiManager.state === "connected" ? ((wifiManager.current || {}).ssid || "Joined")
@@ -70,12 +68,12 @@ function statusRows(items) {
         var linked = (bluetoothManager.devices || []).filter(function(d) { return !!d.connected }).length
         bluetooth = !bluetoothManager.powered ? "Off" : linked > 0 ? linked + " Connected" : "On"
     }
-    var lines = [["Output", valueOf(screenRows, "display_output")],
-                 ["Audio", valueOf(soundRows, "audio_output")],
+    var lines = [["Output", output],
+                 ["Audio", audio],
                  ["Wi-Fi", wifi],
                  ["Bluetooth", bluetooth],
-                 ["Theme", valueOf(lookRows, "osd_theme")],
-                 ["Start On", valueOf(startupRows, "startup_module")],
+                 ["Theme", themeRow().value],
+                 ["Start On", startModuleName()],
                  ["Cabinet Lock", cabinetLockRow().value],
                  ["Version", root.devBuild ? "Dev" : root.appVersion],
                  ["IP Address", ipAddress || "None"]]
@@ -90,6 +88,13 @@ function groupRow(group, description, label) {
              description: description, moduleId: "" }
 }
 
+// THEME's row, Look's first, whose value STATUS shows too: the themes as
+// the page listed them (themes(), AppCore::themes()).
+function themeRow() {
+    return lookRow("osd_theme", "Theme", "None", themes(),
+        "The whole look in one: the color scheme, the skin, the effects and the menu music\n[NONE] OSD/OS's own  Choosing one sets each row below back to the theme's  A new one is a folder in the data folder's themes, see the wiki")
+}
+
 // LOOK: the theme and its parts, the effects on a page of their own, and
 // what the menus are drawn on.
 function lookRows(items) {
@@ -100,8 +105,7 @@ function lookRows(items) {
     // otherwise; choosing a theme sets them all back to THEME
     // (themeChosen()). Without a theme they have no THEME: "" is what
     // each is without one (Video 1, OSD/OS's own window, off).
-    items.push(lookRow("osd_theme", "Theme", "None", appCore.themes(),
-        "The whole look in one: the color scheme, the skin, the effects and the menu music\n[NONE] OSD/OS's own  Choosing one sets each row below back to the theme's  A new one is a folder in the data folder's themes, see the wiki"))
+    items.push(themeRow())
 
     // Orb Fog — the fog behind the panels of the Arcade screen's Orb look
     // (OrbLook.qml; Main.qml's orbFogLive), for a theme with that look:
@@ -127,7 +131,7 @@ function lookRows(items) {
     // Saved by folder name, shown by the skin's name.
     // A skin chosen before skins had their name was saved as app.theme.
     var skinSaved = appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || "")
-    var skinRow = lookRow("skin", "Skin", "Theme", appCore.skins(),
+    var skinRow = lookRow("skin", "Skin", "Theme", skins(),
         "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors\n[THEME] The theme's  [NONE] OSD/OS's own  A new one is a folder in the data folder's skins, see the wiki",
         skinSaved)
     skinRow.options.splice(1, 0, "None")
@@ -260,6 +264,13 @@ function effectRows(items) {
         "How one window gives way to the next\n[THEME] The theme's  [FADE] The old fades away  [CUBE] The window turns over like a cube, the next on a face at random  [RIPPLE] The old ripples out as the new ripples in  [WAVE] A wave runs out from a corner and dies away, the new one behind it  [DROP] A drop falls in a corner, the new one inside its spreading ring"))
 }
 
+// Display Output's value, where the Pi has it (displayOutput.available):
+// the output in force, or the one written for the next start. STATUS
+// shows it too.
+function displayOutputValue() {
+    return displayOutput.next !== "" ? "Next: " + displayOutput.nextLabel : displayOutput.currentLabel
+}
+
 // SCREEN: where the picture goes, setting the screen up, and what the
 // menus do while no one is at them.
 function screenRows(items) {
@@ -278,7 +289,7 @@ function screenRows(items) {
         items.push({
             type: "display_output",
             label: "Display Output",
-            value: next !== "" ? "Next: " + nextLabel : currentLabel,
+            value: displayOutputValue(),
             description: (next !== "" ? "Now " + currentLabel + ", " + nextLabel + " from the next start • " : "")
                          + "Where the picture goes, among the outputs this Pi has: "
                          + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
@@ -383,6 +394,16 @@ function screenRows(items) {
     })
 }
 
+// Audio Output's cards as audioOutput has them now (its settingRow()), where
+// OSD/OS chooses the card (audioOutput.available), kept as what the page
+// shows (audioShown, which followAudio() reads again by). STATUS's Audio
+// line is its value.
+function audioSetting() {
+    var audio = audioOutput.settingRow()
+    audioShown = JSON.stringify(audio)
+    return audio
+}
+
 // SOUND: the sound card the players play through, and the menu music.
 function soundRows(items) {
     // AUDIO OUTPUT — the sound card the players play through, among those
@@ -392,8 +413,7 @@ function soundRows(items) {
     if (audioOutput && audioOutput.available) {
         // Without a USB sound card to choose: what the system sees of one
         // (note).
-        var audio = audioOutput.settingRow()
-        audioShown = JSON.stringify(audio)
+        var audio = audioSetting()
         var usbNote = audio.note || ""
         items.push({
             type: "list_single",
@@ -482,6 +502,14 @@ function networkRows(items) {
     })
 }
 
+// Start on Module's value: the name of the module it names while that one
+// is turned on, else None. STATUS shows it too.
+function startModuleName() {
+    var id = appSettings["startup_module"] || "None"
+    var module = installedModules.filter(function(m) { return m.enabled && m.id === id })[0]
+    return module ? module.name : "None"
+}
+
 // STARTUP: what OSD/OS opens on, and keeping it there.
 function startupRows(items) {
     // Start on Module — pick a module to auto-launch into on startup.
@@ -490,13 +518,10 @@ function startupRows(items) {
     // If the stored id isn't an enabled module, the display falls back to None.
     var moduleOpts = ["None"] // display labels
     var moduleVals = ["None"] // stored values (module ids)
-    var startupId = appSettings["startup_module"] || "None"
-    var startupValue = "None"
     for (var mi = 0; mi < installedModules.length; mi++) {
         if (!installedModules[mi].enabled) continue
         moduleOpts.push(installedModules[mi].name)
         moduleVals.push(installedModules[mi].id)
-        if (installedModules[mi].id === startupId) startupValue = installedModules[mi].name
     }
     items.push({
         type: "list_single",
@@ -504,7 +529,7 @@ function startupRows(items) {
         label: "Start on Module",
         options: moduleOpts,
         values: moduleVals,
-        value: startupValue,
+        value: startModuleName(),
         description: "Directly launch into a specific module on startup",
         moduleId: ""
     })

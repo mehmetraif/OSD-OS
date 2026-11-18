@@ -274,6 +274,8 @@ FocusScope {
         autostartSession = appCore.isAutostartSession()
         canRestart = appCore.canRestartSystem()
         canSaveLogs = appCore.canSaveLogs()
+        themeList = null
+        skinList = null
 
         var first = []
         Pages.firstRows(first)
@@ -284,6 +286,22 @@ FocusScope {
         var icons = pages.map(function(row) { return { icon: pageIcons[pageKey(row)] || "" } })
         pageIconList = icons
         camPages = pages.map(function(row, i) { return { row: row, icon: icons[i].icon } })
+    }
+    // The themes and the skins there are (AppCore's themes(), skins(), which
+    // look through their folders and read each one's file), listed once a
+    // read, as a page first needs them (Look's, STATUS's Theme): not again
+    // for each page made, nor each time STATUS is read again.
+    property var themeList: null
+    property var skinList: null
+    function themes() {
+        if (themeList === null)
+            themeList = appCore.themes()
+        return themeList
+    }
+    function skins() {
+        if (skinList === null)
+            skinList = appCore.skins()
+        return skinList
     }
     // The settings as readAll() read them are no longer what is saved: one
     // was changed by another hand than this page's (onAppSettingChanged; its

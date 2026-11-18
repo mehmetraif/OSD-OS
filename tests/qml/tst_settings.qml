@@ -1168,8 +1168,9 @@ Rectangle {
         // of the page moved to, once, and nothing else. The settings, the
         // modules, the first screen's rows and the icons are as they were
         // read when the page was made: not read again for each icon passed,
-        // nor the icons handed to the frame anew. Look's themes and skins
-        // are listed as its rows are made, once a visit.
+        // nor the icons handed to the frame anew. The themes and skins are
+        // listed once as well, as a page first needs them (Look's, STATUS's
+        // Theme).
         function test_iconMovesMakeOnlyThePagesRows_data() {
             return [{ tag: "Camcorder", layout: "Camcorder", first: 0 },
                     { tag: "Studio Monitor", layout: "Studio Monitor", first: 1 }]
@@ -1180,11 +1181,9 @@ Rectangle {
             verify(page.inIcons())
             compare(appCore.calls.settings, 1)
             compare(appCore.calls.modules, 1)
-            // Studio Monitor opens on Status, which reads the theme's name
-            // from Look's rows.
-            var listed = data.first
-            compare(appCore.calls.themes, listed)
-            compare(appCore.calls.skins, listed)
+            // Studio Monitor opens on Status, which shows the theme's name.
+            compare(appCore.calls.themes, data.first)
+            compare(appCore.calls.skins, 0)
             var pages = page.camPages
             var icons = root.frameIcons
             var shown = []
@@ -1209,10 +1208,10 @@ Rectangle {
                 expected.push(firstRows[(i + 1) % pages.length])
             expected.push(firstRows[pages.length - 1], firstRows[pages.length - 2])
             compare(shown, expected)
-            // Look was passed once on the way: its themes and skins listed
-            // once for its rows (and once more for Status, passed once).
-            compare(appCore.calls.themes, listed + 1 + data.first)
-            compare(appCore.calls.skins, listed + 1 + data.first)
+            // Look was passed on the way, and Status again: the themes and
+            // the skins listed once, for the first of them.
+            compare(appCore.calls.themes, 1)
+            compare(appCore.calls.skins, 1)
         }
 
         // What a page's row was set to is what it shows when the icons come
@@ -1419,6 +1418,27 @@ Rectangle {
             wifiManager.state = "connected"
             bluetoothManager.adapterChanged()
             verify(page.settingsItems === built)
+        }
+
+        // Status's values as their own rows have them: the output in force,
+        // or the one written for the next start; the module started on,
+        // None for one turned off; the theme, None without one.
+        function test_statusValuesAsTheirRows() {
+            root.menuLayout = "Studio Monitor"
+            displayOutput.available = true
+            appCore.values = { startup_module: "com.osdos.local_files" }
+            var page = open()
+            compare(row(page, "Output").value, "HDMI")
+            compare(row(page, "Start On").value, "Local Files")
+            compare(row(page, "Theme").value, "None")
+            loader.source = ""
+            displayOutput.next = "composite"
+            displayOutput.nextLabel = "Composite"
+            appCore.values = { startup_module: "com.osdos.plex" }
+            page = open()
+            compare(row(page, "Output").value, "Next: Composite")
+            compare(row(page, "Start On").value, "None")
+            compare(row(page, "Cabinet Lock").value, "Off")
         }
 
         // Broadcast: the first screen as a list, Key Protect (Cabinet Lock)
