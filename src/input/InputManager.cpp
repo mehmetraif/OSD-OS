@@ -84,6 +84,9 @@ constexpr int kUnlockCaptureIdleMs = 10000;
 // Planted in nativeVirtualKey of a key replayed after one held back for them
 // (replayKey()), which eventFilter() lets go on then as the real key it was.
 constexpr quint32 kReplayVirtualKey = 0x240F00E;
+// MAME's coin key, which a pad's Coin is where the focus takes a coin
+// (actOnPadPress()), pressed and let go as the input is (m_coinInputs).
+constexpr int kCoinKey = Qt::Key_5;
 // The keys' source among the inputs held (HeldInput), every keyboard's.
 QString keySource() {
     return QStringLiteral("keys");
@@ -1247,8 +1250,8 @@ void InputManager::unlockAllHeld() {
         const Action a = m_heldInputs.take(input);
         if (a != Action::None)
             releaseAction(a);
-        else if (m_coinInputs.remove(input))
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+        else
+            releaseCoin(input);
     }
     m_unlockSince.start();
     m_unlockTimer.start();
@@ -2605,39 +2608,51 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     const HeldInput input{ padSource(which), button };
     const QString token = buttonToken(button);
-    if (!pressed) {
-        if (captureReleased(input))
-            return;
-        if (m_heldThroughHandoff.remove(input))
-            return;
-        if (unlockRelease(padInputId(which, token)))
-            return;
-        if (m_coinInputs.remove(input)) {
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
-            return;
-        }
-        const Action held = m_heldInputs.take(input);
-        if (held != Action::None) {
-            noteActiveController(which);
-            releaseAction(held);
-        }
-        return;
-    }
-    const Action a = pad->buttons.value(button, Action::None);
+    if (pressed)
+        pressPadInput(which, input, token, pad->buttons.value(button, Action::None));
+    else
+        releasePadInput(which, input, token);
+}
+
+// A pad's input pressed, a button or an axis pushed (its token), and the
+// action its map gives it: nothing for one held through a game; reported to
+// its page's wait; held back for Cabinet Lock's unlock buttons; else acted on.
+void InputManager::pressPadInput(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a) {
     if (heldThroughGame(which, a, token)) {
         m_heldThroughHandoff.insert(input);
         return;
     }
-    const QString key = pad->key;
+    const QString key = m_pads.value(which).key;
     noteController(key);
     if (capturing(key)) {
-        capturePressed(input, key, token, padLabel(m_labelOverrides, pad->labels, token, button));
+        capturePressed(input, key, token, padInputLabel(m_pads.value(which), token));
         return;
     }
     if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
                     isDirectional(a), [this, which, input, token, a] { actOnPadPress(which, input, token, a); }))
         return;
     actOnPadPress(which, input, token, a);
+}
+
+// A pad's input let go: the answer to its page's wait, nothing for one held
+// through a game, Cabinet Lock's, the coin key's release, or the release of
+// the action its press began, whatever the input does by then.
+void InputManager::releasePadInput(SDL_JoystickID which, const HeldInput &input, const QString &token) {
+    if (captureReleased(input) || m_heldThroughHandoff.remove(input) || unlockRelease(padInputId(which, token))
+            || releaseCoin(input))
+        return;
+    const Action held = m_heldInputs.take(input);
+    if (held != Action::None) {
+        noteActiveController(which);
+        releaseAction(held);
+    }
+}
+
+bool InputManager::releaseCoin(const HeldInput &input) {
+    if (!m_coinInputs.remove(input))
+        return false;
+    postKey(kCoinKey, QEvent::KeyRelease, false);
+    return true;
 }
 
 void InputManager::actOnPadPress(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a) {
@@ -2650,7 +2665,7 @@ void InputManager::actOnPadPress(SDL_JoystickID which, const HeldInput &input, c
         noteActiveController(which);
         setLastInputDevice(QStringLiteral("gamepad"));
         m_coinInputs.insert(input);
-        postKey(Qt::Key_5, QEvent::KeyPress, false);
+        postKey(kCoinKey, QEvent::KeyPress, false);
         return;
     }
     if (a == Action::None)
@@ -2667,8 +2682,6 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     const auto pad = m_pads.constFind(which);
     if (pad == m_pads.constEnd())
         return;
-    const QString key = pad->key;
-    const controllers::LabelStyle labels = pad->labels;
     const QPair<Action, Action> actions = pad->axes.value(axis, { Action::None, Action::None });
     const HeldInput input{ padSource(which), SDL_CONTROLLER_BUTTON_MAX + axis };
 
@@ -2695,36 +2708,10 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // Only a real engage/release counts as "using" this controller — idle
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
-    if (old != 0 && !captureReleased(input) && !m_heldThroughHandoff.remove(input)
-        && !unlockRelease(padInputId(which, axisToken(axis, old)))) {
-        if (m_coinInputs.remove(input)) {
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
-        } else {
-            const Action released = m_heldInputs.take(input);
-            if (released != Action::None) {
-                noteActiveController(which);
-                releaseAction(released);
-            }
-        }
-    }
-    if (now == 0)
-        return;
-    const QString token = axisToken(axis, now);
-    const Action pressed = now < 0 ? actions.first : actions.second;
-    if (heldThroughGame(which, pressed, token)) {
-        m_heldThroughHandoff.insert(input);
-        return;
-    }
-    noteController(key);
-    if (capturing(key)) {
-        capturePressed(input, key, token, controllers::inputLabel(labels, token));
-        return;
-    }
-    if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
-                    isDirectional(pressed),
-                    [this, which, input, token, pressed] { actOnPadPress(which, input, token, pressed); }))
-        return;
-    actOnPadPress(which, input, token, pressed);
+    if (old != 0)
+        releasePadInput(which, input, axisToken(axis, old));
+    if (now != 0)
+        pressPadInput(which, input, axisToken(axis, now), now < 0 ? actions.first : actions.second);
 }
 
 void InputManager::pressAction(Action a) {
@@ -2824,13 +2811,10 @@ void InputManager::releaseHeld(const QString &source) {
         releaseAction(a);
     for (auto it = m_heldThroughHandoff.begin(); it != m_heldThroughHandoff.end();)
         it = it->first == source ? m_heldThroughHandoff.erase(it) : std::next(it);
-    for (auto it = m_coinInputs.begin(); it != m_coinInputs.end();) {
-        if (it->first == source) {
-            it = m_coinInputs.erase(it);
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
-        } else {
-            ++it;
-        }
+    const QSet<HeldInput> coins = m_coinInputs;
+    for (const HeldInput &coin : coins) {
+        if (coin.first == source)
+            releaseCoin(coin);
     }
     for (auto it = m_postedKeys.begin(); it != m_postedKeys.end();) {
         if (it.key().first == source) {

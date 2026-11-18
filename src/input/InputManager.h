@@ -427,10 +427,16 @@ private:
     void releaseHeld(const QString &source);
     void letGoOfPad(SDL_JoystickID id);
     static bool essentialAction(Action a);
-    // What a pad's press does (handleButton(), handleAxis()): MAME's coin
-    // key where the focus takes one, else its action. Nothing for a pad gone
-    // or no longer listened to since, as for a press held back.
+    // A pad's input (input.cfg's token) pressed or let go, a button's or an
+    // axis's alike (handleButton(), handleAxis()).
+    void pressPadInput(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a);
+    void releasePadInput(SDL_JoystickID which, const HeldInput &input, const QString &token);
+    // What a pad's press does (pressPadInput()): MAME's coin key where the
+    // focus takes one, else its action. Nothing for a pad gone or no longer
+    // listened to since, as for a press held back.
     void actOnPadPress(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a);
+    // The coin key let go, for an input that pressed it: false for any other.
+    bool releaseCoin(const HeldInput &input);
 
     // Cabinet Lock (captureUnlockButtons()). An input as the unlock buttons
     // name it: a pad's by the player it plays ("p1/start"), else by its key
