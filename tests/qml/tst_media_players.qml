@@ -18,10 +18,10 @@ import Components
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
 // The sign-in pages keep an error as long as Qt's own inside the page.
-// The players that go back without a notice when their video fails (Ambient
-// Mode's, Plex's Extras, and YouTube's, the NFC Reader's and Playlists' once
-// the picture has shown) have MpvController log it; Plex's live channels say
-// why, with RETRY.
+// The players that go back without a notice when their video fails (Plex's
+// Extras, and YouTube's, the NFC Reader's and Playlists' once the picture
+// has shown) have MpvController log it; Plex's live channels and Ambient
+// Mode's player say why, with RETRY.
 Rectangle {
     id: root
     color: surfaceColor
@@ -318,8 +318,9 @@ Rectangle {
     }
     QtObject {
         id: ambientModeBackend
+        property int audioStarts: 0
         property int audioStops: 0
-        function startAudio(paths, shuffle) {}
+        function startAudio(paths, shuffle) { audioStarts++ }
         function stopAudio() { audioStops++ }
     }
 
@@ -454,6 +455,7 @@ Rectangle {
             plexBackend.tunes = 0
             plexBackend.liveStops = 0
             plexBackend.timelines = []
+            ambientModeBackend.audioStarts = 0
             ambientModeBackend.audioStops = 0
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
@@ -1242,7 +1244,7 @@ Rectangle {
 
         // The players that go back without a word when their video fails
         // (YouTube's, the NFC Reader's and Playlists' once the first picture
-        // has shown, Ambient Mode's at any time)
+        // has shown)
         // have MpvController say so in the log (logFailure), once: which
         // player and what it played, why left to MpvController's own last
         // error. Before the first picture the three with a notice show it,
@@ -1262,13 +1264,7 @@ Rectangle {
                       said: ["NfcReader Player", stream, ""] },
                     { tag: "playlists", module: "playlists", notice: true, plPos: 1,
                       params: { playlistId: "p1" },
-                      said: ["Playlists Player", "\"Night\", video 2", ""] },
-                    { tag: "ambient_mode", module: "ambient_mode", notice: false,
-                      params: { videoPath: "/ambient/Fireplace.mp4" },
-                      said: ["AmbientMode Player", "Fireplace.mp4", ""] },
-                    { tag: "ambient_mode, shuffled", module: "ambient_mode", notice: false,
-                      params: { videoPaths: ["/ambient/A.mp4", "/ambient/B.mp4", "/ambient/C.mp4"] },
-                      said: ["AmbientMode Player", "3 clips, shuffled", ""] }]
+                      said: ["Playlists Player", "\"Night\", video 2", ""] }]
         }
         function test_failedPlaybackIsLogged(data) {
             var player = open(data.module, "Player.qml", data.params)
@@ -1291,8 +1287,6 @@ Rectangle {
             compare(root.backs, 1)
             if (data.notice)
                 verify(!noticeOf(player).visible)
-            // Ambient Mode's own audio stops with the clip, as at any end.
-            compare(ambientModeBackend.audioStops, data.module === "ambient_mode" ? 1 : 0)
         }
 
         // A video that ends any other way is not logged as failed.
@@ -1309,6 +1303,43 @@ Rectangle {
                 loader.source = ""
             }
             compare(mpvController.failures, [])
+        }
+
+        // Ambient Mode: a clip mpv can't play says why (PlaybackNotice), at
+        // any time, its own audio stopped with it and nothing in the log;
+        // RETRY starts the clip and its audio again, and back from a second
+        // failure leaves. A clip or a shuffle alike.
+        function test_ambientPlayerSaysWhy_data() {
+            return [{ tag: "a clip", params: { videoPath: "/ambient/Fireplace.mp4", audioPath: "/ambient/Rain.mp3" } },
+                    { tag: "shuffled", params: { videoPaths: ["/ambient/A.mp4", "/ambient/B.mp4"],
+                                                 audioPaths: ["/ambient/Rain.mp3", "/ambient/Wind.mp3"] } }]
+        }
+        function test_ambientPlayerSaysWhy(data) {
+            var player = open("ambient_mode", "Player.qml", data.params)
+            compare(mpvController.loads, 1)
+            compare(ambientModeBackend.audioStarts, 1)
+            mpvController.lastError = "mpv could not play it"
+            mpvController.lastErrorDetail = "[ffmpeg] Fireplace.mp4: Invalid data found when processing input"
+            mpvController.playbackEnded(60000, 600000, "failed")
+            var notice = noticeOf(player)
+            verify(notice !== null)
+            verify(notice.visible)
+            compare(notice.reason, "mpv could not play it")
+            compare(notice.detail, "[ffmpeg] Fireplace.mp4: Invalid data found when processing input")
+            verify(notice.canRetry)
+            compare(ambientModeBackend.audioStops, 1)
+            compare(mpvController.failures, [])
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)  // RETRY
+            verify(!notice.visible)
+            compare(mpvController.loads, 2)
+            compare(ambientModeBackend.audioStarts, 2)
+            mpvController.playbackEnded(0, 0, "failed")
+            verify(notice.visible)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            compare(mpvController.loads, 2)
+            compare(ambientModeBackend.audioStops, 2)
         }
 
         // Plex's live channels: one that can't be tuned says why in the
