@@ -1,16 +1,10 @@
 #include "WeatherBackend.h"
 #include "../../AppCore.h"
-#include "../../util/MpvLocator.h"
-#include "../../audio/AudioOutput.h"
-#include "../../audio/MenuMusic.h"
-#include "../../util/EndProcess.h"
-#include "../../util/RuntimeFiles.h"
+#include "../../audio/BackgroundMpv.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QLocalSocket>
-#include <QProcess>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
@@ -465,7 +459,8 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
     , m_dataRoot(dataRoot)
     , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
-    , m_refresh(new QTimer(this)) {
+    , m_refresh(new QTimer(this))
+    , m_music(new BackgroundMpv(QStringLiteral("weather"), "[Weather] music", this)) {
     // A service that stops answering (a captive portal holding the socket)
     // fails after this long without a byte, and the next refresh tries
     // again, instead of the forecast waiting on it for good.
@@ -477,10 +472,12 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
         fetchObservation();
         fetchOtherObservations();
     });
+    connect(m_music, &BackgroundMpv::stateChanged, this, &WeatherBackend::musicStateChanged);
 }
 
+// As the app ends: mpv is gone before this returns.
 WeatherBackend::~WeatherBackend() {
-    endMusic(true);
+    m_music->end(true);
 }
 
 QString WeatherBackend::location_file_path() const {
@@ -599,7 +596,7 @@ QStringList WeatherBackend::musicPlaylist() const {
 }
 
 bool WeatherBackend::musicPlaying() const {
-    return m_music && m_music->state() != QProcess::NotRunning && !m_musicPaused;
+    return m_music->running() && !m_music->paused();
 }
 
 void WeatherBackend::startMusic() {
@@ -611,143 +608,31 @@ void WeatherBackend::startMusic() {
                                                         Qt::CaseInsensitive) == 0
                              : music.toBool(true);
     if (!enabled) return;
-    if (m_music) return;
-    // One asked to end a moment ago still has the sound card: not two at once.
-    if (m_musicEnding && m_musicEnding->state() != QProcess::NotRunning)
-        m_musicEnding->waitForFinished(1000);
+    if (m_music->active()) return;
 
     const QStringList tracks = musicPlaylist();
     if (tracks.isEmpty()) return;
 
-    const QString bin = mpvbin::locate();
-    if (bin.isEmpty()) {
+    // Shuffled once at load and looped forever, so the app never has to
+    // track a current track.
+    if (!m_music->start(tracks, { QStringLiteral("--shuffle") },
+                        QStringLiteral("osdos-weather-music.sock"))) {
         qWarning("[Weather] mpv not found — music will not play");
         return;
     }
-
-    // Its own socket name: MpvController uses osdos-mpv.sock for the player,
-    // and two mpvs sharing one path would hand the wrong process our commands.
-    // In a folder of the user's own rather than the temp folder every account
-    // writes in (util/RuntimeFiles.h), asked for at each start: the folder may
-    // have been taken away and made again since. Where there is none, the
-    // music plays without one, and can't be paused.
-    m_musicSocketPath = runtimefiles::path(QStringLiteral("osdos-weather-music.sock"));
-
-    QStringList args;
-    args << QStringLiteral("--no-video")
-         << QStringLiteral("--loop-playlist=inf")
-         // Shuffled once at load and looped forever, so the app never has to
-         // track a current track.
-         << QStringLiteral("--shuffle")
-         << QStringLiteral("--no-terminal")
-         << QStringLiteral("--really-quiet");
-    if (!m_musicSocketPath.isEmpty())
-        args << QStringLiteral("--input-ipc-server=%1").arg(m_musicSocketPath);
-    // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
-    // ALSA's default (applyTo() below).
-    args << AudioOutput::mpvArgs()
-         // Everything after this is a file, so an entry starting with '-'
-         // cannot be mistaken for an option.
-         << QStringLiteral("--")
-         << tracks;
-
-    m_musicPaused = false;
-    // The menu music stops first: this has the sound card now.
-    MenuMusic::hold(QStringLiteral("weather"));
-    m_music = new QProcess(this);
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
-    m_music->setProcessEnvironment(env);
-    // mpv exiting on its own (no network, no readable files) leaves a stale
-    // pointer that would make startMusic() a no-op on the next visit.
-    connect(m_music, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {
-        qInfo("[Weather] music process exited");
-        stopMusic();
-    });
-    m_music->start(bin, args);
-
-    // mpv creates the socket a beat after launch, so a single connect attempt
-    // loses the race. Same retry shape as MpvController.
-    if (!m_musicIpc) {
-        m_musicIpc = new QLocalSocket(this);
-        connect(m_musicIpc, &QLocalSocket::connected, this, [this]() {
-            m_musicConnect->stop();
-        });
-    }
-    if (!m_musicConnect) {
-        m_musicConnect = new QTimer(this);
-        m_musicConnect->setInterval(100);
-        connect(m_musicConnect, &QTimer::timeout, this, [this]() {
-            if (m_musicIpc->state() == QLocalSocket::ConnectedState
-                || m_musicIpc->state() == QLocalSocket::ConnectingState)
-                return;
-            m_musicIpc->connectToServer(m_musicSocketPath);
-        });
-    }
-    if (!m_musicSocketPath.isEmpty())
-        m_musicConnect->start();
-
     qInfo("[Weather] music started — %lld track(s)", static_cast<long long>(tracks.size()));
-    emit musicStateChanged();
 }
 
+// Leaving the module, mpv is not waited for: the menus come back at once, mpv
+// goes in its own time, and the menu music has the card only once it has.
 void WeatherBackend::stopMusic() {
-    endMusic(false);
-}
-
-// `wait` as the app ends: mpv is gone before this returns. Leaving the
-// module, it is not waited for: the menus come back at once, mpv goes in its
-// own time, and the menu music has the card only once it has.
-void WeatherBackend::endMusic(bool wait) {
-    if (m_musicConnect) m_musicConnect->stop();
-    if (m_musicIpc)     m_musicIpc->abort();
-    // One asked to end a moment ago still has the sound card.
-    if (wait && m_musicEnding && m_musicEnding->state() != QProcess::NotRunning)
-        m_musicEnding->waitForFinished(1000);
-
-    QProcess *p = std::exchange(m_music, nullptr);  // cleared first: terminate() can re-enter
-    m_musicPaused = false;
-    // No music: what holds the menu music off is one asked to end a moment
-    // ago (stopped for the setup screen, then again as the module is left),
-    // which lets go once it has gone and the sound card is free.
-    if (!p)
-        return;
-    p->disconnect(this);        // this slot via the finished signal
-    if (p->state() != QProcess::NotRunning && !wait) {
-        m_musicEnding = p;
-        endProcessLater(p, this, [this]() {
-            // Not while the music is on again: its hold is the new one's.
-            if (!m_music)
-                MenuMusic::release(QStringLiteral("weather"));
-        });
-        emit musicStateChanged();
-        return;
-    }
-    if (p->state() != QProcess::NotRunning) {
-        p->terminate();
-        p->waitForFinished(1000);
-    }
-    p->deleteLater();
-    MenuMusic::release(QStringLiteral("weather"));
-    emit musicStateChanged();
+    m_music->end(false);
 }
 
 void WeatherBackend::toggleMusic() {
-    if (!m_music || m_music->state() == QProcess::NotRunning) return;
-    if (m_musicIpc->state() != QLocalSocket::ConnectedState) {
+    if (!m_music->running()) return;
+    if (!m_music->setPaused(!m_music->paused()))
         qWarning("[Weather] music IPC not connected — ignoring toggle");
-        return;
-    }
-    m_musicPaused = !m_musicPaused;
-    // set_property, not "cycle pause": our idea of the state and mpv's can then
-    // never drift apart.
-    const QJsonObject cmd{
-        { QStringLiteral("command"),
-          QJsonArray{ QStringLiteral("set_property"), QStringLiteral("pause"),
-                      m_musicPaused } }
-    };
-    m_musicIpc->write(QJsonDocument(cmd).toJson(QJsonDocument::Compact) + "\n");
-    emit musicStateChanged();
 }
 
 // ── Location ─────────────────────────────────────────────────────────────────

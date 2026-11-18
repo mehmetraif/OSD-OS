@@ -15,6 +15,7 @@ add_executable(reliability_test
     ../src/util/SetupFile.cpp
     ../src/audio/AudioOutput.cpp
     ../src/audio/MenuMusic.cpp
+    ../src/audio/BackgroundMpv.cpp
     ../src/util/LegacyNames.cpp
     ../src/util/LogFile.cpp
     ../src/util/MpvLocator.cpp)
@@ -199,6 +200,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(menu_music_test
         menu_music_test.cpp
         ../src/audio/MenuMusic.cpp
+        ../src/audio/BackgroundMpv.cpp
         ../src/audio/AudioOutput.cpp
         ../src/modules/ambient_mode/AmbientModeBackend.cpp
         ../src/modules/weather/WeatherBackend.cpp

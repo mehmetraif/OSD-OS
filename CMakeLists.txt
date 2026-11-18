@@ -152,6 +152,7 @@ add_executable(osdos
     src/display/DisplayOutput.cpp
     src/audio/AudioOutput.cpp
     src/audio/MenuMusic.cpp
+    src/audio/BackgroundMpv.cpp
     src/bluetooth/BluetoothManager.cpp
     src/wifi/WifiManager.cpp
     src/system/SystemInfo.cpp

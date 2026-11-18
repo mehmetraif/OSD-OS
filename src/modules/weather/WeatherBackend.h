@@ -1,7 +1,5 @@
 #pragma once
 #include <QObject>
-#include <QPointer>
-#include <QProcess>
 #include <QString>
 #include <QVariantMap>
 #include <QVariantList>
@@ -10,9 +8,9 @@
 #include <functional>
 
 class AppCore;
+class BackgroundMpv;
 class QNetworkAccessManager;
 class QTimer;
-class QLocalSocket;
 
 // Backend for the weather module.
 //
@@ -80,7 +78,7 @@ public:
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
 
-    // Background music, as a plain mpv subprocess — no video, no screen takeover.
+    // Background music, as a plain mpv subprocess (BackgroundMpv) — no video, no screen takeover.
     // A no-op when the Music setting is off, so the view can call it
     // unconditionally.
     Q_INVOKABLE void startMusic();
@@ -215,13 +213,7 @@ private:
 
     // Background music. Its own mpv, its own socket — entirely separate from
     // MpvController's, which owns the screen and must not be disturbed by it.
-    QProcess     *m_music       = nullptr;
-    QPointer<QProcess> m_musicEnding;   // asked to end, not gone yet
-    void endMusic(bool wait);
-    QLocalSocket *m_musicIpc    = nullptr;
-    QTimer       *m_musicConnect = nullptr;
-    QString       m_musicSocketPath;
-    bool          m_musicPaused = false;
+    BackgroundMpv *m_music = nullptr;
 
     QVariantMap  m_current;
     QVariantList m_forecast;

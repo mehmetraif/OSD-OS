@@ -79,6 +79,7 @@ osd-os/
     audio/
       AudioOutput.h/.cpp            # Settings → Sound → Audio Output: the sound card each player is told (ALSA)
       MenuMusic.h/.cpp              # Settings → Sound → Menu Music: a tune under the menus, held off by anything else that plays sound
+      BackgroundMpv.h/.cpp          # Weather's music and Ambient Mode's audio: an mpv of sound alone, the menu music held off while it plays
     fx/
       ArtPixelItem.h/.cpp           # what VhsNoise and SelectorFx draw on: a picture in art pixels, drawn a frame at a time, shown without smoothing
       SelectorFx.h/.cpp             # Settings → Look → Effects → Selector Effect: sparks, lightning, a rainbow or snow round the selected line

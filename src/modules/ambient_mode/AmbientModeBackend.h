@@ -1,11 +1,10 @@
 #pragma once
 #include <QObject>
-#include <QPointer>
-#include <QProcess>
 #include <QStringList>
 #include <QVariantList>
 
 class AppCore;
+class BackgroundMpv;
 
 class AmbientModeBackend : public QObject {
     Q_OBJECT
@@ -31,8 +30,6 @@ private:
 
     QString   m_dataRoot;
     QString   m_mediaRoot;
-    void endAudio(bool wait);
-
-    QProcess *m_audioProcess = nullptr;
-    QPointer<QProcess> m_audioEnding;   // asked to end, not gone yet
+    // The companion audio, beside the clips (BackgroundMpv).
+    BackgroundMpv *m_audio = nullptr;
 };

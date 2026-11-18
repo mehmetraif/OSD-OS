@@ -189,6 +189,7 @@ ctest --test-dir build-tests --output-on-failure
   - mpv's control socket, the menu music's and Weather's music's, is in the user's run-time folder (`util/RuntimeFiles.h`), not the temp folder, asked for at each start: a run-time folder changed since is the one used.
   - Ambient Mode's audio ending on its own lets the menu music it held off play again, and nothing of its process is kept.
   - Weather's music stopped twice (for the setup screen, then as the module is left) while its mpv is slow to go: the menu music waits until that mpv has gone.
+  - Weather's and Ambient Mode's mpv (`audio/BackgroundMpv`): the menu music held off while it plays, paused over its control socket in the run-time folder; asked to end, gone a moment later, the menu music playing again then; ended and waited for, gone as `end()` returns.
 - **diagnostics** (`diagnostics_test.cpp`, Linux only). The crash and freeze reports (`util/Diagnostics`), each from a child process, the test itself run again, that crashes or freezes on purpose.
   - With more than a thousand files open, the memory line names the kinds there are most of (`most of them: 1100 /dev/null, …`), and no longer once they are closed.
   - A crash is written to `crash-report.txt` with where it was, and still ends the process as a crash.

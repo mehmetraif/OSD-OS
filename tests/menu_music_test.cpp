@@ -4,14 +4,18 @@
 // with no sound card to play through). And stand-ins for FluidSynth and
 // openmpt123, which write down what they were asked to make and make a file
 // of it, and for ALSA's list of sound cards (OSDOS_ASOUND_DIR).
+#include "audio/BackgroundMpv.h"
 #include "audio/MenuMusic.h"
 #include "modules/ambient_mode/AmbientModeBackend.h"
 #include "modules/weather/WeatherBackend.h"
+#include "util/RuntimeFiles.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QRegularExpression>
 #include <QScopeGuard>
 #include <QTemporaryDir>
@@ -462,6 +466,57 @@ private slots:
         weather.stopMusic();
         QTest::qWait(850);      // past the menu music's 700 ms, short of the kill
         QVERIFY(!m_music->playing());
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+    }
+
+    // Weather's and Ambient Mode's mpv (audio/BackgroundMpv): the menu music
+    // held off while it plays, paused over its control socket in the run-time
+    // folder; asked to end, it is gone a moment later, and the menu music
+    // plays again then; ended and waited for, it is gone as end() returns.
+    void backgroundMpv() {
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        const QString song = m_dir.path() + QStringLiteral("/song.ogg");
+        QVERIFY(writeFile(song, "OggS"));
+        // mpv's control socket, stood in for.
+        const QString socket = runtimefiles::path(QStringLiteral("osdos-test-audio.sock"));
+        QLocalServer::removeServer(socket);
+        QLocalServer control;
+        QVERIFY(control.listen(socket));
+
+        BackgroundMpv mpv(QStringLiteral("test"), "[Test] audio");
+        QSignalSpy changed(&mpv, &BackgroundMpv::stateChanged);
+        QVERIFY(mpv.start({ song }, { QStringLiteral("--shuffle") }, QStringLiteral("osdos-test-audio.sock")));
+        QVERIFY(mpv.active());
+        QCOMPARE(changed.size(), 1);
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(logged(QStringLiteral("start song.ogg ")).size(), 1, 3000);
+        QCOMPARE(sockets().last(), socket);
+        QVERIFY(lastAlive());
+
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 3000);
+        QLocalSocket *ipc = control.nextPendingConnection();
+        QVERIFY(mpv.setPaused(true));
+        QVERIFY(mpv.paused());
+        QTRY_VERIFY_WITH_TIMEOUT(ipc->bytesAvailable() > 0, 3000);
+        QCOMPARE(ipc->readAll(), QByteArray("{\"command\":[\"set_property\",\"pause\",true]}\n"));
+
+        QElapsedTimer asked;
+        asked.start();
+        mpv.end(false);
+        QVERIFY(asked.elapsed() < 300);
+        QVERIFY(!mpv.active());
+        QVERIFY(!mpv.paused());
+        QVERIFY(!mpv.setPaused(false));
+        QTRY_VERIFY_WITH_TIMEOUT(!lastAlive(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+
+        QVERIFY(mpv.start({ song }));
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(logged(QStringLiteral("start song.ogg ")).size(), 2, 3000);
+        mpv.end(true);
+        QVERIFY(!lastAlive());
         QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
     }
 };
