@@ -1005,7 +1005,9 @@ void MpvController::endAtOnce(const QString &reason) {
 // Takes the IPC down after a session: no reconnecting, the timers off, what
 // mpv last sent read (drain: readyRead and the end of the process are
 // separate events, so its final end-file may still sit unread), the socket
-// file gone, and the position and duration it got to handed out and zeroed.
+// file gone, what it said was up over the picture (its deck menu, its screen
+// saver) forgotten, and the position and duration it got to handed out and
+// zeroed.
 void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_ipcWanted = false;
     m_reconnecting = false;
@@ -1020,6 +1022,8 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
         onIpcReadyRead();
     m_ipc->abort();
     QFile::remove(m_socketPath);
+    m_oscMenuShown = false;
+    m_saverShown = false;
     if (pos) *pos = m_position;
     if (dur) *dur = m_duration;
     m_position = 0;
@@ -1633,8 +1637,6 @@ void MpvController::onProcessFinished() {
     // triggers autoplay-next.
     int pos = 0, dur = 0;
     closeIpc(true, &pos, &dur);
-    m_oscMenuShown = false;
-    m_saverShown = false;
 
     // Classify why mpv exited, once, so both the headless and desktop paths emit
     // the same playbackEnded reason:
@@ -2113,20 +2115,7 @@ void MpvController::endEmbedded(const QString &reason) {
     m_embedded->retire();
     // Its control connection with it: left, it would be made again, to a
     // socket of a session that is over.
-    int pos = 0, dur = 0;
-    closeIpc(false, &pos, &dur);
-    m_sessionArgs.clear();
-    m_sessionNote.clear();
-    m_oscMenuShown = false;
-    m_saverShown = false;
-    const bool wasBackground = m_background;
-    const bool wasMenu = m_playerMenu;
-    m_playerMenu = false;
-    if (m_background) {
-        m_background = false;
-        emit backgroundChanged();
-    }
-    emit videoActiveChanged();
+    const EmbeddedEnd end = closeEmbeddedSession(false);
     // Its player still had it, full screen or under its own menu, and
     // something else took the screen: for it, playback stopped. Told a tick
     // later, as a process's end is, and not when another session was asked
@@ -2134,33 +2123,36 @@ void MpvController::endEmbedded(const QString &reason) {
     // is never told from inside its own call, nor of a session that was
     // never its. Left behind the menus, its module took it as stopped when
     // back left it there.
-    if (wasMenu || !wasBackground) {
+    if (end.wasMenu || !end.wasBackground) {
         const int serial = m_launchSerial;
-        QTimer::singleShot(0, this, [this, serial, pos, dur, reason]() {
+        QTimer::singleShot(0, this, [this, serial, end, reason]() {
             if (serial == m_launchSerial)
-                emit playbackEnded(pos, dur, reason);
+                emit playbackEnded(end.pos, end.dur, reason);
         });
     }
 }
 
-void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
-    int pos = 0, dur = 0;
-    closeIpc(true, &pos, &dur);
+MpvController::EmbeddedEnd MpvController::closeEmbeddedSession(bool drain) {
+    EmbeddedEnd end;
+    closeIpc(drain, &end.pos, &end.dur);
     m_sessionArgs.clear();
     m_sessionNote.clear();
-    m_oscMenuShown = false;
-    m_saverShown = false;
-    const bool wasBackground = m_background;
-    const bool wasMenu = m_playerMenu;
-    m_playerMenu = false;
-    if (wasBackground) {
+    end.wasBackground = m_background;
+    end.wasMenu = std::exchange(m_playerMenu, false);
+    if (m_background) {
         m_background = false;
         emit backgroundChanged();
     }
     emit videoActiveChanged();
+    return end;
+}
+
+void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
+    const EmbeddedEnd end = closeEmbeddedSession(true);
+    const int pos = end.pos, dur = end.dur;
     // Its module took it as stopped already, when back left it behind the
     // menus; not so a player with its menu open over it.
-    if (wasBackground && !wasMenu)
+    if (end.wasBackground && !end.wasMenu)
         return;
     // Why mpv called the end an error, from the core itself: the same word
     // over the control connection may not have been read as the core went,

@@ -340,6 +340,18 @@ private:
     // player still had is told it ended so (reason).
     void endEmbedded(const QString &reason = QStringLiteral("stopped"));
     void onEmbeddedFinished(const QString &lastEndReason);
+    // What an embedded session was as it went: the position and duration it
+    // got to, and whether it was behind the menus, its player's menu open.
+    struct EmbeddedEnd {
+        int pos = 0;
+        int dur = 0;
+        bool wasBackground = false;
+        bool wasMenu = false;
+    };
+    // Its end, replaced or over, for either of the above: the control
+    // connection down (closeIpc(), drain as there), its command line and
+    // note forgotten, full screen no more, and videoActive false.
+    EmbeddedEnd closeEmbeddedSession(bool drain);
     // Back during an embedded session: the menus come back over the picture.
     void detachToMenus();
     // Back during a session in an mpv process: it ends, its player's menu
