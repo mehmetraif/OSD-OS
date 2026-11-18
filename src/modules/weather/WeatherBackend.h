@@ -182,9 +182,11 @@ private:
     // because the station overlay needs it and an observation cannot supply it.
     bool    m_isDay = true;
 
-    // Nearest reporting stations, nearest first, cached for the life of the
-    // process for the same reason the location is: config.json is written only
-    // on direct user interaction. Empty outside the US, and after any failure.
+    // Nearest reporting stations, nearest first, kept as long as the place is,
+    // not written anywhere for the same reason the location isn't: config.json
+    // is written only on direct user interaction. Empty outside the US, after
+    // any failure, and from the moment the place is looked up again
+    // (resolveLocation()), with the observation below.
     QStringList m_stations;
     bool        m_stationsResolved = false;
     // Last good observation, kept raw (metric, as NWS always sends it) rather

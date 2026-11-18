@@ -806,6 +806,17 @@ bool WeatherBackend::parseCoordLine(const QString &line, double *lat, double *lo
 void WeatherBackend::resolveLocation() {
     const quint64 generation = ++m_locationGeneration;
     ++m_extraLocationGeneration;
+    // The stations near the place before, and what they last observed, are
+    // not this place's: they go, so that the refresh asks them nothing more
+    // and their last observation isn't laid over this place's forecast. This
+    // place's are looked up once it is resolved; an answer for the place
+    // before still on its way is dropped (the generation, which every call
+    // here moves on).
+    m_stations.clear();
+    m_stationsResolved = false;
+    m_obs.clear();
+    m_obsTime = QDateTime();
+    m_obsStation.clear();
     // Settings' Location (modules.<id>.location) is the place; the file's
     // lines after its first are the other places then, and with no file there
     // are none. Without the setting the file says both, as it always has.
@@ -932,6 +943,12 @@ void WeatherBackend::resolveOthers(const QStringList &lines) {
     const quint64 generation = ++m_extraLocationGeneration;
     m_otherPoints.clear();
     m_pendingOthers = 0;
+    // The list before's stations and observations, keyed by its indexes:
+    // not polled while this list is geocoded, where an answer would land on
+    // this list's row of the same index.
+    m_otherStations.clear();
+    m_otherObs.clear();
+    m_otherObsTime.clear();
     if (lines.isEmpty()) { fetchOthers(); return; }
 
     // Slots are pre-allocated and filled by index, not appended on completion:
@@ -1180,7 +1197,10 @@ void WeatherBackend::resolveStations() {
     if (m_stationsResolved || !m_resolved) return;
     m_stationsResolved = true;   // one attempt per location, however it ends
 
-    resolveStationsFor(m_lat, m_lon, [this](const QStringList &stations) {
+    const quint64 generation = m_locationGeneration;
+    resolveStationsFor(m_lat, m_lon, [this, generation](const QStringList &stations) {
+        // Found for a place since changed: not this one's.
+        if (generation != m_locationGeneration) return;
         m_stations = stations;
         if (m_stations.isEmpty()) return;
         qInfo("[Weather] observation stations: %s", qPrintable(m_stations.join(", ")));
@@ -1190,9 +1210,12 @@ void WeatherBackend::resolveStations() {
 
 void WeatherBackend::fetchObservation() {
     if (m_stations.isEmpty()) return;
+    const quint64 generation = m_locationGeneration;
     fetchObservationChain(m_stations, 0,
-                          [this](const QVariantMap &obs, const QDateTime &stamp,
-                                 const QString &station) {
+                          [this, generation](const QVariantMap &obs, const QDateTime &stamp,
+                                             const QString &station) {
+        // Observed at the place before: not laid over this one's forecast.
+        if (generation != m_locationGeneration) return;
         if (obs.isEmpty()) return;   // every station tried; keep the model's values
         m_obs        = obs;
         m_obsTime    = stamp;
@@ -1496,19 +1519,24 @@ void WeatherBackend::resolveOtherStations() {
     m_otherObs.clear();
     m_otherObsTime.clear();
 
+    // An answer for a list since changed is dropped: its index is another
+    // place's row now.
+    const quint64 generation = m_extraLocationGeneration;
     for (int i = 0; i < m_otherPoints.size(); ++i) {
         const QVariantMap p = m_otherPoints.at(i).toMap();
         const QString name  = p["name"].toString();
         resolveStationsFor(p["lat"].toDouble(), p["lon"].toDouble(),
-                           [this, i, name](const QStringList &stations) {
+                           [this, i, name, generation](const QStringList &stations) {
+            if (generation != m_extraLocationGeneration) return;
             if (stations.isEmpty()) return;   // international, or nothing close
             m_otherStations.insert(i, stations);
             qInfo("[Weather] %s observation stations: %s",
                   qPrintable(name), qPrintable(stations.join(", ")));
             fetchObservationChain(stations, 0,
-                                  [this, i, name](const QVariantMap &obs,
-                                                  const QDateTime &stamp,
-                                                  const QString &station) {
+                                  [this, i, name, generation](const QVariantMap &obs,
+                                                              const QDateTime &stamp,
+                                                              const QString &station) {
+                if (generation != m_extraLocationGeneration) return;
                 if (obs.isEmpty()) return;
                 m_otherObs.insert(i, obs);
                 m_otherObsTime.insert(i, stamp);
@@ -1524,11 +1552,14 @@ void WeatherBackend::resolveOtherStations() {
 }
 
 void WeatherBackend::fetchOtherObservations() {
+    // As in resolveOtherStations(): not for a list since changed.
+    const quint64 generation = m_extraLocationGeneration;
     for (auto it = m_otherStations.cbegin(); it != m_otherStations.cend(); ++it) {
         const int i = it.key();
         fetchObservationChain(it.value(), 0,
-                              [this, i](const QVariantMap &obs, const QDateTime &stamp,
-                                        const QString &) {
+                              [this, i, generation](const QVariantMap &obs, const QDateTime &stamp,
+                                                    const QString &) {
+            if (generation != m_extraLocationGeneration) return;
             if (obs.isEmpty()) return;
             m_otherObs.insert(i, obs);
             m_otherObsTime.insert(i, stamp);

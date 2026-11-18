@@ -186,6 +186,118 @@ private slots:
                  QStringList({ "http://music.example/a%20b.mp3", tmp.path() + "/typed.ogg" }));
     }
 
+    // Weather's observed weather is its place's: as Location changes, the
+    // stations found near the place before and what they last observed go,
+    // the refresh asks them nothing more, an answer for the place before
+    // that comes after is dropped, and the new place's own stations are
+    // looked up. An Other Place's stations and observation likewise land on
+    // no row once the list has changed since they were asked for.
+    void weatherObservationsFollowTheLocation() {
+        QTemporaryDir tmp;
+        const auto config = [&tmp](const QByteArray &location) {
+            QFile file(tmp.path() + "/config.json");
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"" + location + "\"}}}");
+        };
+        WeatherBackend backend(tmp.path(), tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        // The newest request whose address has `part` in it.
+        const auto request = [network](const QString &part) -> Reply * {
+            for (qsizetype i = network->replies.size() - 1; i >= 0; --i) {
+                if (network->replies.at(i)->url().toString().contains(part))
+                    return network->replies.at(i);
+            }
+            return nullptr;
+        };
+        const auto asked = [network](const QString &part) {
+            int times = 0;
+            for (const Reply *reply : network->replies)
+                times += reply->url().toString().contains(part);
+            return times;
+        };
+        // The answers as Open-Meteo and the NWS give them, cut down.
+        const auto json = [](const QJsonObject &object) { return QJsonDocument(object).toJson(); };
+        const auto forecast = [&json](int celsius) {
+            return json({ { "utc_offset_seconds", 0 },
+                          { "current", QJsonObject{ { "temperature_2m", celsius }, { "weather_code", 0 },
+                                                    { "is_day", 1 } } },
+                          { "daily", QJsonObject() } });
+        };
+        const auto points = [&json](const QString &office) {
+            return json({ { "properties", QJsonObject{ { "observationStations",
+                "https://api.weather.gov/gridpoints/" + office + "/1,1/stations" } } } });
+        };
+        const auto stations = [&json](const QString &id, double lon, double lat) {
+            const QJsonObject station{ { "geometry", QJsonObject{ { "coordinates", QJsonArray{ lon, lat } } } },
+                                       { "properties", QJsonObject{ { "stationIdentifier", id } } } };
+            return json({ { "features", QJsonArray{ station } } });
+        };
+        const auto observation = [&json](int celsius) {
+            return json({ { "properties", QJsonObject{
+                { "timestamp", QDateTime::currentDateTimeUtc().toString(Qt::ISODate) },
+                { "temperature", QJsonObject{ { "value", celsius } } } } } });
+        };
+        const auto temperature = [&backend]() { return backend.current().value("temperature").toString(); };
+
+        // Chicago, its station's observation over the model's.
+        config("41.88, -87.63, Chicago");
+        backend.resolveLocation();
+        QVERIFY(request("/points/41.8800,-87.6300"));
+        request("/points/41.8800,-87.6300")->complete(points("LOT"));
+        QVERIFY(request("gridpoints/LOT"));
+        request("gridpoints/LOT")->complete(stations("KMDW", -87.75, 41.79));
+        QVERIFY(request("stations/KMDW/observations"));
+        request("stations/KMDW/observations")->complete(observation(30));
+        request("api.open-meteo.com")->complete(forecast(10));
+        QCOMPARE(temperature(), QString("30°"));
+
+        // A refresh's observation for Chicago still on its way as the place
+        // changes to Denver: dropped as it comes.
+        backend.fetchObservation();
+        Reply *late = request("stations/KMDW/observations");
+        config("39.74, -104.99, Denver");
+        backend.onSettingChanged("com.osdos.weather", "location", "39.74, -104.99, Denver");
+        late->complete(observation(30));
+        QVERIFY(backend.m_obs.isEmpty());
+        request("api.open-meteo.com")->complete(forecast(5));
+        QCOMPARE(temperature(), QString("5°"));
+        // The refresh asks Chicago's station nothing more.
+        const int kmdw = asked("stations/KMDW");
+        backend.fetchObservation();
+        QCOMPARE(asked("stations/KMDW"), kmdw);
+        // Denver's own station, and its observation.
+        QVERIFY(request("/points/39.7400,-104.9900"));
+        request("/points/39.7400,-104.9900")->complete(points("BOU"));
+        QVERIFY(request("gridpoints/BOU"));
+        request("gridpoints/BOU")->complete(stations("KBKF", -104.75, 39.70));
+        QVERIFY(request("stations/KBKF/observations"));
+        request("stations/KBKF/observations")->complete(observation(20));
+        QCOMPARE(backend.m_stations, QStringList({ "KBKF" }));
+        QCOMPARE(temperature(), QString("20°"));
+
+        // Other Places: Chicago's station and observation, then a refresh's
+        // on its way as the list changes to London alone.
+        backend.resolveOthers({ "41.88, -87.63, Chicago" });
+        request("/points/41.8800,-87.6300")->complete(points("LOT"));
+        request("gridpoints/LOT")->complete(stations("KMDW", -87.75, 41.79));
+        request("stations/KMDW/observations")->complete(observation(30));
+        QCOMPARE(backend.m_otherObs.size(), 1);
+        backend.fetchOtherObservations();
+        late = request("stations/KMDW/observations");
+        backend.resolveOthers({ "51.50, -0.12, London" });
+        late->complete(observation(30));
+        QVERIFY(backend.m_otherObs.isEmpty());
+        // And Chicago's station looked up, the list changed before it came.
+        backend.resolveOthers({ "41.88, -87.63, Chicago" });
+        Reply *lookup = request("/points/41.8800,-87.6300");
+        backend.resolveOthers({ "51.50, -0.12, London" });
+        lookup->complete(points("LOT"));
+        request("gridpoints/LOT")->complete(stations("KMDW", -87.75, 41.79));
+        QVERIFY(backend.m_otherStations.isEmpty());
+        QVERIFY(backend.m_otherObs.isEmpty());
+    }
+
     void markerFailureDoesNotArmUpdate() {
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());
