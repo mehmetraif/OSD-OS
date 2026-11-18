@@ -301,7 +301,7 @@ void JellyfinBackend::check_auth() {
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH CHECK FAILED: " + reply->errorString());
+            emit errorOccurred("AUTH CHECK FAILED: " + serverlog::why(reply));
             return;
         }
         notifyAuthState();
@@ -370,7 +370,7 @@ void JellyfinBackend::quick_connect_initiate(const QString &serverUrl) {
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            emit quickConnectFailed("CONNECTION FAILED: " + reply->errorString());
+            emit quickConnectFailed("CONNECTION FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -417,7 +417,7 @@ void JellyfinBackend::quick_connect_poll(const QString &secret) {
         // timeout) is not the code's end: the next poll asks again, as Plex's
         // PIN does. A status from the server is its answer.
         if (reply->error() != QNetworkReply::NoError && status == 0) {
-            qWarning("[JellyfinBackend] Quick Connect poll didn't get through: %s", qPrintable(reply->errorString()));
+            qWarning("[JellyfinBackend] Quick Connect poll didn't get through: %s", qPrintable(serverlog::why(reply)));
             return;
         }
         if (status >= 400) {
@@ -475,7 +475,7 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH FAILED: " + reply->errorString());
+            emit errorOccurred("AUTH FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -642,7 +642,7 @@ void JellyfinBackend::load_libraries() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD LIBRARIES FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD LIBRARIES FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -760,7 +760,7 @@ void JellyfinBackend::loadList(void (JellyfinBackend::*answer)(const QVariant &)
         if (request != m_listRequest)
             return;
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred(failure + reply->errorString());
+            emit errorOccurred(failure + serverlog::why(reply));
             return;
         }
         auto *watcher = new QFutureWatcher<QVariantList>(this);
@@ -802,7 +802,7 @@ void JellyfinBackend::load_item_detail(const QString &itemId) {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Jellyfin", "item " + itemId, reply);
-            emit errorOccurred("LOAD ITEM DETAIL FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD ITEM DETAIL FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -906,7 +906,7 @@ void JellyfinBackend::load_seasons(const QString &seriesId) {
         if (request != m_seasonsRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Jellyfin", "the seasons of show " + seriesId, reply);
-            emit errorOccurred("LOAD SEASONS FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD SEASONS FAILED: " + serverlog::why(reply));
             return;
         }
         const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
@@ -949,7 +949,7 @@ void JellyfinBackend::load_episodes(const QString &seriesId, const QString &seas
         if (request != m_episodesRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Jellyfin", "the episodes of season " + seasonId, reply);
-            emit errorOccurred("LOAD EPISODES FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD EPISODES FAILED: " + serverlog::why(reply));
             return;
         }
         const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
@@ -981,7 +981,7 @@ void JellyfinBackend::load_continue_watching() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1011,7 +1011,7 @@ void JellyfinBackend::load_up_next() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD UP NEXT FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD UP NEXT FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1049,7 +1049,7 @@ void JellyfinBackend::load_series_next_up(const QString &seriesId) {
         if (reply->error() != QNetworkReply::NoError) {
             // The show's PLAY then does nothing, with nothing said: the log does.
             serverlog::loadFailed("Jellyfin", "the next episode of show " + seriesId, reply);
-            emit errorOccurred("LOAD SERIES NEXT UP FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD SERIES NEXT UP FAILED: " + serverlog::why(reply));
             return;
         }
         QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
@@ -1198,7 +1198,7 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
         if (request != m_playbackRequest)
             return;
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("PLAYBACK INFO FAILED: " + reply->errorString());
+            emit errorOccurred("PLAYBACK INFO FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1422,7 +1422,7 @@ void JellyfinBackend::report_playback_start(const QString &itemId, const QString
             qDebug("[Jellyfin] Playback session started: %s", qPrintable(m_currentPlaySessionId));
         else
             qWarning("[Jellyfin] Failed to start playback session: %s",
-                     qPrintable(reply->errorString()));
+                     qPrintable(serverlog::why(reply)));
     });
 }
 
@@ -1445,7 +1445,7 @@ void JellyfinBackend::update_playback_progress(const QString &itemId, const QStr
     auto *reply = jellyfinPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError)
-            qWarning("[Jellyfin] progress update failed: %s", qPrintable(reply->errorString()));
+            qWarning("[Jellyfin] progress update failed: %s", qPrintable(serverlog::why(reply)));
         reply->deleteLater();
     });
 }
@@ -1472,7 +1472,7 @@ void JellyfinBackend::report_playback_stopped(const QString &itemId, const QStri
     const QString reportedSessionId = m_currentPlaySessionId;
     connect(reply, &QNetworkReply::finished, this, [this, reply, reportedSessionId]() {
         if (reply->error() != QNetworkReply::NoError)
-            qWarning("[Jellyfin] report stopped failed: %s", qPrintable(reply->errorString()));
+            qWarning("[Jellyfin] report stopped failed: %s", qPrintable(serverlog::why(reply)));
         reply->deleteLater();
         if (m_currentPlaySessionId == reportedSessionId)
             m_currentPlaySessionId.clear();

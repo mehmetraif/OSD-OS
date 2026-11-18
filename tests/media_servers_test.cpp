@@ -29,7 +29,8 @@
 // found again at the address it has now, Emby Connect tries a server's
 // address from outside when its LAN address gives no sign-in, Settings'
 // Libraries are told why there are none when the server can't be reached,
-// Jellyfin's Quick Connect says a server's refusal by its status, and a
+// Jellyfin's Quick Connect says a server's refusal by its status, an error
+// says a refusal's status and never the address asked, and a
 // Server Address changed while signed in to Jellyfin or Emby signs out of
 // the server that issued the token, which goes to no other host.
 
@@ -44,6 +45,18 @@ public:
     void fail(int status) {
         setAttribute(QNetworkRequest::HttpStatusCodeAttribute, status);
         setError(status == 404 ? ContentNotFoundError : UnknownContentError, QStringLiteral("HTTP %1").arg(status));
+        setFinished(true);
+        emit errorOccurred(error());
+        emit finished();
+    }
+    // The server's refusal in Qt's own words for it, which have the address
+    // asked whole (the user's id in it), and the phrase the server sent.
+    void refuse(int status, const char *phrase) {
+        setAttribute(QNetworkRequest::HttpStatusCodeAttribute, status);
+        setAttribute(QNetworkRequest::HttpReasonPhraseAttribute, QByteArray(phrase));
+        setError(status == 404 ? ContentNotFoundError : UnknownContentError,
+                 QStringLiteral("Error transferring %1 - server replied: %2")
+                     .arg(url().toString(), QLatin1String(phrase)));
         setFinished(true);
         emit errorOccurred(error());
         emit finished();
@@ -370,6 +383,48 @@ class MediaServersTest : public QObject {
         QVERIFY(seasons.last().at(0).toList().isEmpty());
     }
 
+    // What the screen says of a request the server turned down (errorOccurred,
+    // which the views write to the log too) is the server's status, never
+    // Qt's words for it, which have the address asked whole, the user's id
+    // in it; where nothing answered, the network's own word.
+    static void errorsSayNoAddress(const QSignalSpy &errors) {
+        QVERIFY(!errors.isEmpty());
+        for (const QList<QVariant> &error : errors) {
+            const QString said = error.at(0).toString();
+            QVERIFY2(said.endsWith(QLatin1String(": HTTP 404 Not Found")), qPrintable(said));
+            QVERIFY2(!said.contains(QLatin1String("made-up-user")) && !said.contains(QLatin1String("://")),
+                     qPrintable(said));
+        }
+    }
+    template <typename Backend> void errorsShowNoAddress() {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        backend.m_serverUrl = QStringLiteral("http://nas.example:8096");
+        backend.m_userId = QStringLiteral("made-up-user");
+        QSignalSpy errors(&backend, &Backend::errorOccurred);
+        const QList<std::function<void()>> asks{
+            [&] { backend.check_auth(); },
+            [&] { backend.load_item_detail(QStringLiteral("film")); },
+            [&] { backend.load_seasons(QStringLiteral("show")); },
+            [&] { backend.load_episodes(QStringLiteral("show"), QStringLiteral("season")); },
+            [&] { backend.load_series_next_up(QStringLiteral("show")); },
+            [&] { backend.load_continue_watching(); },
+            [&] { backend.load_up_next(); },
+            [&] { backend.load_items(QStringLiteral("library"), QStringLiteral("Movie"), QStringLiteral("SortName")); },
+            [&] { backend.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1); },
+        };
+        for (const auto &ask : asks) {
+            ask();
+            network->last()->refuse(404, "Not Found");
+        }
+        QCOMPARE(errors.count(), asks.size());
+        errorsSayNoAddress(errors);
+        backend.load_seasons(QStringLiteral("show"));
+        network->last()->drop();
+        QCOMPARE(errors.last().at(0).toString(), QStringLiteral("LOAD SEASONS FAILED: Connection refused"));
+    }
+
     // A season opened and left before its episodes came, another opened:
     // the first's, answering last, are dropped, and so are a show's seasons
     // left the same way. A show's PLAY left for another show's: the first
@@ -450,6 +505,26 @@ class MediaServersTest : public QObject {
     }
 
 private slots:
+    void jellyfinErrorsShowNoAddress() { errorsShowNoAddress<JellyfinBackend>(); }
+    void embyErrorsShowNoAddress() { errorsShowNoAddress<EmbyBackend>(); }
+    void plexErrorsShowNoAddress() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        backend.load_item_detail(QStringLiteral("10"));
+        network->last()->refuse(404, "Not Found");
+        backend.load_children(QStringLiteral("20"));
+        network->last()->refuse(404, "Not Found");
+        backend.load_continue_watching();
+        network->last()->refuse(404, "Not Found");
+        backend.request_transcode(QStringLiteral("10"), QStringLiteral("/library/parts/10"), QStringLiteral("session"),
+                                  QString(), QStringLiteral("0"), 0);
+        network->last()->refuse(404, "Not Found");
+        QCOMPARE(errors.count(), 4);
+        errorsSayNoAddress(errors);
+    }
     void jellyfinShowOrSeasonLeftIsDropped() { showOrSeasonLeftIsDropped<JellyfinBackend>(); }
     void embyShowOrSeasonLeftIsDropped() { showOrSeasonLeftIsDropped<EmbyBackend>(); }
     void jellyfinServerAddressChangedSignsOut() {

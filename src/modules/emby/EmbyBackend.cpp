@@ -311,7 +311,7 @@ void EmbyBackend::check_auth() {
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH CHECK FAILED: " + reply->errorString());
+            emit errorOccurred("AUTH CHECK FAILED: " + serverlog::why(reply));
             return;
         }
         notifyAuthState();
@@ -344,7 +344,7 @@ void EmbyBackend::logout() {
         connect(devReply, &QNetworkReply::finished, this, [this, devReply, logoutReq, serverHost]() {
             devReply->deleteLater();
             if (devReply->error() != QNetworkReply::NoError)
-                qWarning("[Emby] device deauth failed: %s", qPrintable(devReply->errorString()));
+                qWarning("[Emby] device deauth failed: %s", qPrintable(serverlog::why(devReply)));
             auto *reply = m_nam->post(logoutReq, QByteArray());
             ignoreSslErrors(reply, serverHost);
             connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
@@ -403,7 +403,7 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
             else if (status > 0)
                 emit errorOccurred("SIGN IN FAILED (HTTP " + QString::number(status) + ")");
             else
-                emit errorOccurred("CONNECTION FAILED: " + reply->errorString());
+                emit errorOccurred("CONNECTION FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -492,7 +492,7 @@ void EmbyBackend::connect_authenticate(const QString &usernameOrEmail, const QSt
             else if (status > 0)
                 emit connectFailed("EMBY CONNECT SIGN IN FAILED (HTTP " + QString::number(status) + ")");
             else
-                emit connectFailed("CONNECTION FAILED: " + reply->errorString());
+                emit connectFailed("CONNECTION FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -528,7 +528,7 @@ void EmbyBackend::fetchConnectServers() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit connectFailed("FAILED TO LOAD SERVERS: " + reply->errorString());
+            emit connectFailed("FAILED TO LOAD SERVERS: " + serverlog::why(reply));
             return;
         }
 
@@ -794,7 +794,7 @@ void EmbyBackend::load_libraries() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD LIBRARIES FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD LIBRARIES FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -843,7 +843,9 @@ void EmbyBackend::load_libraries() {
 }
 
 void EmbyBackend::probeHasItems(const QUrl &url, std::function<void(bool)> cb) {
-    const QString probePath = url.path();
+    // Which shelf, for the log: the path's last two parts (Items/Resume,
+    // Shows/NextUp), never the user's id before them.
+    const QString probePath = url.path().section(QLatin1Char('/'), -2);
     auto *reply = embyGet(url);
     connect(reply, &QNetworkReply::finished, this, [reply, cb, probePath]() {
         reply->deleteLater();
@@ -855,7 +857,7 @@ void EmbyBackend::probeHasItems(const QUrl &url, std::function<void(bool)> cb) {
             // otherwise a broken request is indistinguishable from "nothing to
             // resume" and stays invisible (as the missing mediaTypes=Video did).
             qWarning("[Emby] shelf probe failed (%s): %s",
-                     qPrintable(probePath), qPrintable(reply->errorString()));
+                     qPrintable(probePath), qPrintable(serverlog::why(reply)));
         }
         cb(has);
     });
@@ -924,7 +926,7 @@ void EmbyBackend::loadList(void (EmbyBackend::*answer)(const QVariant &), const 
         if (request != m_listRequest)
             return;
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred(failure + reply->errorString());
+            emit errorOccurred(failure + serverlog::why(reply));
             return;
         }
         auto *watcher = new QFutureWatcher<QVariantList>(this);
@@ -966,7 +968,7 @@ void EmbyBackend::load_item_detail(const QString &itemId) {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Emby", "item " + itemId, reply);
-            emit errorOccurred("LOAD ITEM DETAIL FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD ITEM DETAIL FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1071,7 +1073,7 @@ void EmbyBackend::load_seasons(const QString &seriesId) {
         if (request != m_seasonsRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Emby", "the seasons of show " + seriesId, reply);
-            emit errorOccurred("LOAD SEASONS FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD SEASONS FAILED: " + serverlog::why(reply));
             return;
         }
         const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
@@ -1116,7 +1118,7 @@ void EmbyBackend::load_episodes(const QString &seriesId, const QString &seasonId
         if (request != m_episodesRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Emby", "the episodes of season " + seasonId, reply);
-            emit errorOccurred("LOAD EPISODES FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD EPISODES FAILED: " + serverlog::why(reply));
             return;
         }
         const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
@@ -1149,7 +1151,7 @@ void EmbyBackend::load_continue_watching() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1179,7 +1181,7 @@ void EmbyBackend::load_up_next() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD UP NEXT FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD UP NEXT FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1217,7 +1219,7 @@ void EmbyBackend::load_series_next_up(const QString &seriesId) {
         if (reply->error() != QNetworkReply::NoError) {
             // The show's PLAY then does nothing, with nothing said: the log does.
             serverlog::loadFailed("Emby", "the next episode of show " + seriesId, reply);
-            emit errorOccurred("LOAD SERIES NEXT UP FAILED: " + reply->errorString());
+            emit errorOccurred("LOAD SERIES NEXT UP FAILED: " + serverlog::why(reply));
             return;
         }
         QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
@@ -1401,7 +1403,7 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
         if (request != m_playbackRequest)
             return;
         if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("PLAYBACK INFO FAILED: " + reply->errorString());
+            emit errorOccurred("PLAYBACK INFO FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -1691,7 +1693,7 @@ void EmbyBackend::report_playback_start(const QString &itemId, const QString &me
             qDebug("[Emby] Playback session started: %s", qPrintable(m_currentPlaySessionId));
         else
             qWarning("[Emby] Failed to start playback session: %s",
-                     qPrintable(reply->errorString()));
+                     qPrintable(serverlog::why(reply)));
     });
 }
 
@@ -1714,7 +1716,7 @@ void EmbyBackend::update_playback_progress(const QString &itemId, const QString 
     auto *reply = embyPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError)
-            qWarning("[Emby] progress update failed: %s", qPrintable(reply->errorString()));
+            qWarning("[Emby] progress update failed: %s", qPrintable(serverlog::why(reply)));
         reply->deleteLater();
     });
 }
@@ -1741,7 +1743,7 @@ void EmbyBackend::report_playback_stopped(const QString &itemId, const QString &
     const QString reportedSessionId = m_currentPlaySessionId;
     connect(reply, &QNetworkReply::finished, this, [this, reply, reportedSessionId]() {
         if (reply->error() != QNetworkReply::NoError)
-            qWarning("[Emby] report stopped failed: %s", qPrintable(reply->errorString()));
+            qWarning("[Emby] report stopped failed: %s", qPrintable(serverlog::why(reply)));
         reply->deleteLater();
         if (m_currentPlaySessionId == reportedSessionId)
             m_currentPlaySessionId.clear();
