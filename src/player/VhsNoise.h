@@ -56,6 +56,7 @@ protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
+    friend class ArtPixelsTest;
     void nextFrame();
     void updateRunning();
     quint32 random();

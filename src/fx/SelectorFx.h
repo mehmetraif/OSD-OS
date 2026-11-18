@@ -67,6 +67,7 @@ protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
+    friend class ArtPixelsTest;
     enum class Kind { None, Sparkles, Welding, Lightning, Rainbow, Snow };
     struct Spark {
         float x, y, vx, vy;     // art pixels, art pixels a second

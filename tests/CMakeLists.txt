@@ -83,6 +83,23 @@ target_compile_definitions(looks_test PRIVATE OSDOS_SOURCE_DIR="${CMAKE_CURRENT_
 target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 
+# The items that draw in art pixels (VhsNoise, SelectorFx): what they draw
+# from a given seed, frame by frame, and on the screen, scaled up without
+# smoothing; when they run; their properties as QML sets them. Its floats
+# as IEEE has them, a*b+c never fused into one step where the processor can
+# (arm64), so that the sparks' frames are the same on every machine.
+add_executable(art_pixels_test
+    art_pixels_test.cpp
+    ../src/player/VhsNoise.cpp
+    ../src/fx/SelectorFx.cpp)
+target_include_directories(art_pixels_test PRIVATE ../src)
+if(NOT MSVC)
+    target_compile_options(art_pixels_test PRIVATE -ffp-contract=off)
+endif()
+target_link_libraries(art_pixels_test PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+add_test(NAME art_pixels COMMAND art_pixels_test)
+set_tests_properties(art_pixels PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+
 # The Jellyfin, Emby and Plex backends against a stand-in network: a list
 # asked for after another drops the first's reply, lists kept until a playback
 # ends, a stream given up dropped unreported, an auth check that changes
