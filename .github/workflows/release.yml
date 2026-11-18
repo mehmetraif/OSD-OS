@@ -693,20 +693,3 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: gh release edit "$TAG" --draft=false
 
-      # Every file shows under Assets by its own name, the one the notes'
-      # Downloads table gives it: nothing labels the files. Releases v0.0.20
-      # to v0.0.23 labelled theirs with the system and what each file is,
-      # which the release page showed in place of the name; those labels are
-      # set back to the names here, at the first release that runs this, and
-      # the step finds nothing to do after that. It changes only how the page
-      # shows the files, never their names, so it never holds a release back.
-      - name: Every release's files under their own names
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[].assets[] | select((.label // "") != "" and .label != .name) | "\(.id) \(.name)"' |
-          while read -r id name; do
-            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" -f label="$name" --jq '.name'
-          done
