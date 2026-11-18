@@ -1333,10 +1333,17 @@ bool AppCore::listsToChange(QJsonObject *lists) const {
     return !broken;
 }
 
-void AppCore::saveLists(const QJsonObject &lists) const {
+// False, with a line in the log, when the file couldn't be written (a full
+// card): the lists are then as the file has them, as a setting is after a
+// save_setting() that failed.
+bool AppCore::saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name) const {
     m_listsCacheValid = false;
-    writeFileAtomically(m_dataRoot + QStringLiteral("/lists.json"),
-                        QJsonDocument(lists).toJson(QJsonDocument::Compact));
+    if (!writeFileAtomically(m_dataRoot + QStringLiteral("/lists.json"),
+                             QJsonDocument(lists).toJson(QJsonDocument::Compact))) {
+        qWarning("[AppCore] List not saved: %s.%s", qPrintable(moduleId), qPrintable(name));
+        return false;
+    }
+    return true;
 }
 
 QVariantList AppCore::get_list(const QString &moduleId, const QString &name) const {
@@ -1357,12 +1364,12 @@ static QJsonArray withFirst(const QJsonArray &list, const QVariantMap &entry, in
     return kept;
 }
 
-void AppCore::add_to_list(const QString &moduleId, const QString &name,
+bool AppCore::add_to_list(const QString &moduleId, const QString &name,
                           const QVariantMap &entry, int limit) {
-    add_all_to_list(moduleId, name, QVariantList{ entry }, limit);
+    return add_all_to_list(moduleId, name, QVariantList{ entry }, limit);
 }
 
-void AppCore::add_all_to_list(const QString &moduleId, const QString &name,
+bool AppCore::add_all_to_list(const QString &moduleId, const QString &name,
                               const QVariantList &entries, int limit) {
     QJsonObject lists;
     QJsonObject module;
@@ -1376,7 +1383,7 @@ void AppCore::add_all_to_list(const QString &moduleId, const QString &name,
         // read or written.
         if (!read) {
             if (!listsToChange(&lists))
-                return;
+                return false;
             module = lists.value(moduleId).toObject();
             list = module.value(name).toArray();
             read = true;
@@ -1384,16 +1391,16 @@ void AppCore::add_all_to_list(const QString &moduleId, const QString &name,
         list = withFirst(list, entry, limit);
     }
     if (!read)
-        return;
+        return true;
     module.insert(name, list);
     lists.insert(moduleId, module);
-    saveLists(lists);
+    return saveLists(lists, moduleId, name);
 }
 
-void AppCore::remove_from_list(const QString &moduleId, const QString &name, const QString &path) {
+bool AppCore::remove_from_list(const QString &moduleId, const QString &name, const QString &path) {
     QJsonObject lists;
     if (!listsToChange(&lists))
-        return;
+        return false;
     QJsonObject module = lists.value(moduleId).toObject();
     QJsonArray kept;
     for (const QJsonValue &v : module.value(name).toArray()) {
@@ -1402,7 +1409,7 @@ void AppCore::remove_from_list(const QString &moduleId, const QString &name, con
     }
     module.insert(name, kept);
     lists.insert(moduleId, module);
-    saveLists(lists);
+    return saveLists(lists, moduleId, name);
 }
 
 bool AppCore::list_contains(const QString &moduleId, const QString &name, const QString &path) const {

@@ -90,6 +90,7 @@ ctest --test-dir build-tests --output-on-failure
   - Settings and resume points survive a restart.
   - A save that can't be made (the data folder read-only) leaves the old file as it was. Run as root, that test skips itself: root writes to a read-only folder anyway.
   - A setting `config.json` can't take (a full card: a file size limit, which holds for root too) is neither reported saved nor signalled, and `get_setting()` still says the one before.
+  - A change to a list `lists.json` can't take (a full card), or one there but unreadable, is reported not saved (`add_to_list`, `add_all_to_list`, `remove_from_list` false), and the list stays as the file has it.
   - State files keep their permissions, and a token is owner-only from its first write.
   - A setting changed in steps (a slider's, `save_setting_soon`): each step told and `get_setting()`'s at once, an app's and a module's, `config.json` as it was until the steps rest, then written with the last value of each and told no more. What is held is written without the wait at `flush_settings()`, with the next setting saved, as the `AppCore` goes and as the app quits (`aboutToQuit`); a file another hand wrote meanwhile keeps what that hand wrote. Steps a full card can't take leave the file as it was and the settings as it has them, each told again with its saved value, and `settingsNotSaved` signalled; a `config.json` that can't be read refuses a step, told to no one.
 - **looks** (`looks_test.cpp`): themes and skins (Settings → Look → Theme and Skin), read from the app's folder and the data folder's.

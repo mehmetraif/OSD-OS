@@ -351,6 +351,45 @@ private slots:
 #endif
     }
 
+    // A change to a list lists.json couldn't take (a full card), or one there
+    // but unreadable, is reported not saved, as a setting is, and the list
+    // stays as the file has it.
+    void unsavedListIsReported() {
+#ifndef Q_OS_UNIX
+        QSKIP("Requires a Unix file size limit");
+#else
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        const QString id = "com.osdos.local_files";
+        QVERIFY(core.add_to_list(id, "favorites", {{"path", "/a.mp4"}}));
+        QVERIFY(core.remove_from_list(id, "recent", "/none.mp4"));
+        // Nothing to add: nothing to save, so nothing failed.
+        QVERIFY(core.add_all_to_list(id, "favorites", {}));
+
+        std::signal(SIGXFSZ, SIG_IGN);
+        rlimit limit{};
+        QCOMPARE(getrlimit(RLIMIT_FSIZE, &limit), 0);
+        const rlimit full{ 1, limit.rlim_max };
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &full), 0);
+        const bool added = core.add_to_list(id, "favorites", {{"path", "/b.mp4"}});
+        const bool addedAll = core.add_all_to_list(id, "favorites", QVariantList{ QVariantMap{{"path", "/c.mp4"}} });
+        const bool removed = core.remove_from_list(id, "favorites", "/a.mp4");
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &limit), 0);
+        QVERIFY(!added);
+        QVERIFY(!addedAll);
+        QVERIFY(!removed);
+        QVERIFY(core.list_contains(id, "favorites", "/a.mp4"));
+        QVERIFY(!core.list_contains(id, "favorites", "/b.mp4"));
+        QVERIFY(!core.list_contains(id, "favorites", "/c.mp4"));
+
+        // There but unreadable: not written over, and said so.
+        QVERIFY(writeFileAtomically(tmp.path() + "/lists.json", "{\"com.osdos.local_files\": {"));
+        QVERIFY(!core.add_to_list(id, "favorites", {{"path", "/b.mp4"}}));
+        QVERIFY(!core.remove_from_list(id, "favorites", "/a.mp4"));
+#endif
+    }
+
     // A setting changed in steps (a slider's, save_setting_soon()): each step
     // is told and is get_setting()'s at once, an app's and a module's, while
     // config.json stays as it was; once the steps rest it is written, with

@@ -195,15 +195,18 @@ public:
     // <dataRoot>/lists.json. An entry is known by its path.
     Q_INVOKABLE QVariantList get_list(const QString &moduleId, const QString &name) const;
     // Puts the entry first, in place of an earlier one with its path, and
-    // keeps the newest `limit`.
-    Q_INVOKABLE void add_to_list(const QString &moduleId, const QString &name,
+    // keeps the newest `limit`. False, and the list as the file has it,
+    // where lists.json couldn't be written (a full card) or is there but
+    // can't be read.
+    Q_INVOKABLE bool add_to_list(const QString &moduleId, const QString &name,
                                  const QVariantMap &entry, int limit = 50);
     // Several entries at once, each put first in turn as add_to_list() puts
     // one, with one read of the file and one write (an import of a hundred
-    // favourites wrote the file a hundred times).
-    void add_all_to_list(const QString &moduleId, const QString &name,
+    // favourites wrote the file a hundred times). False as add_to_list().
+    bool add_all_to_list(const QString &moduleId, const QString &name,
                          const QVariantList &entries, int limit = 100);
-    Q_INVOKABLE void remove_from_list(const QString &moduleId, const QString &name,
+    // False as add_to_list().
+    Q_INVOKABLE bool remove_from_list(const QString &moduleId, const QString &name,
                                       const QString &path);
     Q_INVOKABLE bool list_contains(const QString &moduleId, const QString &name,
                                    const QString &path) const;
@@ -272,7 +275,7 @@ private:
     bool writeHeld(bool tell);
     QJsonObject loadLists(bool *broken = nullptr) const;
     bool listsToChange(QJsonObject *lists) const;
-    void saveLists(const QJsonObject &lists) const;
+    bool saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name) const;
     // The module with this id, or null.
     const ModuleEntry *findModule(const QString &moduleId) const;
     // APP_ROOT-relative QML entry point of a module ("modules/plex/views/Root.qml").
