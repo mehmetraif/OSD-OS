@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,6 +16,7 @@
 #include <QStorageInfo>
 #include <QSysInfo>
 #include <QTimer>
+#include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 #include <cstdio>
 
@@ -347,7 +349,8 @@ void UpdateManager::reconcileStagingDir() {
 }
 
 void UpdateManager::checkForUpdates() {
-    if (m_state == QStringLiteral("checking") || m_state == QStringLiteral("downloading"))
+    if (m_state == QStringLiteral("checking") || m_state == QStringLiteral("downloading")
+        || m_state == QStringLiteral("applying"))
         return;
     setState(QStringLiteral("checking"));
 
@@ -728,6 +731,34 @@ QString UpdateManager::replaceAppImage(const QString &staged, const QString &tar
     return QString();
 }
 
+// A helper script written anew to the updates folder, able to run, and started
+// apart from the app (it outlives it), with args. The app quits only once it
+// has started: without it, nothing would follow the quit.
+bool UpdateManager::launchHelper(const QString &name, const char *script, const QStringList &args,
+                                 const QString &failure) {
+    const QString scriptPath = updatesDir() + QStringLiteral("/") + name;
+    const bool written = writeFileAnew(scriptPath, QByteArray(script),
+                                       QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
+                                           | QFile::ReadGroup | QFile::ExeGroup);
+    if (!written || !QProcess::startDetached(QStringLiteral("/bin/bash"), QStringList{ scriptPath } + args)) {
+        if (written)
+            qWarning("[UpdateManager] Could not start %s", qPrintable(scriptPath));
+        setState(QStringLiteral("error"), failure);
+        return false;
+    }
+    return true;
+}
+
+namespace {
+
+// What putting a staged AppImage in place came to, off the app's thread.
+struct AppImageApplied {
+    bool verified = false;   // the staged image still had the hash it was downloaded with
+    QString failed;          // replaceAppImage()'s answer: "" when it is in place
+};
+
+} // namespace
+
 // In-place AppImage self-update. The staged image was SHA-256-verified at
 // download, and is checked against that hash again here: what is on the card
 // since is what gets swapped in. Swapping it over the running $APPIMAGE is safe
@@ -736,7 +767,10 @@ QString UpdateManager::replaceAppImage(const QString &staged, const QString &tar
 // helper) so a failure — permissions, disk full — can be reported to the UI
 // without quitting, the image in use and the staged one both as they were
 // (replaceAppImage()). A .bak is kept for cheap local recovery (swept on the
-// next successful start; see settleAppImage()).
+// next successful start; see settleAppImage()). Hashing the whole image and
+// copying it, synced to the disk, takes seconds: both run on a worker (state
+// applying), so the menus aren't held, and the rest on the app's thread once
+// they are done.
 void UpdateManager::applyAppImage() {
     const QJsonObject staged = readStaged();
     if (staged.isEmpty()) {
@@ -751,7 +785,7 @@ void UpdateManager::applyAppImage() {
         return;
     }
     const QString sha256 = staged.value(QStringLiteral("sha256")).toString();
-    if (sha256.isEmpty() || sha256Of(stagedPath) != sha256) {
+    if (sha256.isEmpty()) {
         clearStagingFiles();
         setState(QStringLiteral("error"), QStringLiteral("Staged update is invalid — please download again."));
         return;
@@ -763,21 +797,32 @@ void UpdateManager::applyAppImage() {
         return;
     }
 
-    const QString failed = replaceAppImage(stagedPath, target);
-    if (!failed.isEmpty()) {
-        setState(QStringLiteral("error"), failed);
-        return;
-    }
+    setState(QStringLiteral("applying"));
+    auto *watcher = new QFutureWatcher<AppImageApplied>(this);
+    connect(watcher, &QFutureWatcher<AppImageApplied>::finished, this, [this, watcher, stagedPath, target]() {
+        watcher->deleteLater();
+        const AppImageApplied applied = watcher->result();
+        if (!applied.verified) {
+            clearStagingFiles();
+            setState(QStringLiteral("error"), QStringLiteral("Staged update is invalid — please download again."));
+            return;
+        }
+        if (!applied.failed.isEmpty()) {
+            setState(QStringLiteral("error"), applied.failed);
+            return;
+        }
 
-    // Committed — drop the staged image and its markers so it is not re-applied
-    // on next launch.
-    QFile::remove(stagedPath);
-    QFile::remove(stagedJsonPath());
-    QFile::remove(stagedSha256Path());
+        // Committed — drop the staged image and its markers so it is not
+        // re-applied on next launch.
+        QFile::remove(stagedPath);
+        QFile::remove(stagedJsonPath());
+        QFile::remove(stagedSha256Path());
 
-    // Desktop Mode: relaunch ourselves once we have exited. Gaming Mode: just quit
-    // (Steam relaunches; the file path is unchanged so its shortcut still works).
-    if (!isGamingMode()) {
+        // Desktop Mode: relaunch ourselves once we have exited. Gaming Mode:
+        // just quit (Steam relaunches; the file path is unchanged so its
+        // shortcut still works). The new image is in place either way, so a
+        // helper that can't be had leaves the app open, saying to start it
+        // again by hand.
         static const char kHelper[] = R"HELPER(#!/bin/bash
 # apply-appimage.sh <pid> <appimage> — spawned detached by OSD/OS before it quits.
 exec >>"$(dirname "$0")/apply.log" 2>&1
@@ -786,21 +831,22 @@ PID="$1"; APP="$2"
 for i in $(seq 1 150); do kill -0 "$PID" 2>/dev/null || break; sleep 0.2; done
 exec "$APP"
 )HELPER";
-        const QString scriptPath = updatesDir() + QStringLiteral("/apply-appimage.sh");
-        QFile script(scriptPath);
-        if (script.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            script.write(kHelper);
-            script.close();
-            script.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
-                                  | QFile::ReadGroup | QFile::ExeGroup);
-            QProcess::startDetached(QStringLiteral("/bin/bash"),
-                                    {scriptPath,
-                                     QString::number(QCoreApplication::applicationPid()),
-                                     target});
-        }
-    }
-    // Give any detached helper a beat to start before the app exits.
-    QTimer::singleShot(200, qApp, &QCoreApplication::quit);
+        if (!isGamingMode()
+            && !launchHelper(QStringLiteral("apply-appimage.sh"), kHelper,
+                             { QString::number(QCoreApplication::applicationPid()), target },
+                             QStringLiteral("The update is installed, but OSD/OS could not restart itself — "
+                                            "quit and open it again.")))
+            return;
+        // Give any detached helper a beat to start before the app exits.
+        QTimer::singleShot(200, qApp, &QCoreApplication::quit);
+    });
+    watcher->setFuture(QtConcurrent::run([stagedPath, sha256, target]() {
+        AppImageApplied applied;
+        applied.verified = sha256Of(stagedPath) == sha256;
+        if (applied.verified)
+            applied.failed = replaceAppImage(stagedPath, target);
+        return applied;
+    }));
 }
 
 void UpdateManager::applyMacos() {
@@ -810,8 +856,13 @@ void UpdateManager::applyMacos() {
         // Manual fallback: hand the DMG to Finder and quit — the fullscreen
         // window otherwise sits over/behind Finder looking frozen. The user
         // drags the app into place and reopens it; the stage is cleaned up by
-        // startup reconciliation once the running version matches.
-        QProcess::startDetached(QStringLiteral("/usr/bin/open"), {dmgPath});
+        // startup reconciliation once the running version matches. Finder not
+        // told: the app stays open, saying where the disk image is.
+        if (!QProcess::startDetached(QStringLiteral("/usr/bin/open"), {dmgPath})) {
+            setState(QStringLiteral("error"),
+                     QStringLiteral("Could not open the disk image — it is in %1.").arg(updatesDir()));
+            return;
+        }
         QTimer::singleShot(200, qApp, &QCoreApplication::quit);
         return;
     }
@@ -848,21 +899,11 @@ else
 fi
 )HELPER";
 
-    const QString scriptPath = updatesDir() + QStringLiteral("/apply-macos.sh");
-    QFile script(scriptPath);
-    if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        setState(QStringLiteral("error"), QStringLiteral("Could not write the update helper."));
+    // Nothing is applied but by the helper: without it the app stays open.
+    if (!launchHelper(QStringLiteral("apply-macos.sh"), kHelper,
+                      { QString::number(QCoreApplication::applicationPid()), dmgPath, macBundlePath() },
+                      QStringLiteral("Could not start the update helper — nothing was changed.")))
         return;
-    }
-    script.write(kHelper);
-    script.close();
-    script.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner
-                          | QFile::ReadGroup | QFile::ExeGroup);
-
-    QProcess::startDetached(QStringLiteral("/bin/bash"),
-                            {scriptPath,
-                             QString::number(QCoreApplication::applicationPid()),
-                             dmgPath, macBundlePath()});
     // Give the detached helper a beat to start before the app exits.
     QTimer::singleShot(200, qApp, &QCoreApplication::quit);
 #endif

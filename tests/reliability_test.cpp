@@ -374,6 +374,98 @@ private slots:
         QVERIFY(manager.canApply());
 #endif
     }
+
+    // An AppImage's update applied (Apply & Restart): the staged image
+    // checked against its hash and put in place off the app's thread, the
+    // page on applying meanwhile. One changed since its download is dropped,
+    // the image in use as it was. Where the helper that starts the app again
+    // can't be written (the updates folder full or read-only), the app stays
+    // open on an error that says so, the new image in place, rather than
+    // quitting with nothing to start it again.
+    void appImageAppliedOffTheAppsThread() {
+#ifdef Q_OS_MAC
+        QSKIP("macOS updates through its disk image");
+#else
+        QTemporaryDir tmp;
+        const QString image = tmp.path() + "/OSD-OS.AppImage", data = tmp.path() + "/data";
+        const auto write = [](const QString &path, const QByteArray &bytes) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+        };
+        QVERIFY(write(image, "old"));
+        // Desktop Mode, where the app starts itself again.
+        const QByteArray appImage = qgetenv("APPIMAGE"), steam = qgetenv("SteamGamepadUI"),
+                         gamescope = qgetenv("GAMESCOPE_WAYLAND_DISPLAY");
+        const bool appImageSet = qEnvironmentVariableIsSet("APPIMAGE"), steamSet = qEnvironmentVariableIsSet("SteamGamepadUI"),
+                   gamescopeSet = qEnvironmentVariableIsSet("GAMESCOPE_WAYLAND_DISPLAY");
+        const auto restore = qScopeGuard([=] {
+            if (appImageSet) qputenv("APPIMAGE", appImage); else qunsetenv("APPIMAGE");
+            if (steamSet) qputenv("SteamGamepadUI", steam); else qunsetenv("SteamGamepadUI");
+            if (gamescopeSet) qputenv("GAMESCOPE_WAYLAND_DISPLAY", gamescope); else qunsetenv("GAMESCOPE_WAYLAND_DISPLAY");
+        });
+        qputenv("APPIMAGE", image.toUtf8());
+        qunsetenv("SteamGamepadUI");
+        qunsetenv("GAMESCOPE_WAYLAND_DISPLAY");
+        UpdateManager manager(tmp.path(), data);
+        QVERIFY(manager.canApply());
+        // Longer than one block of the copy.
+        const QByteArray newer(3 * 1024 * 1024 + 17, 'n');
+        const QString staged = data + "/updates/OSD-OS-linux-x86_64.AppImage";
+        const auto stage = [&](const QByteArray &hashed) {
+            manager.m_latestVersion = "v9.9.9";
+            manager.m_assetName = QFileInfo(staged).fileName();
+            QVERIFY(write(staged, newer));
+            QVERIFY(manager.writeStagedMarkers(QCryptographicHash::hash(hashed, QCryptographicHash::Sha256).toHex()));
+            manager.setState("readyToApply");
+        };
+
+        stage("something else");
+        manager.applyAndRestart();
+        QCOMPARE(manager.state(), QString("applying"));
+        QTRY_COMPARE(manager.state(), QString("error"));
+        QVERIFY2(manager.errorMessage().contains("invalid"), qPrintable(manager.errorMessage()));
+        QCOMPARE(contents(image), QByteArray("old"));
+        QVERIFY(!QFileInfo::exists(staged));
+        QVERIFY(!QFileInfo::exists(data + "/updates/staged.json"));
+
+        // The helper's name taken (a folder that isn't empty has it), which
+        // refuses it as a full or read-only folder would, root or not.
+        stage(newer);
+        QVERIFY(QDir().mkpath(data + "/updates/apply-appimage.sh/held"));
+        manager.applyAndRestart();
+        QCOMPARE(manager.state(), QString("applying"));
+        QTRY_COMPARE(manager.state(), QString("error"));
+        QVERIFY2(manager.errorMessage().contains("open it again"), qPrintable(manager.errorMessage()));
+        QCOMPARE(contents(image), newer);
+        QVERIFY(QFileInfo(image).isExecutable());
+        QVERIFY(!QFileInfo::exists(staged));
+        QVERIFY(!QFileInfo::exists(data + "/updates/staged.json"));
+#endif
+    }
+
+    // The helper an update starts as the app quits (launchHelper()): written
+    // whole to the updates folder, able to run, and started apart with its
+    // arguments; one that can't be written leaves the error state with what
+    // to tell the user, and starts nothing.
+    void updateHelperWrittenAndStarted() {
+        QTemporaryDir tmp;
+        UpdateManager manager(tmp.path(), tmp.path());
+        const QString ran = tmp.path() + "/ran";
+        const char script[] = "#!/bin/bash\necho \"$1 $2\" > \"$3\"\n";
+        QVERIFY(manager.launchHelper("helper.sh", script, { "one", "two", ran }, "Not started."));
+        QTRY_COMPARE(contents(ran), QByteArray("one two\n"));
+        QVERIFY(QFileInfo(tmp.path() + "/updates/helper.sh").isExecutable());
+        QCOMPARE(manager.state(), QString("idle"));
+
+        QVERIFY(QFile::remove(ran));
+        QVERIFY(QFile::remove(tmp.path() + "/updates/helper.sh"));
+        QVERIFY(QDir().mkpath(tmp.path() + "/updates/helper.sh/held"));
+        QVERIFY(!manager.launchHelper("helper.sh", script, { "one", "two", ran }, "Not started."));
+        QCOMPARE(manager.state(), QString("error"));
+        QCOMPARE(manager.errorMessage(), QString("Not started."));
+        QTest::qWait(200);
+        QVERIFY(!QFileInfo::exists(ran));
+    }
 #endif
 
     // The files made for a run and handed to mpv (util/RuntimeFiles.h) go in

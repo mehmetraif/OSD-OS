@@ -4,7 +4,7 @@ import Components
 // Software Update page — checks GitHub Releases via the UpdateManager backend
 // (context property "updateManager"), downloads the platform asset, and applies
 // it. All state lives in C++; this view renders updateManager.state:
-//   idle | checking | upToDate | updateAvailable | downloading | readyToApply | error
+//   idle | checking | upToDate | updateAvailable | downloading | readyToApply | applying | error
 FocusScope {
     id: updateRoot
     // In the layout's frame (Main.qml): its rows in the pane, beside the
@@ -48,6 +48,7 @@ FocusScope {
         case "updateAvailable": return "Update available"
         case "downloading":     return "Downloading... " + Math.round((updateManager ? updateManager.downloadProgress : 0) * 100) + "%"
         case "readyToApply":    return latestVersion + " ready to install"
+        case "applying":        return "Installing " + latestVersion + "..."
         case "error":           return errorMessage
         default:                return "Press " + root.hints.select + " to check for latest"
         }
