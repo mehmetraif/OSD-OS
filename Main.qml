@@ -726,11 +726,13 @@ Window {
         return luma(a) >= luma(b) ? a : b
     }
 
-    // A look setting saved, or read at start: kept in its property. False for
-    // a key that isn't one.
-    function applyLook(key, value) {
+    // An app setting saved (onAppSettingChanged), or read at start (atStart,
+    // for each of settingKeys): kept in its property, or acted on. A key
+    // that isn't one of the shell's does nothing.
+    function applySetting(key, value, atStart) {
         var text = value === undefined || value === null ? "" : String(value)
         switch (key) {
+        // The look (Settings → Look, and Sound's menu music).
         case "osd_theme":
             theme = appCore.theme(text)
             break
@@ -752,62 +754,63 @@ Window {
             var volume = parseInt(text)
             musicVolume = isNaN(volume) ? 60 : Math.max(0, Math.min(100, volume))
             break
-        default:
-            return false
+        // The screens, each as its property reads it.
+        case "osd_frame":              osdFrame = osdFrameOf(value); break
+        case "transparent_background": backdropSolidity = solidityOf(value); break
+        case "loading_effect":         loadingEffect = value !== "Off"; break
+        case "orb_fog":                orbFogLive = value === "Live"; break
+        case "boot_colors":            bootThemed = value !== "Default"; break
+        case "loading_colors":         loadingThemed = value !== "Default"; break
+        case "hint_bar":               hintBarSetting = value !== "Off"; break
+        case "help_line":              helpLineSetting = value !== "Off"; break
+        case "status_icons":           statusIconsSetting = value !== "Off"; break
+        case "osd_background":         osdBackground = osdBackgroundOf(value); break
+        case "monitor":                monitor = monitorOf(value); break
+        case "window_mode":            setWindowed(canWindow && value === "On"); break
+        // Read as the window is made (menuLayout's binding), so not one of
+        // settingKeys: only a change comes here.
+        case "menu_layout":            menuLayout = menuLayoutOf(value); break
+        case "cabinet_lock":
+            // At start the lock is only noted: the startup module opens as at
+            // any start (openStartupModule()), the lock in force from there.
+            if (atStart)
+                cabinetLockOn = value === "On"
+            else
+                setCabinetLock(value === "On")
+            break
+        case "mouse_pointer":
+            // "off", "always" or seconds; 5 when unset (MOUSE POINTER, below).
+            pointerSetting = String(value || "5")
+            if (pointerShown)
+                pointerTimer.restart()
+            break
+        case "screensaver_timeout":
+            // Seconds, or "OFF" (parseInt's NaN): the tracker starts disabled.
+            var seconds = parseInt(value)
+            if (seconds > 0) {
+                idleTracker.threshold = seconds
+                idleTracker.enabled = true
+            } else {
+                idleTracker.enabled = false
+                if (screenSaverActive)
+                    screenSaverActive = false
+            }
+            break
         }
-        return true
     }
-    readonly property var lookKeys: ["osd_theme", "color_scheme", "skin", "text_effect", "background_effect",
-                                     "selector_effect", "screen_effect", "transition", "menu_music",
-                                     "menu_music_file", "menu_music_volume"]
+    // The settings read at start, in this order (Component.onCompleted).
+    readonly property var settingKeys: ["osd_theme", "color_scheme", "skin", "text_effect", "background_effect",
+                                        "selector_effect", "screen_effect", "transition", "menu_music",
+                                        "menu_music_file", "menu_music_volume",
+                                        "osd_frame", "transparent_background", "mouse_pointer", "loading_effect",
+                                        "orb_fog", "cabinet_lock", "boot_colors", "loading_colors", "hint_bar",
+                                        "help_line", "status_icons", "osd_background", "monitor", "window_mode",
+                                        "screensaver_timeout"]
 
     Connections {
         target: appCore
         function onAppSettingChanged(key, value) {
-            if (root.applyLook(key, value)) {
-                return
-            } else if (key === "osd_frame") {
-                root.osdFrame = root.osdFrameOf(value)
-            } else if (key === "transparent_background") {
-                root.backdropSolidity = root.solidityOf(value)
-            } else if (key === "loading_effect") {
-                root.loadingEffect = value !== "Off"
-            } else if (key === "orb_fog") {
-                root.orbFogLive = value === "Live"
-            } else if (key === "cabinet_lock") {
-                root.setCabinetLock(value === "On")
-            } else if (key === "boot_colors") {
-                root.bootThemed = value !== "Default"
-            } else if (key === "loading_colors") {
-                root.loadingThemed = value !== "Default"
-            } else if (key === "hint_bar") {
-                root.hintBarSetting = value !== "Off"
-            } else if (key === "help_line") {
-                root.helpLineSetting = value !== "Off"
-            } else if (key === "status_icons") {
-                root.statusIconsSetting = value !== "Off"
-            } else if (key === "osd_background") {
-                root.osdBackground = root.osdBackgroundOf(value)
-            } else if (key === "menu_layout") {
-                root.menuLayout = root.menuLayoutOf(value)
-            } else if (key === "window_mode") {
-                root.setWindowed(root.canWindow && value === "On")
-            } else if (key === "monitor") {
-                root.monitor = root.monitorOf(value)
-            } else if (key === "mouse_pointer") {
-                root.pointerSetting = String(value)
-                if (root.pointerShown)
-                    pointerTimer.restart()
-            } else if (key === "screensaver_timeout") {
-                var sec = parseInt(value)
-                if (sec > 0) {
-                    idleTracker.threshold = sec
-                    idleTracker.enabled = true
-                } else {  // "OFF"
-                    idleTracker.enabled = false
-                    if (screenSaverActive) screenSaverActive = false
-                }
-            }
+            root.applySetting(key, value, false)
         }
     }
 
@@ -851,31 +854,8 @@ Window {
             appCore.save_setting("", "transition", cube)
             app.transition = cube
         }
-        for (var k = 0; k < root.lookKeys.length; ++k)
-            root.applyLook(root.lookKeys[k], app[root.lookKeys[k]])
-        root.osdFrame = root.osdFrameOf(cfg.app && cfg.app.osd_frame)
-        root.backdropSolidity = root.solidityOf(cfg.app && cfg.app.transparent_background)
-        root.pointerSetting = String((cfg.app && cfg.app.mouse_pointer) || "5")
-        root.loadingEffect = !(cfg.app && cfg.app.loading_effect === "Off")
-        root.orbFogLive = !!(cfg.app && cfg.app.orb_fog === "Live")
-        root.cabinetLockOn = !!(cfg.app && cfg.app.cabinet_lock === "On")
-        root.bootThemed = !(cfg.app && cfg.app.boot_colors === "Default")
-        root.loadingThemed = !(cfg.app && cfg.app.loading_colors === "Default")
-        root.hintBarSetting = !(cfg.app && cfg.app.hint_bar === "Off")
-        root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
-        root.statusIconsSetting = !(cfg.app && cfg.app.status_icons === "Off")
-        root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
-        root.monitor = root.monitorOf(cfg.app && cfg.app.monitor)
-        root.setWindowed(root.canWindow && !!(cfg.app && cfg.app.window_mode === "On"))
-
-        // Screensaver: the tracker starts disabled; this is the single place the
-        // saved setting is applied (live changes land in onAppSettingChanged above,
-        // mirroring color_scheme). parseInt("OFF") is NaN, so OFF stays disabled.
-        var ssSec = parseInt(cfg.app && cfg.app.screensaver_timeout)
-        if (ssSec > 0) {
-            idleTracker.threshold = ssSec
-            idleTracker.enabled = true
-        }
+        for (var k = 0; k < root.settingKeys.length; ++k)
+            root.applySetting(root.settingKeys[k], app[root.settingKeys[k]], true)
 
         // Break declarative bindings on macOS so the C++ NSWindow override
         // in forceWindowFullScreenOnScreen() isn't immediately re-fought by QML.
