@@ -844,6 +844,9 @@ FocusScope {
                     text: row.label
                     color: row.cursor ? cursorBox.ink : root.primaryColor
                     font.pixelSize: tree.fontSize
+                    // The cursor's row takes each name the cursor comes to:
+                    // each from its beginning, one as long as the last too.
+                    onTextChanged: Qt.callLater(updateScroll)
                 }
             }
         }

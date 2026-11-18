@@ -264,7 +264,9 @@ StandInRoot {
         function test_longNameScrollsAsFarAsItOverflows() {
             var first = "a film whose name runs past its end"
             var second = "a film whose name runs on past its end"
-            root.entries["/films"] = [root.file(first, "/films/1"), root.file(second, "/films/2")]
+            var third = "a film whose name runs on past its fin"
+            root.entries["/films"] = [root.file(first, "/films/1"), root.file(second, "/films/2"),
+                                      root.file(third, "/films/3")]
             browser.refresh("/films")
             browser.move(1)
             verify(browser.openFolder())
@@ -272,6 +274,13 @@ StandInRoot {
             scrollsAsFarAsItOverflows(first)
             browser.move(1)
             scrollsAsFarAsItOverflows(second)
+            // A name as long as the one before starts from its own beginning
+            // at once, not where that one's scroll had got to.
+            browser.move(1)
+            var row = cursorRow(browser)
+            compare(row.label, third)
+            tryCompare(textIn(row, third).textItem, "x", 0, 200)
+            scrollsAsFarAsItOverflows(third)
         }
         function test_referencePreview() {
             wait(250)
