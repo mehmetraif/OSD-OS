@@ -52,9 +52,13 @@ Item {
     // change one, or the keys in a layout's icons beside the rows.
     property bool held: false
     signal heldStep(int delta)
-    // The cursor moved by ▲ ▼ (step()), not by the host or the mouse: what
-    // a host said of the row it left (a notice) goes.
-    signal moved()
+    // The cursor moved by ▲ ▼ (step(), delta 1 down, -1 up), not by the host
+    // or the mouse: what a host said of the row it left (a notice) goes.
+    signal moved(int delta)
+    // ▲ ▼ beside the rows while some are hidden (ScrollMarks): off for a
+    // list drawn as a module's lists are, without them (LetterList's).
+    // Flat Panel's pages either way.
+    property bool marks: true
 
     // The rows the cursor stops on: every row but a heading, a note, a line
     // read alone and a gap (Hover.js's selectable(), which the mouse keeps
@@ -93,7 +97,7 @@ Item {
             currentIndex = i
             show(i)
         }
-        moved()
+        moved(delta)
     }
 
     // Scrolls so that the row is in view. Rows are whole lines, a slider's
@@ -145,6 +149,11 @@ Item {
     function itemAtIndex(i) {
         return view.itemAtIndex(i)
     }
+    // The row at index scrolled to as ListView's mode has it (a jump to a
+    // row: LetterList's letters), not as the cursor's moves are (show()).
+    function positionViewAtIndex(i, mode) {
+        view.positionViewAtIndex(i, mode)
+    }
 
     Keys.onUpPressed: held ? heldStep(-1) : step(-1)
     Keys.onDownPressed: held ? heldStep(1) : step(1)
@@ -178,5 +187,6 @@ Item {
     ScrollMarks {
         anchors.fill: parent
         list: view
+        visible: menu.marks
     }
 }

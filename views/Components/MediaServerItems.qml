@@ -1,7 +1,7 @@
 import QtQuick
 
 // Reusable list browser — handles movies, series, and episodes via navParams.
-// Follows the Plex Items.qml pattern: 28px rows, 24px font, marquee on select.
+// Its rows and A–Z panel are a LetterList, as Plex's Items.qml's are.
 // Jellyfin's and Emby's: a module's Items.qml is this with its backend (see
 // MediaServerLibraries).
 FocusScope {
@@ -32,128 +32,35 @@ FocusScope {
     // A–Z letter-jump panel — only for the alphabetized lists ("browse", a
     // folder's, a box set's); resume/up_next are not alpha-sorted.
     property bool showLetterNav: mode === "browse" || mode === "folder" || mode === "boxset"
-    property bool letterNavActive: false
-    property var letterIndex: []
 
-    // Sort key for an item: take the first A–Z char of the server's sort name
-    // (which the browse queries also sort by, and which already has articles
-    // stripped per the server's config), else group under "#". Falls back to
-    // stripping a leading article from the display title when no sort name came
-    // back — otherwise the letters would disagree with the list order.
-    function sortKey(item) {
-        var sortTitle = (item && item.titleSort) || ""
-        var t = (sortTitle || (item && item.title) || "").toLowerCase()
-        if (!sortTitle) {
-            var articles = ["the ", "a ", "an "]
-            for (var i = 0; i < articles.length; i++) {
-                if (t.indexOf(articles[i]) === 0) { t = t.substring(articles[i].length); break }
-            }
-        }
-        var ch = t.charAt(0).toUpperCase()
-        return (ch >= 'A' && ch <= 'Z') ? ch : '#'
-    }
-
-    // Highlights the letter matching the currently selected item.
-    function syncLetterToItem() {
-        var curLetter = sortKey(items[itemList.currentIndex])
-        for (var i = 0; i < letterIndex.length; i++) {
-            if (letterIndex[i].letter === curLetter) { letterList.currentIndex = i; break }
-        }
-        letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
-    }
-
-    // Build [{letter, firstIndex}] over the (already alpha-sorted) item list.
-    function buildLetterIndex(itemArr) {
-        var seen = {}
-        var result = []
-        for (var i = 0; i < itemArr.length; i++) {
-            var letter = sortKey(itemArr[i])
-            if (!seen[letter]) {
-                seen[letter] = true
-                result.push({ letter: letter, firstIndex: i })
-            }
-        }
-        result.sort(function(a, b) {
-            if (a.letter === '#') return -1
-            if (b.letter === '#') return 1
-            return a.letter < b.letter ? -1 : 1
-        })
-        return result
-    }
-
-    // The row the cursor was on as the list was left (navListState): the
-    // item it was on, wherever it is now, else the same place within the
-    // list. Continue Watching and Next Up reorder as an item is played, so
-    // the item is looked for first.
-    function restoreIndex(loadedItems) {
-        for (var i = 0; navListState.itemId !== undefined && i < loadedItems.length; i++) {
-            if (loadedItems[i].itemId === navListState.itemId)
-                return i
-        }
-        var at = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-        return Math.min(at, loadedItems.length - 1)
+    // A list come in: shown, the cursor back where it was as the list was
+    // left (LetterList's restore()). Continue Watching and Next Up reorder as
+    // an item is played, so the item is looked for first there; the other
+    // lists keep their order, and the cursor its row.
+    function show(loadedItems) {
+        isLoading = false
+        items = loadedItems
+        itemList.restore(mode === "resume" || mode === "up_next" ? navListState
+                         : { currentIndex: navListState.currentIndex })
     }
 
     Connections {
         target: backend
 
         function onItemsLoaded(loadedItems) {
-            if (itemListRoot.mode !== "browse") return
-            itemListRoot.isLoading = false
-            itemListRoot.items = loadedItems
-            if (itemListRoot.showLetterNav)
-                itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
-            if (loadedItems.length > 0) {
-                var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-            }
+            if (itemListRoot.mode === "browse") itemListRoot.show(loadedItems)
         }
-
         function onFolderChildrenLoaded(loadedItems) {
-            if (itemListRoot.mode !== "folder") return
-            itemListRoot.isLoading = false
-            itemListRoot.items = loadedItems
-            if (itemListRoot.showLetterNav)
-                itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
-            if (loadedItems.length > 0) {
-                var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-            }
+            if (itemListRoot.mode === "folder") itemListRoot.show(loadedItems)
         }
-
         function onBoxsetChildrenLoaded(loadedItems) {
-            if (itemListRoot.mode !== "boxset") return
-            itemListRoot.isLoading = false
-            itemListRoot.items = loadedItems
-            if (itemListRoot.showLetterNav)
-                itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
-            if (loadedItems.length > 0) {
-                var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-            }
+            if (itemListRoot.mode === "boxset") itemListRoot.show(loadedItems)
         }
-
         function onContinueWatchingLoaded(loadedItems) {
-            if (itemListRoot.mode !== "resume") return
-            itemListRoot.isLoading = false
-            itemListRoot.items = loadedItems
-            if (loadedItems.length > 0) {
-                itemList.currentIndex = itemListRoot.restoreIndex(loadedItems)
-                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-            }
+            if (itemListRoot.mode === "resume") itemListRoot.show(loadedItems)
         }
-
         function onUpNextLoaded(loadedItems) {
-            if (itemListRoot.mode !== "up_next") return
-            itemListRoot.isLoading = false
-            itemListRoot.items = loadedItems
-            if (loadedItems.length > 0) {
-                itemList.currentIndex = itemListRoot.restoreIndex(loadedItems)
-                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-            }
+            if (itemListRoot.mode === "up_next") itemListRoot.show(loadedItems)
         }
 
         function onErrorOccurred(msg) {
@@ -164,37 +71,23 @@ FocusScope {
     }
 
     Component.onCompleted: {
+        errorMessage = ""
         if (mode === "static") {
             // Pre-filtered list handed over by Boxset.qml — no fetch needed.
-            isLoading = false
-            errorMessage = ""
-            items = navParams.items || []
-            if (items.length > 0) {
-                var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                itemList.currentIndex = Math.min(restore, items.length - 1)
-                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-            }
-        } else if (mode === "folder") {
-            isLoading = true
-            errorMessage = ""
-            backend.load_folder_children(parentId)
-        } else if (mode === "boxset") {
-            isLoading = true
-            errorMessage = ""
-            backend.load_boxset_children(parentId)
-        } else if (mode === "resume") {
-            isLoading = true
-            errorMessage = ""
-            backend.load_continue_watching()
-        } else if (mode === "up_next") {
-            isLoading = true
-            errorMessage = ""
-            backend.load_up_next()
-        } else {
-            isLoading = true
-            errorMessage = ""
-            backend.load_items(parentId, includeTypes, "SortName")
+            show(navParams.items || [])
+            return
         }
+        isLoading = true
+        if (mode === "folder")
+            backend.load_folder_children(parentId)
+        else if (mode === "boxset")
+            backend.load_boxset_children(parentId)
+        else if (mode === "resume")
+            backend.load_continue_watching()
+        else if (mode === "up_next")
+            backend.load_up_next()
+        else
+            backend.load_items(parentId, includeTypes, "SortName")
     }
 
     focus: true
@@ -263,212 +156,24 @@ FocusScope {
         font.pixelSize: root.sh * 0.05 //24
     }
 
-    // Body — Plex-style text list
-    ListView {
+    // Body — Plex-style text list, and the A–Z panel beside it.
+    LetterList {
         id: itemList
-        model: items
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        // The pane's, less the letters' room beside it.
-        width: root.paneWidth - (showLetterNav ? root.sw * 0.096875 : 0) //430 or 492
-        height: root.tallListHeight //252
-        clip: true
+        rows: itemListRoot.items
+        letters: itemListRoot.showLetterNav
+        // An episode with its show, season and number (S1E2), as Plex's
+        // lists show it.
+        labelOf: function(item) {
+            if (item.type === "episode" && item.grandparentTitle) {
+                var sNum = (item.parentIndex != null) ? item.parentIndex : "?"
+                var eNum = (item.index || item.index === 0) ? item.index : "?"
+                return item.grandparentTitle + " S" + sNum + "E" + eNum + ": " + (item.title || "")
+            }
+            var base = item.title || ""
+            return item.year ? base + " (" + String(item.year) + ")" : base
+        }
         focus: true
-        Keys.onUpPressed: {
-            if (count === 0) return
-            if (currentIndex > 0) {
-                currentIndex--
-                itemListRoot.syncLetterToItem()
-            }
-            else {
-                currentIndex = count - 1
-                itemList.positionViewAtIndex(currentIndex, ListView.Contain)
-                letterList.currentIndex = letterIndex.length - 1
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
-            }
-        }
-        Keys.onDownPressed: {
-            if (count === 0) return
-            if (currentIndex < count - 1) {
-                currentIndex++
-                itemListRoot.syncLetterToItem()
-            }
-            else {
-                currentIndex = 0
-                itemList.positionViewAtIndex(currentIndex, ListView.Contain)
-                letterList.currentIndex = 0
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
-            }
-        }
-        Keys.onReturnPressed: itemListRoot.selectItem()
-        Keys.onPressed: function(event) {
-            // Right hands focus to the letter panel, synced to the current letter.
-            if (event.key === Qt.Key_Right && showLetterNav && letterIndex.length > 0) {
-                itemListRoot.syncLetterToItem()
-                letterNavActive = true
-                letterList.forceActiveFocus()
-                event.accepted = true
-            }
-        }
-
-        delegate: Item {
-            width: itemList.width
-            height: root.sh * 0.0583333 //28
-
-            // The row as a monitor layout draws one, in its frame (Main.qml's):
-            // the layout's cursor, its case, its colours.
-            Loader {
-                anchors.fill: parent
-                active: root.monitorInk === true
-                sourceComponent: MonitorRow {
-                    label: rowText.text
-                    selected: itemList.currentIndex === index && !letterNavActive
-                }
-            }
-
-            Item {
-                id: textClip
-                visible: root.monitorInk !== true
-                width: Math.min(rowText.implicitWidth, itemList.width)
-                height: parent.height
-                clip: true
-
-                Rectangle {
-                    color: root.accentColor
-                    anchors.fill: rowText
-                    visible: itemList.currentIndex === index && !letterNavActive
-                }
-
-                Text {
-                    id: rowText
-                    // An episode with its show, season and number (S1E2), as
-                    // Plex's lists show it.
-                    text: {
-                        if (modelData.type === "episode" && modelData.grandparentTitle) {
-                            var sNum = (modelData.parentIndex != null) ? modelData.parentIndex : "?"
-                            var eNum = (modelData.index || modelData.index === 0) ? modelData.index : "?"
-                            return modelData.grandparentTitle + " S" + sNum + "E" + eNum + ": " + (modelData.title || "")
-                        }
-                        var base = modelData.title || ""
-                        return modelData.year ? base + " (" + String(modelData.year) + ")" : base
-                    }
-                    color: (itemList.currentIndex === index && !letterNavActive)
-                       ? root.surfaceColor : root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                SequentialAnimation {
-                    running: (itemList.currentIndex === index) &&
-                             (rowText.implicitWidth > textClip.width)
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) rowText.x = 0
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: rowText; property: "x"
-                        to: textClip.width - rowText.implicitWidth
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: rowText; property: "x"; value: 0 }
-                }
-            }
-        }
-    }
-
-    // Dimmed the two-colour way while the other panel has the focus.
-    Dither {
-        anchors.fill: itemList
-        visible: itemList.visible && letterNavActive
-    }
-
-    // A–Z letter navigation panel
-    ListView {
-        id: letterList
-        model: letterIndex
-        visible: showLetterNav && letterIndex.length > 0
-        anchors.left: itemList.right
-        anchors.leftMargin: root.sw * 0.0375 //24
-        anchors.top: itemList.top
-        width: root.sw * 0.0328125 //21
-        height: itemList.height
-        clip: true
-        focus: false
-
-        Keys.onUpPressed: {
-            if (count === 0) return
-            if (currentIndex > 0) {
-                currentIndex--
-            }
-            else {
-                currentIndex = count - 1
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Beginning)
-            }
-            itemList.currentIndex = letterIndex[currentIndex].firstIndex
-            itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
-
-        }
-        Keys.onDownPressed: {
-            if (count === 0) return
-            if (currentIndex < count - 1) {
-                currentIndex++
-            }
-            else {
-                currentIndex = 0
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Beginning)
-            }
-            itemList.currentIndex = letterIndex[currentIndex].firstIndex
-            itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
-        }
-        Keys.onReturnPressed: { letterNavActive = false; itemList.forceActiveFocus() }
-        Keys.onLeftPressed:   { letterNavActive = false; itemList.forceActiveFocus() }
-        Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                letterNavActive = false
-                itemList.forceActiveFocus()
-                event.accepted = true
-            }
-        }
-
-        delegate: Item {
-            width: letterList.width
-            height: root.sh * 0.04375 //21
-
-            Rectangle {
-                color: root.cursorColor
-                anchors.fill: parent
-                visible: letterList.currentIndex === index && letterNavActive
-            }
-
-            Text {
-                text: modelData.letter
-                color: (letterList.currentIndex === index && letterNavActive)
-                       ? root.cursorInk : root.primaryColor
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
-                font.pixelSize: root.sh * 0.0354167 //17
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                rightPadding: root.sw * 0.009375 //6
-                topPadding: root.sh * 0.0041667 //2
-                bottomPadding: root.sh * 0.00625 //3
-            }
-        }
-    }
-
-    // Dimmed the two-colour way while the other panel has the focus.
-    Dither {
-        anchors.fill: letterList
-        visible: letterList.visible && !letterNavActive
+        onChosen: itemListRoot.selectItem()
     }
 
     function selectItem() {
@@ -493,10 +198,6 @@ FocusScope {
             itemListRoot.navigateTo("Item.qml", { item: item, libraryName: libraryName }, here)
         }
     }
-
-    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
-    // frame says which.
-    ListPager { list: itemList }
 
     // Footer
     HintBar {

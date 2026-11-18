@@ -25,6 +25,7 @@ LoadingScreen LoadingScreen.qml
 PromptScreen PromptScreen.qml
 PlaybackNotice PlaybackNotice.qml
 MenuList MenuList.qml
+LetterList LetterList.qml
 SettingRow SettingRow.qml
 ListPager ListPager.qml
 ListPicker ListPicker.qml

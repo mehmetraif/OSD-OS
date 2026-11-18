@@ -39,8 +39,6 @@ FocusScope {
     property bool folderLetterNav: false
     property bool showLetterNav: listType === "library_all"
                                  || (listType === "folders" && folderLetterNav)
-    property bool letterNavActive: false
-    property var letterIndex: []
 
     // ----------------------------------------------------------------
     // PLAY ALL / SHUFFLE rows — curated sets can be played as a queue.
@@ -73,22 +71,6 @@ FocusScope {
         return candidates.length === 1 && candidates[0].type === "show"
     }
 
-    // Number of leading action rows for a given backend result. Used by the
-    // restore clamps, which run while `items` is mid-assignment and so cannot
-    // read the actionRows binding.
-    function actionRowCountFor(loadedItems) {
-        if (!canQueue) return 0
-        var candidates = loadedItems.filter(function(i) { return i && i.ratingKey })
-        if (!queueRowsWarranted(candidates)) return 0
-        return cardWriter.available ? 3 : 2
-    }
-
-    // First character as a bucket label; everything non-alphabetic shares '#'.
-    function bucket(text) {
-        var ch = text.charAt(0).toUpperCase()
-        return (ch >= 'A' && ch <= 'Z') ? ch : '#'
-    }
-
     // '#' sorts ahead of the letters, matching the panel's own ordering.
     function bucketRank(key) {
         return key === '#' ? 0 : key.charCodeAt(0)
@@ -96,7 +78,8 @@ FocusScope {
 
     // Buckets by the server's sort title when one is set (Plex sorts the list by
     // titleSort), otherwise falls back to article-stripping the display title —
-    // which is what Plex itself does for items without a custom sort title.
+    // which is what Plex itself does for items without a custom sort title
+    // (LetterList's titleKey()).
     //
     // Folder listings are the exception: there a row *is* the name on disk, so it
     // buckets on the literal first character. Article-stripping is metadata logic,
@@ -104,16 +87,8 @@ FocusScope {
     // into letter folders keeps "An Inconvenient Truth" in A/ on disk, but
     // stripping the article would bucket it under I.
     function sortKey(item) {
-        if (listType === "folders") return bucket((item && item.title) || "")
-        var sortTitle = (item && item.titleSort) || ""
-        var t = (sortTitle || (item && item.title) || "").toLowerCase()
-        if (!sortTitle) {
-            var articles = ["the ", "a ", "an "]
-            for (var i = 0; i < articles.length; i++) {
-                if (t.indexOf(articles[i]) === 0) { t = t.substring(articles[i].length); break }
-            }
-        }
-        return bucket(t)
+        if (listType === "folders") return itemList.bucket((item && item.title) || "")
+        return itemList.titleKey(item)
     }
 
     // The panel is only useful when it agrees with the list it jumps into: the
@@ -137,34 +112,6 @@ FocusScope {
         return distinct > 1
     }
 
-    // Highlights the letter matching the currently selected item.
-    function syncLetterToItem() {
-        if (letterIndex.length === 0) return
-        var curLetter = sortKey(items[itemList.currentIndex - actionRows.length])
-        for (var i = 0; i < letterIndex.length; i++) {
-            if (letterIndex[i].letter === curLetter) { letterList.currentIndex = i; break }
-        }
-        letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
-    }
-
-    function buildLetterIndex(itemArr) {
-        var seen = {}
-        var result = []
-        for (var i = 0; i < itemArr.length; i++) {
-            var letter = sortKey(itemArr[i])
-            if (!seen[letter]) {
-                seen[letter] = true
-                result.push({ letter: letter, firstIndex: i })
-            }
-        }
-        result.sort(function(a, b) {
-            if (a.letter === '#') return -1
-            if (b.letter === '#') return 1
-            return a.letter < b.letter ? -1 : 1
-        })
-        return result
-    }
-
     // ----------------------------------------------------------------
     // Signal connections from backend
     // ----------------------------------------------------------------
@@ -178,16 +125,9 @@ FocusScope {
             if (consuming.indexOf(itemListRoot.listType) >= 0) {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedItems
-                if (itemListRoot.showLetterNav)
-                    itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
-                if (loadedItems.length > 0) {
-                    // The saved index is a *row* index, so the clamp has to account
-                    // for the PLAY ALL / SHUFFLE rows this list may have prepended.
-                    var rowCount = loadedItems.length + itemListRoot.actionRowCountFor(loadedItems)
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, rowCount - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                // The saved index is a *row* index, PLAY ALL and SHUFFLE among
+                // the rows (LetterList's restore()).
+                itemList.restore(navListState)
             }
         }
 
@@ -195,11 +135,7 @@ FocusScope {
             if (itemListRoot.listType === "continue_watching") {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedItems
-                if (loadedItems.length > 0) {
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                itemList.restore(navListState)
             }
         }
 
@@ -207,11 +143,7 @@ FocusScope {
             if (itemListRoot.listType === "hubs") {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedHubs
-                if (loadedHubs.length > 0) {
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, loadedHubs.length - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                itemList.restore(navListState)
             }
         }
 
@@ -219,13 +151,7 @@ FocusScope {
             if (itemListRoot.listType === "collections") {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedItems
-                if (itemListRoot.showLetterNav)
-                    itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
-                if (loadedItems.length > 0) {
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                itemList.restore(navListState)
             }
         }
 
@@ -233,13 +159,7 @@ FocusScope {
             if (itemListRoot.listType === "playlists") {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedItems
-                if (itemListRoot.showLetterNav)
-                    itemListRoot.letterIndex = itemListRoot.buildLetterIndex(loadedItems)
-                if (loadedItems.length > 0) {
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                itemList.restore(navListState)
             }
         }
 
@@ -248,13 +168,7 @@ FocusScope {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedItems
                 itemListRoot.folderLetterNav = itemListRoot.letterNavUsable(loadedItems)
-                itemListRoot.letterIndex = itemListRoot.folderLetterNav
-                    ? itemListRoot.buildLetterIndex(loadedItems) : []
-                if (loadedItems.length > 0) {
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                itemList.restore(navListState)
             }
         }
 
@@ -262,11 +176,7 @@ FocusScope {
             if (itemListRoot.listType === "categories") {
                 itemListRoot.isLoading = false
                 itemListRoot.items = loadedItems
-                if (loadedItems.length > 0) {
-                    var restore = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
-                    itemList.currentIndex = Math.min(restore, loadedItems.length - 1)
-                    itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
-                }
+                itemList.restore(navListState)
             }
         }
 
@@ -485,225 +395,26 @@ FocusScope {
         font.pixelSize: root.sh * 0.05 //24
     }
 
-    // Body
-    ListView {
+    // Body: the rows and, for a library's or a folder's, the A–Z panel.
+    LetterList {
         id: itemList
-        model: rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        // The pane's, less the letters' room beside it.
-        width: root.paneWidth - (showLetterNav ? root.sw * 0.096875 : 0) //430 or 492
-        height: root.tallListHeight //252
-        clip: true
+        rows: itemListRoot.rows
+        letters: itemListRoot.showLetterNav
+        sortKey: function(item) { return itemListRoot.sortKey(item) }
+        labelOf: function(item) {
+            if (item.type === "folder") return (item.title || "") + "/"
+            if (item.type === "episode" && item.grandparentTitle) {
+                var sNum = (item.parentIndex != null) ? item.parentIndex : "?"
+                var eNum = (item.index != null) ? item.index : "?"
+                return item.grandparentTitle + " S" + sNum + "E" + eNum
+                       + ": " + (item.title || "")
+            }
+            var base = item.title || ""
+            return item.editionTitle ? base + " (" + item.editionTitle + ")" : base
+        }
         focus: true
-
-        Keys.onUpPressed: {
-            if (count === 0) return
-            if (currentIndex > 0) {
-                currentIndex--
-                itemListRoot.syncLetterToItem()
-            }
-            else {
-                currentIndex = count - 1
-                itemList.positionViewAtIndex(currentIndex, ListView.Contain)
-                letterList.currentIndex = letterIndex.length - 1
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
-            }
-        }
-        Keys.onDownPressed: {
-            if (count === 0) return
-            if (currentIndex < count - 1) {
-                currentIndex++
-                itemListRoot.syncLetterToItem()
-            }
-            else {
-                currentIndex = 0
-                itemList.positionViewAtIndex(currentIndex, ListView.Contain)
-                letterList.currentIndex = 0
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
-            }
-        }
-        Keys.onReturnPressed: itemListRoot.selectItem()
-        Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                itemListRoot.goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Right && showLetterNav && letterIndex.length > 0) {
-                itemListRoot.syncLetterToItem()
-                letterNavActive = true
-                letterList.forceActiveFocus()
-                event.accepted = true
-            }
-        }
-
-        delegate: Item {
-            width: itemList.width
-            height: root.sh * 0.0583333 //28
-
-            // The row as a monitor layout draws one, in its frame (Main.qml's):
-            // the layout's cursor, its case, its colours.
-            Loader {
-                anchors.fill: parent
-                active: root.monitorInk === true
-                sourceComponent: MonitorRow {
-                    label: rowText.text
-                    selected: itemList.currentIndex === index && !letterNavActive
-                }
-            }
-
-            Item {
-                id: textClip
-                visible: root.monitorInk !== true
-                width: Math.min(rowText.implicitWidth, itemList.width)
-                height: parent.height
-                clip: true
-
-                Rectangle {
-                    color: root.accentColor
-                    anchors.fill: rowText
-                    visible: itemList.currentIndex === index && !letterNavActive
-                }
-
-                Text {
-                    id: rowText
-                    text: {
-                        if (modelData.type === "folder") return (modelData.title || "") + "/"
-                        if (modelData.type === "episode" && modelData.grandparentTitle) {
-                            var sNum = (modelData.parentIndex != null) ? modelData.parentIndex : "?"
-                            var eNum = (modelData.index != null) ? modelData.index : "?"
-                            return modelData.grandparentTitle + " S" + sNum + "E" + eNum
-                                   + ": " + (modelData.title || "")
-                        }
-                        var base = modelData.title || ""
-                        return modelData.editionTitle ? base + " (" + modelData.editionTitle + ")" : base
-                    }
-                    color: (itemList.currentIndex === index && !letterNavActive)
-                       ? root.surfaceColor : root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                SequentialAnimation {
-                    running: (itemList.currentIndex === index) &&
-                             (rowText.implicitWidth > textClip.width)
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) rowText.x = 0
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: rowText; property: "x"
-                        to: textClip.width - rowText.implicitWidth
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: rowText; property: "x"; value: 0 }
-                }
-            }
-        }
+        onChosen: itemListRoot.selectItem()
     }
-
-    // Dimmed the two-colour way while the other panel has the focus.
-    Dither {
-        anchors.fill: itemList
-        visible: itemList.visible && letterNavActive
-    }
-
-    // Letter navigation panel
-    ListView {
-        id: letterList
-        model: letterIndex
-        visible: showLetterNav && letterIndex.length > 0
-        anchors.left: itemList.right
-        anchors.leftMargin: root.sw * 0.0375 //24
-        anchors.top: itemList.top
-        width: root.sw * 0.0328125 //21
-        height: itemList.height
-        clip: true
-        focus: false
-
-        Keys.onUpPressed: {
-            if (count === 0) return
-            if (currentIndex > 0) {
-                currentIndex--
-            }
-            else {
-                currentIndex = count - 1
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Beginning)
-            }
-            itemList.currentIndex = letterIndex[currentIndex].firstIndex
-            itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
-        }
-        Keys.onDownPressed: {
-            if (count === 0) return
-            if (currentIndex < count - 1) {
-                currentIndex++
-            }
-            else {
-                currentIndex = 0
-                letterList.positionViewAtIndex(letterList.currentIndex, ListView.Beginning)
-            }
-            itemList.currentIndex = letterIndex[currentIndex].firstIndex
-            itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
-        }
-        Keys.onReturnPressed: {
-            letterNavActive = false
-            itemList.forceActiveFocus()
-        }
-        Keys.onLeftPressed: {
-            letterNavActive = false
-            itemList.forceActiveFocus()
-        }
-        Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                letterNavActive = false
-                itemList.forceActiveFocus()
-                event.accepted = true
-            }
-        }
-
-        delegate: Item {
-            width: letterList.width
-            height: root.sh * 0.04375 //21
-
-            Rectangle {
-                color: root.cursorColor
-                anchors.fill: parent
-                visible: letterList.currentIndex === index && letterNavActive
-            }
-
-            Text {
-                text: modelData.letter
-                color: (letterList.currentIndex === index && letterNavActive)
-                       ? root.cursorInk : root.primaryColor
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
-                font.pixelSize: root.sh * 0.0354167 //17
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                rightPadding: root.sw * 0.009375 //6
-                topPadding: root.sh * 0.0041667 //2
-                bottomPadding: root.sh * 0.00625 //3
-            }
-        }
-    }
-
-    // Dimmed the two-colour way while the other panel has the focus.
-    Dither {
-        anchors.fill: letterList
-        visible: letterList.visible && !letterNavActive
-    }
-
-    // Flat Panel's pages for the list (Settings → Look → Menu Layout): the
-    // frame says which.
-    ListPager { list: itemList }
 
     // Footer
     HintBar {

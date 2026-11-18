@@ -13,7 +13,8 @@ import Components
 // RETRY, mpv itself missing without the transcode no transcode would mend.
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
 // keyboard (its signs, SHOW, the mouse), and their Continue Watching and
-// Next Up put the cursor back on the item left. And Local Files' player: a remote's
+// Next Up put the cursor back on the item left; the A–Z list the media
+// servers' lists are (LetterList), on its own. And Local Files' player: a remote's
 // channel or page keys step through the folder's films.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
@@ -987,6 +988,169 @@ Rectangle {
                     return list.items[child.currentIndex].itemId
             }
             return ""
+        }
+
+        // The A–Z list (views/Components/LetterList.qml) on its own, as
+        // Plex's, Jellyfin's and Emby's lists have it: its rows given, what
+        // select chose, and back as the page's keys see it.
+        Component {
+            id: letterPage
+            FocusScope {
+                property alias list: list
+                property var rows: []
+                property var chosen: []
+                property int backs: 0
+                Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) backs++ }
+                LetterList {
+                    id: list
+                    rows: parent.rows
+                    letters: true
+                    focus: true
+                    onChosen: function(index) { parent.chosen = parent.chosen.concat([index]) }
+                }
+            }
+        }
+        function openLetters(rows) {
+            loader.sourceComponent = letterPage
+            loader.item.rows = rows
+            loader.item.forceActiveFocus()
+            return loader.item
+        }
+        // The rows under the letters, a MenuList, and the letters' column.
+        function rowsOf(list) {
+            for (var i = 0; i < list.children.length; i++) {
+                if (list.children[i].stopsAt !== undefined)
+                    return list.children[i]
+            }
+            return null
+        }
+        function lettersOf(list) {
+            for (var i = 0; i < list.children.length; i++) {
+                if (list.children[i].highlightFollowsCurrentItem !== undefined)
+                    return list.children[i]
+            }
+            return null
+        }
+        // A library in the order of its sort titles: "#" for a number, a
+        // title's article left off where the server gave no sort title.
+        function films() {
+            return ["1917", "The Abyss", "Alien", "Big", "Brazil", "Clue", "Dune", "Elf", "Fargo", "The Goonies",
+                    "Heat", "Jaws", "Krull", "Legend", "Moon", "Nope", "Old", "Psycho", "Rocky", "Tron", "Up",
+                    "Willow", "Zoom"].map(function(title, i) {
+                return { itemId: "f" + i, title: title, titleSort: title === "Alien" ? "alien" : "" }
+            })
+        }
+
+        // The letters come from the rows (sortKey): "#" first, each with its
+        // first row; a host's own key (Plex's folders, a name's literal first
+        // letter) buckets them its way; with letters off there are none,
+        // and ► stays in the rows.
+        function test_letterListLettersFromSortKey() {
+            var page = openLetters(films())
+            var list = page.list
+            var letters = function() { return list.letterIndex.map(function(l) { return l.letter }).join("") }
+            compare(letters(), "#ABCDEFGHJKLMNOPRTUWZ")
+            compare(list.letterIndex[1].firstIndex, 1)
+            compare(list.letterIndex[2].firstIndex, 3)
+            compare(list.letterIndex[7].letter + list.letterIndex[7].firstIndex, "G9")
+            verify(lettersOf(list).visible)
+            list.sortKey = function(row) { return list.bucket(row.title) }
+            compare(letters(), "#ABCDEFHJKLMNOPRTUWZ")
+            compare(list.letterIndex[1].firstIndex, 2)
+            list.letters = false
+            compare(list.letterIndex.length, 0)
+            verify(!lettersOf(list).visible)
+            keyClick(Qt.Key_Right)
+            verify(!list.letterNavActive)
+        }
+
+        // ► takes the keys to the letter of the row the cursor is on; ▲ ▼
+        // there jump the rows to the first under each letter, at the top of
+        // the list, round the ends; select, ◄ and back return to the rows,
+        // back no further, and select there is the host's.
+        function test_letterListJumps() {
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            var letters = lettersOf(list)
+            var rowHeight = root.sh * 0.0583333
+            for (var i = 0; i < 4; i++)
+                keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 4)
+            keyClick(Qt.Key_Right)
+            verify(list.letterNavActive)
+            compare(list.letterIndex[letters.currentIndex].letter, "B")
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 5)
+            fuzzyCompare(rows.contentY, rows.originY + 5 * rowHeight, 0.5)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(list.currentIndex, 0)
+            fuzzyCompare(rows.contentY, rows.originY, 0.5)
+            keyClick(Qt.Key_Up)
+            compare(list.letterIndex[letters.currentIndex].letter, "Z")
+            compare(list.currentIndex, 22)
+            fuzzyCompare(rows.contentY, rows.originY + rows.contentHeight - rows.height, 0.5)
+            keyClick(Qt.Key_Return)
+            verify(!list.letterNavActive)
+            compare(page.chosen, [])
+            keyClick(Qt.Key_Return)
+            compare(page.chosen, [22])
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            verify(!list.letterNavActive)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Escape)
+            verify(!list.letterNavActive)
+            compare(page.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(page.backs, 1)
+            loader.sourceComponent = undefined
+        }
+
+        // The letters follow the cursor's row as ▲ ▼ move it, and round an
+        // end of the list go round theirs: to the last letter from the first
+        // row up, even where the last row is under "#".
+        function test_letterListFollowsTheCursor() {
+            var page = openLetters(films().concat([{ itemId: "x", title: "Ölmez", titleSort: "ölmez" }]))
+            var list = page.list
+            var letters = lettersOf(list)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(list.letterIndex[letters.currentIndex].letter, "A")
+            keyClick(Qt.Key_Down)
+            compare(list.letterIndex[letters.currentIndex].letter, "B")
+            for (var i = 0; i < 4; i++)
+                keyClick(Qt.Key_Up)
+            compare(list.currentIndex, 23)
+            compare(letters.currentIndex, list.letterIndex.length - 1)
+            keyClick(Qt.Key_Right)
+            compare(list.letterIndex[letters.currentIndex].letter, "#")
+            loader.sourceComponent = undefined
+        }
+
+        // Back in a list, the cursor where it was as the list was left: on
+        // the item it was on (its itemId) wherever it is now, else on the
+        // same row, the last of a list grown shorter, and into view.
+        function test_letterListRestore() {
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            list.restore({ currentIndex: 3, itemId: "f9" })
+            compare(list.currentIndex, 9)
+            list.restore({ currentIndex: 3, itemId: "gone" })
+            compare(list.currentIndex, 3)
+            list.restore({ currentIndex: 40 })
+            compare(list.currentIndex, 22)
+            fuzzyCompare(rows.contentY, rows.originY + rows.contentHeight - rows.height, 0.5)
+            list.restore({})
+            compare(list.currentIndex, 0)
+            fuzzyCompare(rows.contentY, rows.originY, 0.5)
+            page.rows = []
+            list.restore({ currentIndex: 2 })
+            compare(list.count, 0)
+            loader.sourceComponent = undefined
         }
 
         function openJellyfinPlayer(module) {

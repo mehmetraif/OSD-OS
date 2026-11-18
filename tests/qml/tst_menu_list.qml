@@ -8,8 +8,8 @@ import "../../views/Components/Hover.js" as Hover
 // alone and a gap, unless the host's rows go by a rule of their own), round
 // the ends; a list of a number of rows, which say nothing of themselves; the
 // cursor held while ▲ ▼ are the host's; the rows at an end the cursor passes
-// over shown with the one beside them; and the mouse (Hover.js) stopping on
-// the rows the keys do.
+// over shown with the one beside them; the mouse (Hover.js) stopping on the
+// rows the keys do; and its ▲ ▼ marks left off for a host without them.
 Rectangle {
     id: root
     color: surfaceColor
@@ -57,6 +57,7 @@ Rectangle {
             property var rule: null
             property bool held: false
             property int moves: 0
+            property var deltas: []
             property var heldSteps: []
             MenuList {
                 id: list
@@ -64,7 +65,10 @@ Rectangle {
                 focus: true
                 rule: parent.rule
                 held: parent.held
-                onMoved: parent.moves++
+                onMoved: function(delta) {
+                    parent.moves++
+                    parent.deltas = parent.deltas.concat([delta])
+                }
                 onHeldStep: function(delta) { parent.heldSteps = parent.heldSteps.concat([delta]) }
                 delegate: MenuRow {
                     width: list.width
@@ -126,6 +130,24 @@ Rectangle {
             keyClick(Qt.Key_Up)
             compare(list.currentIndex, 7)
             compare(page.moves, 6)
+            compare(page.deltas, [1, 1, 1, 1, -1, -1])
+        }
+
+        // ▲ ▼ beside the rows while some are hidden, unless the host has
+        // none (marks off: a media server's lists, LetterList).
+        function test_marksOff() {
+            var rows = []
+            for (var i = 0; i < 18; i++)
+                rows.push({ label: "Row " + i })
+            var page = open({ rows: rows })
+            var marks = null
+            for (i = 0; i < page.list.children.length; i++) {
+                if (page.list.children[i].moreBelow !== undefined)
+                    marks = page.list.children[i]
+            }
+            verify(marks !== null && marks.moreBelow && marks.visible)
+            page.list.marks = false
+            verify(!marks.visible)
         }
 
         // A host whose rows go by a rule of their own (a multi-select page's
