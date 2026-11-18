@@ -68,7 +68,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         height: Math.max(1, root.sh * 0.0041667)//2
-        color: root.tertiaryColor
+        color: root.primaryColor
     }
 
     Item {
@@ -83,7 +83,7 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             text: statusBar._date
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: root.sh * 0.0375//18
         }
@@ -91,7 +91,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: statusBar._time
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: root.sh * 0.0375//18
         }

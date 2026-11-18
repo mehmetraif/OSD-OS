@@ -85,7 +85,7 @@ FocusScope {
         visible: tree.rootEmpty
         Text {
             text: "No items found"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -94,7 +94,7 @@ FocusScope {
         }
         Text {
             text: "Please add items in the local files media directory"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter

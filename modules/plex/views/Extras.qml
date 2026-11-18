@@ -167,7 +167,7 @@ FocusScope {
 
             // Full-width background highlight for the active row
             Rectangle {
-                color: root.accentColor
+                color: root.cursorColor
                 anchors.fill: parent
                 visible: itemList.currentIndex === index
             }
@@ -183,7 +183,7 @@ FocusScope {
                 Text {
                     id: extraType
                     text: modelData.extraTypeLabel || ""
-                    color: itemList.currentIndex === index ? root.surfaceColor : root.secondaryColor
+                    color: itemList.currentIndex === index ? root.cursorInk : root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0208333 //10
@@ -196,7 +196,7 @@ FocusScope {
                     on: itemList.currentIndex === index
                     elides: false
                     text: modelData.title || ""
-                    color: itemList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                    color: itemList.currentIndex === index ? root.cursorInk : root.primaryColor
                     font.pixelSize: root.sh * 0.0333333 //16
                 }
             }

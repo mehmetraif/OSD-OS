@@ -96,7 +96,7 @@ FocusScope {
     Text {
         visible: browseRoot.errorMsg !== ""
         text: browseRoot.errorMsg
-        color: root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
@@ -189,7 +189,7 @@ FocusScope {
                 on: libraryList.currentIndex === index
                 elides: false
                 text: modelData.title || ""
-                color: libraryList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                color: libraryList.currentIndex === index ? root.cursorInk : root.primaryColor
                 font.pixelSize: root.sh * 0.05 //24
                 textItem.topPadding: root.sh * 0.0041667 //2
                 textItem.leftPadding: root.sw * 0.009375 //6
@@ -198,7 +198,7 @@ FocusScope {
 
                 Rectangle {
                     z: -1
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: textClip.textItem
                     visible: libraryList.currentIndex === index
                 }

@@ -139,7 +139,7 @@ FocusScope {
                 clip: true
 
                 Rectangle {
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: rowText
                     visible: menuList.currentIndex === index
                 }
@@ -147,7 +147,7 @@ FocusScope {
                 Text {
                     id: rowText
                     text: modelData.label || ""
-                    color: menuList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                    color: menuList.currentIndex === index ? root.cursorInk : root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     anchors.verticalCenter: parent.verticalCenter

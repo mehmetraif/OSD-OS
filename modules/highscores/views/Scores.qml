@@ -42,7 +42,7 @@ FocusScope {
         Text {
             width: parent.width
             text: "No high scores yet"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -52,7 +52,7 @@ FocusScope {
             width: parent.width
             text: scoresRoot.problem !== "" ? scoresRoot.problem
                   : "Play a game in Arcade: its table shows here once MAME has kept it"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter

@@ -68,7 +68,7 @@ FocusScope {
 
         Text {
             text: setupRoot.headline
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -79,7 +79,7 @@ FocusScope {
 
         Text {
             text: setupRoot.detail
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -92,7 +92,7 @@ FocusScope {
         Text {
             visible: setupRoot.namesFile && setupRoot.locationPath !== ""
             text: setupRoot.locationPath
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             horizontalAlignment: Text.AlignHCenter
             width: parent.width

@@ -137,7 +137,7 @@ FocusScope {
             text: profilePinRoot.userTitle !== ""
                   ? "Enter the PIN for " + profilePinRoot.userTitle
                   : "Enter your profile PIN"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -157,16 +157,14 @@ FocusScope {
                     height: root.sh * 0.125 //60
                     color: "transparent"
                     border.width: root.sh * 0.0041667 //2
-                    border.color: profilePinRoot.cursor === index
-                                  ? root.accentColor : root.tertiaryColor
+                    border.color: root.primaryColor
 
                     Text {
                         // The slot under the cursor shows its digit so the spinner
                         // is usable; the rest are masked.
                         text: profilePinRoot.cursor === index
                               ? profilePinRoot.digits[index] : "*"
-                        color: profilePinRoot.cursor === index
-                               ? root.accentColor : root.primaryColor
+                        color: root.primaryColor
                         font.family: root.globalFont
                         anchors.centerIn: parent
                         font.pixelSize: root.sh * 0.0666667 //32
@@ -178,7 +176,7 @@ FocusScope {
         Text {
             visible: profilePinRoot.submitting
             text: "Checking..."
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -189,7 +187,7 @@ FocusScope {
         Text {
             visible: profilePinRoot.errorMsg !== "" && !profilePinRoot.submitting
             text: profilePinRoot.errorMsg
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter

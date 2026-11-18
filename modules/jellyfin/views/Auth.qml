@@ -145,7 +145,7 @@ FocusScope {
 
             Text {
                 text: "Server URL"
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0291667 //14
@@ -155,7 +155,7 @@ FocusScope {
                 width: parent.width
                 height: root.sh * 0.075 //36
                 color: root.surfaceColor
-                border.color: focusIndex === 0 ? root.accentColor : root.tertiaryColor
+                border.color: root.primaryColor
                 border.width: root.sh * 0.003125 //2
 
                 TextInput {
@@ -183,8 +183,8 @@ FocusScope {
         Rectangle {
             width: root.sw * 0.234375 //150
             height: root.sh * 0.0583333 //28
-            color: focusIndex === 1 ? root.accentColor : root.surfaceColor
-            border.color: focusIndex === 1 ? root.accentColor : root.tertiaryColor
+            color: focusIndex === 1 ? root.primaryColor : root.surfaceColor
+            border.color: root.primaryColor
             border.width: root.sh * 0.003125 //2
             anchors.horizontalCenter: parent.horizontalCenter
 
@@ -202,7 +202,7 @@ FocusScope {
         Text {
             visible: waiting
             text: "CONNECTING..."
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.horizontalCenter: parent.horizontalCenter
@@ -215,7 +215,7 @@ FocusScope {
         Text {
             visible: errorMsg !== ""
             text: errorMsg
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter

@@ -124,7 +124,7 @@ FocusScope {
         visible: videoFiles.length === 0
         Text {
             text: "No items found"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -133,7 +133,7 @@ FocusScope {
         }
         Text {
             text: "Please add items in the ambient:mode media directory"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -155,7 +155,7 @@ FocusScope {
         Text {
             id: playbackSettingsLabel
             text: "Playback Settings:"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.top: parent.top
@@ -176,7 +176,7 @@ FocusScope {
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 0 ? root.accentColor : "transparent"
+                color: focusRow === 0 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -198,7 +198,7 @@ FocusScope {
 
                 Text {
                     text: "◄"
-                    color: focusRow === 0 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -219,7 +219,7 @@ FocusScope {
                 }
                 Text {
                     text: "►"
-                    color: focusRow === 0 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -238,7 +238,7 @@ FocusScope {
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 1 ? root.accentColor : "transparent"
+                color: focusRow === 1 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -260,7 +260,7 @@ FocusScope {
 
                 Text {
                     text: "◄"
-                    color: focusRow === 1 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 1 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -280,7 +280,7 @@ FocusScope {
                 }
                 Text {
                     text: "►"
-                    color: focusRow === 1 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 1 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -297,8 +297,8 @@ FocusScope {
             // PLAY button
             Rectangle {
                 id: playButton
-                color: focusRow === 2 ? root.accentColor : root.surfaceColor
-                border.color: focusRow === 2 ? root.accentColor : root.tertiaryColor
+                color: focusRow === 2 ? root.primaryColor : root.surfaceColor
+                border.color: root.primaryColor
                 width: root.paneWidth //492
                 height: root.sh * 0.1166667 //56
                 border.width: root.sh * 0.003125 //2

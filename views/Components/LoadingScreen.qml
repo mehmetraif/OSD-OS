@@ -83,7 +83,7 @@ Item {
             x: root.px
             visible: tape.effect
             text: line.text
-            color: root.loadingThemed ? root.secondaryColor : root.schemes["Video 1"].secondary
+            color: root.loadingThemed ? root.primaryColor : root.schemes["Video 1"].secondary
             opacity: 0.45
             font: line.font
         }

@@ -85,7 +85,7 @@ FocusScope {
         visible: scriptList.count === 0
         Text {
             text: "No scripts found"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -94,7 +94,7 @@ FocusScope {
         }
         Text {
             text: "Please add .sh files to the scripts directory"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -128,7 +128,7 @@ FocusScope {
                 visible: root.monitorInk !== true
                 text: (modelData.favorite ? "* " : "")
                       + (modelData.mode === "takeover" ? "TAKEOVER" : "CONSOLE")
-                color: scriptList.currentIndex === index ? root.accentColor : root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 anchors.verticalCenter: parent.verticalCenter
@@ -158,7 +158,7 @@ FocusScope {
                 on: scriptList.currentIndex === index
                 elides: false
                 text: modelData.name
-                color: scriptList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                color: scriptList.currentIndex === index ? root.cursorInk : root.primaryColor
                 font.pixelSize: root.sh * 0.05 //24
                 textItem.topPadding: root.sh * 0.0041667 //2
                 textItem.leftPadding: root.sw * 0.009375 //6
@@ -167,7 +167,7 @@ FocusScope {
 
                 Rectangle {
                     z: -1
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: textClip.textItem
                     visible: scriptList.currentIndex === index
                 }

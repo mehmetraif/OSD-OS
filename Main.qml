@@ -496,9 +496,13 @@ Window {
     // box with its text in the surface colour, and anything dimmed is dithered
     // (Components/Dither) rather than faded. The schemes' other three colours
     // stay in their definitions, unused.
-    property string secondaryColor: primaryColor
-    property string tertiaryColor:  primaryColor
-    property string accentColor:    primaryColor
+    // Deprecated: the names the views had for them, kept for third-party
+    // modules that still read them, each the primary colour and read-only.
+    // OSD/OS's own views use primaryColor (or cursorColor and cursorInk for
+    // a selected row's box and its text).
+    readonly property alias secondaryColor: root.primaryColor
+    readonly property alias tertiaryColor:  root.primaryColor
+    readonly property alias accentColor:    root.primaryColor
 
     // A TV's tube shows the picture 4:3 whatever its mode, so a mode of
     // another shape has pixels that aren't square: a JAMMA board's 720×240

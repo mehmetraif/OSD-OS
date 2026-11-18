@@ -39,7 +39,7 @@ ModuleRouter {
 
         Text {
             text: "Not supported on this platform"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             font.pixelSize: root.sh * 0.033
@@ -48,7 +48,7 @@ ModuleRouter {
 
         Text {
             text: "NFC reader support requires Linux or macOS.\nSee the wiki for details."
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: root.sh * 0.025
             horizontalAlignment: Text.AlignHCenter

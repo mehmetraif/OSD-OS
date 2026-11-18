@@ -299,7 +299,7 @@ FocusScope {
     Text {
         visible: !detail
         text: "LOADING..."
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -328,8 +328,8 @@ FocusScope {
                 // PLAY / RSUM button
                 Rectangle {
                     id: playButton
-                    color: focusRow === 0 ? root.accentColor : root.surfaceColor
-                    border.color: focusRow === 0 ? root.accentColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.primaryColor : root.surfaceColor
+                    border.color: root.primaryColor
                     width: root.sw * 0.1875 //120
                     height: root.sh * 0.1166667 //56
                     border.width: root.sh * 0.003125 //2
@@ -347,7 +347,7 @@ FocusScope {
                 Rectangle {
                     id: extrasButton
                     visible: detailRoot.hasExtras
-                    color: focusRow === 1 ? root.accentColor : "transparent"
+                    color: focusRow === 1 ? root.primaryColor : "transparent"
                     border.width: focusRow === 1 ? 0 : root.px
                     border.color: root.primaryColor
                     width: parent.width
@@ -370,7 +370,7 @@ FocusScope {
                 Rectangle {
                     id: writeCardButton
                     visible: cardWriter.available
-                    color: focusRow === 4 ? root.accentColor : "transparent"
+                    color: focusRow === 4 ? root.primaryColor : "transparent"
                     border.width: focusRow === 4 ? 0 : root.px
                     border.color: root.primaryColor
                     width: parent.width
@@ -419,7 +419,7 @@ FocusScope {
                         if (detail.duration) parts.push(durationStr(detail.duration))
                         return parts.join(" - ")
                     }
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     elide: Text.ElideRight
@@ -468,7 +468,7 @@ FocusScope {
         Text {
             id: pbSettingsLabel
             text: "Playback Settings:"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.top: itemDetails.bottom
@@ -490,7 +490,7 @@ FocusScope {
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 2 ? root.accentColor : "transparent"
+                color: focusRow === 2 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -512,7 +512,7 @@ FocusScope {
 
                 Text {
                     text: "\u25C4"
-                    color: focusRow === 2 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 2 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -528,7 +528,7 @@ FocusScope {
                 }
                 Text {
                     text: "\u25BA"
-                    color: focusRow === 2 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 2 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -547,7 +547,7 @@ FocusScope {
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 3 ? root.accentColor : "transparent"
+                color: focusRow === 3 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -569,7 +569,7 @@ FocusScope {
 
                 Text {
                     text: "\u25C4"
-                    color: focusRow === 3 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 3 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -585,7 +585,7 @@ FocusScope {
                 }
                 Text {
                     text: "\u25BA"
-                    color: focusRow === 3 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 3 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18

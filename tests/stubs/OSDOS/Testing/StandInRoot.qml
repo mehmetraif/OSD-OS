@@ -30,9 +30,10 @@ Rectangle {
     property string schemePaper: "#000000"
     property string primaryColor: monitorInk ? menuPalette.ink : schemeInk
     property string surfaceColor: monitorInk ? menuPalette.ground : schemePaper
-    property string secondaryColor: primaryColor
-    property string tertiaryColor: primaryColor
-    property string accentColor: primaryColor
+    // Deprecated, for third-party modules: the primary colour, read-only.
+    readonly property alias secondaryColor: root.primaryColor
+    readonly property alias tertiaryColor: root.primaryColor
+    readonly property alias accentColor: root.primaryColor
     // A selected cell's box and what is written in it.
     property string cursorColor: !monitorInk ? primaryColor
                                  : menuLayout === "Flat Panel" ? menuPalette.bar : menuPalette.mark

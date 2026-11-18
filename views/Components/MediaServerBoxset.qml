@@ -145,7 +145,7 @@ FocusScope {
     Text {
         visible: isLoading
         text: "LOADING..."
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -153,7 +153,7 @@ FocusScope {
     Text {
         visible: !isLoading && errorMessage !== ""
         text: errorMessage
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         // As wide as the list: a server's long error wraps instead of
@@ -166,7 +166,7 @@ FocusScope {
     Text {
         visible: !isLoading && errorMessage === "" && categories.length === 0
         text: "NO ITEMS FOUND"
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -211,7 +211,7 @@ FocusScope {
                 clip: true
 
                 Rectangle {
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: rowText
                     visible: categoryList.currentIndex === index
                 }
@@ -219,7 +219,7 @@ FocusScope {
                 Text {
                     id: rowText
                     text: (modelData.label || "") + " (" + (modelData.items ? modelData.items.length : 0) + ")"
-                    color: categoryList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                    color: categoryList.currentIndex === index ? root.cursorInk : root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     anchors.verticalCenter: parent.verticalCenter

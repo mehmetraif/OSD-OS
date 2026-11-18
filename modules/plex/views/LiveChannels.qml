@@ -125,7 +125,7 @@ FocusScope {
                 on: channelList.currentIndex === index
                 elides: false
                 text: (modelData.number ? modelData.number + "  " : "") + (modelData.title || "")
-                color: channelList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                color: channelList.currentIndex === index ? root.cursorInk : root.primaryColor
                 font.pixelSize: root.sh * 0.05 //24
                 textItem.topPadding: root.sh * 0.0041667 //2
                 textItem.leftPadding: root.sw * 0.009375 //6
@@ -134,7 +134,7 @@ FocusScope {
 
                 Rectangle {
                     z: -1
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: textClip.textItem
                     visible: channelList.currentIndex === index
                 }

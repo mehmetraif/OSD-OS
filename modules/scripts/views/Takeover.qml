@@ -126,9 +126,7 @@ FocusScope {
             if (takeoverRoot.finishReason !== "")                return "EXIT " + takeoverRoot.finishExitCode
             return "HANDING OFF…"
         }
-        color: (takeoverRoot.startError !== "" || takeoverRoot.finishReason === "failed"
-                || takeoverRoot.finishReason === "failed_to_start")
-               ? root.accentColor : root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         font.pixelSize: root.sh * 0.0333333 //16
@@ -146,7 +144,7 @@ FocusScope {
         anchors.topMargin: root.sh * 0.0104167 //5
         anchors.leftMargin: root.sw * 0.125 //80
         text: "DISPLAY COULD NOT BE HANDED OVER — RAN WITHOUT IT"
-        color: root.accentColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         font.pixelSize: root.sh * 0.0291667 //14

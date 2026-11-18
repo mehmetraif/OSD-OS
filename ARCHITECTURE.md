@@ -1117,7 +1117,7 @@ Settings → Sound → **Menu Music** (`app.menu_music`: `""` the theme's, `"Off
 
 ### VCR OSD elements
 
-The UI keeps to two colours, like a deck's on-screen display: the colour scheme's `primary` on its `surface`. `Main.qml` maps `secondaryColor`, `tertiaryColor` and `accentColor` to `primaryColor`, so existing views follow without change. Settings → Look → **OSD Background** Off makes the two the scheme's lighter colour and black (`surfaceColor` black, `primaryColor` whichever of `primary` and `surface` is lighter, so a scheme with dark text, T-120, doesn't vanish), and every view follows that too. Within that:
+The UI keeps to two colours, like a deck's on-screen display: the colour scheme's `primary` on its `surface`. The views draw in `root.primaryColor` on `root.surfaceColor`, and a selected row's box they draw themselves in `root.cursorColor` with its text in `root.cursorInk` (the two the other way round, or a monitor layout's mark). `secondaryColor`, `tertiaryColor` and `accentColor` are deprecated: read-only aliases of `primaryColor`, kept only for third-party modules that still read them. Settings → Look → **OSD Background** Off makes the two the scheme's lighter colour and black (`surfaceColor` black, `primaryColor` whichever of `primary` and `surface` is lighter, so a scheme with dark text, T-120, doesn't vanish), and every view follows that too. Within that:
 
 - a selection is a solid box with its text in `surfaceColor`;
 - anything dimmed is dithered with `Dither` instead of given a lower opacity;

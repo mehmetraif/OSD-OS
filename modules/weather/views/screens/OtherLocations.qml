@@ -38,21 +38,21 @@ Item {
 
         Text {
             width: screen.nameWidth; text: "LOCATION"
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: screen.headerSize
         }
         Item { width: root.sw * 0.0140625; height: 1 }
         Text {
             width: screen.wxWidth; text: "CONDITIONS"
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: screen.headerSize
         }
         Item { width: root.sw * 0.0140625; height: 1 }
         Text {
             width: screen.tempWidth; text: screen.tempUnit
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.pixelSize: screen.headerSize
             horizontalAlignment: Text.AlignRight

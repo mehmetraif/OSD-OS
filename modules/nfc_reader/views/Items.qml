@@ -101,7 +101,7 @@ FocusScope {
                     : nfcReaderBackend.cardState === "matched" ? nfcReaderBackend.videoTitle
                     : nfcReaderBackend.cardState === "unmatched" ? nfcReaderBackend.cardUid
                     : nfcReaderBackend.readerName
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 anchors.horizontalCenter: parent.horizontalCenter

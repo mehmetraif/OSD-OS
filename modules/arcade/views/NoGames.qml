@@ -25,7 +25,7 @@ Column {
     Text {
         width: parent.width
         text: noGames.reading ? "Reading the games…" : "No games found"
-        color: root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
@@ -35,7 +35,7 @@ Column {
         visible: !noGames.reading && noGames.problem !== ""
         width: parent.width
         text: noGames.problem
-        color: root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
@@ -47,7 +47,7 @@ Column {
         visible: !noGames.reading && noGames.problem === "MAME is not installed"
         width: parent.width
         text: visible ? appCore.installHint("mame") : ""
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
@@ -60,7 +60,7 @@ Column {
         text: noGames.downloading ? "Downloading MAME… " + noGames.progress + "%"
               : noGames.failure !== "" ? "The download failed: " + noGames.failure + " • " + root.hints.select + ": TRY AGAIN"
               : root.hints.select + ": DOWNLOAD MAME"
-        color: root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
@@ -71,7 +71,7 @@ Column {
         visible: !noGames.reading && noGames.folderReadable
         width: parent.width
         text: "Put MAME's ROM sets, a zip file for each game, in " + noGames.gamesFolder
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter

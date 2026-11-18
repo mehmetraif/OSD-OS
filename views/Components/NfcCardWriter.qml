@@ -170,7 +170,7 @@ FocusScope {
                         : writerRoot.phase === "done"     ? "CARD WRITTEN FOR..."
                         : writerRoot.phase === "failed"   ? "COULD NOT WRITE CARD"
                         :                                   "WRITE CARD FOR..."
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0333333 //16
@@ -203,7 +203,7 @@ FocusScope {
 
                         Rectangle {
                             anchors.fill: choiceText
-                            color: root.accentColor
+                            color: root.cursorColor
                             visible: index === writerRoot.choiceIndex
                         }
 
@@ -212,7 +212,7 @@ FocusScope {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: modelData.label
-                            color: index === writerRoot.choiceIndex ? root.surfaceColor : root.primaryColor
+                            color: index === writerRoot.choiceIndex ? root.cursorInk : root.primaryColor
                             font.family: root.globalFont
                             font.capitalization: Font.AllUppercase
                             topPadding: root.sh * 0.0041667
@@ -231,7 +231,7 @@ FocusScope {
                         : (writerRoot.phase === "done" || writerRoot.phase === "failed")
                           ? root.hints.select + ":DONE"
                           : root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
-                color: root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0333333
                 anchors.horizontalCenter: parent.horizontalCenter

@@ -62,7 +62,7 @@ Item {
                         color: "transparent"
                         Text {
                             text: modelData.condition || ""
-                            color: root.secondaryColor
+                            color: root.primaryColor
                             font.family: root.globalFont
                             font.pixelSize: root.sh * 0.0375 //18
                             width: parent.width
@@ -77,7 +77,7 @@ Item {
                 // condition: PARTLY CLOUDY wraps to two lines where RAIN does
                 // not, so that gap differs per column and centring in it would
                 // leave the three icons at different heights.
-                // In the accent colour through the app's icon provider, as
+                // In the scheme's colour through the app's icon provider, as
                 // the title bar's icon is (AppBar).
                 Image {
                     id: dayIcon
@@ -89,7 +89,7 @@ Item {
                     fillMode: Image.PreserveAspectFit
                     visible: source != ""
                     source: modelData.iconName
-                        ? "image://osdicon/" + root.accentColor.toString().replace("#", "") + "/"
+                        ? "image://osdicon/" + root.primaryColor.toString().replace("#", "") + "/"
                           + Qt.resolvedUrl("../../assets/images/wx/" + modelData.iconName + ".svg")
                         : ""
                 }
@@ -130,7 +130,7 @@ Item {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     width: Math.max(1, root.sh * 0.003125) //2
-                    color: root.tertiaryColor
+                    color: root.primaryColor
                     visible: index < screen.days.length - 1
                 }
             }

@@ -206,7 +206,7 @@ FocusScope {
         visible: appRoot.modules.length === 0 && !appRoot.behind
         Text {
             text: "No modules enabled"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -215,7 +215,7 @@ FocusScope {
         }
         Text {
             text: "Please enable one in settings"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter

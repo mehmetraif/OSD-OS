@@ -46,7 +46,7 @@ Item {
                 Text {
                     width: screen.dayWidth
                     text: modelData.name || ""
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.pixelSize: root.sh * 0.0333333 //16
                     horizontalAlignment: Text.AlignHCenter
@@ -59,7 +59,7 @@ Item {
             Text {
                 width: screen.labelWidth
                 text: "SUNRISE"
-                color: root.accentColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375
                 horizontalAlignment: Text.AlignLeft
@@ -83,7 +83,7 @@ Item {
             Text {
                 width: screen.labelWidth
                 text: "SUNSET"
-                color: root.accentColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375
                 horizontalAlignment: Text.AlignLeft
@@ -119,7 +119,7 @@ Item {
                 width: screen.labelWidth
                 id: moonTitle
                 text: "MOON PHASES"
-                color: root.accentColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0375
                 horizontalAlignment: Text.AlignLeft

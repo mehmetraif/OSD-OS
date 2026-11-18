@@ -87,11 +87,11 @@ FocusScope {
             return ""
         }
         color: {
-            if (consoleRoot.startError !== "") return root.accentColor
-            if (consoleRoot.running)           return root.secondaryColor
-            if (consoleRoot.finishReason === "ok") return root.secondaryColor
-            if (consoleRoot.finishReason === "")   return root.secondaryColor
-            return root.accentColor
+            if (consoleRoot.startError !== "") return root.primaryColor
+            if (consoleRoot.running)           return root.primaryColor
+            if (consoleRoot.finishReason === "ok") return root.primaryColor
+            if (consoleRoot.finishReason === "")   return root.primaryColor
+            return root.primaryColor
         }
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase

@@ -252,7 +252,7 @@ FocusScope {
 
             Text {
                 id: fieldLabel
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0291667 //14
@@ -262,7 +262,7 @@ FocusScope {
                 width: parent.width
                 height: root.sh * 0.075 //36
                 color: root.surfaceColor
-                border.color: authRoot.focusIndex === index ? root.accentColor : root.tertiaryColor
+                border.color: root.primaryColor
                 border.width: root.sh * 0.003125 //2
 
                 TextInput {
@@ -299,15 +299,15 @@ FocusScope {
 
             width: authRoot.paned ? (authRoot.formWidth - root.sw * 0.1125) / 2 : root.sw * 0.321875 //218
             height: root.sh * 0.0583333 //28
-            color: selected && rowFocused ? root.accentColor : root.surfaceColor
-            border.color: selected ? root.accentColor : root.tertiaryColor
+            color: selected && rowFocused ? root.primaryColor : root.surfaceColor
+            border.color: root.primaryColor
             border.width: root.sh * 0.003125 //2
 
             Text {
                 anchors.centerIn: parent
                 text: opt.label
                 color: opt.selected && opt.rowFocused ? root.surfaceColor
-                     : (opt.selected ? root.accentColor : root.secondaryColor)
+                     : root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0291667 //14
@@ -328,7 +328,7 @@ FocusScope {
                     MethodOption { label: "Local Server"; value: 0 }
                     Text {
                         text: "OR"
-                        color: root.tertiaryColor
+                        color: root.primaryColor
                         font.family: root.globalFont
                         font.capitalization: Font.AllUppercase
                         font.pixelSize: root.sh * 0.0291667 //14
@@ -401,7 +401,7 @@ FocusScope {
                     : (focusIndex === idxMethod ? "CHOOSE HOW TO SIGN IN"
                     : (method === 1 ? "EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL"
                     : "SIGN IN WITH YOUR SERVER ACCOUNT")))
-                color: errorMsg !== "" && !waiting ? root.accentColor : root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 horizontalAlignment: Text.AlignHCenter
@@ -418,8 +418,8 @@ FocusScope {
                 width: root.sw * 0.1875 //120
                 height: root.sh * 0.0583333 //28
                 anchors.horizontalCenter: parent.horizontalCenter
-                color: focusIndex === idxSubmit ? root.accentColor : root.surfaceColor
-                border.color: focusIndex === idxSubmit ? root.accentColor : root.tertiaryColor
+                color: focusIndex === idxSubmit ? root.primaryColor : root.surfaceColor
+                border.color: root.primaryColor
                 border.width: root.sh * 0.003125 //2
 
                 Text {

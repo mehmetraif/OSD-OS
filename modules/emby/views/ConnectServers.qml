@@ -50,7 +50,7 @@ FocusScope {
     Text {
         visible: pickerRoot.waiting
         text: "CONNECTING..."
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -105,7 +105,7 @@ FocusScope {
                 on: serverList.currentIndex === index
                 elides: false
                 text: modelData.name || modelData.address || ""
-                color: serverList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                color: serverList.currentIndex === index ? root.cursorInk : root.primaryColor
                 font.pixelSize: root.sh * 0.05 //24
                 textItem.topPadding: root.sh * 0.0041667 //2
                 textItem.leftPadding: root.sw * 0.009375 //6
@@ -114,7 +114,7 @@ FocusScope {
 
                 Rectangle {
                     z: -1
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: textClip.textItem
                     visible: serverList.currentIndex === index
                 }
@@ -126,7 +126,7 @@ FocusScope {
     Text {
         visible: errorMsg !== "" && !pickerRoot.waiting
         text: errorMsg
-        color: root.accentColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter

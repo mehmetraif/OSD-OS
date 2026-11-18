@@ -151,7 +151,7 @@ FocusScope {
                 Text {
                     visible: updateRoot.latestVersion !== ""
                     text: "LATEST: " + updateRoot.latestVersion
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0375 //18
@@ -162,7 +162,7 @@ FocusScope {
             Text {
                 width: parent.width
                 text: updateRoot.statusText
-                color: root.accentColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 wrapMode: Text.WordWrap
@@ -174,7 +174,7 @@ FocusScope {
                 visible: updateRoot.hintText !== ""
                 width: parent.width
                 text: updateRoot.hintText
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 // As written: it holds a command or an address to type.
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
@@ -187,7 +187,7 @@ FocusScope {
                 width: parent.width
                 height: root.sh * 0.0291667 //14
                 color: "transparent"
-                border.color: root.tertiaryColor
+                border.color: root.primaryColor
                 border.width: root.px
                 Rectangle {
                     anchors.top: parent.top
@@ -195,7 +195,7 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.margins: 2 * root.px
                     width: (parent.width - 4 * root.px) * (updateManager ? updateManager.downloadProgress : 0)
-                    color: root.accentColor
+                    color: root.primaryColor
                 }
             }
 

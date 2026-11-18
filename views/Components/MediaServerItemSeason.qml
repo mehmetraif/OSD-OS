@@ -135,7 +135,7 @@ FocusScope {
     Text {
         visible: isLoading
         text: "LOADING..."
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -160,8 +160,8 @@ FocusScope {
             // PLAY / RSUM button
             Rectangle {
                 id: playButton
-                color: focusRow === 0 ? root.accentColor : root.surfaceColor
-                border.color: focusRow === 0 ? root.accentColor : root.tertiaryColor
+                color: focusRow === 0 ? root.primaryColor : root.surfaceColor
+                border.color: root.primaryColor
                 width: root.sw * 0.1875 //120
                 height: root.sh * 0.1166667 //56
                 border.width: root.sh * 0.003125 //2
@@ -203,7 +203,7 @@ FocusScope {
                         if (item.year) parts.push(String(item.year))
                         return parts.join(" - ")
                     }
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     elide: Text.ElideRight
@@ -218,7 +218,7 @@ FocusScope {
             id: episodeListLabel
             anchors.top: seasonDetails.bottom
             text: "Episodes:"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.topMargin: root.sh * 0.0145833 //7
@@ -254,7 +254,7 @@ FocusScope {
                         return prefix + (modelData.title || "")
                     }
                     color: (episodeList.currentIndex === index && focusRow === 1)
-                           ? root.surfaceColor : root.primaryColor
+                           ? root.cursorInk : root.primaryColor
                     font.pixelSize: root.sh * 0.05 //24
                     textItem.topPadding: root.sh * 0.0041667 //2
                     textItem.leftPadding: root.sw * 0.009375 //6
@@ -263,7 +263,7 @@ FocusScope {
 
                     Rectangle {
                         z: -1
-                        color: root.accentColor
+                        color: root.cursorColor
                         anchors.fill: textClip.textItem
                         visible: episodeList.currentIndex === index && focusRow === 1
                     }
