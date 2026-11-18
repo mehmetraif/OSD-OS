@@ -320,7 +320,7 @@ Ten workflows in [`.github/workflows`](https://github.com/mehmetraif/OSD-OS/tree
 | Workflow | Runs on | What it does |
 |---|---|---|
 | [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Changes to the app, its scripts or its tests; every release | Builds the app (Release) and runs the tests on Ubuntu 24.04 (x64 and arm64, apt's Qt 6.4) and in a `debian:trixie` container with Raspberry Pi's archive (arm64, Qt 6.8, mpv 0.40) |
-| [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand; pull requests that touch `os/`, the boot screen or `scripts/install.sh` | Builds a `dev` arm64 tarball, then the OSD/OS image from it. The image is the run's `osdos-image` artifact, kept 30 days |
+| [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand; pull requests that touch `os/`, the boot screen or `scripts/install.sh`; every release | Builds an arm64 tarball, then the OSD/OS image from it. By hand or for a pull request it is a `dev` build and the image is the run's `osdos-image` artifact, kept 30 days; a release calls it with its tag (`workflow_call`) for the release's own tarball and image |
 | [`windows.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/windows.yml) | Changes to the sources; every release; by hand | Builds the app on `windows-2022` with MSVC, Qt 6.8 and vcpkg, and uploads the folder as `osdos-windows-x64` ([above](#windows-x64)) |
 | [`freebsd.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/freebsd.yml) and [`openbsd.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/openbsd.yml) | Changes to the sources, the tests or the packaging scripts; every release; by hand | Build the app in a FreeBSD 15.1 or OpenBSD 8.0 virtual machine ([vmactions](https://github.com/vmactions)), run the tests, make and install the package, and upload it as `osdos-freebsd-amd64` or `osdos-openbsd-amd64` ([above](#freebsd-and-openbsd-amd64)) |
 | [`fbneo.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/fbneo.yml) | Changes to FinalBurn Neo's build scripts or `scripts/engines.env`; by hand | Builds the two FinalBurn Neo cores for Linux x86_64 and arm64, macOS arm64 and Windows x64, each uploaded as `fbneo-<system>` |
@@ -341,17 +341,16 @@ git tag v2026.06.04
 git push origin v2026.06.04
 ```
 
-Any tag matching `v*.*.*` starts `release.yml`. A tag containing `-rc`, `-beta` or `-alpha` (`v1.0.0-rc1`) is published as a pre-release, which `install.sh` and the in-app updater ignore. Seven builds run, and beside them the regression tests on the tagged commit:
+Any tag matching `v*.*.*` starts `release.yml`. A tag containing `-rc`, `-beta` or `-alpha` (`v1.0.0-rc1`) is published as a pre-release, which `install.sh` and the in-app updater ignore. Six builds run (the arm64 one makes the tarball and the image), and beside them the regression tests on the tagged commit:
 
 | Job | Runner | Makes |
 |---|---|---|
 | `build-macos-arm64` | `macos-15` | `OSD-OS-<tag>-macOS-arm64.dmg`, without mpv. Signed and notarized with the secrets `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD` and `APPLE_TEAM_ID`; signed ad hoc without them |
-| `build-linux-arm64` | `ubuntu-24.04-arm` | `OSD-OS-<tag>-linux-arm64.tar.gz`, for Raspberry Pi OS. `install.sh` installs it and its packages |
+| `build-linux-arm64` | `ubuntu-24.04-arm`, calling `os-image.yml` | `OSD-OS-<tag>-linux-arm64.tar.gz`, for Raspberry Pi OS (`install.sh` installs it and its packages), then `OSD-OS-<tag>-raspberry-pi.img.xz`, the OSD/OS image made from that tarball |
 | `build-linux-x86_64` | `ubuntu-24.04` | `OSD-OS-linux-x86_64.AppImage`, with mpv 0.40. No version in its name: it updates itself in place |
 | `build-windows-x64` | `windows-2022`, calling `windows.yml` | The `osdos\` folder, zipped by the `release` job as `OSD-OS-<tag>-windows-x64.zip` |
 | `build-freebsd-amd64` | A FreeBSD 15.1 virtual machine, calling `freebsd.yml` | `OSD-OS-<tag>-freebsd-amd64.pkg` |
 | `build-openbsd-amd64` | An OpenBSD 8.0 virtual machine, calling `openbsd.yml` | `OSD-OS-<number>-openbsd-amd64.tgz` (the tag without its `v`) |
-| `build-os-image` | `ubuntu-24.04-arm`, after the arm64 build | `OSD-OS-<tag>-raspberry-pi.img.xz`, from the release's own tarball |
 
 - The first job, `hold-release`, keeps a release made on the Releases page a draft until every file is attached.
 - The last job, `release`, waits for the builds and the tests. A tag whose tests fail gets no release.
