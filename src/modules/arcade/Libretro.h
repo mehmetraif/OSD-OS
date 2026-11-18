@@ -296,7 +296,9 @@ QString remapText(const Launch &launch);
 // Whether the remap file at path is OSD/OS's to write over or remove: there
 // is none, or remapText() wrote it. One saved from RetroArch's menu (Save
 // Core Remap File) or put there by hand is the user's, loaded as it is.
-bool ownsRemap(const QString &path);
+// With text, what OSD/OS's holds ("" for none, or the user's), so that one
+// as it is to be isn't written again.
+bool ownsRemap(const QString &path, QString *text = nullptr);
 // FinalBurn Neo's core options file in configDir, where RetroArch keeps a
 // core's options (<core name>/<core name>.opt, global_core_options off), and
 // its text with the option RetroAchievements' hardcore mode wants: RetroArch

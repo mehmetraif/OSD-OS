@@ -4105,15 +4105,18 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // One of the user's own stays as it is, loaded in its place.
     const QString remap = libretro::coreRemapPath(launch.remapDir, lanCore);
     const QString remapText = libretro::remapText(launch);
+    QString remapBefore;
     bool written = true;
-    if (!libretro::ownsRemap(remap))
+    if (!libretro::ownsRemap(remap, &remapBefore))
         qInfo("[Arcade] %s is the user's own: left as it is", qPrintable(remap));
     else if (remapText.isEmpty())
         QFile::remove(remap);
-    else
+    else if (remapText != remapBefore)
         // Whole, not in place as the other files: one cut short (the power
         // gone mid-write) would pass for the user's own (ownsRemap()) and
-        // never be written again.
+        // never be written again. Only when it changes, as the core's
+        // options below: written whole it is flushed to the card, tens to
+        // hundreds of milliseconds there, at every game's start.
         written = QDir().mkpath(QFileInfo(remap).path()) && writeFileAtomically(remap, remapText.toUtf8(), kOwnerOnly);
     // FinalBurn Neo's info file, without which RetroArch neither hosts nor
     // joins a game.

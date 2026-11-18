@@ -860,11 +860,22 @@ QString remapText(const Launch &launch) {
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
-bool ownsRemap(const QString &path) {
+bool ownsRemap(const QString &path, QString *text) {
+    if (text)
+        text->clear();
     QFile file(path);
     if (!file.exists())
         return true;
-    return file.open(QIODevice::ReadOnly) && QString::fromUtf8(file.readLine()).startsWith(kOwnRemap);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    // Its first line, or all of it where what it holds is asked for: a remap
+    // file is a few lines.
+    const QString read = QString::fromUtf8(text ? file.readAll() : file.readLine());
+    if (!read.startsWith(kOwnRemap))
+        return false;
+    if (text)
+        *text = read;
+    return true;
 }
 
 QString coreOptionsPath(const QString &configDir) {

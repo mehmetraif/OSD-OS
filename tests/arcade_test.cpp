@@ -1861,14 +1861,21 @@ private slots:
         const QStringList remap = libretro::remapText(launch).split(QLatin1Char('\n'));
         QVERIFY(remap.contains(QStringLiteral("input_libretro_device_p3 = \"261\"")));
         QVERIFY(!remap.filter(QStringLiteral("input_libretro_device_p1")).size());
-        // The file is OSD/OS's while there is none or it wrote it; one saved
-        // from RetroArch's menu, or put there by hand, is the user's.
+        // The file is OSD/OS's while there is none or it wrote it, what it
+        // holds read with it; one saved from RetroArch's menu, or put there
+        // by hand, is the user's.
         const QString remapFile = libretro::coreRemapPath(dir.path() + QStringLiteral("/remaps"));
-        QVERIFY(libretro::ownsRemap(remapFile));
+        QString held = QStringLiteral("not read");
+        QVERIFY(libretro::ownsRemap(remapFile, &held));
+        QCOMPARE(held, QString());
         writeFile(remapFile, libretro::remapText(launch).toUtf8());
         QVERIFY(libretro::ownsRemap(remapFile));
+        QVERIFY(libretro::ownsRemap(remapFile, &held));
+        QCOMPARE(held, libretro::remapText(launch));
         writeFile(remapFile, "input_libretro_device_p1 = \"1\"\ninput_remap_port_p1 = \"0\"\n");
         QVERIFY(!libretro::ownsRemap(remapFile));
+        QVERIFY(!libretro::ownsRemap(remapFile, &held));
+        QCOMPARE(held, QString());
         // Online, on the internet or the local network, every player plays
         // on the host's controller types. On the Classic layout, RetroArch's
         // own (a host without a panel, or one that isn't OSD/OS), a panel's
@@ -2764,6 +2771,24 @@ private slots:
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
                  QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\""),
                                QStringLiteral("input_libretro_device_p2 = \"261\"") }));
+        // Started again with the same players, the file as it is to be is
+        // left alone: not written anew (and flushed to the card) at every
+        // game.
+        {
+            const QByteArray before = contents(remap);
+            const FolderWatch watch(QFileInfo(remap).path());
+            played(arcade, QStringLiteral("sf2"));
+            QCOMPARE(contents(remap), before);
+            if (watch.fd >= 0) {
+                QStringList cameIn;
+                QStringList writtenTo;
+                watch.read(cameIn, writtenTo);
+                QVERIFY2(cameIn.isEmpty(), qPrintable(cameIn.join(QLatin1Char(' '))));
+                QVERIFY2(writtenTo.isEmpty(), qPrintable(writtenTo.join(QLatin1Char(' '))));
+            } else {
+                qWarning("the remap folder can't be watched here (inotify): that it isn't written again isn't checked");
+            }
+        }
         controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("030000005e0400008e02000014010000") } });
