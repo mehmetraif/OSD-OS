@@ -14,9 +14,6 @@ if(NOT OSDOS_MULTI_CONFIG AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Release unless set)" FORCE)
 endif()
 
-# Strip qDebug(...) calls in Release builds to reduce CPU/disk noise on Pi
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DQT_NO_DEBUG_OUTPUT")
-
 # Release version string. CI passes the git tag (-DAPP_VERSION=vX.Y.Z); local
 # builds report "dev", which disables the in-app self-update download path.
 set(APP_VERSION "dev" CACHE STRING "Release version (CI passes the git tag)")
@@ -167,6 +164,9 @@ add_executable(osdos
 )
 
 target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD="${APP_BUILD}")
+# No qDebug() lines in an optimised build (Release, and RelWithDebInfo with
+# its debug symbols), to spare the Pi's CPU and card the noise.
+target_compile_definitions(osdos PRIVATE $<$<CONFIG:Release,RelWithDebInfo>:QT_NO_DEBUG_OUTPUT>)
 # The engines' versions every machine plays with (scripts/engines.env).
 include(cmake/engines.cmake)
 osdos_engine_definitions(osdos)
