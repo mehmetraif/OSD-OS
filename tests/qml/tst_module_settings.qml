@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Components
+import OSDOS.Testing
 
 // A module's settings page, views/ModuleSettings.qml, against a stand-in for
 // AppCore: rows usable only while another row has a value (manifest
@@ -13,86 +14,17 @@ import Components
 // multiselect_submenu row's page, views/MultiSelectSettings.qml, with its
 // headings. A group's page, with another module's rows under its name, saved
 // in that module.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
-    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
-    // tallListHeight with no help line under them, helpedListHeight over one
-    // that always shows).
-    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
-    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
-    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
-    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
-    // Settings → Look → Menu Layout, and a monitor layout's frame as the
-    // shell draws it under the views (Main.qml's frameChrome): up in a
-    // monitor layout, the views' bars telling it what to write.
-    property string menuLayout: "Standard"
-    readonly property var menuPalette: ({
-        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
-                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
-        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
-                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
-        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
-                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
-    })[menuLayout] || null
-    readonly property bool monitorFramed: menuPalette !== null
-    readonly property bool monitorInk: monitorFramed
-    // A value changed in two steps there (Broadcast, Flat Panel).
-    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
-    readonly property alias chrome: frameChrome
-    MonitorChrome {
-        id: frameChrome
-        anchors.fill: parent
-        visible: root.monitorFramed
-    }
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    readonly property real helpLineMargin: sh * 0.1583333
-    property var selector: null
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
-    function selectorShown(item, shown) {}
-    function skinIcon(url) { return url }
-    // What a layer over the page is drawn on (OsdGround): the keyboard's,
-    // and the window an action row's question is asked in.
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property bool videoBehind: false
-    property int backdropSolidity: 100
-    function coverShown(item, shown) {}
+    // White on black in every layout, and the frame's colours in force
+    // whenever it is up.
+    primaryColor: schemeInk
+    surfaceColor: schemePaper
+    cursorColor: primaryColor
+    cursorInk: surfaceColor
+    monitorInk: monitorFramed
+    // The rows' room the same whether or not the Help Line shows.
+    helpRoom: 0
     // The theme in force (Settings → Look → Theme), as AppCore::theme() reads
     // it: {} for none.
     property var theme: ({})

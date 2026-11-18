@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 import "../../views/Components" as Components
 import "../../views/Components/Hover.js" as Hover
 
@@ -12,94 +13,21 @@ import "../../views/Components/Hover.js" as Hover
 // (ModuleSettings, alsoModules). And the title bar its questions share with
 // every view (AppBar): a title too long for it, as a long display output's
 // name makes Switch to …?, scrolls through it.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    // Where the menus can be a window on a desktop (Window Mode).
-    property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
-                             || Qt.platform.pluginName === "wayland"
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
-    // A monitor layout's frame, which the shell draws under the views
-    // (Main.qml's frameChrome): up in a monitor layout, the views' bars
-    // telling it what to write, its place for their rows the pane.
-    readonly property bool monitorFramed: menuPalette !== null
-    readonly property bool monitorInk: monitorFramed
-    // A value changed in two steps there (Broadcast, Flat Panel).
-    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
-    readonly property alias chrome: frameChrome
-    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
-    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
-    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
-    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
-    Components.MonitorChrome {
-        id: frameChrome
-        anchors.fill: parent
-        visible: root.monitorFramed
-        icons: root.menuLayout === "Studio Monitor" ? root.frameIcons.map(function(entry) { return entry.icon }) : []
-        iconIndex: root.frameIndex
-        iconsActive: root.frameActive
-    }
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    readonly property real helpLineMargin: sh * 0.1583333
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property var selector: null
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", left: "[◄]", select: "[ENTER]", play_pause: "[SPACE]" })
+    // White on black in every layout, and the frame's colours in force
+    // whenever it is up.
+    primaryColor: schemeInk
+    surfaceColor: schemePaper
+    cursorColor: primaryColor
+    cursorInk: surfaceColor
+    monitorInk: monitorFramed
     // Settings → Look → Menu Layout, as Main.qml reads it.
-    property string menuLayout: "Standard"
     function menuLayoutOf(raw) {
         return ["Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"].indexOf(raw) >= 0 ? raw : "Standard"
     }
-    readonly property var menuPalette: ({
-        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
-                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
-        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
-                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
-        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
-                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
-    })[menuLayout] || null
-    property bool videoBehind: false
-    property int backdropSolidity: 100
-    function selectorShown(item, shown) {}
-    function coverShown(item, shown) {}
-    function skinIcon(url) { return url }
     // What Settings reads of Main.qml's own.
     property bool devBuild: true
-    property string appVersion: "1.0.0"
     property bool effectsUsable: true
     property var allSchemes: ({ "Video 1": {}, "Late Night": {} })
     property var textPresets: ({ "Rainbow": {} })

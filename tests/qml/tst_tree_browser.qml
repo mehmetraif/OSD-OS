@@ -1,36 +1,12 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 import "../../views/Components" as Components
 
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
     width: 1280
     height: 960
-    property real sw: width
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    // Main.qml's: Settings' Hint Bar, and the area the views lay out in.
-    property bool hintBar: true
-    property var statusIcons: []
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    function selectorShown(item, showing) {}
     function folder(name, path) { return { name: name, path: path, isFolder: true } }
     function file(name, path) { return { name: name, path: path, isFolder: false } }
     property var entries: ({})

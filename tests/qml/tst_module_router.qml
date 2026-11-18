@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 
 // A module's router (views/Components/ModuleRouter.qml), as a module's
 // Root.qml is one (module_router/Root.qml, with its views beside it),
@@ -10,13 +11,8 @@ import QtTest
 // Root opens its own way (the Arcade's games); the view's inFrame handed
 // on, unless a layer of the Root's covers it; leaving the module at once;
 // and the shell's own navigateTo, heard only when it is asked for.
-Item {
+StandInRoot {
     id: root
-    width: 640
-    height: 480
-
-    // Main.qml's: the view a loader shows, without a transition.
-    function changeWindow(loader, source, properties) { loader.setSource(source, properties) }
 
     // AppCore: the module's name and logo.
     QtObject {

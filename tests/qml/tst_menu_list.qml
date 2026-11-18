@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Components
+import OSDOS.Testing
 import "../../views/Components/Hover.js" as Hover
 
 // A view's menu (views/Components/MenuList.qml) on its own: the rows its
@@ -10,36 +11,8 @@ import "../../views/Components/Hover.js" as Hover
 // cursor held while ▲ ▼ are the host's; the rows at an end the cursor passes
 // over shown with the one beside them; the mouse (Hover.js) stopping on the
 // rows the keys do; and its ▲ ▼ marks left off for a host without them.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the list and its rows read them.
-    property real sw: width
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property string menuLayout: "Standard"
-    readonly property var menuPalette: null
-    readonly property bool monitorFramed: false
-    readonly property bool monitorInk: false
-    readonly property real paneX: sw * 0.115625
-    readonly property real paneWidth: sw * 0.76875
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    property var selector: null
-    function selectorShown(item, shown) {}
-    function skinIcon(url) { return url }
 
     Loader {
         id: loader

@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 
 // About, views/About.qml, against stand-ins for AppCore's licence files,
 // ArcadeBackend's FinalBurn Neo licence and SystemInfo's device name: System
@@ -9,60 +10,8 @@ import QtTest
 // opens it, OSD/OS's under the GPL's notice, another's under its name,
 // FinalBurn Neo's as it was installed or what to do without it; back closes
 // it; a line without one opens nothing.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
-    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
-    // tallListHeight with no help line under them, helpedListHeight over one
-    // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    readonly property real helpLineMargin: sh * 0.1583333
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property var selector: null
-    readonly property var keyboardHints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                                            browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
-    property var hints: keyboardHints
-    function selectorShown(item, shown) {}
-    function coverShown(item, shown) {}
-    function skinIcon(url) { return url }
-    property string appVersion: "1.0.0"
     property string appBuild: "abc1234 2026-10-18"
     property int backs: 0
     property var navigations: []

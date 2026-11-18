@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Components
+import OSDOS.Testing
 
 // What comes over a view, each on its own: the on-screen keyboard
 // (views/Components/OnScreenKeyboard.qml), whose keys stay the keys they are
@@ -11,51 +12,8 @@ import Components
 // (views/Components/ScreenSaver.qml) over a view and a notice, laid out as
 // Main.qml lays them: the keys its own while it is up, and back to whoever
 // has them under it as it goes.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    property bool framed: false
-    readonly property real paneX: sw * 0.115625
-    readonly property real paneWidth: sw * 0.76875
-    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
-    // tallListHeight with no help line under them, helpedListHeight over one
-    // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property var selector: null
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
-    function selectorShown(item, shown) {}
-    function coverShown(item, shown) {}
-    function skinIcon(url) { return url }
 
     Loader {
         id: loader
