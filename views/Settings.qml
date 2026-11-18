@@ -216,8 +216,7 @@ FocusScope {
     // Where the menus can be a window on a desktop (Main.qml's canWindow):
     // Windows, and a Linux or BSD desktop. On the Pi's console and a Mac the
     // Window Mode row is dimmed.
-    readonly property bool desktopWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
-                                          || Qt.platform.pluginName === "wayland"
+    readonly property bool desktopWindow: root.canWindow === true
     // Where there is a clipboard to paste OSD/OS Setup's settings from: a
     // computer's, not the Pi's own console, where its row is dimmed.
     readonly property bool canPaste: Qt.platform.pluginName !== "eglfs" && Qt.platform.pluginName !== "linuxfb"

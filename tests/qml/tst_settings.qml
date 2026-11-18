@@ -19,6 +19,9 @@ Rectangle {
     height: 480
     // Main.qml's, as the views and their components read them.
     property real sw: width
+    // Where the menus can be a window on a desktop (Window Mode).
+    property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
+                             || Qt.platform.pluginName === "wayland"
     // The layout's frame and its pane (Main.qml): the column's icons as a
     // view hands them over, and where a view's rows go.
     property var frameIcons: []
@@ -594,6 +597,13 @@ Rectangle {
             compare(row(page, "Window Mode").value, "Off")
             // Display Output: nothing to switch off a Pi.
             verify(page.offReason(lines(page).indexOf("Display Output")) !== "")
+            // Where Main.qml says the menus can be a window, it can be used.
+            var was = root.canWindow
+            loader.source = ""
+            root.canWindow = true
+            page = open({ group: "screen" })
+            compare(page.offReason(at), "")
+            root.canWindow = was
         }
 
         // Paste OSD/OS Setup, on System's page before Export to OSD/OS Setup
