@@ -89,7 +89,7 @@ ctest --test-dir build-tests --output-on-failure
   - A search replaced by the next is never reported.
   - The backend can go away while a search runs.
   - Settings and resume points survive a restart; a resume point saved as a number alone, as Local Files once saved them, is its position.
-  - The resume points' file (`util/PositionHistory.h`): an entry saved over the one before, one cleared, all cleared with the file; with a limit, the entries played longest ago go first.
+  - The resume points' file (`util/PositionHistory.h`): an entry saved over the one before, with when it was played, one cleared, all cleared with the file; with a limit, the entries played longest ago go first (one saved before there was a time first), never the one just saved. Local Files keeps 1000.
   - Subtitle Language's choices (`util/PlaybackOptions.h`): Any, then each name of Local Files' `iso639-1.json` once; none without the list.
   - A save that can't be made (the data folder read-only) leaves the old file as it was. Run as root, that test skips itself: root writes to a read-only folder anyway.
   - A setting `config.json` can't take (a full card: a file size limit, which holds for root too) is neither reported saved nor signalled, and `get_setting()` still says the one before.

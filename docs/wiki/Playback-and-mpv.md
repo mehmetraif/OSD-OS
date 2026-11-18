@@ -286,7 +286,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 
 | Module | Where it keeps them | How |
 |---|---|---|
-| Local Files | `local_files_history.json` in the data folder, by file | Saved when you stop after 5 seconds; cleared at 95%. A playlist saves the video it was on and the point in it. Photos keep none |
+| Local Files | `local_files_history.json` in the data folder, by file, the 1000 most recently played | Saved when you stop after 5 seconds; cleared at 95%. A playlist saves the video it was on and the point in it. Photos keep none |
 | NFC Reader | `nfc_reader_history.json`, by file or URL | As Local Files |
 | YouTube | `youtube_history.json`, by video | As Local Files. A video watched to 95% stays on Recently Watched at 0 |
 | Playlists | `playlists.json`, the list's `resume` | The video a list in order stopped at and the point in it; forgotten once the list has played out |

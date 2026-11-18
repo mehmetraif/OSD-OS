@@ -160,7 +160,8 @@ private:
     bool m_moduleActive = false;
     bool m_captureArmed = false;
 
-    // Where each mapped video was stopped (nfc_reader_history.json).
+    // Where each mapped video was stopped (nfc_reader_history.json), the most
+    // recently played kept.
     PositionHistory m_history;
 
     QString tagsDirPath() const;

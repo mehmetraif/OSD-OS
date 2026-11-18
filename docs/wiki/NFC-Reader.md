@@ -144,7 +144,7 @@ Rename the file to the title you want, add the second line, and tap the card aga
 - A video stopped more than 5 seconds in is resumed. One watched to 95% starts over.
 - A playlist (an `.m3u`/`.m3u8`, or a YouTube URL with `list=`) also remembers which video it was on: **Resume video 3 at 12:34**.
 - **Resume Playback**: **Ask** (the default) offers to resume or start from the beginning, **Always** resumes, **Never** starts from the beginning.
-- Positions are kept per mapped path in `nfc_reader_history.json`.
+- Positions are kept per mapped path in `nfc_reader_history.json`, the 1000 most recently played.
 
 ### Subtitles and YouTube quality
 
@@ -213,7 +213,7 @@ Settings → TV / Movie → **NFC Reader**. The keys sit under `modules.com.osdo
 | File | What it is |
 |---|---|
 | `nfc_tags/*.txt` (or the Tags Directory) | One tag file per card |
-| `nfc_reader_history.json` | Resume points: `{ "<mapped path>": { "pos": <ms>, "plPos": <playlist index or -1> } }` |
+| `nfc_reader_history.json` | Resume points, the 1000 most recently played: `{ "<mapped path>": { "pos": <ms>, "plPos": <playlist index or -1>, "lastPlayed": <ms since 1970> } }` |
 
 ```json
 {

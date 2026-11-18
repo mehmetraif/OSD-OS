@@ -209,7 +209,7 @@ Back on the question leaves it without playing.
 
 ### Resume
 
-Positions are kept in `local_files_history.json` in the data folder:
+Positions are kept in `local_files_history.json` in the data folder, the 1000 most recently played:
 
 - **A single video:** saved when stopped after its first 5 seconds; cleared when stopped in its last 5% or played to the end.
 - **A playlist:** the entry it was on and the position in it are saved when it stops before its end; cleared once played through.
@@ -316,14 +316,14 @@ All in the data folder:
 |---|---|
 | `config.json` | The settings above, under `modules.com.osdos.local_files` |
 | `lists.json` | Recently Watched (`recent`) and Favorites (`favorites`), under `com.osdos.local_files`, newest first. Each entry is `{ "isFolder": false, "name": "…", "path": "…" }` |
-| `local_files_history.json` | Where each file was stopped: `pos` (milliseconds) and `plPos` (the playlist entry, counted from 0; `-1` for a single file), by path |
+| `local_files_history.json` | Where each file was stopped: `pos` (milliseconds) and `plPos` (the playlist entry, counted from 0; `-1` for a single file), by path, with `lastPlayed` (when, in milliseconds since 1970). The 1000 most recently played are kept |
 
 `local_files_history.json`:
 
 ```json
 {
-    "/media/OSD-OS/Movies/Anime/Spirited Away (2001).mp4": { "plPos": -1, "pos": 4354000 },
-    "/media/OSD-OS/Movies/Rambo Marathon.m3u": { "plPos": 2, "pos": 61000 }
+    "/media/OSD-OS/Movies/Anime/Spirited Away (2001).mp4": { "lastPlayed": 1794995754748, "plPos": -1, "pos": 4354000 },
+    "/media/OSD-OS/Movies/Rambo Marathon.m3u": { "lastPlayed": 1794912003311, "plPos": 2, "pos": 61000 }
 }
 ```
 

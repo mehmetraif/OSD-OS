@@ -54,6 +54,9 @@ struct LocalFilesBackend::SearchRun {
 
 // No more matches than a tree column is good for: the first, by name.
 static constexpr int kSearchLimit = 200;
+// Resume points kept, the most recently played: one a file, a library's worth
+// many times over, and the file still small to read at each start.
+static constexpr int kMaxResumePoints = 1000;
 LocalFilesBackend::~LocalFilesBackend() {
     if (m_search)
         m_search->cancelled = true;
@@ -62,7 +65,7 @@ LocalFilesBackend::~LocalFilesBackend() {
 LocalFilesBackend::LocalFilesBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                                      QObject *parent)
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot), m_appCore(appCore),
-      m_history(dataRoot + "/local_files_history.json")
+      m_history(dataRoot + "/local_files_history.json", kMaxResumePoints)
 {
     m_directories = new AsyncDirectoryCache(this);
     m_directories->ready = [this](const QString &path) { emit entriesReady(path); };

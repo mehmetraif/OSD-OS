@@ -92,6 +92,6 @@ private:
     static QVariantMap entryFor(const QString &dirPath, const QString &name, bool isDir);
 
     // Where each file was stopped (local_files_history.json): { pos, plPos }
-    // by its path.
+    // by its path, the most recently played kept.
     PositionHistory m_history;
 };

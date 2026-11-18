@@ -729,8 +729,7 @@ void YouTubeBackend::savePosition(const QString &videoId, int positionMs,
     entry["pos"]         = positionMs;
     entry["title"]       = title;
     entry["channelName"] = channelName;
-    entry["lastPlayed"]  = QDateTime::currentMSecsSinceEpoch();
-    m_history.save(videoId, entry);
+    m_history.save(videoId, entry);     // with lastPlayed, now
 }
 
 QVariantList YouTubeBackend::getHistory() const {

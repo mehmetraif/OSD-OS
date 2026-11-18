@@ -6,6 +6,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThreadPool>
@@ -165,21 +167,35 @@ private slots:
         // Saved as a number alone, as Local Files once saved them: its pos.
         QVERIFY(writeFileAtomically(tmp.path() + "/local_files_history.json", R"({"old.mp4": 4321})"));
         QCOMPARE(backend.getSavedPosition("old.mp4"), QVariantMap({ { "pos", 4321 }, { "plPos", -1 } }));
+
+        // A thousand kept, the most recently played: one more puts out the
+        // one played longest ago.
+        QJsonObject full;
+        for (int i = 0; i < 1000; ++i)
+            full.insert(QString("film%1.mp4").arg(i), QJsonObject{ { "pos", 1000 }, { "plPos", -1 }, { "lastPlayed", i + 1 } });
+        QVERIFY(writeFileAtomically(tmp.path() + "/local_files_history.json", QJsonDocument(full).toJson()));
+        backend.savePosition("new.mp4", 5000, -1);
+        QCOMPARE(backend.getSavedPosition("new.mp4").value("pos").toInt(), 5000);
+        QVERIFY(backend.getSavedPosition("film0.mp4").isEmpty());
+        QCOMPARE(backend.getSavedPosition("film1.mp4").value("pos").toInt(), 1000);
     }
 
     // The resume points' file (util/PositionHistory.h): an entry saved in
-    // place of the one before, one cleared, all of them cleared with the
-    // file; and with a limit, the entries played longest ago going first
-    // once a save goes over it.
+    // place of the one before, with when it was played, one cleared, all of
+    // them cleared with the file; and with a limit, the entries played
+    // longest ago going first once a save goes over it (one saved before
+    // there was a time first), never the one just saved.
     void positionHistoryKeepsTheMostRecent() {
         QTemporaryDir tmp;
         const QString path = tmp.path() + "/history.json";
         PositionHistory unlimited(path);
         for (int i = 0; i < 5; ++i)
             unlimited.save(QString::number(i), { { "pos", i } });
+        const qint64 before = QDateTime::currentMSecsSinceEpoch();
         unlimited.save("1", { { "pos", 10 } });
         QCOMPARE(unlimited.entries().size(), 5);
         QCOMPARE(unlimited.entry("1").toMap().value("pos").toInt(), 10);
+        QVERIFY(unlimited.entry("1").toMap().value("lastPlayed").toLongLong() >= before);
         unlimited.clear("1");
         QVERIFY(!unlimited.entry("1").isValid());
         QCOMPARE(unlimited.entries().size(), 4);
@@ -187,14 +203,19 @@ private slots:
         QVERIFY(!QFile::exists(path));
         QVERIFY(unlimited.entries().isEmpty());
 
-        PositionHistory limited(path, 2);
-        limited.save("old", { { "pos", 1 } });                        // no lastPlayed: the oldest
-        limited.save("b", { { "pos", 2 }, { "lastPlayed", 300 } });
-        QCOMPARE(limited.entries().size(), 2);
-        limited.save("c", { { "pos", 3 }, { "lastPlayed", 200 } });
-        QCOMPARE(limited.entries().keys(), QStringList({ "b", "c" }));
-        limited.save("d", { { "pos", 4 }, { "lastPlayed", 400 } });
-        QCOMPARE(limited.entries().keys(), QStringList({ "b", "d" }));
+        // Two played long ago, one before there was a time, and three more.
+        QVERIFY(writeFileAtomically(path, R"({"old": {"pos": 1}, "a": {"pos": 2, "lastPlayed": 300},)"
+                                          R"( "b": {"pos": 3, "lastPlayed": 200}})"));
+        PositionHistory limited(path, 3);
+        limited.save("c", { { "pos", 4 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "a", "b", "c" }));
+        limited.save("d", { { "pos", 5 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "a", "c", "d" }));
+        limited.save("a", { { "pos", 6 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "a", "c", "d" }));
+        limited.save("e", { { "pos", 7 } });
+        QCOMPARE(limited.entries().keys().size(), 3);
+        QVERIFY(limited.entries().contains("e"));
     }
 
     // The playback settings' choices Local Files and the NFC Reader share

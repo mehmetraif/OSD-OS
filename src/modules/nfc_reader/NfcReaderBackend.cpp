@@ -33,6 +33,8 @@ static constexpr int kMaxRespawns = 5;
 static constexpr qint64 kDetectIntervalMs = 2000;
 static const char *kTagsDirName = "nfc_tags";
 static const QString kModuleId = QStringLiteral("com.osdos.nfc_reader");
+// Resume points kept, the most recently played, as Local Files keeps them.
+static constexpr int kMaxResumePoints = 1000;
 
 // Card refs that carry a URI scheme belonging to another module are handed off to
 // it rather than played here. Adding a module means adding a row: the rest of the
@@ -151,7 +153,7 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
     , m_appCore(appCore)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
-    , m_history(dataRoot + "/nfc_reader_history.json")
+    , m_history(dataRoot + "/nfc_reader_history.json", kMaxResumePoints)
 {
     qDebug("[NfcReader] Initializing NFC reader backend");
 
