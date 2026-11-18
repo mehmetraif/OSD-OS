@@ -183,6 +183,11 @@ public:
     // (a player's menu where its process ended) it does nothing: the next
     // one starts with the setting.
     Q_INVOKABLE void setVideoProperty(const QString &name, const QVariant &value);
+    // A module's Scaling chosen in its player's menu (PlayerMenu), its
+    // "video_scaling" as saved, on the session that plays, as sessionArgs()
+    // starts one with it: "Default" (or none) is the app's (videoScaling()).
+    // Without a session it does nothing, as setVideoProperty().
+    Q_INVOKABLE void applyScaling(const QString &scaling);
     // Settings → Sound → Audio Output changed: a video playing behind the menus moves
     // to the card chosen at once (AudioOutput).
     void followAudioOutput();
@@ -355,6 +360,16 @@ private:
     // Scan", "Anamorphic"): the module's own "video_scaling", unless it is
     // "Default", then the app's.
     QString videoScaling(const QString &module) const;
+    // What a Scaling is to mpv: keepaspect off for Anamorphic alone, and
+    // panscan 1 for Pan & Scan, 0.43 for 14:9 (14:9 of a 16:9 picture), else
+    // 0. The one place a Scaling becomes mpv's properties, for a session's
+    // command line (sessionArgs()) and for one that plays; the OSC scripts'
+    // CROP button (scripts/mpv-osc*.lua) steps through the same four inside mpv.
+    struct ScalingProperties {
+        bool keepaspect;
+        double panscan;
+    };
+    static ScalingProperties scalingProperties(const QString &scaling);
     // True when the active decode path can't crop (Pi 3 overlay path with smooth
     // playback ON): --panscan blanks the video there. Gates auto-crop and tells
     // the OSC scripts to hide their CROP button.

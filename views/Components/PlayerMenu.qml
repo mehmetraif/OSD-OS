@@ -182,10 +182,9 @@ FocusScope {
 
     // A Scaling (the module's video_scaling) on the video that plays, as
     // MpvController::sessionArgs() starts one with it: Default is Settings'.
+    // The controller makes it mpv's, as it does a session's.
     function applyScaling(value) {
-        var s = (!value || value === "Default") ? (appCore.get_setting("", "video_scaling") || "Letterbox") : value
-        mpvController.setVideoProperty("keepaspect", s !== "Anamorphic")
-        mpvController.setVideoProperty("panscan", s === "Pan & Scan" ? 1.0 : (s === "14:9" ? 0.43 : 0.0))
+        mpvController.applyScaling(value || "")
     }
 
     Connections {

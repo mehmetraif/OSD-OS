@@ -94,7 +94,9 @@ local sub_cycle   = mp.get_opt("sub-cycle") == "1"
 local audio_cycle = mp.get_opt("audio-cycle") == "1"
 
 -- The four Scalings of Settings (MpvController::sessionArgs), which CROP steps
--- through live: how a 16:9 picture fills the 4:3 tube.
+-- through live: how a 16:9 picture fills the 4:3 tube. Their values are
+-- MpvController::scalingProperties()'s, the app's one place for them: this
+-- table runs inside mpv, so it keeps a copy.
 local SCALINGS = {
     { name = "LETTERBOX",  panscan = 0,    keepaspect = true  },
     { name = "14:9",       panscan = 0.43, keepaspect = true  },

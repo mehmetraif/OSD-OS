@@ -688,15 +688,11 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
     // cropping ones need panscan, which the Pi3 overlay (smooth) path blanks
     // video under, so it keeps the whole picture there, matching the 1080p
     // Playback trade-off. The OSC's CROP button steps through all four live.
-    const QString scaling = videoScaling(m_activeModule);
-    if (scaling == QLatin1String("Anamorphic")) {
+    const ScalingProperties scaling = scalingProperties(videoScaling(m_activeModule));
+    if (!scaling.keepaspect)
         args << QStringLiteral("--keepaspect=no");
-    } else if (!noCrop) {
-        if (scaling == QLatin1String("Pan & Scan"))
-            args << QStringLiteral("--panscan=1");
-        else if (scaling == QLatin1String("14:9"))
-            args << QStringLiteral("--panscan=0.43");
-    }
+    else if (!noCrop && scaling.panscan > 0)
+        args << QStringLiteral("--panscan=") + QString::number(scaling.panscan);
     // A tube's pixels aren't square (720×240 from a JAMMA board fills a 4:3
     // screen), and mpv takes them as square unless told the screen's shape:
     // 4:3, or the user's own in mpv.conf or mpv_video_args. The window's own
@@ -1866,6 +1862,16 @@ QString MpvController::videoScaling(const QString &module) const {
     return autoCropEnabled() ? QStringLiteral("Pan & Scan") : QStringLiteral("Letterbox");
 }
 
+MpvController::ScalingProperties MpvController::scalingProperties(const QString &scaling) {
+    if (scaling == QLatin1String("Anamorphic"))
+        return { false, 0.0 };
+    if (scaling == QLatin1String("Pan & Scan"))
+        return { true, 1.0 };
+    if (scaling == QLatin1String("14:9"))
+        return { true, 0.43 };
+    return { true, 0.0 };
+}
+
 QString MpvController::videoOutputLevels() const {
     // Default "Auto" → no flag at all, leaving mpv's own default (full-range RGB
     // out) and anything the user set in mpv.conf in place. Stored by Settings as
@@ -2226,10 +2232,9 @@ void MpvController::followVideoSetting(const QString &key) {
     // Through sendCommand(), not setVideoProperty(): asked while the
     // session's control connection is still on its way, it waits for it.
     if (key == QLatin1String("video_scaling")) {
-        const QString scaling = videoScaling(m_sessionModule);
-        sendCommand({"set_property", "keepaspect", scaling != QLatin1String("Anamorphic")});
-        sendCommand({"set_property", "panscan", scaling == QLatin1String("Pan & Scan") ? 1.0
-                                                : scaling == QLatin1String("14:9") ? 0.43 : 0.0});
+        const ScalingProperties scaling = scalingProperties(videoScaling(m_sessionModule));
+        sendCommand({"set_property", "keepaspect", scaling.keepaspect});
+        sendCommand({"set_property", "panscan", scaling.panscan});
     } else if (key == QLatin1String("video_output_levels")) {
         const QString levels = videoOutputLevels();
         sendCommand({"set_property", "video-output-levels", levels.isEmpty() ? QStringLiteral("auto") : levels});
@@ -2240,6 +2245,13 @@ void MpvController::setVideoProperty(const QString &name, const QVariant &value)
     if (m_ipc->state() != QLocalSocket::ConnectedState)
         return;
     sendCommand({"set_property", name, QJsonValue::fromVariant(value)});
+}
+
+void MpvController::applyScaling(const QString &scaling) {
+    const bool app = scaling.isEmpty() || scaling.compare(QStringLiteral("Default"), Qt::CaseInsensitive) == 0;
+    const ScalingProperties properties = scalingProperties(app ? videoScaling(QString()) : scaling);
+    setVideoProperty(QStringLiteral("keepaspect"), properties.keepaspect);
+    setVideoProperty(QStringLiteral("panscan"), properties.panscan);
 }
 
 void MpvController::reattach(float startSeconds) {
