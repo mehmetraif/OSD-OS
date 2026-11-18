@@ -148,7 +148,9 @@ FocusScope {
         var resolution = appCore.get_setting(moduleRoot.moduleId, "playback_resolution") || "480p"
         ytdlArgs = ["--ytdl=yes", "--ytdl-format=" + nfcReaderBackend.ytdlFormatForResolution(resolution)]
 
-        subtitleMode = appCore.get_setting(moduleRoot.moduleId, "auto_subtitles") || "forced"
+        // As the backend reads it: one saved as On or Off before it had
+        // three choices (true or false) is On or Forced Only.
+        subtitleMode = nfcReaderBackend.autoSubtitlesChoice(appCore.get_setting(moduleRoot.moduleId, "auto_subtitles"))
         // mpv takes a *list* of languages to fall back through; "-" is the
         // stored id for "Any" (no preference), which adds nothing and launches
         // mpv without an --slang preference — same behavior as local_files.

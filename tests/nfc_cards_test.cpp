@@ -98,6 +98,17 @@ private slots:
         QCOMPARE(old.value("on"), QVariant(true));
         QCOMPARE(old.value("forced"), QVariant(false));
         QVERIFY(!old.value("off").isValid());
+
+        // And its player plays it so (autoSubtitlesChoice()): the old forms
+        // as On and Forced Only, the new as they are, nothing saved (or
+        // something no choice is) as the default, Forced Only.
+        QCOMPARE(nfc.autoSubtitlesChoice(QVariant(true)), QStringLiteral("on"));
+        QCOMPARE(nfc.autoSubtitlesChoice(QVariant(false)), QStringLiteral("forced"));
+        for (const QString &choice : { QStringLiteral("forced"), QStringLiteral("on"), QStringLiteral("off") })
+            QCOMPARE(nfc.autoSubtitlesChoice(choice), choice);
+        QCOMPARE(nfc.autoSubtitlesChoice(QVariant()), QStringLiteral("forced"));
+        QCOMPARE(nfc.autoSubtitlesChoice(QString()), QStringLiteral("forced"));
+        QCOMPARE(nfc.autoSubtitlesChoice(QStringLiteral("sometimes")), QStringLiteral("forced"));
     }
 
     // Subtitle Language's names come from the one list the app has, in Local

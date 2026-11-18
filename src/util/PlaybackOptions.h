@@ -33,6 +33,22 @@ inline QVariantList autoSubtitles() {
     return options;
 }
 
+// The choice a setting saved as `saved` is, of `options`: the one of its id,
+// or for a setting once a toggle, saved as true or false, the one that form
+// is now (`old`); the first, the default, when it is neither (nothing saved),
+// as Settings shows it.
+inline QString chosen(const QVariantList &options, const QVariant &saved) {
+    const bool toggle = saved.typeId() == QMetaType::Bool;
+    for (const QVariant &option : options) {
+        const QVariantMap map = option.toMap();
+        const QVariant old = map.value(QStringLiteral("old"));
+        if (toggle ? old.isValid() && old.toBool() == saved.toBool()
+                   : map.value(QStringLiteral("id")).toString() == saved.toString())
+            return map.value(QStringLiteral("id")).toString();
+    }
+    return options.isEmpty() ? QString() : options.first().toMap().value(QStringLiteral("id")).toString();
+}
+
 // Subtitle Language: Any (no preference, "-"), then the languages of ISO
 // 639-1, each name once, from the one list the app has of them, in Local
 // Files' folder (where the site's build reads it too, scripts/build-site.py).

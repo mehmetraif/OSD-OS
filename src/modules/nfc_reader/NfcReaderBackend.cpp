@@ -600,6 +600,10 @@ void NfcReaderBackend::get_auto_subtitles_options() {
     emit dynamicOptionsReady("auto_subtitles", playbackoptions::autoSubtitles());
 }
 
+QString NfcReaderBackend::autoSubtitlesChoice(const QVariant &saved) const {
+    return playbackoptions::chosen(playbackoptions::autoSubtitles(), saved);
+}
+
 void NfcReaderBackend::get_subtitle_languages() {
     const QVariantList options = playbackoptions::subtitleLanguages(m_appRoot);
     if (!options.isEmpty())

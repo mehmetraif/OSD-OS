@@ -88,6 +88,9 @@ public:
     Q_INVOKABLE void        get_resume_playback_options();
     Q_INVOKABLE void        get_auto_subtitles_options();
     Q_INVOKABLE void        get_subtitle_languages();
+    // Auto Show Subtitles as saved (appCore.get_setting()), as the choice it
+    // is: "forced", "on" or "off", one saved in the old On/Off form too.
+    Q_INVOKABLE QString     autoSubtitlesChoice(const QVariant &saved) const;
     Q_INVOKABLE QString     ytdlFormatForResolution(const QString &resolution) const;
 
     // True when at least one reader driver is compiled in. The PN532 serial

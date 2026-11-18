@@ -208,6 +208,8 @@ Rectangle {
         property int loads: 0
         property var urls: []
         property var starts: []
+        // The subtitles each was started with: -2 none, -1 forced only, 0 any.
+        property var subTracks: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
         signal playlistPosChanged(int pos)
@@ -215,10 +217,11 @@ Rectangle {
         signal skipRequested()
         signal subtitleCycleRequested()
         signal audioCycleRequested()
-        function loadAndPlay(url, startSeconds) {
+        function loadAndPlay(url, startSeconds, audioTrack, subTrack) {
             loads++
             urls = urls.concat([url])
             starts = starts.concat([startSeconds || 0])
+            subTracks = subTracks.concat([subTrack])
         }
         function noteSession(note) {}
         // The failures a player had written to the log (logFailure): which
@@ -316,6 +319,12 @@ Rectangle {
         id: nfcReaderBackend
         // Where the card's video was left: { pos, plPos }.
         property var saved: ({})
+        // Auto Show Subtitles as the backend reads it (nfc_cards tests the
+        // backend's own): true, its old On, is On; false, or nothing, Forced
+        // Only.
+        function autoSubtitlesChoice(value) {
+            return value === true ? "on" : (typeof value === "string" && value !== "") ? value : "forced"
+        }
         function ytdlFormatForResolution(resolution) { return "best" }
         function getSavedPosition(path) { return saved }
         function savePosition(path, pos, plPos) {}
@@ -459,6 +468,7 @@ Rectangle {
             mpvController.loads = 0
             mpvController.urls = []
             mpvController.starts = []
+            mpvController.subTracks = []
             mpvController.keys = []
             mpvController.lastError = ""
             mpvController.lastErrorDetail = ""
@@ -1393,6 +1403,25 @@ Rectangle {
             compare(mpvController.starts[1], 90)
             compare(mpvController.keys, [])
             compare(root.backs, 1)
+        }
+
+        // The NFC Reader's player starts a card's video with Auto Show
+        // Subtitles as its backend reads the setting: one saved in its old
+        // On/Off form (true or false) plays subtitles On or Forced Only,
+        // not Off.
+        function test_nfcReaderSubtitlesAsSaved_data() {
+            return [{ tag: "old On", saved: true, subTrack: 0 },
+                    { tag: "old Off", saved: false, subTrack: -1 },
+                    { tag: "On", saved: "on", subTrack: 0 },
+                    { tag: "Forced Only", saved: "forced", subTrack: -1 },
+                    { tag: "Off", saved: "off", subTrack: -2 },
+                    { tag: "nothing saved", saved: undefined, subTrack: -1 }]
+        }
+        function test_nfcReaderSubtitlesAsSaved(data) {
+            appCore.settings = { auto_subtitles: data.saved }
+            open("nfc_reader", "Player.qml", { videoPath: "/films/A.mkv", title: "A" })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks, [data.subTrack])
         }
 
         // The Scripts module's Run script? asks as the players do: Cancel
