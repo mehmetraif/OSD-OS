@@ -1,7 +1,9 @@
 import QtQuick
 import Components
 
-// Reusable list view — handles all listType values via navParams.
+// Reusable list view — handles all listType values via navParams (kinds:
+// what loads each, what answers it, what its rows open), its rows and A–Z
+// panel a LetterList.
 FocusScope {
     id: itemListRoot
     // In the layout's frame (Main.qml): its list in the pane, beside the
@@ -113,71 +115,104 @@ FocusScope {
     }
 
     // ----------------------------------------------------------------
-    // Signal connections from backend
+    // The kinds of list, by listType: what loads one (load), the backend's
+    // signal that answers it (answer) and, for a list of lists, the list a
+    // row opens (opens: its Items.qml's parameters). Any other row opens by
+    // its own type (selectItem()).
     // ----------------------------------------------------------------
+    readonly property var kinds: ({
+        "library_all":       { answer: "itemsLoaded",
+                               load: function() { plexBackend.load_library_all(sectionId) } },
+        "hub_items":         { answer: "itemsLoaded",
+                               load: function() { plexBackend.load_items_for_hub(hubKey) } },
+        "collection_items":  { answer: "itemsLoaded",
+                               load: function() { plexBackend.load_collection_items(ratingKey) } },
+        "playlist_items":    { answer: "itemsLoaded",
+                               load: function() { plexBackend.load_playlist_items(ratingKey) } },
+        "category_items":    { answer: "itemsLoaded",
+                               load: function() { plexBackend.load_category_items(sectionId, categoryKey) } },
+        "folders":           { answer: "folderLoaded",
+                               load: function() { plexBackend.load_folder(sectionId, folderKey) } },
+        "continue_watching": { answer: "continueWatchingLoaded",
+                               load: function() { plexBackend.load_continue_watching() } },
+        "hubs": {
+            answer: "hubsLoaded",
+            load: function() { plexBackend.load_section_hubs(sectionId) },
+            // Hub selected → load items for that hub
+            opens: function(item) {
+                return { listType: "hub_items", title: item.title, hubKey: item.hubKey || item.key,
+                         libraryName: libraryName }
+            }
+        },
+        "collections": {
+            answer: "collectionsLoaded",
+            load: function() { plexBackend.load_collections(sectionId) },
+            opens: function(item) {
+                return { listType: "collection_items", title: item.title, ratingKey: item.ratingKey,
+                         libraryName: libraryName }
+            }
+        },
+        "playlists": {
+            answer: "playlistsLoaded",
+            load: function() { plexBackend.load_playlists(sectionId) },
+            opens: function(item) {
+                return { listType: "playlist_items", title: item.title, ratingKey: item.ratingKey,
+                         libraryName: libraryName }
+            }
+        },
+        "categories": {
+            answer: "categoriesLoaded",
+            load: function() { plexBackend.load_categories(sectionId) },
+            // Boolean filters (e.g. hdr) have no directory listing — apply directly
+            opens: function(item) {
+                return { listType: "category_items", title: item.title, sectionId: sectionId,
+                         categoryKey: item.filterType === "boolean" ? item.key + "=1" : item.key,
+                         libraryName: libraryName }
+            }
+        }
+    })
+    // This view's, or null for a listType there is none of.
+    readonly property var kind: kinds[listType] || null
+    // Whether the backend's answer, by its signal's name, is this view's list.
+    function answers(signal) {
+        return kind !== null && kind.answer === signal
+    }
+
+    // The list come in: shown (a folder's with the letters if they agree
+    // with it), the cursor back where it was as the list was left. The saved
+    // index is a *row* index, PLAY ALL and SHUFFLE among the rows
+    // (LetterList's restore()).
+    function show(loadedItems) {
+        isLoading = false
+        items = loadedItems
+        if (listType === "folders")
+            folderLetterNav = letterNavUsable(loadedItems)
+        itemList.restore(navListState)
+    }
 
     Connections {
         target: plexBackend
 
         function onItemsLoaded(loadedItems) {
-            var consuming = ["library_all", "hub_items", "collection_items",
-                             "playlist_items", "category_items", "continue_watching"]
-            if (consuming.indexOf(itemListRoot.listType) >= 0) {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedItems
-                // The saved index is a *row* index, PLAY ALL and SHUFFLE among
-                // the rows (LetterList's restore()).
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("itemsLoaded")) itemListRoot.show(loadedItems)
         }
-
         function onContinueWatchingLoaded(loadedItems) {
-            if (itemListRoot.listType === "continue_watching") {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedItems
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("continueWatchingLoaded")) itemListRoot.show(loadedItems)
         }
-
         function onHubsLoaded(loadedHubs) {
-            if (itemListRoot.listType === "hubs") {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedHubs
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("hubsLoaded")) itemListRoot.show(loadedHubs)
         }
-
         function onCollectionsLoaded(loadedItems) {
-            if (itemListRoot.listType === "collections") {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedItems
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("collectionsLoaded")) itemListRoot.show(loadedItems)
         }
-
         function onPlaylistsLoaded(loadedItems) {
-            if (itemListRoot.listType === "playlists") {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedItems
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("playlistsLoaded")) itemListRoot.show(loadedItems)
         }
-
         function onFolderLoaded(loadedItems) {
-            if (itemListRoot.listType === "folders") {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedItems
-                itemListRoot.folderLetterNav = itemListRoot.letterNavUsable(loadedItems)
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("folderLoaded")) itemListRoot.show(loadedItems)
         }
-
         function onCategoriesLoaded(loadedItems) {
-            if (itemListRoot.listType === "categories") {
-                itemListRoot.isLoading = false
-                itemListRoot.items = loadedItems
-                itemList.restore(navListState)
-            }
+            if (itemListRoot.answers("categoriesLoaded")) itemListRoot.show(loadedItems)
         }
 
         function onErrorOccurred(msg) {
@@ -226,48 +261,9 @@ FocusScope {
             return
         }
 
-        // Intermediate lists that navigate deeper
-        if (listType === "hubs") {
-            // Hub selected → load items for that hub
-            itemListRoot.navigateTo("Items.qml", {
-                listType: "hub_items",
-                title: item.title,
-                hubKey: item.hubKey || item.key,
-                libraryName: libraryName
-            }, { currentIndex: itemList.currentIndex })
-            return
-        }
-
-        if (listType === "collections") {
-            itemListRoot.navigateTo("Items.qml", {
-                listType: "collection_items",
-                title: item.title,
-                ratingKey: item.ratingKey,
-                libraryName: libraryName
-            }, { currentIndex: itemList.currentIndex })
-            return
-        }
-
-        if (listType === "playlists") {
-            itemListRoot.navigateTo("Items.qml", {
-                listType: "playlist_items",
-                title: item.title,
-                ratingKey: item.ratingKey,
-                libraryName: libraryName
-            }, { currentIndex: itemList.currentIndex })
-            return
-        }
-
-        if (listType === "categories") {
-            // Boolean filters (e.g. hdr) have no directory listing — apply directly
-            var catKey = (item.filterType === "boolean") ? item.key + "=1" : item.key
-            itemListRoot.navigateTo("Items.qml", {
-                listType: "category_items",
-                title: item.title,
-                sectionId: sectionId,
-                categoryKey: catKey,
-                libraryName: libraryName
-            }, { currentIndex: itemList.currentIndex })
+        // Intermediate lists that navigate deeper: the list the row is.
+        if (kind && kind.opens) {
+            itemListRoot.navigateTo("Items.qml", kind.opens(item), { currentIndex: itemList.currentIndex })
             return
         }
 
@@ -309,28 +305,8 @@ FocusScope {
     Component.onCompleted: {
         isLoading = true
         errorMessage = ""
-        if (listType === "library_all")
-            plexBackend.load_library_all(sectionId)
-        else if (listType === "hub_items")
-            plexBackend.load_items_for_hub(hubKey)
-        else if (listType === "hubs")
-            plexBackend.load_section_hubs(sectionId)
-        else if (listType === "collections")
-            plexBackend.load_collections(sectionId)
-        else if (listType === "collection_items")
-            plexBackend.load_collection_items(ratingKey)
-        else if (listType === "playlists")
-            plexBackend.load_playlists(sectionId)
-        else if (listType === "playlist_items")
-            plexBackend.load_playlist_items(ratingKey)
-        else if (listType === "categories")
-            plexBackend.load_categories(sectionId)
-        else if (listType === "category_items")
-            plexBackend.load_category_items(sectionId, categoryKey)
-        else if (listType === "folders")
-            plexBackend.load_folder(sectionId, folderKey)
-        else if (listType === "continue_watching")
-            plexBackend.load_continue_watching()
+        if (kind)
+            kind.load()
     }
 
     focus: true

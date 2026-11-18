@@ -14,7 +14,8 @@ import Components
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
 // keyboard (its signs, SHOW, the mouse), and their Continue Watching and
 // Next Up put the cursor back on the item left; the A–Z list the media
-// servers' lists are (LetterList), on its own. And Local Files' player: a remote's
+// servers' lists are (LetterList), on its own; and Plex's list, each kind of
+// it, its letters and its rows. And Local Files' player: a remote's
 // channel or page keys step through the folder's films.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
@@ -312,6 +313,27 @@ Rectangle {
         property int liveStops: 0
         function stop_live_session(sessionId) { liveStops++ }
         function update_live_timeline(state) {}
+        // The lists a list view asks for (Items.qml), answered by the test.
+        property var listAsks: []
+        function asked(what) { listAsks = listAsks.concat([what]) }
+        signal itemsLoaded(var items)
+        signal continueWatchingLoaded(var items)
+        signal hubsLoaded(var hubs)
+        signal collectionsLoaded(var collections)
+        signal playlistsLoaded(var playlists)
+        signal categoriesLoaded(var categories)
+        signal folderLoaded(var items)
+        function load_library_all(sectionId) { asked("library_all " + sectionId) }
+        function load_items_for_hub(hubKey) { asked("hub " + hubKey) }
+        function load_section_hubs(sectionId) { asked("hubs " + sectionId) }
+        function load_collections(sectionId) { asked("collections " + sectionId) }
+        function load_collection_items(ratingKey) { asked("collection " + ratingKey) }
+        function load_playlists(sectionId) { asked("playlists " + sectionId) }
+        function load_playlist_items(ratingKey) { asked("playlist " + ratingKey) }
+        function load_categories(sectionId) { asked("categories " + sectionId) }
+        function load_category_items(sectionId, key) { asked("category " + sectionId + " " + key) }
+        function load_folder(sectionId, folderKey) { asked("folder " + sectionId + " " + folderKey) }
+        function load_continue_watching() { asked("continue watching") }
     }
 
     // YouTubeBackend, NfcReaderBackend and AmbientModeBackend as their
@@ -1151,6 +1173,102 @@ Rectangle {
             list.restore({ currentIndex: 2 })
             compare(list.count, 0)
             loader.sourceComponent = undefined
+        }
+
+        // Plex's list (modules/plex/views/Items.qml), each kind of it: what
+        // it asks the backend for, the one answer that fills it (any other
+        // leaves it waiting), and what select on its first row opens, with
+        // the cursor's row to come back to.
+        function test_plexListKinds_data() {
+            var film = { ratingKey: "r1", title: "ALIEN", type: "movie" }
+            return [
+                { tag: "library_all", asks: "library_all 7", answer: "itemsLoaded", rows: [film], opens: "Item.qml" },
+                { tag: "hub_items", asks: "hub /hub/9", answer: "itemsLoaded", rows: [film], opens: "Item.qml" },
+                { tag: "collection_items", asks: "collection rk", answer: "itemsLoaded", rows: [film],
+                  opens: "Item.qml" },
+                { tag: "playlist_items", asks: "playlist rk", answer: "itemsLoaded",
+                  rows: [{ ratingKey: "s1", title: "KNIGHT RIDER", type: "show" }], opens: "QueuePlay.qml",
+                  params: { shuffle: false, title: "Night" } },
+                { tag: "category_items", asks: "category 7 genre", answer: "itemsLoaded",
+                  rows: [{ ratingKey: "a b", title: "SCI FI", type: "genre_item", _filterKey: "genre" }],
+                  opens: "Items.qml", params: { listType: "category_items", sectionId: "7", categoryKey: "genre=a%20b" } },
+                { tag: "continue_watching", asks: "continue watching", answer: "continueWatchingLoaded", rows: [film],
+                  opens: "Item.qml" },
+                { tag: "hubs", asks: "hubs 7", answer: "hubsLoaded", rows: [{ title: "RECENT", key: "/hub/1" }],
+                  opens: "Items.qml", params: { listType: "hub_items", title: "RECENT", hubKey: "/hub/1" } },
+                { tag: "collections", asks: "collections 7", answer: "collectionsLoaded",
+                  rows: [{ ratingKey: "c1", title: "80S", type: "collection" }],
+                  opens: "Items.qml", params: { listType: "collection_items", ratingKey: "c1" } },
+                { tag: "playlists", asks: "playlists 7", answer: "playlistsLoaded",
+                  rows: [{ ratingKey: "p1", title: "NIGHT", type: "playlist" }],
+                  opens: "Items.qml", params: { listType: "playlist_items", ratingKey: "p1" } },
+                { tag: "categories", asks: "categories 7", answer: "categoriesLoaded",
+                  rows: [{ key: "hdr", title: "HDR", filterType: "boolean" }],
+                  opens: "Items.qml", params: { listType: "category_items", sectionId: "7", categoryKey: "hdr=1" } },
+                { tag: "folders", asks: "folder 7 /top", answer: "folderLoaded",
+                  rows: [{ title: "ACTION", type: "folder", folderKey: "/k1" }],
+                  opens: "Items.qml", params: { listType: "folders", folderKey: "/k1", folderTrail: "A / ACTION" } }
+            ]
+        }
+        function test_plexListKinds(data) {
+            plexBackend.listAsks = []
+            var list = open("plex", "Items.qml", { listType: data.tag, sectionId: "7", hubKey: "/hub/9", ratingKey: "rk",
+                                                   categoryKey: "genre", folderKey: "/top", folderTrail: "A",
+                                                   title: "Night", libraryName: "Films" })
+            compare(plexBackend.listAsks, [data.asks])
+            var answers = ["itemsLoaded", "continueWatchingLoaded", "hubsLoaded", "collectionsLoaded",
+                           "playlistsLoaded", "categoriesLoaded", "folderLoaded"]
+            for (var i = 0; i < answers.length; i++) {
+                if (answers[i] !== data.answer)
+                    plexBackend[answers[i]]([{ ratingKey: "w", title: "NOT THIS ONE", type: "movie" }])
+            }
+            verify(list.isLoading)
+            compare(list.items.length, 0)
+            plexBackend[data.answer](data.rows)
+            verify(!list.isLoading)
+            compare(list.items.length, data.rows.length)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, data.opens)
+            compare(root.navigations[0].listState.currentIndex, 0)
+            for (var key in data.params || {})
+                compare(root.navigations[0].params[key], data.params[key], key)
+        }
+
+        // Plex's A–Z panel: a library's always, a folder's only where its
+        // rows are in the order of their letters, a name's own first letter
+        // ("THE ABYSS" under T); and back on the row left, PLAY ALL and
+        // SHUFFLE counted among a playlist's rows.
+        function test_plexListLetters() {
+            var films = [{ ratingKey: "a", title: "1917" }, { ratingKey: "b", title: "THE ABYSS" },
+                         { ratingKey: "c", title: "ALIEN", titleSort: "alien" }, { ratingKey: "d", title: "BIG" }]
+            var lettersOf = function(view) {
+                for (var i = 0; i < view.children.length; i++) {
+                    if (view.children[i].letterIndex !== undefined)
+                        return view.children[i].letterIndex.map(function(l) { return l.letter }).join("")
+                }
+                return null
+            }
+            var view = open("plex", "Items.qml", { listType: "library_all", sectionId: "7", libraryName: "Films" })
+            plexBackend.itemsLoaded(films)
+            compare(lettersOf(view), "#AB")
+            loader.source = ""
+            view = open("plex", "Items.qml", { listType: "folders", sectionId: "7", libraryName: "Films" })
+            plexBackend.folderLoaded(films)
+            compare(lettersOf(view), "")
+            loader.source = ""
+            view = open("plex", "Items.qml", { listType: "folders", sectionId: "7", libraryName: "Films" })
+            plexBackend.folderLoaded([films[0], films[2], films[3], films[1]])
+            compare(lettersOf(view), "#ABT")
+            loader.source = ""
+            view = open("plex", "Items.qml", { listType: "playlist_items", ratingKey: "p1", libraryName: "Films",
+                                               navListState: { currentIndex: 5 } })
+            plexBackend.itemsLoaded(films)
+            compare(view.rows.length, 6)
+            compare(view.rows[0].__action, "play_all")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[0].params.item.ratingKey, "d")
+            compare(root.navigations[0].listState.currentIndex, 5)
         }
 
         function openJellyfinPlayer(module) {
