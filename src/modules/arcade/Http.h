@@ -1,14 +1,19 @@
 #pragma once
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QList>
+#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <algorithm>
+#include <functional>
 
 // What the Arcade module's requests share: the lobby's, catver.ini's,
-// RetroAchievements' and FinalBurn Neo's downloads.
+// RetroAchievements', ArcadeDB's and the installers' downloads.
 namespace arcadehttp {
 
 // Marks a reply given up on for its size (limitReply()).
@@ -68,5 +73,96 @@ inline bool isBadgeName(const QString &name) {
     static const QRegularExpression valid(QRegularExpression::anchoredPattern(QStringLiteral("[0-9A-Za-z]{1,32}")));
     return valid.match(name).hasMatch();
 }
+
+// A picture: a PNG or a JPEG, as its first bytes say.
+inline bool isPicture(const QByteArray &data) {
+    return data.startsWith("\x89PNG\r\n\x1a\n") || data.startsWith("\xff\xd8\xff");
+}
+
+// A server's pictures downloaded one at a time, in the order they were
+// asked for (RetroAchievements' media server, ArcadeDB's): each one's done
+// with what it holds, a picture (isPicture()) of limit at most, or nothing
+// (empty) when it couldn't be had. Nothing is asked while the server's pause
+// lasts (pausedUntil, its owner's); an answer asking for one
+// (asksForAPause()) goes to onPause, which sets the pause and says whether
+// the file is asked for again after it (tried: how many times it was before
+// for that reason), else it is had as nothing. context: the server's
+// object, which the queue is a member of and its downloads go with.
+class MediaQueue {
+public:
+    using Done = std::function<void(const QByteArray &data)>;
+    using OnPause = std::function<bool(QNetworkReply *reply, int status, const QString &name, int tried)>;
+
+    // server: whose files they are, as the log says it ("ArcadeDB's").
+    MediaQueue(QObject *context, QNetworkAccessManager *nam, int timeoutMs, const char *server,
+               const QDateTime *pausedUntil, OnPause onPause)
+        : m_context(context), m_nam(nam), m_timeoutMs(timeoutMs), m_server(server), m_pausedUntil(pausedUntil),
+          m_onPause(std::move(onPause)) {}
+    MediaQueue(const MediaQueue &) = delete;
+    MediaQueue &operator=(const MediaQueue &) = delete;
+
+    // url downloaded after those asked for before it; name: what the log
+    // calls it.
+    void add(const QUrl &url, qint64 limit, const QString &name, const Done &done) {
+        m_queue.append({ url, limit, name, done, 0 });
+        next();
+    }
+
+private:
+    struct Item {
+        QUrl url;
+        qint64 limit = 0;
+        QString name;
+        Done done;
+        int tried = 0;
+    };
+
+    void next() {
+        if (m_reply || m_queue.isEmpty())
+            return;
+        const QDateTime now = QDateTime::currentDateTimeUtc();
+        if (m_pausedUntil->isValid() && *m_pausedUntil > now) {
+            // The next file once the pause is over.
+            QTimer::singleShot(static_cast<int>(std::max<qint64>(1, now.msecsTo(*m_pausedUntil))), m_context,
+                               [this] { next(); });
+            return;
+        }
+        const Item item = m_queue.takeFirst();
+        m_reply = m_nam->get(requestFor(item.url, m_timeoutMs));
+        QNetworkReply *reply = m_reply;
+        limitReply(reply, item.limit);
+        QObject::connect(reply, &QNetworkReply::finished, m_context, [this, reply, item] {
+            reply->deleteLater();
+            m_reply = nullptr;
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (asksForAPause(status) && m_onPause(reply, status, item.name, item.tried)) {
+                Item again = item;
+                ++again.tried;
+                m_queue.prepend(again);
+                next();
+                return;
+            }
+            QByteArray data;
+            if (reply->error() == QNetworkReply::NoError)
+                data = reply->readAll();
+            if (data.size() > item.limit || !isPicture(data)) {
+                qWarning("[Arcade] %s %s could not be downloaded (HTTP %d, error %d)", m_server, qPrintable(item.name),
+                         status, int(reply->error()));
+                data.clear();
+            }
+            item.done(data);
+            next();
+        });
+    }
+
+    QObject *m_context;
+    QNetworkAccessManager *m_nam;
+    int m_timeoutMs;
+    const char *m_server;
+    const QDateTime *m_pausedUntil;
+    OnPause m_onPause;
+    QList<Item> m_queue;
+    QNetworkReply *m_reply = nullptr;   // the download under way
+};
 
 } // namespace arcadehttp

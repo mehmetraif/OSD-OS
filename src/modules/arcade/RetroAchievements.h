@@ -1,4 +1,5 @@
 #pragma once
+#include "Http.h"
 #include <QDateTime>
 #include <QHash>
 #include <QList>
@@ -164,11 +165,6 @@ private:
         QVariantList achievements;
         QDateTime read;
     };
-    struct Media {
-        QString path;
-        std::function<void(const QByteArray &)> done;
-        int tried = 0;   // how many times the server asked for a pause over it
-    };
     using Answer = std::function<void(const QByteArray &json, bool ok)>;
 
     // What is wanted read now: achievements, then a board, then pictures.
@@ -199,7 +195,6 @@ private:
     bool fresh(const Progress &progress) const;
     bool listFresh() const;
     void loadList();
-    void nextMedia();
 
     QString m_home;
     QUrl m_api;
@@ -229,9 +224,8 @@ private:
     QDateTime m_listRead;               // when the list was read
     QDateTime m_listRetry;              // after a list that couldn't be read, when to try again
     bool m_listLoaded = false;          // the list kept has been looked for
-    // The media server's files to download, and the one under way.
-    QList<Media> m_mediaQueue;
-    QNetworkReply *m_mediaReply = nullptr;
+    // The media server's files, downloaded one at a time.
+    arcadehttp::MediaQueue m_mediaQueue;
     // A pause the Web API or the media server asked for: until when, and
     // whether a request of the Web API's waits it out to be asked again.
     QDateTime m_pausedUntil;

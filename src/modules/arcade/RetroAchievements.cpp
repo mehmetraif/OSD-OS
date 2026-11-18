@@ -66,20 +66,27 @@ QNetworkRequest requestFor(const QUrl &url) {
 using arcadehttp::limitReply;
 using arcadehttp::isBadgeName;
 
-// A picture: a PNG or a JPEG, as its first bytes say.
-bool isPicture(const QByteArray &data) {
-    return data.startsWith("\x89PNG\r\n\x1a\n") || data.startsWith("\xff\xd8\xff");
-}
-
 } // namespace
 
 const QUrl RetroAchievements::kApi(QStringLiteral("https://retroachievements.org/API/"));
 const QUrl RetroAchievements::kMedia(QStringLiteral("https://media.retroachievements.org/"));
 
 RetroAchievements::RetroAchievements(const QString &home, const QUrl &api, const QUrl &media, QObject *parent)
-    : QObject(parent), m_home(home), m_api(api), m_media(media)
+    : QObject(parent), m_home(home), m_api(api), m_media(media), m_nam(new QNetworkAccessManager(this)),
+      // Too many requests: a pause, and the file asked for again after it,
+      // a few times.
+      m_mediaQueue(this, m_nam, kTimeoutMs, "RetroAchievements'", &m_pausedUntil,
+                   [this](QNetworkReply *reply, int status, const QString &name, int tried) {
+                       if (tried + 1 >= kMostTries)
+                           return false;
+                       const int pause = arcadehttp::pauseAsked(reply, kPauseSeconds);
+                       m_pausedUntil = QDateTime::currentDateTimeUtc().addSecs(pause);
+                       qWarning("[Arcade] RetroAchievements' media server asks for a pause (HTTP %d): %s is asked for "
+                                "again in %d s",
+                                status, qPrintable(name), pause);
+                       return true;
+                   })
 {
-    m_nam = new QNetworkAccessManager(this);
     m_wait = new QTimer(this);
     m_wait->setSingleShot(true);
     m_wait->setInterval(kWaitMs);
@@ -620,53 +627,9 @@ void RetroAchievements::media(const QString &path, const std::function<void(cons
         QTimer::singleShot(0, this, [done] { done(QByteArray()); });
         return;
     }
-    m_mediaQueue.append({ path, done });
-    nextMedia();
-}
-
-void RetroAchievements::nextMedia() {
-    if (m_mediaReply || m_mediaQueue.isEmpty())
-        return;
-    if (pausing()) {
-        // The next file once the pause is over.
-        QTimer::singleShot(static_cast<int>(std::max<qint64>(1, QDateTime::currentDateTimeUtc().msecsTo(m_pausedUntil))),
-                           this, &RetroAchievements::nextMedia);
-        return;
-    }
-    const Media next = m_mediaQueue.takeFirst();
-    const qint64 limit = next.path.startsWith(QLatin1String("/Badge/")) ? kMaxBadge : kMaxPicture;
     // Relative to the server's address, its path without the first /.
-    m_mediaReply = m_nam->get(requestFor(m_media.resolved(QUrl(next.path.mid(1)))));
-    QNetworkReply *reply = m_mediaReply;
-    limitReply(reply, limit);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, next, limit] {
-        reply->deleteLater();
-        m_mediaReply = nullptr;
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        // Too many requests: a pause, and the file asked for again after it,
-        // a few times.
-        if (arcadehttp::asksForAPause(status) && next.tried + 1 < kMostTries) {
-            const int pause = arcadehttp::pauseAsked(reply, kPauseSeconds);
-            m_pausedUntil = QDateTime::currentDateTimeUtc().addSecs(pause);
-            qWarning("[Arcade] RetroAchievements' media server asks for a pause (HTTP %d): %s is asked for again in %d s",
-                     status, qPrintable(next.path), pause);
-            Media again = next;
-            ++again.tried;
-            m_mediaQueue.prepend(again);
-            nextMedia();
-            return;
-        }
-        QByteArray data;
-        if (reply->error() == QNetworkReply::NoError)
-            data = reply->readAll();
-        if (data.size() > limit || !isPicture(data)) {
-            qWarning("[Arcade] RetroAchievements' %s could not be downloaded (HTTP %d, error %d)",
-                     qPrintable(next.path), status, int(reply->error()));
-            data.clear();
-        }
-        next.done(data);
-        nextMedia();
-    });
+    m_mediaQueue.add(m_media.resolved(QUrl(path.mid(1))),
+                     path.startsWith(QLatin1String("/Badge/")) ? kMaxBadge : kMaxPicture, path, done);
 }
 
 void RetroAchievements::get(const QString &endpoint, const QList<std::pair<QString, QString>> &query,
