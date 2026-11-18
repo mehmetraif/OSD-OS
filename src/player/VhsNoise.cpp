@@ -1,6 +1,4 @@
 #include "VhsNoise.h"
-#include <QQuickWindow>
-#include <QSGSimpleTextureNode>
 #include <QtMath>
 
 namespace {
@@ -10,14 +8,10 @@ constexpr int kFrameMs = 50;
 constexpr int kAlpha[5] = { 26, 46, 77, 128, 217 };
 }
 
-VhsNoise::VhsNoise(QQuickItem *parent) : QQuickItem(parent) {
-    setFlag(ItemHasContents, true);
-    m_timer.setInterval(kFrameMs);
-    connect(&m_timer, &QTimer::timeout, this, &VhsNoise::nextFrame);
-    // Two of them on one screen don't draw the same noise.
-    m_seed ^= quint32(reinterpret_cast<quintptr>(this) >> 4);
-    if (m_seed == 0)
-        m_seed = 1;
+// Its random numbers start from where it is: two of them on one screen don't
+// draw the same noise.
+VhsNoise::VhsNoise(QQuickItem *parent)
+    : ArtPixelItem(kFrameMs, 0x9e3779b9u ^ quint32(reinterpret_cast<quintptr>(this) >> 4), parent) {
     fillLevels(m_levels, m_color);
     fillLevels(m_shades, m_shade);
 }
@@ -38,14 +32,6 @@ void VhsNoise::setShade(const QColor &shade) {
     emit shadeChanged();
 }
 
-void VhsNoise::setPixel(int pixel) {
-    pixel = qMax(1, pixel);
-    if (pixel == m_pixel)
-        return;
-    m_pixel = pixel;
-    emit pixelChanged();
-}
-
 void VhsNoise::setStreaks(qreal streaks) {
     streaks = qBound(0.0, streaks, 4.0);
     if (qFuzzyCompare(streaks, m_streaks))
@@ -61,28 +47,11 @@ void VhsNoise::setBands(bool bands) {
     emit bandsChanged();
 }
 
-void VhsNoise::setRunning(bool running) {
-    if (running == m_running)
-        return;
-    m_running = running;
-    updateRunning();
-    emit runningChanged();
-}
-
 void VhsNoise::fillLevels(QRgb *levels, const QColor &color) {
     for (int i = 0; i < 5; ++i) {
         const int alpha = color.alpha() * kAlpha[i] / 255;
         levels[i] = qPremultiply(qRgba(color.red(), color.green(), color.blue(), alpha));
     }
-}
-
-quint32 VhsNoise::random() {
-    // xorshift: plenty for noise, and cheap enough for thousands a frame.
-    quint32 x = m_seed;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    return m_seed = x;
 }
 
 void VhsNoise::streak(int x, int y, int length, int level, bool dark) {
@@ -124,9 +93,9 @@ void VhsNoise::tear(int from, int to) {
     }
 }
 
-void VhsNoise::nextFrame() {
-    const int cols = qCeil(width() / m_pixel);
-    const int rows = qCeil(height() / m_pixel);
+void VhsNoise::tick() {
+    const int cols = qCeil(width() / pixel());
+    const int rows = qCeil(height() / pixel());
     if (cols <= 0 || rows <= 0)
         return;
     if (m_frame.width() != cols || m_frame.height() != rows)
@@ -174,48 +143,12 @@ void VhsNoise::nextFrame() {
 }
 
 void VhsNoise::updateRunning() {
-    const bool run = m_running && isVisible() && window() && width() > 0 && height() > 0;
+    const bool run = canRun();
     if (run && !m_timer.isActive()) {
         // A frame at once, not a tick later.
-        nextFrame();
+        tick();
         m_timer.start();
     } else if (!run && m_timer.isActive()) {
         m_timer.stop();
     }
-}
-
-void VhsNoise::itemChange(ItemChange change, const ItemChangeData &value) {
-    QQuickItem::itemChange(change, value);
-    if (change == ItemVisibleHasChanged || change == ItemSceneChange)
-        updateRunning();
-}
-
-void VhsNoise::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) {
-    QQuickItem::geometryChange(newGeometry, oldGeometry);
-    if (newGeometry.size() != oldGeometry.size())
-        updateRunning();
-}
-
-QSGNode *VhsNoise::updatePaintNode(QSGNode *old, UpdatePaintNodeData *) {
-    // The GUI thread waits while this runs, so the frame can be read.
-    auto *node = static_cast<QSGSimpleTextureNode *>(old);
-    if (m_frame.isNull() || width() <= 0 || height() <= 0) {
-        delete node;
-        return nullptr;
-    }
-    if (!node) {
-        node = new QSGSimpleTextureNode;
-        node->setOwnsTexture(true);
-        // Art pixels stay square blocks, as the menus' do.
-        node->setFiltering(QSGTexture::Nearest);
-    }
-    if (m_newFrame || !node->texture()) {
-        node->setTexture(window()->createTextureFromImage(m_frame));
-        m_newFrame = false;
-    }
-    // Whole art pixels from the top left, the last row and column cut short
-    // by the edge.
-    node->setRect(boundingRect());
-    node->setSourceRect(QRectF(0, 0, width() / m_pixel, height() / m_pixel));
-    return node;
 }

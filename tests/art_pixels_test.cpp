@@ -50,7 +50,7 @@ class ArtPixelsTest : public QObject {
         noise.m_seed = 0x12345678u;
         QCryptographicHash hash(QCryptographicHash::Md5);
         for (int i = 0; i < frames; ++i) {
-            noise.nextFrame();
+            noise.tick();
             add(hash, noise.m_frame);
         }
         return hash.result().toHex();
@@ -190,7 +190,7 @@ private slots:
         noise.setSize(QSizeF(301, 203));
         noise.setParentItem(window.contentItem());
         for (int i = 0; i < 3; ++i)
-            noise.nextFrame();
+            noise.tick();
         QCOMPARE(noise.m_frame.size(), QSize(76, 51));
         QCOMPARE(unlike(window, noise.m_frame, 4), 0);
         noise.setVisible(false);

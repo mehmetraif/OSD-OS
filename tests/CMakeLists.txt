@@ -83,13 +83,15 @@ target_compile_definitions(looks_test PRIVATE OSDOS_SOURCE_DIR="${CMAKE_CURRENT_
 target_link_libraries(looks_test PRIVATE Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::Test)
 add_test(NAME looks COMMAND looks_test)
 
-# The items that draw in art pixels (VhsNoise, SelectorFx): what they draw
-# from a given seed, frame by frame, and on the screen, scaled up without
-# smoothing; when they run; their properties as QML sets them. Its floats
-# as IEEE has them, a*b+c never fused into one step where the processor can
-# (arm64), so that the sparks' frames are the same on every machine.
+# The items that draw in art pixels (VhsNoise and SelectorFx, on
+# ArtPixelItem): what they draw from a given seed, frame by frame, and on the
+# screen, scaled up without smoothing; when they run; their properties as
+# QML sets them. Its floats as IEEE has them, a*b+c never fused into one step
+# where the processor can (arm64), so that the sparks' frames are the same on
+# every machine.
 add_executable(art_pixels_test
     art_pixels_test.cpp
+    ../src/fx/ArtPixelItem.cpp
     ../src/player/VhsNoise.cpp
     ../src/fx/SelectorFx.cpp)
 target_include_directories(art_pixels_test PRIVATE ../src)

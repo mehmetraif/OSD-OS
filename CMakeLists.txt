@@ -127,6 +127,7 @@ add_executable(osdos
     src/player/EmbeddedMpv.cpp
     src/player/VideoSurface.cpp
     src/player/VhsNoise.cpp
+    src/fx/ArtPixelItem.cpp
     src/fx/SelectorFx.cpp
     src/util/YtDlpLocator.cpp
     src/util/MpvLocator.cpp
