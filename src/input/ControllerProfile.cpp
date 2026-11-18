@@ -93,6 +93,9 @@ const ActionInfo *infoOf(Action a) {
 // action's own name is the one written.
 const char *const kActionAliases[][2] = { { "playpause", "play_pause" } };
 
+// What a pad's key starts with (padKey()), before its SDL GUID.
+const QLatin1String kPadKeyPrefix("pad-");
+
 // How long a press read from a node waits for the key event Qt makes of it.
 // Qt's comes at once; this only bounds what a key Qt never delivers leaves.
 constexpr qint64 kPressWindowMs = 2000;
@@ -379,7 +382,11 @@ QString inputLabel(LabelStyle style, const QString &token) {
 }
 
 QString padKey(const QString &sdlGuid) {
-    return QStringLiteral("pad-") + sdlGuid.toLower();
+    return kPadKeyPrefix + sdlGuid.toLower();
+}
+
+bool isPadKey(const QString &key) {
+    return key.startsWith(kPadKeyPrefix);
 }
 
 bool isJammaStick(const QString &name) {

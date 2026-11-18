@@ -279,6 +279,13 @@ private slots:
         QCOMPARE(controllers::padKey("030000005E040000EA02000001000000"),
                  QString("pad-030000005e040000ea02000001000000"));
         QCOMPARE(controllers::evdevKey(0x5, 0x45e, 0x2fd), QString("kbd-0005-045e-02fd"));
+        // A pad's key is known for one by its start alone; a keyboard's,
+        // and every keyboard's and remote's at once, aren't.
+        QVERIFY(controllers::isPadKey(controllers::padKey("030000005E040000EA02000001000000")));
+        QVERIFY(controllers::isPadKey(controllers::legacyJammaKey("03000000a0b1c2d3e4f5000000000000", "OSD/OS JAMMA P1")));
+        QVERIFY(!controllers::isPadKey(controllers::evdevKey(0x5, 0x45e, 0x2fd)));
+        QVERIFY(!controllers::isPadKey(InputManager::allKeys()));
+        QVERIFY(!controllers::isPadKey(QString()));
     }
 
     // Each of the menus' actions as the one table has it: its name both

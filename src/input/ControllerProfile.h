@@ -36,6 +36,9 @@ QStringList labelStyleNames();
 QString inputLabel(LabelStyle style, const QString &token);
 
 QString padKey(const QString &sdlGuid);
+// Whether a controller's key is a pad's (padKey()), not a keyboard's or a
+// remote's.
+bool isPadKey(const QString &key);
 QString evdevKey(int bus, int vendor, int product);
 
 // One of the JAMMA board's sticks, by the name osdos-jamma gives it ("OSD/OS
