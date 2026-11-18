@@ -141,6 +141,8 @@ Rectangle {
         }
         function isAutostartSession() { return false }
         function canRestartSystem() { return false }
+        function restartSystem() {}
+        function exitToTerminal() {}
         // Quit's Save Logs: offered while canLogs, saveLogs() counted, the
         // answer sent with logsSaved().
         property bool canLogs: false

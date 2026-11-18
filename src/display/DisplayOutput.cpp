@@ -2,6 +2,7 @@
 #include "../util/AtomicFile.h"
 #include "../util/Board.h"
 #include "../util/DurableFile.h"
+#include "../util/ExitCodes.h"
 #include "../util/FileText.h"
 #include "../util/LegacyNames.h"
 #include "../util/RootRequest.h"
@@ -25,8 +26,9 @@ constexpr const char *k31kHz =
 
 // The presets, in the menu's order, with the exit code osdos-stop
 // (scripts/install.sh, STOP_HELPER) writes each on, then reboots: keep the two
-// in step. kPowerOff more, it writes it and powers off. A preset is offered
-// from the launcher API whose osdos-stop knows its code.
+// in step (util/ExitCodes.h: from kDisplayPresetFirst, its place in
+// DISPLAY_PRESETS). kDisplayThenPowerOff more, it writes it and powers off. A
+// preset is offered from the launcher API whose osdos-stop knows its code.
 struct Preset {
     const char *id;     // osdos-display-<id>.txt
     const char *label;
@@ -64,10 +66,6 @@ const Preset kPresets[] = {
     { "jamma-25k",         "JAMMA 25 kHz (496x384)",       37, 6, k25kHz },
     { "jamma-31k",         "JAMMA 31 kHz (640x480)",       38, 6, k31kHz },
 };
-// osdos-stop's for the output before the last one chosen.
-constexpr int kRevertExitCode = 29;
-// Added to a preset's code: written, then off (40-59).
-constexpr int kPowerOff = 20;
 // The launcher whose osdos-stop powers off after a preset, and writes one for
 // the next start through osdos-display.socket.
 constexpr int kNextStartApi = 5;
@@ -212,7 +210,7 @@ bool DisplayOutput::switchTo(const QString &id, bool powerOff) {
         return false;
     if (!writeState({ { QStringLiteral("from"), currentLabel() }, { QStringLiteral("to"), id } }))
         return false;
-    const int code = p->exitCode + (powerOff ? kPowerOff : 0);
+    const int code = p->exitCode + (powerOff ? exitcode::kDisplayThenPowerOff : 0);
     qInfo("[DisplayOutput] %s -> %s%s: exit %d for osdos-stop", qPrintable(m_current), qPrintable(id),
           powerOff ? ", then off" : "", code);
     QCoreApplication::exit(code);
@@ -283,8 +281,8 @@ void DisplayOutput::revert() {
         return;
     if (!writeState({ { QStringLiteral("reverted"), currentLabel() } }))
         qWarning("[DisplayOutput] the note of the switch back could not be written");
-    qInfo("[DisplayOutput] %s not kept: exit %d for osdos-stop", qPrintable(m_current), kRevertExitCode);
-    QCoreApplication::exit(kRevertExitCode);
+    qInfo("[DisplayOutput] %s not kept: exit %d for osdos-stop", qPrintable(m_current), exitcode::kDisplayRevert);
+    QCoreApplication::exit(exitcode::kDisplayRevert);
 }
 
 void DisplayOutput::dismissNotice() {

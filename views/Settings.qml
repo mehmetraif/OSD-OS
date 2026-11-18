@@ -2117,8 +2117,8 @@ FocusScope {
         choices: quitOptions
         onActivated: function(act) {
             if (act === "quit")          Qt.quit()
-            else if (act === "restart")  Qt.exit(12)   // osdos-stop reboots on it
-            else if (act === "terminal") Qt.exit(10)   // matches EXIT_STATUS check in osdos-stop
+            else if (act === "restart")  appCore.restartSystem()
+            else if (act === "terminal") appCore.exitToTerminal()
             else if (act === "logs")     settingsRoot.saveLogs()
         }
         onClosed: settingsList.forceActiveFocus()

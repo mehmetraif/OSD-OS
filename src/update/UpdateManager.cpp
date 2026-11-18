@@ -2,6 +2,7 @@
 #include "util/LegacyNames.h"
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
+#include "util/ExitCodes.h"
 #include "util/FileText.h"
 
 #include <QCoreApplication>
@@ -73,12 +74,6 @@ QString installByHand(const QString &tag, const QString &file) {
 #endif
 }
 #endif
-
-// "Apply & Restart" under the autostart service: osdos-stop (scripts/install.sh)
-// treats exit 11 as a no-op so Restart=on-failure relaunches through the
-// launcher, which applies the staged tarball. Sibling of Qt.exit(10) ("Exit to
-// Terminal") in views/Settings.qml.
-constexpr int kExitCodeUpdateRestart = 11;
 
 QString feedUrl() {
     const QString env = legacy::env("UPDATE_FEED_URL");
@@ -630,8 +625,9 @@ void UpdateManager::applyLinux() {
     // the launcher with `sha256sum -c`) is what arms the stage — the launcher
     // swaps it in on its next run. The sha comes from staged.json so this works
     // both right after a download and after an app restart. Under autostart,
-    // exit 11 makes systemd relaunch immediately; a manual session just quits
-    // and the update applies on the next launch.
+    // exitcode::kUpdateRestart (11) makes systemd relaunch immediately through
+    // the launcher, osdos-stop doing nothing for it (util/ExitCodes.h); a
+    // manual session just quits and the update applies on the next launch.
     const QJsonObject staged = readStaged();
     if (staged.isEmpty()) {
         setState(QStringLiteral("error"), QStringLiteral("Staged update is missing — please download again."));
@@ -651,7 +647,7 @@ void UpdateManager::applyLinux() {
     }
 
     if (legacy::envIsSet("AUTOSTART"))
-        QTimer::singleShot(0, qApp, []() { QCoreApplication::exit(kExitCodeUpdateRestart); });
+        QTimer::singleShot(0, qApp, []() { QCoreApplication::exit(exitcode::kUpdateRestart); });
     else
         QTimer::singleShot(0, qApp, &QCoreApplication::quit);
 }

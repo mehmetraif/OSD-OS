@@ -70,12 +70,17 @@ public:
     Q_INVOKABLE bool isAutostartSession() const {
         return legacy::envIsSet("AUTOSTART");
     }
-    // The quit overlay's "Restart": exit 12, which the service's stop helper
-    // (osdos-stop) takes as a reboot since launcher API 2. An older install's
-    // helper would power the Pi off instead, so it isn't offered there.
+    // The quit overlay's "Exit to Terminal": the app ends with
+    // exitcode::kTerminal (util/ExitCodes.h), for which the service's stop
+    // helper (osdos-stop) puts a login prompt on the screen in its place.
+    Q_INVOKABLE void exitToTerminal();
+    // The quit overlay's "Restart": exitcode::kReboot, which osdos-stop takes
+    // as a reboot since launcher API 2. An older install's helper would power
+    // the Pi off instead, so it isn't offered there.
     Q_INVOKABLE bool canRestartSystem() const {
         return isAutostartSession() && legacy::envInt("LAUNCHER_API") >= 2;
     }
+    Q_INVOKABLE void restartSystem();
     // The quit overlay's "Save Logs", on the OSD/OS image: OSDOS_MEDIA_DIR,
     // the card's OSD-OS partition, which a computer reading the card shows as
     // a drive, and scripts/save-logs.sh beside the app (Linux only).

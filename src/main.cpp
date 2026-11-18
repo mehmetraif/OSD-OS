@@ -57,6 +57,7 @@
 #include "util/OsdSkinProvider.h"
 #include "util/LegacyNames.h"
 #include "util/Diagnostics.h"
+#include "util/ExitCodes.h"
 #include "util/LogFile.h"
 #include "util/SetupFile.h"
 #include "util/SetupExporter.h"
@@ -257,8 +258,8 @@ int main(int argc, char *argv[]) {
             // `systemctl stop`/`restart` apart from the user choosing Quit
             // (exit 0), the only exit that powers the Pi off, and the service
             // count it as no failure (SuccessExitStatus=), not one to start
-            // the app again after.
-            app.exit(128 + g_termSignal);
+            // the app again after (util/ExitCodes.h).
+            app.exit(exitcode::bySignal(g_termSignal));
         }
     });
     termPoll.start();

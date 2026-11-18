@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
+#include "util/ExitCodes.h"
 #include "util/FileText.h"
 #include "util/InstallHint.h"
 #include "util/LogSaver.h"
@@ -452,6 +453,15 @@ QVariantMap AppCore::applySetupText(const QString &text) {
         qInfo("[Setup] Pasted: %s", qPrintable(line));
     return notice(result.ok && result.applied > 0, setupfile::noticeTitle(result, setupfile::Taken::Pasted),
                   result.lines);
+}
+
+// Both end the app once the event loop comes round, as QML's Qt.exit() does.
+void AppCore::exitToTerminal() {
+    QTimer::singleShot(0, QCoreApplication::instance(), [] { QCoreApplication::exit(exitcode::kTerminal); });
+}
+
+void AppCore::restartSystem() {
+    QTimer::singleShot(0, QCoreApplication::instance(), [] { QCoreApplication::exit(exitcode::kReboot); });
 }
 
 bool AppCore::canSaveLogs() const {
