@@ -113,10 +113,15 @@ FocusScope {
         }
     }
 
-    // The rows jumped to the first under the letter the cursor is on.
+    // The rows jumped to the first under the letter the cursor is on, that
+    // row at the top; in Flat Panel's frame, whose rows come a page at a
+    // time, the page it is on (MenuList's show()).
     function jumpToLetter() {
         itemList.currentIndex = letterIndex[letterList.currentIndex].firstIndex
-        itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
+        if (itemList.paged)
+            itemList.show(itemList.currentIndex)
+        else
+            itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
     }
 
     // The keys back in the rows.

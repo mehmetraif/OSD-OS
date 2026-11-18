@@ -1033,6 +1033,7 @@ Rectangle {
             }
         }
         function openLetters(rows) {
+            loader.sourceComponent = undefined
             loader.sourceComponent = letterPage
             loader.item.rows = rows
             loader.item.forceActiveFocus()
@@ -1128,6 +1129,31 @@ Rectangle {
             compare(page.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(page.backs, 1)
+            loader.sourceComponent = undefined
+        }
+
+        // In Flat Panel's frame, where the rows come a page at a time, a
+        // letter turns to the page its first row is on: the page's rows from
+        // its top, as the frame says, not that row at the top.
+        function test_letterListJumpsToAPage() {
+            root.menuLayout = "Flat Panel"
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            var per = Math.floor(rows.height / root.chrome.rowHeight + 0.001)
+            tryCompare(root.chrome, "pages", Math.ceil(23 / per))
+            keyClick(Qt.Key_Right)
+            // To N, the 15th row's letter: on the second page, not at its top.
+            while (list.letterIndex[lettersOf(list).currentIndex].letter !== "N")
+                keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 15)
+            verify(15 % per !== 0)
+            compare(root.chrome.page, Math.floor(15 / per))
+            fuzzyCompare(rows.contentY, rows.originY + root.chrome.page * per * root.chrome.rowHeight, 0.5)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 16)
+            fuzzyCompare(rows.contentY, rows.originY + root.chrome.page * per * root.chrome.rowHeight, 0.5)
             loader.sourceComponent = undefined
         }
 
