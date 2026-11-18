@@ -449,6 +449,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # no service yet, one installed before, and the image's own.
     add_test(NAME installer COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/installer_test.sh
                                     ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh)
+
+    # The image's packages (os/stage-osdos/00-packages) are the installer's,
+    # less qt6-wayland and plus alsa-utils.
+    add_test(NAME image_packages COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/image_packages_test.sh
+                                         ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
+                                         ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/00-packages/00-packages-nr)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Gui Quick QuickTest)
