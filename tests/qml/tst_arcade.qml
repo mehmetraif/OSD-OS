@@ -2911,10 +2911,12 @@ Rectangle {
         // Border OFF: no frame round the picture or the box under it, the
         // picture filling its place.
         function test_screenBorder() {
+            // In the screen's own look (ClassicLook.qml).
             var frames = function(screen) {
+                var look = findChild(screen, "classicLook")
                 var found = []
-                for (var i = 0; i < screen.children.length; ++i) {
-                    var item = screen.children[i]
+                for (var i = 0; i < look.children.length; ++i) {
+                    var item = look.children[i]
                     if (item.border !== undefined && item.visible && item.x === Math.round(screen.columnX * screen.u))
                         found.push(item.border.width)
                 }
