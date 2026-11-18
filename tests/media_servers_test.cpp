@@ -1209,6 +1209,24 @@ private slots:
         network->last()->complete(dolbyVision(5, true));
         QCOMPARE(sentBody(network->last())["SubtitleStreamIndex"].toInt(), 5);
 
+        // A transcode the player forces (a track switched in the middle of
+        // one, a direct play that failed) is held to the same cap, and drops
+        // an image subtitle the same way.
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 2, 4, /*forceTranscode=*/true);
+        network->last()->complete(dolbyVision(4, false));
+        body = sentBody(network->last());
+        QVERIFY(!body["EnableDirectPlay"].toBool());
+        QCOMPARE(body["MaxStreamingBitrate"].toInt(), 20000000);
+        QCOMPARE(body["MaxHeight"].toInt(), 1080);
+        QCOMPARE(body["AudioStreamIndex"].toInt(), 2);
+        QVERIFY(!body.contains(QLatin1String("SubtitleStreamIndex")));
+        const int streams = ready.count();
+        network->last()->complete(QJsonDocument(QJsonObject{ { "PlaySessionId", "t" }, { "MediaSources", QJsonArray{
+            QJsonObject{ { "Id", "film" }, { "TranscodingUrl", "/videos/film/master.m3u8?PlaySessionId=t" } } } } })
+                                      .toJson());
+        QCOMPARE(ready.count(), streams + 1);
+        QVERIFY(ready.last().at(0).toString().startsWith(QLatin1String("http://server/videos/film/master.m3u8")));
+
         emby.get_playback_url(QStringLiteral("other"), QStringLiteral("other"), -1, -1);
         body = sentBody(network->last());
         QVERIFY(body["EnableDirectPlay"].toBool());

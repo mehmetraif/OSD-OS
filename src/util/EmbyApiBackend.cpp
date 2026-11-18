@@ -950,7 +950,8 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
     const int request = ++m_playbackRequest;
     auto *reply = serverPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex,
-                                                    subtitleStreamIndex, directPlay, qualityHeight]() {
+                                                    subtitleStreamIndex, directPlay, forceTranscode, sdrCap,
+                                                    qualityHeight]() {
         reply->deleteLater();
         // Not wanted any more: another stream asked for since, or given up.
         // Nothing of it is reported to the server, which would show it playing.
@@ -969,7 +970,12 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
         }
 
         QJsonObject source = sources[0].toObject();
-        if (directPlay && transcodeInstead(source, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex))
+        // A server's own reason to transcode instead (Emby's Dolby Vision),
+        // asked of a Direct Play and of a transcode the player forced (a
+        // direct play that failed, a track switched in the middle of one),
+        // never of the re-request that answers it.
+        if ((directPlay || forceTranscode) && !sdrCap
+            && transcodeInstead(source, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex))
             return;
 
         // Direct play when requested AND the server confirms the source is
