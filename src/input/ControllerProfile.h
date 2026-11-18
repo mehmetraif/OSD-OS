@@ -161,6 +161,11 @@ struct Profile {
 
 // The actions a controller's page offers, in its order, and their names.
 QStringList actionNames();
+// The action a name stands for in config.json's bindings or in input.cfg,
+// as actionNames() names it ("play_pause" for "playpause" too), "none" for
+// none, or "" for a name that is no action. Both are read through this, so
+// that what one takes the other does.
+QString actionOf(const QString &name);
 QString actionLabel(const QString &action);
 
 // The players (Settings → Controls → Players) for a program OSD/OS starts, a

@@ -245,16 +245,27 @@ private slots:
         const QVariantMap stored{
             { "name", "8BitDo Pro 2" }, { "kind", "gamepad" }, { "labels", "A_Right" },
             { "bindings", QVariantMap{ { "A", "Select" }, { "leftx-", "back" }, { "x", "bogus" },
-                                       { "", "up" }, { "b", "none" } } } };
+                                       { "", "up" }, { "b", "none" }, { "y", "PlayPause" } } } };
         const controllers::Profile p = controllers::Profile::fromVariant(stored);
         QCOMPARE(p.name, QString("8BitDo Pro 2"));
         QCOMPARE(p.kind, QString("gamepad"));
         QCOMPARE(p.labels, controllers::LabelStyle::ARight);
         // An action it doesn't know, or no input, isn't one.
-        QCOMPARE(p.bindings.size(), 3);
+        QCOMPARE(p.bindings.size(), 4);
         QCOMPARE(p.bindings.value("a"), QString("select"));
         QCOMPARE(p.bindings.value("leftx-"), QString("back"));
         QCOMPARE(p.bindings.value("b"), QString("none"));
+        // input.cfg's other name for play_pause is taken here too, as
+        // play_pause.
+        QCOMPARE(p.bindings.value("y"), QString("play_pause"));
+        // The names config.json and input.cfg take (controllers::actionOf()):
+        // each of the page's actions as itself, none, and playpause.
+        for (const QString &action : controllers::actionNames())
+            QCOMPARE(controllers::actionOf(action), action);
+        QCOMPARE(controllers::actionOf("none"), QString("none"));
+        QCOMPARE(controllers::actionOf("playpause"), QString("play_pause"));
+        QVERIFY(controllers::actionOf("bogus").isEmpty());
+        QVERIFY(controllers::actionOf("").isEmpty());
 
         const QVariantMap kept = p.toVariant();
         QCOMPARE(kept.value("labels").toString(), QString("a_right"));

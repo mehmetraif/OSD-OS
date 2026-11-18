@@ -62,16 +62,9 @@ const Names kNames[] = {
 };
 
 const char *const kActions[] = { "up", "down", "left", "right", "select", "back", "play_pause" };
-
-bool knownAction(const QString &action) {
-    if (action == QLatin1String("none"))
-        return true;
-    for (const char *a : kActions) {
-        if (action == QLatin1String(a))
-            return true;
-    }
-    return false;
-}
+// Other names an action goes by, which input.cfg has always taken: the
+// action's own name is the one written.
+const char *const kActionAliases[][2] = { { "playpause", "play_pause" } };
 
 // How long a press read from a node waits for the key event Qt makes of it.
 // Qt's comes at once; this only bounds what a key Qt never delivers leaves.
@@ -485,8 +478,8 @@ Profile Profile::fromVariant(const QVariant &value) {
     p.labels = labelStyleFromName(map.value(QStringLiteral("labels")).toString());
     const QVariantMap bindings = map.value(QStringLiteral("bindings")).toMap();
     for (auto it = bindings.cbegin(); it != bindings.cend(); ++it) {
-        const QString action = it.value().toString().toLower();
-        if (!it.key().isEmpty() && knownAction(action))
+        const QString action = actionOf(it.value().toString().toLower());
+        if (!it.key().isEmpty() && !action.isEmpty())
             p.bindings.insert(it.key().toLower(), action);
     }
     // Its Arcade Buttons: each input one only (the first that has it, of a
@@ -553,6 +546,20 @@ QStringList actionNames() {
     for (const char *a : kActions)
         names << QLatin1String(a);
     return names;
+}
+
+QString actionOf(const QString &name) {
+    if (name == QLatin1String("none"))
+        return name;
+    for (const char *a : kActions) {
+        if (name == QLatin1String(a))
+            return name;
+    }
+    for (const auto &alias : kActionAliases) {
+        if (name == QLatin1String(alias[0]))
+            return QLatin1String(alias[1]);
+    }
+    return QString();
 }
 
 QString actionLabel(const QString &action) {

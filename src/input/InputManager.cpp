@@ -781,17 +781,16 @@ void InputManager::loadDefaultMapping() {
     m_axisMap[SDL_CONTROLLER_AXIS_LEFTY] = { Action::Up,   Action::Down  };
 }
 
+// The names are controllers::actionOf()'s, which config.json's bindings are
+// read by too: input.cfg and config.json take the same ones.
 InputManager::Action InputManager::actionFromString(const QString &name, bool *ok) {
-    *ok = true;
-    if (name == "up")         return Action::Up;
-    if (name == "down")       return Action::Down;
-    if (name == "left")       return Action::Left;
-    if (name == "right")      return Action::Right;
-    if (name == "select")     return Action::Select;
-    if (name == "back")       return Action::Back;
-    if (name == "play_pause" || name == "playpause") return Action::PlayPause;
-    if (name == "none")       return Action::None;
-    *ok = false;
+    const QString action = controllers::actionOf(name);
+    *ok = !action.isEmpty();
+    for (const Action a : { Action::Up, Action::Down, Action::Left, Action::Right,
+                            Action::Select, Action::Back, Action::PlayPause }) {
+        if (actionName(a) == action)
+            return a;
+    }
     return Action::None;
 }
 
