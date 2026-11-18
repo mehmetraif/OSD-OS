@@ -239,20 +239,6 @@ FocusScope {
     // Quit's Save Logs: on the OSD/OS image, the logs copied to the card's
     // OSD-OS partition, which a computer shows as a drive (AppCore::saveLogs).
     property bool canSaveLogs: false
-
-    // Display Output, read from displayOutput in buildModel(): the outputs
-    // this board has, the one in force, the one written for the next start,
-    // the ways to switch the launcher knows, and the one chosen to switch to.
-    property string boardModel: ""
-    property var outputOptions: []
-    property string outputCurrent: ""
-    property string outputCurrentLabel: ""
-    property string outputNext: ""
-    property string outputNextLabel: ""
-    property bool outputAtNextStart: false
-    property bool outputPowerOff: false
-    property var outputChoice: ({})
-    property string outputFailure: ""
     readonly property var saveLogsOption: settingsRoot.canSaveLogs ? [{ label: "Save Logs", action: "logs" }] : []
     property var quitOptions: settingsRoot.autostartSession
         ? [{ label: "Power Off",        action: "quit"     }]
@@ -455,15 +441,6 @@ FocusScope {
         id: clipboardBox
         visible: false
         textFormat: TextEdit.PlainText
-    }
-
-    // The outputs, the cursor on the one in force.
-    function openOutputs() {
-        outputPrompt.open()
-        for (var i = 0; i < outputOptions.length; i++) {
-            if (outputOptions[i].id === outputCurrent)
-                outputPrompt.choiceIndex = i
-        }
     }
 
     // A slider's steps wait to be written to config.json until they rest
@@ -675,7 +652,7 @@ FocusScope {
                     settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
                                             settingsRoot.listState())
             } else if (row.type === "display_output") {
-                settingsRoot.openOutputs()
+                outputPrompts.open()
             } else if (row.type === "file") {
                 // Picked on the file picker, which saves it and comes back.
                 settingsRoot.navigateTo("views/FilePicker.qml",
@@ -864,70 +841,9 @@ FocusScope {
     }
 
     // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---
-    ChoiceOverlay {
-        id: outputPrompt
+    DisplayOutputPrompts {
+        id: outputPrompts
         anchors.fill: parent
-        promptText: "Display Output"
-        subtitleText: settingsRoot.boardModel + "\nNow: " + settingsRoot.outputCurrentLabel
-                      + (settingsRoot.outputNext !== "" ? "\nNext start: " + settingsRoot.outputNextLabel : "")
-        choices: settingsRoot.outputOptions.map(function(o) { return { label: o.label, action: o.id } })
-        onActivated: function(id) {
-            for (var i = 0; i < settingsRoot.outputOptions.length; i++) {
-                if (settingsRoot.outputOptions[i].id === id)
-                    settingsRoot.outputChoice = settingsRoot.outputOptions[i]
-            }
-            // The one in force: nothing to do, or what waits for the next
-            // start taken back.
-            if (id === settingsRoot.outputCurrent) {
-                if (settingsRoot.outputNext !== "")
-                    outputStay.open()
-                return
-            }
-            outputConfirm.open()
-        }
-        onClosed: settingsList.forceActiveFocus()
-    }
-
-    // Now, with a restart; written now for the next start, the Pi left on;
-    // or written, then off: on the new output the next time it is switched
-    // on, as when it goes into a cabinet whose screen this one isn't.
-    ChoiceOverlay {
-        id: outputConfirm
-        anchors.fill: parent
-        promptText: "Switch to " + (settingsRoot.outputChoice.label || "") + "?"
-        // A scan rate only some monitors take says so first.
-        subtitleText: (settingsRoot.outputChoice.warning ? settingsRoot.outputChoice.warning + "\n" : "")
-                      + (settingsRoot.outputAtNextStart || settingsRoot.outputPowerOff
-                         ? "Now, or from the next time the Pi starts. " : "OSD/OS restarts on it. ")
-                      + "Keep it there, or in 30 seconds it comes back to " + settingsRoot.outputCurrentLabel
-        choices: [{ label: "Switch and Restart", action: "switch" }]
-                 .concat(settingsRoot.outputAtNextStart && settingsRoot.outputChoice.id !== settingsRoot.outputNext
-                         ? [{ label: "At Next Start", action: "next" }] : [])
-                 .concat(settingsRoot.outputPowerOff ? [{ label: "Switch and Power Off", action: "poweroff" }] : [])
-                 .concat([{ label: "Cancel", action: "cancel" }])
-        onActivated: function(act) {
-            if (act === "switch")
-                displayOutput.apply(settingsRoot.outputChoice.id)
-            else if (act === "next")
-                displayOutput.applyAtNextStart(settingsRoot.outputChoice.id)
-            else if (act === "poweroff")
-                displayOutput.applyAndPowerOff(settingsRoot.outputChoice.id)
-        }
-        onClosed: settingsList.forceActiveFocus()
-    }
-
-    ChoiceOverlay {
-        id: outputStay
-        anchors.fill: parent
-        promptText: "Stay on " + settingsRoot.outputCurrentLabel + "?"
-        subtitleText: settingsRoot.outputNextLabel + " was to come at the next start"
-        // The title names the output: a long one wouldn't fit an answer.
-        choices: [{ label: "Stay", action: "stay" },
-                  { label: "Cancel", action: "cancel" }]
-        onActivated: function(act) {
-            if (act === "stay")
-                displayOutput.applyAtNextStart(settingsRoot.outputCurrent)
-        }
         onClosed: settingsList.forceActiveFocus()
     }
 
@@ -954,18 +870,13 @@ FocusScope {
         }
     }
 
-    // At Next Start's answer: the row as it is now, or why it didn't happen.
+    // At Next Start's answer: the row as it is now (why it didn't happen is
+    // the prompts' to say).
     Connections {
         target: displayOutput
         function onChanged() {
             if (displayOutput.available)
                 settingsRoot.buildModel(settingsList.currentIndex)
-        }
-        function onNextStartFinished(ok, reason) {
-            if (ok)
-                return
-            settingsRoot.outputFailure = reason
-            outputFailed.open()
         }
     }
 
@@ -1076,16 +987,6 @@ FocusScope {
         promptKind: "notice"
         promptText: settingsRoot.pasted.title || ""
         subtitleText: settingsRoot.pasted.detail || ""
-        choices: []
-        onClosed: settingsList.forceActiveFocus()
-    }
-
-    ChoiceOverlay {
-        id: outputFailed
-        anchors.fill: parent
-        promptKind: "notice"
-        promptText: "Not written for the next start"
-        subtitleText: (settingsRoot.outputChoice.label || "") + " couldn't be written: " + settingsRoot.outputFailure
         choices: []
         onClosed: settingsList.forceActiveFocus()
     }

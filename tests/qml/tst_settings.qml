@@ -215,11 +215,27 @@ Rectangle {
         function hasSmoothPlaybackTradeoff() { return false }
         function embeddedAvailable() { return true }
     }
+    // DisplayOutput as the page uses it: a Pi 4's outputs while available,
+    // the one in force and the one written for the next start, and what
+    // was asked of it.
     QtObject {
         id: displayOutput
         property bool available: false
+        property string boardModel: "Raspberry Pi 4 Model B"
+        property var options: [{ id: "hdmi", label: "HDMI" }, { id: "composite", label: "Composite" },
+                               { id: "jamma-240p", label: "JAMMA 240p", warning: "A 15 kHz monitor only" }]
+        property string current: "hdmi"
+        property string currentLabel: "HDMI"
+        property string next: ""
+        property string nextLabel: ""
+        property bool nextStartAvailable: true
+        property bool powerOffAvailable: false
+        property var asked: []
         signal changed()
         signal nextStartFinished(bool ok, string reason)
+        function apply(id) { asked = asked.concat(["now " + id]); return true }
+        function applyAtNextStart(id) { asked = asked.concat(["next " + id]); return true }
+        function applyAndPowerOff(id) { asked = asked.concat(["off " + id]); return true }
     }
     QtObject {
         id: audioOutput
@@ -341,6 +357,11 @@ Rectangle {
             systemSettings.message = ""
             systemSettings.asked = []
             bootProgress.available = true
+            displayOutput.available = false
+            displayOutput.next = ""
+            displayOutput.nextLabel = ""
+            displayOutput.powerOffAvailable = false
+            displayOutput.asked = []
             root.transitionPresets = ["Fade"]
             root.unusableTransitions = []
             audioOutput.available = false
@@ -977,6 +998,96 @@ Rectangle {
         function test_quitWithoutLogs() {
             var page = open()
             compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "No"])
+        }
+
+        // The question shown over the page (a ChoiceOverlay), or null.
+        function promptShown(item) {
+            if (item.promptText !== undefined && typeof item.open === "function")
+                return item.visible ? item : null
+            for (var i = 0; i < item.children.length; i++) {
+                var found = promptShown(item.children[i])
+                if (found)
+                    return found
+            }
+            return null
+        }
+        function labelsOf(prompt) {
+            return prompt.choices.map(function(c) { return c.label })
+        }
+
+        // Display Output on a Pi: the row says the output in force, or the
+        // one written for the next start; select opens the outputs, the
+        // cursor on the one in force. Another asks how to switch to it (At
+        // Next Start where the launcher can, and not for the one written
+        // already; Switch and Power Off where it can), a scan rate only some
+        // monitors take saying so first; the one in force, with another
+        // written for the next start, asks whether to stay on it; nothing
+        // else. At Next Start that didn't happen says why.
+        function test_displayOutputPrompts() {
+            displayOutput.available = true
+            var page = open({ group: "screen" })
+            compare(row(page, "Display Output").value, "HDMI")
+            moveTo(page, "Display Output")
+            keyClick(Qt.Key_Return)
+            var prompt = promptShown(page)
+            verify(prompt !== null)
+            compare(prompt.promptText, "Display Output")
+            compare(prompt.subtitleText, "Raspberry Pi 4 Model B\nNow: HDMI")
+            compare(labelsOf(prompt), ["HDMI", "Composite", "JAMMA 240p"])
+            compare(prompt.choiceIndex, 0)
+            // The one in force, nothing written for the next start: nothing.
+            keyClick(Qt.Key_Return)
+            compare(promptShown(page), null)
+            compare(cursor(page), "Display Output")
+            // JAMMA: its warning, then how.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            prompt = promptShown(page)
+            compare(prompt.promptText, "Switch to JAMMA 240p?")
+            compare(prompt.subtitleText, "A 15 kHz monitor only\nNow, or from the next time the Pi starts. "
+                                         + "Keep it there, or in 30 seconds it comes back to HDMI")
+            compare(labelsOf(prompt), ["Switch and Restart", "At Next Start", "Cancel"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(displayOutput.asked, ["next jamma-240p"])
+            compare(promptShown(page), null)
+            // Written for the next start: the row says so, and so do the
+            // outputs; JAMMA again has no At Next Start, Power Off has its.
+            displayOutput.next = "jamma-240p"
+            displayOutput.nextLabel = "JAMMA 240p"
+            displayOutput.powerOffAvailable = true
+            displayOutput.changed()
+            compare(row(page, "Display Output").value, "Next: JAMMA 240p")
+            compare(cursor(page), "Display Output")
+            keyClick(Qt.Key_Return)
+            prompt = promptShown(page)
+            compare(prompt.subtitleText, "Raspberry Pi 4 Model B\nNow: HDMI\nNext start: JAMMA 240p")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(labelsOf(promptShown(page)), ["Switch and Restart", "Switch and Power Off", "Cancel"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(displayOutput.asked, ["next jamma-240p", "off jamma-240p"])
+            // The one in force: stay on it.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            prompt = promptShown(page)
+            compare(prompt.promptText, "Stay on HDMI?")
+            compare(prompt.subtitleText, "JAMMA 240p was to come at the next start")
+            keyClick(Qt.Key_Return)
+            compare(displayOutput.asked, ["next jamma-240p", "off jamma-240p", "next hdmi"])
+            compare(promptShown(page), null)
+            // Not written: why, and back to the row.
+            displayOutput.nextStartFinished(false, "the card can't be written")
+            prompt = promptShown(page)
+            compare(prompt.promptText, "Not written for the next start")
+            compare(prompt.subtitleText, "HDMI couldn't be written: the card can't be written")
+            keyClick(Qt.Key_Escape)
+            compare(promptShown(page), null)
+            compare(cursor(page), "Display Output")
+            displayOutput.nextStartFinished(true, "")
+            compare(promptShown(page), null)
         }
 
         // Menu Layout, on Look's page: one of the five layouts, saved as it

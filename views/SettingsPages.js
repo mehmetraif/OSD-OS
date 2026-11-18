@@ -268,22 +268,18 @@ function screenRows(items) {
     // reads it at power-on, so a change restarts it, powers it off, or
     // waits for its next start, and the new output stays only when kept
     // on it (views/DisplayKeep.qml). Elsewhere there is nothing to
-    // switch, and the row says so.
+    // switch, and the row says so. Select opens its questions
+    // (views/DisplayOutputPrompts.qml).
     if (displayOutput && displayOutput.available) {
-        boardModel = displayOutput.boardModel
-        outputOptions = displayOutput.options
-        outputCurrent = displayOutput.current
-        outputCurrentLabel = displayOutput.currentLabel
-        outputNext = displayOutput.next
-        outputNextLabel = displayOutput.nextLabel
-        outputAtNextStart = displayOutput.nextStartAvailable
-        outputPowerOff = displayOutput.powerOffAvailable
-        var later = outputAtNextStart || outputPowerOff
+        var next = displayOutput.next
+        var nextLabel = displayOutput.nextLabel
+        var currentLabel = displayOutput.currentLabel
+        var later = displayOutput.nextStartAvailable || displayOutput.powerOffAvailable
         items.push({
             type: "display_output",
             label: "Display Output",
-            value: outputNext !== "" ? "Next: " + outputNextLabel : outputCurrentLabel,
-            description: (outputNext !== "" ? "Now " + outputCurrentLabel + ", " + outputNextLabel + " from the next start • " : "")
+            value: next !== "" ? "Next: " + nextLabel : currentLabel,
+            description: (next !== "" ? "Now " + currentLabel + ", " + nextLabel + " from the next start • " : "")
                          + "Where the picture goes, among the outputs this Pi has: "
                          + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
                          + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 3, Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p at 720, 320 or 1920 across, 320 the games' own pixels and 1920 a super resolution; 288p at 720 or 1920; 480i at 720 or 640 and 576i on a Pi 4 or a Pi 3), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
