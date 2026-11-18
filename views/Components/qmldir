@@ -40,3 +40,10 @@ ButtonGrid ButtonGrid.qml
 WindowChange WindowChange.qml
 MpvKeys 1.0 MpvKeys.js
 ModuleRouter ModuleRouter.qml
+MediaServerLibraries MediaServerLibraries.qml
+MediaServerItems MediaServerItems.qml
+MediaServerBoxset MediaServerBoxset.qml
+MediaServerItem MediaServerItem.qml
+MediaServerItemShow MediaServerItemShow.qml
+MediaServerItemSeason MediaServerItemSeason.qml
+MediaServerPlayer MediaServerPlayer.qml
