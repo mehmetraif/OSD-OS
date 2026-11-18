@@ -653,6 +653,10 @@ Window {
     // A monitor layout's frame is up: its chrome drawn, the view's rows in
     // its pane.
     readonly property bool monitorFramed: menuPalette !== null && viewInFrame
+    // A value changed in two steps there, as Broadcast's and Flat Panel's
+    // menus change one (Settings', a module's settings): select, ▲ ▼, then
+    // select again, back leaving it as it was; ◄ ► change nothing.
+    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
     // A layer that takes the whole screen over the view, in the scheme's
     // colours (the on-screen keyboard, an info screen: an OsdGround that is
     // not laid `inLayout`), is outside the frame, and so is whatever rests

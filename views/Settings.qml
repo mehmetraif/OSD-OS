@@ -41,11 +41,9 @@ FocusScope {
     // rows drawn by MonitorRow, in the layout's own colours.
     readonly property bool monitor: studio || broadcast || flat
     // The pages as icons beside the rows: Camcorder's column, Studio
-    // Monitor's strip.
+    // Monitor's strip. Broadcast and Flat Panel change a value in two
+    // steps (Main.qml's twoStep).
     readonly property bool iconMenu: camcorder || studio
-    // A value changed in two steps: select, ▲ ▼, then select again (back
-    // leaves it as it was).
-    readonly property bool twoStep: broadcast || flat
     property var camPages: []
     property int camIndex: 0
     property bool camIcons: true
@@ -410,7 +408,7 @@ FocusScope {
                                                                 : "Leave OSD/OS" })
         // Broadcast's and Flat Panel's: Cabinet Lock as a monitor's Key
         // Protect, at the foot after a gap (also on Startup's page).
-        if (twoStep) {
+        if (root.twoStep) {
             items.push({ type: "section", label: "" })
             items.push(Object.assign(cabinetLockRow(), { label: "Key Protect" }))
         }
@@ -1437,15 +1435,13 @@ FocusScope {
         onTriggered: settingsRoot.ipAddress = appCore.localIpAddress()
     }
 
-    // A monitor layout's window, title, icons, help line and key guide,
-    // under the rows (Settings → Look → Menu Layout): the shell's frame
-    // (Main.qml's root.chrome), which says where the rows go, and is told
-    // the rest by the title bar, the help line and the hint bar below.
-    readonly property var chrome: root.chrome
-
     // The rows: where a monitor layout has them (MonitorChrome), beside
     // Camcorder's icons, or where every view has its list, a whole row at a
-    // time (a slider's several lines); Flat Panel's a page at a time.
+    // time (a slider's several lines); Flat Panel's a page at a time. A
+    // monitor layout's window, title, icons, help line and key guide are
+    // under them (Settings → Look → Menu Layout): the shell's frame
+    // (Main.qml's root.chrome), which says where the rows go, and is told
+    // the rest by the title bar, the help line and the hint bar below.
     MenuList {
         id: settingsList
         model: settingsItems
@@ -1596,7 +1592,7 @@ FocusScope {
                 return
             }
             // Broadcast: ▲ ▼ change a value, in its second step.
-            if (settingsRoot.inIcons() || !usable() || settingsRoot.twoStep)
+            if (settingsRoot.inIcons() || !usable() || root.twoStep)
                 return
             if (row && row.type === "slider")
                 moveSlider(-1)
@@ -1612,7 +1608,7 @@ FocusScope {
             var row = settingsItems[currentIndex]
             if (!usable() || settingsRoot.editIndex >= 0)
                 return
-            if (settingsRoot.twoStep) {
+            if (root.twoStep) {
                 if (opens(row))
                     openRow(row)
                 return
@@ -1638,7 +1634,7 @@ FocusScope {
             if (!usable())
                 return
             // Broadcast and Flat Panel: select starts a value's change.
-            if (settingsRoot.twoStep && row && (row.type === "list_single" || row.type === "slider")) {
+            if (root.twoStep && row && (row.type === "list_single" || row.type === "slider")) {
                 settingsRoot.startEdit()
                 return
             }
@@ -1671,79 +1667,38 @@ FocusScope {
             currentIndex = index
         }
 
-        delegate: Item {
+        // A line laid out like a camcorder's menu, "DISPLAY······ON", or a
+        // section's heading, as large as the lines under it: "MODULES ─────".
+        // A line that leads to a page ends in a ►; a list's choice, which
+        // ◄ ► change, stands between a ◄ and a ►. A slider's setting is the
+        // deck's tape bar under its line, ◄ ► moving the ▼ between the two
+        // ends; off, or dimmed, its lines stay, empty. In a monitor layout
+        // a slider is its line alone, its value a number (shownValue()).
+        delegate: SettingRow {
             id: rowItem
             // The row as it is now, read again as one changes.
             readonly property var row: (settingsRoot.revision, settingsRoot.settingsItems[index])
             // Why it can't be used now, "" when it can: dimmed, with no
             // ◄ ► or ► of its own (offReason()).
             readonly property string off: (settingsRoot.revision, settingsRoot.offReason(index))
-            readonly property bool slider: row.type === "slider"
-            readonly property real lineHeight: root.sh * 0.0583333 //28
-            // A slider's bar takes whole lines under its own, so every line
-            // keeps to the list's rule as it scrolls.
-            // In a monitor layout a slider is its line alone, its value a
-            // number (shownValue()).
-            readonly property int barLines: slider && !settingsRoot.monitor ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
-            height: settingsRoot.monitor ? chrome.rowHeight : lineHeight * (1 + barLines)
-
-            // A line laid out like a camcorder's menu, "DISPLAY······ON", or a
-            // section's heading, as large as the lines under it: "MODULES ─────".
-            // A line that leads to a page ends in a ►; a list's choice, which
-            // ◄ ► change, stands between a ◄ and a ►.
-            MenuRow {
-                visible: !settingsRoot.monitor
-                width: parent.width
-                height: rowItem.lineHeight
-                heading: rowItem.row.type === "section"
-                label: rowItem.row.label || ""
-                value: rowItem.row.type === "list_single" || rowItem.row.type === "display_output"
-                       || rowItem.row.type === "file" || rowItem.row.type === "submenu"
-                       ? (rowItem.row.value || "")
-                     : rowItem.slider && rowItem.row.on !== undefined ? (rowItem.row.on ? "On" : "Off") : ""
-                opens: rowItem.off === "" && settingsList.opens(rowItem.row)
-                changes: rowItem.off === "" && rowItem.row.type === "list_single"
-                dimmed: rowItem.off !== ""
-                // In Camcorder's icons the box is on the icon.
-                selected: settingsList.currentIndex === index && !settingsRoot.inIcons()
-            }
-
-            // A slider's setting, as the deck's tape bar shows how far the
-            // tape is: ◄ ► move the ▼ between the two ends, and stand beyond
-            // them. Off, or dimmed, its lines stay, empty.
-            // The line in a monitor layout.
-            Loader {
-                active: settingsRoot.monitor
-                width: parent.width
-                height: rowItem.height
-                sourceComponent: MonitorRow {
-                    label: rowItem.row.label || ""
-                    heading: rowItem.row.type === "section"
-                    value: (settingsRoot.editIndex, settingsRoot.editValue,
-                            settingsRoot.shownValue(rowItem.row, index))
-                    opens: rowItem.off === "" && settingsList.opens(rowItem.row)
-                    dimmed: rowItem.off !== ""
-                    selected: settingsList.currentIndex === index && !settingsRoot.inIcons()
-                    editing: settingsRoot.editIndex === index
-                }
-            }
-
-            Loader {
-                id: tape
-                active: rowItem.slider && !settingsRoot.monitor
-                visible: rowItem.row.on !== false && rowItem.off === ""
-                x: root.sw * 0.009375 //6
-                y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
-                width: parent.width - 2 * x
-                sourceComponent: OsdTapeBar {
-                    changes: true
-                    fontSize: root.sh * 0.0333333 //16
-                    value: rowItem.row.value / 100
-                    startText: rowItem.row.startText
-                    endText: rowItem.row.endText
-                }
-            }
+            heading: row.type === "section"
+            label: row.label || ""
+            value: monitor ? (settingsRoot.editIndex, settingsRoot.editValue, settingsRoot.shownValue(row, index))
+                 : row.type === "list_single" || row.type === "display_output" || row.type === "file" || row.type === "submenu"
+                 ? (row.value || "")
+                 : slider && row.on !== undefined ? (row.on ? "On" : "Off") : ""
+            editing: settingsRoot.editIndex === index
+            opens: off === "" && settingsList.opens(row)
+            changes: off === "" && row.type === "list_single"
+            dimmed: off !== ""
+            // In Camcorder's icons the box is on the icon.
+            selected: settingsList.currentIndex === index && !settingsRoot.inIcons()
+            slider: row.type === "slider"
+            barShown: row.on !== false && off === ""
+            barValue: row.value / 100
+            startText: row.startText || ""
+            endText: row.endText || ""
         }
     }
 

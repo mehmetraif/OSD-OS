@@ -32,6 +32,8 @@ Rectangle {
     // telling it what to write, its place for their rows the pane.
     readonly property bool monitorFramed: menuPalette !== null
     readonly property bool monitorInk: monitorFramed
+    // A value changed in two steps there (Broadcast, Flat Panel).
+    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
     readonly property alias chrome: frameChrome
     readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
     readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
@@ -378,16 +380,16 @@ Rectangle {
             return ""
         }
         // The MenuRow drawn for the line at index: the list's delegate, or
-        // the one in it (a slider's line has its bar beside it).
+        // the one in it (a SettingRow's, which has a slider's bar under it).
         function menuRow(item, index) {
             if (item.itemAtIndex !== undefined) {
                 var d = item.itemAtIndex(index)
                 if (!d)
                     return null
-                if (d.opens !== undefined)
+                if (d.keepValue !== undefined)
                     return d
                 for (var j = 0; j < d.children.length; j++) {
-                    if (d.children[j].opens !== undefined)
+                    if (d.children[j].keepValue !== undefined)
                         return d.children[j]
                 }
                 return null

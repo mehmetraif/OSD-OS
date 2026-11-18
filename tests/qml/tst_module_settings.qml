@@ -51,6 +51,8 @@ Rectangle {
     })[menuLayout] || null
     readonly property bool monitorFramed: menuPalette !== null
     readonly property bool monitorInk: monitorFramed
+    // A value changed in two steps there (Broadcast, Flat Panel).
+    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
     readonly property alias chrome: frameChrome
     MonitorChrome {
         id: frameChrome
@@ -325,16 +327,16 @@ Rectangle {
             return -1
         }
         // The MenuRow drawn for the line at index: the list's delegate, or
-        // the one in it (a slider's line has its bar beside it).
+        // the one in it (a SettingRow's, which has a slider's bar under it).
         function menuRow(item, index) {
             if (item.itemAtIndex !== undefined) {
                 var d = item.itemAtIndex(index)
                 if (!d)
                     return null
-                if (d.opens !== undefined)
+                if (d.keepValue !== undefined)
                     return d
                 for (var j = 0; j < d.children.length; j++) {
-                    if (d.children[j].opens !== undefined)
+                    if (d.children[j].keepValue !== undefined)
                         return d.children[j]
                 }
                 return null
@@ -1488,7 +1490,7 @@ Rectangle {
             // The slider: one line, "50%".
             compare(menuRow(page, 1).value, "50%")
             compare(menuRow(page, 1).parent.height, menuRow(page, 0).height)
-            compare(page.twoStep, data.twoStep)
+            compare(root.twoStep, data.twoStep)
             if (!data.twoStep) {
                 keyClick(Qt.Key_Right)
                 compare(appCore.values.mode, "B")
