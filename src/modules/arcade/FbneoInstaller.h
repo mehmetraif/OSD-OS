@@ -5,7 +5,6 @@
 #include <QUrl>
 
 class QNetworkAccessManager;
-class QNetworkReply;
 
 // Settings → Arcade → FinalBurn Neo's download, for an install the OSD/OS
 // image didn't bring it with: the core from libretro's build server, and its
@@ -45,7 +44,6 @@ private:
 
     QString m_dataRoot;
     QNetworkAccessManager *m_nam = nullptr;
-    QNetworkReply *m_reply = nullptr;
     QFutureWatcher<QString> *m_watcher = nullptr;
     Source m_source;
     int  m_progress = 0;

@@ -3,6 +3,7 @@
 #include "input/ControllerProfile.h"
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
+#include "modules/arcade/Http.h"
 #include "modules/arcade/Libretro.h"
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/RecordFile.h"
@@ -3655,6 +3656,64 @@ private slots:
         again.flush(&saves);
         saves.waitForDone();
         QVERIFY(QDir(other.path()).entryList(QDir::Files | QDir::Hidden).isEmpty());
+    }
+
+    // The installers' download (arcadehttp::downloadToFile()) from a local
+    // server: a file whole, its progress said; and why one isn't: the
+    // server's answer, too big, or a file that can't be written.
+    void downloadToFile() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QByteArray body;
+        for (int i = 0; body.size() < 1024 * 1024; ++i)
+            body += QByteArray::number(i) + '\n';
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &body] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &body] {
+                const QByteArray path = socket->readAll().split(' ').value(1);
+                if (path == "/file")
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size())
+                                  + "\r\nConnection: close\r\n\r\n" + body);
+                else
+                    socket->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                socket->disconnectFromHost();
+            });
+        });
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
+        QNetworkAccessManager nam;
+        QObject context;
+        const auto download = [&](const QString &path, const QString &file, qint64 maxBytes, qint64 *received) {
+            QString result = QStringLiteral("not done");
+            bool done = false;
+            QNetworkReply *reply = arcadehttp::downloadToFile(
+                &nam, QUrl(base + path), file, 10000, maxBytes, QStringLiteral("the test's file"), &context,
+                [received](qint64 got, qint64) {
+                    if (received)
+                        *received = got;
+                },
+                [&](const QString &error) {
+                    result = error;
+                    done = true;
+                });
+            if (reply && !QTest::qWaitFor([&done] { return done; }, 10000))
+                result = QStringLiteral("timed out");
+            return result;
+        };
+        const QString file = dir.path() + QStringLiteral("/file.part");
+        qint64 received = 0;
+        QCOMPARE(download(QStringLiteral("/file"), file, 4 * 1024 * 1024, &received), QString());
+        QCOMPARE(contents(file), body);
+        QCOMPARE(received, body.size());
+        QCOMPARE(download(QStringLiteral("/none"), file, 4 * 1024 * 1024, nullptr),
+                 QStringLiteral("127.0.0.1 answered 404"));
+        QCOMPARE(download(QStringLiteral("/file"), file, 1024, nullptr),
+                 QStringLiteral("127.0.0.1 sent more than the test's file can be"));
+        // A file that can't be written: said at once, nothing asked for.
+        const QString nowhere = dir.path() + QStringLiteral("/no folder/file.part");
+        QVERIFY(download(QStringLiteral("/file"), nowhere, 4 * 1024 * 1024, nullptr)
+                    .startsWith(nowhere + QStringLiteral(" could not be written: ")));
     }
 
     // Settings → Arcade → Check ROMs, started by the user: FinalBurn Neo's

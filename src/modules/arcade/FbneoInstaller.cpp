@@ -6,8 +6,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QSaveFile>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
@@ -155,55 +153,31 @@ void FbneoInstaller::fetch(int index) {
         unpack();
         return;
     }
-    // Given up on once nothing has come for a minute (a Wi-Fi that dropped:
-    // TCP alone takes a quarter of an hour to say so), and once it is bigger
-    // than any of the three can be, or a server could fill the card.
-    m_reply = m_nam->get(arcadehttp::requestFor(urls[index], kDownloadTimeoutMs));
-    arcadehttp::limitReply(m_reply, kDownloadMaxBytes);
-    auto *file = new QFile(partOf(targets[index]), m_reply);
-    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        const QString error = QStringLiteral("%1 could not be written: %2").arg(file->fileName(), file->errorString());
-        // Nothing listens to it yet: it goes here, the file with it.
-        QNetworkReply *reply = std::exchange(m_reply, nullptr);
-        reply->abort();
-        reply->deleteLater();
-        fail(error);
-        return;
-    }
     int base = 0;
     for (int i = 0; i < index; ++i)
         base += kShares[i];
-    connect(m_reply, &QNetworkReply::readyRead, file, [this, file] {
-        if (file->write(m_reply->readAll()) < 0)
-            m_reply->abort();
-    });
-    connect(m_reply, &QNetworkReply::downloadProgress, this, [this, base, index](qint64 received, qint64 total) {
-        const int progress = base + (total > 0 ? int(kShares[index] * received / total) : 0);
-        if (progress != m_progress) {
-            m_progress = progress;
-            emit progressChanged();
-        }
-    });
-    connect(m_reply, &QNetworkReply::finished, this, [this, file, index] {
-        QNetworkReply *reply = std::exchange(m_reply, nullptr);
-        reply->deleteLater();
-        if (!m_running)
-            return;
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        file->write(reply->readAll());
-        const bool flushed = file->flush();
-        file->close();
-        if (reply->error() != QNetworkReply::NoError || status != 200 || !flushed) {
-            QFile::remove(file->fileName());
-            // The server's answer first (Qt takes a 404 for an error too).
-            fail(arcadehttp::tooBig(reply, kDownloadMaxBytes) ? QStringLiteral("%1 sent more than FinalBurn Neo's files can be").arg(reply->url().host())
-                 : status != 0 && status != 200              ? QStringLiteral("%1 answered %2").arg(reply->url().host()).arg(status)
-                 : reply->error() != QNetworkReply::NoError ? reply->errorString()
-                                                            : file->errorString());
-            return;
-        }
-        fetch(index + 1);
-    });
+    // Given up on once nothing has come for a minute, and once it is bigger
+    // than any of the three can be, or a server could fill the card. One
+    // that failed goes, with those before it (fail()).
+    arcadehttp::downloadToFile(
+        m_nam, urls[index], partOf(targets[index]), kDownloadTimeoutMs, kDownloadMaxBytes,
+        QStringLiteral("FinalBurn Neo's files"), this,
+        [this, base, index](qint64 received, qint64 total) {
+            const int progress = base + (total > 0 ? int(kShares[index] * received / total) : 0);
+            if (progress != m_progress) {
+                m_progress = progress;
+                emit progressChanged();
+            }
+        },
+        [this, index](const QString &error) {
+            if (!m_running)
+                return;
+            if (!error.isEmpty()) {
+                fail(error);
+                return;
+            }
+            fetch(index + 1);
+        });
 }
 
 void FbneoInstaller::unpack() {

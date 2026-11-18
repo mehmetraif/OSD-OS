@@ -1,6 +1,7 @@
 #pragma once
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QFile>
 #include <QList>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -66,6 +67,53 @@ inline int pauseAsked(QNetworkReply *reply, int fallbackSeconds) {
     bool ok = false;
     const int seconds = reply->rawHeader("Retry-After").trimmed().toInt(&ok);
     return ok && seconds > 0 ? std::min(seconds, 3600) : fallbackSeconds;
+}
+
+// A file downloaded as the installers download theirs, written into path as
+// it comes (made anew), and given up on once nothing has come for timeoutMs
+// (a Wi-Fi that dropped: TCP alone takes a quarter of an hour to say so) or
+// once it is bigger than maxBytes (what it can be, for the message: "FinalBurn
+// Neo's files"). onProgress as it comes, then onDone("") once it is whole on
+// the disk, else onDone(why not), the server's answer first (Qt takes a 404
+// for an error too); the file is left for the caller to remove. context: the
+// caller, which the download goes with. The reply, nullptr when path couldn't
+// be written (onDone has been called).
+inline QNetworkReply *downloadToFile(QNetworkAccessManager *nam, const QUrl &url, const QString &path, int timeoutMs,
+                                     qint64 maxBytes, const QString &what, QObject *context,
+                                     const std::function<void(qint64 received, qint64 total)> &onProgress,
+                                     const std::function<void(const QString &error)> &onDone) {
+    QNetworkReply *reply = nam->get(requestFor(url, timeoutMs));
+    limitReply(reply, maxBytes);
+    auto *file = new QFile(path, reply);
+    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        const QString error = QStringLiteral("%1 could not be written: %2").arg(file->fileName(), file->errorString());
+        // Nothing listens to it yet: it goes here, the file with it.
+        reply->abort();
+        reply->deleteLater();
+        onDone(error);
+        return nullptr;
+    }
+    QObject::connect(reply, &QNetworkReply::readyRead, file, [reply, file] {
+        if (file->write(reply->readAll()) < 0)
+            reply->abort();
+    });
+    QObject::connect(reply, &QNetworkReply::downloadProgress, context, onProgress);
+    QObject::connect(reply, &QNetworkReply::finished, context, [reply, file, maxBytes, what, onDone] {
+        reply->deleteLater();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        file->write(reply->readAll());
+        const bool flushed = file->flush();
+        file->close();
+        if (reply->error() != QNetworkReply::NoError || status != 200 || !flushed) {
+            onDone(tooBig(reply, maxBytes)                  ? QStringLiteral("%1 sent more than %2 can be").arg(reply->url().host(), what)
+                   : status != 0 && status != 200              ? QStringLiteral("%1 answered %2").arg(reply->url().host()).arg(status)
+                   : reply->error() != QNetworkReply::NoError ? reply->errorString()
+                                                              : file->errorString());
+            return;
+        }
+        onDone(QString());
+    });
+    return reply;
 }
 
 // A badge's name as RetroAchievements gives it, and as it goes in a path.
