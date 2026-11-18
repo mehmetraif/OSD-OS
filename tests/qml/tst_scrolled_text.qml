@@ -10,7 +10,12 @@ import Components
 // over after its pause; one that fits stands still; not on, it is cut short
 // with "…", or at its room's edge with `elides` off; what is laid under its
 // line moves with it; its font is the app's in capitals unless the host says
-// otherwise; and a name that looks like markup is shown as it is.
+// otherwise; and a name that looks like markup is shown as it is. And lines
+// too tall for their room (views/Components/ScrolledLines.qml), a page's
+// summary: up after their pause exactly as far as they overflow, resting
+// there, over from their top to the new distance when their room is made
+// another width; hidden, still at their top, and shown again started over
+// after the pause; lines that fit standing still.
 Item {
     id: root
     width: 640
@@ -19,6 +24,31 @@ Item {
     property string globalFont: "monospace"
 
     readonly property string longText: "A module whose name runs past the row"
+    readonly property string longStory: "A family moves into an old house by the sea for the summer, and the summer "
+                                        + "turns out longer than any of them expected, for reasons none of them will say."
+
+    // A page's summary, and one in an item that hides it.
+    Component {
+        id: story
+        ScrolledLines {
+            width: 300
+            font.pixelSize: 14
+        }
+    }
+    Component {
+        id: heldStory
+        Item {
+            property alias lines: heldLines
+            width: 300
+            height: 200
+            ScrolledLines {
+                id: heldLines
+                width: 300
+                font.pixelSize: 14
+                text: root.longStory
+            }
+        }
+    }
 
     Component {
         id: line
@@ -187,6 +217,85 @@ Item {
             var plain = make({ text: "AB" })
             verify(marked.implicitWidth > 2.5 * plain.implicitWidth,
                    marked.implicitWidth + " against " + plain.implicitWidth)
+        }
+    }
+
+    TestCase {
+        name: "ScrolledLines"
+        when: windowShown
+
+        function make(props) {
+            var made = createTemporaryObject(story, root, props)
+            verify(made !== null)
+            return made
+        }
+
+        // Up from their top, as far as they overflow and no further, and
+        // they rest there.
+        function scrollsAsFarAsTheyOverflow(item) {
+            var least = { y: 0 }
+            var track = function() { least.y = Math.min(least.y, item.offset) }
+            item.offsetChanged.connect(track)
+            tryVerify(function() { return item.offset <= item.scrollBy + 0.5 }, 3000 - item.scrollBy * 120 + 1500,
+                      "scrolled to their foot: " + item.offset + " of " + item.scrollBy)
+            wait(300)
+            fuzzyCompare(item.offset, item.scrollBy, 0.5)
+            verify(least.y >= item.scrollBy - 0.5, "no further than their foot: " + least.y + " past " + item.scrollBy)
+            item.offsetChanged.disconnect(track)
+        }
+
+        function test_scrollAsFarAsTheyOverflowAfterAResize() {
+            var item = make({ text: root.longStory })
+            item.height = item.textItem.implicitHeight - 12
+            // A room laid out narrower, then settled to its width in the
+            // same turn: the scroll goes the settled distance.
+            item.width = 200
+            item.width = 300
+            fuzzyCompare(item.scrollBy, -12, 0.01)
+            verify(item.scrolls)
+            compare(item.textItem.width, item.width)
+            // A pause at their top.
+            wait(2000)
+            compare(item.offset, 0)
+            scrollsAsFarAsTheyOverflow(item)
+            // Made narrower while they rest at their foot: a line more, over
+            // from the top to the new foot.
+            item.width = 260
+            verify(item.scrollBy < -12)
+            tryCompare(item, "offset", 0, 300)
+            scrollsAsFarAsTheyOverflow(item)
+        }
+
+        function test_stoppedWhileHidden() {
+            var holder = createTemporaryObject(heldStory, root)
+            verify(holder !== null)
+            var item = holder.lines
+            item.height = item.textItem.implicitHeight - 12
+            tryVerify(function() { return item.offset < -3 }, 5000, "scrolling")
+            // Their holder hidden: back at the top, and still.
+            holder.visible = false
+            verify(!item.scrolls)
+            tryCompare(item, "offset", 0, 300)
+            wait(3200)
+            compare(item.offset, 0)
+            // Shown again: from the top, after the pause.
+            holder.visible = true
+            verify(item.scrolls)
+            wait(2000)
+            compare(item.offset, 0)
+            tryVerify(function() { return item.offset < -3 }, 3000, "scrolling again")
+        }
+
+        function test_fitStandsStill() {
+            var item = make({ text: "A short story.", height: 60 })
+            verify(!item.scrolls)
+            wait(3200)
+            compare(item.offset, 0)
+            // Wrapped at their width, in the app's font.
+            compare(item.textItem.width, item.width)
+            compare(item.textItem.wrapMode, Text.WordWrap)
+            compare(item.textItem.font.family, root.globalFont)
+            compare(item.textItem.font.pixelSize, 14)
         }
     }
 }

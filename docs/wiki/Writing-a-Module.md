@@ -1083,6 +1083,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `HelpLine` | The line about the selected row, under the menu; in its place on its own |
 | `PaneMessage` | A list's line while it has no rows (`LOADING...`, an error, `NO ITEMS FOUND`), in the middle of the pane |
 | `ScrolledText` | A line too long for its room, scrolled through while it is `on` (the selected row's) and cut short with "…" while not: `text`, `on`, `font.pixelSize` |
+| `ScrolledLines` | Lines too tall for their room (a summary), scrolled up through as they are read, and still while hidden |
 | `PromptScreen`, `ChoiceOverlay` | A full-screen question or notice, and a short list of answers |
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |

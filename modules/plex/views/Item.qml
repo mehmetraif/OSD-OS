@@ -428,38 +428,14 @@ FocusScope {
                 }
 
                 // Summary
-                Item {
+                ScrolledLines {
                     id: summaryContainer
                     anchors.left: parent.left
                     anchors.right: parent.right
                     height: root.sh * 0.1375 //66
-                    clip: true
-
-                    Text {
-                        id: summaryText
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        text: detail ? detail.summary : ""
-                        color: root.primaryColor
-                        font.family: root.globalFont
-                        wrapMode: Text.WordWrap
-                        font.pixelSize: root.sh * 0.0291667 //14
-                        lineHeight: 1.3
-                    }
-
-                    SequentialAnimation {
-                        running: detail !== null && summaryText.implicitHeight > summaryContainer.height
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) summaryText.y = 0
-                        PauseAnimation { duration: 3000 }
-                        NumberAnimation {
-                            target: summaryText; property: "y"
-                            to: summaryContainer.height - summaryText.implicitHeight
-                            duration: Math.abs(to) * 120
-                        }
-                        PauseAnimation { duration: 4000 }
-                        PropertyAction { target: summaryText; property: "y"; value: 0 }
-                    }
+                    text: detail ? detail.summary : ""
+                    color: root.primaryColor
+                    font.pixelSize: root.sh * 0.0291667 //14
                 }
             }
         }

@@ -11,6 +11,7 @@ ArcadePanel ArcadePanel.qml
 Dither Dither.qml
 MenuRow MenuRow.qml
 ScrolledText ScrolledText.qml
+ScrolledLines ScrolledLines.qml
 HelpLine HelpLine.qml
 ScrollMarks ScrollMarks.qml
 WebPlayerLaunch WebPlayerLaunch.qml
