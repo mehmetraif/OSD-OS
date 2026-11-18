@@ -55,6 +55,7 @@ osd-os/
       FileNames.h                   # safeFileName(): a name every filesystem takes (exFAT's rules)
       SslErrors.h                   # expectedLanSslErrors(): a LAN server's own certificate
       EmbyApi.h                     # the Emby API's URLs that Jellyfin shares (browse, download, stream)
+      EmbyApiBackend.h/.cpp         # what JellyfinBackend and EmbyBackend share, their base class: sign-in kept, requests, browsing, playback, settings
       ServerLog.h                   # serverlog::loadFailed(): a media server's failed load, one line in the log
       OsdSkinProvider.h/.cpp        # a skin's pictures in the colour scheme's two colours (image://osdskin)
       OsdIconProvider.h/.cpp        # an icon (a module's logo, a skin's) in one colour (image://osdicon)
@@ -511,7 +512,7 @@ An NFC card's tag file can point at content another module owns, rather than at 
 
 ## Playlists (videos from several modules)
 
-The Playlists module (`modules/playlists`, `PlaylistsBackend`) keeps lists of videos that other modules own, and plays a list as one. It is the one module that reaches into others: `main.cpp` hands its backend Local Files', YouTube's, and the media servers' as a map of module id to **`MediaServer`** (`src/modules/playlists/MediaServer.h`: `signedIn()`, `downloadRequest(itemId)`, `streamUrl(itemId)`, `browse(parentId, context, done)`), which `JellyfinBackend` and `EmbyBackend` implement with their own requests, item format and TLS allowances (`src/util/EmbyApi.h` builds the URLs both share); the module never minds which server it has.
+The Playlists module (`modules/playlists`, `PlaylistsBackend`) keeps lists of videos that other modules own, and plays a list as one. It is the one module that reaches into others: `main.cpp` hands its backend Local Files', YouTube's, and the media servers' as a map of module id to **`MediaServer`** (`src/modules/playlists/MediaServer.h`: `signedIn()`, `downloadRequest(itemId)`, `streamUrl(itemId)`, `browse(parentId, context, done)`), which `JellyfinBackend` and `EmbyBackend` implement in the base class they share (`EmbyApiBackend`, `src/util/EmbyApiBackend.h`: their requests, item format and TLS allowances), each with its own stream URL (`src/util/EmbyApi.h` builds the URLs); the module never minds which server it has.
 
 **Two kinds.** An **online** playlist plays each video from where it lives: a Local Files path, a YouTube watch URL that mpv's ytdl hook opens with the YouTube module's ways (`YouTubeBackend::playbackArgs`, its ADVANCED settings, yt-dlp's path), a Jellyfin or Emby stream (`/Videos/{id}/stream?static=true`, the token in the query, so in a list mixing sources it goes to that server and nowhere else). An **offline** playlist plays only what is on the device: Local Files' files as they are, and for everything else a copy, downloaded once.
 

@@ -98,6 +98,7 @@ add_executable(osdos
     src/modules/local_files/LocalFilesBackend.cpp
     src/modules/local_files/RemovableDrives.cpp
     src/modules/plex/PlexBackend.cpp
+    src/util/EmbyApiBackend.cpp
     src/modules/jellyfin/JellyfinBackend.cpp
     src/modules/emby/EmbyBackend.cpp
     src/modules/ambient_mode/AmbientModeBackend.cpp

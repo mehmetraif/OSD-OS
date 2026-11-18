@@ -9,8 +9,9 @@
 class QObject;
 
 // What the Playlists module asks of a media server, Jellyfin or Emby: one
-// interface, so that it never minds which it has. Each backend implements it
-// with its own requests, its own item format and its own TLS allowances.
+// interface, so that it never minds which it has. The two backends implement
+// it in the base class they share (EmbyApiBackend), with their requests,
+// their item format and their TLS allowances.
 class MediaServer {
 public:
     virtual ~MediaServer() = default;

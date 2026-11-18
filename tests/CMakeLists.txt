@@ -109,6 +109,7 @@ set_tests_properties(art_pixels PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscree
 find_package(OpenSSL REQUIRED)
 add_executable(media_servers_test
     media_servers_test.cpp
+    ../src/util/EmbyApiBackend.cpp
     ../src/modules/jellyfin/JellyfinBackend.cpp
     ../src/modules/emby/EmbyBackend.cpp
     ../src/modules/plex/PlexBackend.cpp)
