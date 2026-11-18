@@ -619,8 +619,8 @@ void NfcReaderBackend::get_resume_playback_options() {
 
 void NfcReaderBackend::get_auto_subtitles_options() {
     QVariantList options;
-    QVariantMap forced; forced["id"] = "forced"; forced["label"] = "Forced Only";
-    QVariantMap on;     on["id"] = "on";         on["label"] = "On";
+    QVariantMap forced; forced["id"] = "forced"; forced["label"] = "Forced Only"; forced["old"] = false;
+    QVariantMap on;     on["id"] = "on";         on["label"] = "On";              on["old"] = true;
     QVariantMap off;    off["id"] = "off";       off["label"] = "Off";
     options << forced << on << off;
     emit dynamicOptionsReady("auto_subtitles", options);

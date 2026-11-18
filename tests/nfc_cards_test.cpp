@@ -83,6 +83,22 @@ private slots:
         QCOMPARE(safeFileName(QStringLiteral("abc d"), QLatin1Char(' '), 0, QStringLiteral("file"), 4),
                  QStringLiteral("abc"));
     }
+
+    // Auto Show Subtitles saved in its old form, On or Off (true or false),
+    // shows as On and Forced Only, as Local Files' does.
+    void oldSubtitleSetting() {
+        NfcReaderBackend nfc(m_data.path(), m_data.path(), nullptr);
+        QSignalSpy options(&nfc, &NfcReaderBackend::dynamicOptionsReady);
+        nfc.get_auto_subtitles_options();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("auto_subtitles"));
+        QHash<QString, QVariant> old;
+        for (const QVariant &option : options.first().at(1).toList())
+            old.insert(option.toMap().value("id").toString(), option.toMap().value("old"));
+        QCOMPARE(old.value("on"), QVariant(true));
+        QCOMPARE(old.value("forced"), QVariant(false));
+        QVERIFY(!old.value("off").isValid());
+    }
 };
 
 QTEST_GUILESS_MAIN(NfcCardsTest)
