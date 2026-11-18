@@ -1,5 +1,6 @@
 #include "util/SetupExport.h"
 #include "system/SystemLocale.h"
+#include "util/FileText.h"
 #include "util/ModuleEnabled.h"
 
 #include <QCryptographicHash>
@@ -99,10 +100,8 @@ bool publicKey(const QString &line) {
     return kKey.match(line).hasMatch();
 }
 
-QByteArray readText(const QString &path) {
-    QFile file(path);
-    return file.open(QIODevice::ReadOnly) ? file.read(256 * 1024) : QByteArray();
-}
+// sshd's drop-in and authorized_keys are read no further than this.
+constexpr qint64 kMaxText = 256 * 1024;
 
 } // namespace
 
@@ -156,10 +155,11 @@ void readSystem(System &system, const QString &root, const QString &home) {
         static const QRegularExpression kPasswords(QStringLiteral("^\\s*PasswordAuthentication\\s+yes\\b"),
                                                    QRegularExpression::MultilineOption
                                                        | QRegularExpression::CaseInsensitiveOption);
-        system.sshPasswordLogin = kPasswords.match(QString::fromUtf8(
-            readText(root + QStringLiteral("/etc/ssh/sshd_config.d/00-osdos-setup.conf")))).hasMatch();
-        const QStringList lines = QString::fromUtf8(readText(home + QStringLiteral("/.ssh/authorized_keys")))
-                                      .split(QLatin1Char('\n'));
+        const QByteArray dropIn =
+            filetext::readText(root + QStringLiteral("/etc/ssh/sshd_config.d/00-osdos-setup.conf"), kMaxText);
+        system.sshPasswordLogin = kPasswords.match(QString::fromUtf8(dropIn)).hasMatch();
+        const QByteArray keys = filetext::readText(home + QStringLiteral("/.ssh/authorized_keys"), kMaxText);
+        const QStringList lines = QString::fromUtf8(keys).split(QLatin1Char('\n'));
         for (const QString &line : lines) {
             const QString key = line.trimmed();
             if (publicKey(key) && !system.sshKeys.contains(key))

@@ -1,5 +1,6 @@
 #include "AudioOutput.h"
 #include "../AppCore.h"
+#include "../util/FileText.h"
 #include "../util/LegacyNames.h"
 
 #include <QDir>
@@ -90,10 +91,7 @@ QList<AlsaCard> alsaCards() {
 
 // The text of a small file of the kernel's (sysfs), trimmed; "" for none.
 QString readSmall(const QString &path) {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return QString();
-    return QString::fromUtf8(f.read(256)).trimmed();
+    return QString::fromUtf8(filetext::readText(path, 256)).trimmed();
 }
 
 #ifdef Q_OS_LINUX

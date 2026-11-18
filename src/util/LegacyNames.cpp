@@ -1,5 +1,6 @@
 #include "LegacyNames.h"
 #include "AtomicFile.h"
+#include "FileText.h"
 
 #include <QDir>
 #include <QFile>
@@ -41,11 +42,7 @@ QJsonValue renameIds(const QJsonValue &value) {
 }
 
 void migrateFile(const QString &path) {
-    QFile in(path);
-    if (!in.open(QIODevice::ReadOnly))
-        return;
-    const QByteArray raw = in.readAll();
-    in.close();
+    const QByteArray raw = filetext::readText(path);
     if (!raw.contains(kOldModulePrefix.toUtf8()))
         return;
     QJsonParseError error;

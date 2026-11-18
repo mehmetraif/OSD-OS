@@ -6,7 +6,7 @@
 #include <QString>
 
 #ifdef Q_OS_LINUX
-#include <QFile>
+#include "FileText.h"
 #include <algorithm>
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -45,8 +45,7 @@ struct Interface {
 #ifdef Q_OS_LINUX
 namespace detail {
 inline QString sysText(const QString &path) {
-    QFile file(path);
-    return file.open(QIODevice::ReadOnly | QIODevice::Text) ? QString::fromUtf8(file.read(64)).trimmed() : QString();
+    return QString::fromUtf8(filetext::readText(path, 64)).trimmed();
 }
 
 // What an interface is, by its link type (/sys/class/net/<name>/type, the

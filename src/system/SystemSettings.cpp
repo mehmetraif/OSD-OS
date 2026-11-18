@@ -1,5 +1,6 @@
 #include "SystemSettings.h"
 #include "SystemLocale.h"
+#include "util/FileText.h"
 #include "util/LegacyNames.h"
 #include "util/RootRequest.h"
 
@@ -90,12 +91,12 @@ QVariantList SystemSettings::keyboards() const {
     if (m_keyboards)
         return *m_keyboards;
     QVariantList layouts;
-    QFile file(m_keyboardsFile);
-    if (file.open(QIODevice::ReadOnly)) {
+    QJsonObject extra;
+    QString why;
+    if (filetext::readJsonObject(m_keyboardsFile, &extra, &why)) {
         const QString folder = systemRoot() + QStringLiteral("/usr/share/X11/xkb/symbols/");
         static const QRegularExpression kCode(QStringLiteral("^[a-z]{2,5}$"));
-        const QJsonArray all = QJsonDocument::fromJson(file.readAll()).object()
-                                   .value(QLatin1String("keyboards")).toArray();
+        const QJsonArray all = extra.value(QLatin1String("keyboards")).toArray();
         for (const QJsonValue &v : all) {
             const QJsonArray pair = v.toArray();
             const QString code = pair.at(1).toString();
@@ -103,6 +104,8 @@ QVariantList SystemSettings::keyboards() const {
                 layouts << QVariantMap{ { QStringLiteral("name"), pair.at(0).toString() },
                                         { QStringLiteral("code"), code } };
         }
+    } else if (!why.isEmpty()) {
+        qWarning("[SystemSettings] %s: %s", qPrintable(m_keyboardsFile), qPrintable(why));
     }
     m_keyboards = layouts;
     return layouts;

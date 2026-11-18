@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
+#include "util/FileText.h"
 #include "util/InstallHint.h"
 #include "util/ModuleEnabled.h"
 #include "util/NetInterfaces.h"
@@ -21,29 +22,6 @@
 #include <QQmlContext>
 #include <algorithm>
 
-// A file's JSON read as an object. False when there is no such file, or it
-// isn't a JSON object: `why` then says what is wrong with one that is there
-// (empty for one that isn't, or is empty).
-static bool readJsonObject(const QString &path, QJsonObject *out, QString *why = nullptr) {
-    if (why) why->clear();
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return false;
-    const QByteArray raw = f.readAll();
-    if (raw.trimmed().isEmpty())
-        return false;
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        if (why)
-            *why = err.error != QJsonParseError::NoError ? err.errorString()
-                                                         : QStringLiteral("not a JSON object");
-        return false;
-    }
-    *out = doc.object();
-    return true;
-}
-
 AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *parent)
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot)
 {
@@ -61,7 +39,7 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
     for (const QString &folder : dirs) {
         QJsonObject manifest;
         QString why;
-        if (!readJsonObject(modulesDir.absoluteFilePath(folder + "/manifest.json"), &manifest, &why)) {
+        if (!filetext::readJsonObject(modulesDir.absoluteFilePath(folder + "/manifest.json"), &manifest, &why)) {
             if (!why.isEmpty())
                 qWarning("[AppCore] Bad manifest.json in %s: %s", qPrintable(folder), qPrintable(why));
             continue;
@@ -126,7 +104,7 @@ QJsonObject AppCore::storedConfig(bool *broken) const {
     }
     QJsonObject config;
     QString why;
-    const bool ok = readJsonObject(path, &config, &why);
+    const bool ok = filetext::readJsonObject(path, &config, &why);
     // One that is there but can't be read (a stray comma from editing it by
     // hand) must not be written over: these defaults would then replace every
     // setting in it. Readers get the defaults meanwhile; save_setting refuses.
@@ -763,7 +741,7 @@ QVariantMap AppCore::importColorScheme(const QJsonObject &obj) const {
 QVariantMap AppCore::getCustomColorScheme() const {
     QJsonObject obj;
     QString why;
-    if (!readJsonObject(m_dataRoot + "/custom_color_scheme.json", &obj, &why)) {
+    if (!filetext::readJsonObject(m_dataRoot + "/custom_color_scheme.json", &obj, &why)) {
         if (!why.isEmpty())
             qWarning("[AppCore] custom_color_scheme.json: %s", qPrintable(why));
         return {};
@@ -776,7 +754,7 @@ QVariantMap AppCore::getCustomColorSchemes() const {
 
     QJsonObject obj;
     QString why;
-    if (!readJsonObject(m_dataRoot + "/custom_color_schemes.json", &obj, &why)) {
+    if (!filetext::readJsonObject(m_dataRoot + "/custom_color_schemes.json", &obj, &why)) {
         if (!why.isEmpty())
             qWarning("[AppCore] custom_color_schemes.json: %s", qPrintable(why));
         return {};
@@ -839,17 +817,14 @@ QList<LookRoot> lookRoots(const QString &appRoot, const QString &dataRoot, const
 // for one that is there but not JSON) when it can't be, or isn't of the kind
 // the folder it is in takes.
 bool readLookJson(const LookRoot &root, const QString &id, QJsonObject *out) {
-    QFile f(root.dir + QLatin1Char('/') + id + QLatin1Char('/') + root.file);
-    if (!f.open(QIODevice::ReadOnly))
-        return false;
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        qWarning("[AppCore] %s: %s", qPrintable(f.fileName()),
-                 err.error != QJsonParseError::NoError ? qPrintable(err.errorString()) : "not an object");
+    const QString path = root.dir + QLatin1Char('/') + id + QLatin1Char('/') + root.file;
+    QJsonObject obj;
+    QString why;
+    if (!filetext::readJsonObject(path, &obj, &why)) {
+        if (!why.isEmpty())
+            qWarning("[AppCore] %s: %s", qPrintable(path), qPrintable(why));
         return false;
     }
-    const QJsonObject obj = doc.object();
     if ((root.take == LookRoot::EarlySkins && !isEarlySkin(obj))
             || (root.take == LookRoot::NoEarlySkins && isEarlySkin(obj)))
         return false;
@@ -1309,7 +1284,7 @@ QJsonObject AppCore::loadLists(bool *broken) const {
     }
     QJsonObject lists;
     QString why;
-    const bool ok = readJsonObject(path, &lists, &why);
+    const bool ok = filetext::readJsonObject(path, &lists, &why);
     // As config.json: one there but unreadable is not written over.
     if (broken)
         *broken = !ok && !why.isEmpty();

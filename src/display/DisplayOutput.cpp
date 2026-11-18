@@ -2,6 +2,7 @@
 #include "../util/AtomicFile.h"
 #include "../util/Board.h"
 #include "../util/DurableFile.h"
+#include "../util/FileText.h"
 #include "../util/LegacyNames.h"
 #include "../util/RootRequest.h"
 
@@ -119,11 +120,6 @@ bool boardHas(const QString &id) {
     return false;
 }
 
-QByteArray readFile(const QString &path) {
-    QFile f(path);
-    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
-}
-
 } // namespace
 
 DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
@@ -132,17 +128,17 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
       m_bootDir(legacy::env("BOOT_DIR", QStringLiteral("/boot/firmware"))),
       m_runDir(legacy::env("RUN_DIR", QStringLiteral("/run"))) {
     // Not the OSD/OS image: nothing to offer.
-    const QByteArray written = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
+    const QByteArray written = filetext::readText(m_bootDir + QStringLiteral("/osdos-display.txt"));
     if (written.isEmpty())
         return;
     // Once a preset has been written for the next start, osdos-stop keeps the
     // one this boot started on in /run: that one is in force.
-    const QByteArray atBoot = readFile(atBootPath());
+    const QByteArray atBoot = filetext::readText(atBootPath());
     const QByteArray inForce = atBoot.isEmpty() ? written : atBoot;
     const int launcherApi = legacy::envInt("LAUNCHER_API");
     for (const Preset &p : kPresets) {
         const QString id = QString::fromLatin1(p.id);
-        const QByteArray preset = readFile(presetPath(id));
+        const QByteArray preset = filetext::readText(presetPath(id));
         if (preset.isEmpty())
             continue;
         if (preset == inForce)
@@ -159,7 +155,10 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
     m_nextStartAvailable = m_powerOffAvailable && rootrequest::available(QStringLiteral("display"), kNextStartApi);
 
     // What became of the last change.
-    const QJsonObject state = QJsonDocument::fromJson(readFile(statePath())).object();
+    QJsonObject state;
+    QString why;
+    if (!filetext::readJsonObject(statePath(), &state, &why) && !why.isEmpty())
+        qWarning("[DisplayOutput] %s: %s", qPrintable(statePath()), qPrintable(why));
     if (state.isEmpty())
         return;
     const QString to = state.value(QStringLiteral("to")).toString();
@@ -247,8 +246,8 @@ void DisplayOutput::nextStartDone(const QString &id, bool ok, const QString &rea
     m_busy = false;
     // As the boot partition has it now, whatever the answer: osdos-stop may
     // have written it all the same.
-    const QByteArray written = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
-    const QByteArray atBoot = readFile(atBootPath());
+    const QByteArray written = filetext::readText(m_bootDir + QStringLiteral("/osdos-display.txt"));
+    const QByteArray atBoot = filetext::readText(atBootPath());
     m_next = atBoot.isEmpty() || written == atBoot ? QString() : presetMatching(written);
     if (!m_next.isEmpty()) {
         // What waits, to keep or go back on at the next start.
@@ -314,7 +313,7 @@ bool DisplayOutput::offered(const QString &id) const {
 QString DisplayOutput::presetMatching(const QByteArray &bytes) const {
     for (const Preset &p : kPresets) {
         const QString id = QString::fromLatin1(p.id);
-        if (readFile(presetPath(id)) == bytes)
+        if (filetext::readText(presetPath(id)) == bytes)
             return id;
     }
     return QString();

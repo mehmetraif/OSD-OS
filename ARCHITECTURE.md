@@ -53,6 +53,7 @@ osd-os/
       ...
     util/
       AtomicFile.h                  # writeFileAtomically(): a state file written whole, never cut short
+      FileText.h                    # readText(), readJsonObject(): a small file read whole, a broken JSON one told from one not there
       RuntimeFiles.h                # runtimefiles::path(): what a run hands mpv, in a folder of the user's own
       Diagnostics.h/.cpp            # crash and stall reports, memory in the log, malloc kept from hoarding
       LogFile.h/.cpp                # Windows: the log in osdos.log in the data folder, the app being a windowed program

@@ -30,6 +30,12 @@ add_executable(install_hint_test install_hint_test.cpp)
 target_include_directories(install_hint_test PRIVATE ../src)
 target_link_libraries(install_hint_test PRIVATE Qt6::Core Qt6::Test)
 add_test(NAME install_hint COMMAND install_hint_test)
+# The small files the app reads whole, and its JSON told apart from a file
+# that isn't there and one that is broken (util/FileText.h).
+add_executable(file_text_test file_text_test.cpp)
+target_include_directories(file_text_test PRIVATE ../src)
+target_link_libraries(file_text_test PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME file_text COMMAND file_text_test)
 
 # The 7z extractor (the LZMA SDK's decoder, built in as in the app) on
 # archives made with py7zr (data/arcade/*.7z): what is in them, taken out

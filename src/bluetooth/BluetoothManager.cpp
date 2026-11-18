@@ -16,6 +16,7 @@
 #endif
 
 #include "../util/EndProcess.h"
+#include "../util/FileText.h"
 
 #include <QDir>
 #include <QFile>
@@ -43,8 +44,8 @@ QList<RfkillSwitch> bluetoothSwitches() {
     const QDir rfkill(QStringLiteral("/sys/class/rfkill"));
     for (const QString &entry : rfkill.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         auto read = [&](const char *name) {
-            QFile file(rfkill.filePath(entry + QLatin1Char('/') + QLatin1String(name)));
-            return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()).trimmed() : QString();
+            const QString path = rfkill.filePath(entry + QLatin1Char('/') + QLatin1String(name));
+            return QString::fromUtf8(filetext::readText(path)).trimmed();
         };
         if (read("type") == QLatin1String("bluetooth"))
             switches.append({ read("name"), read("soft") == QLatin1String("1"), read("hard") == QLatin1String("1") });

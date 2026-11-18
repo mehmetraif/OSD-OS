@@ -1,5 +1,6 @@
 #include "SetupFile.h"
 #include "AtomicFile.h"
+#include "FileText.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -94,19 +95,8 @@ QStringList cardOnly(const QJsonObject &setup) {
 // config.json as it is, an empty one when there is none; false when it is
 // there but can't be read, and must not be written over.
 bool readConfig(const QString &path, QJsonObject *config) {
-    QFile file(path);
-    if (!file.exists()) {
-        *config = QJsonObject();
-        return true;
-    }
-    if (!file.open(QIODevice::ReadOnly))
-        return false;
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &error);
-    if (error.error != QJsonParseError::NoError || !doc.isObject())
-        return false;
-    *config = doc.object();
-    return true;
+    *config = QJsonObject();
+    return !QFileInfo::exists(path) || filetext::readJsonObject(path, config);
 }
 
 } // namespace

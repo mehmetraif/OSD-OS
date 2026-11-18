@@ -2,6 +2,7 @@
 #include "util/LegacyNames.h"
 #include "util/AtomicFile.h"
 #include "util/DurableFile.h"
+#include "util/FileText.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -580,12 +581,14 @@ bool UpdateManager::writeStagedMarkers(const QString &sha256Hex) {
     return writeFileAtomically(stagedJsonPath(), QJsonDocument(staged).toJson());
 }
 
-// staged.json as written above; empty when there is none or it can't be read.
+// staged.json as written above; empty when there is none or it can't be read
+// (why in the log).
 QJsonObject UpdateManager::readStaged() const {
-    QFile marker(stagedJsonPath());
-    if (!marker.open(QIODevice::ReadOnly))
-        return {};
-    return QJsonDocument::fromJson(marker.readAll()).object();
+    QJsonObject staged;
+    QString why;
+    if (!filetext::readJsonObject(stagedJsonPath(), &staged, &why) && !why.isEmpty())
+        qWarning("[UpdateManager] %s: %s", qPrintable(stagedJsonPath()), qPrintable(why));
+    return staged;
 }
 
 void UpdateManager::clearStagingFiles() {
