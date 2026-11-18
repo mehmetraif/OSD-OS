@@ -28,7 +28,9 @@
 // found again at the address it has now, Emby Connect tries a server's
 // address from outside when its LAN address gives no sign-in, Settings'
 // Libraries are told why there are none when the server can't be reached,
-// and Jellyfin's Quick Connect says a server's refusal by its status.
+// Jellyfin's Quick Connect says a server's refusal by its status, and a
+// Server Address changed while signed in to Jellyfin or Emby signs out of
+// the server that issued the token, which goes to no other host.
 
 class Reply : public QNetworkReply {
 public:
@@ -367,7 +369,42 @@ class MediaServersTest : public QObject {
         QVERIFY(seasons.last().at(0).toList().isEmpty());
     }
 
+    // Settings → Server Address changed while signed in: the token goes to
+    // no host but the one that issued it. The backend signs out (the revoke
+    // sent to the server signed into), and what is asked after goes nowhere;
+    // the same address again, as the sign-in saves it, changes nothing.
+    template <typename Backend> void serverAddressChangedSignsOut(const QString &moduleId) {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        QSignalSpy auth(&backend, &Backend::authStateChanged);
+        backend.onSettingChanged(moduleId, QStringLiteral("server_url"), QStringLiteral("http://server/"));
+        QVERIFY(backend.has_auth());
+        QCOMPARE(auth.count(), 0);
+        QVERIFY(network->replies.isEmpty());
+
+        backend.onSettingChanged(moduleId, QStringLiteral("server_url"), QStringLiteral("http://elsewhere:8096"));
+        QVERIFY(!backend.has_auth());
+        QCOMPARE(auth.count(), 1);
+        // Emby's revoke follows its device's deauth.
+        for (qsizetype i = 0; i < network->replies.size(); ++i)
+            network->replies.at(i)->complete(QByteArray());
+        QVERIFY(!network->replies.isEmpty());
+        backend.load_seasons(QStringLiteral("show"));
+        backend.load_item_detail(QStringLiteral("film"));
+        for (const Reply *reply : std::as_const(network->replies)) {
+            QCOMPARE(reply->url().host(), QStringLiteral("server"));
+            QVERIFY(!reply->url().path().contains(QLatin1String("/Items/")));
+        }
+    }
+
 private slots:
+    void jellyfinServerAddressChangedSignsOut() {
+        serverAddressChangedSignsOut<JellyfinBackend>(QStringLiteral("com.osdos.jellyfin"));
+    }
+    void embyServerAddressChangedSignsOut() {
+        serverAddressChangedSignsOut<EmbyBackend>(QStringLiteral("com.osdos.emby"));
+    }
     void jellyfinLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<JellyfinBackend>(); }
     void embyLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<EmbyBackend>(); }
     void plexLibrariesSayWhyThereAreNone() {

@@ -1815,9 +1815,16 @@ void EmbyBackend::onSettingChanged(const QString &moduleId, const QString &key, 
     if (moduleId != kModuleId)
         return;
 
-    if (key == QLatin1String("server_url")) {
-        m_serverUrl = normalizeServerUrl(value.toString());
-    }
+    // Settings → Server Address changed while signed in names another
+    // server, and the token was issued by the one signed into: it goes to no
+    // other host. That server signs this device out (its token revoked there,
+    // where it was issued), and the sign-in screen offers the address typed,
+    // which is then the one Settings shows and the one signed into. Signed
+    // out, nothing here uses the setting: the sign-in screen reads it itself.
+    // The same address again (the sign-in saving it) changes nothing.
+    if (key == QLatin1String("server_url") && has_auth()
+        && normalizeServerUrl(value.toString()) != m_serverUrl)
+        logout();
 }
 
 QString EmbyBackend::get_last_audio_lang() const {
