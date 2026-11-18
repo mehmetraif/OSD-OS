@@ -229,6 +229,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(boot_progress_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME boot_progress COMMAND boot_progress_test)
 
+    # Settings → Network → Bluetooth's DETAILS (BluetoothManager, built
+    # without BlueZ, as on a Mac) against a stand-in for journalctl: the
+    # system log's Bluetooth lines, one reading at a time, and one that
+    # takes too long stopped with what it gave by then.
+    add_executable(bluetooth_test
+        bluetooth_test.cpp
+        ../src/bluetooth/BluetoothManager.cpp)
+    target_include_directories(bluetooth_test PRIVATE ../src)
+    target_link_libraries(bluetooth_test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME bluetooth COMMAND bluetooth_test)
+
     # Settings → System → About → System Information (SystemInfo): its rows from what
     # the system says, Linux's files from a stand-in root, the name a network
     # takes of what is typed, and the device renamed through a stand-in for

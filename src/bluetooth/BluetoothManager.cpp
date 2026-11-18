@@ -15,6 +15,8 @@
 #include <algorithm>
 #endif
 
+#include "../util/EndProcess.h"
+
 #include <QDir>
 #include <QFile>
 #include <QProcess>
@@ -23,6 +25,9 @@
 namespace {
 // How long the search mode looks for devices before it stops by itself.
 constexpr int kSearchMs = 60 * 1000;
+// How long DETAILS waits for the system log (a large journal on a slow
+// card): what it gave by then is shown, and it is ended.
+constexpr int kJournalMs = 5 * 1000;
 
 // An rfkill switch for Bluetooth, which keeps the radio off below BlueZ: one
 // per adapter, named after it ("hci0").
@@ -441,6 +446,10 @@ void BluetoothManager::clearMessage() {
 }
 
 void BluetoothManager::collectDetails() {
+    // One reading of the log at a time: a press while one is under way has
+    // its answer coming, within kJournalMs.
+    if (m_journal && m_journal->state() != QProcess::NotRunning)
+        return;
     QStringList lines;
 #ifdef OSDOS_BLUETOOTH
     if (m_adapterPath.isEmpty()) {
@@ -467,8 +476,9 @@ void BluetoothManager::collectDetails() {
     // The system log's last Bluetooth lines: the kernel's, bluetoothd's,
     // rfkill's and this app's. The app's user reads it as a member of adm.
     auto *journal = new QProcess(this);
-    auto finish = [this, journal, lines](bool ran) {
-        journal->deleteLater();
+    m_journal = journal;
+    // `late`: stopped at the time limit, what it wrote by then read.
+    auto finish = [this, journal, lines](bool ran, bool late) {
         static const QRegularExpression relevant(
             QStringLiteral("bluetooth|hci\\d|rfkill|bthelper|bcm|brcm"), QRegularExpression::CaseInsensitiveOption);
         static const QRegularExpression stamp(QStringLiteral("^\\[[^\\]]*\\]\\s*"));
@@ -489,7 +499,9 @@ void BluetoothManager::collectDetails() {
             }
         }
         QStringList out = lines;
-        if (order.isEmpty())
+        if (late)
+            out << QStringLiteral("(stopped reading the system log after %1 s)").arg(kJournalMs / 1000);
+        else if (order.isEmpty())
             out << QStringLiteral("(no Bluetooth lines in the system log)");
         for (const QString &text : order.mid(qMax(0, int(order.size()) - 20)))
             out << last.value(text) + (times.value(text) > 1 ? QStringLiteral(" (x%1)").arg(times.value(text))
@@ -497,10 +509,25 @@ void BluetoothManager::collectDetails() {
         m_details = out.join(QLatin1Char('\n'));
         emit detailsChanged();
     };
-    connect(journal, &QProcess::finished, this, [finish]() { finish(true); });
-    connect(journal, &QProcess::errorOccurred, this, [finish](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart)
-            finish(false);
+    connect(journal, &QProcess::finished, this, [journal, finish]() {
+        journal->deleteLater();
+        finish(true, false);
+    });
+    connect(journal, &QProcess::errorOccurred, this, [journal, finish](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        journal->deleteLater();
+        finish(false, false);
+    });
+    // Still reading at the time limit: answered with what it wrote by then,
+    // and ended without the app's thread waiting for it (util/EndProcess.h).
+    QTimer::singleShot(kJournalMs, journal, [this, journal, finish]() {
+        if (journal->state() == QProcess::NotRunning)
+            return;
+        qWarning("[Bluetooth] journalctl still reading after %d s: stopped", kJournalMs / 1000);
+        journal->disconnect(this);
+        finish(true, true);
+        endProcessLater(journal, this, {});
     });
     journal->start(QStringLiteral("journalctl"),
                    { QStringLiteral("-b"), QStringLiteral("--no-pager"), QStringLiteral("--no-hostname"),

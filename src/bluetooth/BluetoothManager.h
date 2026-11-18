@@ -2,6 +2,8 @@
 
 #include <QObject>
 #include <QHash>
+#include <QPointer>
+#include <QProcess>
 #include <QStringList>
 #include <QTimer>
 #include <QVariantList>
@@ -150,6 +152,8 @@ private:
     QString m_message;
     bool m_powerFailed = false;
     QString m_details;
+    // journalctl reading the log for details, until it has gone.
+    QPointer<QProcess> m_journal;
     QTimer m_searchTimer;
     // A search asked for and not stopped since: what a discovery that starts
     // late (the adapter was off, BlueZ was slow to confirm) is checked against.
