@@ -701,27 +701,33 @@ void WeatherBackend::stopMusic() {
 void WeatherBackend::endMusic(bool wait) {
     if (m_musicConnect) m_musicConnect->stop();
     if (m_musicIpc)     m_musicIpc->abort();
+    // One asked to end a moment ago still has the sound card.
+    if (wait && m_musicEnding && m_musicEnding->state() != QProcess::NotRunning)
+        m_musicEnding->waitForFinished(1000);
 
     QProcess *p = std::exchange(m_music, nullptr);  // cleared first: terminate() can re-enter
     m_musicPaused = false;
-    if (p) {
-        p->disconnect(this);        // this slot via the finished signal
-        if (p->state() != QProcess::NotRunning && !wait) {
-            m_musicEnding = p;
-            endProcessLater(p, this, [this]() {
-                // Not while the music is on again: its hold is the new one's.
-                if (!m_music)
-                    MenuMusic::release(QStringLiteral("weather"));
-            });
-            emit musicStateChanged();
-            return;
-        }
-        if (p->state() != QProcess::NotRunning) {
-            p->terminate();
-            p->waitForFinished(1000);
-        }
-        p->deleteLater();
+    // No music: what holds the menu music off is one asked to end a moment
+    // ago (stopped for the setup screen, then again as the module is left),
+    // which lets go once it has gone and the sound card is free.
+    if (!p)
+        return;
+    p->disconnect(this);        // this slot via the finished signal
+    if (p->state() != QProcess::NotRunning && !wait) {
+        m_musicEnding = p;
+        endProcessLater(p, this, [this]() {
+            // Not while the music is on again: its hold is the new one's.
+            if (!m_music)
+                MenuMusic::release(QStringLiteral("weather"));
+        });
+        emit musicStateChanged();
+        return;
     }
+    if (p->state() != QProcess::NotRunning) {
+        p->terminate();
+        p->waitForFinished(1000);
+    }
+    p->deleteLater();
     MenuMusic::release(QStringLiteral("weather"));
     emit musicStateChanged();
 }

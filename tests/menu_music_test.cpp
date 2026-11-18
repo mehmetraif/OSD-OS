@@ -26,6 +26,7 @@ for a in "$@"; do
 done
 echo "start $(basename "$media") $$" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then exit 2; fi
+if [ "$FAKE_MPV_MODE" = stubborn ]; then trap '' TERM; fi
 if [ "$FAKE_MPV_MODE" = card ] && ! grep -q '^ *[0-9]' "$OSDOS_ASOUND_DIR/cards"; then exit 2; fi
 case "$media" in *.xm) if [ "$FAKE_MPV_MODULE" = fail ]; then exit 2; fi ;; esac
 i=0
@@ -439,6 +440,29 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(ambient.findChildren<QProcess *>().isEmpty(), 3000);
         QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
         QCOMPARE(starts().size(), 3);
+    }
+
+    // Weather's music stopped twice (for the setup screen, then as the module
+    // is left) while its mpv is slow to go: the menu music it held off waits
+    // for the card until that mpv has gone, the second stop or not.
+    void weatherMusicStoppedTwice() {
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        WeatherBackend weather(m_dir.path(), m_dir.path() + QStringLiteral("/data"));
+        // Its environment is taken as it starts: an mpv that won't go when
+        // asked, killed after the grace (a second).
+        qputenv("FAKE_MPV_MODE", "stubborn");
+        weather.startMusic();
+        qputenv("FAKE_MPV_MODE", "play");
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 2, 3000);
+        QTest::qWait(150);      // the trap is set
+        weather.stopMusic();
+        weather.stopMusic();
+        QTest::qWait(850);      // past the menu music's 700 ms, short of the kill
+        QVERIFY(!m_music->playing());
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
     }
 };
 
