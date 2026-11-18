@@ -156,7 +156,10 @@ public:
     Q_INVOKABLE QVariantList filePlaces() const;
     // A folder's entries for the file picker, [{ name, path, isFolder }]: its
     // folders, then its files of these types (lower case; none, no files),
-    // each by name, hidden ones left out.
+    // each by name, hidden ones left out. folderEntries() reads them on the
+    // app's thread, for a module's own view (the module guide's example,
+    // docs/wiki/Writing-a-Module.md); the file picker asks only through
+    // requestFolderEntries(), off it.
     Q_INVOKABLE QVariantList folderEntries(const QString &path, const QStringList &fileTypes) const;
     Q_INVOKABLE QVariant requestFolderEntries(const QString &path, const QStringList &fileTypes);
     Q_INVOKABLE void clearFolderCache();

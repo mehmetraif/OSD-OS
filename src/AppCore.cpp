@@ -17,7 +17,6 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QRegularExpression>
-#include <QNetworkInterface>
 #include <QJSValue>
 #include <QQmlContext>
 #include <algorithm>
@@ -1202,10 +1201,6 @@ QVariant AppCore::requestFolderEntries(const QString &path, const QStringList &f
                                   [path, fileTypes]() { return readPickerDirectory(path, fileTypes); });
 }
 
-// A device typically has several addresses (RPi: eth0 + wlan0; SteamOS: wlan0 plus
-// Docker/Flatpak bridges; macOS: en0 plus awdl/bridge/utun VPN interfaces), so pick
-// rather than take the first: skip loopback, virtual/tunnel and down interfaces, keep
-// only routable IPv4, and prefer wired over wireless over anything else.
 QString AppCore::licenseText(const QString &file) const {
     // Only the app's own files: a path within its folder.
     const QString name = file.isEmpty() ? QStringLiteral("LICENSE") : QDir::cleanPath(file);
@@ -1234,6 +1229,10 @@ QString AppCore::installHint(const QString &program) const {
     return installhint::forProgram(program);
 }
 
+// A device typically has several addresses (RPi: eth0 + wlan0; SteamOS: wlan0 plus
+// Docker/Flatpak bridges; macOS: en0 plus awdl/bridge/utun VPN interfaces), so pick
+// rather than take the first: skip loopback, virtual/tunnel and down interfaces, keep
+// only routable IPv4, and prefer wired over wireless over anything else.
 QString AppCore::localIpAddress() const {
     // Interface names that are virtual/tunnel/link-local by convention on the three
     // targets. Qt's type() misses some of these (Docker bridges report as Ethernet).

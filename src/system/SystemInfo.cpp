@@ -10,7 +10,6 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QHostAddress>
-#include <QNetworkInterface>
 #include <QRegularExpression>
 #include <QStorageInfo>
 #include <QSysInfo>
