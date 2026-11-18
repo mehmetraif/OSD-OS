@@ -387,11 +387,12 @@ FocusScope {
     property int picturesRevision: 0
     readonly property var details: (revision, picturesRevision, arcadeBackend && currentSet !== ""
                                                                 ? arcadeBackend.gameDetails(currentSet) : ({}))
-    // The game's pictures (ArcadeBackend::picturesOf), one after another
-    // every few seconds while it has more than one, from the first as it is
-    // chosen, but while a game plays; RetroAchievements' downloaded as it is
-    // shown, with a Web API key (wantPictures()). None on a room, where the
-    // box has the frame's room: none is shown, so none is asked for.
+    // The game's pictures (gameDetails()'s, ArcadePictures::picturesOf), one
+    // after another every few seconds while it has more than one, from the
+    // first as it is chosen, but while a game plays; RetroAchievements'
+    // downloaded as it is shown, with a Web API key (wantPictures()). None on
+    // a room, where the box has the frame's room: none is shown, so none is
+    // asked for.
     readonly property var pictures: isGame && !onRoom && filterId !== "search" && details.pictures ? details.pictures : []
     property int pictureIndex: 0
     onCurrentSetChanged: {
