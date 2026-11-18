@@ -9,7 +9,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
 #include <QThreadPool>
@@ -67,66 +66,75 @@ void addNumbered(QHash<QString, QStringList> &numbered, const QString &name, con
     std::sort(pictures.begin(), pictures.end(), beforeInTurn);
 }
 
-// A picture saved in folder as <name>_<n>.png (or .jpg, as data is), n the
-// first number no picture of that name has there (.png or .jpg, in either
-// case), nor a set of the folder's (sets) as its name: never over a file
-// that is there (the pictures are saved one at a time). Whole or not at all
-// (writeFileAtomically(): written beside its name, and given it once it is
-// on the card): written in place, a power cut on the way left a picture cut
-// short under the name, which the next read of the folder took for one of
-// the game's. Its folder's entry flushed to the card too. Its path, "" when
-// it couldn't be saved.
-QString savePicture(const QString &folder, const QString &name, const QByteArray &data,
-                    const QHash<QString, QString> &sets) {
-    if (!QDir().mkpath(folder))
-        return QString();
-    const QString suffix = data.startsWith("\x89PNG") ? QStringLiteral("png") : QStringLiteral("jpg");
-    const auto taken = [](const QString &base) {
-        for (const char *ending : { ".png", ".jpg", ".PNG", ".JPG" }) {
-            if (QFile::exists(base + QLatin1String(ending)))
-                return true;
-        }
-        return false;
-    };
-    for (int n = 1; n <= 999; ++n) {
-        const QString stem = QStringLiteral("%1_%2").arg(name).arg(n);
-        const QString base = folder + QLatin1Char('/') + stem;
-        if (sets.contains(stem) || taken(base))
-            continue;
-        const QString path = base + QLatin1Char('.') + suffix;
-        if (!writeFileAtomically(path, data)) {
-            qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
-            return QString();
-        }
-        syncPath(folder, true);
-        return path;
-    }
-    return QString();
-}
-
-// A picture saved in folder as <stem>.png (or .jpg, as data is), the way the
-// picture packs for MAME name them, unless a picture of that name is there
-// already (.png or .jpg, in either case), the user's own or one saved before,
-// which is kept as it is and is the answer. Whole or not at all, as
-// savePicture()'s: a picture cut short under this name would be kept as the
-// game's for good, a file of the name being the answer. Its folder's entry
-// flushed to the card too. Its path, "" when it couldn't be saved.
-QString saveNamedPicture(const QString &folder, const QString &stem, const QByteArray &data) {
-    if (!QDir().mkpath(folder))
-        return QString();
-    const QString base = folder + QLatin1Char('/') + stem;
+// The picture of that name in a folder (base: its path without its ending),
+// a .png or a .jpg, in either case; "" for none.
+QString pictureAt(const QString &base) {
     for (const char *ending : { ".png", ".jpg", ".PNG", ".JPG" }) {
         if (QFile::exists(base + QLatin1String(ending)))
             return base + QLatin1String(ending);
     }
-    const QString suffix = data.startsWith("\x89PNG") ? QStringLiteral("png") : QStringLiteral("jpg");
-    const QString path = base + QLatin1Char('.') + suffix;
+    return QString();
+}
+
+// A picture saved in folder, as a .png or a .jpg as data is: numbered, as
+// <name>_<n>, n the first number no picture of that name has there, nor a
+// set of the folder's (sets) as its name, never over a file that is there
+// (the pictures are saved one at a time); else as <name>, the way the
+// picture packs for MAME name them, unless a picture of that name is there
+// already, the user's own or one saved before, which is kept as it is and is
+// the answer. Whole or not at all (writeFileAtomically(): written beside its
+// name, and given it once it is on the card): written in place, a power cut
+// on the way left a picture cut short under the name, which the next read
+// of the folder took for one of the game's, or, named, kept as the game's
+// for good. Its folder's entry flushed to the card too. Its path, "" when
+// it couldn't be saved.
+QString savePicture(const QString &folder, const QString &name, const QByteArray &data, bool numbered,
+                    const QHash<QString, QString> &sets) {
+    if (!QDir().mkpath(folder))
+        return QString();
+    QString base;
+    if (numbered) {
+        for (int n = 1; n <= 999 && base.isEmpty(); ++n) {
+            const QString stem = QStringLiteral("%1_%2").arg(name).arg(n);
+            if (!sets.contains(stem) && pictureAt(folder + QLatin1Char('/') + stem).isEmpty())
+                base = folder + QLatin1Char('/') + stem;
+        }
+        if (base.isEmpty())
+            return QString();
+    } else {
+        base = folder + QLatin1Char('/') + name;
+        if (const QString there = pictureAt(base); !there.isEmpty())
+            return there;
+    }
+    const QString path = base + (data.startsWith("\x89PNG") ? QStringLiteral(".png") : QStringLiteral(".jpg"));
     if (!writeFileAtomically(path, data)) {
         qWarning("[Arcade] A picture could not be saved in %s", qPrintable(folder));
         return QString();
     }
     syncPath(folder, true);
     return path;
+}
+
+// A picture of a folder of them by set (its name in lower case: the games
+// folder's snap or titles folder), kept in pictures should it fit the set's
+// name better than the one kept before (ranks): the exact name first (as
+// MAME's own folder has it), then a .png. False for a file that is neither
+// a .png nor a .jpg; set, the one it is named by.
+bool rankPicture(const QFileInfo &info, QHash<QString, int> &ranks, QHash<QString, QString> &pictures,
+                 QString *set = nullptr) {
+    const QString suffix = info.suffix().toLower();
+    if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg"))
+        return false;
+    const QString name = info.completeBaseName().toLower();
+    const int rank = (info.fileName() == name + QLatin1Char('.') + suffix ? 2 : 0)
+                     + (suffix == QLatin1String("png") ? 1 : 0);
+    if (rank > ranks.value(name, -1)) {
+        ranks.insert(name, rank);
+        pictures.insert(name, info.filePath());
+    }
+    if (set)
+        *set = name;
+    return true;
 }
 
 } // namespace
@@ -188,20 +196,12 @@ ArcadePictures::Found ArcadePictures::read(const QString &snapFolder, const QStr
     while (snaps.hasNext()) {
         snaps.next();
         const QFileInfo info = snaps.fileInfo();
-        const QString suffix = info.suffix().toLower();
-        if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg"))
-            continue;
         // An achievement's badge (badge()), no game's picture.
         if (info.fileName().startsWith(QLatin1String("achieve_"), Qt::CaseInsensitive))
             continue;
-        // Its exact name first (as MAME's own folder has it), then a .png.
-        const QString set = info.completeBaseName().toLower();
-        const int rank = (info.fileName() == set + QLatin1Char('.') + suffix ? 2 : 0)
-                         + (suffix == QLatin1String("png") ? 1 : 0);
-        if (rank > ranks.value(set, -1)) {
-            ranks.insert(set, rank);
-            read.snaps.insert(set, info.filePath());
-        }
+        QString set;
+        if (!rankPicture(info, ranks, read.snaps, &set))
+            continue;
         const QRegularExpressionMatch match = numbered.match(set);
         if (match.hasMatch() && !sets.contains(set))
             read.numbered[match.captured(1)] << info.filePath();
@@ -214,17 +214,7 @@ ArcadePictures::Found ArcadePictures::read(const QString &snapFolder, const QStr
     QDirIterator titles(titlesFolder, QDir::Files);
     while (titles.hasNext()) {
         titles.next();
-        const QFileInfo info = titles.fileInfo();
-        const QString suffix = info.suffix().toLower();
-        if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg"))
-            continue;
-        const QString set = info.completeBaseName().toLower();
-        const int rank = (info.fileName() == set + QLatin1Char('.') + suffix ? 2 : 0)
-                         + (suffix == QLatin1String("png") ? 1 : 0);
-        if (rank > titleRanks.value(set, -1)) {
-            titleRanks.insert(set, rank);
-            read.titles.insert(set, info.filePath());
-        }
+        rankPicture(titles.fileInfo(), titleRanks, read.titles);
     }
     QDirIterator shots(shotsFolder, QDir::Dirs | QDir::NoDotAndDotDot);
     while (shots.hasNext()) {
@@ -242,17 +232,77 @@ void ArcadePictures::takeRead(Found &&found) {
     m_titles = std::move(found.titles);
     m_shots = std::move(found.shots);
     // Pictures saved while the folder was read, which it may not have seen.
-    for (auto it = m_savedDuringRead.constBegin(); it != m_savedDuringRead.constEnd(); ++it) {
-        for (const QString &picture : it.value())
-            addNumbered(m_numbered, it.key(), picture);
-    }
+    for (const Saved &saved : std::as_const(m_savedDuringRead))
+        place(saved);
     m_savedDuringRead.clear();
-    for (const auto &[set, file, title] : std::as_const(m_namedDuringRead)) {
-        QHash<QString, QString> &pictures = title ? m_titles : m_snaps;
-        if (!pictures.contains(set))
-            pictures.insert(set, file);
+}
+
+void ArcadePictures::place(const Saved &saved) {
+    if (saved.kind == Kind::Numbered) {
+        addNumbered(m_numbered, saved.set, saved.file);
+        return;
     }
-    m_namedDuringRead.clear();
+    // A snap or a title screen the set has, the user's own, is kept.
+    QHash<QString, QString> &pictures = saved.kind == Kind::Title ? m_titles : m_snaps;
+    if (!pictures.contains(saved.set))
+        pictures.insert(saved.set, saved.file);
+}
+
+void ArcadePictures::save(Kind kind, const QString &set, const QString &folder, const QString &snapFolderThen,
+                          const QByteArray &data, const std::function<void(const QString &file)> &done) {
+    const bool numbered = kind == Kind::Numbered;
+    QtConcurrent::run(m_pictureSaves, savePicture, folder, set, data, numbered,
+                      numbered ? m_catalog->sets() : QHash<QString, QString>())
+        .then(this, [this, kind, set, snapFolderThen, done](const QString &file) {
+            if (!file.isEmpty() && snapFolderThen == m_catalog->snapFolder()) {
+                const Saved saved{ kind, set, file };
+                place(saved);
+                if (m_catalog->reading())
+                    m_savedDuringRead << saved;
+            }
+            done(file);
+            if (!file.isEmpty())
+                emit picturesChanged(set);
+        });
+}
+
+template <typename T>
+void ArcadePictures::loadRecord(RecordFile<T> &record) {
+    const QString folder = m_catalog->snapFolder();
+    if (folder == record.folder())
+        return;
+    // The last folder's record written before it is let go of.
+    flushRecords();
+    record.load(folder);
+}
+
+template <typename T>
+void ArcadePictures::recordChanged(RecordFile<T> &record) {
+    record.markChanged();
+    if (!m_recordSave->isActive())
+        m_recordSave->start();
+}
+
+ArcadePictures::PictureRecord ArcadePictures::PictureRecord::fromJson(const QJsonObject &json) {
+    PictureRecord record;
+    for (const QJsonValue &path : json.value(QStringLiteral("saved")).toArray())
+        record.saved << path.toString();
+    record.complete = json.value(QStringLiteral("complete")).toBool();
+    return record;
+}
+
+QJsonObject ArcadePictures::PictureRecord::toJson() const {
+    return { { QStringLiteral("saved"), QJsonArray::fromStringList(saved) },
+             { QStringLiteral("complete"), complete } };
+}
+
+ArcadePictures::SnapRecord ArcadePictures::SnapRecord::fromJson(const QJsonObject &json) {
+    return { QDateTime::fromString(json.value(QStringLiteral("looked")).toString(), Qt::ISODate),
+             json.value(QStringLiteral("had")).toBool() };
+}
+
+QJsonObject ArcadePictures::SnapRecord::toJson() const {
+    return { { QStringLiteral("looked"), looked.toString(Qt::ISODate) }, { QStringLiteral("had"), had } };
 }
 
 void ArcadePictures::forgetFolder() {
@@ -318,7 +368,7 @@ void ArcadePictures::want(const QString &set) {
     bool waiting = false;
     if (m_picturesAchievements && achievementsUsable() && !m_noPictures.contains(set)) {
         const QStringList names = m_catalog->setAndParent(set);
-        loadPictureRecord();
+        loadRecord(m_pictureRecord);
         const QStringList looked = picturesLooked(names);
         if (looked.size() < names.size()) {
             m_retroAchievements->findPictures(names, looked);
@@ -346,7 +396,7 @@ void ArcadePictures::wantSnaps(const QString &set) {
     // A picture of any kind, its own or its parent's, is enough.
     if (!picturesOf(set).isEmpty())
         return;
-    loadSnapRecord();
+    loadRecord(m_snapRecord);
     if (snapsLooked(set))
         return;
     // A moment on, should it still be shown: a list scrolled through asks
@@ -362,10 +412,10 @@ void ArcadePictures::askSnaps() {
     if (set.isEmpty() || !m_picturesSnaps || !m_catalog->recognized(set) || !m_catalog->snapWritable()
         || !picturesOf(set).isEmpty())
         return;
-    loadSnapRecord();
+    loadRecord(m_snapRecord);
     if (snapsLooked(set))
         return;
-    m_snapJobs.insert(set, { 0, false, m_catalog->snapFolder(), false, m_catalog->titlesFolder() });
+    m_snapJobs.insert(set, { 0, false, m_catalog->snapFolder(), m_catalog->titlesFolder(), false });
     m_arcadeDb->lookUp({ set });
 }
 
@@ -376,8 +426,8 @@ bool ArcadePictures::snapsLooked(const QString &set) const {
     const auto retry = m_snapsRetry.constFind(set);
     if (retry != m_snapsRetry.constEnd() && *retry > now)
         return true;
-    const auto record = m_snapRecord.constFind(set);
-    if (record == m_snapRecord.constEnd())
+    const auto record = m_snapRecord.entries().constFind(set);
+    if (record == m_snapRecord.entries().constEnd())
         return false;
     return record->had || (record->looked.isValid() && record->looked.secsTo(now) < kSnapsAgainSeconds);
 }
@@ -386,13 +436,13 @@ void ArcadePictures::onSnapsFound(const QString &set, const QString &ingame, con
     auto job = m_snapJobs.find(set);
     if (job == m_snapJobs.end())
         return;
-    loadSnapRecord();
+    loadRecord(m_snapRecord);
     const QString folder = job->folder;
     if (ingame.isEmpty() && title.isEmpty()) {
         // None: noted, so that it isn't asked about again for a while.
-        if (folder == m_snapRecordFolder) {
-            m_snapRecord.insert(set, { QDateTime::currentDateTimeUtc(), false });
-            saveSnapRecord();
+        if (folder == m_snapRecord.folder()) {
+            m_snapRecord.entries().insert(set, { QDateTime::currentDateTimeUtc(), false });
+            recordChanged(m_snapRecord);
         }
         m_snapJobs.erase(job);
         return;
@@ -436,107 +486,35 @@ void ArcadePictures::onSnapDownloaded(const QString &set, bool title, const QByt
     }
     // Into the folders it was asked for, whatever the games folder is now:
     // the title screen beside the snap folder, in titles.
-    const QString folder = title ? job->titles : job->folder;
-    const QString snapFolderThen = job->folder;
-    QtConcurrent::run(m_pictureSaves, saveNamedPicture, folder, set, data)
-        .then(this, [this, set, title, snapFolderThen](const QString &file) {
-            if (file.isEmpty()) {
-                finishSnap(set, false);
-                return;
-            }
-            if (snapFolderThen == m_catalog->snapFolder()) {
-                QHash<QString, QString> &pictures = title ? m_titles : m_snaps;
-                if (!pictures.contains(set))
-                    pictures.insert(set, file);
-                if (m_catalog->reading())
-                    m_namedDuringRead.append({ set, file, title });
-            }
-            finishSnap(set, true);
-            emit picturesChanged(set);
-        });
+    save(title ? Kind::Title : Kind::Snap, set, title ? job->titles : job->folder, job->folder, data,
+         [this, set](const QString &file) { finishSnap(set, !file.isEmpty()); });
 }
 
 void ArcadePictures::finishSnap(const QString &set, bool saved) {
     auto job = m_snapJobs.find(set);
     if (job == m_snapJobs.end())
         return;
-    job->failed = job->failed || !saved;
-    if (--job->pending > 0)
+    if (!job->step(saved))
         return;
     if (job->failed) {
         // Tried again in ten minutes.
         m_snapsRetry.insert(set, pictureRetryTime());
         if (job->sweep && m_sweepTimer->isActive())
             ++m_sweepFailed;
-    } else if (job->folder == m_snapRecordFolder) {
-        m_snapRecord.insert(set, { QDateTime::currentDateTimeUtc(), true });
-        saveSnapRecord();
+    } else if (job->folder == m_snapRecord.folder()) {
+        m_snapRecord.entries().insert(set, { QDateTime::currentDateTimeUtc(), true });
+        recordChanged(m_snapRecord);
     }
     m_snapJobs.erase(job);
     emit progressChanged();
 }
 
-void ArcadePictures::loadSnapRecord() {
-    const QString folder = m_catalog->snapFolder();
-    if (folder == m_snapRecordFolder)
-        return;
-    // The last folder's record written before it is let go of.
-    flushRecords();
-    m_snapRecordFolder = folder;
-    m_snapRecord.clear();
-    QFile file(folder + QStringLiteral("/.arcadedb.json"));
-    if (folder.isEmpty() || !file.open(QIODevice::ReadOnly))
-        return;
-    const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
-    for (auto it = kept.constBegin(); it != kept.constEnd(); ++it) {
-        const QJsonObject set = it.value().toObject();
-        m_snapRecord.insert(it.key(), { QDateTime::fromString(set.value(QStringLiteral("looked")).toString(), Qt::ISODate),
-                                        set.value(QStringLiteral("had")).toBool() });
-    }
-}
-
-void ArcadePictures::saveSnapRecord() {
-    m_snapRecordDirty = true;
-    if (!m_recordSave->isActive())
-        m_recordSave->start();
-}
-
 void ArcadePictures::flushRecords() {
     m_recordSave->stop();
     // Each record beside its pictures, after the ones it notes (the same
-    // queue), the JSON made off the GUI thread from a copy, its sets in
-    // order (a QJsonObject keeps its keys sorted: inserted in order, none is
-    // moved).
-    if (std::exchange(m_snapRecordDirty, false) && !m_snapRecordFolder.isEmpty()) {
-        const QString file = m_snapRecordFolder + QStringLiteral("/.arcadedb.json");
-        const QHash<QString, SnapRecord> record = m_snapRecord;
-        m_pictureSaves->start([file, record] {
-            QStringList sets = record.keys();
-            std::sort(sets.begin(), sets.end());
-            QJsonObject kept;
-            for (const QString &set : std::as_const(sets)) {
-                const SnapRecord &noted = record[set];
-                kept.insert(set, QJsonObject{ { QStringLiteral("looked"), noted.looked.toString(Qt::ISODate) },
-                                              { QStringLiteral("had"), noted.had } });
-            }
-            writeFileAtomically(file, QJsonDocument(kept).toJson(QJsonDocument::Compact));
-        });
-    }
-    if (std::exchange(m_pictureRecordDirty, false) && !m_pictureRecordFolder.isEmpty()) {
-        const QString file = m_pictureRecordFolder + QStringLiteral("/.retroachievements.json");
-        const QHash<QString, PictureRecord> record = m_pictureRecord;
-        m_pictureSaves->start([file, record] {
-            QStringList names = record.keys();
-            std::sort(names.begin(), names.end());
-            QJsonObject kept;
-            for (const QString &name : std::as_const(names)) {
-                const PictureRecord &noted = record[name];
-                kept.insert(name, QJsonObject{ { QStringLiteral("saved"), QJsonArray::fromStringList(noted.saved) },
-                                               { QStringLiteral("complete"), noted.complete } });
-            }
-            writeFileAtomically(file, QJsonDocument(kept).toJson(QJsonDocument::Compact));
-        });
-    }
+    // queue).
+    m_snapRecord.flush(m_pictureSaves);
+    m_pictureRecord.flush(m_pictureSaves);
 }
 
 QStringList ArcadePictures::picturesLooked(const QStringList &names) const {
@@ -544,7 +522,7 @@ QStringList ArcadePictures::picturesLooked(const QStringList &names) const {
     QStringList looked;
     for (const QString &name : names) {
         const auto retry = m_picturesRetry.constFind(name);
-        if (m_pictureRecord.value(name).complete || m_pictureJobs.contains(name)
+        if (m_pictureRecord.entries().value(name).complete || m_pictureJobs.contains(name)
             || (retry != m_picturesRetry.constEnd() && *retry > now))
             looked << name;
     }
@@ -643,7 +621,7 @@ void ArcadePictures::sweepPictures() {
                 return;
             m_sweepGame.clear();
         }
-        loadPictureRecord();
+        loadRecord(m_pictureRecord);
         while (!m_sweep.isEmpty()) {
             const QString set = m_sweep.takeFirst();
             ++m_sweepDone;
@@ -676,7 +654,7 @@ void ArcadePictures::sweepPictures() {
     }
     if (!std::exchange(m_sweepSnapsListed, true)) {
         m_sweepSnaps.clear();
-        loadSnapRecord();
+        loadRecord(m_snapRecord);
         const QStringList games = m_catalog->games();
         for (const QString &set : games) {
             if (picturesOf(set).isEmpty() && !snapsLooked(set))
@@ -701,7 +679,7 @@ void ArcadePictures::sweepPictures() {
             batch << set;
     }
     for (const QString &set : std::as_const(batch))
-        m_snapJobs.insert(set, { 0, false, m_catalog->snapFolder(), true, m_catalog->titlesFolder() });
+        m_snapJobs.insert(set, { 0, false, m_catalog->snapFolder(), m_catalog->titlesFolder(), true });
     if (!batch.isEmpty()) {
         m_sweepSnapsAsked += static_cast<int>(batch.size());
         m_arcadeDb->lookUp(batch);
@@ -853,10 +831,10 @@ void ArcadePictures::onPicturesFound(const QString &name, const QString &state, 
         snapsAfter(name);
         return;
     }
-    loadPictureRecord();
-    if (m_pictureJobs.contains(name) || m_pictureRecordFolder.isEmpty())
+    loadRecord(m_pictureRecord);
+    if (m_pictureJobs.contains(name) || m_pictureRecord.folder().isEmpty())
         return;
-    PictureRecord &record = m_pictureRecord[name];
+    PictureRecord &record = m_pictureRecord.entries()[name];
     QStringList wanted;
     for (const QString &path : paths) {
         if (!record.saved.contains(path))
@@ -864,11 +842,11 @@ void ArcadePictures::onPicturesFound(const QString &name, const QString &state, 
     }
     if (wanted.isEmpty()) {
         record.complete = true;
-        savePictureRecord();
+        recordChanged(m_pictureRecord);
         snapsAfter(name);
         return;
     }
-    m_pictureJobs.insert(name, { static_cast<int>(wanted.size()), false, m_pictureRecordFolder });
+    m_pictureJobs.insert(name, { static_cast<int>(wanted.size()), false, m_pictureRecord.folder() });
     for (const QString &path : std::as_const(wanted)) {
         m_retroAchievements->media(path, [this, name, path](const QByteArray &data) {
             onPictureDownloaded(name, path, data);
@@ -886,21 +864,10 @@ void ArcadePictures::onPictureDownloaded(const QString &name, const QString &pat
         finishPicture(name, false);
         return;
     }
-    QtConcurrent::run(m_pictureSaves, savePicture, folder, name, data, m_catalog->sets())
-        .then(this, [this, name, path, folder](const QString &file) {
-        if (file.isEmpty()) {
-            finishPicture(name, false);
-            return;
-        }
-        if (folder == m_pictureRecordFolder)
-            m_pictureRecord[name].saved << path;
-        if (folder == m_catalog->snapFolder()) {
-            addNumbered(m_numbered, name, file);
-            if (m_catalog->reading())
-                m_savedDuringRead[name] << file;
-        }
-        finishPicture(name, true);
-        emit picturesChanged(name);
+    save(Kind::Numbered, name, folder, folder, data, [this, name, path, folder](const QString &file) {
+        if (!file.isEmpty() && folder == m_pictureRecord.folder())
+            m_pictureRecord.entries()[name].saved << path;
+        finishPicture(name, !file.isEmpty());
     });
 }
 
@@ -908,54 +875,25 @@ void ArcadePictures::finishPicture(const QString &name, bool saved) {
     auto job = m_pictureJobs.find(name);
     if (job == m_pictureJobs.end())
         return;
-    job->failed = job->failed || !saved;
-    const bool recorded = job->folder == m_pictureRecordFolder;
+    const bool recorded = job->folder == m_pictureRecord.folder();
     bool done = false;
-    if (--job->pending <= 0) {
+    if (job->step(saved)) {
         // All in, or those that weren't tried again in ten minutes.
         if (job->failed) {
             m_picturesRetry.insert(name, pictureRetryTime());
             if (m_sweepTimer->isActive() && m_sweepGame.contains(name))
                 ++m_sweepFailed;
         } else if (recorded) {
-            m_pictureRecord[name].complete = true;
+            m_pictureRecord.entries()[name].complete = true;
         }
         m_pictureJobs.erase(job);
         done = true;
     }
     // The record as it now stands, unless nothing came into it.
     if (saved && recorded)
-        savePictureRecord();
+        recordChanged(m_pictureRecord);
     if (done)
         snapsAfter(name);
-}
-
-void ArcadePictures::loadPictureRecord() {
-    const QString folder = m_catalog->snapFolder();
-    if (folder == m_pictureRecordFolder)
-        return;
-    // The last folder's record written before it is let go of.
-    flushRecords();
-    m_pictureRecordFolder = folder;
-    m_pictureRecord.clear();
-    QFile file(folder + QStringLiteral("/.retroachievements.json"));
-    if (folder.isEmpty() || !file.open(QIODevice::ReadOnly))
-        return;
-    const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
-    for (auto it = kept.constBegin(); it != kept.constEnd(); ++it) {
-        const QJsonObject game = it.value().toObject();
-        PictureRecord record;
-        for (const QJsonValue &path : game.value(QStringLiteral("saved")).toArray())
-            record.saved << path.toString();
-        record.complete = game.value(QStringLiteral("complete")).toBool();
-        m_pictureRecord.insert(it.key(), record);
-    }
-}
-
-void ArcadePictures::savePictureRecord() {
-    m_pictureRecordDirty = true;
-    if (!m_recordSave->isActive())
-        m_recordSave->start();
 }
 
 QString ArcadePictures::badge(const QString &set, int id, const QString &name, bool earned) {

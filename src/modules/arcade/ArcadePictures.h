@@ -7,7 +7,8 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
-#include <tuple>
+#include <functional>
+#include "RecordFile.h"
 
 class ArcadeDb;
 class RetroAchievements;
@@ -140,7 +141,7 @@ private:
     void onPicturesFound(const QString &name, const QString &state, const QStringList &paths);
     // Of a set and its parent (setAndParent()), those whose pictures have
     // been looked for: all in, being downloaded, or tried less than ten
-    // minutes ago. The record read first (loadPictureRecord()).
+    // minutes ago. The record read first (loadRecord()).
     QStringList picturesLooked(const QStringList &names) const;
     // When a game whose pictures couldn't be had is asked about again: as
     // long on as the next look waits (setRetryInterval()), ten minutes, or
@@ -195,8 +196,6 @@ private:
     void onSnapsFailed(const QStringList &sets, int holdSeconds);
     void onSnapDownloaded(const QString &set, bool title, const QByteArray &data);
     void finishSnap(const QString &set, bool saved);
-    void loadSnapRecord();
-    void saveSnapRecord();
     // A picture of RetroAchievements' downloaded for a game, or not (data
     // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
     // the first number no picture of that name has there, so that a file
@@ -204,13 +203,28 @@ private:
     // over; then its record kept.
     void onPictureDownloaded(const QString &name, const QString &path, const QByteArray &data);
     void finishPicture(const QString &name, bool saved);
-    // The pictures downloaded for each game (by the set they are named
-    // after): .retroachievements.json in the snap folder, beside them, so
-    // that it goes where they go (another games folder, another machine
-    // with the same one); read when first needed in a folder, written where
-    // the pictures are saved.
-    void loadPictureRecord();
-    void savePictureRecord();
+    // What kind of picture one saved is, as it goes among a game's: one
+    // numbered after it, its snap, or its title screen.
+    enum class Kind { Numbered, Snap, Title };
+    struct Saved {
+        Kind kind;
+        QString set;
+        QString file;
+    };
+    // A picture downloaded for set saved off the GUI thread into folder
+    // (savePicture()), and among the game's pictures at once while the snap
+    // folder is still snapFolderThen (and noted for a read of the folder
+    // under way, which may not have seen it); then done with its file, ""
+    // when it couldn't be saved, and picturesChanged() for one that was.
+    void save(Kind kind, const QString &set, const QString &folder, const QString &snapFolderThen,
+              const QByteArray &data, const std::function<void(const QString &file)> &done);
+    void place(const Saved &saved);
+    // A record read for the snap folder, the last folder's written before it
+    // is let go of; one changed, written a moment later (m_recordSave).
+    template <typename T>
+    void loadRecord(RecordFile<T> &record);
+    template <typename T>
+    void recordChanged(RecordFile<T> &record);
 
     QString m_home;
     Catalog *m_catalog = nullptr;
@@ -228,50 +242,54 @@ private:
     // come from.
     bool m_picturesAchievements = true;
     bool m_picturesSnaps = true;
+    // Pictures being downloaded for a game, of either source: how many are
+    // still to come, whether one couldn't be had, the folders they go in
+    // (progetto-SNAPS' title screens' beside the snap folder), and whether
+    // the look through every game asked about them (progetto-SNAPS'; a
+    // game's of RetroAchievements' is m_sweepGame).
+    struct Job {
+        int pending = 0;
+        bool failed = false;
+        QString folder;
+        QString titles;
+        bool sweep = false;
+        // One of them in (saved), or not: whether it was the last.
+        bool step(bool saved) {
+            failed = failed || !saved;
+            return --pending <= 0;
+        }
+    };
     // RetroAchievements' pictures: what was downloaded of each game into the
-    // snap folder whose record is read (the pictures' paths on its media
-    // server, and whether all of them are in), the downloads under way (how
-    // many to come, whether one failed, and the folder they go in), the
-    // games it has none of (this run), when a game whose pictures couldn't
-    // be read may be tried again, and those saved while the folder was read,
-    // which that read may not have seen.
+    // snap folder (the pictures' paths on its media server, and whether all
+    // of them are in), by the set they are named after, in the snap folder's
+    // .retroachievements.json, beside them, so that it goes where they go
+    // (another games folder, another machine with the same one); the
+    // downloads under way, the games it has none of (this run), and when a
+    // game whose pictures couldn't be read may be tried again.
     struct PictureRecord {
         QStringList saved;
         bool complete = false;
+        static PictureRecord fromJson(const QJsonObject &json);
+        QJsonObject toJson() const;
     };
-    struct PictureJob {
-        int pending = 0;
-        bool failed = false;
-        QString folder;
-    };
-    QHash<QString, PictureRecord> m_pictureRecord;
-    QString m_pictureRecordFolder;
-    QHash<QString, PictureJob> m_pictureJobs;
+    RecordFile<PictureRecord> m_pictureRecord{ QStringLiteral(".retroachievements.json") };
+    QHash<QString, Job> m_pictureJobs;
     QSet<QString> m_noPictures;
     QHash<QString, QDateTime> m_picturesRetry;
-    QHash<QString, QStringList> m_savedDuringRead;
-    // progetto-SNAPS' pictures through ArcadeDB: what it has of each set in
-    // the snap folder whose record is read (when it was asked, and whether
-    // it had pictures, all of them saved), the sets asked about or being
-    // downloaded (how many pictures to come, whether one failed, and the
-    // folders they go in), when a set whose pictures couldn't be had may be
-    // tried again, the set shown that waits for RetroAchievements' answer
-    // before ArcadeDB is asked, and the pictures saved while the folder was
-    // read, which that read may not have seen.
+    // progetto-SNAPS' pictures through ArcadeDB: what it has of each set (when
+    // it was asked, and whether it had pictures, all of them saved), in the
+    // snap folder's .arcadedb.json; the sets asked about or being
+    // downloaded, when a set whose pictures couldn't be had may be tried
+    // again, and the set shown that waits for RetroAchievements' answer
+    // before ArcadeDB is asked.
     struct SnapRecord {
         QDateTime looked;
         bool had = false;
+        static SnapRecord fromJson(const QJsonObject &json);
+        QJsonObject toJson() const;
     };
-    struct SnapJob {
-        int pending = 0;
-        bool failed = false;
-        QString folder;
-        bool sweep = false;   // asked about by the look through every game, not shown
-        QString titles;       // the titles folder beside folder
-    };
-    QHash<QString, SnapRecord> m_snapRecord;
-    QString m_snapRecordFolder;
-    QHash<QString, SnapJob> m_snapJobs;
+    RecordFile<SnapRecord> m_snapRecord{ QStringLiteral(".arcadedb.json") };
+    QHash<QString, Job> m_snapJobs;
     QHash<QString, QDateTime> m_snapsRetry;
     QString m_snapsAfter;
     // The set shown that ArcadeDB is asked about a moment after it was shown
@@ -282,9 +300,9 @@ private:
     // The records written a moment after they changed, both in one go
     // (flushRecords()), rather than at every set that comes in.
     QTimer *m_recordSave = nullptr;
-    bool m_snapRecordDirty = false;
-    bool m_pictureRecordDirty = false;
-    QList<std::tuple<QString, QString, bool>> m_namedDuringRead;   // set, file, a title screen
+    // The pictures saved while the folder was read, which that read may not
+    // have seen (takeRead()).
+    QList<Saved> m_savedDuringRead;
     // The look through the games for pictures: wanted once the games have
     // been read (again), the pass it is on, the sets still to look at in
     // each (taken as a pass's first step can go: m_sweepListed,

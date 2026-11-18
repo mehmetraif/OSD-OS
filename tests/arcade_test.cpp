@@ -5,6 +5,7 @@
 #include "modules/arcade/FbneoInstaller.h"
 #include "modules/arcade/Libretro.h"
 #include "modules/arcade/ProgramInstaller.h"
+#include "modules/arcade/RecordFile.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
 #include "modules/arcade/RomCheck.h"
@@ -3597,6 +3598,63 @@ private slots:
         reader.finish();
         verdicts = reader.take();
         QVERIFY(verdicts.value(QStringLiteral("galaga")).good);
+    }
+
+    // The pictures' records (RecordFile): read by folder, written whole off
+    // the GUI thread, their names in order, only once they have changed and
+    // only where there is a folder.
+    void recordFile() {
+        struct Entry {
+            int n = 0;
+            static Entry fromJson(const QJsonObject &json) { return { json.value(QStringLiteral("n")).toInt() }; }
+            QJsonObject toJson() const { return { { QStringLiteral("n"), n } }; }
+        };
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.path() + QStringLiteral("/.record.json");
+        QThreadPool saves;
+        saves.setMaxThreadCount(1);
+        RecordFile<Entry> record(QStringLiteral(".record.json"));
+        QVERIFY(record.folder().isEmpty());
+        record.load(dir.path());
+        QCOMPARE(record.folder(), dir.path());
+        QVERIFY(record.entries().isEmpty());
+        record.entries().insert(QStringLiteral("sf2"), { 2 });
+        record.entries().insert(QStringLiteral("pacman"), { 1 });
+        // Unchanged as far as it knows: nothing written.
+        record.flush(&saves);
+        saves.waitForDone();
+        QVERIFY(!QFileInfo::exists(file));
+        record.markChanged();
+        record.flush(&saves);
+        saves.waitForDone();
+        QFile written(file);
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        QCOMPARE(written.readAll(), QByteArray(R"({"pacman":{"n":1},"sf2":{"n":2}})"));
+        written.close();
+        // Written once for a change.
+        QVERIFY(QFile::remove(file));
+        record.flush(&saves);
+        saves.waitForDone();
+        QVERIFY(!QFileInfo::exists(file));
+        record.markChanged();
+        record.flush(&saves);
+        saves.waitForDone();
+        // Read back, in another folder none, and with none nothing written.
+        RecordFile<Entry> again(QStringLiteral(".record.json"));
+        again.load(dir.path());
+        QCOMPARE(again.entries().size(), 2);
+        QCOMPARE(again.entries().value(QStringLiteral("sf2")).n, 2);
+        QTemporaryDir other;
+        QVERIFY(other.isValid());
+        again.load(other.path());
+        QVERIFY(again.entries().isEmpty());
+        again.load(QString());
+        again.entries().insert(QStringLiteral("galaga"), { 3 });
+        again.markChanged();
+        again.flush(&saves);
+        saves.waitForDone();
+        QVERIFY(QDir(other.path()).entryList(QDir::Files | QDir::Hidden).isEmpty());
     }
 
     // Settings → Arcade → Check ROMs, started by the user: FinalBurn Neo's
