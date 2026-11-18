@@ -475,6 +475,7 @@ QStringList MpvController::sessionArgs(const QString &url, float startSeconds,
         args << QString("--log-file=%1").arg(m_logFilePath);
     args << (hasOscScript ? "--osc=no" : "--osc=yes")
          << "--osd-level=0";
+    args << osdFontArgs();
 
     if (hasOscScript)
         args << QString("--script=%1").arg(oscScript);
@@ -1340,14 +1341,6 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
 #endif
         }
         appendVideoArgs(args);
-#ifdef Q_OS_MACOS
-        // mpv runs as a separate process and can't see the app-bundle font via
-        // FontLoader. This will load the bundled VCR OSD Mono directly into the OSD libass
-        // instance (used by the OSC scripts) so users don't need a system install.
-        // macOS libass uses the coretext provider, so the Linux FONTCONFIG_FILE
-        // approach doesn't apply here; --osd-fonts-dir is provider-independent.
-        args << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
-#endif
         launch(args);
     }
 }
@@ -1818,6 +1811,14 @@ void MpvController::appendVideoArgs(QStringList &args) const {
     }
 }
 
+QStringList MpvController::osdFontArgs() const {
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+    return { QStringLiteral("--osd-fonts-dir=") + m_appRoot + QStringLiteral("/assets/fonts") };
+#else
+    return {};
+#endif
+}
+
 bool MpvController::smoothPlaybackEnabled() const {
     // Default ON: only an explicit "Off" opts out. Stored by Settings as a string
     // ("On"/"Off") via the list_single row, so compare on the string form.
@@ -2018,11 +2019,9 @@ void MpvController::appendEmbeddedVideoArgs(QStringList &args, bool gpu) const {
         break;
     case VideoProfile::Generic:
 #if defined(Q_OS_MACOS)
-        args << QStringLiteral("--hwdec=videotoolbox-copy")
-             << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
+        args << QStringLiteral("--hwdec=videotoolbox-copy");
 #elif defined(Q_OS_WIN)
-        args << QStringLiteral("--hwdec=auto-copy-safe")
-             << QString("--osd-fonts-dir=%1").arg(m_appRoot + "/assets/fonts");
+        args << QStringLiteral("--hwdec=auto-copy-safe");
 #elif defined(Q_OS_BSD4)
         args << QStringLiteral("--hwdec=auto-copy-safe");
 #elif defined(Q_OS_LINUX)

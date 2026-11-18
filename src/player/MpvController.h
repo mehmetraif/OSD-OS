@@ -350,6 +350,15 @@ private:
     // Appends the profile-specific --vo/--gpu-context/--hwdec flags (honouring the
     // app-level "mpv_video_args" override) to a forming mpv argument list.
     void appendVideoArgs(QStringList &args) const;
+    // mpv's OSD (the deck's menu, scripts/mpv-osc.lua's \fnVCR OSD Mono) in
+    // the app's VCR font from assets/fonts, for an mpv process and the player
+    // inside the window alike (sessionArgs()). On macOS and Windows, whose
+    // libass finds fonts through CoreText and DirectWrite, not fontconfig, a
+    // separate process can't see the app's fonts: --osd-fonts-dir loads them
+    // into its libass. On Linux and the BSDs, nothing: fontconfig finds the
+    // font through the FONTCONFIG_FILE each is started with
+    // (fcoverride::write()).
+    QStringList osdFontArgs() const;
     // App-level "smooth_playback" setting (default ON). On the Pi 3 this selects the
     // smooth zero-copy overlay path; turning it OFF restores the crop-capable scaler path.
     bool smoothPlaybackEnabled() const;

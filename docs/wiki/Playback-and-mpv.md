@@ -181,8 +181,9 @@ OSD/OS reads the board's model from `/proc/device-tree/model` and picks the flag
 | Pi 3 | `--hwdec=v4l2m2m,v4l2m2m-copy --gpu-hwdec-interop=drmprime` and the same five | `--hwdec=v4l2m2m-copy` |
 | Pi 5 | `--hwdec=auto-copy-safe` and the same five | `--hwdec=auto-copy-safe` |
 | Any other Linux | `--hwdec=nvdec,vaapi-copy,nvdec-copy,no --fbo-format=rgba8` | `--hwdec=vaapi-copy,nvdec-copy,no` |
-| macOS | (Qt draws with Metal there, so the picture is drawn on the CPU) | `--hwdec=videotoolbox-copy`, and `--osd-fonts-dir` for the VCR font |
+| macOS | (Qt draws with Metal there, so the picture is drawn on the CPU) | `--hwdec=videotoolbox-copy` |
 
+- On macOS and Windows every video, in an mpv process or inside the app, is also given `--osd-fonts-dir` with the app's `assets/fonts`, so the deck menu is drawn in the VCR font. On Linux mpv finds it through fontconfig instead.
 - Where plain ALSA plays (the image, Raspberry Pi OS Lite), a video inside the app and the menu music are also given `--ao=alsa`, so mpv doesn't try PipeWire, PulseAudio, JACK and sndio first.
 - **Pi 4.** `drm-copy` decodes HEVC; it needs `dtoverlay=rpivid-v4l2` under `[pi4]` in `config.txt`, as the image has it. `v4l2m2m-copy` decodes H.264. VP9 and AV1 decode in software.
 - **Pi 3.** With Settings → TV / Movie → 1080p Playback **On** (the default), 1080p H.264 is smooth but can't be cropped. 14:9 and Pan & Scan then show the whole picture, and the deck menu has no CROP. **Off** crops, for videos of 720p and below. Inside the app the picture can always be cropped.
