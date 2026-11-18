@@ -19,6 +19,7 @@
 #include <optional>
 #include <tuple>
 #include <utility>
+#include "ArcadePictures.h"
 #include "Libretro.h"
 #include "Mame.h"
 #include "RomCheck.h"
@@ -75,7 +76,7 @@ class QTimer;
 // - Settings → Arcade → Play at Startup is the app's startup favourite
 //   (app.startup_favorite, which a game's options set too) while it is one
 //   of this module's games: the two are kept the same.
-class ArcadeBackend : public QObject {
+class ArcadeBackend : public QObject, private ArcadePictures::Catalog {
     Q_OBJECT
     Q_PROPERTY(bool running READ running NOTIFY runningChanged)
     // The folder is being read, or MAME asked about sets it hasn't been
@@ -597,11 +598,11 @@ public:
     // RetroArch's (libretro::programPath()).
     QString retroarchPath() const;
 
-    bool    running() const;
+    bool    running() const override;
     // The folder being read; or a batch being asked, or more to ask once the
     // game playing has ended.
-    bool    scanning() const { return m_reading || m_scan != nullptr || !m_toAsk.isEmpty(); }
-    bool    reading() const { return m_reading; }
+    bool    scanning() const override { return m_reading || m_scan != nullptr || !m_toAsk.isEmpty(); }
+    bool    reading() const override { return m_reading; }
     QString problem() const { return m_problem; }
     bool    folderReadable() const { return m_folderReadable; }
     bool    played() const { return m_played; }
@@ -711,13 +712,8 @@ private:
         bool genresRead = false;
         QString genresFrom;
         QHash<QString, QString> genres;
-        // The pictures: the games folder's snap by set, those numbered after
-        // a set in it (<set>_1.png…) in turn, its titles folder's by set,
-        // and the first MAME took of each game.
-        QHash<QString, QString> snaps;
-        QHash<QString, QStringList> numbered;
-        QHash<QString, QString> titles;
-        QHash<QString, QString> shots;
+        // The pictures (ArcadePictures::read()).
+        ArcadePictures::Found pictures;
         // FinalBurn Neo's list of games, when it wasn't the one read before
         // (fbneoRead).
         bool fbneoRead = false;
@@ -851,100 +847,24 @@ private:
     QStringList madeSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
-    // A set, and the parent of a clone.
-    QStringList setAndParent(const QString &set) const;
-    // A game's pictures, as file URLs, in the order the Arcade screen shows
-    // them: the games folder's snap of it, those numbered after it there
-    // (RetroAchievements' among them), its title screen in the titles
-    // folder, then the first snapshot MAME took of it; a clone's own, else
-    // its parent's. As read with the folder (m_snaps, m_numbered, m_titles,
-    // m_shots), till the list opens again, and those downloaded since.
-    QStringList picturesOf(const QString &set) const;
+    // ArcadePictures::Catalog: a set in the folder that isn't under Not
+    // Recognized; a set, and the parent of a clone; the games listed; the
+    // folder's sets.
+    bool recognized(const QString &set) const override;
+    QStringList setAndParent(const QString &set) const override;
+    QStringList games() const override { return index().games; }
+    QHash<QString, QString> sets() const override { return m_sets; }
     // The folder pictures are kept in: the games folder's snap folder, as it
     // is named there, else snap; "" while there is no games folder to read.
     // And the title screens' beside it, titles, as the picture packs for
     // MAME lay them out.
-    QString snapFolder() const;
-    QString titlesFolder() const;
+    QString snapFolder() const override;
+    QString titlesFolder() const override;
     // Whether it can be written in (or, while there is none, the games
     // folder): not a read-only USB drive's.
-    bool snapWritable() const;
-    void onPicturesFound(const QString &name, const QString &state, const QStringList &paths);
-    // Of a set and its parent (setAndParent()), those whose pictures have
-    // been looked for: all in, being downloaded, or tried less than ten
-    // minutes ago. The record read first (loadPictureRecord()).
-    QStringList picturesLooked(const QStringList &names) const;
-    // When a game whose pictures couldn't be had is asked about again: as
-    // long on as the next look waits (setPictureRetryInterval()), ten
-    // minutes, or the pause a server asked for where that is longer.
-    QDateTime pictureRetryTime(qint64 atLeastSeconds = 0) const;
-    // The look through every game for pictures: Download Pictures', Read
-    // the Games Again's once the folder has been read and MAME has answered
-    // (emitShown()), and the next start's for one cut short (its marker,
-    // sweepMarker(), stays until a look ends with every picture had). In
-    // two passes, a step every m_sweepTimer's interval, neither beside a
-    // game being played nor while the folder is read or MAME asked:
-    // - RetroAchievements', with its key: every game of the folder's, by
-    //   name, its pictures downloaded as they would be as it is shown, a
-    //   game at a time, not before RetroAchievements' list of games is in;
-    //   those looked for before and those RetroAchievements hasn't passed
-    //   over; a game's asked for once nothing else is (findPicturesLater()),
-    //   and done with (laterPending()) and its pictures saved before the
-    //   next's;
-    // - progetto-SNAPS', through ArcadeDB: the games still without any
-    //   picture, kMostAsked at a time, each batch's pictures saved before
-    //   the next is asked about.
-    // A game whose pictures couldn't be had is tried again in a look ten
-    // minutes later, up to kSweepPasses looks in a row. With the folder
-    // unwritable it stops, and a source gone (its key, its setting) passes
-    // to the next pass; Download Pictures or Read the Games Again asked
-    // again starts it anew.
-    void startPictureSweep();
-    void sweepPictures();
-    void stopPictureSweep();
-    // The pass done: the next, or the look ended.
-    void nextSweepPass();
-    void finishPictureSweep();
-    QString sweepMarker() const;
-    // progetto-SNAPS' pictures of a game without any (picturesOf()), through
-    // ArcadeDB, as Pictures From allows: its screenshot in play saved as
-    // snap/<set>.png, its title screen as titles/<set>.png, the way the
-    // picture packs for MAME lay them out, never over a file there. Asked
-    // about once: what ArcadeDB has of each set is noted in the snap
-    // folder's .arcadedb.json (one it has no pictures of is asked about
-    // again after kSnapsAgainSeconds), a try that failed is made again ten
-    // minutes later, and one ArcadeDB turned away (too many requests) once
-    // the pause it asked for is over.
-    void wantSnaps(const QString &set);
-    // m_snapAsk's: the set shown asked about, should it still be without a
-    // picture.
-    void askSnaps();
-    void snapsAfter(const QString &name);
-    bool snapsLooked(const QString &set) const;
-    void onSnapsFound(const QString &set, const QString &ingame, const QString &title);
-    void onSnapsFailed(const QStringList &sets, int holdSeconds);
-    void onSnapDownloaded(const QString &set, bool title, const QByteArray &data);
-    void finishSnap(const QString &set, bool saved);
-    void loadSnapRecord();
-    void saveSnapRecord();
-    // The records that changed, written off the GUI thread: a moment after
-    // the change (m_recordSave), before the snap folder changes, and as the
-    // backend ends.
-    void flushRecords();
-    // A picture of RetroAchievements' downloaded for a game, or not (data
-    // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
-    // the first number no picture of that name has there, so that a file
-    // already there, the user's own or one saved before, is never written
-    // over; then its record kept.
-    void onPictureDownloaded(const QString &name, const QString &path, const QByteArray &data);
-    void finishPicture(const QString &name, bool saved);
-    // The pictures downloaded for each game (by the set they are named
-    // after): .retroachievements.json in the snap folder, beside them, so
-    // that it goes where they go (another games folder, another machine
-    // with the same one); read when first needed in a folder, written where
-    // the pictures are saved.
-    void loadPictureRecord();
-    void savePictureRecord();
+    bool snapWritable() const override;
+    // The Web API key's state: "none", "refused" or "given".
+    QString achievementsKeyState() const override;
     // The sets on one of the module's lists (AppCore's), newest first.
     QStringList listedSets(const QString &list) const;
     // The file name MAME opens a set by: its short name in lower case.
@@ -1360,100 +1280,9 @@ private:
     bool    m_cacheLoaded = false;
     QHash<QString, QString> m_genres;   // set → genre, catver.ini's
     QString m_genresFrom;         // the catver.ini read: its path, size and time
-    QHash<QString, QString> m_snaps;    // set → its picture in the games folder's snap
-    QHash<QString, QStringList> m_numbered;   // set → the pictures numbered after it there, in turn
-    QHash<QString, QString> m_titles;   // set → its title screen in the games folder's titles
-    QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
-    // Settings → Arcade → Pictures From: which sources a game's pictures
-    // come from.
-    bool m_picturesAchievements = true;
-    bool m_picturesSnaps = true;
-    // RetroAchievements' pictures: what was downloaded of each game into the
-    // snap folder whose record is read (the pictures' paths on its media
-    // server, and whether all of them are in), the downloads under way (how
-    // many to come, whether one failed, and the folder they go in), the
-    // games it has none of (this run), when a game whose pictures couldn't
-    // be read may be tried again, and those saved while the folder was read,
-    // which that read may not have seen.
-    struct PictureRecord {
-        QStringList saved;
-        bool complete = false;
-    };
-    struct PictureJob {
-        int pending = 0;
-        bool failed = false;
-        QString folder;
-    };
-    QHash<QString, PictureRecord> m_pictureRecord;
-    QString m_pictureRecordFolder;
-    QHash<QString, PictureJob> m_pictureJobs;
-    QSet<QString> m_noPictures;
-    QHash<QString, QDateTime> m_picturesRetry;
-    QHash<QString, QStringList> m_savedDuringRead;
-    // progetto-SNAPS' pictures through ArcadeDB: what it has of each set in
-    // the snap folder whose record is read (when it was asked, and whether
-    // it had pictures, all of them saved), the sets asked about or being
-    // downloaded (how many pictures to come, whether one failed, and the
-    // folder they go in), when a set whose pictures couldn't be had may be
-    // tried again, the set shown that waits for RetroAchievements' answer
-    // before ArcadeDB is asked, and the pictures saved while the folder was
-    // read, which that read may not have seen.
-    struct SnapRecord {
-        QDateTime looked;
-        bool had = false;
-    };
-    struct SnapJob {
-        int pending = 0;
-        bool failed = false;
-        QString folder;
-        bool sweep = false;   // asked about by the look through every game, not shown
-    };
+    // The games' pictures (ArcadePictures), progetto-SNAPS' through ArcadeDB.
     ArcadeDb *m_arcadeDb = nullptr;
-    QHash<QString, SnapRecord> m_snapRecord;
-    QString m_snapRecordFolder;
-    QHash<QString, SnapJob> m_snapJobs;
-    QHash<QString, QDateTime> m_snapsRetry;
-    QString m_snapsAfter;
-    // The set shown that ArcadeDB is asked about a moment after it was shown
-    // (askSnaps()): a list scrolled through asks about none of the games
-    // passed, as RetroAchievements' findPictures() does.
-    QTimer *m_snapAsk = nullptr;
-    QString m_snapAskSet;
-    // The records written a moment after they changed, both in one go
-    // (flushRecords()), rather than at every set that comes in.
-    QTimer *m_recordSave = nullptr;
-    bool m_snapRecordDirty = false;
-    bool m_pictureRecordDirty = false;
-    QList<std::tuple<QString, QString, bool>> m_namedDuringRead;   // set, file, a title screen
-    // The look through the games for pictures: wanted once the games have
-    // been read (again), the pass it is on, the sets still to look at in
-    // each (taken as a pass's first step can go: m_sweepListed,
-    // m_sweepSnapsListed), the game asked of RetroAchievements (its set and
-    // parent), how many games each pass has looked at of how many, how many
-    // were asked about and failed, how many looks in a row have been made
-    // (the next after failures, m_sweepAgain), and how the last ended.
-    enum class SweepPass { Achievements, Snaps };
-    bool m_sweepWanted = false;
-    SweepPass m_sweepPass = SweepPass::Achievements;
-    bool m_sweepListed = false;
-    bool m_sweepSnapsListed = false;
-    QStringList m_sweep;
-    QStringList m_sweepSnaps;
-    QStringList m_sweepGame;
-    int m_sweepDone = 0;
-    int m_sweepTotal = 0;
-    int m_sweepAsked = 0;
-    int m_sweepSnapsAsked = 0;
-    int m_sweepFailed = 0;
-    int m_sweepPasses = 0;
-    QString m_sweepResult;
-    QTimer *m_sweepTimer = nullptr;
-    QTimer *m_sweepAgain = nullptr;
-    int m_pictureRetryMs = 10 * 60 * 1000;   // how long before a failed game is tried again (a test's)
-    // The achievements' badges being downloaded, by file, and when one that
-    // couldn't be may be again.
-    QSet<QString> m_badgesWanted;
-    QHash<QString, QDateTime> m_badgesRetry;
+    ArcadePictures *m_pictures = nullptr;
     // Where the pictures and their record are saved, one at a time, in the
     // order they came.
     QThreadPool m_pictureSaves;

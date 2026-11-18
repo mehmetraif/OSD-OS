@@ -113,6 +113,7 @@ add_executable(osdos
     src/modules/scripts/ScriptsBackend.cpp
     src/modules/scripts/ScriptLauncher.cpp
     src/modules/arcade/ArcadeBackend.cpp
+    src/modules/arcade/ArcadePictures.cpp
     src/modules/arcade/Mame.cpp
     src/modules/arcade/Libretro.cpp
     src/modules/arcade/FbneoInstaller.cpp
