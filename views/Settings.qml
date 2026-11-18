@@ -1731,8 +1731,11 @@ FocusScope {
 
         // The mouse over a row (Hover.js): on Camcorder's first screen, the
         // keys go into the rows; over the row of a page with none of its own,
-        // they stay in the icons.
+        // they stay in the icons. A line the cursor doesn't stop on (STATUS's,
+        // read alone: selectable()) takes neither the cursor nor the keys.
         function hoverRow(index, list) {
+            if (!settingsRoot.selectable(index))
+                return
             if (index !== currentIndex)
                 settingsRoot.editIndex = -1
             if (settingsRoot.inIcons()) {

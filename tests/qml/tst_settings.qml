@@ -909,6 +909,25 @@ Rectangle {
             compare(cursor(page), "About")
             hover(middle(list.itemAtIndex(6)))
             compare(cursor(page), "About")
+            // Studio Monitor's STATUS, read alone: a line under the mouse
+            // takes neither the cursor nor the keys out of the strip, which
+            // ▼ still moves along; a row of the next page takes both.
+            loader.source = ""
+            root.menuLayout = "Studio Monitor"
+            page = open()
+            list = listOf(page)
+            verify(page.inIcons())
+            compare(chromeOf(page).title, "Status")
+            var before = list.currentIndex
+            hover(middle(list.itemAtIndex(2)))
+            verify(page.inIcons(), "the keys stay in the strip")
+            verify(chromeOf(page).iconsActive)
+            compare(list.currentIndex, before)
+            keyClick(Qt.Key_Down)
+            compare(chromeOf(page).title, "TV / Movie")
+            hover(middle(list.itemAtIndex(1)))
+            verify(!page.inIcons())
+            compare(cursor(page), "Transparent Background")
         }
 
         // On the OSD/OS image Quit offers Save Logs before No: the logs go
