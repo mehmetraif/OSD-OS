@@ -546,6 +546,12 @@ set_tests_properties(bluetooth_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=off
 add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# The window and its changes (views/Components/WindowChange.qml), against a
+# stand-in for Main.qml: when a view changes at once and when with its
+# transition, and the cube's turn.
+add_test(NAME window_change COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_window_change.qml
+                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(window_change PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
 # Settings → Look → Menu Layout's monitor layouts as a frame every kind of
 # view takes its place in (views/Components/MonitorChrome.qml and the shared

@@ -37,3 +37,4 @@ MonitorChrome MonitorChrome.qml
 MonitorRow MonitorRow.qml
 PressPrompt PressPrompt.qml
 ButtonGrid ButtonGrid.qml
+WindowChange WindowChange.qml
