@@ -18,11 +18,14 @@ on:
       - 'assets/**'
       - 'shaders/**'
       - 'tests/**'
-      - 'os/stage-osdos/02-system/files/osdos-setup'
+      - 'site/setup/schema-extra.json'
+      - 'os/stage-osdos/00-packages/**'
+      - 'os/stage-osdos/02-system/**'
       - 'os/stage-osdos/03-boot/files/**'
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
+      - '.github/workflows/release.yml'
       - '.github/workflows/regression-tests.yml'
   pull_request:
     paths:
@@ -34,11 +37,14 @@ on:
       - 'assets/**'
       - 'shaders/**'
       - 'tests/**'
-      - 'os/stage-osdos/02-system/files/osdos-setup'
+      - 'site/setup/schema-extra.json'
+      - 'os/stage-osdos/00-packages/**'
+      - 'os/stage-osdos/02-system/**'
       - 'os/stage-osdos/03-boot/files/**'
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
+      - '.github/workflows/release.yml'
       - '.github/workflows/regression-tests.yml'
 
 permissions:

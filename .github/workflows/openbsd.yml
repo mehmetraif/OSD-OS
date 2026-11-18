@@ -26,6 +26,10 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'Main.qml'
+      - 'views/**'
+      - 'modules/**'
+      - 'assets/**'
       - 'shaders/**'
       - 'thirdparty/**'
       - 'cmake/**'
@@ -40,6 +44,10 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'Main.qml'
+      - 'views/**'
+      - 'modules/**'
+      - 'assets/**'
       - 'shaders/**'
       - 'thirdparty/**'
       - 'cmake/**'

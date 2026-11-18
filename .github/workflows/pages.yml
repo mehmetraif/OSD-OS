@@ -25,6 +25,10 @@ on:
       - 'tests/site/**'
       - 'modules/*/manifest.json'
       - 'modules/local_files/iso639-1.json'
+      - 'modules/arcade/views/orb/**'
+      - 'modules/arcade/views/OrbLook.qml'
+      - 'INSTALL.md'
+      - '.github/workflows/release.yml'
       - 'views/Settings.qml'
       - 'Main.qml'
       - 'shaders/**'
@@ -34,6 +38,7 @@ on:
       - 'assets/skins/**'
       - 'assets/fonts/**'
       - 'assets/images/logo.svg'
+      - 'assets/images/app-icon/**'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
@@ -49,6 +54,10 @@ on:
       - 'tests/site/**'
       - 'modules/*/manifest.json'
       - 'modules/local_files/iso639-1.json'
+      - 'modules/arcade/views/orb/**'
+      - 'modules/arcade/views/OrbLook.qml'
+      - 'INSTALL.md'
+      - '.github/workflows/release.yml'
       - 'views/Settings.qml'
       - 'Main.qml'
       - 'shaders/**'
@@ -58,6 +67,7 @@ on:
       - 'assets/skins/**'
       - 'assets/fonts/**'
       - 'assets/images/logo.svg'
+      - 'assets/images/app-icon/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
   # A release published: the download buttons lead to its files.
