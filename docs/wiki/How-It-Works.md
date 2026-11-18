@@ -118,14 +118,14 @@ flowchart TD
 There are two levels, each a `Loader` with a stack:
 
 - **The app's**: `Main.qml`'s `moduleLoader` and its `appNavStack`, between the main menu, Settings and a module.
-- **A module's**: its `Root.qml`, the router, with its own `Loader` and `navStack`, between the module's views.
+- **A module's**: its `Root.qml`, the router (`ModuleRouter`), with its own `Loader` and `navStack`, between the module's views.
 
 A view never loads another itself. It emits `navigateTo(path, params, listState)` or `goBack()`, and its router does the rest ([a whole router](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module#rootqml-the-router)):
 
 - **Forward**: the router loads the next view with `params` as its `navParams`.
 - **Back**: it hands the old view its `navListState`, so the cursor is where it was.
 - **Back from a module's first view** returns to the main menu. Back on the main menu opens Settings.
-- **`replaceWith(path, params)`** loads a view without stacking the one before (a sign-in done).
+- **`replaceWith(path, params)`** loads a view in place of every one before it, so back from it leaves the module (a sign-in done); **`replaceCurrent(path, params)`** in place of the one shown, back skipping it.
 - **`root.changeWindow(loader, source, properties)`** changes every view and plays the Transition. None plays into or out of a video's views, or while the effects rest.
 - **At start**, `openStartupModule()` opens Start on Module's module with `navParams.fromAppStartup`, or Play at Startup's favourite with `navParams.startupPlay`.
 

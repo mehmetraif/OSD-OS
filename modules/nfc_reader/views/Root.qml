@@ -1,66 +1,14 @@
 import QtQuick
 import Components
 
-FocusScope {
+// The NFC Reader's router. A card for another module's content routes out
+// of this module entirely, to that module's entry point: Items.qml emits the
+// router's own navigateTo, which the app shell handles (Main.qml), not the
+// internal Loader; the module's own views are navigateToView()'s.
+ModuleRouter {
     id: moduleRoot
-
-    signal goBack()
-    // Routes out of this module entirely, to another module's entry point — the
-    // app shell handles this one (Main.qml), not the internal Loader below. Named
-    // to match the shell's handler, which is why the internal view navigation is
-    // navigateToView() rather than navigateTo().
-    signal navigateTo(string path, var params, var listState)
-
-    property var navParams: ({})
-
-    property string moduleId: "com.osdos.nfc_reader"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
-
-    // In the layout's frame (Main.qml) while the view shown takes its place
-    // in it: a browser or a list does, a player does not.
-    readonly property bool inFrame: !!internalLoader.item && internalLoader.item.inFrame === true
-
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateToView(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
-            return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
-    }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateToView(path, params, listState) }
-            function onGoBack() { moduleRoot.navigateBack() }
-        }
-    }
+    moduleId: "com.osdos.nfc_reader"
+    viewsUrl: Qt.resolvedUrl(".")
 
     // With no reader driver at all no child view ever loads, so the back keys
     // for the unavailable screen must be handled here.

@@ -1,94 +1,10 @@
 import QtQuick
+import Components
 
-FocusScope {
+ModuleRouter {
     id: moduleRoot
-
-    // Exit signal — emitted to leave the module entirely
-    signal goBack()
-
-    property var navParams: ({})
-
-    // The module's manifest id — the single place it appears in this module's QML.
-    // Child views reference it via moduleRoot.moduleId.
-    property string moduleId: "com.osdos.jellyfin"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
-
-    // In the layout's frame (Main.qml) while the view shown takes its place
-    // in it: a browser or a list does, a player does not.
-    readonly property bool inFrame: !!internalLoader.item && internalLoader.item.inFrame === true
-
-    // Internal navigation state
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateTo(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function replaceWith(viewPath, params) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        currentParams = params || {}
-        navStack = []
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    // Swap the current view in place without touching navStack — used when a
-    // view (e.g. Boxset.qml with a single content type) hands off to another
-    // without inserting itself into the back history. The existing stack entry
-    // still points at whatever opened this view, so BACK skips the swapped-out
-    // view entirely. (replaceWith, by contrast, wipes the whole stack.)
-    function replaceCurrent(viewPath, params) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    // Repoint the BACK target after autoplay advances in place. The top of the
-    // stack is the detail view the player was launched from; swap its item so
-    // exiting the player returns to the now-playing episode's detail screen.
-    function updateBackItem(item) {
-        if (navStack.length === 0) return
-        var top = navStack[navStack.length - 1]
-        top.params = Object.assign({}, top.params, { item: item })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
-            return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
-    }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
-            function onReplaceWith(path, params) { moduleRoot.replaceWith(path, params) }
-            function onReplaceCurrent(path, params) { moduleRoot.replaceCurrent(path, params) }
-            function onGoBack() { moduleRoot.navigateBack() }
-            function onUpdateBackItem(item) { moduleRoot.updateBackItem(item) }
-        }
-    }
+    moduleId: "com.osdos.jellyfin"
+    viewsUrl: Qt.resolvedUrl(".")
 
     // Handle auth state and logout from backend
     Connections {

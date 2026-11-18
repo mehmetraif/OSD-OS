@@ -180,87 +180,35 @@ The title bar draws the logo from its alpha, in the colour scheme's text colour:
 
 ### Root.qml: the router
 
-The shell loads `Root.qml` and listens for its `goBack()`, which leaves the module. The router keeps a stack of views in one `Loader`:
+The shell loads `Root.qml` and listens for its `goBack()`, which leaves the module. The router is OSD/OS's own component, `ModuleRouter` ([`views/Components/ModuleRouter.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/Components/ModuleRouter.qml)): it keeps a stack of views in one `Loader`, opens the view a view asks for, and goes back through them. The Root gives it the module's id and the folder its views are in, and opens the first view:
 
 ```qml
 import QtQuick
+import Components
 
 // Hello Channel's router: the module's own stack of views. The shell loads
 // this file (the manifest's entry_point_qml) and listens for goBack(), which
 // leaves the module.
-FocusScope {
+ModuleRouter {
     id: moduleRoot
-
-    // Leaves the module, back to the main menu.
-    signal goBack()
-
-    property var navParams: ({})
 
     // The manifest's id: the one place it appears in this module's QML.
     // The views read it as moduleRoot.moduleId.
-    property string moduleId: "com.osdos.hello_channel"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
-
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateTo(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    // Shows a view in place of this one, without pushing it on the stack.
-    function replaceWith(viewPath, params) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
-            return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        // The list state the view left with comes back in its navParams.
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
-    }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
-            function onReplaceWith(path, params) { moduleRoot.replaceWith(path, params) }
-            function onGoBack() { moduleRoot.navigateBack() }
-        }
-    }
+    moduleId: "com.osdos.hello_channel"
+    // The views' folder, this one: a view's name is found here.
+    viewsUrl: Qt.resolvedUrl(".")
 
     // The first view. resumePlayer is set when the main menu's first row
     // takes a video playing behind the menus back (Transparent Background).
-    Component.onCompleted: navigateTo("Channels.qml", { resumePlayer: navParams.resumePlayer })
+    Component.onCompleted: navigateToView("Channels.qml", { resumePlayer: navParams.resumePlayer })
 }
 ```
 
-- **`id: moduleRoot`, always.** Views reach the router by that id: `moduleRoot.moduleId`, `moduleRoot.moduleName`, `moduleRoot.moduleIcon`.
+- **`id: moduleRoot`, always.** Views reach the router by that id: `moduleRoot.moduleId`, `moduleRoot.moduleName`, `moduleRoot.moduleIcon`, and anything else the Root declares.
 - **The id once.** `moduleId` is the only place the manifest's id is written in the module's QML.
-- **`root.changeWindow(loader, source, properties)`**, never `loader.source` or `setSource()`: it plays the transition, and rests effects and menu music for a video's view.
+- **`viewsUrl: Qt.resolvedUrl(".")`**, always: the router is in `Components`, and finds the views by their names in this folder.
+- **The module's own views** open with `navigateToView(path, params)`. The router's `navigateTo` is the shell's: it opens another module's view on the app's own stack (an NFC card handed off to the module that plays it).
+- **What a view asks for**: `navigateTo(path, params, listState)`, a view over this one; `replaceWith(path, params)`, a view in place of every one before it, so back from it leaves the module (a sign-in done); `replaceCurrent(path, params)`, a view in place of this one, back skipping it; `goBack()`, one view back. The router changes every view with `root.changeWindow(loader, source, properties)`, which plays the transition and rests effects and menu music for a video's view.
 - **Position comes back.** A view leaves with a list state (`{ currentIndex: … }`) and gets it back as `navParams.navListState`.
 - **Starting params** are in the router's own `navParams`: `resumePlayer` (below), `fromAppStartup` when OSD/OS opened the module at start, and `startupPlay`, the favourite to play at once.
 

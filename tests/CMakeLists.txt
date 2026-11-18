@@ -598,6 +598,13 @@ set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offs
 add_test(NAME window_change COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_window_change.qml
                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(window_change PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# A module's router (views/Components/ModuleRouter.qml), as a module's
+# Root.qml is one (qml/module_router/), against a stand-in for Main.qml: the
+# way forward and back, the two replaces, a view the Root opens its own way,
+# inFrame, and the shell's own navigateTo.
+add_test(NAME module_router COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_module_router.qml
+                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(module_router PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
 # Settings → Look → Menu Layout's monitor layouts as a frame every kind of
 # view takes its place in (views/Components/MonitorChrome.qml and the shared
