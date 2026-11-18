@@ -331,6 +331,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/FbneoInstaller.cpp
         ../src/modules/arcade/ProgramInstaller.cpp
         ../src/modules/arcade/RetroAchievements.cpp
+        ../src/modules/arcade/RetroAchievementsAccount.cpp
         ../src/modules/arcade/ArcadeDb.cpp
         ../src/modules/arcade/RomCheck.cpp
         ../src/modules/scripts/ScriptLauncher.cpp

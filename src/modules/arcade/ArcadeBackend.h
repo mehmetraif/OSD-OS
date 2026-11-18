@@ -30,6 +30,7 @@ class DisplayHandoff;
 class FbneoInstaller;
 class ProgramInstaller;
 class RetroAchievements;
+class RetroAchievementsAccount;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QUdpSocket;
@@ -493,10 +494,10 @@ public:
     Q_INVOKABLE void checkAchievementsKey();
     // The sign-in core RetroArch checks a sign-in with: osdos_signin_libretro
     // beside the app, or a stand-in's.
-    void setSignInCore(const QString &path) { m_signInCore = path; }
+    void setSignInCore(const QString &path);
     // How long after OSD/OS Setup's account couldn't be checked it is
     // checked again: 30 s, or a test's.
-    void setSetupRetryInterval(int ms) { m_setupRetryMs = ms; }
+    void setSetupRetryInterval(int ms);
     // Where catver.ini is downloaded from when neither folder has one
     // (downloadGenres()): progettosnaps' own, OSDOS_GENRES_URL's (none when
     // it is empty), or a stand-in's.
@@ -606,11 +607,11 @@ public:
     QString problem() const { return m_problem; }
     bool    folderReadable() const { return m_folderReadable; }
     bool    played() const { return m_played; }
-    QString achievementsUser() const { return m_raUser; }
+    QString achievementsUser() const;
     QString achievementsState() const;
     QString achievementsMessage() const;
-    bool    achievementsKey() const { return !m_raKey.isEmpty(); }
-    bool    achievementsKeyRefused() const { return m_raKeyRefused; }
+    bool    achievementsKey() const;
+    bool    achievementsKeyRefused() const;
     bool    achievementsKeyWorks() const;
     bool    fbneoDownloading() const;
     int     fbneoProgress() const;
@@ -1049,10 +1050,6 @@ private:
                          const std::function<void(const QByteArray &output, bool timedOut)> &take);
     // RetroArch's folder in <data>/arcade, and its config and log there.
     QString retroarchHome() const { return m_home + QStringLiteral("/retroarch"); }
-    // What a FinalBurn Neo game's run left: the token RetroArch swapped the
-    // password for, or why it couldn't; the config, with the password or the
-    // token in it, goes.
-    void takeAchievements(const libretro::Run &run);
     // fbneoPlays() but for FinalBurn Neo being ready, asked once for many.
     bool fbneoHas(const QString &set) const;
     // engineOf() with FinalBurn Neo's being ready and MAME's being there
@@ -1081,26 +1078,6 @@ private:
     // game, is running (mameMayRun()).
     void resumeRomCheck();
     void romCheckDone(const romcheck::Results &results);
-    void saveAchievements() const;
-    // The sign-in checked at once (libretro::SignIn): RetroArch, with no
-    // picture, sound or controllers, signs in with the password and the
-    // sign-in core in <data>/arcade/retroarch/sign-in, and is stopped as it
-    // says how it went. Without RetroArch or the core (a Mac's build has
-    // none), nothing: the password waits for the next game.
-    void checkSignIn();
-    void readSignIn();
-    // RetroArch ended: the token it saved, or why there is none.
-    void signInEnded();
-    // Stopped without a result (signed out, in again, a game started): the
-    // password, if kept, waits for the next game. False when none was under
-    // way.
-    bool stopSignIn();
-    // signInAchievements()'s sign-in, whoever gave the password.
-    void beginSignIn(const QString &user, const QString &password);
-    // takeSetupAccount()'s file gone, with the password.
-    void forgetSetupAccount();
-    void retrySetupSignIn();
-    QString setupAccountPath() const { return m_home + QStringLiteral("/retroachievements-setup.json"); }
     // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
     // once the games have been read, then gone (takeSetupFavorites()).
     QString setupFavoritesPath() const { return m_home + QStringLiteral("/favorites-setup.json"); }
@@ -1110,7 +1087,6 @@ public:
     // the app started or pasted), added once the games have been read.
     void afterReadTakeSetupFavorites();
 private:
-    QString signInDir() const { return retroarchHome() + QStringLiteral("/sign-in"); }
     // catver.ini into <data>/arcade, for the games' genres, and the folder
     // read again with it; once at a time, and an hour after one that failed.
     void downloadGenres();
@@ -1160,24 +1136,8 @@ private:
     // joining follow this one (Smooth), or each play ahead (Responsive).
     bool    m_lanFollow = true;
 
-    // The RetroAchievements account: <data>/arcade/retroachievements.json,
-    // owner-only, but the password, which RetroArch has once and swaps.
-    QString m_raUser;
-    QString m_raToken;
-    QString m_raKey;
-    bool    m_raKeyRefused = false;
-    QString m_raPassword;
-    QString m_raFailure;
-    bool    m_raPasswordGiven = false;   // the game playing was given it
-    bool    m_raFromSetup = false;       // the password is OSD/OS Setup's (takeSetupAccount())
-    int     m_setupChecks = 0;           // its sign-in's checks, started or due
-    int     m_setupRetryMs = 0;
-    // The sign-in being checked: RetroArch with the sign-in core, and what it
-    // said of the sign-in.
-    QProcess *m_signIn = nullptr;
-    libretro::SignInLine m_signInResult = libretro::SignInLine::None;
-    QString m_signInFailure;
-    QString m_signInCore;
+    // The RetroAchievements account RetroArch plays under, and its key's.
+    RetroAchievementsAccount *m_account = nullptr;
 
     FbneoInstaller *m_installer = nullptr;
     ProgramInstaller *m_retroarchInstaller = nullptr;
