@@ -351,7 +351,13 @@ private:
     // A pad's inputs that do an action, input.cfg's tokens, buttons first:
     // with its controller (one connected), only those it has.
     static QStringList padTokensFor(const Pad &pad, SDL_GameController *gc, Action a);
-    // The key of a pad connected by its key, -1 for one away.
+    // The pad connected with this key, m_pads.cend() for one away. A pad
+    // Steam's virtual pad stands in for (m_suppressedDevices) is away: its
+    // inputs are no longer listened to, and it isn't listed, played or
+    // shown on its page as connected.
+    using LivePad = QHash<SDL_JoystickID, Pad>::const_iterator;
+    LivePad livePad(const QString &key) const;
+    // The key of a pad connected by its key, -1 for one away (livePad()).
     SDL_JoystickID padIdOf(const QString &key) const;
     // An extra key (keyboard, remote, or allKeys' shared ones) given an
     // action, or with None taken away; false if it couldn't be saved.
@@ -376,7 +382,7 @@ private:
     // layout's, or with none the pad's own (arcadeDefaultInputs()); on a pad
     // connected, as they act on it (controllers::arcadeActing()).
     QStringList arcadeInputsOf(const QString &key) const;
-    // A pad's controller while it is connected, else null.
+    // A pad's controller while it is connected (livePad()), else null.
     SDL_GameController *padController(const QString &key) const;
     bool saveArcade(const QString &key, const QString &layout, const QStringList &inputs);
     static bool needsInput(int index);

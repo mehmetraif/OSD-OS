@@ -628,7 +628,7 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
 
 // A pad's map by its key: a connected one's own, else what it would be.
 InputManager::Pad InputManager::padOf(const QString &key, const QString &name) const {
-    const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+    const auto live = livePad(key);
     return live != m_pads.cend() ? *live : padFor(key, name, m_seenAs.value(key).sdlType);
 }
 
@@ -689,12 +689,17 @@ QStringList InputManager::padTokensFor(const Pad &pad, SDL_GameController *gc, A
     return tokens;
 }
 
-SDL_JoystickID InputManager::padIdOf(const QString &key) const {
+InputManager::LivePad InputManager::livePad(const QString &key) const {
     for (auto it = m_pads.cbegin(); it != m_pads.cend(); ++it) {
         if (it->key == key && !m_suppressedDevices.contains(it.key()))
-            return it.key();
+            return it;
     }
-    return -1;
+    return m_pads.cend();
+}
+
+SDL_JoystickID InputManager::padIdOf(const QString &key) const {
+    const auto live = livePad(key);
+    return live != m_pads.cend() ? live.key() : -1;
 }
 
 void InputManager::rebuildPad(SDL_JoystickID id) {
@@ -1810,7 +1815,7 @@ QVariantMap InputManager::bindControllerInput(const QString &key, const QString 
         // A pad keeps a Select / OK, a Back, an Up and a Down, or the menus
         // would be out of its reach: a button pressed again to start the
         // wait, say.
-        const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+        const auto live = livePad(key);
         if (live != m_pads.cend()) {
             const Action does = padInputAction(*live, token);
             if (does == wanted)
@@ -1974,7 +1979,7 @@ QStringList InputManager::arcadeInputsOf(const QString &key) const {
 }
 
 SDL_GameController *InputManager::padController(const QString &key) const {
-    const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+    const auto live = livePad(key);
     return live != m_pads.cend() ? m_controllers.value(live.key(), nullptr) : nullptr;
 }
 

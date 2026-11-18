@@ -2693,6 +2693,33 @@ private slots:
         QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_DPAD_DOWN, keys), QString("DOWN"));
     }
 
+    // A pad Steam's virtual pad stands for is away on its page too, as it is
+    // in the list and for the players: its rows name every input of its map,
+    // not only those it has, none is kept as its only Select / OK, Back, Up
+    // or Down, and Replace leaves it as it is, as for a pad not connected.
+    void suppressedPadIsAway() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        VirtualPad pad, steam;
+        // Without a Back button: Back is its B alone while it is listened to.
+        QVERIFY(pad.attach("OSD/OS Test Pad", 0x1209, 0x0001,
+                           ((1u << SDL_CONTROLLER_BUTTON_MAX) - 1) & ~(1u << SDL_CONTROLLER_BUTTON_BACK)));
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        const QString key = entry(im, "OSD/OS Test Pad").value("key").toString();
+        QCOMPARE(rowValue(im.controllerPage(key), "back"), QString("B"));
+        QCOMPARE(outcome(im.bindControllerInput(key, "a", "back")), QString("only"));
+
+        QVERIFY(steam.attach("Steam Virtual Gamepad", 0x1209, 0x00ff));
+        QTRY_VERIFY(entry(im, "Steam Virtual Gamepad").value("present").toBool());
+        QVERIFY(!im.controllerPage(key).value("present").toBool());
+        QCOMPARE(rowValue(im.controllerPage(key), "back"), QString("B, BACK"));
+        QVERIFY(im.replaceControllerInput(key, "b", "select").isEmpty());
+        QCOMPARE(outcome(im.bindControllerInput(key, "a", "back")), QString("set"));
+        QCOMPARE(rowValue(im.controllerPage(key), "select"), QString("None"));
+        steam.detach();
+        pad.detach();
+    }
+
     // A pad's Back button is MAME's coin key, 5, where the item with the
     // focus takes a coin (takesCoin: the nearest item round it that says),
     // and Back anywhere else; its B is Back either way. The hints name the
