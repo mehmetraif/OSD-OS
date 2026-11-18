@@ -20,6 +20,13 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DQT_NO_DEBUG_OUTPUT")
 # Release version string. CI passes the git tag (-DAPP_VERSION=vX.Y.Z); local
 # builds report "dev", which disables the in-app self-update download path.
 set(APP_VERSION "dev" CACHE STRING "Release version (CI passes the git tag)")
+# The same as macOS writes it in the bundle's Info.plist, three numbers: 0.0.43
+# for v0.0.43 (and its -rc builds), 0.0.0 for a build that isn't a release.
+if(APP_VERSION MATCHES "^v?([0-9]+\\.[0-9]+\\.[0-9]+)")
+    set(APP_BUNDLE_VERSION "${CMAKE_MATCH_1}")
+else()
+    set(APP_BUNDLE_VERSION "0.0.0")
+endif()
 
 # The build, for Settings → System → About: the commit the tree was configured from and
 # the day. CI configures each build afresh; a local build keeps its configure's
@@ -351,8 +358,8 @@ endif()
 set_target_properties(osdos PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "OSD-OS"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${APP_BUNDLE_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${APP_BUNDLE_VERSION}"
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.osdos.app"
     MACOSX_BUNDLE_ICON_FILE "packaging/macos/osd-os"
     INSTALL_RPATH_USE_LINK_PATH TRUE
