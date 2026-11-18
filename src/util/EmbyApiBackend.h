@@ -29,13 +29,18 @@ public:
     // The server signed in to (Root.qml keeps it in the module's settings).
     Q_INVOKABLE QString get_server_url() const { return m_serverUrl; }
     Q_INVOKABLE QString get_auth_state();
+    Q_INVOKABLE void check_auth();
+    Q_INVOKABLE void logout();
 
     // Browse
+    Q_INVOKABLE void load_libraries();
     Q_INVOKABLE void load_items(const QString &parentId, const QString &includeTypes, const QString &sortBy);
     Q_INVOKABLE void load_item_detail(const QString &itemId);
     Q_INVOKABLE void load_boxset_children(const QString &parentId);
     Q_INVOKABLE void load_folder_children(const QString &parentId);
     Q_INVOKABLE void load_seasons(const QString &seriesId);
+    Q_INVOKABLE void load_episodes(const QString &seriesId, const QString &seasonId);
+    Q_INVOKABLE void load_continue_watching();
     Q_INVOKABLE void load_up_next();
     Q_INVOKABLE void load_series_next_up(const QString &seriesId);
 
@@ -45,6 +50,7 @@ public:
     // for, so a reply that comes late neither starts in a view that didn't ask
     // nor reports a playback the server would show as playing.
     Q_INVOKABLE void cancel_playback_url();
+    Q_INVOKABLE void load_next_episode(const QString &currentItemId);
     Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool isPaused);
     Q_INVOKABLE void report_playback_stopped(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool failed = false);
 
@@ -59,6 +65,7 @@ public:
 
     // Settings
     Q_INVOKABLE void getLibraries();
+    Q_INVOKABLE virtual void getVideoQualities();
     Q_INVOKABLE void get_resume_playback_options();
     Q_INVOKABLE void load_server_preferences();
 
@@ -90,6 +97,9 @@ signals:
 
     // Emitted with the next episode's full detail (empty map if none)
     void nextEpisodeReady(const QVariantMap &detail);
+
+public slots:
+    void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 protected:
     // moduleId is the module's (com.osdos.jellyfin), whose settings are
@@ -126,6 +136,33 @@ protected:
     void notifyAuthState();
     void loadAuthState();
     void saveAuthState();
+    // The sign-in forgotten, its file too, and a new device id made for the
+    // next: a backend forgets what else it knew of the server.
+    virtual void clearAuthState();
+    // The token revoked on the server as the user signs out (logout()),
+    // while it is still known: /Sessions/Logout.
+    virtual void revokeToken();
+    // The stored token found good by check_auth().
+    virtual void tokenChecked() {}
+    // The server's own name, for the header, asked once signed in and kept
+    // with the sign-in as it comes.
+    void fetchServerName();
+
+    // Whether Continue Watching (Resume) is asked for videos by name: Emby's
+    // returns an empty list (HTTP 200, TotalRecordCount 0) without a
+    // media-type or item-type filter, however many resume points exist.
+    // Jellyfin needs no such filter.
+    virtual bool resumeNeedsMediaTypes() const { return false; }
+    // The order a series' episodes are asked for in (sortBy), none for the
+    // server's own: Emby accepts sortBy but has no aired-order value
+    // ("AiredEpisodeOrder", Jellyfin's, makes it 500 with a SQLiteException),
+    // and lists them in index order itself.
+    virtual QString episodeOrder() const { return QString(); }
+
+    // Lightweight "does this list have any items?" probe (GET with limit=1).
+    void probeHasItems(const QUrl &url, std::function<void(bool)> cb);
+    void fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason, int currentIndex,
+                          bool fromItem);
 
     // An item's row, its subtitles' URLs on serverUrl, with urlToken where
     // there is one: of the item alone, so a list can be read away from the

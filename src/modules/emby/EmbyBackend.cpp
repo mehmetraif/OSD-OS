@@ -1,6 +1,5 @@
 #include "EmbyBackend.h"
 
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkRequest>
@@ -14,20 +13,10 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QCoreApplication>
-#include <QUuid>
 #include <QSslError>
-#include <QSet>
 #include <QRegularExpression>
 
 static const QString kModuleId = QStringLiteral("com.osdos.emby");
-
-// Library CollectionTypes the module knows how to browse + play. Anything else
-// (music, books, photos, mixed/empty, etc.) is hidden from both the browse list
-// and the settings multiselect. Mirrors the Plex module's kSupportedLibraryTypes.
-static const QSet<QString> kSupportedCollectionTypes = {
-    QStringLiteral("movies"), QStringLiteral("tvshows"), QStringLiteral("homevideos"),
-    QStringLiteral("boxsets")
-};
 
 // X-Application header the Emby Connect cloud service (connect.emby.media)
 // expects — "AppName/AppVersion".
@@ -51,22 +40,9 @@ EmbyBackend::EmbyBackend(const QString &dataRoot, QObject *parent)
 // ---------------------------------------------------------------------------
 
 void EmbyBackend::clearAuthState() {
-    m_serverUrl.clear();
-    m_accessToken.clear();
-    m_userId.clear();
-    m_userName.clear();
-    m_serverName.clear();
+    EmbyApiBackend::clearAuthState();
     m_connectUserId.clear();
     m_connectAccessToken.clear();
-    m_currentPlaySessionId.clear();
-    // Sign out will wipe the auth file as the device is removed from access
-    // on the server end as well. This will generate a fresh deviceId so any
-    // in-session re-login / QuickConnect creates one that will be synced with the 
-    // new device we give access to on the server and it will persist until either
-    // the user signs out or manually de-auths the device from the server end.
-    // saveAuthState() will recreate the file on the next successful login.
-    m_deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    QFile::remove(m_dataRoot + "/" + m_authFile);
 }
 
 // ---------------------------------------------------------------------------
@@ -101,32 +77,7 @@ QString EmbyBackend::streamUrl(const QString &itemId) const {
 // Auth
 // ---------------------------------------------------------------------------
 
-void EmbyBackend::check_auth() {
-    if (!has_auth()) {
-        notifyAuthState();
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId);
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status == 401) {
-            qWarning("[EmbyBackend] Token rejected — signing out");
-            clearAuthState();
-            notifyAuthState();
-            return;
-        }
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH CHECK FAILED: " + serverlog::why(reply));
-            return;
-        }
-        notifyAuthState();
-    });
-}
-
-void EmbyBackend::logout() {
+void EmbyBackend::revokeToken() {
     // Revoke the access token server-side so it can't be reused, and drop the
     // device registration. /Sessions/Logout alone leaves the device listed under
     // Dashboard > Devices (Jellyfin removes it), so signing out in OSD/OS would
@@ -134,32 +85,29 @@ void EmbyBackend::logout() {
     // clearAuthState() regenerates m_deviceId, the next sign-in registers a new
     // one rather than reusing it. DELETE /Devices takes either the reported
     // device id or Emby's internal numeric id; we only know the former.
-    if (has_auth()) {
-        // Build both requests up front, while the token is still valid.
-        QUrl devUrl(m_serverUrl + "/Devices");
-        { QUrlQuery dq; dq.addQueryItem("Id", m_deviceId); devUrl.setQuery(dq); }
-        const QNetworkRequest deviceReq = serverRequest(devUrl);
-        const QNetworkRequest logoutReq = serverRequest(QUrl(m_serverUrl + "/Sessions/Logout"));
-        // The revoke goes out once the deauth has answered, after
-        // clearAuthState() below has forgotten the server: its host for a
-        // self-signed LAN cert is kept here.
-        const QString serverHost = QUrl(m_serverUrl).host();
+    //
+    // Build both requests up front, while the token is still valid.
+    QUrl devUrl(m_serverUrl + "/Devices");
+    { QUrlQuery dq; dq.addQueryItem("Id", m_deviceId); devUrl.setQuery(dq); }
+    const QNetworkRequest deviceReq = serverRequest(devUrl);
+    const QNetworkRequest logoutReq = serverRequest(QUrl(m_serverUrl + "/Sessions/Logout"));
+    // The revoke goes out once the deauth has answered, after
+    // clearAuthState() has forgotten the server: its host for a
+    // self-signed LAN cert is kept here.
+    const QString serverHost = QUrl(m_serverUrl).host();
 
-        // Deauth the device first, then revoke the token — the other order would
-        // 401 the delete.
-        auto *devReply = m_nam->deleteResource(deviceReq);
-        ignoreSslErrors(devReply);
-        connect(devReply, &QNetworkReply::finished, this, [this, devReply, logoutReq, serverHost]() {
-            devReply->deleteLater();
-            if (devReply->error() != QNetworkReply::NoError)
-                qWarning("[Emby] device deauth failed: %s", qPrintable(serverlog::why(devReply)));
-            auto *reply = m_nam->post(logoutReq, QByteArray());
-            ignoreSslErrors(reply, serverHost);
-            connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
-        });
-    }
-    clearAuthState();
-    notifyAuthState();
+    // Deauth the device first, then revoke the token — the other order would
+    // 401 the delete.
+    auto *devReply = m_nam->deleteResource(deviceReq);
+    ignoreSslErrors(devReply);
+    connect(devReply, &QNetworkReply::finished, this, [this, devReply, logoutReq, serverHost]() {
+        devReply->deleteLater();
+        if (devReply->error() != QNetworkReply::NoError)
+            qWarning("[Emby] device deauth failed: %s", qPrintable(serverlog::why(devReply)));
+        auto *reply = m_nam->post(logoutReq, QByteArray());
+        ignoreSslErrors(reply, serverHost);
+        connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -229,23 +177,7 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
         m_userName    = user["Name"].toString();
         m_serverName  = m_serverUrl; // temp: fetch real name below
 
-        // Fetch actual server name for the header
-        {
-            QUrl infoUrl(m_serverUrl + "/System/Info/Public");
-            auto *infoReply = serverGet(infoUrl);
-            connect(infoReply, &QNetworkReply::finished, this, [this, infoReply]() {
-                infoReply->deleteLater();
-                if (infoReply->error() == QNetworkReply::NoError) {
-                    QJsonObject infoData = QJsonDocument::fromJson(infoReply->readAll()).object();
-                    QString name = infoData["ServerName"].toString();
-                    if (!name.isEmpty()) {
-                        m_serverName = name;
-                        saveAuthState();
-                    }
-                }
-            });
-        }
-
+        fetchServerName();
         saveAuthState();
 
         // server_url is persisted to config.json by Root.qml (via appCore.save_setting)
@@ -466,178 +398,9 @@ void EmbyBackend::persistConnectAuthAndFinish() {
     }
 
     // Fetch the friendly server name for the header.
-    {
-        QUrl infoUrl(m_serverUrl + "/System/Info/Public");
-        auto *infoReply = serverGet(infoUrl);
-        connect(infoReply, &QNetworkReply::finished, this, [this, infoReply]() {
-            infoReply->deleteLater();
-            if (infoReply->error() == QNetworkReply::NoError) {
-                QString name = QJsonDocument::fromJson(infoReply->readAll()).object()["ServerName"].toString();
-                if (!name.isEmpty()) {
-                    m_serverName = name;
-                    saveAuthState();
-                }
-            }
-        });
-    }
+    fetchServerName();
 
     notifyAuthState();
-}
-
-// ---------------------------------------------------------------------------
-// Browse
-// ---------------------------------------------------------------------------
-
-void EmbyBackend::load_libraries() {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Views");
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD LIBRARIES FAILED: " + serverlog::why(reply));
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        // Honour the user's library filter (Settings → Libraries). Empty map ==
-        // never configured, so show everything; otherwise hide explicitly-disabled ones.
-        QJsonObject libEnabled = moduleConfig()["libraries"].toObject();
-        QVariantList libraries;
-        for (const QJsonValue &v : items) {
-            QJsonObject item = v.toObject();
-            if (!kSupportedCollectionTypes.contains(item["CollectionType"].toString()))
-                continue;
-            QString libId = item["Id"].toString();
-            if (!libEnabled.isEmpty() && !libEnabled[libId].toBool(true))
-                continue;
-            libraries.append(QVariantMap{
-                {"key",            libId},
-                {"itemId",         libId},
-                {"title",          item["Name"].toString().toUpper()},
-                {"collectionType", item["CollectionType"].toString()},
-            });
-        }
-
-        // Prepend the Continue Watching / Up Next shelves, but only when they
-        // actually have content. Probe each (limit=1) before emitting the list.
-        // mediaTypes is required: Emby's Resume returns an empty list (HTTP 200,
-        // TotalRecordCount 0) without a media-type or item-type filter, however
-        // many resume points exist. Jellyfin needs no such filter.
-        QUrl resumeUrl(m_serverUrl + "/Users/" + m_userId + "/Items/Resume");
-        { QUrlQuery rq; rq.addQueryItem("mediaTypes", "Video");
-                        rq.addQueryItem("limit", "1"); resumeUrl.setQuery(rq); }
-        QUrl nextUrl(m_serverUrl + "/Shows/NextUp");
-        { QUrlQuery nq; nq.addQueryItem("userId", m_userId); nq.addQueryItem("limit", "1"); nextUrl.setQuery(nq); }
-
-        probeHasItems(resumeUrl, [this, libraries, nextUrl](bool hasResume) {
-            probeHasItems(nextUrl, [this, libraries, hasResume](bool hasUpNext) {
-                QVariantList combined = libraries;
-                if (hasUpNext)
-                    combined.prepend(QVariantMap{{"key", "up_next"}, {"title", "NEXT UP"}});
-                if (hasResume)
-                    combined.prepend(QVariantMap{{"key", "continue_watching"}, {"title", "CONTINUE WATCHING"}});
-                emit librariesLoaded(combined);
-            });
-        });
-    });
-}
-
-void EmbyBackend::probeHasItems(const QUrl &url, std::function<void(bool)> cb) {
-    // Which shelf, for the log: the path's last two parts (Items/Resume,
-    // Shows/NextUp), never the user's id before them.
-    const QString probePath = url.path().section(QLatin1Char('/'), -2);
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [reply, cb, probePath]() {
-        reply->deleteLater();
-        bool has = false;
-        if (reply->error() == QNetworkReply::NoError) {
-            has = !QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray().isEmpty();
-        } else {
-            // A failed probe hides the shelf exactly like an empty one, so warn —
-            // otherwise a broken request is indistinguishable from "nothing to
-            // resume" and stays invisible (as the missing mediaTypes=Video did).
-            qWarning("[Emby] shelf probe failed (%s): %s",
-                     qPrintable(probePath), qPrintable(serverlog::why(reply)));
-        }
-        cb(has);
-    });
-}
-
-void EmbyBackend::load_episodes(const QString &seriesId, const QString &seasonId) {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
-    QUrlQuery q;
-    q.addQueryItem("userId", m_userId);
-    q.addQueryItem("seasonId", seasonId);
-    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    q.addQueryItem("enableUserData", "true");
-    q.addQueryItem("limit", "500");
-    // No sortBy: Emby accepts the param but has no aired-order sort value, and
-    // "AiredEpisodeOrder" (a Jellyfin sort name) makes it 500 with a
-    // SQLiteException. Emby returns season episodes in index order natively.
-    url.setQuery(q);
-
-    // As the detail page's item: a season's page without its episodes says
-    // nothing, the log does.
-    const int request = ++m_episodesRequest;
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId, request]() {
-        reply->deleteLater();
-        // Another season's episodes asked for since: this one was left.
-        if (request != m_episodesRequest) return;
-        if (reply->error() != QNetworkReply::NoError) {
-            serverlog::loadFailed("Emby", "the episodes of season " + seasonId, reply);
-            emit errorOccurred("LOAD EPISODES FAILED: " + serverlog::why(reply));
-            return;
-        }
-        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
-        if (!answer.contains(QLatin1String("Items")))
-            serverlog::loadFailed("Emby", "the episodes of season " + seasonId, reply,
-                                  QStringLiteral("the answer is not a list"));
-        QJsonArray items = answer["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit episodesLoaded(result);
-    });
-}
-
-void EmbyBackend::load_continue_watching() {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Items/Resume");
-    QUrlQuery q;
-    q.addQueryItem("mediaTypes", "Video");   // required on Emby — see load_libraries
-    q.addQueryItem("limit", "20");
-    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    url.setQuery(q);
-
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + serverlog::why(reply));
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit continueWatchingLoaded(result);
-    });
 }
 
 // ---------------------------------------------------------------------------
@@ -994,110 +757,9 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
     });
 }
 
-void EmbyBackend::load_next_episode(const QString &currentItemId) {
-    if (!has_auth()) {
-        emit nextEpisodeReady(QVariantMap{});
-        return;
-    }
-
-    // Step 1: fetch current episode to get seriesId + episode position
-    QUrl detailUrl(m_serverUrl + "/Users/" + m_userId + "/Items/" + currentItemId);
-    QUrlQuery detailQ;
-    detailQ.addQueryItem("fields", "MediaSources");
-    detailUrl.setQuery(detailQ);
-
-    auto *detailReply = serverGet(detailUrl);
-    connect(detailReply, &QNetworkReply::finished, this, [this, detailReply]() {
-        detailReply->deleteLater();
-        if (detailReply->error() != QNetworkReply::NoError) {
-            emit nextEpisodeReady(QVariantMap{});
-            return;
-        }
-        QJsonObject item = QJsonDocument::fromJson(detailReply->readAll()).object();
-        QString seriesId      = item["SeriesId"].toString();
-        int     currentIndex  = item["IndexNumber"].toInt();
-        int     currentSeason = item["ParentIndexNumber"].toInt();
-
-        if (seriesId.isEmpty() || item["Type"].toString() != QLatin1String("Episode")) {
-            emit nextEpisodeReady(QVariantMap{});
-            return;
-        }
-
-        // Step 2: the series' episodes from this one on
-        fetchNextEpisode(seriesId, item["Id"].toString(), currentSeason, currentIndex, true);
-    });
-}
-
-// The series' episodes from the current one (startItemId), a page of them:
-// it holds the next whatever the series' length, where a list of the whole
-// series was cut at 500. No sortBy (see load_episodes): Emby lists them in
-// their order natively. A server that doesn't skip to the item (its page
-// starts at the first episode) is asked once more for the whole series.
-void EmbyBackend::fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason,
-                                   int currentIndex, bool fromItem) {
-    QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
-    QUrlQuery epQ;
-    epQ.addQueryItem("userId", m_userId);
-    epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    epQ.addQueryItem("enableUserData", "true");
-    if (fromItem)
-        epQ.addQueryItem("startItemId", itemId);
-    epQ.addQueryItem("limit", fromItem ? "50" : "500");
-    epUrl.setQuery(epQ);
-
-    auto *epReply = serverGet(epUrl);
-    connect(epReply, &QNetworkReply::finished, this,
-            [this, epReply, seriesId, itemId, currentSeason, currentIndex, fromItem]() {
-        epReply->deleteLater();
-        if (epReply->error() != QNetworkReply::NoError) {
-            emit nextEpisodeReady(QVariantMap{});
-            return;
-        }
-        const QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll()).object()["Items"].toArray();
-        if (fromItem && !embyapi::hasItem(episodes, itemId)) {
-            fetchNextEpisode(seriesId, itemId, currentSeason, currentIndex, false);
-            return;
-        }
-        const QJsonObject nextEp = embyapi::nextEpisode(episodes, currentSeason, currentIndex);
-        emit nextEpisodeReady(nextEp.isEmpty() ? QVariantMap{} : formatItem(nextEp));
-    });
-}
-
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
-
-void EmbyBackend::getVideoQualities() {
-    QVariantList options;
-    auto add = [&](const QString &value, const QString &label) {
-        QVariantMap m;
-        m["id"]    = value;
-        m["label"] = label;
-        options.append(m);
-    };
-    add("auto",  "Direct Play");
-    add("480p",  "480p (NTSC CRT)");
-    add("576p",  "576p (PAL CRT)");
-    add("720p",  "720p");
-    add("1080p", "1080p");
-    emit dynamicOptionsReady("video_quality", options);
-}
-
-void EmbyBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
-    if (moduleId != kModuleId)
-        return;
-
-    // Settings → Server Address changed while signed in names another
-    // server, and the token was issued by the one signed into: it goes to no
-    // other host. That server signs this device out (its token revoked there,
-    // where it was issued), and the sign-in screen offers the address typed,
-    // which is then the one Settings shows and the one signed into. Signed
-    // out, nothing here uses the setting: the sign-in screen reads it itself.
-    // The same address again (the sign-in saving it) changes nothing.
-    if (key == QLatin1String("server_url") && has_auth()
-        && normalizeServerUrl(value.toString()) != m_serverUrl)
-        logout();
-}
 
 void EmbyBackend::fetchSegments(const QString &itemId) {
     if (!has_auth()) return;

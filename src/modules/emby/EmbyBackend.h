@@ -1,8 +1,6 @@
 #pragma once
 #include <QHash>
 #include <QString>
-#include <QUrl>
-#include <functional>
 
 #include "../../util/EmbyApiBackend.h"
 
@@ -10,10 +8,6 @@ class EmbyBackend : public EmbyApiBackend {
     Q_OBJECT
 public:
     explicit EmbyBackend(const QString &dataRoot, QObject *parent = nullptr);
-
-    // Auth
-    Q_INVOKABLE void check_auth();
-    Q_INVOKABLE void logout();
 
     // Username/password sign-in — direct to a single server.
     Q_INVOKABLE void authenticate(const QString &serverUrl, const QString &username, const QString &password);
@@ -25,16 +19,10 @@ public:
     Q_INVOKABLE void connect_authenticate(const QString &usernameOrEmail, const QString &password);
     Q_INVOKABLE void connect_select_server(const QString &serverUrl, const QString &accessKey);
 
-    // Browse
-    Q_INVOKABLE void load_libraries();
-    Q_INVOKABLE void load_episodes(const QString &seriesId, const QString &seasonId);
-    Q_INVOKABLE void load_continue_watching();
-
     // Playback
     Q_INVOKABLE void get_playback_url(const QString &itemId, const QString &mediaSourceId,
                                        int audioStreamIndex, int subtitleStreamIndex,
                                        bool forceTranscode = false);
-    Q_INVOKABLE void load_next_episode(const QString &currentItemId);
 
     // Intro/credit skip — derived from Emby's chapter markers (IntroStart/
     // IntroEnd/CreditsStart). Emits Intro/Outro segments the Player consumes.
@@ -43,18 +31,12 @@ public:
     // The Playlists module's server (MediaServer): see the interface.
     QString streamUrl(const QString &itemId) const override;
 
-    // Settings
-    Q_INVOKABLE void getVideoQualities();
-
 signals:
     // Emby Connect: emitted with the list of servers on the account when more
     // than one is available so the UI can present a picker. Each entry is a map
     // of {name, address, localAddress, remoteAddress, accessKey, systemId}.
     void connectServersReady(const QVariantList &servers);
     void connectFailed(const QString &message);
-
-public slots:
-    void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
 
 private:
     friend class MediaServersTest;
@@ -72,9 +54,11 @@ private:
     void authorize(QNetworkRequest &request, const QString &token) const override;
     // Emby authenticates a sidecar's and a stream's request by api_key.
     bool tokenInUrls() const override { return true; }
-
-    // Lightweight "does this list have any items?" probe (GET with limit=1).
-    void probeHasItems(const QUrl &url, std::function<void(bool)> cb);
+    // The Emby Connect account forgotten with the sign-in.
+    void clearAuthState() override;
+    // The device's registration dropped with the token.
+    void revokeToken() override;
+    bool resumeNeedsMediaTypes() const override { return true; }
 
     // Emby Connect helpers (step 2 of the flow, and post-exchange persistence).
     void fetchConnectServers();
@@ -87,10 +71,6 @@ private:
     // The remote address of each server Emby Connect listed last with a LAN
     // address too, by its access key.
     QHash<QString, QString> m_connectRemotes;
-
-    void clearAuthState();
-    void fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason, int currentIndex,
-                          bool fromItem);
 
     int videoQualityBitrate() const;
 };

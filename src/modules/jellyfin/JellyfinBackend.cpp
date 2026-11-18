@@ -1,6 +1,5 @@
 #include "JellyfinBackend.h"
 
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkRequest>
@@ -13,20 +12,10 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QDebug>
-#include <QUuid>
 #include <QSslError>
-#include <QSet>
 #include <QRegularExpression>
 
 static const QString kModuleId = QStringLiteral("com.osdos.jellyfin");
-
-// Library CollectionTypes the module knows how to browse + play. Anything else
-// (music, books, photos, mixed/empty, etc.) is hidden from both the browse list
-// and the settings multiselect. Mirrors the Plex module's kSupportedLibraryTypes.
-static const QSet<QString> kSupportedCollectionTypes = {
-    QStringLiteral("movies"), QStringLiteral("tvshows"), QStringLiteral("homevideos"),
-    QStringLiteral("boxsets")
-};
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -42,23 +31,9 @@ JellyfinBackend::JellyfinBackend(const QString &dataRoot, QObject *parent)
 // ---------------------------------------------------------------------------
 
 void JellyfinBackend::clearAuthState() {
-    m_serverUrl.clear();
-    m_accessToken.clear();
-    m_userId.clear();
-    m_userName.clear();
-    m_serverName.clear();
-    m_currentPlaySessionId.clear();
-    // What this server could do says nothing of the next one signed into.
+    EmbyApiBackend::clearAuthState();
     m_capabilitiesProbed = false;
     m_hasCapability = false;
-    // Sign out will wipe the auth file as the device is removed from access
-    // on the server end as well. This will generate a fresh deviceId so any
-    // in-session re-login / QuickConnect creates one that will be synced with the 
-    // new device we give access to on the server and it will persist until either
-    // the user signs out or manually de-auths the device from the server end.
-    // saveAuthState() will recreate the file on the next successful login.
-    m_deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    QFile::remove(m_dataRoot + "/" + m_authFile);
 }
 
 // ---------------------------------------------------------------------------
@@ -84,50 +59,6 @@ void JellyfinBackend::authorize(QNetworkRequest &request, const QString &token) 
 
 QString JellyfinBackend::streamUrl(const QString &itemId) const {
     return embyapi::streamUrl(m_serverUrl, itemId, m_accessToken, true);
-}
-
-// ---------------------------------------------------------------------------
-// Auth
-// ---------------------------------------------------------------------------
-
-void JellyfinBackend::check_auth() {
-    if (!has_auth()) {
-        notifyAuthState();
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId);
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (status == 401) {
-            qWarning("[JellyfinBackend] Token rejected — signing out");
-            clearAuthState();
-            notifyAuthState();
-            return;
-        }
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("AUTH CHECK FAILED: " + serverlog::why(reply));
-            return;
-        }
-        notifyAuthState();
-        probeCapabilities();
-    });
-}
-
-void JellyfinBackend::logout() {
-    // Revoke the access token server-side so it can't be reused
-    if (has_auth()) {
-        QUrl url(m_serverUrl + "/Sessions/Logout");
-        auto *reply = m_nam->post(serverRequest(url), QByteArray());
-        // A self-signed LAN server takes the revoke too: the host is read here,
-        // before clearAuthState() forgets it.
-        ignoreSslErrors(reply);
-        connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
-    }
-    clearAuthState();
-    notifyAuthState();
 }
 
 // ---------------------------------------------------------------------------
@@ -302,23 +233,7 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
         m_serverName  = m_quickConnectServerUrl; // temp: fetch real name below
         m_quickConnectSecret.clear();
 
-        // Fetch actual server name (through serverGet: a self-signed LAN
-        // server's certificate is taken, as for every other request to it)
-        {
-            auto *infoReply = serverGet(QUrl(m_serverUrl + "/System/Info/Public"));
-            connect(infoReply, &QNetworkReply::finished, this, [this, infoReply]() {
-                infoReply->deleteLater();
-                if (infoReply->error() == QNetworkReply::NoError) {
-                    QJsonObject infoData = QJsonDocument::fromJson(infoReply->readAll()).object();
-                    QString name = infoData["ServerName"].toString();
-                    if (!name.isEmpty()) {
-                        m_serverName = name;
-                        saveAuthState();
-                    }
-                }
-            });
-        }
-
+        fetchServerName();
         saveAuthState();
         // The server's URL goes in the module's settings from the module's
         // Root.qml, as it hears authStateChanged (get_server_url()).
@@ -335,145 +250,6 @@ void JellyfinBackend::quick_connect_cancel() {
     QNetworkRequest req(url);
     m_nam->deleteResource(req);
     m_quickConnectSecret.clear();
-}
-
-// ---------------------------------------------------------------------------
-// Browse
-// ---------------------------------------------------------------------------
-
-void JellyfinBackend::load_libraries() {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Views");
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD LIBRARIES FAILED: " + serverlog::why(reply));
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        // Honour the user's library filter (Settings → Libraries). Empty map ==
-        // never configured, so show everything; otherwise hide explicitly-disabled ones.
-        QJsonObject libEnabled = moduleConfig()["libraries"].toObject();
-        QVariantList libraries;
-        for (const QJsonValue &v : items) {
-            QJsonObject item = v.toObject();
-            if (!kSupportedCollectionTypes.contains(item["CollectionType"].toString()))
-                continue;
-            QString libId = item["Id"].toString();
-            if (!libEnabled.isEmpty() && !libEnabled[libId].toBool(true))
-                continue;
-            libraries.append(QVariantMap{
-                {"key",            libId},
-                {"itemId",         libId},
-                {"title",          item["Name"].toString().toUpper()},
-                {"collectionType", item["CollectionType"].toString()},
-            });
-        }
-
-        // Prepend the Continue Watching / Up Next shelves, but only when they
-        // actually have content. Probe each (limit=1) before emitting the list.
-        QUrl resumeUrl(m_serverUrl + "/Users/" + m_userId + "/Items/Resume");
-        { QUrlQuery rq; rq.addQueryItem("limit", "1"); resumeUrl.setQuery(rq); }
-        QUrl nextUrl(m_serverUrl + "/Shows/NextUp");
-        { QUrlQuery nq; nq.addQueryItem("userId", m_userId); nq.addQueryItem("limit", "1"); nextUrl.setQuery(nq); }
-
-        probeHasItems(resumeUrl, [this, libraries, nextUrl](bool hasResume) {
-            probeHasItems(nextUrl, [this, libraries, hasResume](bool hasUpNext) {
-                QVariantList combined = libraries;
-                if (hasUpNext)
-                    combined.prepend(QVariantMap{{"key", "up_next"}, {"title", "NEXT UP"}});
-                if (hasResume)
-                    combined.prepend(QVariantMap{{"key", "continue_watching"}, {"title", "CONTINUE WATCHING"}});
-                emit librariesLoaded(combined);
-            });
-        });
-    });
-}
-
-void JellyfinBackend::probeHasItems(const QUrl &url, std::function<void(bool)> cb) {
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [reply, cb]() {
-        reply->deleteLater();
-        bool has = false;
-        if (reply->error() == QNetworkReply::NoError)
-            has = !QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray().isEmpty();
-        cb(has);
-    });
-}
-
-void JellyfinBackend::load_episodes(const QString &seriesId, const QString &seasonId) {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
-    QUrlQuery q;
-    q.addQueryItem("userId", m_userId);
-    q.addQueryItem("seasonId", seasonId);
-    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    q.addQueryItem("enableUserData", "true");
-    q.addQueryItem("limit", "500");
-    q.addQueryItem("sortBy", "AiredEpisodeOrder");
-    url.setQuery(q);
-
-    // As the detail page's item: a season's page without its episodes says
-    // nothing, the log does.
-    const int request = ++m_episodesRequest;
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId, request]() {
-        reply->deleteLater();
-        // Another season's episodes asked for since: this one was left.
-        if (request != m_episodesRequest) return;
-        if (reply->error() != QNetworkReply::NoError) {
-            serverlog::loadFailed("Jellyfin", "the episodes of season " + seasonId, reply);
-            emit errorOccurred("LOAD EPISODES FAILED: " + serverlog::why(reply));
-            return;
-        }
-        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
-        if (!answer.contains(QLatin1String("Items")))
-            serverlog::loadFailed("Jellyfin", "the episodes of season " + seasonId, reply,
-                                  QStringLiteral("the answer is not a list"));
-        QJsonArray items = answer["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit episodesLoaded(result);
-    });
-}
-
-void JellyfinBackend::load_continue_watching() {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Items/Resume");
-    QUrlQuery q;
-    q.addQueryItem("limit", "20");
-    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    url.setQuery(q);
-
-    auto *reply = serverGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + serverlog::why(reply));
-            return;
-        }
-
-        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
-        QVariantList result;
-        for (const QJsonValue &v : items)
-            result.append(formatItem(v.toObject()));
-        emit continueWatchingLoaded(result);
-    });
 }
 
 // ---------------------------------------------------------------------------
@@ -728,115 +504,17 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
     });
 }
 
-void JellyfinBackend::load_next_episode(const QString &currentItemId) {
-    if (!has_auth()) {
-        emit nextEpisodeReady(QVariantMap{});
-        return;
-    }
-
-    // Step 1: fetch current episode to get seriesId + episode position
-    QUrl detailUrl(m_serverUrl + "/Users/" + m_userId + "/Items/" + currentItemId);
-    QUrlQuery detailQ;
-    detailQ.addQueryItem("fields", "MediaSources");
-    detailUrl.setQuery(detailQ);
-
-    auto *detailReply = serverGet(detailUrl);
-    connect(detailReply, &QNetworkReply::finished, this, [this, detailReply]() {
-        detailReply->deleteLater();
-        if (detailReply->error() != QNetworkReply::NoError) {
-            emit nextEpisodeReady(QVariantMap{});
-            return;
-        }
-        QJsonObject item = QJsonDocument::fromJson(detailReply->readAll()).object();
-        QString seriesId      = item["SeriesId"].toString();
-        int     currentIndex  = item["IndexNumber"].toInt();
-        int     currentSeason = item["ParentIndexNumber"].toInt();
-
-        if (seriesId.isEmpty() || item["Type"].toString() != QLatin1String("Episode")) {
-            emit nextEpisodeReady(QVariantMap{});
-            return;
-        }
-
-        // Step 2: the series' episodes from this one on
-        fetchNextEpisode(seriesId, item["Id"].toString(), currentSeason, currentIndex, true);
-    });
-}
-
-// The series' episodes in air order from the current one (startItemId), a
-// page of them: it holds the next whatever the series' length, where a list
-// of the whole series was cut at 500. A server that doesn't skip to the item
-// (its page starts at the first episode) is asked once more for the whole
-// series.
-void JellyfinBackend::fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason,
-                                       int currentIndex, bool fromItem) {
-    QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
-    QUrlQuery epQ;
-    epQ.addQueryItem("userId", m_userId);
-    epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
-    epQ.addQueryItem("enableUserData", "true");
-    epQ.addQueryItem("sortBy", "AiredEpisodeOrder");
-    if (fromItem)
-        epQ.addQueryItem("startItemId", itemId);
-    epQ.addQueryItem("limit", fromItem ? "50" : "500");
-    epUrl.setQuery(epQ);
-
-    auto *epReply = serverGet(epUrl);
-    connect(epReply, &QNetworkReply::finished, this,
-            [this, epReply, seriesId, itemId, currentSeason, currentIndex, fromItem]() {
-        epReply->deleteLater();
-        if (epReply->error() != QNetworkReply::NoError) {
-            emit nextEpisodeReady(QVariantMap{});
-            return;
-        }
-        const QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll()).object()["Items"].toArray();
-        if (fromItem && !embyapi::hasItem(episodes, itemId)) {
-            fetchNextEpisode(seriesId, itemId, currentSeason, currentIndex, false);
-            return;
-        }
-        const QJsonObject nextEp = embyapi::nextEpisode(episodes, currentSeason, currentIndex);
-        emit nextEpisodeReady(nextEp.isEmpty() ? QVariantMap{} : formatItem(nextEp));
-    });
-}
-
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
 void JellyfinBackend::getVideoQualities() {
-    QVariantList options;
-    auto add = [&](const QString &value, const QString &label) {
-        QVariantMap m;
-        m["id"]    = value;
-        m["label"] = label;
-        options.append(m);
-    };
-    add("auto",  "Direct Play");
-    add("480p",  "480p (NTSC CRT)");
-    add("576p",  "576p (PAL CRT)");
-    add("720p",  "720p");
-    add("1080p", "1080p");
-    emit dynamicOptionsReady("video_quality", options);
+    EmbyApiBackend::getVideoQualities();
 
     // The settings page asks for this row's choices each time it opens, and
     // for nothing that says what the server can do: tell it here, or Intro
     // Skip and Credit Skip stay "Not offered by the server" on every server.
     probeCapabilities();
-}
-
-void JellyfinBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
-    if (moduleId != kModuleId)
-        return;
-
-    // Settings → Server Address changed while signed in names another
-    // server, and the token was issued by the one signed into: it goes to no
-    // other host. That server signs this device out (its token revoked there,
-    // where it was issued), and the sign-in screen offers the address typed,
-    // which is then the one Settings shows and the one signed into. Signed
-    // out, nothing here uses the setting: the sign-in screen reads it itself.
-    // The same address again (the sign-in saving it) changes nothing.
-    if (key == QLatin1String("server_url") && has_auth()
-        && normalizeServerUrl(value.toString()) != m_serverUrl)
-        logout();
 }
 
 void JellyfinBackend::probeCapabilities() {

@@ -30,9 +30,11 @@
 // address from outside when its LAN address gives no sign-in, Settings'
 // Libraries are told why there are none when the server can't be reached,
 // Jellyfin's Quick Connect says a server's refusal by its status, an error
-// says a refusal's status and never the address asked, and a
+// says a refusal's status and never the address asked, a
 // Server Address changed while signed in to Jellyfin or Emby signs out of
-// the server that issued the token, which goes to no other host.
+// the server that issued the token, which goes to no other host, and
+// Jellyfin's and Emby's backends, one code, ask each in its own way where
+// their servers differ.
 
 class Reply : public QNetworkReply {
 public:
@@ -896,6 +898,77 @@ private slots:
         QCOMPARE(changed.count(), 0);
         backend.logout();
         QCOMPARE(changed.count(), 1);
+    }
+
+    // Jellyfin's and Emby's backends are one code (EmbyApiBackend) but where
+    // their servers differ: the header the token goes in, Emby's Continue
+    // Watching asked for videos by name, Jellyfin's episodes asked for in air
+    // order, the token in a subtitle's URL for Emby, and Emby's device
+    // dropped as it signs out, before the token is revoked. The settings
+    // page's choices, asked for by name as AppCore does, reach Jellyfin's own
+    // (which asks what the server can do too).
+    void jellyfinAndEmbyAskEachInItsOwnWay() {
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        EmbyBackend emby(tmp.path());
+        Network *jf = signIn(jellyfin);
+        Network *em = signIn(emby);
+
+        jellyfin.load_continue_watching();
+        emby.load_continue_watching();
+        const QNetworkRequest jfAsked = jf->last()->request(), emAsked = em->last()->request();
+        QVERIFY(jfAsked.rawHeader("Authorization").contains("Token=\"token\""));
+        QVERIFY(!jfAsked.hasRawHeader("X-Emby-Token"));
+        QVERIFY(emAsked.rawHeader("X-Emby-Authorization").contains("Token=\"token\""));
+        QCOMPARE(emAsked.rawHeader("X-Emby-Token"), QByteArray("token"));
+        QVERIFY(!emAsked.hasRawHeader("Authorization"));
+        QVERIFY(!QUrlQuery(jfAsked.url()).hasQueryItem(QStringLiteral("mediaTypes")));
+        QCOMPARE(QUrlQuery(emAsked.url()).queryItemValue(QStringLiteral("mediaTypes")), QStringLiteral("Video"));
+
+        jellyfin.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+        emby.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+        QCOMPARE(QUrlQuery(jf->last()->url()).queryItemValue(QStringLiteral("sortBy")),
+                 QStringLiteral("AiredEpisodeOrder"));
+        QVERIFY(!QUrlQuery(em->last()->url()).hasQueryItem(QStringLiteral("sortBy")));
+
+        const QJsonObject subtitle{ { "Type", "Subtitle" }, { "Index", 3 }, { "Codec", "subrip" },
+                                    { "IsTextSubtitleStream", true } };
+        const QJsonObject source{ { "Id", "src" }, { "MediaStreams", QJsonArray{ subtitle } } };
+        const QByteArray film = QJsonDocument(QJsonObject{ { "Id", "film" },
+                                                           { "MediaSources", QJsonArray{ source } } }).toJson();
+        QSignalSpy jfItem(&jellyfin, &JellyfinBackend::itemLoaded);
+        QSignalSpy emItem(&emby, &EmbyBackend::itemLoaded);
+        jellyfin.load_item_detail(QStringLiteral("film"));
+        jf->last()->complete(film);
+        emby.load_item_detail(QStringLiteral("film"));
+        em->last()->complete(film);
+        const auto subUrl = [](const QSignalSpy &spy) {
+            return spy.last().at(0).toMap().value(QStringLiteral("subtitleStreams")).toList().first().toMap()
+                .value(QStringLiteral("subUrl")).toString();
+        };
+        QCOMPARE(subUrl(jfItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt"));
+        QCOMPARE(subUrl(emItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt?api_key=token"));
+
+        qsizetype asked = jf->replies.size();
+        QVERIFY(QMetaObject::invokeMethod(&jellyfin, "getVideoQualities"));
+        QCOMPARE(jf->replies.size(), asked + 1);
+        QVERIFY(jf->last()->url().path().startsWith(QLatin1String("/MediaSegments/")));
+        asked = em->replies.size();
+        QVERIFY(QMetaObject::invokeMethod(&emby, "getVideoQualities"));
+        QCOMPARE(em->replies.size(), asked);
+
+        asked = jf->replies.size();
+        jellyfin.logout();
+        QCOMPARE(jf->replies.size(), asked + 1);
+        QCOMPARE(jf->last()->url().path(), QStringLiteral("/Sessions/Logout"));
+        asked = em->replies.size();
+        emby.logout();
+        QCOMPARE(em->replies.size(), asked + 1);
+        QCOMPARE(em->last()->url().path(), QStringLiteral("/Devices"));
+        em->last()->complete(QByteArray());
+        QCOMPARE(em->last()->url().path(), QStringLiteral("/Sessions/Logout"));
+        QCOMPARE(em->last()->request().rawHeader("X-Emby-Token"), QByteArray("token"));
+        QVERIFY(!jellyfin.has_auth() && !emby.has_auth());
     }
 
     // Quick Connect says what the server answered, as it starts and at the

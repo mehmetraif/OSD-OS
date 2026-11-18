@@ -117,6 +117,23 @@ void EmbyApiBackend::saveAuthState() {
                         QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
+void EmbyApiBackend::clearAuthState() {
+    m_serverUrl.clear();
+    m_accessToken.clear();
+    m_userId.clear();
+    m_userName.clear();
+    m_serverName.clear();
+    m_currentPlaySessionId.clear();
+    // Sign out will wipe the auth file as the device is removed from access
+    // on the server end as well. This will generate a fresh deviceId so any
+    // in-session re-login / QuickConnect creates one that will be synced with the
+    // new device we give access to on the server and it will persist until either
+    // the user signs out or manually de-auths the device from the server end.
+    // saveAuthState() will recreate the file on the next successful login.
+    m_deviceId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QFile::remove(m_dataRoot + "/" + m_authFile);
+}
+
 // ---------------------------------------------------------------------------
 // Config helpers
 // ---------------------------------------------------------------------------
@@ -250,6 +267,66 @@ QString EmbyApiBackend::get_auth_state() {
     return has_auth() ? QStringLiteral("authed") : QStringLiteral("none");
 }
 
+void EmbyApiBackend::check_auth() {
+    if (!has_auth()) {
+        notifyAuthState();
+        return;
+    }
+
+    QUrl url(m_serverUrl + "/Users/" + m_userId);
+    auto *reply = serverGet(url);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status == 401) {
+            qWarning("[%sBackend] Token rejected — signing out", m_tag);
+            clearAuthState();
+            notifyAuthState();
+            return;
+        }
+        if (reply->error() != QNetworkReply::NoError) {
+            emit errorOccurred("AUTH CHECK FAILED: " + serverlog::why(reply));
+            return;
+        }
+        notifyAuthState();
+        tokenChecked();
+    });
+}
+
+void EmbyApiBackend::logout() {
+    // Revoke the access token server-side so it can't be reused
+    if (has_auth())
+        revokeToken();
+    clearAuthState();
+    notifyAuthState();
+}
+
+void EmbyApiBackend::revokeToken() {
+    QUrl url(m_serverUrl + "/Sessions/Logout");
+    auto *reply = m_nam->post(serverRequest(url), QByteArray());
+    // A self-signed LAN server takes the revoke too: the host is read here,
+    // before clearAuthState() forgets it.
+    ignoreSslErrors(reply);
+    connect(reply, &QNetworkReply::finished, reply, &QNetworkReply::deleteLater);
+}
+
+void EmbyApiBackend::fetchServerName() {
+    // Through serverGet: a self-signed LAN server's certificate is taken, as
+    // for every other request to it.
+    auto *reply = serverGet(QUrl(m_serverUrl + "/System/Info/Public"));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() == QNetworkReply::NoError) {
+            QJsonObject infoData = QJsonDocument::fromJson(reply->readAll()).object();
+            QString name = infoData["ServerName"].toString();
+            if (!name.isEmpty()) {
+                m_serverName = name;
+                saveAuthState();
+            }
+        }
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Item formatting
 // ---------------------------------------------------------------------------
@@ -357,6 +434,85 @@ QVariantMap EmbyApiBackend::formatItem(const QJsonObject &item, const QString &s
 // ---------------------------------------------------------------------------
 // Browse
 // ---------------------------------------------------------------------------
+
+void EmbyApiBackend::load_libraries() {
+    if (!has_auth()) {
+        emit errorOccurred("NOT AUTHENTICATED");
+        return;
+    }
+
+    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Views");
+    auto *reply = serverGet(url);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            emit errorOccurred("LOAD LIBRARIES FAILED: " + serverlog::why(reply));
+            return;
+        }
+
+        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+        // Honour the user's library filter (Settings → Libraries). Empty map ==
+        // never configured, so show everything; otherwise hide explicitly-disabled ones.
+        QJsonObject libEnabled = moduleConfig()["libraries"].toObject();
+        QVariantList libraries;
+        for (const QJsonValue &v : items) {
+            QJsonObject item = v.toObject();
+            if (!kSupportedCollectionTypes.contains(item["CollectionType"].toString()))
+                continue;
+            QString libId = item["Id"].toString();
+            if (!libEnabled.isEmpty() && !libEnabled[libId].toBool(true))
+                continue;
+            libraries.append(QVariantMap{
+                {"key",            libId},
+                {"itemId",         libId},
+                {"title",          item["Name"].toString().toUpper()},
+                {"collectionType", item["CollectionType"].toString()},
+            });
+        }
+
+        // Prepend the Continue Watching / Up Next shelves, but only when they
+        // actually have content. Probe each (limit=1) before emitting the list,
+        // Resume asked for videos where the server needs it to be
+        // (resumeNeedsMediaTypes()).
+        QUrl resumeUrl(m_serverUrl + "/Users/" + m_userId + "/Items/Resume");
+        { QUrlQuery rq; if (resumeNeedsMediaTypes()) rq.addQueryItem("mediaTypes", "Video");
+                        rq.addQueryItem("limit", "1"); resumeUrl.setQuery(rq); }
+        QUrl nextUrl(m_serverUrl + "/Shows/NextUp");
+        { QUrlQuery nq; nq.addQueryItem("userId", m_userId); nq.addQueryItem("limit", "1"); nextUrl.setQuery(nq); }
+
+        probeHasItems(resumeUrl, [this, libraries, nextUrl](bool hasResume) {
+            probeHasItems(nextUrl, [this, libraries, hasResume](bool hasUpNext) {
+                QVariantList combined = libraries;
+                if (hasUpNext)
+                    combined.prepend(QVariantMap{{"key", "up_next"}, {"title", "NEXT UP"}});
+                if (hasResume)
+                    combined.prepend(QVariantMap{{"key", "continue_watching"}, {"title", "CONTINUE WATCHING"}});
+                emit librariesLoaded(combined);
+            });
+        });
+    });
+}
+
+void EmbyApiBackend::probeHasItems(const QUrl &url, std::function<void(bool)> cb) {
+    // Which shelf, for the log: the path's last two parts (Items/Resume,
+    // Shows/NextUp), never the user's id before them.
+    const QString probePath = url.path().section(QLatin1Char('/'), -2);
+    auto *reply = serverGet(url);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, cb, probePath]() {
+        reply->deleteLater();
+        bool has = false;
+        if (reply->error() == QNetworkReply::NoError) {
+            has = !QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray().isEmpty();
+        } else {
+            // A failed probe hides the shelf exactly like an empty one, so warn —
+            // otherwise a broken request is indistinguishable from "nothing to
+            // resume" and stays invisible (as Emby's missing mediaTypes=Video did).
+            qWarning("[%s] shelf probe failed (%s): %s", m_tag,
+                     qPrintable(probePath), qPrintable(serverlog::why(reply)));
+        }
+        cb(has);
+    });
+}
 
 void EmbyApiBackend::load_items(const QString &parentId, const QString &includeTypes, const QString &sortBy) {
     if (!has_auth()) {
@@ -582,6 +738,78 @@ void EmbyApiBackend::load_seasons(const QString &seriesId) {
     });
 }
 
+void EmbyApiBackend::load_episodes(const QString &seriesId, const QString &seasonId) {
+    if (!has_auth()) {
+        emit errorOccurred("NOT AUTHENTICATED");
+        return;
+    }
+
+    QUrl url(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
+    QUrlQuery q;
+    q.addQueryItem("userId", m_userId);
+    q.addQueryItem("seasonId", seasonId);
+    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
+    q.addQueryItem("enableUserData", "true");
+    q.addQueryItem("limit", "500");
+    if (!episodeOrder().isEmpty())
+        q.addQueryItem("sortBy", episodeOrder());
+    url.setQuery(q);
+
+    // As the detail page's item: a season's page without its episodes says
+    // nothing, the log does.
+    const int request = ++m_episodesRequest;
+    auto *reply = serverGet(url);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId, request]() {
+        reply->deleteLater();
+        // Another season's episodes asked for since: this one was left.
+        if (request != m_episodesRequest) return;
+        if (reply->error() != QNetworkReply::NoError) {
+            serverlog::loadFailed(m_tag, "the episodes of season " + seasonId, reply);
+            emit errorOccurred("LOAD EPISODES FAILED: " + serverlog::why(reply));
+            return;
+        }
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (!answer.contains(QLatin1String("Items")))
+            serverlog::loadFailed(m_tag, "the episodes of season " + seasonId, reply,
+                                  QStringLiteral("the answer is not a list"));
+        QJsonArray items = answer["Items"].toArray();
+        QVariantList result;
+        for (const QJsonValue &v : items)
+            result.append(formatItem(v.toObject()));
+        emit episodesLoaded(result);
+    });
+}
+
+void EmbyApiBackend::load_continue_watching() {
+    if (!has_auth()) {
+        emit errorOccurred("NOT AUTHENTICATED");
+        return;
+    }
+
+    QUrl url(m_serverUrl + "/Users/" + m_userId + "/Items/Resume");
+    QUrlQuery q;
+    if (resumeNeedsMediaTypes())
+        q.addQueryItem("mediaTypes", "Video");
+    q.addQueryItem("limit", "20");
+    q.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
+    url.setQuery(q);
+
+    auto *reply = serverGet(url);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            emit errorOccurred("LOAD CONTINUE WATCHING FAILED: " + serverlog::why(reply));
+            return;
+        }
+
+        QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
+        QVariantList result;
+        for (const QJsonValue &v : items)
+            result.append(formatItem(v.toObject()));
+        emit continueWatchingLoaded(result);
+    });
+}
+
 void EmbyApiBackend::load_up_next() {
     if (!has_auth()) {
         emit errorOccurred("NOT AUTHENTICATED");
@@ -655,6 +883,77 @@ void EmbyApiBackend::load_series_next_up(const QString &seriesId) {
 
 void EmbyApiBackend::cancel_playback_url() {
     ++m_playbackRequest;
+}
+
+void EmbyApiBackend::load_next_episode(const QString &currentItemId) {
+    if (!has_auth()) {
+        emit nextEpisodeReady(QVariantMap{});
+        return;
+    }
+
+    // Step 1: fetch current episode to get seriesId + episode position
+    QUrl detailUrl(m_serverUrl + "/Users/" + m_userId + "/Items/" + currentItemId);
+    QUrlQuery detailQ;
+    detailQ.addQueryItem("fields", "MediaSources");
+    detailUrl.setQuery(detailQ);
+
+    auto *detailReply = serverGet(detailUrl);
+    connect(detailReply, &QNetworkReply::finished, this, [this, detailReply]() {
+        detailReply->deleteLater();
+        if (detailReply->error() != QNetworkReply::NoError) {
+            emit nextEpisodeReady(QVariantMap{});
+            return;
+        }
+        QJsonObject item = QJsonDocument::fromJson(detailReply->readAll()).object();
+        QString seriesId      = item["SeriesId"].toString();
+        int     currentIndex  = item["IndexNumber"].toInt();
+        int     currentSeason = item["ParentIndexNumber"].toInt();
+
+        if (seriesId.isEmpty() || item["Type"].toString() != QLatin1String("Episode")) {
+            emit nextEpisodeReady(QVariantMap{});
+            return;
+        }
+
+        // Step 2: the series' episodes from this one on
+        fetchNextEpisode(seriesId, item["Id"].toString(), currentSeason, currentIndex, true);
+    });
+}
+
+// The series' episodes in air order (episodeOrder(); Emby lists them in their
+// order itself) from the current one (startItemId), a page of them: it holds
+// the next whatever the series' length, where a list of the whole series was
+// cut at 500. A server that doesn't skip to the item (its page starts at the
+// first episode) is asked once more for the whole series.
+void EmbyApiBackend::fetchNextEpisode(const QString &seriesId, const QString &itemId, int currentSeason,
+                                      int currentIndex, bool fromItem) {
+    QUrl epUrl(m_serverUrl + "/Shows/" + seriesId + "/Episodes");
+    QUrlQuery epQ;
+    epQ.addQueryItem("userId", m_userId);
+    epQ.addQueryItem("fields", "MediaSources,MediaStreams,Overview,Genres,UserData");
+    epQ.addQueryItem("enableUserData", "true");
+    if (!episodeOrder().isEmpty())
+        epQ.addQueryItem("sortBy", episodeOrder());
+    if (fromItem)
+        epQ.addQueryItem("startItemId", itemId);
+    epQ.addQueryItem("limit", fromItem ? "50" : "500");
+    epUrl.setQuery(epQ);
+
+    auto *epReply = serverGet(epUrl);
+    connect(epReply, &QNetworkReply::finished, this,
+            [this, epReply, seriesId, itemId, currentSeason, currentIndex, fromItem]() {
+        epReply->deleteLater();
+        if (epReply->error() != QNetworkReply::NoError) {
+            emit nextEpisodeReady(QVariantMap{});
+            return;
+        }
+        const QJsonArray episodes = QJsonDocument::fromJson(epReply->readAll()).object()["Items"].toArray();
+        if (fromItem && !embyapi::hasItem(episodes, itemId)) {
+            fetchNextEpisode(seriesId, itemId, currentSeason, currentIndex, false);
+            return;
+        }
+        const QJsonObject nextEp = embyapi::nextEpisode(episodes, currentSeason, currentIndex);
+        emit nextEpisodeReady(nextEp.isEmpty() ? QVariantMap{} : formatItem(nextEp));
+    });
 }
 
 void EmbyApiBackend::report_playback_start(const QString &itemId, const QString &mediaSourceId,
@@ -790,6 +1089,22 @@ void EmbyApiBackend::getLibraries() {
     });
 }
 
+void EmbyApiBackend::getVideoQualities() {
+    QVariantList options;
+    auto add = [&](const QString &value, const QString &label) {
+        QVariantMap m;
+        m["id"]    = value;
+        m["label"] = label;
+        options.append(m);
+    };
+    add("auto",  "Direct Play");
+    add("480p",  "480p (NTSC CRT)");
+    add("576p",  "576p (PAL CRT)");
+    add("720p",  "720p");
+    add("1080p", "1080p");
+    emit dynamicOptionsReady("video_quality", options);
+}
+
 void EmbyApiBackend::get_resume_playback_options() {
     QVariantList options;
     auto add = [&](const QString &value, const QString &label) {
@@ -801,6 +1116,22 @@ void EmbyApiBackend::get_resume_playback_options() {
     add("ask",    "Ask");      // prompt resume vs. start over when a position exists
     add("always", "Always");   // resume directly, no prompt
     emit dynamicOptionsReady("resume_playback", options);
+}
+
+void EmbyApiBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
+    if (moduleId != m_moduleId)
+        return;
+
+    // Settings → Server Address changed while signed in names another
+    // server, and the token was issued by the one signed into: it goes to no
+    // other host. That server signs this device out (its token revoked there,
+    // where it was issued), and the sign-in screen offers the address typed,
+    // which is then the one Settings shows and the one signed into. Signed
+    // out, nothing here uses the setting: the sign-in screen reads it itself.
+    // The same address again (the sign-in saving it) changes nothing.
+    if (key == QLatin1String("server_url") && has_auth()
+        && normalizeServerUrl(value.toString()) != m_serverUrl)
+        logout();
 }
 
 int EmbyApiBackend::get_last_audio_lang_idx() const {
