@@ -441,6 +441,8 @@ bash scripts/bsd-package.sh stage v0.0.24 .
 
 The version is the release's tag; anything else (`dev`) makes a package of version 0.0.0. On FreeBSD the package is called `osdos` (`pkg info osdos`), on OpenBSD `OSD-OS` (`pkg_info OSD-OS`). The app finds the cores, the list and the licence beside its own files (`libretro::packagedCore()` and `lanCorePath()` in [src/modules/arcade/Libretro.cpp](src/modules/arcade/Libretro.cpp)), so the same layout works from an install under any prefix.
 
+The FreeBSD and OpenBSD workflows run all of this in their machine as [scripts/bsd-ci.sh](scripts/bsd-ci.sh), with the regression tests between the build and the cores, and then install the package as a user does, load the cores and start the app from it, and remove it again.
+
 ### Configuration
 
 ```
