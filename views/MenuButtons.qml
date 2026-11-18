@@ -69,8 +69,8 @@ FocusScope {
         refresh()
         // Back from its test: on that line.
         var state = navParams.navListState || {}
-        list.currentIndex = selectable(rows[state.currentIndex]) ? state.currentIndex : selectableFrom(0, 1)
-        list.positionViewAtIndex(list.currentIndex, ListView.Contain)
+        list.currentIndex = list.selectable(rows[state.currentIndex]) ? state.currentIndex : list.selectableFrom(0, 1)
+        list.show(list.currentIndex)
         list.forceActiveFocus()
     }
     // Leaving the page while it waits for a press: the controller acts again.
@@ -127,19 +127,7 @@ FocusScope {
 
         var at = list.currentIndex
         rows = items
-        list.currentIndex = at >= 0 && at < items.length && selectable(items[at]) ? at : selectableFrom(0, 1)
-    }
-
-    function selectable(row) { return !!row && row.type !== "section" }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
+        list.currentIndex = at >= 0 && at < items.length && list.selectable(items[at]) ? at : list.selectableFrom(0, 1)
     }
 
     // "B", "B and BACK", "LB, D-PAD ◄ and L STICK ◄".
@@ -281,31 +269,12 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: pageRoot.rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: !pageRoot.capturing
-        highlightMoveDuration: 0
+        onMoved: pageRoot.notice = ""
 
-        function move(step) {
-            if (pageRoot.rows.length === 0)
-                return
-            currentIndex = pageRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            pageRoot.notice = ""
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onRightPressed: {
             var row = pageRoot.rows[currentIndex]
             if (row && row.type !== "reset")
@@ -327,16 +296,10 @@ FocusScope {
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
-            opens: pageRoot.selectable(modelData)
+            opens: list.selectable(modelData)
             keepValue: modelData.type === "action"
-            selected: list.currentIndex === index && pageRoot.selectable(modelData)
+            selected: list.currentIndex === index && list.selectable(modelData)
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: list
-        list: list
     }
 
     HelpLine {

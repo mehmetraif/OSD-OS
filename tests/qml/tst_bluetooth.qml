@@ -134,7 +134,7 @@ Rectangle {
         function listOf(page) {
             for (var i = 0; i < page.children.length; i++) {
                 var item = page.children[i]
-                if (item.currentIndex !== undefined && item.model !== undefined && item.highlightMoveDuration !== undefined)
+                if (item.currentIndex !== undefined && item.model !== undefined && typeof item.itemAtIndex === "function")
                     return item
             }
             return null

@@ -52,7 +52,7 @@ FocusScope {
         refresh()
         // Back from one of its pages: on that line.
         var state = navParams.navListState || {}
-        list.currentIndex = selectable(rows[state.currentIndex]) ? state.currentIndex : 0
+        list.currentIndex = list.selectable(rows[state.currentIndex]) ? state.currentIndex : 0
         list.forceActiveFocus()
     }
 
@@ -114,8 +114,6 @@ FocusScope {
         rows = items
         list.currentIndex = at >= 0 && at < items.length ? at : 0
     }
-
-    function selectable(row) { return !!row }
 
     function cycleLabels(step) {
         var i = styles.indexOf(page.labels || "auto")
@@ -195,26 +193,12 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: pageRoot.rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        height: root.listHeight //224
-        clip: true
         focus: true
-        highlightMoveDuration: 0
+        onMoved: pageRoot.notice = ""
 
-        function move(step) {
-            if (count === 0)
-                return
-            currentIndex = (currentIndex + step + count) % count
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            pageRoot.notice = ""
-        }
         function change(step) {
             var row = pageRoot.rows[currentIndex]
             if (row && row.type === "labels")
@@ -225,8 +209,6 @@ FocusScope {
                 pageRoot.activate(row)
         }
 
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onLeftPressed: change(-1)
         Keys.onRightPressed: change(1)
         Keys.onReturnPressed: pageRoot.activate(pageRoot.rows[currentIndex])

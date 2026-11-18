@@ -144,24 +144,14 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         objectName: "lockList"
         // A model that never changes, so the cursor stays where it is as
         // the rows' values do; each row reads its own from rows.
         model: lockRoot.rows.length
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        height: root.listHeight //224
-        clip: true
         focus: true
-        highlightMoveDuration: 0
 
-        Keys.onUpPressed: currentIndex = (currentIndex + count - 1) % count
-        Keys.onDownPressed: currentIndex = (currentIndex + 1) % count
         Keys.onLeftPressed: {
             if (lockRoot.rows[currentIndex].key === "lock")
                 lockRoot.wantLock(!lockRoot.lockOn)

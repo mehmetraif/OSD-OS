@@ -92,14 +92,7 @@ FocusScope {
         groupIndex = (groupIndex + direction + n) % n
         menuList.model = groups[groupIndex].rows
         menuList.currentIndex = 0
-        showCurrent()
-    }
-    // Where the cursor's row shows: in Flat Panel its page.
-    function showCurrent() {
-        if (flat)
-            chrome.pageTo(menuList)
-        else
-            menuList.positionViewAtIndex(menuList.currentIndex, ListView.Contain)
+        menuList.show(0)
     }
     // ► or select on an icon: into the group's rows; Settings' opens it.
     function enterGroup() {
@@ -193,7 +186,7 @@ FocusScope {
         if (index < 0)
             index = keep && keep.currentIndex !== undefined ? Math.min(keep.currentIndex, rows.length - 1) : 0
         menuList.currentIndex = index
-        showCurrent()
+        menuList.show(index)
     }
 
     // Header: in Camcorder, the group's name. In a monitor layout the
@@ -239,7 +232,6 @@ FocusScope {
     // Studio Monitor's strip, and the key guide: the shell's frame, under
     // the rows (Main.qml's root.chrome), which says where they go. No help
     // line: the main menu has none, and its rows take the room (tallHeight).
-    readonly property var chrome: root.chrome
     // The key guide's lines in a monitor layout, as a monitor's has them.
     readonly property var monitorGuide: {
         var h = root.hints
@@ -253,24 +245,19 @@ FocusScope {
                .concat(root.videoBehind ? [h.play_pause + " Stop"] : [])
     }
 
-    ListView {
-        id: menuList;
-        model: [];
-        anchors.top: parent.top
-        anchors.left: parent.left
-        // Where a monitor layout has its rows (MonitorChrome), beside
-        // Camcorder's icons, or where every view has its list.
-        anchors.topMargin: appRoot.monitor ? chrome.listY : root.sh * 0.25 //120
-        anchors.leftMargin: appRoot.monitor ? chrome.listX : appRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
-        width: appRoot.monitor ? chrome.listWidth : appRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
-        height: appRoot.monitor ? chrome.tallHeight : root.sh * 0.525 + root.hintRoom //252
-        onHeightChanged: if (appRoot.flat) Qt.callLater(appRoot.showCurrent)
-        // Flat Panel's last page filled out to a whole page, and the view
-        // left where its page puts it (not moved to follow the cursor).
-        footer: Item { width: 1; height: appRoot.flat ? chrome.pageFill(menuList) : 0 }
-        highlightFollowsCurrentItem: !appRoot.flat
-        clip: true;
-        focus: true;
+    // The rows: where a monitor layout has them (MonitorChrome), beside
+    // Camcorder's icons, or where every view has its list, down to where
+    // the help line would be (tallListHeight); Flat Panel's a page at a
+    // time.
+    MenuList {
+        id: menuList
+        model: []
+        height: root.tallListHeight //252
+        focus: true
+        // In Camcorder's and Studio Monitor's icons, ▲ ▼ go from group to
+        // group.
+        held: appRoot.iconMenu && appRoot.groupIcons
+        onHeldStep: function(delta) { appRoot.moveGroup(delta) }
 
         delegate: Item {
             // In Camcorder's icons the box is on the icon.
@@ -370,30 +357,6 @@ FocusScope {
             }
         }
 
-        Keys.onUpPressed: {
-            if (appRoot.iconMenu && appRoot.groupIcons) {
-                appRoot.moveGroup(-1)
-                return
-            }
-            step(-1)
-        }
-        // A row up (-1) or down (1), round, over Broadcast's gap.
-        function step(direction) {
-            if (count === 0) return
-            do {
-                currentIndex = (currentIndex + direction + count) % count
-            } while (model[currentIndex] && model[currentIndex].gap)
-            appRoot.showCurrent()
-        }
-        Keys.onDownPressed: {
-            if (appRoot.iconMenu && appRoot.groupIcons) {
-                appRoot.moveGroup(1)
-                return
-            }
-            step(1)
-        }
-
-
         // Camcorder: ◄ from the rows to the icons, ► from the icons into the
         // rows.
         Keys.onLeftPressed: function(event) {
@@ -409,11 +372,9 @@ FocusScope {
                 event.accepted = false
         }
 
-        // The mouse over a row (Hover.js): in Camcorder's icons, the keys go
-        // into the rows.
+        // The mouse over a row (Hover.js), which passes over the gap: in
+        // Camcorder's icons, the keys go into the rows.
         function hoverRow(index, list) {
-            if (model[index] && model[index].gap)
-                return
             appRoot.groupIcons = false
             currentIndex = index
         }
@@ -445,15 +406,6 @@ FocusScope {
                 event.accepted = true
             }
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below; Flat Panel's page says
-    // so instead.
-    ScrollMarks {
-        visible: !appRoot.flat
-        anchors.fill: menuList
-        list: menuList
-        color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
     // Camcorder's icons, the groups, at the left of the rows, and Studio

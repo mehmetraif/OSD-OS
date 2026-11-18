@@ -173,21 +173,9 @@ FocusScope {
         // Its line gone (a network forgotten, Wi-Fi turned off): the one now
         // in its place.
         if (index < 0)
-            index = selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
+            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
         list.currentIndex = index
-        list.positionViewAtIndex(index, ListView.Contain)
-    }
-
-    function selectable(row) { return !!row && row.type !== "section" && row.type !== "note" }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
+        list.show(index)
     }
 
     function askPassword(ssid) {
@@ -281,34 +269,13 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         visible: !keyboard.visible
         model: wifiRoot.shownRows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: true
-        // Lines come and go as networks answer: no sliding.
-        highlightMoveDuration: 0
+        onMoved: if (wifiManager) wifiManager.clearMessage()
 
-        function move(step) {
-            if (wifiRoot.rows.length === 0)
-                return
-            currentIndex = wifiRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            if (wifiManager)
-                wifiManager.clearMessage()
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onLeftPressed: {
             var row = wifiRoot.rows[currentIndex]
             if (row && row.type === "power")
@@ -343,15 +310,8 @@ FocusScope {
             value: row.value ? row.value + trail : ""
             icons: row.icons || []
             keepValue: row.type === "network"
-            selected: list.currentIndex === index && wifiRoot.selectable(row)
+            selected: list.currentIndex === index && list.selectable(row)
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        visible: list.visible
-        anchors.fill: list
-        list: list
     }
 
     // What the line is for, or how the last connection went.

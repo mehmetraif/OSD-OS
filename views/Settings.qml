@@ -104,7 +104,7 @@ FocusScope {
             settingsList.openRow(page.row)
             return
         }
-        if (settingsList.currentIndex >= 0 && selectable(settingsList.currentIndex))
+        if (settingsList.stopsAt(settingsList.currentIndex))
             camIcons = false
     }
     // Menu Layout changed while the page is open: laid out again where the
@@ -211,16 +211,6 @@ FocusScope {
             camIcons = true
         else
             goBack()
-    }
-    // Where the cursor's row shows: in Flat Panel its page, else scrolled
-    // into view a whole row at a time.
-    function showCurrent() {
-        if (flat) {
-            chrome.pageTo(settingsList)
-        } else {
-            settingsList.positionViewAtIndex(settingsList.currentIndex, ListView.Contain)
-            settingsList.showWholeRows()
-        }
     }
 
     property var appSettings: ({})
@@ -377,14 +367,10 @@ FocusScope {
         // Restore saved position, or default to first selectable row
         var start = at !== undefined ? Math.min(at, items.length - 1)
                   : navListState.currentIndex !== undefined ? Math.min(navListState.currentIndex, items.length - 1) : 0
-        settingsList.currentIndex = Math.max(0, Math.min(start, items.length - 1))
-        for (var k = 0; k < items.length; k++) {
-            if (selectable((start + k) % items.length)) {
-                settingsList.currentIndex = (start + k) % items.length
-                break
-            }
-        }
-        showCurrent()
+        start = Math.max(0, start)
+        var stop = settingsList.selectableFrom(start, 1)
+        settingsList.currentIndex = settingsList.stopsAt(stop) ? stop : start
+        settingsList.show(settingsList.currentIndex)
     }
 
     // The first screen: a heading for each page, every row under one of them,
@@ -1343,13 +1329,6 @@ FocusScope {
         buildModel(settingsList.currentIndex)
     }
 
-    // The cursor stops on rows, not on headings or STATUS's lines, read
-    // alone.
-    function selectable(idx) {
-        var type = settingsItems[idx].type
-        return type !== "section" && type !== "info"
-    }
-
     // Paste OSD/OS Setup: the clipboard's text, through a box no one sees
     // (QML reads the clipboard only so), set at once; then what became of
     // it, over the rows as they are now.
@@ -1377,17 +1356,6 @@ FocusScope {
             if (outputOptions[i].id === outputCurrent)
                 outputPrompt.choiceIndex = i
         }
-    }
-
-    // The next row the cursor stops on, up (-1) or down (1), round from one
-    // end of the list to the other.
-    function nextSelectable(idx, direction) {
-        var n = settingsItems.length
-        for (var step = 1; step < n; step++) {
-            var i = ((idx + direction * step) % n + n) % n
-            if (selectable(i)) return i
-        }
-        return idx
     }
 
     // A slider's steps wait to be written to config.json until they rest
@@ -1475,63 +1443,21 @@ FocusScope {
     // the rest by the title bar, the help line and the hint bar below.
     readonly property var chrome: root.chrome
 
-    ListView {
+    // The rows: where a monitor layout has them (MonitorChrome), beside
+    // Camcorder's icons, or where every view has its list, a whole row at a
+    // time (a slider's several lines); Flat Panel's a page at a time.
+    MenuList {
         id: settingsList
         model: settingsItems
-        anchors.top: parent.top
-        anchors.left: parent.left
-        // Where a monitor layout has its rows (MonitorChrome), beside
-        // Camcorder's icons, or where every view has its list.
-        anchors.topMargin: settingsRoot.monitor ? chrome.listY : root.sh * 0.25 //120
-        anchors.leftMargin: settingsRoot.monitor ? chrome.listX
-                          : settingsRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
-        width: settingsRoot.monitor ? chrome.listWidth : settingsRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
-        // One row short of the space, so the ▼ fits above the help line; a
-        // row more for each bar that is off (Main.qml's helpRoom, hintRoom).
-        height: settingsRoot.monitor ? chrome.listHeight : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
-        // Flat Panel's page, again as its rows take more room or less.
-        onHeightChanged: if (settingsRoot.flat) Qt.callLater(settingsRoot.showCurrent)
-        // Flat Panel's last page filled out to a whole page, and the view
-        // left where its page puts it (not moved to follow the cursor).
-        footer: Item { width: 1; height: settingsRoot.flat ? chrome.pageFill(settingsList) : 0 }
-        highlightFollowsCurrentItem: !settingsRoot.flat
-        clip: true
         focus: true
-
-        Keys.onUpPressed: {
-            if (settingsRoot.inIcons()) {
-                settingsRoot.moveIcon(-1)
-                return
-            }
-            if (settingsRoot.editIndex >= 0) {
-                settingsRoot.stepEdit(1)
-                return
-            }
-            currentIndex = settingsRoot.nextSelectable(currentIndex, -1)
-            settingsRoot.showCurrent()
-        }
-        Keys.onDownPressed: {
-            if (settingsRoot.inIcons()) {
-                settingsRoot.moveIcon(1)
-                return
-            }
-            if (settingsRoot.editIndex >= 0) {
-                settingsRoot.stepEdit(-1)
-                return
-            }
-            currentIndex = settingsRoot.nextSelectable(currentIndex, 1)
-            settingsRoot.showCurrent()
-        }
-
-        // Rows are whole lines, a slider's several, so a scroll can stop with
-        // a slider cut by an edge: carry on past it, keeping the current row.
-        function showWholeRows() {
-            var top = itemAt(0, contentY + 1)
-            if (top && top !== currentItem && top.y < contentY - 1)
-                contentY = Math.min(top.y + top.height, originY + contentHeight - height)
-            var bottom = itemAt(0, contentY + height - 1)
-            if (bottom && bottom !== currentItem && bottom.y + bottom.height > contentY + height + 1)
-                contentY = Math.max(bottom.y - height, originY)
+        // In the icons ▲ ▼ go from page to page; a value being changed in
+        // two steps, ▲ a step on and ▼ one back.
+        held: settingsRoot.inIcons() || settingsRoot.editIndex >= 0
+        onHeldStep: function(delta) {
+            if (settingsRoot.inIcons())
+                settingsRoot.moveIcon(delta)
+            else
+                settingsRoot.stepEdit(-delta)
         }
 
         // The current row, changed, in place of the old one. The model is
@@ -1732,10 +1658,9 @@ FocusScope {
         // The mouse over a row (Hover.js): on Camcorder's first screen, the
         // keys go into the rows; over the row of a page with none of its own,
         // they stay in the icons. A line the cursor doesn't stop on (STATUS's,
-        // read alone: selectable()) takes neither the cursor nor the keys.
+        // read alone: MenuList's selectable()) takes neither the cursor nor
+        // the keys: the mouse passes over it.
         function hoverRow(index, list) {
-            if (!settingsRoot.selectable(index))
-                return
             if (index !== currentIndex)
                 settingsRoot.editIndex = -1
             if (settingsRoot.inIcons()) {
@@ -1820,15 +1745,6 @@ FocusScope {
                 }
             }
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below; Flat Panel's page says
-    // so instead.
-    ScrollMarks {
-        visible: !settingsRoot.flat
-        anchors.fill: settingsList
-        list: settingsList
-        color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
     // Camcorder's icons, the first screen's pages, at the left of the rows,

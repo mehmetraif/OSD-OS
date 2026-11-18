@@ -126,25 +126,13 @@ FocusScope {
         }
         // Its line gone (a device forgotten): the one now in its place.
         if (index < 0)
-            index = selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
+            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
         list.currentIndex = index
-        list.positionViewAtIndex(index, ListView.Contain)
+        list.show(index)
     }
-
-    function selectable(row) { return !!row && row.type !== "section" && row.type !== "note" }
 
     // Which line a row is, whatever it says now.
     function lineId(row) { return row.type + ":" + (row.type === "device" ? row.device.path : row.label) }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
-    }
 
     function activate(row) {
         if (!row || !bluetoothManager)
@@ -199,33 +187,12 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: bluetoothRoot.shownRows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: true
-        // Lines come and go as devices answer: no sliding.
-        highlightMoveDuration: 0
+        onMoved: if (bluetoothManager) bluetoothManager.clearMessage()
 
-        function move(step) {
-            if (bluetoothRoot.rows.length === 0)
-                return
-            currentIndex = bluetoothRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            if (bluetoothManager)
-                bluetoothManager.clearMessage()
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onLeftPressed: {
             var row = bluetoothRoot.rows[currentIndex]
             if (row && row.type === "power")
@@ -259,14 +226,8 @@ FocusScope {
             value: row.value ? row.value + trail : ""
             // A long name is cut, not CONNECTED or PAIRED after it.
             keepValue: row.type === "device"
-            selected: list.currentIndex === index && bluetoothRoot.selectable(row)
+            selected: list.currentIndex === index && list.selectable(row)
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: list
-        list: list
     }
 
     // What the line is for, or how the last pairing went.

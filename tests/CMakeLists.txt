@@ -573,6 +573,12 @@ set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offsc
 add_test(NAME main_menu_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_main_menu.qml
                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
 set_tests_properties(main_menu_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# A view's menu (views/Components/MenuList.qml) on its own: the rows its
+# cursor and the mouse stop on, round the ends, and the cursor held for the
+# host.
+add_test(NAME menu_list_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_menu_list.qml
+                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
+set_tests_properties(menu_list_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 # Settings → Network → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
 # switch, the country and its chooser, joining with a password, a network's
 # options, one not listed, and a search.

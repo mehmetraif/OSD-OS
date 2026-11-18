@@ -125,6 +125,9 @@ FocusScope {
         id: optionsList
         model: multiSelectRoot.rows
         focus: true
+        // A heading is a line of its own here, which turns its group on or
+        // off: the cursor, and the mouse, stop on every line.
+        rule: function(row) { return !!row }
 
         delegate: MenuRow {
             required property var modelData

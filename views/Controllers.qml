@@ -58,9 +58,9 @@ FocusScope {
                 index = i
         }
         if (index < 0 && navListState.currentIndex !== undefined)
-            index = selectableFrom(Math.min(navListState.currentIndex, rows.length - 1), 1)
-        list.currentIndex = index >= 0 ? index : selectableFrom(0, 1)
-        list.positionViewAtIndex(list.currentIndex, ListView.Contain)
+            index = list.selectableFrom(Math.min(navListState.currentIndex, rows.length - 1), 1)
+        list.currentIndex = index >= 0 ? index : list.selectableFrom(0, 1)
+        list.show(list.currentIndex)
     }
 
     function isPad(c) { return c.kind === "gamepad" || c.kind === "arcade" }
@@ -134,31 +134,17 @@ FocusScope {
         // gone (a controller unplugged), on the one now in its place.
         var index = -1
         for (var k = 0; k < items.length && current && index < 0; k++) {
-            if (at(items[k]) === at(current) && selectable(items[k]))
+            if (at(items[k]) === at(current) && list.selectable(items[k]))
                 index = k
         }
         if (index < 0)
-            index = selectableFrom(Math.min(Math.max(before, 0), items.length - 1), 1)
+            index = list.selectableFrom(Math.min(Math.max(before, 0), items.length - 1), 1)
         list.currentIndex = index
-    }
-
-    function selectable(row) {
-        return !!row && row.type !== "note" && row.type !== "section"
-    }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
     }
 
     // A line that leads to a page: every one but the players'.
     function opens(row) {
-        return selectable(row) && row.type !== "players"
+        return list.selectable(row) && row.type !== "players"
     }
 
     function listState(row) {
@@ -166,7 +152,7 @@ FocusScope {
     }
 
     function activate(row) {
-        if (!selectable(row) || !inputManager)
+        if (!list.selectable(row) || !inputManager)
             return
         if (row.type === "controller") {
             navigateTo("views/ControllerSettings.qml", { key: row.key }, listState(row))
@@ -196,42 +182,15 @@ FocusScope {
         anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: controllersRoot.rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: true
-        // Lines come and go as controllers do: no sliding.
-        highlightMoveDuration: 0
+        // The lines the cursor passes over before or after it (a note at an
+        // end of the list) shown with the cursor's.
+        showEnds: true
+        onMoved: controllersRoot.notice = ""
 
-        // The cursor's line in view, and with it the lines the cursor passes
-        // over before or after it (a note at an end of the list).
-        function showCurrent() {
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            if (controllersRoot.selectableFrom(0, 1) === currentIndex)
-                positionViewAtBeginning()
-            else if (controllersRoot.selectableFrom(controllersRoot.rows.length - 1, -1) === currentIndex)
-                positionViewAtEnd()
-        }
-
-        function move(step) {
-            if (controllersRoot.rows.length === 0)
-                return
-            currentIndex = controllersRoot.selectableFrom(currentIndex + step, step)
-            showCurrent()
-            controllersRoot.notice = ""
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onRightPressed: {
             var row = controllersRoot.rows[currentIndex]
             if (controllersRoot.opens(row))
@@ -257,14 +216,8 @@ FocusScope {
             opens: controllersRoot.opens(modelData)
             // A long name is cut short, not what it is.
             keepValue: true
-            selected: list.currentIndex === index && controllersRoot.selectable(modelData)
+            selected: list.currentIndex === index && list.selectable(modelData)
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: list
-        list: list
     }
 
     HelpLine {
