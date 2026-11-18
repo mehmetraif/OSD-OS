@@ -70,13 +70,24 @@ FocusScope {
     // the transcode a failed direct play falls back to.
     readonly property bool waiting: pendingNextEpisode || pendingRetryTranscode
 
-    // Back to the detail screen from a wait that won't end: the server failed
-    // it, or the user gave up on it with back. Its answer, should it come, is
-    // dropped.
-    function leaveWaiting() {
+    // A wait that won't end: the server failed it, or the user gave up on it
+    // with back. Its answer, should it come, is dropped. A transcode a failed
+    // direct play fell back to is reported stopped, as a failed one is, so
+    // Plex doesn't keep the session playing; a next episode never started is
+    // reported nothing, not even as the view goes (Component.onDestruction):
+    // a stop at 0 would wipe its resume point.
+    function endWait() {
+        if (pendingRetryTranscode)
+            reportStopped(lastKnownPositionMs, lastKnownDurationMs)
+        stoppedReported = true
         pendingNextEpisode = false
         pendingRetryTranscode = false
         plexBackend.cancel_stream()
+    }
+
+    // Back to the detail screen from a wait that won't end.
+    function leaveWaiting() {
+        endWait()
         goBack()
     }
 
@@ -85,8 +96,9 @@ FocusScope {
 
     // The video that failed, again where it got to (the notice's RETRY), as
     // it was played: direct, or the transcode a failed direct play fell back
-    // to.
+    // to. Reported as playing again from there.
     function retryPlayback() {
+        stoppedReported = false
         playbackStarted = false
         doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)
     }
@@ -158,12 +170,14 @@ FocusScope {
     }
 
     // Report the final "stopped" timeline for the current episode exactly once.
-    // The fallback position/duration are used only when no live value is known.
+    // The fallback position/duration are used only when no live value is known,
+    // and the item's own resume point when neither is (a failure before the
+    // first picture, back on the resume question): a stop at 0 would wipe it.
     function reportStopped(finalPositionMs, finalDurationMs) {
         if (stoppedReported) return
         stoppedReported = true
         if (!trackProgress) return
-        var pos = lastKnownPositionMs || finalPositionMs
+        var pos = lastKnownPositionMs || finalPositionMs || viewOffset
         var dur = lastKnownDurationMs || finalDurationMs
         plexBackend.update_timeline(ratingKey, partKey, "stopped", pos, dur)
     }
@@ -247,9 +261,7 @@ FocusScope {
     // detail screen, not a black screen with no mpv to take a key.
     function waitFailed(msg) {
         var next = pendingNextEpisode
-        pendingNextEpisode = false
-        pendingRetryTranscode = false
-        plexBackend.cancel_stream()
+        endWait()
         failure.show(next ? "The next video could not be started" : "The server could not stream it",
                      msg, false)
     }
@@ -418,8 +430,10 @@ FocusScope {
                                                   0)
                 } else {
                     // The transcode failed too, or mpv itself did (not
-                    // installed, say), which no transcode mends: why, with
-                    // RETRY.
+                    // installed, say), which no transcode mends: reported
+                    // stopped, so Plex doesn't keep the session and its
+                    // transcode playing, then why, with RETRY.
+                    reportStopped(finalPositionMs, finalDurationMs)
                     failure.showMpv(true)
                 }
                 return
@@ -488,6 +502,15 @@ FocusScope {
         } else {
             doStartPlayback(viewOffset)
         }
+    }
+
+    // Safety net: the view gone with its video not reported stopped (the
+    // app quit, PinAuth in its place, back from the resume question), or
+    // Plex shows it playing until the server times the session out. The
+    // guard in reportStopped prevents double-reporting.
+    Component.onDestruction: {
+        if (streamUrl !== "")
+            reportStopped(lastKnownPositionMs, lastKnownDurationMs)
     }
 
     Rectangle {

@@ -265,7 +265,11 @@ Rectangle {
         function expand_queue(items) { queueAsks++ }
         function request_transcode() { transcodes++ }
         function build_stream_url(ratingKey, partKey, sessionId) { streamUrlReady("http://plex/" + ratingKey, "token") }
-        function update_timeline() {}
+        // The timelines reported: [ratingKey, state, time].
+        property var timelines: []
+        function update_timeline(ratingKey, partKey, state, timeMs, durationMs) {
+            timelines = timelines.concat([[ratingKey, state, timeMs]])
+        }
         function load_next_episode(ratingKey) { nextAsks++ }
         function load_queue_item(ratingKey) {}
         function load_random_episode(scope) {}
@@ -437,6 +441,7 @@ Rectangle {
             plexBackend.queueAsks = 0
             plexBackend.authState = "authed"
             plexBackend.tunes = 0
+            plexBackend.timelines = []
             ambientModeBackend.audioStops = 0
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
@@ -523,6 +528,71 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
             compare(mpvController.loads, 1)
+        }
+
+        // A video that failed, or a wait given up, is reported stopped to
+        // Plex once, so the server keeps no session playing: at the item's
+        // resume point where no position was reached, a stop at 0 wiping it.
+        // The transcode a failed direct play falls back to failing, or left
+        // while it comes; a transcode that plays and fails (reported again
+        // once RETRY has played it); the player gone with its video not
+        // reported. A next episode never started reports nothing.
+        function test_plexFailureReportsStopped_data() {
+            return [{ tag: "fallback fails", how: "fallback fails" },
+                    { tag: "back while the fallback comes", how: "back" },
+                    { tag: "transcode fails", how: "transcode fails" },
+                    { tag: "player gone", how: "gone" },
+                    { tag: "next episode never started", how: "next" }]
+        }
+        function test_plexFailureReportsStopped(data) {
+            appCore.settings = { resume_playback: "always", autoplay_next_episode: true }
+            var player = open("plex", "Player.qml", { streamUrl: "http://plex/10", plexToken: "token",
+                                                      ratingKey: "10", partKey: "/library/parts/10",
+                                                      title: "Episode 1", viewOffset: 5000 })
+            compare(mpvController.loads, 1)
+            var stopped = [["10", "stopped", 5000]]
+            if (data.how === "gone") {
+                loader.source = ""
+                compare(plexBackend.timelines, stopped)
+                return
+            }
+            if (data.how === "next") {
+                mpvController.playbackEnded(60000, 60000, "eof")
+                stopped = [["10", "stopped", 60000]]
+                compare(plexBackend.timelines, stopped)
+                plexBackend.nextEpisodeReady({ ratingKey: "11", partKey: "/library/parts/11", title: "Episode 2",
+                                               forceTranscode: true, audioStreams: [], subtitleStreams: [] })
+                plexBackend.errorOccurred("TRANSCODE FAILED: Internal Server Error")
+                keyClick(Qt.Key_Escape)
+                compare(root.backs, 1)
+                loader.source = ""
+                compare(plexBackend.timelines, stopped)
+                return
+            }
+            mpvController.playbackEnded(0, 0, "failed")
+            verify(player.waiting)
+            compare(plexBackend.timelines, [])
+            if (data.how === "back") {
+                keyClick(Qt.Key_Escape)
+                compare(root.backs, 1)
+            } else if (data.how === "fallback fails") {
+                plexBackend.errorOccurred("TRANSCODE FAILED: Host unreachable")
+                verify(noticeOf(player).visible)
+            } else {
+                plexBackend.streamUrlReady("http://plex/transcode", "token")
+                compare(mpvController.loads, 2)
+                compare(plexBackend.timelines, [])
+                mpvController.playbackEnded(0, 0, "failed")
+                verify(noticeOf(player).visible)
+                compare(plexBackend.timelines, stopped)
+                keyClick(Qt.Key_Return)
+                compare(mpvController.loads, 3)
+                mpvController.playbackEnded(0, 0, "failed")
+                stopped = stopped.concat(stopped)
+            }
+            compare(plexBackend.timelines, stopped)
+            loader.source = ""
+            compare(plexBackend.timelines, stopped)
         }
 
         // mpv itself failed (not installed): no transcode, which wouldn't
