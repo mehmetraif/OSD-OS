@@ -11,10 +11,15 @@
 #include <functional>
 #include <openssl/evp.h>
 
+class AppCore;
+
 class PlexBackend : public QObject {
     Q_OBJECT
 public:
-    explicit PlexBackend(const QString &appRoot, const QString &dataRoot, QObject *parent = nullptr);
+    // The module's settings are read and saved through appCore; without one
+    // (the tests) there are none, and none are saved.
+    explicit PlexBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore = nullptr,
+                         QObject *parent = nullptr);
 
     // Sync — no HTTP
     Q_INVOKABLE QString  get_auth_state();
@@ -199,10 +204,6 @@ private:
     mutable qint64      m_authCacheSize = -1;
     mutable bool        m_authCacheValid = false;
 
-    // Config file helpers (shared with AppCore)
-    QJsonObject loadConfig(bool *readable = nullptr) const;
-    void saveConfig(const QJsonObject &cfg) const;
-
     // Plex HTTP helpers
     QNetworkRequest plexRequest(const QUrl &url, const QString &token) const;
     QNetworkReply  *plexGet(const QUrl &url, const QString &token);
@@ -369,8 +370,8 @@ private:
     void handle498(std::function<void()> retryOp);
     QList<std::function<void()>> m_pendingRetries;    // met with a 498 while a refresh runs
 
-    // The module's settings (modules.com.osdos.plex in config.json) and the
-    // server every request goes to
+    // The module's settings (modules.<id> in config.json, through AppCore)
+    // and the server every request goes to
     QJsonValue plexSetting(const QString &key) const;
     void savePlexSetting(const QString &key, const QJsonValue &value);
     void profileNotSwitched();
@@ -381,6 +382,7 @@ private:
 
     QString m_appRoot;
     QString m_dataRoot;
+    AppCore *m_appCore = nullptr;
     QNetworkAccessManager *m_nam;
     QTimer *m_pollTimer;
     QString m_pendingPinId;

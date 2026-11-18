@@ -1,4 +1,5 @@
 #include "PlexBackend.h"
+#include "../../AppCore.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/ServerLog.h"
 
@@ -26,6 +27,7 @@
 #include <openssl/bio.h>
 
 static const QString PLEX_TV = QStringLiteral("https://plex.tv");
+static const QString kModuleId = QStringLiteral("com.osdos.plex");
 
 // Auth logging helpers.  plex.tv issues JWTs while PMS only accepts opaque
 // per-server tokens, so "which kind of token did we end up with" is the single
@@ -58,10 +60,12 @@ static const QString kPlexPlatform = QStringLiteral("Linux");
 // Construction
 // ---------------------------------------------------------------------------
 
-PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, QObject *parent)
+PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
+                         QObject *parent)
     : QObject(parent)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
+    , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
     , m_pollTimer(new QTimer(this))
 {
@@ -102,28 +106,6 @@ void PlexBackend::saveAuth(const QJsonObject &auth) const {
     m_authCacheValid = false;
     writeFileAtomically(m_dataRoot + "/plex_auth.json", QJsonDocument(auth).toJson(QJsonDocument::Indented),
                         QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-}
-
-// config.json's settings; `readable` false where the file is there and isn't
-// JSON (a hand edit gone wrong), which is not the same as no settings yet.
-QJsonObject PlexBackend::loadConfig(bool *readable) const {
-    if (readable)
-        *readable = true;
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        const QByteArray text = f.readAll();
-        QJsonParseError err;
-        auto doc = QJsonDocument::fromJson(text, &err);
-        if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
-        if (readable && !text.trimmed().isEmpty())
-            *readable = false;
-    }
-    return {};
-}
-
-void PlexBackend::saveConfig(const QJsonObject &cfg) const {
-    writeFileAtomically(m_dataRoot + "/config.json", QJsonDocument(cfg).toJson(QJsonDocument::Indented));
 }
 
 // ---------------------------------------------------------------------------
@@ -838,8 +820,7 @@ QString PlexBackend::userToken() const {
 }
 
 QString PlexBackend::videoQuality() const {
-    QJsonObject cfg = loadConfig();
-    return cfg["modules"].toObject()["com.osdos.plex"].toObject()["video_quality"].toString("auto");
+    return plexSetting("video_quality").toString("auto");
 }
 
 // ---------------------------------------------------------------------------
@@ -1473,27 +1454,16 @@ void PlexBackend::select_user(const QString &userId, const QString &pin) {
     });
 }
 
-// The module's settings in config.json (modules.com.osdos.plex): a setting,
-// and one saved.
+// The module's settings in config.json (modules.<id>), through AppCore: a
+// setting, and one saved. AppCore leaves a config.json it can't read as it
+// is: this one key written over it would replace every setting the user has.
 QJsonValue PlexBackend::plexSetting(const QString &key) const {
-    return loadConfig()["modules"].toObject()["com.osdos.plex"].toObject()[key];
+    return m_appCore ? QJsonValue::fromVariant(m_appCore->get_setting(kModuleId, key)) : QJsonValue();
 }
 
 void PlexBackend::savePlexSetting(const QString &key, const QJsonValue &value) {
-    // Written over an unreadable file, this one key would replace every
-    // setting the user has: AppCore refuses to save over it too.
-    bool readable = true;
-    QJsonObject cfg = loadConfig(&readable);
-    if (!readable) {
-        qWarning().noquote() << "[Plex] config.json can't be read:" << key << "not saved";
-        return;
-    }
-    QJsonObject mods = cfg["modules"].toObject();
-    QJsonObject plexCfg = mods["com.osdos.plex"].toObject();
-    plexCfg[key] = value;
-    mods["com.osdos.plex"] = plexCfg;
-    cfg["modules"] = mods;
-    saveConfig(cfg);
+    if (m_appCore)
+        m_appCore->save_setting(kModuleId, key, value.toVariant());
 }
 
 // The server every request goes to from now on. ratingKeys are server-local,
@@ -1693,8 +1663,7 @@ void PlexBackend::load_libraries_impl() {
 
             QJsonObject auth = loadAuth();
             QString machineId = auth["active_server_machine_id"].toString();
-            QJsonObject libEnabled = loadConfig()["modules"].toObject()
-                                     ["com.osdos.plex"].toObject()["libraries"].toObject();
+            QJsonObject libEnabled = plexSetting("libraries").toObject();
 
             QVariantList items;
             if (hasCw)
@@ -3215,8 +3184,7 @@ void PlexBackend::getLibraries() {
 }
 
 void PlexBackend::applyCurrentUserSetting() {
-    QString userId = loadConfig()["modules"].toObject()
-                     ["com.osdos.plex"].toObject()["current_user_id"].toString();
+    QString userId = plexSetting("current_user_id").toString();
     if (userId.isEmpty()) return;
 
     // This runs from the app Settings screen, where the Plex views are not loaded
@@ -3245,8 +3213,7 @@ void PlexBackend::applyCurrentUserSetting() {
 }
 
 void PlexBackend::applyCurrentServerSetting() {
-    QString machineId = loadConfig()["modules"].toObject()
-                        ["com.osdos.plex"].toObject()["server_machine_id"].toString();
+    QString machineId = plexSetting("server_machine_id").toString();
     if (machineId.isEmpty()) return;
     QJsonObject auth = loadAuth();
     QJsonObject server;

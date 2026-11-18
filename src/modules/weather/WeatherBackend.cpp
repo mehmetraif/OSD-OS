@@ -1,4 +1,5 @@
 #include "WeatherBackend.h"
+#include "../../AppCore.h"
 #include "../../util/MpvLocator.h"
 #include "../../audio/AudioOutput.h"
 #include "../../audio/MenuMusic.h"
@@ -28,7 +29,7 @@
 
 namespace {
 
-const char *kModuleId   = "com.osdos.weather";
+const QString kModuleId = QStringLiteral("com.osdos.weather");
 const char *kForecastUrl = "https://api.open-meteo.com/v1/forecast";
 const char *kGeocodeUrl  = "https://geocoding-api.open-meteo.com/v1/search";
 const char *kNwsPointsUrl = "https://api.weather.gov/points";
@@ -458,10 +459,11 @@ double localSpeed(double kmh, bool us)    { return us ? kmh / 1.609344 : kmh; }
 } // namespace
 
 WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
-                               QObject *parent)
+                               AppCore *appCore, QObject *parent)
     : QObject(parent)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
+    , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
     , m_refresh(new QTimer(this)) {
     // A service that stops answering (a captive portal holding the socket)
@@ -489,30 +491,21 @@ QString WeatherBackend::music_file_path() const {
     return m_dataRoot + QStringLiteral("/weather_music.txt");
 }
 
-QJsonObject WeatherBackend::loadConfig() const {
-    QFile f(m_dataRoot + QStringLiteral("/config.json"));
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonParseError err;
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
-    }
-    return {};
-}
-
-QJsonObject WeatherBackend::moduleConfig() const {
-    return loadConfig()["modules"].toObject()[kModuleId].toObject();
+// One of the module's settings (modules.<id>.<key>), through AppCore; none
+// without one (the tests).
+QJsonValue WeatherBackend::setting(const QString &key) const {
+    return m_appCore ? QJsonValue::fromVariant(m_appCore->get_setting(kModuleId, key)) : QJsonValue();
 }
 
 bool WeatherBackend::useUsUnits() const {
-    return moduleConfig()["units"].toString(QStringLiteral("Metric"))
+    return setting(QStringLiteral("units")).toString(QStringLiteral("Metric"))
                .compare(QLatin1String("US"), Qt::CaseInsensitive) == 0;
 }
 
 void WeatherBackend::onSettingChanged(const QString &moduleId, const QString &key,
                                       const QVariant &value) {
     Q_UNUSED(value)
-    if (moduleId != QLatin1String(kModuleId)) return;
+    if (moduleId != kModuleId) return;
     // Units change the requested values, not just their presentation, so a
     // switch has to re-fetch rather than reformat. Both fetches: the extras are
     // a separate request, and refreshing only the primary left the Other
@@ -612,11 +605,11 @@ bool WeatherBackend::musicPlaying() const {
 void WeatherBackend::startMusic() {
     // Toggles are stored as JSON booleans, but tolerate the manifest's "ON"
     // spelling in case a config was written before that convention.
-    const QJsonValue setting = moduleConfig()[QStringLiteral("music")];
-    const bool enabled = setting.isString()
-                             ? setting.toString().compare(QLatin1String("ON"),
-                                                          Qt::CaseInsensitive) == 0
-                             : setting.toBool(true);
+    const QJsonValue music = setting(QStringLiteral("music"));
+    const bool enabled = music.isString()
+                             ? music.toString().compare(QLatin1String("ON"),
+                                                        Qt::CaseInsensitive) == 0
+                             : music.toBool(true);
     if (!enabled) return;
     if (m_music) return;
     // One asked to end a moment ago still has the sound card: not two at once.
@@ -775,7 +768,7 @@ QStringList WeatherBackend::readLocationLines() const {
 // (modules.<id>.<key>, a list of lines): its lines that say something.
 QStringList WeatherBackend::settingLines(const char *key) const {
     QStringList lines;
-    const QJsonArray typed = moduleConfig()[QLatin1String(key)].toArray();
+    const QJsonArray typed = setting(QLatin1String(key)).toArray();
     for (const QJsonValue &v : typed) {
         const QString line = v.toString().trimmed();
         if (!line.isEmpty() && !line.startsWith(QLatin1Char('#')) && !lines.contains(line))
@@ -828,7 +821,7 @@ void WeatherBackend::resolveLocation() {
     // lines after its first are the other places then, and with no file there
     // are none. Without the setting the file says both, as it always has.
     // Settings' Other Places come before the file's.
-    const QString chosen = moduleConfig()[QStringLiteral("location")].toString().trimmed();
+    const QString chosen = setting(QStringLiteral("location")).toString().trimmed();
     QFile probe(location_file_path());
     if (chosen.isEmpty()) {
         if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
@@ -1428,7 +1421,7 @@ void WeatherBackend::buildAlmanac(const QJsonObject &daily) {
 }
 
 bool WeatherBackend::useTwelveHour() const {
-    return moduleConfig()["hours_format"].toString(QStringLiteral("24-hour"))
+    return setting(QStringLiteral("hours_format")).toString(QStringLiteral("24-hour"))
                .startsWith(QLatin1String("12"));
 }
 

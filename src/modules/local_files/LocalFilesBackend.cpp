@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <algorithm>
 
+static const QString kModuleId = QStringLiteral("com.osdos.local_files");
 // supported image types
 static const QStringList kImageExts = {
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff"
@@ -68,14 +69,8 @@ LocalFilesBackend::LocalFilesBackend(const QString &appRoot, const QString &data
     connect(m_drives, &RemovableDrives::changed, this, &LocalFilesBackend::drivesChanged);
     // The configured media directory, else the default, made if it isn't
     // there (the image's Movies, on a card fresh from its first boot).
-    QString dir;
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonObject cfg = QJsonDocument::fromJson(f.readAll()).object();
-        dir = cfg["modules"].toObject()["com.osdos.local_files"].toObject()
-                  ["media_directory"].toString();
-    }
-    setMediaRoot(dir);
+    setMediaRoot(m_appCore ? m_appCore->get_setting(kModuleId, QStringLiteral("media_directory")).toString()
+                           : QString());
 }
 
 bool LocalFilesBackend::isImage(const QString &path) const {
@@ -209,7 +204,6 @@ void LocalFilesBackend::get_subtitle_languages() {
 }
 
 QVariant LocalFilesBackend::entries(const QString &path) {
-    static const QString kModuleId = QStringLiteral("com.osdos.local_files");
     if (path == QLatin1String("recent") || path == QLatin1String("favorites"))
         return existing(m_appCore ? m_appCore->get_list(kModuleId, path) : QVariantList());
     if (path.startsWith(QLatin1String("search/")))
@@ -280,7 +274,7 @@ void LocalFilesBackend::setMediaRoot(const QString &path) {
 }
 
 void LocalFilesBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
-    if (moduleId == QLatin1String("com.osdos.local_files") && key == QLatin1String("media_directory"))
+    if (moduleId == kModuleId && key == QLatin1String("media_directory"))
         setMediaRoot(value.toString());
 }
 

@@ -31,6 +31,7 @@ static constexpr int kMaxRespawns = 5;
 // be reopened twice a second.
 static constexpr qint64 kDetectIntervalMs = 2000;
 static const char *kTagsDirName = "nfc_tags";
+static const QString kModuleId = QStringLiteral("com.osdos.nfc_reader");
 
 // Card refs that carry a URI scheme belonging to another module are handed off to
 // it rather than played here. Adding a module means adding a row: the rest of the
@@ -161,11 +162,10 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
     m_tagsDir = m_dataRoot + "/" + kTagsDirName;
     bool configuredEnabled = false;
     if (m_appCore) {
-        const QString dir = m_appCore->get_setting(QStringLiteral("com.osdos.nfc_reader"),
-                                                   QStringLiteral("tags_directory")).toString();
+        const QString dir = m_appCore->get_setting(kModuleId, QStringLiteral("tags_directory")).toString();
         if (!dir.isEmpty())
             m_tagsDir = dir;
-        configuredEnabled = m_appCore->is_module_enabled(QStringLiteral("com.osdos.nfc_reader"));
+        configuredEnabled = m_appCore->is_module_enabled(kModuleId);
     }
     qDebug("[NfcReader] Tags dir: %s", qPrintable(tagsDirPath()));
 
@@ -337,7 +337,7 @@ void NfcReaderBackend::setTagsDir(const QString &path) {
 }
 
 void NfcReaderBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
-    if (moduleId != QLatin1String("com.osdos.nfc_reader")) return;
+    if (moduleId != kModuleId) return;
 
     if (key == QLatin1String("enabled")) {
         // Same rule as the constructor / AppCore::isModuleEnabled: only an

@@ -700,7 +700,9 @@ private slots:
             return QJsonDocument::fromJson(auth.readAll()).object().value("active_user_id").toString();
         };
         write(QStringLiteral("2"));
-        PlexBackend backend(tmp.path(), tmp.path());
+        // The module's settings are kept by AppCore, as in the app.
+        AppCore core(tmp.path(), tmp.path());
+        PlexBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend);
         backend.m_nam = network;

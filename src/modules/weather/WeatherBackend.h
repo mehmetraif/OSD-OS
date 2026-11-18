@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <functional>
 
+class AppCore;
 class QNetworkAccessManager;
 class QTimer;
 class QLocalSocket;
@@ -49,8 +50,10 @@ class WeatherBackend : public QObject {
     Q_PROPERTY(bool musicPlaying READ musicPlaying NOTIFY musicStateChanged)
 
 public:
+    // The module's settings are read through appCore; without one (the
+    // tests) there are none.
     explicit WeatherBackend(const QString &appRoot, const QString &dataRoot,
-                            QObject *parent = nullptr);
+                            AppCore *appCore = nullptr, QObject *parent = nullptr);
     ~WeatherBackend() override;
 
     QString     locationName()     const { return m_locationName; }
@@ -102,8 +105,7 @@ public slots:
 
 private:
     friend class ReliabilityTest;
-    QJsonObject loadConfig() const;
-    QJsonObject moduleConfig() const;
+    QJsonValue  setting(const QString &key) const;
     bool        useUsUnits() const;
 
     void resolveLocation();
@@ -160,6 +162,7 @@ private:
 
     QString m_appRoot;
     QString m_dataRoot;
+    AppCore *m_appCore = nullptr;
     QNetworkAccessManager *m_nam = nullptr;
     QTimer  *m_refresh = nullptr;
 

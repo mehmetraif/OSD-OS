@@ -302,7 +302,7 @@ appCore.registerModule("com.osdos.<name>", "yourBackend", &yourBackend, ctx);
 | slot `onSettingChanged(QString, QString, QVariant)` | `appCore.moduleSettingChanged(moduleId, key, value)` |
 | property `QStringList statusIcons` with a notify signal | gathered into `appCore.statusIcons`, its notify signal re-emitted as `appCore.statusIconsChanged` |
 
-The module ID lives in exactly one place per module — this call. Declare these members with the exact signatures above and `registerModule` wires them with no other changes to `main.cpp`.
+The module ID lives in exactly one place per module in `main.cpp` — this call (a backend that reads its own settings names it once more, in its `kModuleId`). Declare these members with the exact signatures above and `registerModule` wires them with no other changes to `main.cpp`.
 
 #### Probed, not connected
 
@@ -813,7 +813,8 @@ Please review `PlexBackend` as a reference implementation.
 - For auth-gated modules, emit `authStateChanged()` on sign-in/out, and only when the state has changed — auto-connected and re-emitted as `moduleAuthStateChanged(moduleId)`. Jellyfin's and Emby's `Root.qml` route on it alone, sign-out and a revoked token included, so an auth check that changes nothing would reload the view over itself, or take the user back from a library opened meanwhile: their `notifyAuthState()` emits it only for a state other than the last.
 - To react to your own settings changing, add a slot `onSettingChanged(moduleId, key, value)` — auto-connected to `moduleSettingChanged`.
 - A backend is built whether its module is on or not, so it starts nothing of its own as the app starts with the module off (`AppCore::is_module_enabled()`): no download, no folder read, no polling. Turned on, its `onSettingChanged(moduleId, "enabled", value)` comes, and it starts then. Playlists' downloads, the NFC Reader's tags folder and the Scripts folder (read only as the module lists or runs its scripts) work this way.
-- A backend resolves its own configured paths in its constructor — e.g. `LocalFilesBackend` / `AmbientModeBackend` read `media_directory` from `config.json` (defaulting to `dataRoot/media/Movies` / `dataRoot/ambient`; Local Files takes `Movies` in `OSDOS_MEDIA_DIR` first when the environment sets it, as the OSD/OS image does for the card's film partition). `main.cpp` does not touch module paths.
+- A backend reads and saves its settings through the `AppCore` `main.cpp` gives it (`get_setting` / `save_setting`), never `config.json` itself, and names its module once, in a `kModuleId` constant of its `.cpp` (the id its `registerModule` call gives). Built without one (the tests), it has no settings and saves none.
+- A backend resolves its own configured paths in its constructor — e.g. `LocalFilesBackend` / `AmbientModeBackend` read `media_directory` (defaulting to `dataRoot/media/Movies` / `dataRoot/ambient`; Local Files takes `Movies` in `OSDOS_MEDIA_DIR` first when the environment sets it, as the OSD/OS image does for the card's film partition). `main.cpp` does not touch module paths.
 
 ## QML View Patterns
 

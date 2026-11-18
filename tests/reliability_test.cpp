@@ -100,12 +100,12 @@ private slots:
     // lines are the other places; changed, it is looked up again at once.
     void weatherLocationFromItsSetting() {
         QTemporaryDir tmp;
-        const auto config = [&tmp](const QByteArray &location) {
-            QFile file(tmp.path() + "/config.json");
-            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"" + location + "\"}}}");
+        // The setting saved as Settings saves it, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const QString &location) {
+            QVERIFY(core.save_setting("com.osdos.weather", "location", location));
         };
-        WeatherBackend backend(tmp.path(), tmp.path());
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend); backend.m_nam = network;
         QSignalSpy errors(&backend, &WeatherBackend::locationError);
@@ -145,10 +145,10 @@ private slots:
     // the music in place of the file's and the built-in tracks.
     void weatherListsFromTheirSettings() {
         QTemporaryDir tmp;
-        const auto config = [&tmp](const QByteArray &rest) {
-            QFile file(tmp.path() + "/config.json");
-            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"41.01, 28.98, Istanbul\"" + rest + "}}}");
+        // The settings saved as Settings saves them, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const char *key, const QVariant &value) {
+            QVERIFY(core.save_setting("com.osdos.weather", key, value));
         };
         const auto others = [](const WeatherBackend &backend) {
             QStringList names;
@@ -156,7 +156,7 @@ private slots:
                 names << point.toMap().value("name").toString();
             return names;
         };
-        WeatherBackend backend(tmp.path(), tmp.path());
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend); backend.m_nam = network;
         {
@@ -164,11 +164,11 @@ private slots:
             QVERIFY(file.open(QIODevice::WriteOnly));
             file.write("0.0, 0.0, Passed Over\n52.52, 13.40, Berlin\n60.0, 10.0, Oslo\n");
         }
-        config("");
+        config("location", "41.01, 28.98, Istanbul");
         backend.resolveLocation();
         QCOMPARE(others(backend), QStringList({ "BERLIN", "OSLO" }));
 
-        config(",\"other_places\":[\"48.85, 2.35, Paris\",\" \",\"60.0, 10.0, Oslo\"]");
+        config("other_places", QStringList({ "48.85, 2.35, Paris", " ", "60.0, 10.0, Oslo" }));
         backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
         QCOMPARE(others(backend), QStringList({ "PARIS", "OSLO", "BERLIN" }));
 
@@ -181,7 +181,7 @@ private slots:
             file.write("filed.ogg\n");
         }
         QCOMPARE(backend.musicPlaylist(), QStringList({ tmp.path() + "/filed.ogg" }));
-        config(",\"music_list\":[\"http://music.example/a b.mp3\",\"typed.ogg\"]");
+        config("music_list", QStringList({ "http://music.example/a b.mp3", "typed.ogg" }));
         QCOMPARE(backend.musicPlaylist(),
                  QStringList({ "http://music.example/a%20b.mp3", tmp.path() + "/typed.ogg" }));
     }
@@ -194,12 +194,12 @@ private slots:
     // no row once the list has changed since they were asked for.
     void weatherObservationsFollowTheLocation() {
         QTemporaryDir tmp;
-        const auto config = [&tmp](const QByteArray &location) {
-            QFile file(tmp.path() + "/config.json");
-            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"" + location + "\"}}}");
+        // The setting saved as Settings saves it, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const QString &location) {
+            QVERIFY(core.save_setting("com.osdos.weather", "location", location));
         };
-        WeatherBackend backend(tmp.path(), tmp.path());
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend); backend.m_nam = network;
         // The newest request whose address has `part` in it.

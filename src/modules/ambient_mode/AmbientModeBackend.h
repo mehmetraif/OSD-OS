@@ -5,10 +5,15 @@
 #include <QStringList>
 #include <QVariantList>
 
+class AppCore;
+
 class AmbientModeBackend : public QObject {
     Q_OBJECT
 public:
-    explicit AmbientModeBackend(const QString &dataRoot, QObject *parent = nullptr);
+    // The media directory set in the module's settings is read through
+    // appCore; without one (the tests), the default's.
+    explicit AmbientModeBackend(const QString &dataRoot, AppCore *appCore = nullptr,
+                                QObject *parent = nullptr);
     ~AmbientModeBackend() override;
 
     Q_INVOKABLE QVariantList getVideoFiles() const;

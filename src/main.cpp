@@ -346,17 +346,17 @@ int main(int argc, char *argv[]) {
           displayIndex, screenGeo.width(), screenGeo.height(), screenGeo.x(), screenGeo.y());
 
     LocalFilesBackend   localFiles(appRoot, dataRoot, &appCore);
-    PlexBackend         plexBackend(appRoot, dataRoot);
+    PlexBackend         plexBackend(appRoot, dataRoot, &appCore);
     JellyfinBackend     jellyfinBackend(dataRoot, &appCore);
     EmbyBackend         embyBackend(dataRoot, &appCore);
-    AmbientModeBackend  ambientMode(dataRoot);
+    AmbientModeBackend  ambientMode(dataRoot, &appCore);
     NfcReaderBackend    nfcReader(appRoot, dataRoot, &appCore);
     // Ahead of everything that takes the screen through it, so that all of
     // them are destroyed before it is.
     DisplayHandoff      displayHandoff;
     YouTubeBackend      youtubeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
-    WeatherBackend      weatherBackend(appRoot, dataRoot);
-    ScriptsBackend      scriptsBackend(appRoot, dataRoot, &displayHandoff);
+    WeatherBackend      weatherBackend(appRoot, dataRoot, &appCore);
+    ScriptsBackend      scriptsBackend(appRoot, dataRoot, &appCore, &displayHandoff);
     // The games in MAME, which takes the screen as a script does.
     ArcadeBackend       arcadeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
     // Over the network, only the games whose states RetroArch has the memory for.
@@ -376,7 +376,7 @@ int main(int argc, char *argv[]) {
         { QStringLiteral("Netflix"), 8, QStringLiteral("Netflix Home"),
           QStringLiteral("https://www.netflix.com/watch/%1"),
           QStringLiteral("https://www.netflix.com/search?q=%1"), QStringLiteral("P1874") } },
-        appRoot, dataRoot, &displayHandoff);
+        appRoot, dataRoot, &appCore, &displayHandoff);
     WebPlayerBackend    primeVideoBackend({
         QStringLiteral("prime_video"), QStringLiteral("https://www.primevideo.com"),
         QStringLiteral("https://www.primevideo.com/auth-redirect?signin=1&returnUrl=%2F"),
@@ -384,7 +384,7 @@ int main(int argc, char *argv[]) {
           QStringLiteral("https://www.primevideo.com/detail/%1"),
           QStringLiteral("https://www.primevideo.com/search/ref=atv_nb_sr?phrase=%1"),
           QStringLiteral("P14440") } },
-        appRoot, dataRoot, &displayHandoff);
+        appRoot, dataRoot, &appCore, &displayHandoff);
     // Lists of videos from the modules above, downloaded through them for
     // the offline ones.
     PlaylistsBackend    playlistsBackend(dataRoot, &appCore, &localFiles, &youtubeBackend,

@@ -4,6 +4,7 @@
 #include <QVariant>
 #include "TmdbCatalog.h"
 
+class AppCore;
 class DisplayHandoff;
 class QTimer;
 class ScriptLauncher;
@@ -48,8 +49,10 @@ public:
         bool needsChromium = false;
     };
 
+    // The module's settings, and the app's Scaling, are read through appCore;
+    // without one, there are none.
     explicit WebPlayerBackend(const Service &service,
-                              const QString &appRoot, const QString &dataRoot,
+                              const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                               DisplayHandoff *handoff, QObject *parent = nullptr);
 
     bool running() const;
@@ -110,6 +113,7 @@ private:
     TmdbCatalog    *m_catalog = nullptr;
     QString         m_appRoot;
     QString         m_dataRoot;
+    AppCore        *m_appCore = nullptr;
     QString         m_lastError;
     ScriptLauncher *m_launcher = nullptr;
     bool            m_opened   = false;

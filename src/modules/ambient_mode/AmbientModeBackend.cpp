@@ -1,16 +1,15 @@
 #include "AmbientModeBackend.h"
+#include "../../AppCore.h"
 #include "../../util/MpvLocator.h"
 #include "../../audio/AudioOutput.h"
 #include "../../audio/MenuMusic.h"
 #include "../../util/EndProcess.h"
 #include <QDir>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QDebug>
 
+static const QString kModuleId = QStringLiteral("com.osdos.ambient_mode");
 static const QStringList kVideoExts = {
     "mp4", "mkv", "avi", "mov", "m4v", "webm", "wmv", "flv", "f4v", "mpg", "mpeg", "vob"
 };
@@ -18,18 +17,14 @@ static const QStringList kAudioExts = {
     "mp3", "wav", "flac", "m4a", "m3u", "ogg", "aac", "m3u8"
 };
 
-AmbientModeBackend::AmbientModeBackend(const QString &dataRoot, QObject *parent)
+AmbientModeBackend::AmbientModeBackend(const QString &dataRoot, AppCore *appCore, QObject *parent)
     : QObject(parent), m_dataRoot(dataRoot), m_mediaRoot(dataRoot + "/ambient")
 {
     // Resolve the configured media directory (falls back to the dataRoot/ambient default).
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonObject cfg = QJsonDocument::fromJson(f.readAll()).object();
-        QString dir = cfg["modules"].toObject()["com.osdos.ambient_mode"].toObject()
-                          ["media_directory"].toString();
-        if (!dir.isEmpty())
-            setMediaRoot(dir);
-    }
+    const QString dir = appCore ? appCore->get_setting(kModuleId, QStringLiteral("media_directory")).toString()
+                                : QString();
+    if (!dir.isEmpty())
+        setMediaRoot(dir);
 }
 
 AmbientModeBackend::~AmbientModeBackend()
@@ -173,6 +168,6 @@ void AmbientModeBackend::endAudio(bool wait)
 
 void AmbientModeBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value)
 {
-    if (moduleId == QLatin1String("com.osdos.ambient_mode") && key == QLatin1String("media_directory"))
+    if (moduleId == kModuleId && key == QLatin1String("media_directory"))
         setMediaRoot(value.toString());
 }

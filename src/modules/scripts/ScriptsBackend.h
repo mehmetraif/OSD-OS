@@ -41,6 +41,7 @@ struct ScriptEntry {
     QList<QPair<QString, QString>> environment;
 };
 
+class AppCore;
 class ScriptLauncher;
 class DisplayHandoff;
 
@@ -57,7 +58,9 @@ class ScriptsBackend : public QObject {
     Q_PROPERTY(QString consoleOutput  READ consoleOutput  NOTIFY consoleOutputChanged)
     Q_PROPERTY(QString runningName    READ runningName    NOTIFY scriptRunningChanged)
 public:
-    explicit ScriptsBackend(const QString &appRoot, const QString &dataRoot,
+    // The scripts directory set in the module's settings is read through
+    // appCore; without one, the default's.
+    explicit ScriptsBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                             DisplayHandoff *handoff = nullptr,
                             QObject *parent = nullptr);
 

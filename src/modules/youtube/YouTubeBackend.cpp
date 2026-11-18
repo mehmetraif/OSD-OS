@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <utility>
 
+static const QString kModuleId = QStringLiteral("com.osdos.youtube");
 static const char *kSubscriptionsFileName = "youtube_subscriptions.txt";
 static const char *kPlaylistsFileName     = "youtube_playlists.txt";
 
@@ -56,7 +57,7 @@ YouTubeBackend::YouTubeBackend(const QString &appRoot, const QString &dataRoot, 
         "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue"
         "%26app%3Ddesktop%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252F");
     service.needsChromium = true;
-    m_browser = new WebPlayerBackend(service, appRoot, dataRoot, handoff, this);
+    m_browser = new WebPlayerBackend(service, appRoot, dataRoot, appCore, handoff, this);
 }
 
 QObject *YouTubeBackend::browser() const {
@@ -121,8 +122,7 @@ QStringList YouTubeBackend::listLines(const char *key, const char *fileName) con
             lines << line;
     };
     if (m_appCore) {
-        const QVariantList typed = m_appCore->get_setting(QStringLiteral("com.osdos.youtube"),
-                                                          QLatin1String(key)).toList();
+        const QVariantList typed = m_appCore->get_setting(kModuleId, QLatin1String(key)).toList();
         for (const QVariant &line : typed)
             take(line.toString());
     }
@@ -671,7 +671,7 @@ QStringList YouTubeBackend::playbackArgs(const QVariantMap &settings) const {
 QVariantMap YouTubeBackend::playbackSettings() const {
     auto setting = [this](const char *key, const char *fallback) {
         const QString value = m_appCore
-            ? m_appCore->get_setting(QStringLiteral("com.osdos.youtube"), QLatin1String(key)).toString()
+            ? m_appCore->get_setting(kModuleId, QLatin1String(key)).toString()
             : QString();
         return value.isEmpty() ? QString::fromLatin1(fallback) : value;
     };
@@ -874,8 +874,7 @@ static QVariantMap treeAction(const QString &name, const QString &kind, const QS
 QVariant YouTubeBackend::entries(const QString &path, bool preview) {
     QVariantList list;
     if (path == QLatin1String("favorites")) {
-        list = m_appCore ? m_appCore->get_list(QStringLiteral("com.osdos.youtube"), QStringLiteral("favorites"))
-                         : QVariantList();
+        list = m_appCore ? m_appCore->get_list(kModuleId, QStringLiteral("favorites")) : QVariantList();
     } else {
         const QVariant listed = listing(path, preview);
         if (!listed.isValid())
@@ -887,7 +886,7 @@ QVariant YouTubeBackend::entries(const QString &path, bool preview) {
     }
     // Shorts are left out with DISPLAY SHORTS off; unset is on.
     const QVariant shorts = m_appCore
-        ? m_appCore->get_setting(QStringLiteral("com.osdos.youtube"), QStringLiteral("display_shorts")) : QVariant();
+        ? m_appCore->get_setting(kModuleId, QStringLiteral("display_shorts")) : QVariant();
     const bool showShorts = !shorts.isValid() || shorts.isNull() || shorts.toBool()
                             || shorts.toString() == QLatin1String("ON");
     if (showShorts)
