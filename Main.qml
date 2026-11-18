@@ -928,11 +928,7 @@ Window {
 
     // The startup module waits for the boot screen: most modules need the
     // network the boot screen is waiting on.
-    onBootActiveChanged: {
-        if (bootActive || startupHolding) return
-        if (moduleLoader.item) moduleLoader.item.forceActiveFocus()
-        openStartupModule()
-    }
+    onBootActiveChanged: startViews()
 
     // --- DISPLAY OUTPUT (Settings → Screen → Display Output) ---
     // displayOutput mirrored, as bootProgress is, for the same teardown-safety.
@@ -956,12 +952,9 @@ Window {
     onStartupHoldingChanged: {
         // Gone with appCore as the app shuts down: nothing to open then.
         if (startupHolding || !appCore) return
-        if (bootActive) {
-            if (bootScreenLoader.item) bootScreenLoader.item.forceActiveFocus()
-            return
-        }
-        if (moduleLoader.item) moduleLoader.item.forceActiveFocus()
-        openStartupModule()
+        // Under the boot screen, it has the keys back.
+        if (bootActive && bootScreenLoader.item) bootScreenLoader.item.forceActiveFocus()
+        startViews()
     }
 
     // --- SCREEN SAVER STATE ---
@@ -979,6 +972,20 @@ Window {
     property var appNavStack: []
     property var appCurrentParams: ({})
     property bool _startupNavigated: false
+
+    // The views' turn: once the boot screen and the windows before the menus
+    // (startupHolding) are done, and as each view comes after that, the view
+    // shown takes the keys and the startup module opens (once). While they
+    // are up they keep the keys: QML gives no order between a view's
+    // onLoaded and the boot screen's, so a view doesn't race it. Nothing
+    // once appCore is gone, as the app shuts down.
+    function startViews() {
+        if (bootActive || startupHolding || !appCore)
+            return
+        if (moduleLoader.item)
+            moduleLoader.item.forceActiveFocus()
+        openStartupModule()
+    }
 
     // Opens the configured startup module, once per run. A favourite chosen to
     // PLAY AT STARTUP (EntryOptions) comes first: its module opens and plays
@@ -1453,15 +1460,9 @@ Window {
                     }
                 }
 
-                onLoaded: {
-                    // While the boot screen is up it keeps the focus; QML gives no
-                    // order between this and its own onLoaded, so don't race it. Nor
-                    // the window asking to keep a new display output, nor Setup's.
-                    if (root.bootActive || root.startupHolding)
-                        return
-                    item.forceActiveFocus()
-                    root.openStartupModule()
-                }
+                // While the boot screen is up it keeps the focus, and so do
+                // the window asking to keep a new display output and Setup's.
+                onLoaded: root.startViews()
 
                 Connections {
                     target: moduleLoader.item
