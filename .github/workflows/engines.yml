@@ -13,6 +13,11 @@ name: Engines
 #   system (fbneo.yml, windows.yml, freebsd.yml, openbsd.yml), and the CV1000
 #   LAN core's patch has to apply to it.
 #
+# GitHub starts no workflow for a push or a pull request made with this
+# workflow's own token, so the branch's checks (those four and retroarch.yml)
+# are started here by hand, on the branch, once it is pushed: their results
+# are the pull request's, as its head commit's.
+#
 # A rise is a pull request on the branch engines/raise, made again on each
 # run while it is open. Merged, the next release brings the new engines to
 # every machine. The repository has to let GitHub Actions create pull
@@ -27,6 +32,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: engines
@@ -153,3 +159,6 @@ jobs:
           else
             gh pr edit engines/raise --title "$title" --body "$body"
           fi
+          for workflow in fbneo.yml windows.yml freebsd.yml openbsd.yml retroarch.yml; do
+            gh workflow run "$workflow" --ref engines/raise
+          done
