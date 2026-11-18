@@ -6,10 +6,7 @@
 
 #include <QDBusArgument>
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QDBusObjectPath>
-#include <QDBusPendingCallWatcher>
-#include <QDBusServiceWatcher>
 #include <QDBusVariant>
 #include <QRandomGenerator>
 #include <algorithm>
@@ -58,15 +55,15 @@ const QString kBluez         = QStringLiteral("org.bluez");
 const QString kAdapter       = QStringLiteral("org.bluez.Adapter1");
 const QString kDevice        = QStringLiteral("org.bluez.Device1");
 const QString kAgentManager  = QStringLiteral("org.bluez.AgentManager1");
-const QString kProperties    = QStringLiteral("org.freedesktop.DBus.Properties");
-const QString kObjectManager = QStringLiteral("org.freedesktop.DBus.ObjectManager");
+using dbuscall::kObjectManager;
+using dbuscall::kProperties;
 const QString kAgentPath     = QStringLiteral("/com/osdos/BluetoothAgent");
 const QString kRejected      = QStringLiteral("org.bluez.Error.Rejected");
 
 // Long enough to type a code on a keyboard.
 constexpr int kPairTimeoutMs = 120 * 1000;
 constexpr int kConnectTimeoutMs = 30 * 1000;
-constexpr int kCallTimeoutMs = 10 * 1000;
+using dbuscall::kCallTimeoutMs;
 
 // The device properties the list shows: a change to any other (RSSI comes
 // with every answer while searching) leaves it as it is.
@@ -77,17 +74,7 @@ const QStringList kShownProperties = {
 
 QDBusConnection bus() { return QDBusConnection::systemBus(); }
 
-// A D-Bus value as T, demarshalled already or still a QDBusArgument (what a
-// container inside a signal's arguments stays).
-template <typename T>
-T unwrap(const QVariant &value) {
-    if (value.userType() == qMetaTypeId<QDBusArgument>()) {
-        T out;
-        value.value<QDBusArgument>() >> out;
-        return out;
-    }
-    return value.value<T>();
-}
+using dbuscall::plain;
 
 // What a device says it is: its Class of Device for the classic ones (a
 // keyboard with a touchpad is a "combo", for which BlueZ has no icon), else
@@ -184,23 +171,14 @@ BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
     if (!bus().registerObject(kAgentPath, agentObject, QDBusConnection::ExportAdaptors))
         qWarning("[Bluetooth] Could not export the pairing agent");
 
-    m_watcher = new QDBusServiceWatcher(kBluez, bus(),
-        QDBusServiceWatcher::WatchForRegistration | QDBusServiceWatcher::WatchForUnregistration, this);
-    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &BluetoothManager::load);
-    connect(m_watcher, &QDBusServiceWatcher::serviceUnregistered, this, &BluetoothManager::onServiceUnregistered);
-
     bus().connect(kBluez, QString(), kObjectManager, QStringLiteral("InterfacesAdded"),
                   this, SLOT(onInterfacesAdded(QDBusMessage)));
     bus().connect(kBluez, QString(), kObjectManager, QStringLiteral("InterfacesRemoved"),
                   this, SLOT(onInterfacesRemoved(QDBusMessage)));
     bus().connect(kBluez, QString(), kProperties, QStringLiteral("PropertiesChanged"),
                   this, SLOT(onPropertiesChanged(QDBusMessage)));
-
-    // Running already (a desktop, or the app started again): take it now.
-    // Otherwise the watcher says when it comes; asking for it before would
-    // start it (D-Bus activation).
-    if (bus().interface() && bus().interface()->isServiceRegistered(kBluez))
-        load();
+    // Taken now if it is running already, else once it comes.
+    dbuscall::watchService(bus(), kBluez, this, [this] { load(); }, [this] { onServiceUnregistered(); });
 #endif
 }
 
@@ -612,17 +590,17 @@ void BluetoothManager::load() {
             qWarning("[Bluetooth] Couldn't list BlueZ's objects: %s", qPrintable(reply.errorMessage()));
             return;
         }
-        const QDBusArgument arg = reply.arguments().constFirst().value<QDBusArgument>();
-        arg.beginMap();
-        while (!arg.atEnd()) {
-            QDBusObjectPath path;
-            QMap<QString, QVariantMap> interfaces;
-            arg.beginMapEntry();
-            arg >> path >> interfaces;
-            arg.endMapEntry();
-            addObject(path.path(), interfaces);
+        // In the order BlueZ has them, which the devices found are listed
+        // in: plain() of the whole would sort them by path.
+        const QDBusArgument objects = reply.arguments().constFirst().value<QDBusArgument>();
+        objects.beginMap();
+        while (!objects.atEnd()) {
+            objects.beginMapEntry();
+            const QString path = dbuscall::plainArgument(objects).toString();
+            addObject(path, dbuscall::plainArgument(objects).toMap());
+            objects.endMapEntry();
         }
-        arg.endMap();
+        objects.endMap();
         chooseAdapter();
         emit adapterChanged();
         emit devicesChanged();
@@ -647,11 +625,11 @@ void BluetoothManager::registerAgent() {
     });
 }
 
-void BluetoothManager::addObject(const QString &path, const QMap<QString, QVariantMap> &interfaces) {
+void BluetoothManager::addObject(const QString &path, const QVariantMap &interfaces) {
     if (interfaces.contains(kAdapter))
-        m_adapters[path].insert(interfaces.value(kAdapter));
+        m_adapters[path].insert(interfaces.value(kAdapter).toMap());
     if (interfaces.contains(kDevice)) {
-        m_devices[path].insert(interfaces.value(kDevice));
+        m_devices[path].insert(interfaces.value(kDevice).toMap());
         if (!m_seen.contains(path))
             m_seen.append(path);
     }
@@ -670,8 +648,8 @@ void BluetoothManager::onInterfacesAdded(const QDBusMessage &message) {
     const QList<QVariant> args = message.arguments();
     if (args.size() < 2)
         return;
-    const QString path = unwrap<QDBusObjectPath>(args.at(0)).path();
-    const auto interfaces = unwrap<QMap<QString, QVariantMap>>(args.at(1));
+    const QString path = plain(args.at(0)).toString();
+    const QVariantMap interfaces = plain(args.at(1)).toMap();
     const QString before = m_adapterPath;
     addObject(path, interfaces);
     if (interfaces.contains(kAdapter)) {
@@ -688,8 +666,8 @@ void BluetoothManager::onInterfacesRemoved(const QDBusMessage &message) {
     const QList<QVariant> args = message.arguments();
     if (args.size() < 2)
         return;
-    const QString path = unwrap<QDBusObjectPath>(args.at(0)).path();
-    const QStringList interfaces = unwrap<QStringList>(args.at(1));
+    const QString path = plain(args.at(0)).toString();
+    const QStringList interfaces = plain(args.at(1)).toStringList();
     if (interfaces.contains(kDevice) && m_devices.remove(path)) {
         m_seen.removeAll(path);
         m_busy.remove(path);
@@ -713,14 +691,11 @@ void BluetoothManager::onPropertiesChanged(const QDBusMessage &message) {
         return;
     const QString path = message.path();
     const QString interface = args.at(0).toString();
-    const QVariantMap changed = unwrap<QVariantMap>(args.at(1));
-    const QStringList invalidated = args.size() > 2 ? unwrap<QStringList>(args.at(2)) : QStringList();
+    const QVariantMap changed = plain(args.at(1)).toMap();
+    const QStringList invalidated = args.size() > 2 ? plain(args.at(2)).toStringList() : QStringList();
 
     if (interface == kAdapter && m_adapters.contains(path)) {
-        QVariantMap &adapter = m_adapters[path];
-        adapter.insert(changed);
-        for (const QString &key : invalidated)
-            adapter.remove(key);
+        dbuscall::mergeProperties(m_adapters[path], changed, invalidated);
         if (path == m_adapterPath) {
             if (changed.contains(QStringLiteral("Discovering"))) {
                 if (!changed.value(QStringLiteral("Discovering")).toBool()) {
@@ -736,17 +711,7 @@ void BluetoothManager::onPropertiesChanged(const QDBusMessage &message) {
             emit adapterChanged();
         }
     } else if (interface == kDevice && m_devices.contains(path)) {
-        QVariantMap &device = m_devices[path];
-        bool shown = false;
-        for (auto it = changed.cbegin(); it != changed.cend(); ++it) {
-            device.insert(it.key(), it.value());
-            shown = shown || kShownProperties.contains(it.key());
-        }
-        for (const QString &key : invalidated) {
-            device.remove(key);
-            shown = shown || kShownProperties.contains(key);
-        }
-        if (shown)
+        if (dbuscall::mergeProperties(m_devices[path], changed, invalidated, kShownProperties))
             emit devicesChanged();
     }
 }

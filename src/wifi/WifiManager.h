@@ -12,7 +12,6 @@
 #ifdef OSDOS_WIFI
 #include <QDBusConnection>
 #include <QDBusMessage>
-class QDBusServiceWatcher;
 #endif
 
 // Settings → Network → Wi-Fi: joins a Wi-Fi network through NetworkManager, which runs
@@ -195,7 +194,6 @@ private:
               std::function<void(const QDBusMessage &reply)> done = {});
 
     QDBusConnection m_bus;
-    QDBusServiceWatcher *m_watcher = nullptr;
     // NetworkManager's objects as it has them: path -> interface -> its
     // properties (a QVariantMap in a QVariant), D-Bus types made plain.
     QHash<QString, QVariantMap> m_objects;

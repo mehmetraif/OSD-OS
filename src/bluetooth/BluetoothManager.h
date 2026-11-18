@@ -13,7 +13,6 @@
 
 #ifdef OSDOS_BLUETOOTH
 #include <QDBusMessage>
-class QDBusServiceWatcher;
 #endif
 
 // Settings → Network → Bluetooth: finds, pairs and connects Bluetooth devices (a
@@ -122,7 +121,7 @@ private slots:
 private:
     void load();
     void registerAgent();
-    void addObject(const QString &path, const QMap<QString, QVariantMap> &interfaces);
+    void addObject(const QString &path, const QVariantMap &interfaces);
     void chooseAdapter();
     void setBusy(const QString &path, const QString &state);
     void setMessage(const QString &text);
@@ -135,7 +134,6 @@ private:
               const QVariantList &args, int timeoutMs,
               std::function<void(const QDBusMessage &reply)> done = {});
 
-    QDBusServiceWatcher *m_watcher = nullptr;
     QHash<QString, QVariantMap> m_adapters;   // path -> Adapter1 properties
     QHash<QString, QVariantMap> m_devices;    // path -> Device1 properties
     QStringList m_seen;                       // device paths, in the order found
