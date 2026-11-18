@@ -12,6 +12,8 @@ add_executable(reliability_test
     ../src/modules/weather/WeatherBackend.cpp
     ../src/update/UpdateManager.cpp
     ../src/AppCore.cpp
+    ../src/util/LogSaver.cpp
+    ../src/util/Looks.cpp
     ../src/util/SetupFile.cpp
     ../src/audio/AudioOutput.cpp
     ../src/audio/MenuMusic.cpp
@@ -67,6 +69,8 @@ add_test(NAME media_keys COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/m
 add_executable(storage_search_test
     storage_search_test.cpp
     ../src/AppCore.cpp
+    ../src/util/LogSaver.cpp
+    ../src/util/Looks.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp
     ../src/modules/local_files/LocalFilesBackend.cpp
@@ -76,12 +80,15 @@ target_link_libraries(storage_search_test PRIVATE
     Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test)
 add_test(NAME storage_search COMMAND storage_search_test)
 
-# Themes and skins, read from the app's folder and the data folder's (AppCore),
-# and their icons as the icon provider draws and keeps them (OsdIconProvider).
+# Themes and skins, read from the app's folder and the data folder's
+# (util/Looks, through AppCore), and their icons as the icon provider draws
+# and keeps them (OsdIconProvider).
 find_package(Qt6 REQUIRED COMPONENTS Quick)
 add_executable(looks_test
     looks_test.cpp
     ../src/AppCore.cpp
+    ../src/util/LogSaver.cpp
+    ../src/util/Looks.cpp
     ../src/util/OsdIconProvider.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
@@ -137,6 +144,8 @@ add_executable(nfc_cards_test
     ../src/modules/nfc_reader/Pn532SerialDriver.cpp
     ../src/modules/nfc_reader/SerialPort.cpp
     ../src/AppCore.cpp
+    ../src/util/LogSaver.cpp
+    ../src/util/Looks.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(nfc_cards_test PRIVATE ../src)
@@ -176,6 +185,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/player/VideoSurface.cpp
         ../src/util/Diagnostics.cpp
         ../src/AppCore.cpp
+        ../src/util/LogSaver.cpp
+        ../src/util/Looks.cpp
         ../src/util/SetupFile.cpp
         ../src/audio/AudioOutput.cpp
         ../src/util/Board.cpp
@@ -211,6 +222,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/ambient_mode/AmbientModeBackend.cpp
         ../src/modules/weather/WeatherBackend.cpp
         ../src/AppCore.cpp
+        ../src/util/LogSaver.cpp
+        ../src/util/Looks.cpp
         ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp
         ../src/util/MpvLocator.cpp)
@@ -349,6 +362,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/MpvLocator.cpp
         ../src/util/SevenZip.cpp
         ../src/AppCore.cpp
+        ../src/util/LogSaver.cpp
+        ../src/util/Looks.cpp
         ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
@@ -394,6 +409,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/MpvLocator.cpp
         ../src/util/YtDlpLocator.cpp
         ../src/AppCore.cpp
+        ../src/util/LogSaver.cpp
+        ../src/util/Looks.cpp
         ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(playlists_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
@@ -417,6 +434,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/MpvLocator.cpp
         ../src/util/YtDlpLocator.cpp
         ../src/AppCore.cpp
+        ../src/util/LogSaver.cpp
+        ../src/util/Looks.cpp
         ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp)
     target_include_directories(youtube_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
@@ -617,6 +636,8 @@ add_executable(controllers_test
     ../src/input/ControllerProfile.cpp
     ../src/input/JammaPins.cpp
     ../src/AppCore.cpp
+    ../src/util/LogSaver.cpp
+    ../src/util/Looks.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp)
 target_include_directories(controllers_test PRIVATE ../src)

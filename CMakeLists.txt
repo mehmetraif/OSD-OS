@@ -95,6 +95,8 @@ add_executable(osdos
     src/util/LegacyNames.cpp
     src/util/Board.cpp
     src/AppCore.cpp
+    src/util/LogSaver.cpp
+    src/util/Looks.cpp
     src/modules/local_files/LocalFilesBackend.cpp
     src/modules/local_files/RemovableDrives.cpp
     src/modules/plex/PlexBackend.cpp
