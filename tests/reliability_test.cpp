@@ -560,6 +560,11 @@ private slots:
     // arguments; one that can't be written leaves the error state with what
     // to tell the user, and starts nothing.
     void updateHelperWrittenAndStarted() {
+        // The helpers are for the systems an update is put in place on, the
+        // AppImage's Linux and macOS, which both have /bin/bash; FreeBSD and
+        // OpenBSD update through their packages, and have no /bin/bash.
+        if (!QFileInfo::exists(QStringLiteral("/bin/bash")))
+            QSKIP("An update's helpers run on Linux and macOS, where /bin/bash is");
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());
         const QString ran = tmp.path() + "/ran";
