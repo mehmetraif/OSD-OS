@@ -115,6 +115,19 @@ void AmbientModeBackend::startAudio(const QStringList &paths, bool shuffle)
     MenuMusic::hold(QStringLiteral("ambient"));
     m_audioProcess = new QProcess(this);
     m_audioProcess->setProcessEnvironment(env);
+    // mpv ending on its own (no file it can play, the sound card gone), or
+    // never starting, as Weather's music: the menu music has the card back,
+    // and no stale process is kept for the next startAudio() to end.
+    connect(m_audioProcess, &QProcess::finished, this, [this]() {
+        qInfo("[AmbientMode] audio process exited");
+        endAudio(false);
+    });
+    connect(m_audioProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        qWarning("[AmbientMode] audio process could not be started");
+        endAudio(false);
+    });
     m_audioProcess->start(bin, args);
     qDebug("[AmbientMode] audio process started: %lld entr%s%s",
            static_cast<long long>(paths.size()),
@@ -138,6 +151,7 @@ void AmbientModeBackend::endAudio(bool wait)
     QProcess *process = std::exchange(m_audioProcess, nullptr);
     if (!process)
         return;
+    process->disconnect(this);      // ended here: not taken for an end of its own (startAudio())
     if (process->state() != QProcess::NotRunning && !wait) {
         m_audioEnding = process;
         endProcessLater(process, this, [this]() {

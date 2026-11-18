@@ -170,12 +170,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME playback_retire COMMAND playback_retire_test)
 
     # The menu music, against a stand-in for mpv: it plays in the menus, and
-    # stops at once when anything else is about to play sound. And the
-    # control socket of Weather's music, which another mpv of the app's is.
+    # stops at once when anything else is about to play sound. And the app's
+    # other audio mpvs beside it, Weather's music and Ambient Mode's audio.
     add_executable(menu_music_test
         menu_music_test.cpp
         ../src/audio/MenuMusic.cpp
         ../src/audio/AudioOutput.cpp
+        ../src/modules/ambient_mode/AmbientModeBackend.cpp
         ../src/modules/weather/WeatherBackend.cpp
         ../src/AppCore.cpp
         ../src/util/SetupFile.cpp

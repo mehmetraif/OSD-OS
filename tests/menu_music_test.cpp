@@ -5,6 +5,7 @@
 // openmpt123, which write down what they were asked to make and make a file
 // of it, and for ALSA's list of sound cards (OSDOS_ASOUND_DIR).
 #include "audio/MenuMusic.h"
+#include "modules/ambient_mode/AmbientModeBackend.h"
 #include "modules/weather/WeatherBackend.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -419,6 +420,25 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 3, 3000);
         QCOMPARE(QFileInfo(sockets().last()).absolutePath(), later.path());
         weather.stopMusic();
+    }
+
+    // Ambient Mode's audio ending on its own (a file mpv can't play, the
+    // sound card gone), as Weather's music does: the menu music it held off
+    // plays again, and nothing of its process is kept.
+    void ambientAudioEndingOnItsOwn() {
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        AmbientModeBackend ambient(m_dir.path() + QStringLiteral("/data"));
+        // Its environment is taken as it starts: the menu music's next mpv plays.
+        qputenv("FAKE_MPV_MODE", "fail");
+        ambient.startAudio({ m_tune });
+        qputenv("FAKE_MPV_MODE", "play");
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 2, 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(ambient.findChildren<QProcess *>().isEmpty(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        QCOMPARE(starts().size(), 3);
     }
 };
 
