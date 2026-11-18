@@ -34,6 +34,7 @@ on:
       - 'CMakeLists.txt'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-make.sh'
       - 'scripts/fbneo-lan.patch'
       - 'scripts/engines.env'
       - 'scripts/bsd-package.sh'
@@ -53,6 +54,7 @@ on:
       - 'CMakeLists.txt'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-make.sh'
       - 'scripts/fbneo-lan.patch'
       - 'scripts/engines.env'
       - 'scripts/bsd-package.sh'
@@ -101,7 +103,7 @@ jobs:
         uses: actions/cache/restore@v6.1.0
         with:
           path: fbneo
-          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
+          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
 
       # The commit scripts/engines.env names, both cores' source.
       - name: Download FinalBurn Neo's source

@@ -34,7 +34,7 @@
 # environment, MinGW-w64 on Windows' Universal C Runtime, which every
 # Windows 10 and later has, and linked statically, so it needs no DLL of
 # MinGW's beside it),
-# built as scripts/build-fbneo.sh builds the whole core. FinalBurn Neo's
+# built as the whole core is (scripts/fbneo-make.sh). FinalBurn Neo's
 # licence goes with it, as the licence asks of every copy. The core names
 # itself OSD-OS LAN Core, which RetroArch won't let a machine with another
 # core join (no slash in it: RetroArch makes folders of a core's name for its
@@ -49,40 +49,14 @@ license=${3:?$usage}
 here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source-path=SCRIPTDIR source=engines.env
 . "$here/engines.env"
+# shellcheck source=fbneo-make.sh
+. "$here/fbneo-make.sh"
 commit=$FBNEO_COMMIT
 date=$FBNEO_DATE
 
-make=$(command -v gmake || command -v make)
-jobs=$(getconf NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
-
 patch -d "$src" -p1 -i "$here/fbneo-lan.patch"
 
-args=(GIT_VERSION="${commit:0:7}-lan" GIT_DATE="$date")
-strip=(strip)
-case "$(uname -s)" in
-    Darwin)
-        ext=dylib
-        # The oldest macOS the app runs on, not the one it is built on.
-        export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
-        # A library's own symbols are what RetroArch loads it by.
-        strip=(strip -x) ;;
-    MINGW* | MSYS*)
-        ext=dll
-        # MinGW's compilers by name: make's own default for C is cc.
-        args+=(CC=gcc CXX=g++)
-        # From the environment, which the makefile's LDFLAGS += adds its own
-        # to: winpthreads, which MinGW's libstdc++ is built on, in the DLL too.
-        export LDFLAGS=-static ;;
-    *BSD)
-        ext=so
-        # As scripts/build-fbneo.sh builds the whole core on the BSDs.
-        # shellcheck disable=SC2016
-        args+=(CC=cc CXX=c++ SHARED='-shared -Wl,--version-script=$(VERSION_SCRIPT)')
-        export FBNEO_DEFINES=-DGBAPPU_WORKER_DISABLE ;;
-    *)
-        ext=so ;;
-esac
-"$make" -C "$src/src/burner/libretro" -j"$jobs" "${args[@]}"
+fbneo_make "$src" GIT_VERSION="${commit:0:7}-lan" GIT_DATE="$date"
 
 core=osdos_lan_libretro.$ext
 mkdir -p "$out" "$(dirname "$license")"

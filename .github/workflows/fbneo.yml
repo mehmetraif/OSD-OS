@@ -19,6 +19,7 @@ on:
     paths:
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-make.sh'
       - 'scripts/fbneo-lan.patch'
       - 'scripts/engines.env'
       - '.github/actions/fbneo-cores/**'
@@ -27,6 +28,7 @@ on:
     paths:
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-make.sh'
       - 'scripts/fbneo-lan.patch'
       - 'scripts/engines.env'
       - '.github/actions/fbneo-cores/**'

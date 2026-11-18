@@ -36,7 +36,7 @@ runs:
       uses: actions/cache/restore@v6.1.0
       with:
         path: fbneo-cores
-        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ runner.os == 'Windows' && 'ucrt64-' || '' }}${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
+        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ runner.os == 'Windows' && 'ucrt64-' || '' }}${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
 
     # One download, unpacked twice: the LAN core's patch goes in a copy of
     # its own. Without the source's project files for IDEs, whose

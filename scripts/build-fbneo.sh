@@ -18,17 +18,8 @@
 # has, and linked statically, so that it needs no DLL of MinGW's beside it).
 # The list of games is FinalBurn Neo's arcade DAT of the same commit, which
 # the app lists the games from. The licence goes with the core, as the
-# licence asks of every copy.
-#
-# On FreeBSD and OpenBSD: the makefile's Unix build with the system's
-# compiler (cc, c++), without -no-undefined, which OpenBSD can't link a
-# library with (its libraries leave libc's symbols to the program that loads
-# them), and with GBAPPU_WORKER_DISABLE, a switch of FinalBurn Neo's own
-# (src/burn/drv/gba/gbappu_worker.h) that draws the Game Boy Advance's
-# picture on the emulator's thread instead of a thread of its own: that
-# thread is named with macOS's pthread_setname_np(name) on every BSD, which
-# FreeBSD's takes the thread as well and OpenBSD hasn't, so it doesn't compile
-# on either. The arcade games, all OSD/OS plays, don't use it.
+# licence asks of every copy. How it is made on each system, the BSDs'
+# settings among them, is scripts/fbneo-make.sh's.
 set -euo pipefail
 
 usage="usage: build-fbneo.sh <FBNeo source folder> <folder for the core> <file for the list of games> <file for the licence>"
@@ -39,41 +30,12 @@ license=${4:?$usage}
 here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source-path=SCRIPTDIR source=engines.env
 . "$here/engines.env"
+# shellcheck source=fbneo-make.sh
+. "$here/fbneo-make.sh"
 commit=$FBNEO_COMMIT
 date=$FBNEO_DATE
 
-make=$(command -v gmake || command -v make)
-jobs=$(getconf NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
-
-args=(GIT_VERSION="${commit:0:7}" GIT_DATE="$date")
-strip=(strip)
-case "$(uname -s)" in
-    Darwin)
-        ext=dylib
-        # The oldest macOS the app runs on, not the one it is built on.
-        export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}
-        # A library's own symbols are what RetroArch loads it by.
-        strip=(strip -x) ;;
-    MINGW* | MSYS*)
-        ext=dll
-        # MinGW's compilers by name: make's own default for C is cc.
-        args+=(CC=gcc CXX=g++)
-        # From the environment, which the makefile's LDFLAGS += adds its own
-        # to: winpthreads, which MinGW's libstdc++ is built on, in the DLL too.
-        export LDFLAGS=-static ;;
-    *BSD)
-        ext=so
-        # $(VERSION_SCRIPT) is the makefile's own, for make to expand. The
-        # define goes in from the environment, which the makefile's
-        # FBNEO_DEFINES += adds its own to (one on make's command line would
-        # replace them).
-        # shellcheck disable=SC2016
-        args+=(CC=cc CXX=c++ SHARED='-shared -Wl,--version-script=$(VERSION_SCRIPT)')
-        export FBNEO_DEFINES=-DGBAPPU_WORKER_DISABLE ;;
-    *)
-        ext=so ;;
-esac
-"$make" -C "$src/src/burner/libretro" -j"$jobs" "${args[@]}"
+fbneo_make "$src" GIT_VERSION="${commit:0:7}" GIT_DATE="$date"
 
 core=fbneo_libretro.$ext
 list="$src/dats/FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"
