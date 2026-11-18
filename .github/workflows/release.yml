@@ -302,56 +302,54 @@ jobs:
           modules: 'qtshadertools qtquick3d qtquicktimeline'
           cache: true
 
+      # The app toolchain + non-Qt deps and the X11/GL/xkb libs the Qt plugins
+      # pull in at deploy time; plus the deps to build mpv from source (meson
+      # + the FFmpeg 6.1 -dev set, libass/libplacebo/lua/vaapi and the
+      # Wayland/X11/EGL/DRM dev libs). We build mpv (0.40) rather than apt's
+      # 0.37 — see scripts/build-mpv.sh.
       - name: Install build + bundling dependencies
-        run: |
-          # Drop the flaky Microsoft/azure apt repos (they intermittently serve
-          # broken signatures), then install: the app toolchain + non-Qt deps and
-          # the X11/GL/xkb libs the Qt plugins pull in at deploy time; plus the
-          # deps to build mpv from source (meson + the FFmpeg 6.1 -dev set,
-          # libass/libplacebo/lua/vaapi and the Wayland/X11/EGL/DRM dev libs).
-          # We build mpv (0.40) rather than apt's 0.37 — see scripts/build-mpv.sh.
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            libdrm-dev \
-            libssl-dev \
-            libsdl2-dev \
-            libpcsclite-dev \
-            libminizip-dev \
-            libgl1-mesa-dev \
-            libxkbcommon-dev \
-            libxcb-cursor0 \
-            meson \
-            ninja-build \
-            pkg-config \
-            libavcodec-dev \
-            libavformat-dev \
-            libavutil-dev \
-            libswscale-dev \
-            libavfilter-dev \
-            libswresample-dev \
-            libass-dev \
-            libplacebo-dev \
-            liblua5.2-dev \
-            libva-dev \
-            libx11-dev \
-            libxext-dev \
-            libxrandr-dev \
-            libxpresent-dev \
-            libwayland-dev \
-            wayland-protocols \
-            libva-wayland2 \
-            libvulkan1 \
-            libgbm-dev \
-            libegl-dev \
-            libpulse-dev \
-            libasound2-dev \
-            libpipewire-0.3-dev \
-            libjpeg-dev \
-            liblcms2-dev \
-            libuchardet-dev \
+        uses: ./.github/actions/apt-packages
+        with:
+          packages: |
+            build-essential
+            cmake
+            libdrm-dev
+            libssl-dev
+            libsdl2-dev
+            libpcsclite-dev
+            libminizip-dev
+            libgl1-mesa-dev
+            libxkbcommon-dev
+            libxcb-cursor0
+            meson
+            ninja-build
+            pkg-config
+            libavcodec-dev
+            libavformat-dev
+            libavutil-dev
+            libswscale-dev
+            libavfilter-dev
+            libswresample-dev
+            libass-dev
+            libplacebo-dev
+            liblua5.2-dev
+            libva-dev
+            libx11-dev
+            libxext-dev
+            libxrandr-dev
+            libxpresent-dev
+            libwayland-dev
+            wayland-protocols
+            libva-wayland2
+            libvulkan1
+            libgbm-dev
+            libegl-dev
+            libpulse-dev
+            libasound2-dev
+            libpipewire-0.3-dev
+            libjpeg-dev
+            liblcms2-dev
+            libuchardet-dev
             libzimg-dev
 
       - name: Build mpv (0.40 from source — apt's 0.37 is too old)

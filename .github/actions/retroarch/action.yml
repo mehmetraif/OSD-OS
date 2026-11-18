@@ -40,16 +40,15 @@ runs:
     # What it is built with, whose libraries it also needs to say its
     # version below: the features scripts/build-retroarch.sh asks for by name.
     - name: RetroArch's libraries
-      shell: bash
-      run: |
-        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          build-essential pkg-config \
-          libasound2-dev libpulse-dev libsdl2-dev libudev-dev libdbus-1-dev \
-          libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev libvulkan-dev \
-          libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxxf86vm-dev libxinerama-dev libxrandr-dev libxss-dev \
-          libwayland-dev wayland-protocols libxkbcommon-dev \
+      uses: ./.github/actions/apt-packages
+      with:
+        no-install-recommends: 'true'
+        packages: |
+          build-essential pkg-config
+          libasound2-dev libpulse-dev libsdl2-dev libudev-dev libdbus-1-dev
+          libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev libvulkan-dev
+          libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxxf86vm-dev libxinerama-dev libxrandr-dev libxss-dev
+          libwayland-dev wayland-protocols libxkbcommon-dev
           libfreetype-dev zlib1g-dev
 
     - name: Download RetroArch's source
