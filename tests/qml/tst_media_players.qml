@@ -12,7 +12,8 @@ import Components
 // for back to return to, and prompts no card, whose views say so instead. A video that fails says why (PlaybackNotice), with
 // RETRY, mpv itself missing without the transcode no transcode would mend.
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
-// keyboard (its signs, SHOW, the mouse). And Local Files' player: a remote's
+// keyboard (its signs, SHOW, the mouse), and their Continue Watching and
+// Next Up put the cursor back on the item left. And Local Files' player: a remote's
 // channel or page keys step through the folder's films.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
@@ -355,6 +356,14 @@ Rectangle {
         function update_playback_progress() {}
         function set_last_track_langs() {}
         function fetchSegments(itemId) {}
+        // The lists a list view asks for (Items.qml), answered by the test.
+        signal itemsLoaded(var items)
+        signal folderChildrenLoaded(var items)
+        signal boxsetChildrenLoaded(var items)
+        signal continueWatchingLoaded(var items)
+        signal upNextLoaded(var items)
+        function load_continue_watching() {}
+        function load_up_next() {}
     }
     ServerBackend { id: jellyfinBackend }
     ServerBackend { id: embyBackend }
@@ -409,7 +418,7 @@ Rectangle {
         ignoreUnknownSignals: true
         function onGoBack() { root.backs++ }
         function onNavigateTo(path, params, listState) {
-            root.navigations = root.navigations.concat([{ path: path, params: params }])
+            root.navigations = root.navigations.concat([{ path: path, params: params, listState: listState }])
         }
     }
 
@@ -796,6 +805,61 @@ Rectangle {
             view.forceActiveFocus()
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // Continue Watching and Next Up, back from an item opened on the
+        // fourth row: the cursor on that item, wherever the list has put it
+        // since (one played moves to the top), else on the fourth row, within
+        // a list grown shorter (Jellyfin, Emby).
+        function test_serverResumeListKeepsItsCursor_data() {
+            return [{ tag: "jellyfin, continue watching", module: "jellyfin", mode: "resume" },
+                    { tag: "jellyfin, next up", module: "jellyfin", mode: "up_next" },
+                    { tag: "emby, continue watching", module: "emby", mode: "resume" },
+                    { tag: "emby, next up", module: "emby", mode: "up_next" }]
+        }
+        function test_serverResumeListKeepsItsCursor(data) {
+            var backend = data.module === "emby" ? embyBackend : jellyfinBackend
+            var rows = function(ids) {
+                return ids.map(function(id) { return { itemId: id, title: id, type: "movie" } })
+            }
+            var opened = function(navListState, ids) {
+                var list = open(data.module, "Items.qml", { mode: data.mode, libraryName: "Films",
+                                                            navListState: navListState })
+                if (data.mode === "resume")
+                    backend.continueWatchingLoaded(rows(ids))
+                else
+                    backend.upNextLoaded(rows(ids))
+                return list
+            }
+            var list = opened(undefined, ["a", "b", "c", "d", "e"])
+            compare(list.items.length, 5)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.item.itemId, "d")
+            var left = root.navigations[0].listState
+            loader.source = ""
+
+            list = opened(left, ["d", "a", "b", "c", "e"])
+            compare(currentItemId(list), "d")
+            loader.source = ""
+            list = opened(left, ["a", "b", "c", "e", "f"])
+            compare(currentItemId(list), "e")
+            loader.source = ""
+            list = opened(left, ["a", "b"])
+            compare(currentItemId(list), "b")
+        }
+        // The item a list view's cursor is on (its list of items, not of
+        // letters).
+        function currentItemId(list) {
+            for (var i = 0; i < list.children.length; i++) {
+                var child = list.children[i]
+                if (child.currentIndex !== undefined && child.count > 0 && child.count === list.items.length)
+                    return list.items[child.currentIndex].itemId
+            }
+            return ""
         }
 
         function openJellyfinPlayer(module) {

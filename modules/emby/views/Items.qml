@@ -76,6 +76,19 @@ FocusScope {
         return result
     }
 
+    // The row the cursor was on as the list was left (navListState): the
+    // item it was on, wherever it is now, else the same place within the
+    // list. Continue Watching and Next Up reorder as an item is played, so
+    // the item is looked for first.
+    function restoreIndex(loadedItems) {
+        for (var i = 0; navListState.itemId !== undefined && i < loadedItems.length; i++) {
+            if (loadedItems[i].itemId === navListState.itemId)
+                return i
+        }
+        var at = (navListState.currentIndex !== undefined) ? navListState.currentIndex : 0
+        return Math.min(at, loadedItems.length - 1)
+    }
+
     Connections {
         target: embyBackend
 
@@ -123,8 +136,8 @@ FocusScope {
             itemListRoot.isLoading = false
             itemListRoot.items = loadedItems
             if (loadedItems.length > 0) {
-                itemList.currentIndex = 0
-                itemList.positionViewAtIndex(0, ListView.Contain)
+                itemList.currentIndex = itemListRoot.restoreIndex(loadedItems)
+                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
             }
         }
 
@@ -133,8 +146,8 @@ FocusScope {
             itemListRoot.isLoading = false
             itemListRoot.items = loadedItems
             if (loadedItems.length > 0) {
-                itemList.currentIndex = 0
-                itemList.positionViewAtIndex(0, ListView.Contain)
+                itemList.currentIndex = itemListRoot.restoreIndex(loadedItems)
+                itemList.positionViewAtIndex(itemList.currentIndex, ListView.Contain)
             }
         }
 
@@ -455,11 +468,13 @@ FocusScope {
     function selectItem() {
         var item = items[itemList.currentIndex]
         if (!item) return
+        // Where the cursor was, and on which item, for back to put it again.
+        var here = { currentIndex: itemList.currentIndex, itemId: item.itemId }
 
         if (item.type === "series") {
-            itemListRoot.navigateTo("ItemShow.qml", { item: item, libraryName: libraryName }, { currentIndex: itemList.currentIndex })
+            itemListRoot.navigateTo("ItemShow.qml", { item: item, libraryName: libraryName }, here)
         } else if (item.type === "boxset") {
-            itemListRoot.navigateTo("Boxset.qml", { item: item, libraryName: libraryName }, { currentIndex: itemList.currentIndex })
+            itemListRoot.navigateTo("Boxset.qml", { item: item, libraryName: libraryName }, here)
         } else if (item.isFolder) {
             // homevideos folder — drill into its direct children, keeping the
             // persistent library name in the header.
@@ -467,10 +482,9 @@ FocusScope {
                 parentId: item.itemId,
                 libraryName: libraryName,
                 mode: "folder"
-            }, { currentIndex: itemList.currentIndex })
+            }, here)
         } else {
-            itemListRoot.navigateTo("Item.qml", { item: item, libraryName: libraryName },
-                                   { currentIndex: itemList.currentIndex })
+            itemListRoot.navigateTo("Item.qml", { item: item, libraryName: libraryName }, here)
         }
     }
 
