@@ -114,61 +114,23 @@ Item {
 
             // The name: cut short with "…" when it is too long for the row,
             // scrolled through instead while the game is selected.
-            Item {
+            ScrolledText {
                 id: nameClip
                 x: numberText.x + numberText.width + row.gap
                 width: (markIcon.visible ? markIcon.x - row.gap : row.width - row.gap - root.px) - x
                 height: parent.height
-                clip: true
-
-                Text {
-                    id: nameText
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: row.isCurrent ? implicitWidth : Math.min(implicitWidth, nameClip.width)
-                    // Search's own row: what is typed, as it is typed.
-                    text: row.game.name || ""
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                    color: row.ink
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    font.pixelSize: Math.round(arcadeScreen.nameLines * row.size * arcadeScreen.v)
-                    onTextChanged: Qt.callLater(nameClip.updateScroll)
-                }
-
-                // Whether it scrolls, and how far: started (and started over)
-                // once the row has its new width, a turn of the event loop
-                // later, as MenuRow's value is; and for each name the row
-                // comes to (the wheel's rows as it turns). Not while the list
-                // is hidden under a game's screen or the screen saver, as
-                // MenuRow's doesn't: a long name redrew it every frame.
-                readonly property bool scrolls: row.isCurrent && row.visible && !root.screenSaverActive
-                                                && nameText.implicitWidth > width
-                readonly property real scrollBy: width - nameText.implicitWidth
-                onScrollsChanged: Qt.callLater(updateScroll)
-                onScrollByChanged: Qt.callLater(updateScroll)
-                function updateScroll() {
-                    if (scrolls)
-                        scroll.restart()
-                    else
-                        scroll.stop()
-                }
-
-                SequentialAnimation {
-                    id: scroll
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) nameText.x = 0
-
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: nameText
-                        property: "x"
-                        to: nameClip.scrollBy
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: nameText; property: "x"; value: 0 }
-                }
+                on: row.isCurrent
+                // Not while the list is hidden under the screen saver (or a
+                // game's screen, which hides it): a long name redrew it every
+                // frame.
+                resting: root.screenSaverActive
+                // Search's own row: what is typed, as it is typed.
+                text: row.game.name || ""
+                color: row.ink
+                font.pixelSize: Math.round(arcadeScreen.nameLines * row.size * arcadeScreen.v)
+                // Each name the row comes to (the wheel's rows as it turns)
+                // from its beginning.
+                onTextChanged: Qt.callLater(updateScroll)
             }
             // A favourite's heart, but in Favorites, where every game is
             // one; Search's glass on its own row; and on a room of the

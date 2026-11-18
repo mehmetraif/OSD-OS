@@ -193,37 +193,14 @@ FocusScope {
                 }
 
                 // Clipped title with marquee scroll when it overflows the row
-                Item {
+                ScrolledText {
                     id: extraTitleClip
-                    width: Math.min(extraTitle.implicitWidth, itemList.width - root.sw * 0.021875) //14
-                    height: extraTitle.implicitHeight
-                    clip: true
-
-                    Text {
-                        id: extraTitle
-                        textFormat: Text.PlainText
-                        text: modelData.title || ""
-                        color: itemList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        font.pixelSize: root.sh * 0.0333333 //16
-                        x: 0
-                    }
-
-                    SequentialAnimation {
-                        running: (itemList.currentIndex === index) &&
-                                 (extraTitle.implicitWidth > extraTitleClip.width)
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) extraTitle.x = 0
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: extraTitle; property: "x"
-                            to: extraTitleClip.width - extraTitle.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: extraTitle; property: "x"; value: 0 }
-                    }
+                    width: Math.min(implicitWidth, itemList.width - root.sw * 0.021875) //14
+                    on: itemList.currentIndex === index
+                    elides: false
+                    text: modelData.title || ""
+                    color: itemList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                    font.pixelSize: root.sh * 0.0333333 //16
                 }
             }
         }

@@ -413,49 +413,26 @@ FocusScope {
                 width: seasonList.width
                 height: root.sh * 0.0583333 //28
 
-                Item {
+                ScrolledText {
                     id: textClip
-                    width: Math.min(rowText.implicitWidth, seasonList.width)
+                    width: Math.min(implicitWidth, seasonList.width)
                     height: parent.height
-                    clip: true
+                    on: seasonList.currentIndex === index && focusRow === 2
+                    elides: false
+                    text: modelData.title || ""
+                    color: (seasonList.currentIndex === index && focusRow === 2)
+                           ? root.surfaceColor : root.primaryColor
+                    font.pixelSize: root.sh * 0.05 //24
+                    textItem.topPadding: root.sh * 0.0041667 //2
+                    textItem.leftPadding: root.sw * 0.009375 //6
+                    textItem.rightPadding: root.sw * 0.009375 //6
+                    textItem.bottomPadding: root.sh * 0.00625 //3
 
                     Rectangle {
+                        z: -1
                         color: root.accentColor
-                        anchors.fill: rowText
+                        anchors.fill: textClip.textItem
                         visible: seasonList.currentIndex === index && focusRow === 2
-                    }
-
-                    Text {
-                        id: rowText
-                        textFormat: Text.PlainText
-                        text: modelData.title || ""
-                        color: (seasonList.currentIndex === index && focusRow === 2)
-                               ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: 0
-                        topPadding: root.sh * 0.0041667 //2
-                        leftPadding: root.sw * 0.009375 //6
-                        rightPadding: root.sw * 0.009375 //6
-                        bottomPadding: root.sh * 0.00625 //3
-                        font.pixelSize: root.sh * 0.05 //24
-                    }
-
-                    SequentialAnimation {
-                        running: (seasonList.currentIndex === index) &&
-                                 (focusRow === 2) &&
-                                 (rowText.implicitWidth > textClip.width)
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) rowText.x = 0
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: rowText; property: "x"
-                            to: textClip.width - rowText.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: rowText; property: "x"; value: 0 }
                     }
                 }
             }

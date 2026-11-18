@@ -2427,6 +2427,8 @@ StandInRoot {
             var screen = openScreen()
             var name = findText(screen, "Street Fighter II", true)
             verify(name !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            name = name.textItem
             compare(name.x, 0)
             tryVerify(function() { return name.x < 0 }, 4000)
             keyClick(Qt.Key_Down)
@@ -2450,6 +2452,8 @@ StandInRoot {
             for (var i = 0; i < bar.children.length && !label; ++i)
                 label = findText(bar.children[i], "All Games", true)
             verify(label !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            label = label.textItem
             var page = findText(screen, "1/3", true)
             verify(page !== null)
             var pageX = page.mapToItem(screen, 0, 0).x

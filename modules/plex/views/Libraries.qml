@@ -188,53 +188,31 @@ FocusScope {
                 anchors.fill: parent
                 active: root.monitorInk === true
                 sourceComponent: MonitorRow {
-                    label: rowText.text
+                    label: textClip.text
                     selected: libraryList.currentIndex === index
                 }
             }
 
-            Item {
+            ScrolledText {
                 id: textClip
                 visible: root.monitorInk !== true
-                width: Math.min(rowText.implicitWidth, libraryList.width)
+                width: Math.min(implicitWidth, libraryList.width)
                 height: parent.height
-                clip: true
+                on: libraryList.currentIndex === index
+                elides: false
+                text: modelData.title || ""
+                color: libraryList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                font.pixelSize: root.sh * 0.05 //24
+                textItem.topPadding: root.sh * 0.0041667 //2
+                textItem.leftPadding: root.sw * 0.009375 //6
+                textItem.rightPadding: root.sw * 0.009375 //6
+                textItem.bottomPadding: root.sh * 0.00625 //3
 
                 Rectangle {
+                    z: -1
                     color: root.accentColor
-                    anchors.fill: rowText
+                    anchors.fill: textClip.textItem
                     visible: libraryList.currentIndex === index
-                }
-
-                Text {
-                    id: rowText
-                    textFormat: Text.PlainText
-                    text: modelData.title || ""
-                    color: libraryList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                SequentialAnimation {
-                    running: (libraryList.currentIndex === index) &&
-                             (rowText.implicitWidth > textClip.width)
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) rowText.x = 0
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: rowText; property: "x"
-                        to: textClip.width - rowText.implicitWidth
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: rowText; property: "x"; value: 0 }
                 }
             }
         }
