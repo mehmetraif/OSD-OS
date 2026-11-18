@@ -120,7 +120,10 @@ jobs:
       # out in the system's monospace font and the image has no font for Qt
       # to draw it with. OpenSSL is the system's. Then scripts/bsd-ci.sh, which
       # the OpenBSD build runs too: the build, the tests, the cores, the
-      # package, and the package installed, tried and removed.
+      # package, and the package installed, tried and removed. A mirror can
+      # list a package it doesn't have yet while it syncs ("Not Found"), so the
+      # install is tried three times, a minute apart, the catalogue fetched
+      # anew between tries.
       - name: Build, test and package in a FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
@@ -130,8 +133,14 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake perl5 \
-              qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv
+            for try in 1 2 3; do
+              env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake perl5 \
+                qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv && break
+              if [ "$try" = 3 ]; then exit 1; fi
+              echo "pkg install failed (try $try of 3); trying again in a minute"
+              sleep 60
+              env ASSUME_ALWAYS_YES=yes pkg update -f
+            done
           run: bash scripts/bsd-ci.sh "$VERSION"
 
       # Kept once it is built, whether or not the package after it is made,
