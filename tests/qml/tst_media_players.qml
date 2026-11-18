@@ -121,9 +121,11 @@ Rectangle {
     // The routers' view changes, without the window transitions.
     function changeWindow(loader, source, properties) { loader.setSource(source, properties) }
 
-    // What the views asked of their router.
+    // What the views asked of their router: views over the one shown, back,
+    // and leaving the module at once (leaveModule).
     property var navigations: []
     property int backs: 0
+    property int leaves: 0
 
     // The module's router, as a view reads it.
     QtObject {
@@ -131,6 +133,7 @@ Rectangle {
         property string moduleId: "com.osdos.plex"
         property string moduleName: "Plex"
         property string moduleIcon: ""
+        function leaveModule() { root.leaves++ }
     }
 
     // AppCore: the module's settings.
@@ -482,6 +485,8 @@ Rectangle {
             root.chrome.basePath = []
             root.navigations = []
             root.backs = 0
+            root.leaves = 0
+            mpvController.videoActive = false
             appCore.settings = {}
             appCore.lists = {}
             mpvController.loads = 0
@@ -1535,6 +1540,33 @@ Rectangle {
             compare(mpvController.starts[1], 90)
             compare(mpvController.keys, [])
             compare(root.backs, 1)
+        }
+
+        // CLOSE VIDEO in a player's menu (YouTube's, Local Files',
+        // Playlists'): the video stopped, then the module left at once for
+        // the main menu (the router's leaveModule), not one view back; with
+        // no video left playing, the module left there and then.
+        function test_closeVideoLeavesTheModule_data() {
+            return [{ tag: "youtube", module: "youtube",
+                      params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" } } },
+                    { tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" } }]
+        }
+        function test_closeVideoLeavesTheModule(data) {
+            var player = open(data.module, "Player.qml", data.params)
+            compare(mpvController.loads, 1)
+            mpvController.videoActive = true
+            player.menuAction("close")
+            compare(root.leaves, 0)
+            mpvController.videoActive = false
+            mpvController.playbackEnded(5000, 60000, "stopped")
+            compare(root.leaves, 1)
+            compare(root.backs, 0)
+
+            player = open(data.module, "Player.qml", data.params)
+            player.menuAction("close")
+            compare(root.leaves, 2)
+            compare(root.backs, 0)
         }
 
         // The NFC Reader's player starts a card's video with Auto Show

@@ -188,7 +188,7 @@ FocusScope {
             if (mpvController.videoActive)
                 mpvController.stop()
             else
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
         }
     }
     // Back in the menu: the video full screen again, or started again where
@@ -290,7 +290,7 @@ FocusScope {
             playerMenu.close()
             // CLOSE VIDEO leaves the module for the main menu.
             if (playerRoot.closeToMainMenu)
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             else
                 playerRoot.goBack()
         }

@@ -145,7 +145,7 @@ FocusScope {
             if (mpvController.videoActive)
                 mpvController.stop()
             else
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             return
         }
         playerMenu.actions = menuActions()
@@ -235,7 +235,7 @@ FocusScope {
             playerMenu.close()
             // CLOSE VIDEO leaves the module for the main menu.
             if (closeToMainMenu)
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             else
                 goBack()
         }

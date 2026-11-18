@@ -146,7 +146,7 @@ FocusScope {
             if (mpvController.videoActive)
                 mpvController.stop()
             else
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             return
         }
         playerMenu.actions = menuActions()
@@ -313,7 +313,7 @@ FocusScope {
             playerMenu.close()
             // CLOSE VIDEO leaves the module for the main menu.
             if (closeToMainMenu)
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             else
                 goBack()
         }
@@ -487,7 +487,7 @@ FocusScope {
         onRetried: playerRoot.play(playerRoot.lastKnownPositionMs || playerRoot.lastStartMs,
                                    playerRoot.lastKnownPlaylistPos, playerRoot.startedShuffled)
         // CLOSE VIDEO leaves the module for the main menu.
-        onDismissed: playerRoot.closeToMainMenu ? moduleRoot.goBack() : playerRoot.goBack()
+        onDismissed: playerRoot.closeToMainMenu ? moduleRoot.leaveModule() : playerRoot.goBack()
     }
 
     function isPlaylist(path) {
