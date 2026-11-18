@@ -277,83 +277,29 @@ FocusScope {
                 }
             }
 
-            Item {
-                id: textClipContainer;
+            // A selected name too long for the row scrolls through.
+            ScrolledText {
+                id: textClipContainer
                 visible: !appRoot.monitor
-                width: Math.min(rowText.implicitWidth, menuList.width);
-                height: parent.height;
-                clip: true;
+                width: Math.min(implicitWidth, menuList.width)
+                height: parent.height
+                on: current
+                elides: false
+                text: modelData.name
+                color: current ? root.surfaceColor : root.primaryColor
+                font.pixelSize: root.sh * 0.05 //24
+                textItem.topPadding: root.sh * 0.0041667 //2
+                textItem.leftPadding: root.sw * 0.009375 //6
+                textItem.rightPadding: root.sw * 0.009375 //6
+                textItem.bottomPadding: root.sh * 0.00625 //3
 
                 // The selected row's box, or the skin's picture of a selected
-                // line (Settings → Look → Skin).
+                // line (Settings → Look → Skin), under the name and moving
+                // with it.
                 SelectionBox {
-                    anchors.fill: rowText;
-                    visible: current;
-                }
-
-                Text {
-                    id: rowText;
-                    textFormat: Text.PlainText;
-                    text: modelData.name;
-                    color: current ? root.surfaceColor : root.primaryColor;
-                    font.family: root.globalFont;
-                    font.capitalization: Font.AllUppercase;
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                // A selected name too long for the row scrolls through.
-                // Started (and started over) a turn of the event loop after
-                // the row changes, as MenuRow's value is: the animation keeps
-                // the distance it started with, and one started as the menu
-                // is first laid out (its first row's name) would keep a stale
-                // one for good. Not while the row is hidden.
-                readonly property bool scrolls: textClipContainer.visible && current
-                                                && rowText.implicitWidth > textClipContainer.width
-                readonly property real scrollBy: textClipContainer.width - rowText.implicitWidth
-                onScrollsChanged: Qt.callLater(updateScroll)
-                onScrollByChanged: Qt.callLater(updateScroll)
-                Component.onCompleted: Qt.callLater(updateScroll)
-                function updateScroll() {
-                    if (scrolls)
-                        marqueeAnim.restart()
-                    else
-                        marqueeAnim.stop()
-                }
-
-                SequentialAnimation {
-                    id: marqueeAnim;
-                    loops: Animation.Infinite;
-
-                    onRunningChanged: {
-                        if (!running) rowText.x = 0;
-                    }
-
-                    PauseAnimation { 
-                        duration: 1500;
-                    }
-                    
-                    NumberAnimation {
-                        target: rowText;
-                        property: "x";
-                        to: textClipContainer.scrollBy;
-                        duration: Math.abs(to) * 20;
-                    }
-
-                    PauseAnimation { 
-                        duration: 2000;
-                    }
-
-                    PropertyAction { 
-                        target: rowText; 
-                        property: "x"; 
-                        value: 0;
-                    }
+                    z: -1
+                    anchors.fill: textClipContainer.textItem
+                    visible: current
                 }
             }
         }

@@ -511,6 +511,8 @@ osdos_qml_test(main_menu_view tst_main_menu.qml)
 # cursor and the mouse stop on, round the ends, and the cursor held for the
 # host.
 osdos_qml_test(menu_list_view tst_menu_list.qml)
+# A line too long for its room scrolled through (views/Components/ScrolledText.qml) on its own.
+osdos_qml_test(scrolled_text tst_scrolled_text.qml)
 # Settings → Network → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
 # switch, the country and its chooser, joining with a password, a network's
 # options, one not listed, and a search.

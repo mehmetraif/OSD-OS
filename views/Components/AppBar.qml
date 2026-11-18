@@ -138,58 +138,23 @@ Item {
             // question naming a long display output, say), as a row's value is
             // while it is selected (MenuRow). Cut on the font's character
             // grid, as a row's value is.
-            Item {
+            ScrolledText {
                 id: titleClip
                 readonly property real cell: Math.max(1, titleCell.advanceWidth)
-                width: Math.min(titleText.implicitWidth, Math.floor(content.width / cell) * cell)
-                height: titleText.implicitHeight
+                width: Math.min(implicitWidth, Math.floor(content.width / cell) * cell)
                 anchors.verticalCenter: parent.verticalCenter
-                clip: titleText.implicitWidth > width
+                clip: implicitWidth > width
+                // Whole, and still while the monitor layout's frame writes it.
+                on: true
+                resting: appBar.handed
+                text: appBar.title
+                color: root.surfaceColor
+                font.pixelSize: root.sh * 0.05 //24
 
-                Text {
-                    id: titleText
-                    textFormat: Text.PlainText
-                    text: appBar.title
-                    color: root.surfaceColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    font.pixelSize: root.sh * 0.05 //24
-                }
                 TextMetrics {
                     id: titleCell
-                    font: titleText.font
+                    font: titleClip.font
                     text: "M"
-                }
-
-                // Started (and started over) a turn of the event loop after
-                // the layout changes, as MenuRow's is: the animation keeps
-                // the distance it started with.
-                readonly property bool scrolls: appBar.visible && !appBar.handed && titleText.implicitWidth > width
-                readonly property real scrollBy: width - titleText.implicitWidth
-                onScrollsChanged: Qt.callLater(updateScroll)
-                onScrollByChanged: Qt.callLater(updateScroll)
-                Component.onCompleted: Qt.callLater(updateScroll)
-                function updateScroll() {
-                    if (scrolls)
-                        scroll.restart()
-                    else
-                        scroll.stop()
-                }
-
-                SequentialAnimation {
-                    id: scroll
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) titleText.x = 0
-
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: titleText
-                        property: "x"
-                        to: titleClip.scrollBy
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: titleText; property: "x"; value: 0 }
                 }
             }
 

@@ -271,6 +271,8 @@ StandInRoot {
             compare(cursor(menu), appCore.firstName)
             var label = textIn(listOf(menu).itemAtIndex(0), appCore.firstName)
             verify(label !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            label = label.textItem
             scrollsAsFarAsItOverflows(label)
             root.width = 640
             scrollsAsFarAsItOverflows(label)

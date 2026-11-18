@@ -250,7 +250,8 @@ StandInRoot {
             compare(row.label, name)
             var label = textIn(row, name)
             verify(label !== null)
-            var slider = label.parent
+            // What moves: its line, in its room (a ScrolledText's).
+            var slider = label.textItem
             // How far it overflows the column as it is laid out by then.
             var distance = function() { return row.width - label.implicitWidth }
             // From the start (started over a turn later), to the far end.

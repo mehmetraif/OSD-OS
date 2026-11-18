@@ -65,7 +65,7 @@ Item {
                                      ? Math.ceil(iconRow.width / cell - 0.01) + (icons.length > 0 ? 1 : 0) : 0
     readonly property int endCell: lineCells - iconCells
     readonly property bool hasEnd: value !== "" || endIcons.length > 0
-    readonly property int valueCells: Math.ceil(valueText.implicitWidth / cell - 0.01)
+    readonly property int valueCells: Math.ceil(valueClip.implicitWidth / cell - 0.01)
     // The ◄ before a value that changes: the cell before the value's.
     readonly property int leadCells: changes ? 1 : 0
     readonly property int valueCell: Math.max(labelCells + 2 + leadCells, endCell - valueCells)
@@ -171,62 +171,16 @@ Item {
         // The value: cut short with "…" when it is too long for the line, and
         // scrolled through instead while the line is selected (or always, with
         // alwaysScroll).
-        Item {
+        ScrolledText {
             id: valueClip
             visible: menuRow.value !== ""
             x: menuRow.pad + menuRow.valueCell * menuRow.cell
             width: Math.max(0, menuRow.endCell - menuRow.valueCell) * menuRow.cell
             height: parent.height
-            clip: true
-
-            Text {
-                id: valueText
-                anchors.verticalCenter: parent.verticalCenter
-                width: menuRow.selected || menuRow.alwaysScroll ? implicitWidth
-                                                                : Math.min(implicitWidth, valueClip.width)
-                textFormat: Text.PlainText
-                text: menuRow.value
-                color: menuRow.ink
-                elide: Text.ElideRight
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
-                font.pixelSize: menuRow.fontSize
-            }
-
-            // Whether the value scrolls, and how far. The animation keeps the
-            // distance it started with, so it is started (and started over) once
-            // the line's layout has settled, a turn of the event loop later: one
-            // started in the middle of it, as a line that scrolls from the start
-            // is, would keep a stale distance for good.
-            // Not while the line is hidden (a list under a keyboard or a page):
-            // a scroll going on there would redraw the window every frame.
-            readonly property bool scrolls: menuRow.visible && !menuRow.handed && (menuRow.selected || menuRow.alwaysScroll)
-                                            && valueText.implicitWidth > valueClip.width
-            readonly property real scrollBy: valueClip.width - valueText.implicitWidth
-            onScrollsChanged: Qt.callLater(updateScroll)
-            onScrollByChanged: Qt.callLater(updateScroll)
-            function updateScroll() {
-                if (scrolls)
-                    scroll.restart()
-                else
-                    scroll.stop()
-            }
-
-            SequentialAnimation {
-                id: scroll
-                loops: Animation.Infinite
-                onRunningChanged: if (!running) valueText.x = 0
-
-                PauseAnimation { duration: 1500 }
-                NumberAnimation {
-                    target: valueText
-                    property: "x"
-                    to: valueClip.scrollBy
-                    duration: Math.abs(to) * 20
-                }
-                PauseAnimation { duration: 2000 }
-                PropertyAction { target: valueText; property: "x"; value: 0 }
-            }
+            on: menuRow.selected || menuRow.alwaysScroll
+            text: menuRow.value
+            color: menuRow.ink
+            font.pixelSize: menuRow.fontSize
         }
 
         // The ◄ of a value that changes, at the start of the cell before the

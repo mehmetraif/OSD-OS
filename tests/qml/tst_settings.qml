@@ -1841,6 +1841,8 @@ StandInRoot {
             var bar = createTemporaryObject(appBar, root, { title: "Display Output", subtitle: "Now" })
             var title = findText(bar, "Display Output")
             verify(title !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            title = title.textItem
             compare(title.parent.width, title.implicitWidth)
             verify(!title.parent.clip)
             verify(findText(bar, "Now").visible)
@@ -1855,6 +1857,8 @@ StandInRoot {
             var bar = createTemporaryObject(appBar, root, { title: text, subtitle: "Now" })
             var title = findText(bar, text)
             verify(title !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            title = title.textItem
             var clip = title.parent
             verify(title.implicitWidth > clip.width)
             verify(clip.clip)

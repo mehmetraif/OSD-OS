@@ -570,38 +570,16 @@ FocusScope {
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
                 }
-                Item {
+                ScrolledText {
                     id: audioValueClip
                     width: root.sw * 0.25 //160
                     height: parent.height
-                    clip: true
-
-                    Text {
-                        id: audioValueText
-                        textFormat: Text.PlainText
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: (detail && detail.audioStreams && detail.audioStreams[audioIdx])
-                              ? streamLabel(detail.audioStreams[audioIdx]) : ""
-                        color: focusRow === 1 ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        font.pixelSize: root.sh * 0.0416667 //20
-                        x: 0
-                    }
-
-                    SequentialAnimation {
-                        running: focusRow === 1 && audioValueText.implicitWidth > audioValueClip.width
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) audioValueText.x = 0
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: audioValueText; property: "x"
-                            to: audioValueClip.width - audioValueText.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: audioValueText; property: "x"; value: 0 }
-                    }
+                    on: focusRow === 1
+                    elides: false
+                    text: (detail && detail.audioStreams && detail.audioStreams[audioIdx])
+                          ? streamLabel(detail.audioStreams[audioIdx]) : ""
+                    color: focusRow === 1 ? root.surfaceColor : root.primaryColor
+                    font.pixelSize: root.sh * 0.0416667 //20
                 }
                 Text {
                     text: "\u25BA"
@@ -651,42 +629,20 @@ FocusScope {
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
                 }
-                Item {
+                ScrolledText {
                     id: subtitleValueClip
                     width: root.sw * 0.25 //160
                     height: parent.height
-                    clip: true
-
-                    Text {
-                        id: subtitleValueText
-                        textFormat: Text.PlainText
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: {
-                            if (subtitleIdx === 0) return "Off"
-                            if (detail && detail.subtitleStreams && detail.subtitleStreams[subtitleIdx - 1])
-                                return streamLabel(detail.subtitleStreams[subtitleIdx - 1])
-                            return ""
-                        }
-                        color: focusRow === 2 ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        font.pixelSize: root.sh * 0.0416667 //20
-                        x: 0
+                    on: focusRow === 2
+                    elides: false
+                    text: {
+                        if (subtitleIdx === 0) return "Off"
+                        if (detail && detail.subtitleStreams && detail.subtitleStreams[subtitleIdx - 1])
+                            return streamLabel(detail.subtitleStreams[subtitleIdx - 1])
+                        return ""
                     }
-
-                    SequentialAnimation {
-                        running: focusRow === 2 && subtitleValueText.implicitWidth > subtitleValueClip.width
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) subtitleValueText.x = 0
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: subtitleValueText; property: "x"
-                            to: subtitleValueClip.width - subtitleValueText.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: subtitleValueText; property: "x"; value: 0 }
-                    }
+                    color: focusRow === 2 ? root.surfaceColor : root.primaryColor
+                    font.pixelSize: root.sh * 0.0416667 //20
                 }
                 Text {
                     text: "\u25BA"

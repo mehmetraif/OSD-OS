@@ -830,62 +830,20 @@ FocusScope {
                     height: row.height
                 }
 
-                Item {
+                // The name, cut short with "…" when it is too long for its
+                // column; the cursor row's whole, and scrolled through
+                // instead. A column's width settles only after its rows are
+                // made (placeColumns()): ScrolledText starts the scroll once
+                // it has, to the settled distance.
+                ScrolledText {
+                    id: labelText
                     width: row.width
                     height: row.height
                     clip: row.cursor
-
-                    Item {
-                        id: slider
-                        height: parent.height
-                        Text {
-                            id: labelText
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: row.cursor ? implicitWidth : row.width
-                            text: row.label
-                            // As it is: a name such as "<B>" (a player's, a
-                            // file's) isn't markup.
-                            textFormat: Text.PlainText
-                            elide: row.cursor ? Text.ElideNone : Text.ElideRight
-                            color: row.cursor ? cursorBox.ink : root.primaryColor
-                            font.family: root.globalFont
-                            font.capitalization: Font.AllUppercase
-                            font.pixelSize: tree.fontSize
-                        }
-                    }
-                }
-
-                // A cursor row too long for its column scrolls through. Started
-                // (and started over) a turn of the event loop after the row
-                // changes, as MenuRow's value is: the animation keeps the
-                // distance it started with, and a column's width settles only
-                // after its rows are made (placeColumns()), the cursor's row
-                // taking each name in turn. Not while the row is hidden.
-                readonly property bool scrolls: row.visible && row.cursor && labelText.implicitWidth > row.width
-                readonly property real scrollBy: row.width - labelText.implicitWidth
-                onScrollsChanged: Qt.callLater(updateScroll)
-                onScrollByChanged: Qt.callLater(updateScroll)
-                Component.onCompleted: Qt.callLater(updateScroll)
-                function updateScroll() {
-                    if (scrolls)
-                        scroll.restart()
-                    else
-                        scroll.stop()
-                }
-
-                SequentialAnimation {
-                    id: scroll
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) slider.x = 0
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: slider
-                        property: "x"
-                        to: row.scrollBy
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: slider; property: "x"; value: 0 }
+                    on: row.cursor
+                    text: row.label
+                    color: row.cursor ? cursorBox.ink : root.primaryColor
+                    font.pixelSize: tree.fontSize
                 }
             }
         }

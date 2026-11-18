@@ -1102,6 +1102,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `HintBar` | The key hints at the foot, from `root.hints` |
 | `MenuRow`, `MenuList`, `ScrollMarks` | Menu lines, a menu of them, ▲ ▼ when lines are hidden |
 | `HelpLine` | The line about the selected row, under the menu |
+| `ScrolledText` | A line too long for its room, scrolled through while it is `on` (the selected row's) and cut short with "…" while not: `text`, `on`, `font.pixelSize` |
 | `PromptScreen`, `ChoiceOverlay` | A full-screen question or notice, and a short list of answers |
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |

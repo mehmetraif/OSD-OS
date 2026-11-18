@@ -2595,6 +2595,8 @@ StandInRoot {
             var screen = openScreen()
             var value = findText(screen, "Data East Corporation", true)
             verify(value !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            value = value.textItem
             compare(value.width, value.implicitWidth)
             verify(value.width > value.parent.width)
             tryVerify(function() { return value.x < 0 }, 4000)
