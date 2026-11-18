@@ -19,11 +19,6 @@ public:
     Q_INVOKABLE void connect_authenticate(const QString &usernameOrEmail, const QString &password);
     Q_INVOKABLE void connect_select_server(const QString &serverUrl, const QString &accessKey);
 
-    // Playback
-    Q_INVOKABLE void get_playback_url(const QString &itemId, const QString &mediaSourceId,
-                                       int audioStreamIndex, int subtitleStreamIndex,
-                                       bool forceTranscode = false);
-
     // Intro/credit skip — derived from Emby's chapter markers (IntroStart/
     // IntroEnd/CreditsStart). Emits Intro/Outro segments the Player consumes.
     Q_INVOKABLE void fetchSegments(const QString &itemId);
@@ -43,11 +38,6 @@ private:
 
     QString m_connectUserId;      // Emby Connect account user id (cloud)
     QString m_connectAccessToken; // Emby Connect account token (cloud)
-    // One-shot: set when re-requesting a Dolby Vision source as an SDR transcode
-    // so the profile caps it to 1080p/20Mbps (a full-4K/uncapped transcode is too
-    // heavy to start promptly, and the display targets are SDR anyway). Consumed
-    // and cleared by the next get_playback_url profile build.
-    bool m_forceSdrTranscodeCap = false;
 
     // Emby reads the token from its X-Emby-Authorization header, and from
     // X-Emby-Token.
@@ -59,6 +49,14 @@ private:
     // The device's registration dropped with the token.
     void revokeToken() override;
     bool resumeNeedsMediaTypes() const override { return true; }
+    // The profile with its own bitrate cap, which Emby's needs.
+    QJsonObject deviceProfile(bool directPlay, int maxBitrate) const override;
+    // Text subtitles as sidecars always, image ones embedded for Direct Play
+    // and burnt in for a transcode.
+    QJsonArray subtitleProfiles(bool directPlay) const override;
+    // A Dolby Vision source, which mpv can't show, transcoded to SDR.
+    bool transcodeInstead(const QJsonObject &source, const QString &itemId, const QString &mediaSourceId,
+                          int audioStreamIndex, int subtitleStreamIndex) override;
 
     // Emby Connect helpers (step 2 of the flow, and post-exchange persistence).
     void fetchConnectServers();
@@ -71,6 +69,4 @@ private:
     // The remote address of each server Emby Connect listed last with a LAN
     // address too, by its access key.
     QHash<QString, QString> m_connectRemotes;
-
-    int videoQualityBitrate() const;
 };

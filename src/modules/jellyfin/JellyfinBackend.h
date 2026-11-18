@@ -14,11 +14,6 @@ public:
     Q_INVOKABLE void quick_connect_authenticate(const QString &secret);
     Q_INVOKABLE void quick_connect_cancel();
 
-    // Playback
-    Q_INVOKABLE void get_playback_url(const QString &itemId, const QString &mediaSourceId,
-                                       int audioStreamIndex, int subtitleStreamIndex,
-                                       bool forceTranscode = false);
-
     // Intro/outro skip — MediaSegments API
     Q_INVOKABLE void fetchSegments(const QString &itemId);
 
@@ -49,10 +44,13 @@ private:
     // A token found good: what its server can do is asked then.
     void tokenChecked() override { probeCapabilities(); }
     QString episodeOrder() const override { return QStringLiteral("AiredEpisodeOrder"); }
+    // Text subtitles as sidecars or embedded for Direct Play, every subtitle
+    // burnt in for a transcode.
+    QJsonArray subtitleProfiles(bool directPlay) const override;
+    // Direct Play asks for 1000 Mbps at most.
+    int qualityBitrate(const QString &quality) const override;
 
     // Whether the server has the MediaSegments API (Intro Skip and Credit
     // Skip), asked once a sign-in and told to the settings page.
     void probeCapabilities();
-
-    int videoQualityBitrate() const;
 };

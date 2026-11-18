@@ -34,7 +34,8 @@
 // Server Address changed while signed in to Jellyfin or Emby signs out of
 // the server that issued the token, which goes to no other host, and
 // Jellyfin's and Emby's backends, one code, ask each in its own way where
-// their servers differ.
+// their servers differ: PlaybackInfo with their own device profiles, the
+// URLs mpv is handed, Emby's Dolby Vision transcoded.
 
 class Reply : public QNetworkReply {
 public:
@@ -72,6 +73,7 @@ public:
         emit finished();
     }
     qint64 bytesAvailable() const override { return m_body.size() + QNetworkReply::bytesAvailable(); }
+    QByteArray sent;    // the body the request sent (a POST's)
 protected:
     qint64 readData(char *data, qint64 max) override {
         const qint64 size = qMin(max, qint64(m_body.size()));
@@ -87,8 +89,11 @@ public:
     QList<Reply *> replies;
     Reply *last() const { return replies.last(); }
 protected:
-    QNetworkReply *createRequest(Operation, const QNetworkRequest &request, QIODevice *) override {
-        auto *reply = new Reply(request, this); replies << reply; return reply;
+    QNetworkReply *createRequest(Operation, const QNetworkRequest &request, QIODevice *data) override {
+        auto *reply = new Reply(request, this); replies << reply;
+        if (data)
+            reply->sent = data->readAll();
+        return reply;
     }
 };
 
@@ -969,6 +974,197 @@ private slots:
         QCOMPARE(em->last()->url().path(), QStringLiteral("/Sessions/Logout"));
         QCOMPARE(em->last()->request().rawHeader("X-Emby-Token"), QByteArray("token"));
         QVERIFY(!jellyfin.has_auth() && !emby.has_auth());
+    }
+
+    // The URL mpv plays a transcode from, made of the server's TranscodingUrl
+    // (rewriteTranscodeUrl): Jellyfin's without the token, which mpv sends
+    // in a header, Emby's with it, the server's own kept or the backend's
+    // added; the subtitle the server took from the item's defaults taken out
+    // when the user chose none; the session the one reported with; the
+    // height held to Video Quality's, replaced or added, and left as it is
+    // for Direct Play's none. And the URL mpv plays the original file from
+    // (directStreamUrl), with Emby's token.
+    void transcodeAndDirectUrlsAreMadeForMpv() {
+        const QString server = QStringLiteral("http://server");
+        const QString asked = QStringLiteral("/videos/film/master.m3u8?DeviceId=d&MediaSourceId=film&api_key=old"
+                                             "&PlaySessionId=p1&SubtitleStreamIndex=3&SubtitleMethod=Encode&MaxHeight=1080");
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, asked, QStringLiteral("p2"), -1, 480, false,
+                                                     QStringLiteral("token")),
+                 QStringLiteral("http://server/videos/film/master.m3u8?DeviceId=d&MediaSourceId=film"
+                                "&PlaySessionId=p2&MaxHeight=480"));
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, asked, QStringLiteral("p2"), 3, 0, true,
+                                                     QStringLiteral("token")),
+                 QStringLiteral("http://server/videos/film/master.m3u8?DeviceId=d&MediaSourceId=film&api_key=old"
+                                "&PlaySessionId=p2&SubtitleStreamIndex=3&SubtitleMethod=Encode&MaxHeight=1080"));
+        // The token spelt as Jellyfin spells it too, a height by another
+        // name, and no session to pin.
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, QStringLiteral("/videos/film/master.m3u8?ApiKey=old&height=2160"),
+                                                     QString(), 3, 576, false, QString()),
+                 QStringLiteral("http://server/videos/film/master.m3u8?MaxHeight=576"));
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, QStringLiteral("/videos/film/master.m3u8?MediaSourceId=film"),
+                                                     QString(), -1, 720, true, QStringLiteral("token")),
+                 QStringLiteral("http://server/videos/film/master.m3u8?MediaSourceId=film&api_key=token&MaxHeight=720"));
+        // Signed out meanwhile: no token to add.
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, QStringLiteral("/videos/film/master.m3u8?MediaSourceId=film"),
+                                                     QString(), -1, 0, true, QString()),
+                 QStringLiteral("http://server/videos/film/master.m3u8?MediaSourceId=film"));
+
+        QCOMPARE(EmbyApiBackend::directStreamUrl(server, QStringLiteral("film"), QStringLiteral("src"),
+                                                 QStringLiteral("p1"), QString()),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=src&PlaySessionId=p1"));
+        QCOMPARE(EmbyApiBackend::directStreamUrl(server, QStringLiteral("film"), QStringLiteral("src"),
+                                                 QString(), QStringLiteral("token")),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=src&api_key=token"));
+    }
+
+    // The body a request sent, and the methods its device profile says a
+    // subtitle format comes by.
+    static QJsonObject sentBody(const Reply *reply) { return QJsonDocument::fromJson(reply->sent).object(); }
+    static QString subtitleMethods(const QJsonObject &body, const char *format) {
+        QStringList methods;
+        for (const QJsonValue &v : body["DeviceProfile"].toObject()["SubtitleProfiles"].toArray()) {
+            if (v.toObject()["Format"].toString() == QLatin1String(format))
+                methods << v.toObject()["Method"].toString();
+        }
+        return methods.join(QLatin1Char(','));
+    }
+    // Settings → Video Quality for both servers, in config.json.
+    static void setVideoQuality(const QString &dataRoot, const char *quality) {
+        QFile config(dataRoot + QStringLiteral("/config.json"));
+        QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        const QJsonObject module{ { "video_quality", quality } };
+        config.write(QJsonDocument(QJsonObject{ { "modules", QJsonObject{ { "com.osdos.jellyfin", module },
+                                                                          { "com.osdos.emby", module } } } }).toJson());
+    }
+
+    // What PlaybackInfo is asked for, each server's way: Direct Play (Video
+    // Quality Auto) with a profile that matches anything; Jellyfin's text
+    // subtitles as sidecars or embedded, burnt in for a transcode, and
+    // Emby's always as sidecars, its image ones burnt in for a transcode;
+    // Jellyfin's Direct Play bitrate at 1000 Mbps, Emby's in its profile,
+    // which it needs; a quality's caps for a transcode. Direct Play's URL
+    // carries Emby's token and not Jellyfin's; a transcode's is held to the
+    // height asked for.
+    void playbackInfoIsAskedEachServersWay() {
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        EmbyBackend emby(tmp.path());
+        Network *jf = signIn(jellyfin);
+        Network *em = signIn(emby);
+        QSignalSpy jfReady(&jellyfin, &JellyfinBackend::streamUrlReady);
+        QSignalSpy emReady(&emby, &EmbyBackend::streamUrlReady);
+
+        jellyfin.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1);
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1);
+        Reply *jfInfo = jf->last(), *emInfo = em->last();
+        QJsonObject jfBody = sentBody(jfInfo), emBody = sentBody(emInfo);
+        QVERIFY(jfInfo->url().path().endsWith(QLatin1String("/Items/film/PlaybackInfo")));
+        QVERIFY(jfBody["EnableDirectPlay"].toBool() && emBody["EnableDirectPlay"].toBool());
+        QCOMPARE(jfBody["MaxStreamingBitrate"].toInt(), 1000000000);
+        QVERIFY(!emBody.contains(QLatin1String("MaxStreamingBitrate")));
+        QVERIFY(!jfBody.contains(QLatin1String("MaxHeight")) && !emBody.contains(QLatin1String("MaxHeight")));
+        QVERIFY(!jfBody["DeviceProfile"].toObject().contains(QLatin1String("MaxStreamingBitrate")));
+        QCOMPARE(emBody["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 2000000000);
+        QCOMPARE(jfBody["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().size(), 1);
+        QCOMPARE(emBody["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().size(), 1);
+        QCOMPARE(subtitleMethods(jfBody, "subrip"), QStringLiteral("External,Embed"));
+        QCOMPARE(subtitleMethods(jfBody, "pgssub"), QStringLiteral("Embed"));
+        QCOMPARE(subtitleMethods(emBody, "subrip"), QStringLiteral("External"));
+        QCOMPARE(subtitleMethods(emBody, "pgssub"), QStringLiteral("Embed"));
+        const QByteArray direct = QJsonDocument(QJsonObject{
+            { "PlaySessionId", "ps" },
+            { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "SupportsDirectPlay", true } } } } }).toJson();
+        jfInfo->complete(direct);
+        emInfo->complete(direct);
+        QCOMPARE(jfReady.last().at(0).toString(),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"));
+        QCOMPARE(emReady.last().at(0).toString(),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"
+                                "&api_key=token"));
+
+        setVideoQuality(tmp.path(), "720p");
+        jellyfin.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, 2);
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, 2);
+        jfInfo = jf->last();
+        emInfo = em->last();
+        jfBody = sentBody(jfInfo);
+        emBody = sentBody(emInfo);
+        for (const QJsonObject &body : { jfBody, emBody }) {
+            QVERIFY(!body["EnableDirectPlay"].toBool());
+            QCOMPARE(body["MaxStreamingBitrate"].toInt(), 6000000);
+            QCOMPARE(body["MaxHeight"].toInt(), 720);
+            QCOMPARE(body["SubtitleStreamIndex"].toInt(), 2);
+            QVERIFY(body["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().isEmpty());
+        }
+        QCOMPARE(emBody["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 6000000);
+        QCOMPARE(subtitleMethods(jfBody, "subrip"), QStringLiteral("Encode"));
+        QCOMPARE(subtitleMethods(jfBody, "webvtt"), QString());
+        QCOMPARE(subtitleMethods(jfBody, "pgssub"), QStringLiteral("Encode"));
+        QCOMPARE(subtitleMethods(emBody, "subrip"), QStringLiteral("External"));
+        QCOMPARE(subtitleMethods(emBody, "pgssub"), QStringLiteral("Encode"));
+        // Video Quality changed before the server answers: the transcode is
+        // held to the height it was asked for at.
+        setVideoQuality(tmp.path(), "480p");
+        const QByteArray transcode = QJsonDocument(QJsonObject{
+            { "PlaySessionId", "ps2" },
+            { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "TranscodingUrl",
+                "/videos/film/master.m3u8?api_key=server&PlaySessionId=ps2&SubtitleStreamIndex=2&MaxHeight=1080" } } } } }).toJson();
+        jfInfo->complete(transcode);
+        emInfo->complete(transcode);
+        QCOMPARE(jfReady.last().at(0).toString(),
+                 QStringLiteral("http://server/videos/film/master.m3u8?PlaySessionId=ps2&SubtitleStreamIndex=2&MaxHeight=720"));
+        QCOMPARE(emReady.last().at(0).toString(),
+                 QStringLiteral("http://server/videos/film/master.m3u8?api_key=server&PlaySessionId=ps2"
+                                "&SubtitleStreamIndex=2&MaxHeight=720"));
+    }
+
+    // An Emby source in Dolby Vision, which mpv can't show, is asked for
+    // again as a transcode to SDR held to 1080p and 20 Mbps (Video Quality
+    // Auto caps none), an image subtitle dropped (burnt in, it would fail
+    // the transcode) and a text one kept; the transcode's URL keeps the
+    // server's height, Auto having none of its own. The cap is the re-ask's
+    // alone: the next stream is asked for as before.
+    void embyDolbyVisionIsTranscodedCapped() {
+        QTemporaryDir tmp;
+        EmbyBackend emby(tmp.path());
+        Network *network = signIn(emby);
+        QSignalSpy ready(&emby, &EmbyBackend::streamUrlReady);
+        const auto dolbyVision = [](int subtitle, bool text) {
+            const QJsonArray streams{ QJsonObject{ { "Type", "Video" }, { "VideoRangeType", "DOVI" } },
+                                      QJsonObject{ { "Type", "Subtitle" }, { "Index", subtitle },
+                                                   { "IsTextSubtitleStream", text } } };
+            return QJsonDocument(QJsonObject{ { "PlaySessionId", "ps" }, { "MediaSources", QJsonArray{ QJsonObject{
+                { "Id", "film" }, { "SupportsDirectPlay", true }, { "MediaStreams", streams } } } } }).toJson();
+        };
+
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 1, 4);
+        network->last()->complete(dolbyVision(4, false));
+        QCOMPARE(ready.count(), 0);
+        QJsonObject body = sentBody(network->last());
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/Items/film/PlaybackInfo")));
+        QVERIFY(!body["EnableDirectPlay"].toBool());
+        QCOMPARE(body["MaxStreamingBitrate"].toInt(), 20000000);
+        QCOMPARE(body["MaxHeight"].toInt(), 1080);
+        QCOMPARE(body["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 20000000);
+        QCOMPARE(body["AudioStreamIndex"].toInt(), 1);
+        QVERIFY(!body.contains(QLatin1String("SubtitleStreamIndex")));
+        network->last()->complete(QJsonDocument(QJsonObject{ { "PlaySessionId", "t" }, { "MediaSources", QJsonArray{
+            QJsonObject{ { "Id", "film" }, { "TranscodingUrl", "/videos/film/master.m3u8?Height=2160&PlaySessionId=t" } } } } })
+                                      .toJson());
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.last().at(0).toString(),
+                 QStringLiteral("http://server/videos/film/master.m3u8?Height=2160&PlaySessionId=t&api_key=token"));
+
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 1, 5);
+        network->last()->complete(dolbyVision(5, true));
+        QCOMPARE(sentBody(network->last())["SubtitleStreamIndex"].toInt(), 5);
+
+        emby.get_playback_url(QStringLiteral("other"), QStringLiteral("other"), -1, -1);
+        body = sentBody(network->last());
+        QVERIFY(body["EnableDirectPlay"].toBool());
+        QVERIFY(!body.contains(QLatin1String("MaxStreamingBitrate")));
+        QVERIFY(!body.contains(QLatin1String("MaxHeight")));
+        QCOMPARE(body["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 2000000000);
     }
 
     // Quick Connect says what the server answered, as it starts and at the

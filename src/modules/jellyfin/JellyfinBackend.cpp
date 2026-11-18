@@ -13,7 +13,6 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QSslError>
-#include <QRegularExpression>
 
 static const QString kModuleId = QStringLiteral("com.osdos.jellyfin");
 
@@ -34,19 +33,6 @@ void JellyfinBackend::clearAuthState() {
     EmbyApiBackend::clearAuthState();
     m_capabilitiesProbed = false;
     m_hasCapability = false;
-}
-
-// ---------------------------------------------------------------------------
-// Config helpers
-// ---------------------------------------------------------------------------
-
-int JellyfinBackend::videoQualityBitrate() const {
-    QString quality = moduleConfig()["video_quality"].toString("auto");
-    if (quality == QLatin1String("auto"))  return 1000000000; // direct play — 1000 Mbps cap
-    if (quality == QLatin1String("1080p")) return 10000000;
-    if (quality == QLatin1String("720p"))  return 6000000;
-    if (quality == QLatin1String("576p"))  return 4500000;
-    return 4000000; // 480p default
 }
 
 // ---------------------------------------------------------------------------
@@ -256,56 +242,8 @@ void JellyfinBackend::quick_connect_cancel() {
 // Playback
 // ---------------------------------------------------------------------------
 
-void JellyfinBackend::get_playback_url(const QString &itemId, const QString &mediaSourceId,
-                                       int audioStreamIndex, int subtitleStreamIndex,
-                                       bool forceTranscode) {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
-    }
-
-    // "auto" (Direct Play) lets the server serve the original file untouched
-    // when the source is compatible; any other value forces a quality-capped
-    // HLS transcode. forceTranscode overrides "auto" for a fallback retry after
-    // a direct-play failure (see Player.qml onPlaybackEnded).
-    const bool directPlay = !forceTranscode
-                          && (moduleConfig()["video_quality"].toString("auto")
-                              == QLatin1String("auto"));
-    const int maxBitrate = videoQualityBitrate();
-    const int maxHeight  = videoQualityMaxHeight();
-
-    QUrl url(m_serverUrl + "/Items/" + itemId + "/PlaybackInfo");
-    QJsonObject body;
-    body["UserId"]                 = m_userId;
-    body["MediaSourceId"]          = mediaSourceId;
-    if (audioStreamIndex >= 0)
-        body["AudioStreamIndex"]   = audioStreamIndex;
-    // For direct play the device profile already advertises Embed for every
-    // subtitle format (including PGS/VOBSUB), so the server knows we handle
-    // them client-side and won't force a transcode.  Pass the user's actual
-    // selection (or omit if off) so the static stream includes all tracks.
-    // Hardcoding -1 here caused newer Jellyfin servers to strip sub tracks
-    // from the stream, breaking both --sid for image subs and sidecar URLs.
-    if (subtitleStreamIndex >= 0)
-        body["SubtitleStreamIndex"] = subtitleStreamIndex;
-    if (maxBitrate > 0) body["MaxStreamingBitrate"] = maxBitrate;
-    if (maxHeight  > 0) body["MaxHeight"]           = maxHeight;
-    body["EnableDirectPlay"]       = directPlay;
-    body["EnableDirectStream"]     = directPlay;
-
-    // Device profile — advertises the HLS transcode target, plus (for direct
-    // play) the broad set of containers/codecs mpv can play natively.
-    QJsonObject profile;
-    QJsonArray transcodingProfiles;
-    QJsonObject tp;
-    tp["Container"]  = QStringLiteral("ts");
-    tp["Type"]       = QStringLiteral("Video");
-    tp["VideoCodec"]  = QStringLiteral("h264");
-    tp["AudioCodec"]  = QStringLiteral("aac,mp3");
-    tp["Protocol"]    = QStringLiteral("hls");
-    transcodingProfiles.append(tp);
-    profile["TranscodingProfiles"] = transcodingProfiles;
-    QJsonArray subtitleProfiles;
+QJsonArray JellyfinBackend::subtitleProfiles(bool directPlay) const {
+    QJsonArray profiles;
     if (directPlay) {
         // Direct play serves the original file whole and mpv renders embedded
         // subtitles itself. Advertise Embed (not Encode) so the server doesn't
@@ -314,7 +252,7 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
             QJsonObject s;
             s["Format"] = QString::fromLatin1(fmt);
             s["Method"] = QString::fromLatin1(method);
-            subtitleProfiles.append(s);
+            profiles.append(s);
         };
         // Text formats can also arrive as a sidecar file sitting next to the video
         // ("… - External" tracks). Those can't be embedded into a static stream, so
@@ -350,7 +288,7 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
             QJsonObject s;
             s["Format"] = QString::fromLatin1(fmt);
             s["Method"] = QStringLiteral("Encode");
-            subtitleProfiles.append(s);
+            profiles.append(s);
         };
         addBurnin("subrip");
         addBurnin("srt");
@@ -362,146 +300,13 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
         addBurnin("dvbsub");
         addBurnin("dvdsub");
     }
-    profile["SubtitleProfiles"] = subtitleProfiles;
-    QJsonArray directPlayProfiles;
-    if (directPlay) {
-        // mpv plays virtually anything, so advertise a match-all profile —
-        // omitted Container/VideoCodec/AudioCodec fields match every value in
-        // Jellyfin's profile matcher. A codec whitelist here silently forced
-        // transcodes on exact-name misses (pcm_s16le vs pcm, webvtt vs vtt, …).
-        // If mpv truly can't play a file, the transcode retry in Player.qml
-        // onPlaybackEnded is the safety net. An empty array (transcode mode)
-        // tells the server nothing can be direct-played.
-        QJsonObject dp;
-        dp["Type"] = QStringLiteral("Video");
-        directPlayProfiles.append(dp);
-    }
-    profile["DirectPlayProfiles"] = directPlayProfiles;
-    body["DeviceProfile"] = profile;
+    return profiles;
+}
 
-    const int request = ++m_playbackRequest;
-    auto *reply = serverPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
-        reply->deleteLater();
-        // Not wanted any more: another stream asked for since, or given up.
-        // Nothing of it is reported to the server, which would show it playing.
-        if (request != m_playbackRequest)
-            return;
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("PLAYBACK INFO FAILED: " + serverlog::why(reply));
-            return;
-        }
-
-        QJsonObject data = QJsonDocument::fromJson(reply->readAll()).object();
-        QJsonArray sources = data["MediaSources"].toArray();
-        if (sources.isEmpty()) {
-            emit errorOccurred("NO PLAYABLE SOURCE");
-            return;
-        }
-
-        QJsonObject source = sources[0].toObject();
-
-        // Direct play when requested AND the server confirms the source is
-        // compatible. Serves the original file via /Videos/{id}/stream?static=true;
-        // mpv handles embedded audio/subtitle tracks (Player.qml direct-play branch).
-        // PlaySessionId from the PlaybackInfo response is reused for the stream
-        // URL and every /Sessions report so the server correlates the dashboard
-        // session with this stream — and tears the transcode down on Stopped.
-        const QString playSessionId = data["PlaySessionId"].toString();
-
-        if (directPlay && (source["SupportsDirectPlay"].toBool()
-                           || source["SupportsDirectStream"].toBool())) {
-            const QString srcId = source["Id"].toString(mediaSourceId);
-            QString directUrl = m_serverUrl + "/Videos/" + itemId + "/stream"
-                              + "?static=true"
-                              + "&mediaSourceId=" + srcId;
-            if (!playSessionId.isEmpty())
-                directUrl += "&PlaySessionId=" + playSessionId;
-            m_currentPlaySessionId = playSessionId;
-            m_currentPlayMethod    = QStringLiteral("DirectPlay");
-            report_playback_start(itemId, mediaSourceId,
-                                  audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
-                                  subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-            emit streamUrlReady(directUrl);
-            return;
-        }
-
-        // Transcode path — used for the bitrate tiers, and as a graceful
-        // fallback when the server reports the source can't be direct-played.
-        if (directPlay) {
-            // TranscodeReasons is an array of strings on older servers, a
-            // comma-joined flags string on 10.9+.
-            const QJsonValue tr = source["TranscodeReasons"];
-            QString reasons = tr.toString();
-            if (tr.isArray()) {
-                QStringList list;
-                for (const QJsonValue &r : tr.toArray())
-                    list << r.toString();
-                reasons = list.join(", ");
-            }
-            qWarning("[Jellyfin] direct play denied (SupportsDirectPlay=%d SupportsDirectStream=%d): %s",
-                     source["SupportsDirectPlay"].toBool(),
-                     source["SupportsDirectStream"].toBool(),
-                     reasons.isEmpty() ? "no TranscodeReasons given" : qPrintable(reasons));
-        }
-        QString transcodeUrl = source["TranscodingUrl"].toString();
-        if (transcodeUrl.isEmpty()) {
-            emit errorOccurred("NO TRANSCODE URL");
-            return;
-        }
-        m_currentPlaySessionId = playSessionId;
-        m_currentPlayMethod    = QStringLiteral("Transcode");
-
-        // Build the full URL, then strip any api_key from the server-generated
-        // TranscodingUrl — the Authorization header (passed via --http-header-fields
-        // to mpv) covers authentication. When the user selected OFF, also strip
-        // any SubtitleStreamIndex and SubtitleMethod the server may have added
-        // from default metadata.
-        QUrl parsedUrl(m_serverUrl + transcodeUrl);
-        {
-            QUrlQuery q(parsedUrl);
-            const auto items = q.queryItems();
-            for (const auto &kv : items) {
-                if (kv.first.compare(QLatin1String("api_key"), Qt::CaseInsensitive) == 0 ||
-                    kv.first.compare(QLatin1String("apikey"),  Qt::CaseInsensitive) == 0)
-                    q.removeAllQueryItems(kv.first);
-            }
-            if (subtitleStreamIndex < 0) {
-                q.removeAllQueryItems("SubtitleStreamIndex");
-                q.removeAllQueryItems("SubtitleMethod");
-            }
-            parsedUrl.setQuery(q);
-        }
-        QString fullUrl = parsedUrl.toString();
-
-        // Pin the URL's PlaySessionId to the one we report with (they should
-        // already match; this guarantees it even if the server differs).
-        if (!playSessionId.isEmpty())
-            fullUrl.replace(QRegularExpression("PlaySessionId=[^&]+"),
-                            "PlaySessionId=" + playSessionId);
-
-        // Enforce max height from quality setting — the server's TranscodingUrl may
-        // include a VideoBitrate cap (from our PlaybackInfo POST) but omit MaxHeight,
-        // resulting in a full-resolution transcode. Inject it here so 480p/720p etc.
-        // actually constrain the output resolution.
-        {
-            const int maxHeight = videoQualityMaxHeight();
-            if (maxHeight > 0) {
-                QRegularExpression heightRe("(MaxHeight|Height)=[^&]+",
-                                            QRegularExpression::CaseInsensitiveOption);
-                const QString replacement = "MaxHeight=" + QString::number(maxHeight);
-                if (fullUrl.contains(heightRe))
-                    fullUrl.replace(heightRe, replacement);
-                else
-                    fullUrl += "&" + replacement;
-            }
-        }
-
-        report_playback_start(itemId, mediaSourceId,
-                              audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
-                              subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-        emit streamUrlReady(fullUrl);
-    });
+int JellyfinBackend::qualityBitrate(const QString &quality) const {
+    if (quality == QLatin1String("auto"))
+        return 1000000000; // direct play — 1000 Mbps cap
+    return EmbyApiBackend::qualityBitrate(quality);
 }
 
 // ---------------------------------------------------------------------------

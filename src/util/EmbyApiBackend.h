@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QUrl>
 #include <functional>
@@ -45,6 +46,13 @@ public:
     Q_INVOKABLE void load_series_next_up(const QString &seriesId);
 
     // Playback
+    // The URL mpv plays the item from, told by streamUrlReady: the original
+    // file where Video Quality is Direct Play and the server lets it be
+    // played whole, else a transcode (always, with forceTranscode: the retry
+    // after a direct play that failed).
+    Q_INVOKABLE void get_playback_url(const QString &itemId, const QString &mediaSourceId,
+                                       int audioStreamIndex, int subtitleStreamIndex,
+                                       bool forceTranscode = false);
     // Forgets the stream a view asked for and no longer waits for (its launch
     // given up with back): get_playback_url answers only the last one asked
     // for, so a reply that comes late neither starts in a view that didn't ask
@@ -189,9 +197,49 @@ protected:
     void report_playback_start(const QString &itemId, const QString &mediaSourceId, const QString &audioStreamId,
                                const QString &subtitleStreamId, qint64 startPositionTicks = 0);
 
+    // get_playback_url(), with sdrCap: an otherwise uncapped transcode held
+    // to 1080p and 20 Mbps (Emby's Dolby Vision source, transcoded to SDR).
+    void requestPlayback(const QString &itemId, const QString &mediaSourceId, int audioStreamIndex,
+                         int subtitleStreamIndex, bool forceTranscode, bool sdrCap);
+    // The device profile the PlaybackInfo request sends: an HLS transcode,
+    // and for Direct Play a profile that matches anything mpv is given, the
+    // subtitles as the server delivers them (subtitleProfiles()). maxBitrate
+    // is the request's cap (0 for none), for a server that wants it in the
+    // profile too (Emby).
+    virtual QJsonObject deviceProfile(bool directPlay, int maxBitrate) const;
+    // How each subtitle format reaches mpv, for Direct Play or a transcode:
+    // the server's own (Jellyfin's and Emby's differ).
+    virtual QJsonArray subtitleProfiles(bool directPlay) const = 0;
+    // The source PlaybackInfo answered with for Direct Play, before it is
+    // played: true where the backend has asked for a transcode of it
+    // instead (Emby's Dolby Vision sources), and it is not played.
+    virtual bool transcodeInstead(const QJsonObject &source, const QString &itemId,
+                                  const QString &mediaSourceId, int audioStreamIndex,
+                                  int subtitleStreamIndex);
+    // The URL mpv plays the original file from (Direct Play), with the
+    // session reported with and urlToken where there is one.
+    static QString directStreamUrl(const QString &serverUrl, const QString &itemId,
+                                   const QString &mediaSourceId, const QString &playSessionId,
+                                   const QString &urlToken);
+    // The URL mpv plays the transcode from, of the TranscodingUrl the server
+    // answered with: on serverUrl; the token taken out of it where the header
+    // carries it (tokenInUrl false), else kept, and token added where the
+    // server left it out; the subtitle the server took from the item's
+    // defaults taken out where the user chose none (subtitleStreamIndex -1);
+    // its PlaySessionId the one reported with; and held to maxHeight, where
+    // there is one (the server leaves it out at times).
+    static QString rewriteTranscodeUrl(const QString &serverUrl, const QString &transcodeUrl,
+                                       const QString &playSessionId, int subtitleStreamIndex,
+                                       int maxHeight, bool tokenInUrl, const QString &token);
+
     QJsonObject loadConfig() const;
     QJsonObject moduleConfig() const;
-    int videoQualityMaxHeight() const;
+    // Settings → Video Quality: auto (Direct Play), 1080p, 720p, 576p or 480p.
+    QString videoQuality() const;
+    // A quality's cap on the bitrate, 0 for none (Direct Play's on Emby).
+    virtual int qualityBitrate(const QString &quality) const;
+    // A quality's cap on the height, 0 for none (Direct Play).
+    static int qualityMaxHeight(const QString &quality);
 
     const QString m_moduleId;
     const char *const m_tag;

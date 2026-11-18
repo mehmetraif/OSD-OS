@@ -14,7 +14,6 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include <QSslError>
-#include <QRegularExpression>
 
 static const QString kModuleId = QStringLiteral("com.osdos.emby");
 
@@ -43,19 +42,6 @@ void EmbyBackend::clearAuthState() {
     EmbyApiBackend::clearAuthState();
     m_connectUserId.clear();
     m_connectAccessToken.clear();
-}
-
-// ---------------------------------------------------------------------------
-// Config helpers
-// ---------------------------------------------------------------------------
-
-int EmbyBackend::videoQualityBitrate() const {
-    QString quality = moduleConfig()["video_quality"].toString("auto");
-    if (quality == QLatin1String("auto"))  return 0; // direct play — no cap
-    if (quality == QLatin1String("1080p")) return 10000000;
-    if (quality == QLatin1String("720p"))  return 6000000;
-    if (quality == QLatin1String("576p"))  return 4500000;
-    return 4000000; // 480p default
 }
 
 // ---------------------------------------------------------------------------
@@ -407,64 +393,85 @@ void EmbyBackend::persistConnectAuthAndFinish() {
 // Playback
 // ---------------------------------------------------------------------------
 
-void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSourceId,
-                                       int audioStreamIndex, int subtitleStreamIndex,
-                                       bool forceTranscode) {
-    if (!has_auth()) {
-        emit errorOccurred("NOT AUTHENTICATED");
-        return;
+QJsonObject EmbyBackend::deviceProfile(bool directPlay, int maxBitrate) const {
+    QJsonObject profile = EmbyApiBackend::deviceProfile(directPlay, maxBitrate);
+    // Emby applies a default streaming bitrate cap when the profile doesn't
+    // declare one, and silently refuses direct play for any source above it —
+    // SupportsDirectPlay=0 / SupportsDirectStream=0 with no TranscodeReasons.
+    // Anything much past a couple of Mbps is denied, which is most real media.
+    // Advertise an effectively unlimited cap for direct play; the quality tiers
+    // keep their own cap so the server still sizes the transcode correctly.
+    profile["MaxStreamingBitrate"] = maxBitrate > 0 ? maxBitrate : 2000000000;
+    return profile;
+}
+
+bool EmbyBackend::transcodeInstead(const QJsonObject &source, const QString &itemId,
+                                   const QString &mediaSourceId, int audioStreamIndex,
+                                   int subtitleStreamIndex) {
+    // Dolby Vision won't render. mpv on our targets (macOS videotoolbox, Pi)
+    // can't play the DV enhancement layer — it decodes the file but bails at
+    // video output ("Dolby Vision enhancement-layer playback is not supported"),
+    // so a DV title direct-plays for a moment then exits. Force an SDR H.264
+    // transcode instead: the server tone-maps DV→SDR (what Plex/Jellyfin do),
+    // and a CRT is SDR anyway. Done client-side off the response's reported
+    // range because a DeviceProfile CodecProfile rejecting VideoRangeType=DOVI
+    // was verified to be ignored by Emby 4.9.5.0 (the wildcard DirectPlay
+    // profile still won). forceTranscode=true on the re-request means it asks
+    // for no Direct Play, so this never recurses.
+    QString videoRange;
+    for (const QJsonValue &sv : source["MediaStreams"].toArray()) {
+        const QJsonObject st = sv.toObject();
+        if (st["Type"].toString() == QLatin1String("Video")) {
+            videoRange = st["VideoRange"].toString();
+            if (videoRange.isEmpty())
+                videoRange = st["VideoRangeType"].toString();
+            break;
+        }
     }
+    if (!videoRange.contains(QLatin1String("dolby"), Qt::CaseInsensitive)
+        && videoRange.compare(QLatin1String("DOVI"), Qt::CaseInsensitive) != 0)
+        return false;
 
-    // "auto" (Direct Play) lets the server serve the original file untouched
-    // when the source is compatible; any other value forces a quality-capped
-    // HLS transcode. forceTranscode overrides "auto" for a fallback retry after
-    // a direct-play failure (see Player.qml onPlaybackEnded).
-    const bool directPlay = !forceTranscode
-                          && (moduleConfig()["video_quality"].toString("auto")
-                              == QLatin1String("auto"));
-    int maxBitrate = videoQualityBitrate();
-    int maxHeight  = videoQualityMaxHeight();
-    // Dolby Vision → SDR re-request: cap an otherwise-uncapped ("auto") transcode
-    // to 1080p/20Mbps so the server can start it promptly and keep up in real time.
-    if (m_forceSdrTranscodeCap) {
-        if (maxBitrate <= 0) maxBitrate = 20000000;
-        if (maxHeight  <= 0) maxHeight  = 1080;
-        m_forceSdrTranscodeCap = false;
+    qInfo("[Emby] Dolby Vision source (range=%s) — forcing SDR transcode; mpv can't render the DV enhancement layer",
+          qPrintable(videoRange));
+    // Keep the selected subtitle if it can survive the transcode.
+    // This used to drop every subtitle, because the transcode path
+    // burnt the selected sub in (SubtitleMethod=Encode) and this
+    // server 500s on burn-in, so a burned sub meant no playback at
+    // all. Text subs are now delivered as a sidecar (Method=External
+    // in the transcode profile) and never touch the video, so there
+    // is nothing left to work around for them.
+    //
+    // Image subs (PGS/VOBSUB) have no sidecar and are still burnt in,
+    // which is exactly the case that takes the whole transcode down,
+    // so those are still dropped rather than losing playback.
+    int keptSubtitle = subtitleStreamIndex;
+    if (keptSubtitle >= 0) {
+        bool isTextSub = false;
+        for (const QJsonValue &sv : source["MediaStreams"].toArray()) {
+            const QJsonObject st = sv.toObject();
+            if (st["Type"].toString() == QLatin1String("Subtitle")
+                && st["Index"].toInt() == keptSubtitle) {
+                isTextSub = st["IsTextSubtitleStream"].toBool();
+                break;
+            }
+        }
+        if (!isTextSub) {
+            qInfo("[Emby] DV transcode: dropping image subtitle %d (burn-in would fail)",
+                  keptSubtitle);
+            keptSubtitle = -1;
+        }
     }
+    // Capped to 1080p/20Mbps where no quality caps it (sdrCap): a full-4K,
+    // uncapped transcode is too heavy to start promptly, and the display
+    // targets are SDR anyway.
+    requestPlayback(itemId, mediaSourceId, audioStreamIndex, keptSubtitle,
+                    /*forceTranscode=*/true, /*sdrCap=*/true);
+    return true;
+}
 
-    QUrl url(m_serverUrl + "/Items/" + itemId + "/PlaybackInfo");
-    QJsonObject body;
-    body["UserId"]                 = m_userId;
-    body["MediaSourceId"]          = mediaSourceId;
-    if (audioStreamIndex >= 0)
-        body["AudioStreamIndex"]   = audioStreamIndex;
-    // For direct play the device profile already advertises Embed for every
-    // subtitle format (including PGS/VOBSUB), so the server knows we handle
-    // them client-side and won't force a transcode.  Pass the user's actual
-    // selection (or omit if off) so the static stream includes all tracks.
-    // Hardcoding -1 here caused newer *Jellyfin* servers to strip sub tracks
-    // from the stream, breaking both --sid for image subs and sidecar URLs.
-    // Carried over from the Jellyfin module; not verified against Emby.
-    if (subtitleStreamIndex >= 0)
-        body["SubtitleStreamIndex"] = subtitleStreamIndex;
-    if (maxBitrate > 0) body["MaxStreamingBitrate"] = maxBitrate;
-    if (maxHeight  > 0) body["MaxHeight"]           = maxHeight;
-    body["EnableDirectPlay"]       = directPlay;
-    body["EnableDirectStream"]     = directPlay;
-
-    // Device profile — advertises the HLS transcode target, plus (for direct
-    // play) the broad set of containers/codecs mpv can play natively.
-    QJsonObject profile;
-    QJsonArray transcodingProfiles;
-    QJsonObject tp;
-    tp["Container"]  = QStringLiteral("ts");
-    tp["Type"]       = QStringLiteral("Video");
-    tp["VideoCodec"]  = QStringLiteral("h264");
-    tp["AudioCodec"]  = QStringLiteral("aac,mp3");
-    tp["Protocol"]    = QStringLiteral("hls");
-    transcodingProfiles.append(tp);
-    profile["TranscodingProfiles"] = transcodingProfiles;
-    QJsonArray subtitleProfiles;
+QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
+    QJsonArray profiles;
     if (directPlay) {
         // Direct play serves the original file whole; the video stream is never
         // touched. How the *subtitle* reaches mpv depends on its kind, and the
@@ -487,7 +494,7 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
             QJsonObject s;
             s["Format"] = QString::fromLatin1(fmt);
             s["Method"] = QString::fromLatin1(method);
-            subtitleProfiles.append(s);
+            profiles.append(s);
         };
         addSub("subrip",   "External");
         addSub("srt",      "External");
@@ -524,7 +531,7 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
             QJsonObject s;
             s["Format"] = QString::fromLatin1(fmt);
             s["Method"] = QString::fromLatin1(method);
-            subtitleProfiles.append(s);
+            profiles.append(s);
         };
         addSub("subrip",   "External");
         addSub("srt",      "External");
@@ -537,224 +544,7 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
         addSub("dvbsub",   "Encode");
         addSub("dvdsub",   "Encode");
     }
-    profile["SubtitleProfiles"] = subtitleProfiles;
-
-    // Emby applies a default streaming bitrate cap when the profile doesn't
-    // declare one, and silently refuses direct play for any source above it —
-    // SupportsDirectPlay=0 / SupportsDirectStream=0 with no TranscodeReasons.
-    // Anything much past a couple of Mbps is denied, which is most real media.
-    // Advertise an effectively unlimited cap for direct play; the quality tiers
-    // keep their own cap so the server still sizes the transcode correctly.
-    profile["MaxStreamingBitrate"] = maxBitrate > 0 ? maxBitrate : 2000000000;
-
-    QJsonArray directPlayProfiles;
-    if (directPlay) {
-        // mpv plays virtually anything, so advertise a match-all profile —
-        // omitted Container/VideoCodec/AudioCodec fields match every value in
-        // Emby's profile matcher too (verified against Emby 4.9.5.0: mkv/mp4/avi
-        // with h264/hevc/vc1/mpeg2 all direct-play through this wildcard).
-        // A codec whitelist here silently forced
-        // transcodes on exact-name misses (pcm_s16le vs pcm, webvtt vs vtt, …).
-        // If mpv truly can't play a file, the transcode retry in Player.qml
-        // onPlaybackEnded is the safety net. An empty array (transcode mode)
-        // tells the server nothing can be direct-played.
-        QJsonObject dp;
-        dp["Type"] = QStringLiteral("Video");
-        directPlayProfiles.append(dp);
-    }
-    profile["DirectPlayProfiles"] = directPlayProfiles;
-    body["DeviceProfile"] = profile;
-
-    const int request = ++m_playbackRequest;
-    auto *reply = serverPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
-        reply->deleteLater();
-        // Not wanted any more: another stream asked for since, or given up.
-        // Nothing of it is reported to the server, which would show it playing.
-        if (request != m_playbackRequest)
-            return;
-        if (reply->error() != QNetworkReply::NoError) {
-            emit errorOccurred("PLAYBACK INFO FAILED: " + serverlog::why(reply));
-            return;
-        }
-
-        QJsonObject data = QJsonDocument::fromJson(reply->readAll()).object();
-        QJsonArray sources = data["MediaSources"].toArray();
-        if (sources.isEmpty()) {
-            emit errorOccurred("NO PLAYABLE SOURCE");
-            return;
-        }
-
-        QJsonObject source = sources[0].toObject();
-
-        // Dolby Vision won't render. mpv on our targets (macOS videotoolbox, Pi)
-        // can't play the DV enhancement layer — it decodes the file but bails at
-        // video output ("Dolby Vision enhancement-layer playback is not supported"),
-        // so a DV title direct-plays for a moment then exits. Force an SDR H.264
-        // transcode instead: the server tone-maps DV→SDR (what Plex/Jellyfin do),
-        // and a CRT is SDR anyway. Done client-side off the response's reported
-        // range because a DeviceProfile CodecProfile rejecting VideoRangeType=DOVI
-        // was verified to be ignored by Emby 4.9.5.0 (the wildcard DirectPlay
-        // profile still won). forceTranscode=true on the re-request means directPlay
-        // is false there, so this never recurses.
-        if (directPlay) {
-            QString videoRange;
-            for (const QJsonValue &sv : source["MediaStreams"].toArray()) {
-                const QJsonObject st = sv.toObject();
-                if (st["Type"].toString() == QLatin1String("Video")) {
-                    videoRange = st["VideoRange"].toString();
-                    if (videoRange.isEmpty())
-                        videoRange = st["VideoRangeType"].toString();
-                    break;
-                }
-            }
-            if (videoRange.contains(QLatin1String("dolby"), Qt::CaseInsensitive)
-                || videoRange.compare(QLatin1String("DOVI"), Qt::CaseInsensitive) == 0) {
-                qInfo("[Emby] Dolby Vision source (range=%s) — forcing SDR transcode; mpv can't render the DV enhancement layer",
-                      qPrintable(videoRange));
-                // Keep the selected subtitle if it can survive the transcode.
-                // This used to drop every subtitle, because the transcode path
-                // burnt the selected sub in (SubtitleMethod=Encode) and this
-                // server 500s on burn-in, so a burned sub meant no playback at
-                // all. Text subs are now delivered as a sidecar (Method=External
-                // in the transcode profile) and never touch the video, so there
-                // is nothing left to work around for them.
-                //
-                // Image subs (PGS/VOBSUB) have no sidecar and are still burnt in,
-                // which is exactly the case that takes the whole transcode down,
-                // so those are still dropped rather than losing playback.
-                int keptSubtitle = subtitleStreamIndex;
-                if (keptSubtitle >= 0) {
-                    bool isTextSub = false;
-                    for (const QJsonValue &sv : source["MediaStreams"].toArray()) {
-                        const QJsonObject st = sv.toObject();
-                        if (st["Type"].toString() == QLatin1String("Subtitle")
-                            && st["Index"].toInt() == keptSubtitle) {
-                            isTextSub = st["IsTextSubtitleStream"].toBool();
-                            break;
-                        }
-                    }
-                    if (!isTextSub) {
-                        qInfo("[Emby] DV transcode: dropping image subtitle %d (burn-in would fail)",
-                              keptSubtitle);
-                        keptSubtitle = -1;
-                    }
-                }
-                m_forceSdrTranscodeCap = true;
-                get_playback_url(itemId, mediaSourceId, audioStreamIndex,
-                                 keptSubtitle, /*forceTranscode=*/true);
-                return;
-            }
-        }
-
-        // Direct play when requested AND the server confirms the source is
-        // compatible. Serves the original file via /Videos/{id}/stream?static=true;
-        // mpv handles embedded audio/subtitle tracks (Player.qml direct-play branch).
-        // PlaySessionId from the PlaybackInfo response is reused for the stream
-        // URL and every /Sessions report so the server correlates the dashboard
-        // session with this stream — and tears the transcode down on Stopped.
-        const QString playSessionId = data["PlaySessionId"].toString();
-
-        if (directPlay && (source["SupportsDirectPlay"].toBool()
-                           || source["SupportsDirectStream"].toBool())) {
-            const QString srcId = source["Id"].toString(mediaSourceId);
-            QString directUrl = m_serverUrl + "/Videos/" + itemId + "/stream"
-                              + "?static=true"
-                              + "&mediaSourceId=" + srcId;
-            if (!playSessionId.isEmpty())
-                directUrl += "&PlaySessionId=" + playSessionId;
-            // Emby authenticates the media request via api_key; mpv only carries
-            // the Jellyfin-style Authorization header, so embed the token here.
-            if (!m_accessToken.isEmpty())
-                directUrl += "&api_key=" + m_accessToken;
-            m_currentPlaySessionId = playSessionId;
-            m_currentPlayMethod    = QStringLiteral("DirectPlay");
-            report_playback_start(itemId, mediaSourceId,
-                                  audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
-                                  subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-            emit streamUrlReady(directUrl);
-            return;
-        }
-
-        // Transcode path — used for the bitrate tiers, and as a graceful
-        // fallback when the server reports the source can't be direct-played.
-        if (directPlay) {
-            // TranscodeReasons is an array of strings on older servers, a
-            // comma-joined flags string on 10.9+.
-            const QJsonValue tr = source["TranscodeReasons"];
-            QString reasons = tr.toString();
-            if (tr.isArray()) {
-                QStringList list;
-                for (const QJsonValue &r : tr.toArray())
-                    list << r.toString();
-                reasons = list.join(", ");
-            }
-            qWarning("[Emby] direct play denied (SupportsDirectPlay=%d SupportsDirectStream=%d): %s",
-                     source["SupportsDirectPlay"].toBool(),
-                     source["SupportsDirectStream"].toBool(),
-                     reasons.isEmpty() ? "no TranscodeReasons given" : qPrintable(reasons));
-        }
-        QString transcodeUrl = source["TranscodingUrl"].toString();
-        if (transcodeUrl.isEmpty()) {
-            emit errorOccurred("NO TRANSCODE URL");
-            return;
-        }
-        m_currentPlaySessionId = playSessionId;
-        m_currentPlayMethod    = QStringLiteral("Transcode");
-
-        // Build the full URL. Unlike the Jellyfin module (which strips api_key and
-        // relies on mpv's Authorization header), Emby authenticates the HLS request
-        // via api_key, so keep the server-supplied token and add one if it's absent.
-        // When the user selected OFF, still strip any SubtitleStreamIndex and
-        // SubtitleMethod the server may have added from default metadata.
-        QUrl parsedUrl(m_serverUrl + transcodeUrl);
-        {
-            QUrlQuery q(parsedUrl);
-            bool hasApiKey = false;
-            const auto items = q.queryItems();
-            for (const auto &kv : items) {
-                if (kv.first.compare(QLatin1String("api_key"), Qt::CaseInsensitive) == 0 ||
-                    kv.first.compare(QLatin1String("apikey"),  Qt::CaseInsensitive) == 0)
-                    hasApiKey = true;
-            }
-            if (!hasApiKey && !m_accessToken.isEmpty())
-                q.addQueryItem("api_key", m_accessToken);
-            if (subtitleStreamIndex < 0) {
-                q.removeAllQueryItems("SubtitleStreamIndex");
-                q.removeAllQueryItems("SubtitleMethod");
-            }
-            parsedUrl.setQuery(q);
-        }
-        QString fullUrl = parsedUrl.toString();
-
-        // Pin the URL's PlaySessionId to the one we report with (they should
-        // already match; this guarantees it even if the server differs).
-        if (!playSessionId.isEmpty())
-            fullUrl.replace(QRegularExpression("PlaySessionId=[^&]+"),
-                            "PlaySessionId=" + playSessionId);
-
-        // Enforce max height from quality setting — the server's TranscodingUrl may
-        // include a VideoBitrate cap (from our PlaybackInfo POST) but omit MaxHeight,
-        // resulting in a full-resolution transcode. Inject it here so 480p/720p etc.
-        // actually constrain the output resolution.
-        {
-            const int maxHeight = videoQualityMaxHeight();
-            if (maxHeight > 0) {
-                QRegularExpression heightRe("(MaxHeight|Height)=[^&]+",
-                                            QRegularExpression::CaseInsensitiveOption);
-                const QString replacement = "MaxHeight=" + QString::number(maxHeight);
-                if (fullUrl.contains(heightRe))
-                    fullUrl.replace(heightRe, replacement);
-                else
-                    fullUrl += "&" + replacement;
-            }
-        }
-
-        report_playback_start(itemId, mediaSourceId,
-                              audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
-                              subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-        emit streamUrlReady(fullUrl);
-    });
+    return profiles;
 }
 
 // ---------------------------------------------------------------------------
