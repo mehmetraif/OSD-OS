@@ -100,9 +100,6 @@ These work as in the Jellyfin module, whose page has the detail:
 | | Jellyfin | Emby |
 |---|---|---|
 | Signing in | Quick Connect | Username and password, or Emby Connect |
-| An episode in a list | `SHOW S1E2: TITLE` | `SHOW: TITLE`, with `(YEAR)` when the episode has one |
-| The Collections library's list | With the letter panel | Without it |
-| Text subtitles with Direct Play | Every text track | Only the one you chose ([below](#subtitles)) |
 | Text subtitles in a transcode | Burned into the picture | Fetched as a file ([below](#subtitles)) |
 | Dolby Vision on Direct Play | As the server decides | An SDR transcode ([below](#dolby-vision)) |
 | Intro and credit skipping | The server's media segments; settings shown only when it has them | The server's chapter markers; settings always shown ([below](#intro-skip-and-credit-skip)) |

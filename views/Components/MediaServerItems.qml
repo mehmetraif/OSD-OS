@@ -2,6 +2,8 @@ import QtQuick
 
 // Reusable list browser — handles movies, series, and episodes via navParams.
 // Follows the Plex Items.qml pattern: 28px rows, 24px font, marquee on select.
+// Jellyfin's and Emby's: a module's Items.qml is this with its backend (see
+// MediaServerLibraries).
 FocusScope {
     id: itemListRoot
     // In the layout's frame (Main.qml): its list in the pane, beside the
@@ -10,6 +12,10 @@ FocusScope {
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -23,9 +29,9 @@ FocusScope {
     property bool isLoading: false
     property string errorMessage: ""
 
-    // A–Z letter-jump panel — only for the alphabetized full-library list
-    // ("browse"); resume/up_next are not alpha-sorted.
-    property bool showLetterNav: mode === "browse" || mode === "folder" || itemListRoot.mode === "boxset"
+    // A–Z letter-jump panel — only for the alphabetized lists ("browse", a
+    // folder's, a box set's); resume/up_next are not alpha-sorted.
+    property bool showLetterNav: mode === "browse" || mode === "folder" || mode === "boxset"
     property bool letterNavActive: false
     property var letterIndex: []
 
@@ -89,7 +95,7 @@ FocusScope {
     }
 
     Connections {
-        target: jellyfinBackend
+        target: backend
 
         function onItemsLoaded(loadedItems) {
             if (itemListRoot.mode !== "browse") return
@@ -153,7 +159,7 @@ FocusScope {
         function onErrorOccurred(msg) {
             itemListRoot.isLoading = false
             itemListRoot.errorMessage = msg
-            console.log("[Jellyfin Items] Error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Items] Error: " + msg)
         }
     }
 
@@ -171,23 +177,23 @@ FocusScope {
         } else if (mode === "folder") {
             isLoading = true
             errorMessage = ""
-            jellyfinBackend.load_folder_children(parentId)
+            backend.load_folder_children(parentId)
         } else if (mode === "boxset") {
             isLoading = true
             errorMessage = ""
-            jellyfinBackend.load_boxset_children(parentId)
+            backend.load_boxset_children(parentId)
         } else if (mode === "resume") {
             isLoading = true
             errorMessage = ""
-            jellyfinBackend.load_continue_watching()
+            backend.load_continue_watching()
         } else if (mode === "up_next") {
             isLoading = true
             errorMessage = ""
-            jellyfinBackend.load_up_next()
+            backend.load_up_next()
         } else {
             isLoading = true
             errorMessage = ""
-            jellyfinBackend.load_items(parentId, includeTypes, "SortName")
+            backend.load_items(parentId, includeTypes, "SortName")
         }
     }
 
@@ -277,9 +283,9 @@ FocusScope {
                 itemListRoot.syncLetterToItem()
             }
             else {
-                currentIndex = count-1
+                currentIndex = count - 1
                 itemList.positionViewAtIndex(currentIndex, ListView.Contain)
-                letterList.currentIndex = letterIndex.length-1
+                letterList.currentIndex = letterIndex.length - 1
                 letterList.positionViewAtIndex(letterList.currentIndex, ListView.Contain)
             }
         }
@@ -337,6 +343,8 @@ FocusScope {
 
                 Text {
                     id: rowText
+                    // An episode with its show, season and number (S1E2), as
+                    // Plex's lists show it.
                     text: {
                         if (modelData.type === "episode" && modelData.grandparentTitle) {
                             var sNum = (modelData.parentIndex != null) ? modelData.parentIndex : "?"
@@ -399,7 +407,7 @@ FocusScope {
         Keys.onUpPressed: {
             if (count === 0) return
             if (currentIndex > 0) {
-                currentIndex-- 
+                currentIndex--
             }
             else {
                 currentIndex = count - 1
@@ -407,7 +415,7 @@ FocusScope {
             }
             itemList.currentIndex = letterIndex[currentIndex].firstIndex
             itemList.positionViewAtIndex(itemList.currentIndex, ListView.Beginning)
-            
+
         }
         Keys.onDownPressed: {
             if (count === 0) return

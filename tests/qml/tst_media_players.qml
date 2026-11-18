@@ -398,6 +398,11 @@ Rectangle {
         function update_playback_progress() {}
         function set_last_track_langs() {}
         function fetchSegments(itemId) {}
+        // The home screen's libraries (Libraries.qml), answered by the test.
+        signal librariesLoaded(var libraries)
+        function get_server_name() { return "Server" }
+        function get_user_name() { return "User" }
+        function load_libraries() {}
         // The lists a list view asks for (Items.qml), answered by the test.
         signal itemsLoaded(var items)
         signal folderChildrenLoaded(var items)
@@ -473,6 +478,7 @@ Rectangle {
 
         function init() {
             root.menuLayout = "Standard"
+            moduleRoot.moduleName = "Plex"
             root.chrome.basePath = []
             root.navigations = []
             root.backs = 0
@@ -896,6 +902,31 @@ Rectangle {
             view.forceActiveFocus()
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // Jellyfin's and Emby's home screen (one shared view, each with its
+        // module's backend): the server's libraries asked for and shown, and,
+        // with none, where to choose them, by the module's name.
+        function test_serverLibrariesByModule_data() {
+            return [{ tag: "jellyfin", module: "jellyfin", name: "Jellyfin" },
+                    { tag: "emby", module: "emby", name: "Emby" }]
+        }
+        function test_serverLibrariesByModule(data) {
+            var backend = data.module === "emby" ? embyBackend : jellyfinBackend
+            var other = data.module === "emby" ? jellyfinBackend : embyBackend
+            moduleRoot.moduleName = data.name
+            var page = open(data.module, "Libraries.qml", {})
+            var said = function() {
+                return shownTexts(page).map(function(t) { return t.text }).join("|")
+            }
+            verify(said().indexOf("LOADING...") >= 0, said())
+            other.librariesLoaded([{ itemId: "l1", title: "Not This One", collectionType: "movies" }])
+            verify(said().indexOf("Not This One") < 0, said())
+            backend.librariesLoaded([])
+            verify(said().indexOf("NO LIBRARIES\nSettings → " + data.name + " → Libraries chooses which are shown") >= 0,
+                   said())
+            backend.librariesLoaded([{ itemId: "l1", title: "Films", collectionType: "movies" }])
+            tryVerify(function() { return said().indexOf("Films") >= 0 }, 1000, said())
         }
 
         // Continue Watching and Next Up, back from an item opened on the

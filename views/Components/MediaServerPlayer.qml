@@ -1,10 +1,25 @@
 import QtQuick
 import "MpvKeys.js" as MpvKeys
 
+// Jellyfin's and Emby's player: mpv on the server's stream, reported to the
+// server as it plays; a direct play that fails retried as a transcode, a track
+// switched mid-transcode, autoplay's next episode, intro and credit skipping.
+// A module's Player.qml is this with its backend (see MediaServerLibraries),
+// and Emby's with sidecarSubsInTranscode.
 FocusScope {
     id: playerRoot
 
     property var navParams: ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
+    // Whether the server sends a transcode's text subtitle as a file beside
+    // the stream (Emby's: its device profile asks for them External) rather
+    // than burning it into the picture (Jellyfin's, Encode): mpv is then
+    // handed the chosen one as for direct play, an image one alone burnt in.
+    // As the backend's subtitleProfiles() asks.
+    property bool sidecarSubsInTranscode: false
 
     signal goBack()
     // Emitted when autoplay advances in place, so Root can repoint the BACK
@@ -33,8 +48,8 @@ FocusScope {
     // Set when a direct-play attempt fails and we re-request forcing a transcode.
     property bool   pendingRetryTranscode: false
     // Set when the user changed a track mid-transcode: mpv is quitting so we can
-    // re-request the stream with a different audio track / burned-in subtitle
-    // (not a real stop). "audio", "sub", or "" for none.
+    // re-request the stream with a different audio track / subtitle (not a
+    // real stop). "audio", "sub", or "" for none.
     property string pendingTrackSwitch: ""
     property string carryAudioLang:     ""
     property string carrySubLang:       "__off__"
@@ -77,7 +92,7 @@ FocusScope {
         stoppedReported = true
         pendingNextEpisode = false
         pendingRetryTranscode = false
-        jellyfinBackend.cancel_playback_url()
+        backend.cancel_playback_url()
         goBack()
     }
 
@@ -248,7 +263,7 @@ FocusScope {
         // (canceled resume overlay, back during LOADING): Stopped with
         // PositionTicks=0 would wipe the server-side resume point.
         var pos = lastKnownPositionMs || finalPositionMs || viewOffset
-        jellyfinBackend.report_playback_stopped(itemId, mediaSourceId, msToTicks(pos), failed || false)
+        backend.report_playback_stopped(itemId, mediaSourceId, msToTicks(pos), failed || false)
     }
 
     // Swap the player's context to the next episode in place (no navigation) and
@@ -313,16 +328,16 @@ FocusScope {
                 }
             }
         }
-        jellyfinBackend.set_last_track_langs(carryAudioLang, carrySubLang === "__off__" ? "" : carrySubLang,
-                                              aLangIdx, sLangIdx)
+        backend.set_last_track_langs(carryAudioLang, carrySubLang === "__off__" ? "" : carrySubLang,
+                                     aLangIdx, sLangIdx)
 
         // Request the new stream URL — get_playback_url() reports the playback
         // Start to the server once PlaybackInfo resolves (correct session/method).
         pendingNextEpisode = true
         var audioStreamIdx = selectedAudioId ? parseInt(selectedAudioId) : -1
         var subStreamIdx   = selectedSubtitleId ? parseInt(selectedSubtitleId) : -1
-        jellyfinBackend.get_playback_url(detail.itemId, detail.mediaSourceId || detail.itemId,
-                                          audioStreamIdx, subStreamIdx)
+        backend.get_playback_url(detail.itemId, detail.mediaSourceId || detail.itemId,
+                                 audioStreamIdx, subStreamIdx)
     }
 
     function beginPlayback(offsetMs) {
@@ -350,7 +365,7 @@ FocusScope {
         // them. Non-selected embedded subs remain reachable in mpv via --sid
         // (they ride along in the direct-play stream); non-selected external
         // subs simply aren't offered mid-playback, which the pre-launch UI
-        // already covers. As Emby's.
+        // already covers.
         var pairs = []
         var selectedSub = subtitleIdx >= 0 ? subtitleStreams[subtitleIdx] : null
         var selectedSubUrl = selectedSub ? (selectedSub.subUrl || "") : ""
@@ -361,6 +376,12 @@ FocusScope {
             subTrack = -2                 // off → --sid=no
         else if (selectedSubUrl)
             subTrack = 0                  // selected sidecar is the only loaded sub-file
+        else if (isTranscoding)
+            // Image sub (PGS/VOBSUB) on the transcode path (sidecarSubsInTranscode):
+            // it has no sidecar, so the server burnt it into the video. There is no
+            // soft track to select, and the HLS stream carries no embedded subs to
+            // index into.
+            subTrack = -2
         else
             subTrack = subtitleIdx + 1    // embedded/image sub → mpv 1-based --sid
         return {
@@ -372,15 +393,20 @@ FocusScope {
 
     function doStartPlayback(offsetMs) {
         lastStartMs = offsetMs
-        var jfToken = jellyfinBackend.get_access_token()
+        var token = backend.get_access_token()
         if (isTranscoding) {
             // The HLS manifest bakes in the selected audio, and the chosen subtitle
             // is burned into the video — so there's no soft track for mpv to pick
-            // (subTrack -2 = --sid=no) or to cycle, for either audio or subs.
+            // (subTrack -2 = --sid=no) or to cycle, for either audio or subs. Where
+            // the server sends a text subtitle beside the stream instead
+            // (sidecarSubsInTranscode: its profile advertises Method=External, so
+            // the server leaves the video alone), it is handed to mpv as --sub-file
+            // exactly as for direct play, and buildSubArgs gives --sid=no for an
+            // image one, burnt in: mpv still has only the chosen one.
             // Instead the OSC gets:
             //   sub-cycle       — show a SUBTITLE button that asks us to switch
             //                     (handled in onSubtitleCycleRequested → new transcode)
-            //   transcode-sub   — the burned-in track's name, for the info line
+            //   transcode-sub   — the chosen subtitle's name, for the info line
             //   audio-cycle     — same deal for the AUDIO button
             //                     (onAudioCycleRequested → new transcode)
             //   transcode-audio — the baked-in audio track's name, for the info line
@@ -412,9 +438,10 @@ FocusScope {
                 "--script-opts-append=audio-cycle=" + (audioStreams.length > 0 ? "1" : "0")
             ]
 
+            var tsub = sidecarSubsInTranscode ? buildSubArgs() : { track: -2, urls: [], titles: [] }
             mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
-                                       -1, -2, [], [], false, -1, 0.0, "",
-                                       false, "", false, [], 0.0, false, extra, jfToken)
+                                       -1, tsub.track, tsub.urls, [], false, -1, 0.0, "",
+                                       false, "", false, tsub.titles, 0.0, false, extra, token)
         } else {
             // Direct play: file served whole. audioIdx is 0-based → mpv's 1-based
             // --aid; subtitles come from buildSubArgs (sidecars + --sid).
@@ -422,7 +449,7 @@ FocusScope {
             var sub = buildSubArgs()
             mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
                                        audioTrack, sub.track, sub.urls, [], false, -1, 0.0, "",
-                                       false, "", false, sub.titles, 0.0, false, [], jfToken)
+                                       false, "", false, sub.titles, 0.0, false, [], token)
         }
     }
 
@@ -435,9 +462,9 @@ FocusScope {
     }
 
     Connections {
-        target: jellyfinBackend
+        target: backend
         function onErrorOccurred(msg) {
-            console.log("[Jellyfin Player] Backend error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Player] Backend error: " + msg)
             // The stream it waited for won't come: said so, and back from it
             // to the detail screen, not LOADING with no mpv to take a key. A
             // transcode retried is reported stopped as a failed one is; a next
@@ -449,7 +476,7 @@ FocusScope {
                 stoppedReported = true
                 pendingNextEpisode = false
                 pendingRetryTranscode = false
-                jellyfinBackend.cancel_playback_url()
+                backend.cancel_playback_url()
                 failure.show(next ? "The next video could not be started" : "The server could not stream it",
                              msg, false)
             }
@@ -469,7 +496,7 @@ FocusScope {
                 // Fetch segments for intro/outro skip after playback starts, so
                 // the HTTP request doesn't contend with the PlaybackInfo POST.
                 if (introSkipSetting !== "Off" || outroSkipSetting !== "Off")
-                    jellyfinBackend.fetchSegments(playerRoot.itemId)
+                    backend.fetchSegments(playerRoot.itemId)
                 return
             }
             if (pendingRetryTranscode) {
@@ -562,11 +589,12 @@ FocusScope {
             }
         }
 
-        // OSC SUBTITLE button during a transcode. The sub is burned into the
-        // video, so switching means a new transcode: quit mpv, then do the work
-        // in onPlaybackEnded once it has actually exited — starting the request
-        // here would race mpv's exit, and that exit would run the normal
-        // "user stopped" path and navigate out of the player.
+        // OSC SUBTITLE button during a transcode. mpv has only the chosen
+        // subtitle (burned into the video, or a sidecar), so switching means a
+        // new transcode: quit mpv, then do the work in onPlaybackEnded once it
+        // has actually exited — starting the request here would race mpv's
+        // exit, and that exit would run the normal "user stopped" path and
+        // navigate out of the player.
         function onSubtitleCycleRequested() {
             if (!isTranscoding || subtitleStreams.length === 0) return
             playerRoot.lastKnownPositionMs = mpvController.position
@@ -616,7 +644,7 @@ FocusScope {
                 pendingRetryTranscode = true
                 var newAIdx = selectedAudioId ? parseInt(selectedAudioId) : -1
                 var newSIdx = selectedSubtitleId ? parseInt(selectedSubtitleId) : -1
-                jellyfinBackend.get_playback_url(itemId, mediaSourceId, newAIdx, newSIdx, true)
+                backend.get_playback_url(itemId, mediaSourceId, newAIdx, newSIdx, true)
                 return
             }
             if (reason === "failed") {
@@ -631,7 +659,7 @@ FocusScope {
                     pendingRetryTranscode = true
                     var aIdx = selectedAudioId ? parseInt(selectedAudioId) : -1
                     var sIdx = selectedSubtitleId ? parseInt(selectedSubtitleId) : -1
-                    jellyfinBackend.get_playback_url(itemId, mediaSourceId, aIdx, sIdx, true)
+                    backend.get_playback_url(itemId, mediaSourceId, aIdx, sIdx, true)
                     return
                 }
                 // mpv exited with an error, the transcode's too, or mpv itself
@@ -651,7 +679,7 @@ FocusScope {
             reportStopped(finalPositionMs, finalDurationMs)
             if (reason === "eof" && autoplayNext) {
                 pendingNextEpisode = true
-                jellyfinBackend.load_next_episode(itemId)
+                backend.load_next_episode(itemId)
                 return
             }
             goBack()
@@ -671,8 +699,8 @@ FocusScope {
             if (pos > 0) {
                 if (pos > playerRoot.lastKnownPositionMs)
                     playerRoot.lastKnownPositionMs = pos
-                jellyfinBackend.update_playback_progress(itemId, mediaSourceId,
-                                                         msToTicks(pos), false)
+                backend.update_playback_progress(itemId, mediaSourceId,
+                                                 msToTicks(pos), false)
             }
         }
     }
@@ -698,7 +726,7 @@ FocusScope {
 
         // Fetch segments if either skip mode is enabled
         if (introSkipSetting !== "Off" || outroSkipSetting !== "Off")
-            jellyfinBackend.fetchSegments(itemId)
+            backend.fetchSegments(itemId)
 
         // "ask": prompt resume vs. start over when there's a saved position.
         // "always" (or anything else): resume directly.
@@ -710,7 +738,7 @@ FocusScope {
     }
 
     // Safety net: if the Player view is destroyed (e.g. app quit, back nav
-    // without stopping), report stopped so Jellyfin doesn't show this as
+    // without stopping), report stopped so the server doesn't show this as
     // still playing. The guard in reportStopped prevents double-reporting.
     Component.onDestruction: {
         if (streamUrl !== "")

@@ -1111,6 +1111,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |
 | `WebPlayerBrowse`, `WebPlayerLaunch` | A streaming service's catalogue and its web player |
+| `MediaServerLibraries`, `MediaServerItems`, `MediaServerItem`, `MediaServerPlayer`… | A Jellyfin-style server's libraries, lists, item pages and player (Jellyfin's and Emby's), given the module's backend |
 
 Each component's properties are in [ARCHITECTURE.md → Components](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#components-wip).
 

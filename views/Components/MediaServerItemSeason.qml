@@ -1,12 +1,17 @@
 import QtQuick
 
 // Season landing — season context + episode list. Reached from ItemShow;
-// selecting an episode opens Item.qml.
+// selecting an episode opens Item.qml. Jellyfin's and Emby's: a module's
+// ItemSeason.qml is this with its backend (see MediaServerLibraries).
 FocusScope {
     id: seasonRoot
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -23,7 +28,7 @@ FocusScope {
     property int focusRow: 0
 
     Connections {
-        target: jellyfinBackend
+        target: backend
 
         function onEpisodesLoaded(loadedItems) {
             seasonRoot.isLoading = false
@@ -38,14 +43,14 @@ FocusScope {
 
         function onErrorOccurred(msg) {
             seasonRoot.isLoading = false
-            console.log("[Jellyfin Season] Error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Season] Error: " + msg)
         }
     }
 
     Component.onCompleted: {
         isLoading = true
         focusRow = 0
-        if (seriesId && item.itemId) jellyfinBackend.load_episodes(seriesId, item.itemId)
+        if (seriesId && item.itemId) backend.load_episodes(seriesId, item.itemId)
     }
 
     focus: true

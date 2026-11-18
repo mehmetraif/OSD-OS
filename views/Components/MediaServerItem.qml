@@ -1,10 +1,17 @@
 import QtQuick
 
+// A film's or an episode's page, Jellyfin's and Emby's: PLAY (or resume), and
+// the audio and subtitle tracks it plays with. A module's Item.qml is this with
+// its backend (see MediaServerLibraries).
 FocusScope {
     id: detailRoot
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -66,7 +73,7 @@ FocusScope {
     property bool serverPrefsLoaded: false
 
     Connections {
-        target: jellyfinBackend
+        target: backend
 
         function onItemLoaded(d) {
             // The item left for this one, answering late: not this screen's.
@@ -75,7 +82,7 @@ FocusScope {
             // Fetch server-side preferences on first load
             if (!serverPrefsLoaded) {
                 serverPrefsLoaded = true
-                jellyfinBackend.load_server_preferences()
+                backend.load_server_preferences()
             }
             // Only apply defaults if not already restored from Player return
             if (!hasRestoredState) {
@@ -122,7 +129,7 @@ FocusScope {
         }
 
         function onErrorOccurred(msg) {
-            console.log("[Jellyfin Item] Error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Item] Error: " + msg)
             // The stream PLAY asked for won't come: said so.
             if (detailRoot.isLaunching)
                 failure.show("The server could not stream it", msg, false)
@@ -131,7 +138,7 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        if (item.itemId) jellyfinBackend.load_item_detail(item.itemId)
+        if (item.itemId) backend.load_item_detail(item.itemId)
         focusRow = 0
         // Restore previous audio/subtitle selection when returning from Player
         if (navListState.subtitleIdx !== undefined || navListState.audioIdx !== undefined) {
@@ -209,9 +216,9 @@ FocusScope {
             _saveCurrentLangs()
             // get_playback_url() reports the playback Start to the server once
             // PlaybackInfo resolves (so session id + play method are correct).
-            jellyfinBackend.get_playback_url(detail.itemId, detail.mediaSourceId || detail.itemId,
-                                             detailRoot.selectedStreamIdx("audio"),
-                                             detailRoot.selectedStreamIdx("subtitle"))
+            backend.get_playback_url(detail.itemId, detail.mediaSourceId || detail.itemId,
+                                     detailRoot.selectedStreamIdx("audio"),
+                                     detailRoot.selectedStreamIdx("subtitle"))
         }
     }
     Keys.onPressed: function(event) {
@@ -220,7 +227,7 @@ FocusScope {
             // A stream still on its way is dropped as it comes, and not
             // reported to the server as playing.
             if (isLaunching)
-                jellyfinBackend.cancel_playback_url()
+                backend.cancel_playback_url()
             goBack()
             event.accepted = true
         }
@@ -231,7 +238,7 @@ FocusScope {
     Component.onDestruction: _saveCurrentLangs()
 
     // ------------------------------------------------------------------
-    // Language display — uses Jellyfin's own DisplayTitle when available
+    // Language display — uses the server's own DisplayTitle when available
     // ------------------------------------------------------------------
 
     function streamLabel(stream) {
@@ -253,7 +260,7 @@ FocusScope {
         return 0
     }
 
-    // Mirrors Jellyfin's MediaStreamSelector.GetDefaultSubtitleStreamIndex so the
+    // Mirrors the server's MediaStreamSelector.GetDefaultSubtitleStreamIndex so the
     // preselected track matches what a native client would pick for the user's
     // server-side SubtitleMode. Returns a 1-based subtitleIdx (0 = off).
     function pickSubtitle(subs, prefLang, mode, audioLang) {
@@ -317,7 +324,7 @@ FocusScope {
                 }
             }
         }
-        jellyfinBackend.set_last_track_langs(aLang, sLang, aLangIdx, sLangIdx)
+        backend.set_last_track_langs(aLang, sLang, aLangIdx, sLangIdx)
     }
 
     function applyLanguagePreferences(d) {
@@ -327,8 +334,8 @@ FocusScope {
         // [dev]             " nAudio=" + (d.audioStreams ? d.audioStreams.length : 0) +
         // [dev]             " nSub=" + (d.subtitleStreams ? d.subtitleStreams.length : 0))
 
-        var savedAudioLangIdx = jellyfinBackend.get_last_audio_lang_idx()
-        var savedSubLangIdx   = jellyfinBackend.get_last_sub_lang_idx()
+        var savedAudioLangIdx = backend.get_last_audio_lang_idx()
+        var savedSubLangIdx   = backend.get_last_sub_lang_idx()
 
         // Audio: server language preference > same-language index match > IsDefault > first.
         var audioLang = ""

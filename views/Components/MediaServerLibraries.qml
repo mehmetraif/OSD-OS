@@ -1,6 +1,10 @@
 import QtQuick
 
-// Main Jellyfin home screen: Continue Watching + library list
+// A media server's home screen (Jellyfin's, Emby's): Continue Watching + library
+// list. The MediaServer* views are the two modules' own, shared: each takes the
+// module's backend, and names the server by the module's name. A module's
+// Libraries.qml is just this, with its backend:
+//     MediaServerLibraries { backend: jellyfinBackend }
 FocusScope {
     id: browseRoot
     // In the layout's frame (Main.qml): its list in the pane, beside the
@@ -9,6 +13,10 @@ FocusScope {
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -23,7 +31,7 @@ FocusScope {
     property bool loaded: false
 
     Connections {
-        target: jellyfinBackend
+        target: backend
 
         function onLibrariesLoaded(items) {
             // The backend prepends Continue Watching / Up Next (only when they
@@ -39,16 +47,16 @@ FocusScope {
         }
 
         function onErrorOccurred(msg) {
-            console.log("[Jellyfin Library] Error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Library] Error: " + msg)
             if (browseRoot.libraries.length === 0)
                 browseRoot.errorMessage = msg
         }
     }
 
     Component.onCompleted: {
-        browseRoot.serverName = jellyfinBackend.get_server_name()
-        browseRoot.userName = jellyfinBackend.get_user_name()
-        jellyfinBackend.load_libraries()
+        browseRoot.serverName = backend.get_server_name()
+        browseRoot.userName = backend.get_user_name()
+        backend.load_libraries()
     }
 
     focus: true
@@ -72,7 +80,7 @@ FocusScope {
     Text {
         visible: libraries.length === 0
         text: browseRoot.errorMessage !== "" ? browseRoot.errorMessage
-              : browseRoot.loaded ? "NO LIBRARIES\nSettings → Jellyfin → Libraries chooses which are shown"
+              : browseRoot.loaded ? "NO LIBRARIES\nSettings → " + moduleRoot.moduleName + " → Libraries chooses which are shown"
               : "LOADING..."
         color: root.tertiaryColor
         font.family: root.globalFont

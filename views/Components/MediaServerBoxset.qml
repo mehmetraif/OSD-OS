@@ -3,12 +3,18 @@ import QtQuick
 // Box-set detail: lists one row per content type the box set holds
 // (MOVIES / SERIES / EPISODES / COLLECTIONS). Selecting a row opens that type's
 // items in Items.qml "static" mode. A box set can nest other box sets, so the
-// COLLECTIONS row loops back through Items.qml → Boxset.qml.
+// COLLECTIONS row loops back through Items.qml → Boxset.qml. Jellyfin's and
+// Emby's: a module's Boxset.qml is this with its backend (see
+// MediaServerLibraries).
 FocusScope {
     id: boxsetRoot
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
 
     signal navigateTo(string path, var params, var listState)
     signal replaceCurrent(string path, var params)
@@ -51,7 +57,7 @@ FocusScope {
     }
 
     Connections {
-        target: jellyfinBackend
+        target: backend
 
         function onBoxsetChildrenLoaded(children) {
             boxsetRoot.isLoading = false
@@ -94,7 +100,7 @@ FocusScope {
         function onErrorOccurred(msg) {
             boxsetRoot.isLoading = false
             boxsetRoot.errorMessage = msg
-            console.log("[Jellyfin Boxset] Error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Boxset] Error: " + msg)
         }
     }
 
@@ -102,7 +108,7 @@ FocusScope {
         if (item.itemId) {
             isLoading = true
             errorMessage = ""
-            jellyfinBackend.load_boxset_children(item.itemId)
+            backend.load_boxset_children(item.itemId)
         }
     }
 

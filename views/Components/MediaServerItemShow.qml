@@ -1,12 +1,17 @@
 import QtQuick
 
 // Series landing — show context + season list. Mirrors the Plex ItemShow flow:
-// ItemShow → ItemSeason → Item.
+// ItemShow → ItemSeason → Item. Jellyfin's and Emby's: a module's ItemShow.qml
+// is this with its backend (see MediaServerLibraries).
 FocusScope {
     id: showRoot
 
     property var navParams: ({})
     property var navListState: navParams.navListState || ({})
+
+    // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
+    // which its view file names.
+    property var backend: null
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -26,7 +31,7 @@ FocusScope {
     property bool fallbackPlay: false
 
     Connections {
-        target: jellyfinBackend
+        target: backend
 
         function onSeasonsLoaded(loadedItems) {
             showRoot.isLoading = false
@@ -53,7 +58,7 @@ FocusScope {
                     if (showRoot.seasons[i].index >= 1) { s0 = showRoot.seasons[i]; break }
                 }
                 if (!s0) s0 = showRoot.seasons[0]
-                if (s0) jellyfinBackend.load_episodes(showRoot.item.itemId, s0.itemId)
+                if (s0) backend.load_episodes(showRoot.item.itemId, s0.itemId)
                 else { showRoot.playPending = false }
             }
         }
@@ -70,14 +75,14 @@ FocusScope {
             showRoot.isLoading = false
             showRoot.playPending = false
             showRoot.fallbackPlay = false
-            console.log("[Jellyfin Show] Error: " + msg)
+            console.log("[" + moduleRoot.moduleName + " Show] Error: " + msg)
         }
     }
 
     Component.onCompleted: {
         isLoading = true
         focusRow = 0
-        if (item.itemId) jellyfinBackend.load_seasons(item.itemId)
+        if (item.itemId) backend.load_seasons(item.itemId)
     }
 
     focus: true
@@ -99,7 +104,7 @@ FocusScope {
             if (focusRow === 1) {
                 if (seasonList.currentIndex > 0) seasonList.currentIndex--
                 else focusRow = 0
-            } 
+            }
         }
         seasonList.positionViewAtIndex(seasonList.currentIndex, ListView.Contain)
     }
@@ -118,7 +123,7 @@ FocusScope {
         if (focusRow === 0) {
             if (seasons.length === 0 || playPending) return
             playPending = true
-            jellyfinBackend.load_series_next_up(item.itemId)
+            backend.load_series_next_up(item.itemId)
         } else {
             var season = seasons[seasonList.currentIndex]
             if (!season) return
