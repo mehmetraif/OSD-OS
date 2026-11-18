@@ -319,9 +319,27 @@ FocusScope {
                     font.pixelSize: root.sh * 0.05 //24
                 }
 
+                // A selected name too long for the row scrolls through.
+                // Started (and started over) a turn of the event loop after
+                // the row changes, as MenuRow's value is: the animation keeps
+                // the distance it started with, and one started as the menu
+                // is first laid out (its first row's name) would keep a stale
+                // one for good. Not while the row is hidden.
+                readonly property bool scrolls: textClipContainer.visible && current
+                                                && rowText.implicitWidth > textClipContainer.width
+                readonly property real scrollBy: textClipContainer.width - rowText.implicitWidth
+                onScrollsChanged: Qt.callLater(updateScroll)
+                onScrollByChanged: Qt.callLater(updateScroll)
+                Component.onCompleted: Qt.callLater(updateScroll)
+                function updateScroll() {
+                    if (scrolls)
+                        marqueeAnim.restart()
+                    else
+                        marqueeAnim.stop()
+                }
+
                 SequentialAnimation {
                     id: marqueeAnim;
-                    running: current && (rowText.implicitWidth > textClipContainer.width);
                     loops: Animation.Infinite;
 
                     onRunningChanged: {
@@ -335,7 +353,7 @@ FocusScope {
                     NumberAnimation {
                         target: rowText;
                         property: "x";
-                        to: textClipContainer.width - rowText.implicitWidth;
+                        to: textClipContainer.scrollBy;
                         duration: Math.abs(to) * 20;
                     }
 

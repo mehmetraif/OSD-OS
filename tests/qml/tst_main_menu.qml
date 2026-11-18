@@ -82,9 +82,11 @@ Rectangle {
     // scan_for_modules() sends them, each with its settings group.
     QtObject {
         id: appCore
+        // The first row's name, which a test makes too long for the row.
+        property string firstName: "Arcade"
         signal modulesLoaded(var modules)
         function scan_for_modules() {
-            modulesLoaded([{ name: "Arcade", entry_point: "modules/arcade/views/Root.qml", group: "arcade" },
+            modulesLoaded([{ name: firstName, entry_point: "modules/arcade/views/Root.qml", group: "arcade" },
                            { name: "High Scores", entry_point: "modules/highscores/views/Root.qml", group: "arcade" },
                            { name: "Local Files", entry_point: "modules/local_files/views/Root.qml", group: "tv" },
                            { name: "Plex", entry_point: "modules/plex/views/Root.qml", group: "tv" },
@@ -121,6 +123,8 @@ Rectangle {
             root.navigations = []
             root.menuLayout = "Standard"
             root.setFrame([], 0, false)
+            root.width = 640
+            appCore.firstName = "Arcade"
         }
         function cleanup() {
             loader.source = ""
@@ -293,6 +297,41 @@ Rectangle {
             verify(list.contentY <= list.originY + list.contentHeight - list.height + 0.5)
             keyClick(Qt.Key_Return)
             compare(root.navigations[0].path, "modules/scripts/views/Root.qml")
+        }
+
+        // The first row's name, too long for the row, scrolls as far as it
+        // overflows and rests there: as the menu is first laid out, and
+        // again once the row is laid out another width.
+        function textIn(item, text) {
+            if (item.text === text)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = textIn(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
+        function scrollsAsFarAsItOverflows(label) {
+            // How far it overflows the row as it is laid out by then.
+            var distance = function() { return label.parent.width - label.implicitWidth }
+            // From the start (started over a turn later), to the far end.
+            tryVerify(function() { return label.x === 0 })
+            tryVerify(function() { return label.x <= distance() + 0.5 }, 6000)
+            wait(200)
+            fuzzyCompare(label.x, distance(), 0.5)
+            verify(distance() < -10, "the name is too long for its row: " + distance())
+        }
+        function test_longNameScrollsAsFarAsItOverflows() {
+            appCore.firstName = "A module whose name runs past the row"
+            root.width = 600
+            var menu = open()
+            compare(cursor(menu), appCore.firstName)
+            var label = textIn(listOf(menu).itemAtIndex(0), appCore.firstName)
+            verify(label !== null)
+            scrollsAsFarAsItOverflows(label)
+            root.width = 640
+            scrollsAsFarAsItOverflows(label)
         }
 
         // Menu Layout changed while the menu is open: the cursor stays on its

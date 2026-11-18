@@ -855,16 +855,33 @@ FocusScope {
                     }
                 }
 
-                // A cursor row too long for its column scrolls through.
+                // A cursor row too long for its column scrolls through. Started
+                // (and started over) a turn of the event loop after the row
+                // changes, as MenuRow's value is: the animation keeps the
+                // distance it started with, and a column's width settles only
+                // after its rows are made (placeColumns()), the cursor's row
+                // taking each name in turn. Not while the row is hidden.
+                readonly property bool scrolls: row.visible && row.cursor && labelText.implicitWidth > row.width
+                readonly property real scrollBy: row.width - labelText.implicitWidth
+                onScrollsChanged: Qt.callLater(updateScroll)
+                onScrollByChanged: Qt.callLater(updateScroll)
+                Component.onCompleted: Qt.callLater(updateScroll)
+                function updateScroll() {
+                    if (scrolls)
+                        scroll.restart()
+                    else
+                        scroll.stop()
+                }
+
                 SequentialAnimation {
-                    running: row.cursor && labelText.implicitWidth > row.width
+                    id: scroll
                     loops: Animation.Infinite
                     onRunningChanged: if (!running) slider.x = 0
                     PauseAnimation { duration: 1500 }
                     NumberAnimation {
                         target: slider
                         property: "x"
-                        to: row.width - labelText.implicitWidth
+                        to: row.scrollBy
                         duration: Math.abs(to) * 20
                     }
                     PauseAnimation { duration: 2000 }

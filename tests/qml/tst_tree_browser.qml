@@ -243,6 +243,59 @@ Rectangle {
             while (browser.closeFolder()) {}
             compare(browser.selectedItem().path, "/projects")
         }
+        // The cursor's row, and what in it slides as its name scrolls.
+        function cursorRow(item) {
+            if (item.entryIndex !== undefined && item.cursor === true && item.visible)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = cursorRow(item.children[i])
+                if (found)
+                    return found
+            }
+            return null
+        }
+        function textIn(item, text) {
+            if (item.text === text)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = textIn(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
+        // The cursor's name scrolls as far as it is too long for its column,
+        // and rests there: as the column is laid out once its rows are made
+        // (a folder just opened, its first name long), and again as the
+        // cursor goes to a name of another length.
+        function scrollsAsFarAsItOverflows(name) {
+            var row = cursorRow(browser)
+            verify(row !== null)
+            compare(row.label, name)
+            var label = textIn(row, name)
+            verify(label !== null)
+            var slider = label.parent
+            // How far it overflows the column as it is laid out by then.
+            var distance = function() { return row.width - label.implicitWidth }
+            // From the start (started over a turn later), to the far end.
+            tryVerify(function() { return slider.x === 0 })
+            tryVerify(function() { return slider.x <= distance() + 0.5 }, 6000)
+            wait(200)
+            fuzzyCompare(slider.x, distance(), 0.5)
+            verify(distance() < -10, "the name is too long for its column: " + distance())
+        }
+        function test_longNameScrollsAsFarAsItOverflows() {
+            var first = "a film whose name runs past its end"
+            var second = "a film whose name runs on past its end"
+            root.entries["/films"] = [root.file(first, "/films/1"), root.file(second, "/films/2")]
+            browser.refresh("/films")
+            browser.move(1)
+            verify(browser.openFolder())
+            compare(browser.selectedItem().path, "/films/1")
+            scrollsAsFarAsItOverflows(first)
+            browser.move(1)
+            scrollsAsFarAsItOverflows(second)
+        }
         function test_referencePreview() {
             wait(250)
             var image = grabImage(root)
