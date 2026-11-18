@@ -6,12 +6,6 @@ ModuleRouter {
     moduleId: "com.osdos.plex"
     viewsUrl: Qt.resolvedUrl(".")
 
-    // Plex's views give way in place, the way back kept (replaceCurrent):
-    // a profile's PIN to its library, back from which returns to what came
-    // before the prompt, never to the PIN; the library to the PIN it asks
-    // for again, which would otherwise be on the stack twice.
-    viewsReplaceCurrent: true
-
     // Opened for an NFC card (navParams.cardRef): a card never prompts, so a
     // sign-in lost on the way is no PinAuth here. The views a card reaches
     // say so themselves: CardPlay and QueuePlay in their notice, a card's

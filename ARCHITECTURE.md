@@ -505,11 +505,11 @@ An NFC card's tag file can point at content another module owns, rather than at 
 **The receiving module carries a `CardPlay.qml`.** `modules/plex/views/CardPlay.qml` is the reference. It is a thin resolver, not a view the user navigates to:
 
 - `Root.qml` routes to it on `navParams.cardRef`, **ahead of and exclusive of the auth/user gate**. For Plex, falling through that would land a card tap on `UserSelect.qml` whenever `auto_sign_in` is off, and switching profiles from a card would sidestep the profile PIN. A missing sign-in or a pending PIN is surfaced as an error, never a prompt; so is a sign-in lost on the way (Plex's token refused and not renewed, `authRevoked`): opened for a card (`forCard`), `Root.qml` shows no PinAuth, and CardPlay, QueuePlay and a Player waiting for its stream say so in their notice, back returning to the card reader.
-- So it resolves the ref, builds the stream, then **`replaceWith("Player.qml", …)`** — `replaceWith` doesn't push to the nav stack, so the stack stays `[NFC Root] → [Player]` and backing out of playback returns straight to the NFC tap screen instead of stranding the user inside a module so they can tap another card easily after playback stops.
+- So it resolves the ref, builds the stream, then **`replaceCurrent("Player.qml", …)`** — the player takes CardPlay's place rather than going on top of it, so the stack stays `[NFC Root] → [Player]` and backing out of playback returns straight to the NFC tap screen instead of stranding the user inside a module so they can tap another card easily after playback stops.
 - It doesn't write player state back to the service (Plex's `set_audio_stream` / `set_subtitle_stream`) — a card tap must not mutate stored per-item preferences. Whatever the server already prefers is what plays.
 - Errors render in the NFC module's visual language, so a card tap looks the same whichever module ends up serving it.
 
-**A card can also name a *set*:** Plex's `CardPlay.qml` recognises `plex://collection/…` and `plex://playlist/…` and hands those off to `QueuePlay.qml` (with `replaceWith`) rather than resolving a stream itself. Note: line 3's `shuffle` means *shuffle this queue*. The set's contents are resolved at tap time, so a card follows the collection or playlist as it changes rather than freezing whatever it held when it was originally written.
+**A card can also name a *set*:** Plex's `CardPlay.qml` recognises `plex://collection/…` and `plex://playlist/…` and hands those off to `QueuePlay.qml` (with `replaceCurrent`) rather than resolving a stream itself. Note: line 3's `shuffle` means *shuffle this queue*. The set's contents are resolved at tap time, so a card follows the collection or playlist as it changes rather than freezing whatever it held when it was originally written.
 
 **Adding another module** (e.g. Jellyfin, Emby, …) means: a row in `kHandoffModules`, a `CardPlay.qml`, and a `cardRef` branch in that module's `Root.qml`. Nothing in the NFC module is service-specific.
 
@@ -853,7 +853,7 @@ What the router does with a view's signals (its `Connections` on the loaded view
 |---|---|---|
 | `navigateTo(path, params, listState)` | `navigateToView()`: the view over the one shown | returns to the one shown, with `navListState` |
 | `replaceWith(path, params)` | `replaceWith()`: the view in place of every one before it, the stack cleared | leaves the module |
-| `replaceCurrent(path, params)` | `replaceCurrent()`: the view in place of the one shown, the stack as it was | skips the view replaced (Jellyfin's and Emby's `Boxset.qml`) |
+| `replaceCurrent(path, params)` | `replaceCurrent()`: the view in place of the one shown, the stack as it was | skips the view replaced (Jellyfin's and Emby's `Boxset.qml`; Plex's profile PIN, giving way to its library, and its card and queue launchers, to the player) |
 | `updateBackItem(item)` | the view back returns to gets `item` (autoplay moved on in place) | — |
 | `goBack()` | `navigateBack()`; from the first view, the router's own `goBack()` | — |
 
@@ -864,7 +864,7 @@ What the router does with a view's signals (its `Connections` on the loaded view
 - `goBack()` is the only signal that leaves the module — child views never emit it directly. A player's CLOSE VIDEO, which leaves the module whatever is on the stack, is `moduleRoot.leaveModule()`.
 - The router's `navigateTo` is a **signal**, the shell's: another module's view on the app's own stack (`Main.qml` listens for it by that name; the NFC Reader's [card hand-off](#card-hand-off-nfc--a-module)). The module's own views are `navigateToView()`'s. A function named `navigateTo` on the router would be taken by `Main.qml`'s `Connections` for a signal, and fire on one of the Root's own property changes.
 - `navigateBack` merges `navListState` back into params on pop so list views can restore position.
-- `replaceWith` clears the stack: the way in once signed in, and back to sign-in on a sign-out or a revoked token, so back never returns to a view signed out of (Jellyfin's and Emby's `onAuthStateChanged`, Plex's `signedOut()`). Plex's own views mean `replaceCurrent` by their `replaceWith` (a profile's PIN gives way to its library, back from which returns to what came before the prompt), and their Root says so: `viewsReplaceCurrent: true`.
+- `replaceWith` clears the stack: the way in once signed in, and back to sign-in on a sign-out or a revoked token, so back never returns to a view signed out of (Jellyfin's and Emby's `onAuthStateChanged`, Plex's `signedOut()`).
 - The view's `inFrame` is handed on (`inFrame: internalLoader.item.inFrame === true`, [the frame](#menu-layout-appmenu_layout)). A Root with a layer of its own over the view sets `viewCovered` while it is up: the view is then neither drawn nor in the frame (the Arcade's game and Game Details, `!!playLayer.item || !!pageLayer.item`).
 - A Root that opens some views its own way, not on the stack, gives `opensOwn`, a function each view's `navigateTo` comes to first, which answers true for one it opened (the Arcade's games and pages over its list). `currentView` is the view shown, for giving it the keys back.
 

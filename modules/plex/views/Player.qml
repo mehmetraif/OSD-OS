@@ -327,7 +327,7 @@ FocusScope {
         // Repoint the BACK target so exiting returns to THIS episode's detail
         // screen, not the one we auto-advanced from. Item.qml reloads from
         // item.ratingKey, so a minimal item carrying the new keys suffices.
-        // A queue was launched with replaceWith, so the stack top is the list the
+        // A queue was launched with replaceCurrent, so the stack top is the list the
         // queue came from — leave it pointing at the list. Same for a shuffle,
         // whose stack top is the show or season being shuffled: repointing it at
         // an episode would leave a show detail screen rendering an episode.

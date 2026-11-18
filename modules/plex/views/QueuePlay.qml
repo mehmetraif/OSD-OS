@@ -14,17 +14,17 @@ import Components
 // Either way it resolves the first playable item, builds its stream, then
 // replaces itself with Player.qml.
 //
-// replaceWith (not navigateTo) leaves no entry on the nav stack, so backing out
-// of the player returns straight to the screen the set was started from — the
-// list, or the show/season being shuffled — with its selected row restored. This
-// mirrors CardPlay.qml, the other launcher that plays something without going
-// through a detail screen.
+// replaceCurrent (not navigateTo) puts the player in this view's place on the
+// nav stack, so backing out of it returns straight to the screen the set was
+// started from — the list, or the show/season being shuffled — with its
+// selected row restored. This mirrors CardPlay.qml, the other launcher that
+// plays something without going through a detail screen.
 FocusScope {
     id: queueRoot
 
     property var navParams: ({})
 
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     // The rows the user queued, straight from the list view: leaves and shows.
@@ -162,7 +162,7 @@ FocusScope {
             if (!queueRoot.launching || !queueRoot.pendingDetail) return
             var d = queueRoot.pendingDetail
             queueRoot.launching = false
-            queueRoot.replaceWith("Player.qml", {
+            queueRoot.replaceCurrent("Player.qml", {
                 streamUrl:          url,
                 plexToken:          plexToken,
                 ratingKey:          d.ratingKey,

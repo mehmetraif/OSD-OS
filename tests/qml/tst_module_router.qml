@@ -6,11 +6,10 @@ import QtTest
 // against a stand-in for Main.qml: the first view found in the module's own
 // folder and reading the Root by its id; forward and back, with where a
 // list was; replaceWith clearing the way back and replaceCurrent keeping
-// it, and a Root whose views mean the latter by the former (Plex's); the
-// view back returns to given another item (autoplay); a view the Root opens
-// its own way (the Arcade's games); the view's inFrame handed on, unless a
-// layer of the Root's covers it; leaving the module at once; and the
-// shell's own navigateTo, heard only when it is asked for.
+// it; the view back returns to given another item (autoplay); a view the
+// Root opens its own way (the Arcade's games); the view's inFrame handed
+// on, unless a layer of the Root's covers it; leaving the module at once;
+// and the shell's own navigateTo, heard only when it is asked for.
 Item {
     id: root
     width: 640
@@ -121,23 +120,6 @@ Item {
             compare(shown(), "first")
             compare(view().navParams.navListState, { currentIndex: 1 })
             compare(root.backs, 0)
-        }
-
-        // A Root whose views mean replaceCurrent by their replaceWith (Plex's):
-        // the way back kept; the Root's own replaceWith still clears it.
-        function test_viewsReplaceCurrent() {
-            router().viewsReplaceCurrent = true
-            view().navigateTo("Page.qml", { name: "second" }, {})
-            view().replaceWith("Page.qml", { name: "third" })
-            compare(shown(), "third")
-            view().goBack()
-            compare(shown(), "first")
-            compare(root.backs, 0)
-            view().navigateTo("Page.qml", { name: "second" }, {})
-            router().replaceWith("Page.qml", { name: "signed out" })
-            compare(router().navStack.length, 0)
-            view().goBack()
-            compare(root.backs, 1)
         }
 
         // Autoplay moved on in place: back returns to the view the player was

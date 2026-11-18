@@ -19,10 +19,10 @@ FocusScope {
 
     property var navParams: ({})
 
-    // Success leaves via replaceWith, so this view drops off the nav stack
+    // Success leaves via replaceCurrent, so this view drops off the nav stack
     // once the PIN is accepted — backing out of the library should return to
     // whatever came before the prompt, never re-ask for the PIN.
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     property string userId: navParams.userId || ""
@@ -63,12 +63,12 @@ FocusScope {
         // screen when the retry lands, so it owns the handoff.
         function onServersLoaded(servers) {
             if (!profilePinRoot.reauth)
-                profilePinRoot.replaceWith("ServerSelect.qml", { servers: servers })
+                profilePinRoot.replaceCurrent("ServerSelect.qml", { servers: servers })
         }
 
         function onAuthSuccess() {
             if (profilePinRoot.reauth)
-                profilePinRoot.replaceWith("Libraries.qml", {})
+                profilePinRoot.replaceCurrent("Libraries.qml", {})
         }
 
         // Rejected again — stay put and let them retry.

@@ -9,7 +9,7 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     property string pinCode: ""
@@ -37,7 +37,7 @@ FocusScope {
                 pinAuthRoot.autoUser = users[0]
                 plexBackend.select_user(users[0].id)
             } else {
-                pinAuthRoot.replaceWith("UserSelect.qml", { users: users })
+                pinAuthRoot.replaceCurrent("UserSelect.qml", { users: users })
             }
         }
 
@@ -45,7 +45,7 @@ FocusScope {
         // on "Waiting..." forever.
         function onUserPinRequired(userId, wrongPin) {
             pinAuthRoot.waiting = false
-            pinAuthRoot.replaceWith("ProfilePin.qml", {
+            pinAuthRoot.replaceCurrent("ProfilePin.qml", {
                 userId: userId,
                 title: pinAuthRoot.autoUser ? pinAuthRoot.autoUser.title : "",
                 reauth: false,
@@ -54,7 +54,7 @@ FocusScope {
         }
 
         function onServersLoaded(servers) {
-            pinAuthRoot.replaceWith("ServerSelect.qml", { servers: servers })
+            pinAuthRoot.replaceCurrent("ServerSelect.qml", { servers: servers })
         }
 
         function onErrorOccurred(msg) {

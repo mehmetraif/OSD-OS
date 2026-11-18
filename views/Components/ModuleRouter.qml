@@ -67,12 +67,6 @@ FocusScope {
     // list).
     property var opensOwn: null
 
-    // What a view's replaceWith does: replaceWith() here, unless the Root
-    // says its views mean replaceCurrent(), the way back kept. Plex's do: a
-    // profile's PIN gives way to its library, back from which returns to
-    // what came before the prompt.
-    property bool viewsReplaceCurrent: false
-
     // The way back: each view left for another, with its params and where
     // its list was (listState), the latest last.
     property var navStack: []
@@ -155,12 +149,7 @@ FocusScope {
                 if (!moduleRouter.opensOwn || !moduleRouter.opensOwn(path, params, listState))
                     moduleRouter.navigateToView(path, params, listState)
             }
-            function onReplaceWith(path, params) {
-                if (moduleRouter.viewsReplaceCurrent)
-                    moduleRouter.replaceCurrent(path, params)
-                else
-                    moduleRouter.replaceWith(path, params)
-            }
+            function onReplaceWith(path, params) { moduleRouter.replaceWith(path, params) }
             function onReplaceCurrent(path, params) { moduleRouter.replaceCurrent(path, params) }
             function onGoBack() { moduleRouter.navigateBack() }
             function onUpdateBackItem(item) { moduleRouter.updateBackItem(item) }
