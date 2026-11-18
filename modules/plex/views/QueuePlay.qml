@@ -200,6 +200,18 @@ FocusScope {
             if (!queueRoot.launching) return
             queueRoot.fail(message)
         }
+
+        // Signed out while a card's set was made (its token refused and not
+        // renewed): said here, as CardPlay says it, never the sign-in page
+        // (Root.qml shows none over a card). In the module itself, Root
+        // shows PinAuth in this view's place.
+        function onAuthRevoked() { queueRoot.signedOut() }
+        function onLogoutComplete() { queueRoot.signedOut() }
+    }
+
+    function signedOut() {
+        if (launching && moduleRoot.forCard === true)
+            fail("SIGNED OUT OF PLEX\n\nOPEN THE PLEX MODULE TO SIGN IN")
     }
 
     Component.onCompleted: start()

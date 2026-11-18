@@ -9,7 +9,7 @@ import Components
 // waiting for one lead back to the detail screen, not a black screen with no
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
-// for back to return to. A video that fails says why (PlaybackNotice), with
+// for back to return to, and prompts no card, whose views say so instead. A video that fails says why (PlaybackNotice), with
 // RETRY, mpv itself missing without the transcode no transcode would mend.
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
 // keyboard (its signs, SHOW, the mouse). And Local Files' player: a remote's
@@ -677,6 +677,55 @@ Rectangle {
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
             verify(String(router.children[0].source).indexOf("PinAuth.qml") >= 0)
+        }
+
+        // A card never prompts: signed out (the token refused and not
+        // renewed, or a sign-out) as a card's item is looked for, its player
+        // waits for a stream, or a card's set is made, no PinAuth comes; the
+        // view says so, and back from it returns to the card reader.
+        function test_plexCardSignedOutSaysSo_data() {
+            return [{ tag: "revoked, card", signal: "authRevoked", view: "card" },
+                    { tag: "signed out, card", signal: "logoutComplete", view: "card" },
+                    { tag: "revoked, player", signal: "authRevoked", view: "player" },
+                    { tag: "revoked, set", signal: "authRevoked", view: "set" }]
+        }
+        function test_plexCardSignedOutSaysSo(data) {
+            var ref = data.view === "set" ? "plex://collection/7" : "plex://movie/abc"
+            var router = open("plex", "Root.qml", { cardRef: ref })
+            var shown = function() { return String(router.children[0].source) }
+            verify(shown().indexOf("CardPlay.qml") >= 0)
+            compare(plexBackend.cardAsks, 1)
+            var expected = "CardPlay.qml"
+            if (data.view === "player") {
+                plexBackend.cardItemReady({ ratingKey: "10", partKey: "/library/parts/10", title: "Film",
+                                            audioStreams: [], subtitleStreams: [] })
+                verify(shown().indexOf("Player.qml") >= 0)
+                compare(mpvController.loads, 1)
+                mpvController.playbackEnded(0, 0, "failed")
+                verify(router.children[0].item.waiting)
+                expected = "Player.qml"
+            } else if (data.view === "set") {
+                plexBackend.cardQueueReady([{ ratingKey: "1", type: "movie" }])
+                verify(shown().indexOf("QueuePlay.qml") >= 0)
+                compare(plexBackend.queueAsks, 1)
+                expected = "QueuePlay.qml"
+            }
+            plexBackend[data.signal]()
+            wait(0)
+            verify(shown().indexOf(expected) >= 0, shown())
+            var view = router.children[0].item
+            if (data.view === "player") {
+                var notice = noticeOf(view)
+                verify(notice.visible)
+                compare(notice.detail, "SIGNED OUT OF PLEX: OPEN THE PLEX MODULE TO SIGN IN")
+                verify(!view.waiting)
+            } else {
+                compare(view.errorMessage, "SIGNED OUT OF PLEX\n\nOPEN THE PLEX MODULE TO SIGN IN")
+                verify(!view.launching)
+            }
+            view.forceActiveFocus()
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
         }
 
         function openJellyfinPlayer(module) {

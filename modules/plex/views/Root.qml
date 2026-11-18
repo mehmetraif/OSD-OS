@@ -77,19 +77,27 @@ FocusScope {
         }
     }
 
-    // Handle logout signal from backend: clear stack and go to auth. Replaced,
-    // not navigated to, so the view signed out of isn't put back on the stack
-    // for back to return to: back from PinAuth leaves the module.
+    // Opened for an NFC card (navParams.cardRef): a card never prompts, so a
+    // sign-in lost on the way is no PinAuth here. The views a card reaches
+    // say so themselves: CardPlay and QueuePlay in their notice, a card's
+    // Player in its own as a video it waited for won't come, and back from
+    // any of them returns to the card reader.
+    readonly property bool forCard: !!navParams.cardRef
+
+    // Signed out (logout, or the token refused and not renewed): clear the
+    // stack and go to auth. Replaced, not navigated to, so the view signed
+    // out of isn't put back on the stack for back to return to: back from
+    // PinAuth leaves the module.
+    function signedOut() {
+        if (forCard)
+            return
+        navStack = []
+        replaceWith("PinAuth.qml", {})
+    }
     Connections {
         target: plexBackend
-        function onLogoutComplete() {
-            moduleRoot.navStack = []
-            moduleRoot.replaceWith("PinAuth.qml", {})
-        }
-        function onAuthRevoked() {
-            moduleRoot.navStack = []
-            moduleRoot.replaceWith("PinAuth.qml", {})
-        }
+        function onLogoutComplete() { moduleRoot.signedOut() }
+        function onAuthRevoked() { moduleRoot.signedOut() }
     }
 
     Component.onCompleted: {

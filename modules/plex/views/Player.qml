@@ -243,22 +243,32 @@ FocusScope {
         }
     }
 
+    // The stream it waited for won't come: said so, and back from it to the
+    // detail screen, not a black screen with no mpv to take a key.
+    function waitFailed(msg) {
+        var next = pendingNextEpisode
+        pendingNextEpisode = false
+        pendingRetryTranscode = false
+        plexBackend.cancel_stream()
+        failure.show(next ? "The next video could not be started" : "The server could not stream it",
+                     msg, false)
+    }
+
     Connections {
         target: plexBackend
         function onErrorOccurred(msg) {
             console.log("[Player] Backend error: " + msg)
-            // The stream it waited for won't come: said so, and back from it
-            // to the detail screen, not a black screen with no mpv to take a
-            // key.
-            if (waiting) {
-                var next = pendingNextEpisode
-                pendingNextEpisode = false
-                pendingRetryTranscode = false
-                plexBackend.cancel_stream()
-                failure.show(next ? "The next video could not be started" : "The server could not stream it",
-                             msg, false)
-            }
+            if (waiting)
+                waitFailed(msg)
         }
+        // Signed out as a card's player waits for a stream (its token refused
+        // and not renewed, so the stream never comes): Root.qml shows no
+        // PinAuth over a card, so the wait ends here as a failed one does,
+        // and back returns to the card reader. A video playing plays on, and
+        // goes back as it ends. In the module itself, Root shows PinAuth in
+        // the player's place.
+        function onAuthRevoked() { playerRoot.signedOut() }
+        function onLogoutComplete() { playerRoot.signedOut() }
         function onStreamUrlReady(url, plexToken) {
             if (pendingNextEpisode) {
                 // Stream URL for the auto-advanced next episode just arrived.
@@ -295,6 +305,11 @@ FocusScope {
             }
             playerRoot.advanceToEpisode(detail)
         }
+    }
+
+    function signedOut() {
+        if (moduleRoot.forCard === true && waiting)
+            waitFailed("SIGNED OUT OF PLEX: OPEN THE PLEX MODULE TO SIGN IN")
     }
 
     // Ask the backend for the next item of the queue, if there is one. Reports

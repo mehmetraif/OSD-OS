@@ -170,6 +170,17 @@ FocusScope {
             if (!cardRoot.launching) return
             cardRoot.fail(message)
         }
+
+        // Signed out while the card's item was looked for (its token refused
+        // and not renewed): said here, as a missing sign-in is, never the
+        // sign-in page (Root.qml shows none over a card).
+        function onAuthRevoked() { cardRoot.signedOut() }
+        function onLogoutComplete() { cardRoot.signedOut() }
+    }
+
+    function signedOut() {
+        if (launching)
+            fail("SIGNED OUT OF PLEX\n\nOPEN THE PLEX MODULE TO SIGN IN")
     }
 
     Component.onCompleted: {
