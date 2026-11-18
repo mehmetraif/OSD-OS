@@ -56,6 +56,7 @@ osd-os/
       FileText.h                    # readText(), readJsonObject(): a small file read whole, a broken JSON one told from one not there
       Looks.h/.cpp                  # Settings → Look's colour schemes, skins and themes read for QML (AppCore's skins(), theme() …)
       LogSaver.h/.cpp               # Quit → Save Logs: scripts/save-logs.sh run to copy the logs to the card (AppCore::saveLogs())
+      ProcessOver.h                 # whenOver(): told once a process is over, one that couldn't start too, or ended at a time limit
       RuntimeFiles.h                # runtimefiles::path(): what a run hands mpv, in a folder of the user's own
       Diagnostics.h/.cpp            # crash and stall reports, memory in the log, malloc kept from hoarding
       LogFile.h/.cpp                # Windows: the log in osdos.log in the data folder, the app being a windowed program

@@ -285,6 +285,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(bluetooth_test PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME bluetooth COMMAND bluetooth_test)
 
+    # A process over, told once each time (util/ProcessOver.h), against
+    # /bin/sh: one that exits, one killed, one that can't be started, one
+    # started again, and one still running at the time limit, told at once,
+    # then ended and deleted.
+    add_executable(process_over_test process_over_test.cpp)
+    target_include_directories(process_over_test PRIVATE ../src)
+    target_link_libraries(process_over_test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME process_over COMMAND process_over_test)
+
     # Settings → System → About → System Information (SystemInfo): its rows from what
     # the system says, Linux's files from a stand-in root, the name a network
     # takes of what is typed, and the device renamed through a stand-in for

@@ -15,8 +15,8 @@
 #include <algorithm>
 #endif
 
-#include "../util/EndProcess.h"
 #include "../util/FileText.h"
+#include "../util/ProcessOver.h"
 
 #include <QDir>
 #include <QFile>
@@ -478,8 +478,15 @@ void BluetoothManager::collectDetails() {
     // rfkill's and this app's. The app's user reads it as a member of adm.
     auto *journal = new QProcess(this);
     m_journal = journal;
-    // `late`: stopped at the time limit, what it wrote by then read.
-    auto finish = [this, journal, lines](bool ran, bool late) {
+    // Still reading at the time limit: answered with what it wrote by then,
+    // and ended without the app's thread waiting for it (util/ProcessOver.h).
+    whenOver(journal, this, [this, journal, lines](const ProcessEnd &end) {
+        const bool ran = end.how != ProcessEnd::NotStarted;
+        const bool late = end.how == ProcessEnd::TimedOut;
+        if (late)
+            qWarning("[Bluetooth] journalctl still reading after %d s: stopped", kJournalMs / 1000);
+        else
+            journal->deleteLater();
         static const QRegularExpression relevant(
             QStringLiteral("bluetooth|hci\\d|rfkill|bthelper|bcm|brcm"), QRegularExpression::CaseInsensitiveOption);
         static const QRegularExpression stamp(QStringLiteral("^\\[[^\\]]*\\]\\s*"));
@@ -509,27 +516,7 @@ void BluetoothManager::collectDetails() {
                                                              : QString());
         m_details = out.join(QLatin1Char('\n'));
         emit detailsChanged();
-    };
-    connect(journal, &QProcess::finished, this, [journal, finish]() {
-        journal->deleteLater();
-        finish(true, false);
-    });
-    connect(journal, &QProcess::errorOccurred, this, [journal, finish](QProcess::ProcessError error) {
-        if (error != QProcess::FailedToStart)
-            return;
-        journal->deleteLater();
-        finish(false, false);
-    });
-    // Still reading at the time limit: answered with what it wrote by then,
-    // and ended without the app's thread waiting for it (util/EndProcess.h).
-    QTimer::singleShot(kJournalMs, journal, [this, journal, finish]() {
-        if (journal->state() == QProcess::NotRunning)
-            return;
-        qWarning("[Bluetooth] journalctl still reading after %d s: stopped", kJournalMs / 1000);
-        journal->disconnect(this);
-        finish(true, true);
-        endProcessLater(journal, this, {});
-    });
+    }, kJournalMs);
     journal->start(QStringLiteral("journalctl"),
                    { QStringLiteral("-b"), QStringLiteral("--no-pager"), QStringLiteral("--no-hostname"),
                      QStringLiteral("-o"), QStringLiteral("short-monotonic"), QStringLiteral("-n"),

@@ -1,6 +1,7 @@
 #include "MenuMusic.h"
 #include "AudioOutput.h"
 #include "../util/MpvLocator.h"
+#include "../util/ProcessOver.h"
 #include "../util/RuntimeFiles.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -36,19 +37,6 @@ const char *const kSystemSoundFonts[] = {
     "/opt/homebrew/share/soundfonts/default.sf2",
     "/usr/local/share/soundfonts/default.sf2",
 };
-
-// Calls `over` once the process is over, with its exit code, -1 if it
-// crashed or couldn't be started at all (which emits no finished()).
-template <typename Over>
-void whenOver(QProcess *process, QObject *context, Over over) {
-    QObject::connect(process, &QProcess::finished, context, [over](int code, QProcess::ExitStatus status) {
-        over(status == QProcess::NormalExit ? code : -1);
-    });
-    QObject::connect(process, &QProcess::errorOccurred, context, [over](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart)
-            over(-1);
-    });
-}
 } // namespace
 
 MenuMusic::MenuMusic(const QString &dataRoot, QObject *parent) : QObject(parent), m_dataRoot(dataRoot) {
@@ -262,7 +250,9 @@ void MenuMusic::render(const QString &file) {
     QDir().mkpath(dir);
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::MergedChannels);
-    whenOver(process, this, [this, process, file, part, out, dir](int code) {
+    whenOver(process, this, [this, process, file, part, out, dir](const ProcessEnd &end) {
+        // Its exit code, -1 if it crashed or couldn't be started at all.
+        const int code = end.code;
         const QByteArray output = process->readAll().trimmed().right(300);
         const QByteArray said = output.isEmpty() && code == -1 ? process->errorString().toUtf8() : output;
         process->deleteLater();
@@ -334,7 +324,7 @@ void MenuMusic::play(const QString &file) {
     // Whether there is a card to play through, asked now and again as mpv
     // ends: one that came meanwhile wasn't there for it.
     const bool card = AudioOutput::hasPlaybackCard();
-    whenOver(process, this, [this, process, clock, card](int code) {
+    whenOver(process, this, [this, process, clock, card](const ProcessEnd &end) {
         process->deleteLater();
         // Killed by stopNow(): it is no longer m_process.
         if (process != m_process)
@@ -360,7 +350,7 @@ void MenuMusic::play(const QString &file) {
             m_renderModule = true;
             start();
         } else {
-            const QString why = code == -1 ? process->errorString() : QStringLiteral("exit %1").arg(code);
+            const QString why = end.code == -1 ? process->errorString() : QStringLiteral("exit %1").arg(end.code);
             qWarning("[MenuMusic] mpv couldn't play %s (%s)", qPrintable(path()), qPrintable(why));
             m_failed = m_source;
         }
