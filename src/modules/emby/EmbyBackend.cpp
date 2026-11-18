@@ -1063,9 +1063,12 @@ void EmbyBackend::load_seasons(const QString &seriesId) {
 
     // As the detail page's item: a show's page without its seasons says
     // nothing, the log does.
+    const int request = ++m_seasonsRequest;
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId, request]() {
         reply->deleteLater();
+        // Another show's seasons asked for since: this one was left.
+        if (request != m_seasonsRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Emby", "the seasons of show " + seriesId, reply);
             emit errorOccurred("LOAD SEASONS FAILED: " + reply->errorString());
@@ -1105,9 +1108,12 @@ void EmbyBackend::load_episodes(const QString &seriesId, const QString &seasonId
 
     // As the detail page's item: a season's page without its episodes says
     // nothing, the log does.
+    const int request = ++m_episodesRequest;
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seasonId, request]() {
         reply->deleteLater();
+        // Another season's episodes asked for since: this one was left.
+        if (request != m_episodesRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             serverlog::loadFailed("Emby", "the episodes of season " + seasonId, reply);
             emit errorOccurred("LOAD EPISODES FAILED: " + reply->errorString());
@@ -1201,9 +1207,13 @@ void EmbyBackend::load_series_next_up(const QString &seriesId) {
     q.addQueryItem("enableUserData", "true");
     url.setQuery(q);
 
+    const int request = ++m_nextUpRequest;
     auto *reply = embyGet(url);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, seriesId, request]() {
         reply->deleteLater();
+        // Another show's next episode asked for since (its PLAY): this one
+        // was left, and opens nothing from that show's page.
+        if (request != m_nextUpRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             // The show's PLAY then does nothing, with nothing said: the log does.
             serverlog::loadFailed("Emby", "the next episode of show " + seriesId, reply);

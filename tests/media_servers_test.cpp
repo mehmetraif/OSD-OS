@@ -14,7 +14,8 @@
 
 // The Jellyfin, Emby and Plex backends against a stand-in network, whose
 // replies the test completes when it chooses: a list asked for after another
-// drops the first's reply, a list kept is shown again without asking the
+// drops the first's reply (and so do a season's episodes, a show's seasons
+// and its next episode on Jellyfin and Emby), a list kept is shown again without asking the
 // server until a playback ends, a stream given up is dropped unreported, an
 // auth check that changes nothing isn't announced, Plex's next item looked
 // for by a player left answers no one, the next episode is found beyond a
@@ -369,6 +370,56 @@ class MediaServersTest : public QObject {
         QVERIFY(seasons.last().at(0).toList().isEmpty());
     }
 
+    // A season opened and left before its episodes came, another opened:
+    // the first's, answering last, are dropped, and so are a show's seasons
+    // left the same way. A show's PLAY left for another show's: the first
+    // show's next episode, answering last, opens nothing, nor does its
+    // failure cancel the second's.
+    template <typename Backend> void showOrSeasonLeftIsDropped() {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path(), tmp.path());
+        Network *network = signIn(backend);
+        QSignalSpy seasons(&backend, &Backend::seasonsLoaded);
+        QSignalSpy episodes(&backend, &Backend::episodesLoaded);
+        QSignalSpy nextUp(&backend, &Backend::seriesNextUpReady);
+        QSignalSpy errors(&backend, &Backend::errorOccurred);
+
+        backend.load_episodes(QStringLiteral("show"), QStringLiteral("season1"));
+        Reply *season1 = network->last();
+        backend.load_episodes(QStringLiteral("show"), QStringLiteral("season2"));
+        Reply *season2 = network->last();
+        season2->complete(films({ "S2E1", "S2E2" }));
+        season1->complete(films({ "S1E1" }));
+        QCOMPARE(episodes.count(), 1);
+        QCOMPARE(titles(episodes, 0), QStringList({ "S2E1", "S2E2" }));
+
+        backend.load_seasons(QStringLiteral("showA"));
+        Reply *showA = network->last();
+        backend.load_seasons(QStringLiteral("showB"));
+        Reply *showB = network->last();
+        showA->complete(films({ "A1" }));
+        showB->complete(films({ "B1" }));
+        QCOMPARE(seasons.count(), 1);
+        QCOMPARE(titles(seasons, 0), QStringList({ "B1" }));
+
+        backend.load_series_next_up(QStringLiteral("showA"));
+        Reply *playA = network->last();
+        backend.load_series_next_up(QStringLiteral("showB"));
+        Reply *playB = network->last();
+        playB->complete(films({ "B-next" }));
+        playA->complete(films({ "A-next" }));
+        QCOMPARE(nextUp.count(), 1);
+        QCOMPARE(nextUp.at(0).at(0).toMap().value(QStringLiteral("itemId")).toString(), QStringLiteral("B-next"));
+        backend.load_series_next_up(QStringLiteral("showA"));
+        playA = network->last();
+        backend.load_series_next_up(QStringLiteral("showB"));
+        playB = network->last();
+        playA->fail(500);
+        QCOMPARE(errors.count(), 0);
+        playB->complete(films({ "B-next" }));
+        QCOMPARE(nextUp.count(), 2);
+    }
+
     // Settings → Server Address changed while signed in: the token goes to
     // no host but the one that issued it. The backend signs out (the revoke
     // sent to the server signed into), and what is asked after goes nowhere;
@@ -399,6 +450,8 @@ class MediaServersTest : public QObject {
     }
 
 private slots:
+    void jellyfinShowOrSeasonLeftIsDropped() { showOrSeasonLeftIsDropped<JellyfinBackend>(); }
+    void embyShowOrSeasonLeftIsDropped() { showOrSeasonLeftIsDropped<EmbyBackend>(); }
     void jellyfinServerAddressChangedSignsOut() {
         serverAddressChangedSignsOut<JellyfinBackend>(QStringLiteral("com.osdos.jellyfin"));
     }

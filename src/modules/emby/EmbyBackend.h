@@ -154,6 +154,14 @@ private:
     // The stream asked for last (get_playback_url): a reply to one asked for
     // before it, or given up with cancel_playback_url, is dropped.
     int m_playbackRequest = 0;
+    // A show's seasons, a season's episodes and a show's next episode asked
+    // for last (load_seasons, load_episodes, load_series_next_up): one
+    // answering after another was asked for is dropped, as Plex's are, so a
+    // show or season left for another never shows up in its place, and a
+    // show's PLAY never opens another show's episode.
+    int m_seasonsRequest = 0;
+    int m_episodesRequest = 0;
+    int m_nextUpRequest = 0;
 
     // A list the list view asked for (Items.qml), told by answer: a library's
     // items, a folder's or a box set's. Each one asked for supersedes the

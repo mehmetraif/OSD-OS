@@ -105,6 +105,7 @@ ctest --test-dir build-tests --output-on-failure
 - **media_servers** (`media_servers_test.cpp`): the Jellyfin, Emby and Plex backends against a stand-in network, whose replies the test completes when it chooses.
   - Jellyfin's settings page learns what the server can do with the choices it asks for, the server asked once. A Plex profile switch that fails from Settings puts the Current User setting back and sends its choices again; a `config.json` that can't be read is not written over.
   - Of two lists asked for in a row, only the second is shown: the first's reply, coming last, is dropped.
+  - Jellyfin's and Emby's season left for another before its episodes came, a show's seasons left the same way, and a show's PLAY left for another show's: the first's reply, coming last, is dropped (a failure too, which says nothing), and the second's is the one told.
   - A list shown and asked for again (back from a film's detail screen) comes without a request, once the view has done asking; a playback ending forgets it, and the next asks the server.
   - A stream given up (`cancel_playback_url()`) neither tells a view nor reports a playback to the server when its reply comes; the next one asked for does both.
   - Jellyfin's auth check that changes nothing announces nothing; signing out does.
