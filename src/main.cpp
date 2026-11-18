@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
     }
 
     AppCore             appCore(appRoot, dataRoot);
-    appCore.setSetupNotice(setupfile::noticeTitle(setup), setup.lines.join(QLatin1Char('\n')));
+    appCore.setSetupNotice(setupfile::noticeTitle(setup, setupfile::Taken::AtStart), setup.lines.join(QLatin1Char('\n')));
 
     // Which physical display the UI launches on. App-level "display_index"
     // (0 = primary screen, the previous hardcoded behaviour). Lets the UI open

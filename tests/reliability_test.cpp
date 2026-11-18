@@ -1436,10 +1436,10 @@ private slots:
             "OSD/OS settings: 3 set",
             "RetroAchievements: player, signed in with the password; Web API key kept",
             "Not set here: the device's name, Wi-Fi, SSH and the time zone, which an OSD/OS card alone sets" }));
-        QCOMPARE(setupfile::noticeTitle(result), QString("OSD/OS Setup applied"));
+        QCOMPARE(setupfile::noticeTitle(result, setupfile::Taken::AtStart), QString("OSD/OS Setup applied"));
         // None there: nothing to say.
         QVERIFY(setupfile::applyAtStart(data).lines.isEmpty());
-        QCOMPARE(setupfile::noticeTitle(setupfile::Result()), QString());
+        QCOMPARE(setupfile::noticeTitle(setupfile::Result(), setupfile::Taken::AtStart), QString());
 
         QVERIFY(write(setupPath, R"({"wifi": {"password": "secret"}})"));
         setupfile::Result refused = setupfile::applyAtStart(data);
@@ -1447,7 +1447,7 @@ private slots:
         QVERIFY(!QFile::exists(setupPath));
         QVERIFY2(refused.lines.first().endsWith("deleted, not applied: not OSD/OS Setup's settings"),
                  qPrintable(refused.lines.first()));
-        QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup not applied"));
+        QCOMPARE(setupfile::noticeTitle(refused, setupfile::Taken::AtStart), QString("OSD/OS Setup not applied"));
         QVERIFY(write(data + "/config.json", "{\"app\": {"));
         QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}},
                                      "retroachievements": {"key": "K1"}})"));
@@ -1455,7 +1455,7 @@ private slots:
         QVERIFY(!refused.ok);
         QCOMPARE(refused.applied, 1);
         QCOMPARE(contents(data + "/config.json"), QByteArray("{\"app\": {"));
-        QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup partly applied"));
+        QCOMPARE(setupfile::noticeTitle(refused, setupfile::Taken::AtStart), QString("OSD/OS Setup partly applied"));
     }
 
     // Settings → System → Paste OSD/OS Setup (AppCore::applySetupText()): the
@@ -1496,6 +1496,26 @@ private slots:
         QCOMPARE(notice["detail"].toString(), QString("What was pasted is not OSD/OS Setup's settings"));
         notice = core.applySetupText(R"({"osdos_setup": 1, "wifi": {"ssid": "home"}})");
         QCOMPARE(notice["title"].toString(), QString("Nothing set from OSD/OS Setup"));
+        QCOMPARE(app.count(), 1);
+
+        // A config.json that can't be read is left as it is: the settings
+        // aren't set, the account is, and the notice says it was partly
+        // pasted; with the settings alone, that it wasn't.
+        QFile config(dir.path() + "/config.json");
+        QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(config.write("{\"app\": {") > 0);
+        config.close();
+        notice = core.applySetupText(R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "Arcade"}},
+            "retroachievements": {"key": "K2"}})");
+        QVERIFY(!notice["ok"].toBool());
+        QCOMPARE(notice["title"].toString(), QString("OSD/OS Setup partly pasted"));
+        QCOMPARE(notice["detail"].toString(), QString("OSD/OS settings: not set: config.json couldn't be read, and is "
+                                                      "left as it is\nRetroAchievements: Web API key kept"));
+        QCOMPARE(account.count(), 2);
+        QCOMPARE(contents(dir.path() + "/config.json"), QByteArray("{\"app\": {"));
+        notice = core.applySetupText(R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "Arcade"}}})");
+        QVERIFY(!notice["ok"].toBool());
+        QCOMPARE(notice["title"].toString(), QString("Not pasted"));
         QCOMPARE(app.count(), 1);
     }
 };

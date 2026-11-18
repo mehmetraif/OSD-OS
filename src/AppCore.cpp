@@ -430,54 +430,28 @@ QVariantMap AppCore::applySetupText(const QString &text) {
     QString why;
     if (!setupfile::parse(text.toUtf8(), &setup, &why))
         return notice(false, QStringLiteral("Not pasted"), { QStringLiteral("What was pasted is ") + why });
-    QStringList lines;
-    bool ok = true;
-    int applied = 0;
-    if (!setup.config.isEmpty()) {
+    // Set as the file is as the app starts, through the config as the app
+    // has it (what is held back written with it), and each part told to
+    // what takes it up at once: Settings, the Arcade module.
+    setupfile::Target target;
+    target.readConfig = [this](QJsonObject *config) {
         bool broken = false;
-        const QJsonObject config = loadConfig(&broken);
-        const QJsonObject after = setupfile::merged(config, setup.config);
-        if (broken) {
-            lines << QStringLiteral("OSD/OS settings: not set: config.json couldn't be read, and is left as it is");
-            ok = false;
-        } else if (!saveConfig(after)) {
-            lines << QStringLiteral("OSD/OS settings: not set: config.json couldn't be written");
-            ok = false;
-        } else {
-            lines << setupfile::settingsLine(setupfile::count(setup.config));
-            ++applied;
-            tellChanges(config, after);
-        }
-    }
-    if (!setup.account.isEmpty()) {
-        if (setupfile::writeAccount(setup.account, m_dataRoot, &why)) {
-            lines << setupfile::accountLine(setup.account);
-            ++applied;
-            emit setupAccountWritten();
-        } else {
-            lines << QStringLiteral("RetroAchievements: not set: ") + why;
-            ok = false;
-        }
-    }
-    if (!setup.favorites.isEmpty()) {
-        if (setupfile::writeFavorites(setup.favorites, m_dataRoot, &why)) {
-            lines << setupfile::favoritesLine(int(setup.favorites.size()));
-            ++applied;
-            emit setupFavoritesWritten();
-        } else {
-            lines << QStringLiteral("Arcade favorites: not added: ") + why;
-            ok = false;
-        }
-    }
-    if (!setup.cardOnly.isEmpty())
-        lines << setupfile::cardOnlyLine(setup.cardOnly);
-    if (lines.isEmpty())
-        lines << QStringLiteral("Nothing in it to set");
-    for (const QString &line : std::as_const(lines))
+        *config = loadConfig(&broken);
+        return !broken;
+    };
+    target.writeConfig = [this](const QJsonObject &config) { return saveConfig(config); };
+    target.configWritten = [this](const QJsonObject &before, const QJsonObject &after) { tellChanges(before, after); };
+    target.accountWritten = [this] { emit setupAccountWritten(); };
+    target.favoritesWritten = [this] { emit setupFavoritesWritten(); };
+    setupfile::Result result;
+    result.applied = setupfile::apply(setup, m_dataRoot, target, [&result](const QString &line, bool ok) {
+        result.lines << line;
+        result.ok = result.ok && ok;
+    });
+    for (const QString &line : std::as_const(result.lines))
         qInfo("[Setup] Pasted: %s", qPrintable(line));
-    if (applied == 0)
-        return notice(false, ok ? QStringLiteral("Nothing set from OSD/OS Setup") : QStringLiteral("Not pasted"), lines);
-    return notice(ok, ok ? QStringLiteral("OSD/OS Setup pasted") : QStringLiteral("OSD/OS Setup partly pasted"), lines);
+    return notice(result.ok && result.applied > 0, setupfile::noticeTitle(result, setupfile::Taken::Pasted),
+                  result.lines);
 }
 
 bool AppCore::canSaveLogs() const {
