@@ -18,6 +18,7 @@
 
 class QQuickWindow;
 class QKeyEvent;
+class QWheelEvent;
 class QSocketNotifier;
 class AppCore;
 class JammaPins;
@@ -484,6 +485,39 @@ private:
     // A key that went on to the views while a video has the screen, and who
     // has the keys there: said in the log once for each.
     void noteKeyToViews(const QString &name);
+    // eventFilter() in parts: the wheel's notches, and a key's stages, in
+    // the order eventFilter() lists them. A key as each stage takes it: the
+    // event, whether it came in at its window (rather than at an item it
+    // goes on to), whether the app made it (a pad's press, postKey()) or
+    // replayed it (replayKey()), its id (keyId()), the keyboard or remote
+    // it came from, "" where none is known, and whether that is a Consumer
+    // Control node whose press readNode() took (keyIn() works these out).
+    // Each stage's answer: true to keep the key from the views, false to
+    // let it go on, nullopt to leave it to the next.
+    bool wheelTurned(QObject *obj, const QWheelEvent *event);
+    struct KeyIn {
+        const QKeyEvent *ke = nullptr;
+        QEvent::Type type = QEvent::None;
+        bool atWindow = false;
+        bool synthetic = false;
+        bool replay = false;
+        int id = 0;
+        QString device;
+        bool takenByNode = false;
+    };
+    KeyIn keyIn(QObject *obj, const QKeyEvent *ke);
+    std::optional<bool> keyTakenByNode(const KeyIn &key);
+    std::optional<bool> keyFromKeyboard(const KeyIn &key);
+    std::optional<bool> oneShotKeyHeld(const KeyIn &key);
+    std::optional<bool> rightShiftKey(const KeyIn &key);
+    std::optional<bool> unlockButtonKey(const KeyIn &key);
+    std::optional<bool> keyTakenByWait(const KeyIn &key);
+    std::optional<bool> keyForWait(const KeyIn &key);
+    std::optional<bool> extraKey(const KeyIn &key);
+    std::optional<bool> backKeyForPlayer(const KeyIn &key);
+    std::optional<bool> unnamedKey(const KeyIn &key);
+    std::optional<bool> mediaKey(const KeyIn &key);
+    std::optional<bool> keyToViews(const KeyIn &key);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
     bool windowActive() const;
     // The item with the focus takes a coin (see the class's comment).

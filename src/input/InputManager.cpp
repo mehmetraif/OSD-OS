@@ -3085,28 +3085,8 @@ bool InputManager::clickActs(Qt::MouseButton pressed, bool isPress) {
 
 bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     const QEvent::Type type = event->type();
-
-    // The mouse wheel: each notch up or down is Up or Down, pressed and let go
-    // as a key is. Taken at the window, which Qt Quick would hand it on from
-    // to the items under the pointer; none of them scrolls by the wheel.
-    if (type == QEvent::Wheel) {
-        if (!obj || !obj->isWindowType())
-            return false;
-        if (capturing(allKeys()))
-            return true;
-        m_wheelTurn += static_cast<QWheelEvent *>(event)->angleDelta().y();
-        while (qAbs(m_wheelTurn) >= 120) {
-            const Action a = m_wheelTurn > 0 ? Action::Up : Action::Down;
-            m_wheelTurn += a == Action::Up ? -120 : 120;
-            // Delivered as a keyboard's key is, apart from what a pad holds
-            // (m_heldActions): a notch while a pad's direction was held used
-            // to end that hold and swallow the pad's own release.
-            setLastInputDevice(QStringLiteral("keyboard"));
-            deliverPress(a, false);
-            deliverRelease(a, false);
-        }
-        return true;
-    }
+    if (type == QEvent::Wheel)
+        return wheelTurned(obj, static_cast<const QWheelEvent *>(event));
 
     // Some remotes wire their center/OK button as a literal mouse click (see
     // scanNodes()'s comment for the sibling-devices story): an air mouse's OK
@@ -3127,228 +3107,308 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
 
     if (type != QEvent::KeyPress && type != QEvent::KeyRelease)
         return false;
-    const auto *ke = static_cast<QKeyEvent *>(event);
-    const bool synthetic = ke->nativeScanCode() == kSyntheticScanCode;
+    // A key goes through these in turn: each keeps it from the views (true),
+    // lets it go on to them (false), or leaves it to the next (nullopt). The
+    // order is what they are worth to one another: a press a Consumer Control
+    // node took never reaches the rest; Right Shift is Back before a wait
+    // can take it, so that it still cancels the wait; Cabinet Lock's unlock
+    // buttons go before a wait's keys and the extra keys; a page waiting for
+    // a press takes a key before its extra key's action could; an extra key's
+    // action goes before Back is the player's; the views have what is left.
+    using KeyStage = std::optional<bool> (InputManager::*)(const KeyIn &);
+    static constexpr KeyStage kKeyStages[] = {
+        &InputManager::keyTakenByNode,
+        &InputManager::keyFromKeyboard,
+        &InputManager::oneShotKeyHeld,
+        &InputManager::rightShiftKey,
+        &InputManager::unlockButtonKey,
+        &InputManager::keyTakenByWait,
+        &InputManager::keyForWait,
+        &InputManager::extraKey,
+        &InputManager::backKeyForPlayer,
+        &InputManager::unnamedKey,
+        &InputManager::mediaKey,
+        &InputManager::keyToViews,
+    };
+    const KeyIn key = keyIn(obj, static_cast<const QKeyEvent *>(event));
+    for (const KeyStage stage : kKeyStages) {
+        if (const std::optional<bool> taken = (this->*stage)(key))
+            return *taken;
+    }
+    return false;
+}
+
+// The mouse wheel: each notch up or down is Up or Down, pressed and let go
+// as a key is. Taken at the window, which Qt Quick would hand it on from
+// to the items under the pointer; none of them scrolls by the wheel.
+bool InputManager::wheelTurned(QObject *obj, const QWheelEvent *event) {
+    if (!obj || !obj->isWindowType())
+        return false;
+    if (capturing(allKeys()))
+        return true;
+    m_wheelTurn += event->angleDelta().y();
+    while (qAbs(m_wheelTurn) >= 120) {
+        const Action a = m_wheelTurn > 0 ? Action::Up : Action::Down;
+        m_wheelTurn += a == Action::Up ? -120 : 120;
+        // Delivered as a keyboard's key is, apart from what a pad holds
+        // (m_heldActions): a notch while a pad's direction was held used
+        // to end that hold and swallow the pad's own release.
+        setLastInputDevice(QStringLiteral("keyboard"));
+        deliverPress(a, false);
+        deliverRelease(a, false);
+    }
+    return true;
+}
+
+InputManager::KeyIn InputManager::keyIn(QObject *obj, const QKeyEvent *ke) {
+    KeyIn key{ ke, ke->type(), obj && obj->isWindowType(), ke->nativeScanCode() == kSyntheticScanCode };
     // A key held back for the unlock buttons, now given the views
     // (replayKey()): as real as it was, its keyboard the one it had.
-    const bool replay = !synthetic && ke->nativeVirtualKey() == kReplayVirtualKey;
-    const int id = keyId(ke);
+    key.replay = !key.synthetic && ke->nativeVirtualKey() == kReplayVirtualKey;
+    key.id = keyId(ke);
 
     // Whose key it is, from the keyboards' nodes (scanNodes()): worked out
     // where a real key event comes in, at its window, and not again for the
     // items it then goes on to, which see it through this filter too. A
     // Consumer Control node's press that readNode() took (acted on, or
     // reported to a wait) is that node's alone, and Qt's copy of it goes no
-    // further.
-    QString device;
-    if (replay && obj && obj->isWindowType() && !m_replayDevices.isEmpty())
-        device = m_replayDevices.takeFirst();
+    // further (keyTakenByNode()).
+    if (key.replay && key.atWindow && !m_replayDevices.isEmpty())
+        key.device = m_replayDevices.takeFirst();
 #ifdef Q_OS_LINUX
-    if (!synthetic && !replay && obj && obj->isWindowType() && !m_nodes.isEmpty()) {
+    if (!key.synthetic && !key.replay && key.atWindow && !m_nodes.isEmpty()) {
         drainNodes();
-        device = whoseKey(m_keySources, ke, m_clock.elapsed());
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat())
-            noteController(device);
-        if (device.isEmpty() && !whoseKey(m_consumerTaken, ke, m_clock.elapsed()).isEmpty())
-            return true;
+        key.device = whoseKey(m_keySources, ke, m_clock.elapsed());
+        if (key.type == QEvent::KeyPress && !ke->isAutoRepeat())
+            noteController(key.device);
+        key.takenByNode = key.device.isEmpty() && !whoseKey(m_consumerTaken, ke, m_clock.elapsed()).isEmpty();
     }
-#else
-    Q_UNUSED(obj)
 #endif
+    return key;
+}
 
-    if (type == QEvent::KeyPress && !synthetic)
+std::optional<bool> InputManager::keyTakenByNode(const KeyIn &key) {
+    return key.takenByNode ? std::optional<bool>(true) : std::nullopt;
+}
+
+std::optional<bool> InputManager::keyFromKeyboard(const KeyIn &key) {
+    if (key.type == QEvent::KeyPress && !key.synthetic)
         setLastInputDevice(QStringLiteral("keyboard"));
+    return std::nullopt;
+}
 
-    // Back, Select and Play/Pause held (or let go late): the first press
-    // only (isOneShotKey). Typing in a text field still repeats them.
-    if (ke->isAutoRepeat() && isOneShotKey(id) && !textInputHasFocus())
+// Back, Select and Play/Pause held (or let go late): the first press
+// only (isOneShotKey). Typing in a text field still repeats them.
+std::optional<bool> InputManager::oneShotKeyHeld(const KeyIn &key) {
+    if (key.ke->isAutoRepeat() && isOneShotKey(key.id) && !textInputHasFocus())
         return true;
+    return std::nullopt;
+}
 
-    // Right shift acts as Back so the keyboard works one-handed: reuse the
-    // gamepad Back path, which posts Escape into QML — or sends ESC to mpv
-    // over IPC when fullscreen mpv holds OS focus and the window can't take
-    // key events. The bare Shift event is consumed; no view binds Key_Shift.
-    //
-    // Known gap: during fullscreen playback on macOS the keyboard goes to
-    // mpv, not us, and mpv can't bind a bare modifier — so right shift only
-    // works in the player on platforms where the app keeps the keyboard
-    // (RPi/EGLFS). Same asymmetry as gamepads, minus their SDL workaround.
-    // While a text field is focused, let Right Shift behave as an ordinary
-    // modifier so the user can type shifted characters (e.g. ':' in a server
-    // URL); only repurpose it as Back when nothing editable has focus. Falling
-    // through (no return) lets the bare Shift event reach QML, where it's a
-    // harmless no-op until the next character key arrives with the modifier.
-    if (ke->key() == Qt::Key_Shift && isRightShift(ke) && !textInputHasFocus()) {
-        if (!ke->isAutoRepeat()) {
-            if (type == QEvent::KeyPress)
-                deliverPress(Action::Back, false);
-            else
-                deliverRelease(Action::Back, false);
-        }
-        return true;
+// Right shift acts as Back so the keyboard works one-handed: reuse the
+// gamepad Back path, which posts Escape into QML — or sends ESC to mpv
+// over IPC when fullscreen mpv holds OS focus and the window can't take
+// key events. The bare Shift event is consumed; no view binds Key_Shift.
+//
+// Known gap: during fullscreen playback on macOS the keyboard goes to
+// mpv, not us, and mpv can't bind a bare modifier — so right shift only
+// works in the player on platforms where the app keeps the keyboard
+// (RPi/EGLFS). Same asymmetry as gamepads, minus their SDL workaround.
+// While a text field is focused, let Right Shift behave as an ordinary
+// modifier so the user can type shifted characters (e.g. ':' in a server
+// URL); only repurpose it as Back when nothing editable has focus. Falling
+// through (no return) lets the bare Shift event reach QML, where it's a
+// harmless no-op until the next character key arrives with the modifier.
+std::optional<bool> InputManager::rightShiftKey(const KeyIn &key) {
+    if (key.ke->key() != Qt::Key_Shift || !isRightShift(key.ke) || textInputHasFocus())
+        return std::nullopt;
+    if (!key.ke->isAutoRepeat()) {
+        if (key.type == QEvent::KeyPress)
+            deliverPress(Action::Back, false);
+        else
+            deliverRelease(Action::Back, false);
     }
+    return true;
+}
 
-    // Cabinet Lock's unlock buttons (unlockKey()), where a real key comes in,
-    // at its window; and after the keys replayed that haven't come in yet.
-    if (!synthetic && !replay && obj && obj->isWindowType()) {
-        if (const std::optional<bool> taken = unlockKey(ke, id, device))
-            return *taken;
-        if (!m_replayDevices.isEmpty() && m_window) {
-            replayKey(*ke, device);
-            return true;
-        }
-    }
-
-    // A key a wait took (below) stays swallowed until it is let go: held,
-    // its repeats would act as what it has just been given. A press anew
-    // means its release went missing.
-    const HeldInput heldKey{ keySource(), id };
-    if (!synthetic && m_capturedKeys.contains(ke->key())) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            m_capturedKeys.remove(ke->key());
-        } else {
-            if (type == QEvent::KeyRelease && !ke->isAutoRepeat()) {
-                m_capturedKeys.remove(ke->key());
-                // Let go: the wait's answer, if it wasn't held to stop it.
-                captureReleased(heldKey);
-            }
-            return true;
-        }
-    }
-
-    // A wait for a press of every keyboard and remote (captureController()
-    // with allKeys): every real key is swallowed and reported instead of
-    // reaching QML. Going through the signals rather than key delivery is
-    // what lets an already-remapped key be taken as itself — the remap
-    // branch below would otherwise consume it and hand the page its
-    // action's default key. Sits after the right-shift block so that alias
-    // still cancels the wait via its normal Back path.
-    if (capturing(allKeys()) && !synthetic) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            m_capturedKeys.insert(ke->key());
-            capturePressed(heldKey, allKeys(), QString::number(id), keyDisplayName(id));
-        }
+// Cabinet Lock's unlock buttons (unlockKey()), where a real key comes in,
+// at its window; and after the keys replayed that haven't come in yet.
+std::optional<bool> InputManager::unlockButtonKey(const KeyIn &key) {
+    if (key.synthetic || key.replay || !key.atWindow)
+        return std::nullopt;
+    if (const std::optional<bool> taken = unlockKey(key.ke, key.id, key.device))
+        return taken;
+    if (!m_replayDevices.isEmpty() && m_window) {
+        replayKey(*key.ke, key.device);
         return true;
     }
+    return std::nullopt;
+}
 
-    // The same for one keyboard's or remote's page: its keys are reported,
-    // everyone else's go on as usual.
-    if (capturing(device)) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            m_capturedKeys.insert(ke->key());
-            capturePressed(heldKey, device, QString::number(id), keyDisplayName(id));
-        }
-        return true;
+// A key a wait took (keyForWait()) stays swallowed until it is let go:
+// held, its repeats would act as what it has just been given. A press anew
+// means its release went missing.
+std::optional<bool> InputManager::keyTakenByWait(const KeyIn &key) {
+    if (key.synthetic || !m_capturedKeys.contains(key.ke->key()))
+        return std::nullopt;
+    if (key.type == QEvent::KeyPress && !key.ke->isAutoRepeat()) {
+        m_capturedKeys.remove(key.ke->key());
+        return std::nullopt;
     }
+    if (key.type == QEvent::KeyRelease && !key.ke->isAutoRepeat()) {
+        m_capturedKeys.remove(key.ke->key());
+        // Let go: the wait's answer, if it wasn't held to stop it.
+        captureReleased({ keySource(), key.id });
+    }
+    return true;
+}
 
+// A wait for a press of every keyboard and remote (captureController()
+// with allKeys): every real key is swallowed and reported instead of
+// reaching QML. Going through the signals rather than key delivery is
+// what lets an already-remapped key be taken as itself — the remap
+// stage after it (extraKey()) would otherwise consume it and hand the page
+// its action's default key. Comes after the right-shift stage so that
+// alias still cancels the wait via its normal Back path.
+// The same for one keyboard's or remote's page: its keys are reported,
+// everyone else's go on as usual.
+std::optional<bool> InputManager::keyForWait(const KeyIn &key) {
+    const QString waiting = capturing(allKeys()) && !key.synthetic ? allKeys()
+                          : capturing(key.device)                  ? key.device
+                                                                   : QString();
+    if (waiting.isEmpty())
+        return std::nullopt;
+    if (key.type == QEvent::KeyPress && !key.ke->isAutoRepeat()) {
+        m_capturedKeys.insert(key.ke->key());
+        capturePressed({ keySource(), key.id }, waiting, QString::number(key.id), keyDisplayName(key.id));
+    }
+    return true;
+}
+
+// Custom remote/keyboard remap (Settings → Controls → Keyboards & Remotes): an extra
+// physical key that also fires one of the six actions, delivered the same
+// way a gamepad press is: a synthesized key event carrying that action's
+// *default* Qt key, so every existing Keys.onPressed handler sees exactly
+// what it always has. The default key itself is untouched (this table is
+// additive), so remapping can't remove the app's own keyboard controls.
+// Skipped for our own synthesized events (nativeScanCode check) so two
+// remapped keys can never feed into each other, and skipped while a text
+// field has focus so typing a remapped character still works normally
+// (the hash miss is checked first — it's cheap, while textInputHasFocus
+// is a synchronous input-method query and shouldn't run per keystroke).
+// A keyboard's or a remote's own extra keys (its page in Settings →
+// Controls) come first, then the ones every keyboard shares. A remote's
+// OK that the views don't take for Return (isRemoteOk()) is Select the
+// same way.
+std::optional<bool> InputManager::extraKey(const KeyIn &key) {
+    if (key.synthetic)
+        return std::nullopt;
+    const QKeyEvent *ke = key.ke;
     // What the menus were last worked with (canLoseKey()): a key's own
     // action here, an extra key's below.
-    if (!synthetic && type == QEvent::KeyPress && !ke->isAutoRepeat() && defaultKeyAction(id) != Action::None)
-        m_lastActionBy.insert(int(defaultKeyAction(id)), id);
+    if (key.type == QEvent::KeyPress && !ke->isAutoRepeat() && defaultKeyAction(key.id) != Action::None)
+        m_lastActionBy.insert(int(defaultKeyAction(key.id)), key.id);
 
-    // Custom remote/keyboard remap (Settings → Controls → Keyboards & Remotes): an extra
-    // physical key that also fires one of the six actions, delivered the same
-    // way a gamepad press is: a synthesized key event carrying that action's
-    // *default* Qt key, so every existing Keys.onPressed handler sees exactly
-    // what it always has. The default key itself is untouched (this table is
-    // additive), so remapping can't remove the app's own keyboard controls.
-    // Skipped for our own synthesized events (nativeScanCode check) so two
-    // remapped keys can never feed into each other, and skipped while a text
-    // field has focus so typing a remapped character still works normally
-    // (the hash miss is checked first — it's cheap, while textInputHasFocus
-    // is a synchronous input-method query and shouldn't run per keystroke).
-    // A keyboard's or a remote's own extra keys (its page in Settings →
-    // Controls) come first, then the ones every keyboard shares. A remote's
-    // OK that the views don't take for Return (isRemoteOk()) is Select the
-    // same way.
-    if (!synthetic) {
-        Action remapped = device.isEmpty() ? Action::None : profileAction(device, QString::number(id));
-        if (remapped == Action::None)
-            remapped = m_keyRemap.value(id, Action::None);
-        if (remapped == Action::None && isRemoteOk(id))
-            remapped = Action::Select;
-        if (remapped != Action::None && !textInputHasFocus()) {
-            // Once per press, as the keys that stand for these by default
-            // (isOneShotKey): a held key, or a remote's release that comes
-            // late, must not select or go back again and again. A direction
-            // repeats, as a held arrow does.
-            if (ke->isAutoRepeat() && !isDirectional(remapped))
-                return true;
-            if (type == QEvent::KeyPress && !ke->isAutoRepeat())
-                m_lastActionBy.insert(int(remapped), id);
-            if (type == QEvent::KeyPress)
-                deliverPress(remapped, ke->isAutoRepeat());
-            else
-                deliverRelease(remapped, ke->isAutoRepeat());
+    Action remapped = key.device.isEmpty() ? Action::None : profileAction(key.device, QString::number(key.id));
+    if (remapped == Action::None)
+        remapped = m_keyRemap.value(key.id, Action::None);
+    if (remapped == Action::None && isRemoteOk(key.id))
+        remapped = Action::Select;
+    if (remapped == Action::None || textInputHasFocus())
+        return std::nullopt;
+    // Once per press, as the keys that stand for these by default
+    // (isOneShotKey): a held key, or a remote's release that comes
+    // late, must not select or go back again and again. A direction
+    // repeats, as a held arrow does.
+    if (ke->isAutoRepeat() && !isDirectional(remapped))
+        return true;
+    if (key.type == QEvent::KeyPress && !ke->isAutoRepeat())
+        m_lastActionBy.insert(int(remapped), key.id);
+    if (key.type == QEvent::KeyPress)
+        deliverPress(remapped, ke->isAutoRepeat());
+    else
+        deliverRelease(remapped, ke->isAutoRepeat());
+    return true;
+}
+
+// Back while a video has the screen (setBackTaker()): the player's at
+// once, as the media keys are (mediaKey()), with its repeats and its
+// release. By way of the view that has the keys it was the one key that
+// could be lost with no way left out of the video. A key bound to
+// something else went that way before (extraKey()).
+std::optional<bool> InputManager::backKeyForPlayer(const KeyIn &key) {
+    if (key.synthetic || defaultKeyAction(key.id) != Action::Back)
+        return std::nullopt;
+    const QKeyEvent *ke = key.ke;
+    if (key.type == QEvent::KeyPress && !ke->isAutoRepeat()) {
+        if (backIsThePlayers(QStringLiteral("the ") + keyDisplayName(key.id) + QStringLiteral(" key"))) {
+            m_backToPlayer.insert(ke->key());
+            emit mpvKeyRequested(ke->key() == Qt::Key_Backspace ? QStringLiteral("BS") : QStringLiteral("ESC"),
+                                 false);
             return true;
         }
-    }
-
-    // Back while a video has the screen (setBackTaker()): the player's at
-    // once, as the media keys below are, with its repeats and its release.
-    // By way of the view that has the keys it was the one key that could be
-    // lost with no way left out of the video. A key bound to something else
-    // went that way above.
-    if (!synthetic && defaultKeyAction(id) == Action::Back) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            if (backIsThePlayers(QStringLiteral("the ") + keyDisplayName(id) + QStringLiteral(" key"))) {
-                m_backToPlayer.insert(ke->key());
-                emit mpvKeyRequested(ke->key() == Qt::Key_Backspace ? QStringLiteral("BS") : QStringLiteral("ESC"),
-                                     false);
-                return true;
-            }
+        m_backToPlayer.remove(ke->key());
+    } else if (m_backToPlayer.contains(ke->key())) {
+        if (key.type == QEvent::KeyRelease && !ke->isAutoRepeat())
             m_backToPlayer.remove(ke->key());
-        } else if (m_backToPlayer.contains(ke->key())) {
-            if (type == QEvent::KeyRelease && !ke->isAutoRepeat())
-                m_backToPlayer.remove(ke->key());
-            return true;
-        }
-    }
-
-#ifdef Q_OS_LINUX
-    // A key libinput's keymap has no symbol for, known by its scan code (the
-    // code plus 8): a remote's channel keys from its keyboard node, delivered
-    // as the keys they are where the views act on them (a Consumer Control
-    // node's come through readNode()).
-    if (!synthetic && ke->key() == 0) {
-        if (const int qtKey = qtKeyForEvdev(int(ke->nativeScanCode()) - 8)) {
-            postKey(qtKey, type, ke->isAutoRepeat());
-            return true;
-        }
-    }
-#endif
-
-    // HID media keys drive mpv directly over IPC (sendKey no-ops when mpv isn't
-    // running, so they're harmless while browsing). Volume keys repeat while
-    // held; the rest fire once per press so a held key is a single seek/chapter
-    // jump. On macOS during fullscreen playback mpv holds the keyboard and these
-    // never reach us — mpv binds the same names natively.
-    const QString mediaKey = mpvKeyForMediaEvent(ke);
-    if (!mediaKey.isEmpty()) {
-        // A keyboard's volume keys (a remote's Consumer Control node's are
-        // stepped once per press, readNode()).
-        // A held volume key's repeats hold the key down in mpv, which turns
-        // the volume at its own pace until the key is let go
-        // (MpvController::sendKey): sent as presses, as the keyboard repeats
-        // them (every 80 ms on the Pi's console), they queued up in a busy
-        // player and the volume went on turning after the finger had come
-        // off. Everything else fires once per press. mediaKey is the single
-        // source of truth for which key this is.
-        const bool isVolume = mediaKey.startsWith(QLatin1String("VOLUME"));
-        if (type == QEvent::KeyPress) {
-            if (!ke->isAutoRepeat() || isVolume)
-                emit mpvKeyRequested(mediaKey, ke->isAutoRepeat());
-        } else if (type == QEvent::KeyRelease && !ke->isAutoRepeat() && isVolume) {
-            emit mpvKeysReleased();
-        }
         return true;
     }
-    // On to the views. While a video has the screen, which key and who has
-    // the keys there is worth a line (once each): its player, or the key is
-    // lost.
-    if (!synthetic && type == QEvent::KeyPress && !ke->isAutoRepeat() && obj && obj->isWindowType()
+    return std::nullopt;
+}
+
+// A key libinput's keymap has no symbol for, known by its scan code (the
+// code plus 8): a remote's channel keys from its keyboard node, delivered
+// as the keys they are where the views act on them (a Consumer Control
+// node's come through readNode()). Linux only.
+std::optional<bool> InputManager::unnamedKey(const KeyIn &key) {
+#ifdef Q_OS_LINUX
+    if (!key.synthetic && key.ke->key() == 0) {
+        if (const int qtKey = qtKeyForEvdev(int(key.ke->nativeScanCode()) - 8)) {
+            postKey(qtKey, key.type, key.ke->isAutoRepeat());
+            return true;
+        }
+    }
+#else
+    Q_UNUSED(key)
+#endif
+    return std::nullopt;
+}
+
+// HID media keys drive mpv directly over IPC (sendKey no-ops when mpv isn't
+// running, so they're harmless while browsing). Volume keys repeat while
+// held; the rest fire once per press so a held key is a single seek/chapter
+// jump. On macOS during fullscreen playback mpv holds the keyboard and these
+// never reach us — mpv binds the same names natively.
+std::optional<bool> InputManager::mediaKey(const KeyIn &key) {
+    const QString mpvKey = mpvKeyForMediaEvent(key.ke);
+    if (mpvKey.isEmpty())
+        return std::nullopt;
+    // A keyboard's volume keys (a remote's Consumer Control node's are
+    // stepped once per press, readNode()).
+    // A held volume key's repeats hold the key down in mpv, which turns
+    // the volume at its own pace until the key is let go
+    // (MpvController::sendKey): sent as presses, as the keyboard repeats
+    // them (every 80 ms on the Pi's console), they queued up in a busy
+    // player and the volume went on turning after the finger had come
+    // off. Everything else fires once per press. mpvKey is the single
+    // source of truth for which key this is.
+    const bool isVolume = mpvKey.startsWith(QLatin1String("VOLUME"));
+    if (key.type == QEvent::KeyPress) {
+        if (!key.ke->isAutoRepeat() || isVolume)
+            emit mpvKeyRequested(mpvKey, key.ke->isAutoRepeat());
+    } else if (key.type == QEvent::KeyRelease && !key.ke->isAutoRepeat() && isVolume) {
+        emit mpvKeysReleased();
+    }
+    return true;
+}
+
+// On to the views. While a video has the screen, which key and who has
+// the keys there is worth a line (once each): its player, or the key is
+// lost.
+std::optional<bool> InputManager::keyToViews(const KeyIn &key) {
+    if (!key.synthetic && key.type == QEvent::KeyPress && !key.ke->isAutoRepeat() && key.atWindow
             && m_playerTakesBack && m_playerTakesBack())
-        noteKeyToViews(keyDisplayName(id));
+        noteKeyToViews(keyDisplayName(key.id));
     return false;
 }
 
