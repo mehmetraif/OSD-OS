@@ -543,111 +543,85 @@ find_package(Qt6 REQUIRED COMPONENTS Gui Quick QuickTest)
 add_executable(tree_browser_test tree_browser_test.cpp ../src/util/OsdIconProvider.cpp)
 target_include_directories(tree_browser_test PRIVATE ../src)
 target_link_libraries(tree_browser_test PRIVATE Qt6::QuickTest Qt6::Quick)
-add_test(NAME tree_browser COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_tree_browser.qml)
-set_tests_properties(tree_browser PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+# A QML test (qml/<file>), run by tree_browser's runner offscreen with the
+# software renderer, the views' components (views/Components, as `import
+# Components`) and the stand-ins in stubs/ (the app's VhsNoise, Main.qml's
+# root) to import.
+function(osdos_qml_test name qml)
+    add_test(NAME ${name} COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/${qml}
+                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/../views
+                                  -import ${CMAKE_CURRENT_SOURCE_DIR}/stubs)
+    set_tests_properties(${name} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+endfunction()
+osdos_qml_test(tree_browser tst_tree_browser.qml)
 # Settings → Controls' pages (views/Controllers.qml, ControllerSettings.qml,
 # MenuButtons.qml, ControllerTest.qml, ArcadeButtons.qml) against a stand-in
 # for InputManager, with the same QML test runner.
-add_test(NAME controls_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_controllers.qml
-                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(controls_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(controls_views tst_controllers.qml)
 # The Arcade module's views (modules/arcade/views/Games.qml, ArcadeScreen.qml,
 # Play.qml) against a stand-in for ArcadeBackend.
-add_test(NAME arcade_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_arcade.qml
-                                   -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(arcade_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(arcade_views tst_arcade.qml)
 # A module's settings page (views/ModuleSettings.qml) against a stand-in for
 # AppCore: rows that follow another row's value.
-add_test(NAME module_settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_module_settings.qml
-                                           -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(module_settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(module_settings_view tst_module_settings.qml)
 # Settings (views/Settings.qml): the first screen's groups and the general
 # settings, and TV / Movie's page, against stand-ins for AppCore and the rest;
 # and the title bar (AppBar) with a title too long for it.
-add_test(NAME settings_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_settings.qml
-                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(settings_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(settings_view tst_settings.qml)
 # The main menu (views/ModuleList.qml) against a stand-in for AppCore: the
 # modules' rows, and Menu Layout's Camcorder, the rows in groups beside a
 # column of icons.
-add_test(NAME main_menu_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_main_menu.qml
-                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(main_menu_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(main_menu_view tst_main_menu.qml)
 # A view's menu (views/Components/MenuList.qml) on its own: the rows its
 # cursor and the mouse stop on, round the ends, and the cursor held for the
 # host.
-add_test(NAME menu_list_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_menu_list.qml
-                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(menu_list_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(menu_list_view tst_menu_list.qml)
 # Settings → Network → Wi-Fi (views/Wifi.qml) against a stand-in for WifiManager: the
 # switch, the country and its chooser, joining with a password, a network's
 # options, one not listed, and a search.
-add_test(NAME wifi_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_wifi.qml
-                                 -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(wifi_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(wifi_views tst_wifi.qml)
 # Settings → Network → Bluetooth (views/Bluetooth.qml) against a stand-in for
 # BluetoothManager: its lines, a device's options, and the lines changed where
 # they are as BlueZ says more.
-add_test(NAME bluetooth_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_bluetooth.qml
-                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(bluetooth_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(bluetooth_views tst_bluetooth.qml)
 # What comes over a view, each on its own: the on-screen keyboard
 # (views/Components/OnScreenKeyboard.qml), the choice window
 # (views/Components/ChoiceOverlay.qml) and the screen saver
 # (views/Components/ScreenSaver.qml).
-add_test(NAME overlays_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_overlays.qml
-                                     -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(overlays_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(overlays_views tst_overlays.qml)
 # The window and its changes (views/Components/WindowChange.qml), against a
 # stand-in for Main.qml: when a view changes at once and when with its
 # transition, and the cube's turn.
-add_test(NAME window_change COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_window_change.qml
-                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(window_change PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(window_change tst_window_change.qml)
 # A module's router (views/Components/ModuleRouter.qml), as a module's
 # Root.qml is one (qml/module_router/), against a stand-in for Main.qml: the
 # way forward and back, the two replaces, a view the Root opens its own way,
 # inFrame, and the shell's own navigateTo.
-add_test(NAME module_router COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_module_router.qml
-                                    -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(module_router PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(module_router tst_module_router.qml)
 
 # Settings → Look → Menu Layout's monitor layouts as a frame every kind of
 # view takes its place in (views/Components/MonitorChrome.qml and the shared
 # components that hand it their content), against a stand-in for Main.qml.
-add_test(NAME monitor_frame_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_monitor_frame.qml
-                                         -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(monitor_frame_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(monitor_frame_views tst_monitor_frame.qml)
 # About (views/About.qml): System Information first, the device's name its
 # value, opening its page; OSD/OS's lines and the arcade's, each licence a
 # page of its own, against stand-ins for the licence files and the name.
-add_test(NAME about_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_about.qml
-                                 -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(about_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(about_view tst_about.qml)
 # Settings → Screen → Test Patterns (views/TestPatterns.qml): every pattern there and
 # loading, the keys through them, the name and keys over them, the effects
 # resting and the screen saver waiting.
-add_test(NAME test_patterns_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_test_patterns.qml
-                                       -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(test_patterns_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(test_patterns_view tst_test_patterns.qml)
 # About → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
 # line as they are read again, and the device renamed on the keyboard, against
 # a stand-in for SystemInfo.
-add_test(NAME system_info_view COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_system_info.qml
-                                      -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(system_info_view PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(system_info_view tst_system_info.qml)
 # The High Scores module's view (modules/highscores/views/Scores.qml) against
 # a stand-in for HighScoresBackend.
-add_test(NAME highscores_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_highscores.qml
-                                       -import ${CMAKE_CURRENT_SOURCE_DIR}/../views)
-set_tests_properties(highscores_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(highscores_views tst_highscores.qml)
 # The media server modules' players, detail screens and routers (Plex,
 # Jellyfin, Emby) and Local Files' player against stand-ins for their
 # backends and MpvController, and for the app's VhsNoise (stubs).
-add_test(NAME media_players_views COMMAND tree_browser_test -input ${CMAKE_CURRENT_SOURCE_DIR}/qml/tst_media_players.qml
-                                          -import ${CMAKE_CURRENT_SOURCE_DIR}/../views
-                                          -import ${CMAKE_CURRENT_SOURCE_DIR}/stubs)
-set_tests_properties(media_players_views PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+osdos_qml_test(media_players_views tst_media_players.qml)
 
 # Settings → Controls, each controller apart: the labels, the profiles, a
 # pad's Arcade Buttons as MAME and RetroArch name them and whose a key is
