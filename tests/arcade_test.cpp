@@ -3714,6 +3714,15 @@ private slots:
         const QString nowhere = dir.path() + QStringLiteral("/no folder/file.part");
         QVERIFY(download(QStringLiteral("/file"), nowhere, 4 * 1024 * 1024, nullptr)
                     .startsWith(nowhere + QStringLiteral(" could not be written: ")));
+        // A disk that fills up on the way (/dev/full): failed, and why is
+        // the file's, not the download's stopping.
+        QFile full(QStringLiteral("/dev/full"));
+        if (!full.open(QIODevice::WriteOnly))
+            QSKIP("no /dev/full here");
+        QVERIFY(full.write(body) < 0 || !full.flush());
+        const QString diskFull = full.errorString();
+        full.close();
+        QCOMPARE(download(QStringLiteral("/file"), QStringLiteral("/dev/full"), 4 * 1024 * 1024, nullptr), diskFull);
     }
 
     // Settings → Arcade → Check ROMs, started by the user: FinalBurn Neo's

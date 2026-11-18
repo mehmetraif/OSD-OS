@@ -12,6 +12,7 @@
 #include <QUrl>
 #include <algorithm>
 #include <functional>
+#include <memory>
 
 // What the Arcade module's requests share: the lobby's, catver.ini's,
 // RetroAchievements', ArcadeDB's and the installers' downloads.
@@ -75,7 +76,8 @@ inline int pauseAsked(QNetworkReply *reply, int fallbackSeconds) {
 // once it is bigger than maxBytes (what it can be, for the message: "FinalBurn
 // Neo's files"). onProgress as it comes, then onDone("") once it is whole on
 // the disk, else onDone(why not), the server's answer first (Qt takes a 404
-// for an error too); the file is left for the caller to remove. context: the
+// for an error too), then the file's (a disk full); the file is left for the
+// caller to remove. context: the
 // caller, which the download goes with. The reply, nullptr when path couldn't
 // be written (onDone has been called).
 inline QNetworkReply *downloadToFile(QNetworkAccessManager *nam, const QUrl &url, const QString &path, int timeoutMs,
@@ -93,22 +95,30 @@ inline QNetworkReply *downloadToFile(QNetworkAccessManager *nam, const QUrl &url
         onDone(error);
         return nullptr;
     }
-    QObject::connect(reply, &QNetworkReply::readyRead, file, [reply, file] {
-        if (file->write(reply->readAll()) < 0)
+    // A write that fails (the disk full) stops the download, and is why it
+    // failed: what was written last is checked too, as what came before.
+    auto writeFailed = std::make_shared<bool>(false);
+    QObject::connect(reply, &QNetworkReply::readyRead, file, [reply, file, writeFailed] {
+        const QByteArray data = reply->readAll();
+        if (file->write(data) != data.size()) {
+            *writeFailed = true;
             reply->abort();
+        }
     });
     QObject::connect(reply, &QNetworkReply::downloadProgress, context, onProgress);
-    QObject::connect(reply, &QNetworkReply::finished, context, [reply, file, maxBytes, what, onDone] {
+    QObject::connect(reply, &QNetworkReply::finished, context, [reply, file, maxBytes, what, onDone, writeFailed] {
         reply->deleteLater();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        file->write(reply->readAll());
-        const bool flushed = file->flush();
+        const QByteArray rest = reply->readAll();
+        const bool written = !*writeFailed && file->write(rest) == rest.size() && file->flush();
+        // Before close(), which forgets it.
+        const QString fileError = written ? QString() : file->errorString();
         file->close();
-        if (reply->error() != QNetworkReply::NoError || status != 200 || !flushed) {
+        if (reply->error() != QNetworkReply::NoError || status != 200 || !written) {
             onDone(tooBig(reply, maxBytes)                  ? QStringLiteral("%1 sent more than %2 can be").arg(reply->url().host(), what)
                    : status != 0 && status != 200              ? QStringLiteral("%1 answered %2").arg(reply->url().host()).arg(status)
-                   : reply->error() != QNetworkReply::NoError ? reply->errorString()
-                                                              : file->errorString());
+                   : !written                                  ? fileError
+                                                               : reply->errorString());
             return;
         }
         onDone(QString());
