@@ -1,6 +1,7 @@
 #include "MenuMusic.h"
 #include "AudioOutput.h"
 #include "../util/MpvLocator.h"
+#include "../util/RuntimeFiles.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -52,8 +53,6 @@ void whenOver(QProcess *process, QObject *context, Over over) {
 
 MenuMusic::MenuMusic(const QString &dataRoot, QObject *parent) : QObject(parent), m_dataRoot(dataRoot) {
     s_instance = this;
-    m_socketPath = QDir::tempPath() + QStringLiteral("/osdos-menu-music-%1.sock")
-                                          .arg(QCoreApplication::applicationPid());
     m_startDelay.setSingleShot(true);
     m_startDelay.setInterval(kStartDelayMs);
     connect(&m_startDelay, &QTimer::timeout, this, &MenuMusic::start);
@@ -301,18 +300,25 @@ void MenuMusic::play(const QString &file) {
         qWarning("[MenuMusic] mpv not found: no menu music");
         return;
     }
+    // Its control socket, in a folder of the user's own rather than the temp
+    // folder every account writes in (util/RuntimeFiles.h), asked for at each
+    // start: the folder may have been taken away and made again since. Where
+    // there is none, mpv plays without one, at the volume it started with.
+    m_socketPath = runtimefiles::path(QStringLiteral("osdos-menu-music-%1.sock")
+                                          .arg(QCoreApplication::applicationPid()));
     QStringList args;
     args << QStringLiteral("--no-config")
          << QStringLiteral("--no-video")
          << QStringLiteral("--no-terminal")
          << QStringLiteral("--really-quiet")
          << QStringLiteral("--loop-file=inf")
-         << QStringLiteral("--volume=%1").arg(m_volume)
-         << QStringLiteral("--input-ipc-server=%1").arg(m_socketPath)
-         // ALSA alone where plain ALSA plays: this mpv reads no mpv.conf
-         // (--no-config), and left to itself tries PipeWire first, which
-         // writes to the journal at every tune that it has no config.
-         << AudioOutput::alsaAlone()
+         << QStringLiteral("--volume=%1").arg(m_volume);
+    if (!m_socketPath.isEmpty())
+        args << QStringLiteral("--input-ipc-server=%1").arg(m_socketPath);
+    // ALSA alone where plain ALSA plays: this mpv reads no mpv.conf
+    // (--no-config), and left to itself tries PipeWire first, which writes
+    // to the journal at every tune that it has no config.
+    args << AudioOutput::alsaAlone()
          // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
          // ALSA's default (applyTo() below).
          << AudioOutput::mpvArgs()
@@ -360,12 +366,14 @@ void MenuMusic::play(const QString &file) {
         }
     });
     m_process = process;
-    QFile::remove(m_socketPath);
+    if (!m_socketPath.isEmpty())
+        QFile::remove(m_socketPath);
     qInfo("[MenuMusic] playing %s", qPrintable(file));
     process->start(bin, args);
     // Unless it couldn't even be started, and is over already.
     if (m_process == process) {
-        m_connect.start();
+        if (!m_socketPath.isEmpty())
+            m_connect.start();
         emit playingChanged();
     }
 }

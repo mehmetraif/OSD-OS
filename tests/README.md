@@ -172,6 +172,7 @@ ctest --test-dir build-tests --output-on-failure
   - With no sound card to play through (a stand-in for ALSA's list, `OSDOS_ASOUND_DIR`), mpv's quick end isn't blamed on the file: nothing is started again while there is none, and it plays once a card is there. A file given up on is tried once more when the sound card is changed (`restart()`).
   - A MIDI file is made into a WAV by FluidSynth with the SoundFont beside it, else the data folder's first, and played; the next time, the WAV made then. A failed one isn't tried again, and one held while it is being made is stopped, nothing half made kept, and made again.
   - A tracker's module plays as it is; one mpv can't play, openmpt123 makes into a WAV for it.
+  - mpv's control socket, the menu music's and Weather's music's, is in the user's run-time folder (`util/RuntimeFiles.h`), not the temp folder, asked for at each start: a run-time folder changed since is the one used.
 - **diagnostics** (`diagnostics_test.cpp`, Linux only). The crash and freeze reports (`util/Diagnostics`), each from a child process, the test itself run again, that crashes or freezes on purpose.
   - With more than a thousand files open, the memory line names the kinds there are most of (`most of them: 1100 /dev/null, …`), and no longer once they are closed.
   - A crash is written to `crash-report.txt` with where it was, and still ends the process as a crash.

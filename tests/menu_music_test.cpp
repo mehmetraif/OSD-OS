@@ -5,6 +5,7 @@
 // openmpt123, which write down what they were asked to make and make a file
 // of it, and for ALSA's list of sound cards (OSDOS_ASOUND_DIR).
 #include "audio/MenuMusic.h"
+#include "modules/weather/WeatherBackend.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
@@ -18,7 +19,10 @@
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
 media=""
-for a in "$@"; do media="$a"; done
+for a in "$@"; do
+  case "$a" in --input-ipc-server=*) echo "socket ${a#--input-ipc-server=}" >> "$log" ;; esac
+  media="$a"
+done
 echo "start $(basename "$media") $$" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then exit 2; fi
 if [ "$FAKE_MPV_MODE" = card ] && ! grep -q '^ *[0-9]' "$OSDOS_ASOUND_DIR/cards"; then exit 2; fi
@@ -61,6 +65,13 @@ class MenuMusicTest : public QObject {
     }
     QStringList starts() const { return logged(QStringLiteral("start ")); }
     QStringList renders() const { return logged(QStringLiteral("render ")); }
+    // The control sockets mpv was given, in the order it was started.
+    QStringList sockets() const {
+        QStringList paths;
+        for (const QString &line : logged(QStringLiteral("socket ")))
+            paths << line.mid(7);
+        return paths;
+    }
     static bool writeFile(const QString &path, const QByteArray &data) {
         QFile f(path);
         return f.open(QIODevice::WriteOnly) && f.write(data) == data.size();
@@ -378,6 +389,36 @@ private slots:
         m_music->setWanted(true);
         QTest::qWait(1200);
         QVERIFY(starts().isEmpty());
+    }
+
+    // The control socket of the menu music's mpv, and of Weather's music's,
+    // is in the user's run-time folder (util/RuntimeFiles.h), which no other
+    // account can open, never under a name another could take first in the
+    // temp folder; asked for as each one starts, so that a folder made again
+    // since (or another login session's) is the one used.
+    void socketsInTheRunTimeFolder() {
+        const QByteArray xdg = qgetenv("XDG_RUNTIME_DIR");
+        const auto restore = qScopeGuard([xdg] { qputenv("XDG_RUNTIME_DIR", xdg); });
+        QTemporaryDir run(m_dir.path() + QStringLiteral("/run-XXXXXX")),
+                      later(m_dir.path() + QStringLiteral("/later-XXXXXX"));
+        QVERIFY(run.isValid() && later.isValid());
+        qputenv("XDG_RUNTIME_DIR", run.path().toUtf8());
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 1, 3000);
+        QCOMPARE(QFileInfo(sockets().last()).absolutePath(), run.path());
+
+        qputenv("XDG_RUNTIME_DIR", later.path().toUtf8());
+        MenuMusic::hold(QStringLiteral("x"));
+        MenuMusic::release(QStringLiteral("x"));
+        QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 2, 3000);
+        QCOMPARE(QFileInfo(sockets().last()).absolutePath(), later.path());
+
+        WeatherBackend weather(m_dir.path(), m_dir.path() + QStringLiteral("/data"));
+        weather.startMusic();
+        QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 3, 3000);
+        QCOMPARE(QFileInfo(sockets().last()).absolutePath(), later.path());
+        weather.stopMusic();
     }
 };
 

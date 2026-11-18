@@ -170,16 +170,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME playback_retire COMMAND playback_retire_test)
 
     # The menu music, against a stand-in for mpv: it plays in the menus, and
-    # stops at once when anything else is about to play sound.
+    # stops at once when anything else is about to play sound. And the
+    # control socket of Weather's music, which another mpv of the app's is.
     add_executable(menu_music_test
         menu_music_test.cpp
         ../src/audio/MenuMusic.cpp
         ../src/audio/AudioOutput.cpp
+        ../src/modules/weather/WeatherBackend.cpp
         ../src/AppCore.cpp
         ../src/util/SetupFile.cpp
         ../src/util/LegacyNames.cpp
         ../src/util/MpvLocator.cpp)
     target_include_directories(menu_music_test PRIVATE ../src)
+    target_compile_definitions(menu_music_test PRIVATE APP_VERSION="test")
     target_link_libraries(menu_music_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
     add_test(NAME menu_music COMMAND menu_music_test)
 

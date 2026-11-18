@@ -3,6 +3,7 @@
 #include "../../audio/AudioOutput.h"
 #include "../../audio/MenuMusic.h"
 #include "../../util/EndProcess.h"
+#include "../../util/RuntimeFiles.h"
 
 #include <QDir>
 #include <QFile>
@@ -474,10 +475,6 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
         fetchObservation();
         fetchOtherObservations();
     });
-
-    // Its own socket name: MpvController uses /osdos-mpv.sock for the player,
-    // and two mpvs sharing one path would hand the wrong process our commands.
-    m_musicSocketPath = QDir::tempPath() + QStringLiteral("/osdos-weather-music.sock");
 }
 
 WeatherBackend::~WeatherBackend() {
@@ -635,6 +632,14 @@ void WeatherBackend::startMusic() {
         return;
     }
 
+    // Its own socket name: MpvController uses osdos-mpv.sock for the player,
+    // and two mpvs sharing one path would hand the wrong process our commands.
+    // In a folder of the user's own rather than the temp folder every account
+    // writes in (util/RuntimeFiles.h), asked for at each start: the folder may
+    // have been taken away and made again since. Where there is none, the
+    // music plays without one, and can't be paused.
+    m_musicSocketPath = runtimefiles::path(QStringLiteral("osdos-weather-music.sock"));
+
     QStringList args;
     args << QStringLiteral("--no-video")
          << QStringLiteral("--loop-playlist=inf")
@@ -642,11 +647,12 @@ void WeatherBackend::startMusic() {
          // track a current track.
          << QStringLiteral("--shuffle")
          << QStringLiteral("--no-terminal")
-         << QStringLiteral("--really-quiet")
-         << QStringLiteral("--input-ipc-server=%1").arg(m_musicSocketPath)
-         // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
-         // ALSA's default (applyTo() below).
-         << AudioOutput::mpvArgs()
+         << QStringLiteral("--really-quiet");
+    if (!m_musicSocketPath.isEmpty())
+        args << QStringLiteral("--input-ipc-server=%1").arg(m_musicSocketPath);
+    // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
+    // ALSA's default (applyTo() below).
+    args << AudioOutput::mpvArgs()
          // Everything after this is a file, so an entry starting with '-'
          // cannot be mistaken for an option.
          << QStringLiteral("--")
@@ -685,7 +691,8 @@ void WeatherBackend::startMusic() {
             m_musicIpc->connectToServer(m_musicSocketPath);
         });
     }
-    m_musicConnect->start();
+    if (!m_musicSocketPath.isEmpty())
+        m_musicConnect->start();
 
     qInfo("[Weather] music started — %lld track(s)", static_cast<long long>(tracks.size()));
     emit musicStateChanged();
