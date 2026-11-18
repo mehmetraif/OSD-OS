@@ -893,7 +893,6 @@ void MpvController::play(const PlaybackRequest &request) {
     // started with kept for a second try.
     m_launchArgs = args;
     m_launchMedia = media;
-    m_launchEmbedded = embedded;
     m_softwareRetry = false;
     m_startFailed = false;
     m_started = false;
@@ -1186,7 +1185,8 @@ void MpvController::startTimedOut() {
 
 // The session started again as it was asked for (m_launchArgs), its mpv
 // replaced as loadAndPlay() replaces one: the screen stays the session's,
-// and its player hears nothing.
+// and its player hears nothing. Only a process is (startTimedOut()), so
+// it is a process again.
 void MpvController::relaunch() {
     retireProcess();
     closeIpc(false, nullptr, nullptr);
@@ -1196,7 +1196,7 @@ void MpvController::relaunch() {
     m_launchPending = true;
     const int serial = ++m_launchSerial;
     QTimer::singleShot(kLaunchTickMs, this, [this, serial]() {
-        launchAfterRetirement(serial, m_launchArgs, m_launchMedia, m_launchEmbedded);
+        launchAfterRetirement(serial, m_launchArgs, m_launchMedia, false);
     });
 }
 
@@ -2119,7 +2119,7 @@ EmbeddedMpv *MpvController::embeddedPlayer() {
     return m_embedded;
 }
 
-void MpvController::startEmbedded(QStringList args) {
+void MpvController::startEmbedded(const QStringList &args) {
 #if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
     // mpv draws its OSD (the deck's menu) in the app's VCR font: libass finds
     // it through fontconfig, set up as for an mpv process of its own. Only
@@ -2130,12 +2130,6 @@ void MpvController::startEmbedded(QStringList args) {
 #endif
     // The screen stays the app's, even headless: nothing to hand over.
     m_headlessMode = false;
-    // The session as it was asked for, to know it when it is asked for
-    // again; decoded on the CPU from the start where that was asked of it
-    // already (startTimedOut()).
-    const QStringList asked = args;
-    if (m_softwareRetry)
-        args.insert(qMax(0, int(args.indexOf(QStringLiteral("--")))), QStringLiteral("--hwdec=no"));
     const QString hwdec = lastOption(args, QLatin1String("hwdec"));
     m_hardwareDecode = !hwdec.isEmpty() && hwdec != QLatin1String("no");
     qDebug("[MpvController] embedded launch: mpv %s", qPrintable(redactSecrets(args.join(QLatin1Char(' ')))));
@@ -2146,7 +2140,8 @@ void MpvController::startEmbedded(QStringList args) {
         endAtOnce(QStringLiteral("failed"));
         return;
     }
-    m_sessionArgs = asked;
+    // The session as it was asked for, to know it when it is asked for again.
+    m_sessionArgs = args;
     emit videoActiveChanged();
     m_ipcWanted = true;
     m_connectTimer->start();

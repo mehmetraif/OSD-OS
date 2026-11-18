@@ -374,7 +374,7 @@ private:
     void appendEmbeddedVideoArgs(QStringList &args, bool gpu) const;
     // The player inside the app, made when first needed.
     EmbeddedMpv *embeddedPlayer();
-    void startEmbedded(QStringList args);
+    void startEmbedded(const QStringList &args);
     // Ends an embedded session without a word to its module: as a process
     // replaced by the next is, or one left playing behind the menus. One its
     // player still had is told it ended so (reason).
@@ -499,13 +499,12 @@ private:
     // The session's start, watched (watchStart()): what it was started
     // with, since when, whether its first picture has come, whether its mpv
     // was given a hardware decoder, whether it was told to do without one
-    // and whether it has been started again without one, and that it was
-    // ended for showing nothing.
+    // and whether its process has been started again without one, and that
+    // it was ended for showing nothing.
     QTimer       *m_startTimer     = nullptr;
     QElapsedTimer m_startClock;
     QStringList   m_launchArgs;
     QStringList   m_launchMedia;
-    bool          m_launchEmbedded = false;
     bool          m_started        = false;
     bool          m_hardwareDecode = false;
     bool          m_softwareAsked  = false;
