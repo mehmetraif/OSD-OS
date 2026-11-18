@@ -45,7 +45,8 @@ static QString watchUrlFor(const QString &videoId) {
 
 YouTubeBackend::YouTubeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                                DisplayHandoff *handoff, QObject *parent)
-    : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot), m_appCore(appCore)
+    : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot), m_appCore(appCore),
+      m_history(dataRoot + "/youtube_history.json", kMaxHistoryItems)
 {
     // Google's sign-in as YouTube's own SIGN IN button opens it, back to
     // YouTube once signed in. Nothing to browse, so no catalogue.
@@ -715,24 +716,8 @@ void YouTubeBackend::get_subtitle_languages() {
 // the History list (nothing to display) and pruned first (lastPlayed 0).
 // ---------------------------------------------------------------------------
 
-QString YouTubeBackend::historyFilePath() const {
-    return m_dataRoot + "/youtube_history.json";
-}
-
-QVariantMap YouTubeBackend::loadHistory() const {
-    QFile file(historyFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return {};
-    return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
-}
-
-void YouTubeBackend::saveHistory(const QVariantMap &history) {
-    writeFileAtomically(historyFilePath(),
-                        QJsonDocument(QJsonObject::fromVariantMap(history)).toJson(QJsonDocument::Compact));
-}
-
 QVariantMap YouTubeBackend::getSavedPosition(const QString &videoId) {
-    const QVariant val = loadHistory().value(videoId);
+    const QVariant val = m_history.entry(videoId);
     if (!val.isValid())
         return {};
     return val.toMap();
@@ -740,28 +725,16 @@ QVariantMap YouTubeBackend::getSavedPosition(const QString &videoId) {
 
 void YouTubeBackend::savePosition(const QString &videoId, int positionMs,
                                   const QString &title, const QString &channelName) {
-    QVariantMap history = loadHistory();
     QVariantMap entry;
     entry["pos"]         = positionMs;
     entry["title"]       = title;
     entry["channelName"] = channelName;
     entry["lastPlayed"]  = QDateTime::currentMSecsSinceEpoch();
-    history[videoId] = entry;
-
-    if (history.size() > kMaxHistoryItems) {
-        QStringList keys = history.keys();
-        std::sort(keys.begin(), keys.end(), [&history](const QString &a, const QString &b) {
-            return history.value(a).toMap().value("lastPlayed").toLongLong()
-                 > history.value(b).toMap().value("lastPlayed").toLongLong();
-        });
-        for (int i = kMaxHistoryItems; i < keys.size(); ++i)
-            history.remove(keys[i]);
-    }
-    saveHistory(history);
+    m_history.save(videoId, entry);
 }
 
 QVariantList YouTubeBackend::getHistory() const {
-    const QVariantMap history = loadHistory();
+    const QVariantMap history = m_history.entries();
     QVariantList items;
     for (auto it = history.begin(); it != history.end(); ++it) {
         const QVariantMap entry = it.value().toMap();
@@ -784,7 +757,7 @@ QVariantList YouTubeBackend::getHistory() const {
 }
 
 void YouTubeBackend::delete_history() {
-    QFile::remove(historyFilePath());
+    m_history.clearAll();
 }
 
 // ---------------------------------------------------------------------------

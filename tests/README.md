@@ -88,7 +88,9 @@ ctest --test-dir build-tests --output-on-failure
   - Local Files' search keeps the first 200 matches by name.
   - A search replaced by the next is never reported.
   - The backend can go away while a search runs.
-  - Settings and resume points survive a restart.
+  - Settings and resume points survive a restart; a resume point saved as a number alone, as Local Files once saved them, is its position.
+  - The resume points' file (`util/PositionHistory.h`): an entry saved over the one before, one cleared, all cleared with the file; with a limit, the entries played longest ago go first.
+  - Subtitle Language's choices (`util/PlaybackOptions.h`): Any, then each name of Local Files' `iso639-1.json` once; none without the list.
   - A save that can't be made (the data folder read-only) leaves the old file as it was. Run as root, that test skips itself: root writes to a read-only folder anyway.
   - A setting `config.json` can't take (a full card: a file size limit, which holds for root too) is neither reported saved nor signalled, and `get_setting()` still says the one before.
   - A change to a list `lists.json` can't take (a full card), or one there but unreadable, is reported not saved (`add_to_list`, `add_all_to_list`, `remove_from_list` false), and the list stays as the file has it.
@@ -147,6 +149,7 @@ ctest --test-dir build-tests --output-on-failure
   - A card mapped again has the new file in place of the old; a new file a full card can't take (a file size limit, which holds for root too) leaves the old file and the card as they were, and an old file that can't be removed takes the new one back.
   - A title too long for a name is cut to 255 bytes or fewer with its `.txt`, whatever its letters take (two bytes, four), never in the middle of one; `safeFileName()` cut to a number of letters or of bytes keeps whole letters, and its own rules after the cut.
   - Auto Show Subtitles' choices name the old On / Off form of the setting (`old`), so one saved that way shows as On or Forced Only, as Local Files' does.
+  - Subtitle Language's names come from Local Files' `iso639-1.json`, the one list of them.
 - **playback_retire** (`playback_retire_test.cpp`, Linux only). A video is asked for while another plays in an mpv process, against a stand-in for mpv: a shell script first on `PATH` that writes down when it starts, is told to quit and exits.
   - mpv is given the context's OpenGL functions as they are, but `glFenceSync`: one that makes no fence (mpv 0.40 leaves one behind for every picture, a file descriptor each on a Pi 4), and none where the context has none.
   - What mpv is handed (its control socket, log, key bindings and fontconfig file) is in the run-time folder (`XDG_RUNTIME_DIR`, the test's own), with nothing of it in the temp folder; the bindings' file is whole and its owner's alone, written again when it is gone or holds something else, and left out of mpv's options when it can't be written.

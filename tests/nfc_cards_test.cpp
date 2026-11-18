@@ -99,6 +99,25 @@ private slots:
         QCOMPARE(old.value("forced"), QVariant(false));
         QVERIFY(!old.value("off").isValid());
     }
+
+    // Subtitle Language's names come from the one list the app has, in Local
+    // Files' folder.
+    void subtitleLanguagesFromLocalFilesList() {
+        QTemporaryDir app;
+        QVERIFY(QDir().mkpath(app.path() + QStringLiteral("/modules/local_files")));
+        QFile list(app.path() + QStringLiteral("/modules/local_files/iso639-1.json"));
+        QVERIFY(list.open(QIODevice::WriteOnly));
+        list.write(R"([{"id":"de","label":"German"}])");
+        list.close();
+        NfcReaderBackend nfc(app.path(), m_data.path(), nullptr);
+        QSignalSpy options(&nfc, &NfcReaderBackend::dynamicOptionsReady);
+        nfc.get_subtitle_languages();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("sub_lang"));
+        const QVariantList languages = options.first().at(1).toList();
+        QCOMPARE(languages.size(), 2);
+        QCOMPARE(languages.at(1).toMap().value("label").toString(), QStringLiteral("German"));
+    }
 };
 
 QTEST_GUILESS_MAIN(NfcCardsTest)

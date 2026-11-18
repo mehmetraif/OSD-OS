@@ -10,6 +10,7 @@
 #include <QVariantMap>
 #include <QNetworkAccessManager>
 #include <functional>
+#include "../../util/PositionHistory.h"
 
 class QProcess;
 
@@ -189,9 +190,6 @@ private:
         qint64       failedMs  = 0;
     };
 
-    QString      historyFilePath() const;
-    QVariantMap  loadHistory() const;
-    void         saveHistory(const QVariantMap &history);
     QString      watchLaterFilePath() const;
     QVariantList loadWatchLater() const;
     void         saveWatchLater(const QVariantList &list);
@@ -236,6 +234,9 @@ private:
     QString m_appRoot;
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;
+    // Watch history (youtube_history.json): the kMaxHistoryItems most
+    // recently played.
+    PositionHistory m_history;
     QNetworkAccessManager m_nam;
     WebPlayerBackend *m_browser = nullptr;
 

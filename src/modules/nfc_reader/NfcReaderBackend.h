@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include "../../util/PositionHistory.h"
 
 class NfcDriver;
 class AppCore;
@@ -159,9 +160,8 @@ private:
     bool m_moduleActive = false;
     bool m_captureArmed = false;
 
-    QString     historyFilePath() const;
-    QVariantMap loadHistory() const;
-    void        saveHistory(const QVariantMap &history);
+    // Where each mapped video was stopped (nfc_reader_history.json).
+    PositionHistory m_history;
 
     QString tagsDirPath() const;
     void setTagsDir(const QString &path);

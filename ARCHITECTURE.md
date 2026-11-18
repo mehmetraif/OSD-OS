@@ -53,6 +53,8 @@ osd-os/
       Diagnostics.h/.cpp            # crash and stall reports, memory in the log, malloc kept from hoarding
       LogFile.h/.cpp                # Windows: the log in osdos.log in the data folder, the app being a windowed program
       FileNames.h                   # safeFileName(): a name every filesystem takes (exFAT's rules)
+      PositionHistory.h             # where a module's videos were stopped (Local Files', the NFC Reader's, YouTube's)
+      PlaybackOptions.h             # the playback settings' choices Local Files and the NFC Reader share
       SslErrors.h                   # expectedLanSslErrors(): a LAN server's own certificate
       EmbyApi.h                     # the Emby API's URLs that Jellyfin shares (browse, download, stream)
       EmbyApiBackend.h/.cpp         # what JellyfinBackend and EmbyBackend share, their base class: sign-in kept, requests, browsing, playback, settings

@@ -1,6 +1,8 @@
 #include "AppCore.h"
 #include "modules/local_files/LocalFilesBackend.h"
 #include "util/AtomicFile.h"
+#include "util/PlaybackOptions.h"
+#include "util/PositionHistory.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -160,6 +162,61 @@ private slots:
         LocalFilesBackend backend(tmp.path(), tmp.path(), &restored);
         QCOMPARE(backend.getSavedPosition("film.mp4").value("pos").toInt(), 12345);
         QVERIFY(backend.getSavedPosition("other.mp4").isEmpty());
+        // Saved as a number alone, as Local Files once saved them: its pos.
+        QVERIFY(writeFileAtomically(tmp.path() + "/local_files_history.json", R"({"old.mp4": 4321})"));
+        QCOMPARE(backend.getSavedPosition("old.mp4"), QVariantMap({ { "pos", 4321 }, { "plPos", -1 } }));
+    }
+
+    // The resume points' file (util/PositionHistory.h): an entry saved in
+    // place of the one before, one cleared, all of them cleared with the
+    // file; and with a limit, the entries played longest ago going first
+    // once a save goes over it.
+    void positionHistoryKeepsTheMostRecent() {
+        QTemporaryDir tmp;
+        const QString path = tmp.path() + "/history.json";
+        PositionHistory unlimited(path);
+        for (int i = 0; i < 5; ++i)
+            unlimited.save(QString::number(i), { { "pos", i } });
+        unlimited.save("1", { { "pos", 10 } });
+        QCOMPARE(unlimited.entries().size(), 5);
+        QCOMPARE(unlimited.entry("1").toMap().value("pos").toInt(), 10);
+        unlimited.clear("1");
+        QVERIFY(!unlimited.entry("1").isValid());
+        QCOMPARE(unlimited.entries().size(), 4);
+        unlimited.clearAll();
+        QVERIFY(!QFile::exists(path));
+        QVERIFY(unlimited.entries().isEmpty());
+
+        PositionHistory limited(path, 2);
+        limited.save("old", { { "pos", 1 } });                        // no lastPlayed: the oldest
+        limited.save("b", { { "pos", 2 }, { "lastPlayed", 300 } });
+        QCOMPARE(limited.entries().size(), 2);
+        limited.save("c", { { "pos", 3 }, { "lastPlayed", 200 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "b", "c" }));
+        limited.save("d", { { "pos", 4 }, { "lastPlayed", 400 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "b", "d" }));
+    }
+
+    // The playback settings' choices Local Files and the NFC Reader share
+    // (util/PlaybackOptions.h): Subtitle Language is Any, then each name of
+    // the one list once, from Local Files' folder; none without the list.
+    void subtitleLanguagesFromOneList() {
+        QTemporaryDir app;
+        QCOMPARE(playbackoptions::subtitleLanguages(app.path()), QVariantList());
+        QVERIFY(QDir().mkpath(app.path() + "/modules/local_files"));
+        QVERIFY(writeFileAtomically(app.path() + "/modules/local_files/iso639-1.json",
+                                    R"([{"id":"en","label":"English"},{"id":"fr","label":"French"},)"
+                                    R"({"id":"xx","label":""},{"id":"eng","label":"English"}])"));
+        const QVariantList expected{ QVariantMap{ { "id", "-" }, { "label", "Any" } },
+                                     QVariantMap{ { "id", "en" }, { "label", "English" } },
+                                     QVariantMap{ { "id", "fr" }, { "label", "French" } } };
+        QCOMPARE(playbackoptions::subtitleLanguages(app.path()), expected);
+        LocalFilesBackend backend(app.path(), app.path(), nullptr);
+        QSignalSpy options(&backend, &LocalFilesBackend::dynamicOptionsReady);
+        backend.get_subtitle_languages();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QString("sub_lang"));
+        QCOMPARE(options.first().at(1).toList(), expected);
     }
 
     // config.json edited by hand and left unreadable (a stray comma) is not
