@@ -179,6 +179,22 @@ StandInRoot {
         }
     }
 
+    // A list's line while it has no rows, as a media server's says it is
+    // loading.
+    Component {
+        id: messagePage
+        FocusScope {
+            property alias message: message
+            AppBar {
+                title: "Jellyfin"
+            }
+            PaneMessage {
+                id: message
+                text: "LOADING..."
+            }
+        }
+    }
+
     // The bars declared bare, as a view declares them, and a hint bar a view
     // anchors elsewhere.
     Component {
@@ -444,6 +460,29 @@ StandInRoot {
             }
             compare(root.chrome.title, data.layout === "Studio Monitor" ? "Movies"
                                      : data.layout === "Broadcast" ? "Movies" : ">Jellyfin >Movies")
+        }
+
+        // A list's line while it has no rows (PaneMessage) in the middle of
+        // the pane, and as wide: where every view has its list, beside
+        // Camcorder's column, in a monitor layout's frame; a long one wraps
+        // there.
+        function test_messageInThePane_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }].concat(layouts())
+        }
+        function test_messageInThePane(data) {
+            root.framed = data.framed === true
+            var page = open(messagePage, data.layout)
+            compare(page.message.x, root.paneX)
+            compare(page.message.width, root.paneWidth)
+            if (data.layout === "Standard")
+                compare(page.message.x, root.sw * 0.115625)
+            fuzzyCompare(page.message.y + page.message.height / 2, page.height / 2, 1)
+            var oneLine = page.message.height
+            page.message.text = "THE SERVER DID NOT ANSWER: IT MAY BE OFF, OR ON ANOTHER NETWORK THAN THIS ONE"
+            verify(page.message.height > oneLine, "a long message wraps")
+            verify(page.message.contentWidth <= page.message.width + 0.5)
+            fuzzyCompare(page.message.y + page.message.height / 2, page.height / 2, 1)
         }
 
         // A question is asked in the layout: its title the frame's, its

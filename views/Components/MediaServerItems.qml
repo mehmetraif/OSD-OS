@@ -113,43 +113,17 @@ FocusScope {
     }
 
     // Loading / empty / error states
-    Text {
+    PaneMessage {
         visible: isLoading
         text: "LOADING..."
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
-    Text {
+    PaneMessage {
         visible: !isLoading && errorMessage !== ""
         text: errorMessage
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane, and as wide: a server's long error
-        // wraps instead of running off the screen.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        wrapMode: Text.WordWrap
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
-    Text {
+    PaneMessage {
         visible: !isLoading && errorMessage === "" && items.length === 0
         text: "NO ITEMS FOUND"
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
 
     // Body — Plex-style text list, and the A–Z panel beside it.

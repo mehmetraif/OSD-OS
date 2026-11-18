@@ -1081,6 +1081,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `HintBar` | The key hints at the foot, from `root.hints`; in its place on its own |
 | `MenuRow`, `MenuList`, `ScrollMarks` | Menu lines, a menu of them, ▲ ▼ when lines are hidden |
 | `HelpLine` | The line about the selected row, under the menu; in its place on its own |
+| `PaneMessage` | A list's line while it has no rows (`LOADING...`, an error, `NO ITEMS FOUND`), in the middle of the pane |
 | `ScrolledText` | A line too long for its room, scrolled through while it is `on` (the selected row's) and cut short with "…" while not: `text`, `on`, `font.pixelSize` |
 | `PromptScreen`, `ChoiceOverlay` | A full-screen question or notice, and a short list of answers |
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |

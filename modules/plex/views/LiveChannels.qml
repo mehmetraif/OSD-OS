@@ -56,19 +56,10 @@ FocusScope {
     }
 
     // Loading / empty / error indicator
-    Text {
+    PaneMessage {
         visible: channels.length === 0
         text: channelsRoot.errorMessage !== "" ? channelsRoot.errorMessage
               : (channelsRoot.loaded ? "NO CHANNELS" : "LOADING...")
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        wrapMode: Text.WordWrap
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
 
     // Body

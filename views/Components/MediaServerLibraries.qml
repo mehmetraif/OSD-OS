@@ -73,20 +73,11 @@ FocusScope {
     }
 
     // Loading Indicator, or why there is no list.
-    Text {
+    PaneMessage {
         visible: libraries.length === 0
         text: browseRoot.errorMessage !== "" ? browseRoot.errorMessage
               : browseRoot.loaded ? "NO LIBRARIES\nSettings → " + moduleRoot.moduleName + " → Libraries chooses which are shown"
               : "LOADING..."
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        wrapMode: Text.WordWrap
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
 
     // Body

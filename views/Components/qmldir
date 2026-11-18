@@ -27,6 +27,7 @@ PromptScreen PromptScreen.qml
 PlaybackNotice PlaybackNotice.qml
 MenuList MenuList.qml
 LetterList LetterList.qml
+PaneMessage PaneMessage.qml
 SettingRow SettingRow.qml
 ListPager ListPager.qml
 ListPicker ListPicker.qml

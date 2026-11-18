@@ -64,17 +64,9 @@ FocusScope {
     }
 
     // Loading Indicator
-    Text {
+    PaneMessage {
         visible: menuItems.length === 0
         text: "LOADING..."
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
 
     // Body
