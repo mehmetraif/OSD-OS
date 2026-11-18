@@ -160,7 +160,7 @@ class MediaServersTest : public QObject {
     // for the whole series.
     template <typename Backend> void nextEpisodeFoundBeyondTheFirstPage() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy next(&backend, &Backend::nextEpisodeReady);
         const QByteArray current = episodes({ { "e501", 21, 1 } });
@@ -198,7 +198,7 @@ class MediaServersTest : public QObject {
     // reply, coming last, is dropped; B's is the one shown.
     template <typename Backend> void listAskedForLaterWins() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy shown(&backend, &Backend::itemsLoaded);
         backend.load_items(QStringLiteral("A"), QStringLiteral("Movie"), QStringLiteral("SortName"));
@@ -219,7 +219,7 @@ class MediaServersTest : public QObject {
     // forgets it, and the next asks the server.
     template <typename Backend> void listKeptUntilPlaybackEnds() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy shown(&backend, &Backend::itemsLoaded);
         backend.load_items(QStringLiteral("A"), QStringLiteral("Movie"), QStringLiteral("SortName"));
@@ -242,7 +242,7 @@ class MediaServersTest : public QObject {
     // next one asked for does both.
     template <typename Backend> void streamGivenUpIsDropped() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy ready(&backend, &Backend::streamUrlReady);
         const QByteArray info = QJsonDocument(QJsonObject{
@@ -297,7 +297,7 @@ class MediaServersTest : public QObject {
     }
     template <typename Backend> void librariesSayWhyThereAreNone() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         const QJsonObject films{ { "Id", "1" }, { "Name", "Films" }, { "CollectionType", "movies" } };
         librariesSayWhyThereAreNone(backend, network,
@@ -331,7 +331,7 @@ class MediaServersTest : public QObject {
     // nothing. The page is told as before.
     template <typename Backend> void failedPageLoadsAreLogged(const char *tag) {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         backend.m_serverUrl = QStringLiteral("http://nas.example:8096");
         backend.m_accessToken = QStringLiteral("made-up-token");
@@ -398,7 +398,7 @@ class MediaServersTest : public QObject {
     }
     template <typename Backend> void errorsShowNoAddress() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         backend.m_serverUrl = QStringLiteral("http://nas.example:8096");
         backend.m_userId = QStringLiteral("made-up-user");
@@ -432,7 +432,7 @@ class MediaServersTest : public QObject {
     // failure cancel the second's.
     template <typename Backend> void showOrSeasonLeftIsDropped() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy seasons(&backend, &Backend::seasonsLoaded);
         QSignalSpy episodes(&backend, &Backend::episodesLoaded);
@@ -481,7 +481,7 @@ class MediaServersTest : public QObject {
     // the same address again, as the sign-in saves it, changes nothing.
     template <typename Backend> void serverAddressChangedSignsOut(const QString &moduleId) {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy auth(&backend, &Backend::authStateChanged);
         backend.onSettingChanged(moduleId, QStringLiteral("server_url"), QStringLiteral("http://server/"));
@@ -615,7 +615,7 @@ private slots:
     // signed into: forgotten at sign-out, and asked again.
     void jellyfinCapabilitiesForgottenOnSignOut() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         Network *network = signIn(backend);
         backend.probeCapabilities();
         network->last()->fail(400);
@@ -639,7 +639,7 @@ private slots:
     // every opening, the server asked once.
     void jellyfinSettingsPageLearnsCapabilities() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy options(&backend, &JellyfinBackend::dynamicOptionsReady);
         const auto capabilities = [&options]() {
@@ -888,7 +888,7 @@ private slots:
     // Libraries again over the library opened meanwhile). Signing out is.
     void jellyfinAuthCheckThatChangesNothingIsQuiet() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy changed(&backend, &JellyfinBackend::authStateChanged);
         backend.check_auth();
@@ -907,7 +907,7 @@ private slots:
     // the status behind Qt's words for it.
     void jellyfinQuickConnectSaysWhatTheServerAnswered() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         delete backend.m_nam;
         auto *network = new Network(&backend);
         backend.m_nam = network;
@@ -1206,7 +1206,7 @@ private slots:
     // is said only when both fail, and at once for a server with one address.
     void embyConnectTriesTheRemoteAddress() {
         QTemporaryDir tmp;
-        EmbyBackend backend(tmp.path(), tmp.path());
+        EmbyBackend backend(tmp.path());
         delete backend.m_nam;
         auto *network = new Network(&backend);
         backend.m_nam = network;

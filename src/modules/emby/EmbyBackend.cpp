@@ -55,9 +55,8 @@ static const QString kConnectBaseUrl = QStringLiteral("https://connect.emby.medi
 // Construction
 // ---------------------------------------------------------------------------
 
-EmbyBackend::EmbyBackend(const QString &appRoot, const QString &dataRoot, QObject *parent)
+EmbyBackend::EmbyBackend(const QString &dataRoot, QObject *parent)
     : QObject(parent)
-    , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
     , m_nam(new QNetworkAccessManager(this))
 {
@@ -1061,7 +1060,6 @@ void EmbyBackend::load_seasons(const QString &seriesId) {
     q.addQueryItem("fields", "Overview,MediaSources,MediaStreams,UserData");
     q.addQueryItem("enableUserData", "true");
     url.setQuery(q);
-    // [dev] qDebug("[EmbyBackend] load_seasons series=%s", qPrintable(seriesId));
 
     // As the detail page's item: a show's page without its seasons says
     // nothing, the log does.
@@ -1084,7 +1082,6 @@ void EmbyBackend::load_seasons(const QString &seriesId) {
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
-        // [dev] qDebug("[EmbyBackend] load_seasons got %d seasons", items.size());
         emit seasonsLoaded(result);
     });
 }
@@ -1106,7 +1103,6 @@ void EmbyBackend::load_episodes(const QString &seriesId, const QString &seasonId
     // "AiredEpisodeOrder" (a Jellyfin sort name) makes it 500 with a
     // SQLiteException. Emby returns season episodes in index order natively.
     url.setQuery(q);
-    // [dev] qDebug("[EmbyBackend] load_episodes series=%s season=%s", qPrintable(seriesId), qPrintable(seasonId));
 
     // As the detail page's item: a season's page without its episodes says
     // nothing, the log does.
@@ -1129,7 +1125,6 @@ void EmbyBackend::load_episodes(const QString &seriesId, const QString &seasonId
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
-        // [dev] qDebug("[EmbyBackend] load_episodes got %d episodes", items.size());
         emit episodesLoaded(result);
     });
 }
@@ -1394,8 +1389,6 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
 
     const int request = ++m_playbackRequest;
     auto *reply = embyPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
-    // [dev] qDebug("[EmbyBackend] PlaybackInfo POST %s audio=%d sub=%d bitrate=%d",
-    // [dev]        qPrintable(itemId), audioStreamIndex, subtitleStreamIndex, videoQualityBitrate());
     connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
         reply->deleteLater();
         // Not wanted any more: another stream asked for since, or given up.
@@ -1579,8 +1572,6 @@ void EmbyBackend::get_playback_url(const QString &itemId, const QString &mediaSo
             }
         }
 
-        // [dev] qDebug("[EmbyBackend] PlaybackInfo URL ready audio=%d sub=%d psId=%s",
-        // [dev]        audioStreamIndex, subtitleStreamIndex, qPrintable(playSessionId.left(8)));
         report_playback_start(itemId, mediaSourceId,
                               audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
                               subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
@@ -1837,14 +1828,6 @@ void EmbyBackend::onSettingChanged(const QString &moduleId, const QString &key, 
     if (key == QLatin1String("server_url") && has_auth()
         && normalizeServerUrl(value.toString()) != m_serverUrl)
         logout();
-}
-
-QString EmbyBackend::get_last_audio_lang() const {
-    return m_lastAudioLang;
-}
-
-QString EmbyBackend::get_last_sub_lang() const {
-    return m_lastSubLang;
 }
 
 int EmbyBackend::get_last_audio_lang_idx() const {

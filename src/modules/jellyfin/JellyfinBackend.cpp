@@ -47,9 +47,8 @@ static QString authHeaderValue(const QString &token, const QString &deviceId) {
 // Construction
 // ---------------------------------------------------------------------------
 
-JellyfinBackend::JellyfinBackend(const QString &appRoot, const QString &dataRoot, QObject *parent)
+JellyfinBackend::JellyfinBackend(const QString &dataRoot, QObject *parent)
     : QObject(parent)
-    , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
     , m_nam(new QNetworkAccessManager(this))
 {
@@ -894,7 +893,6 @@ void JellyfinBackend::load_seasons(const QString &seriesId) {
     q.addQueryItem("fields", "Overview,MediaSources,MediaStreams,UserData");
     q.addQueryItem("enableUserData", "true");
     url.setQuery(q);
-    // [dev] qDebug("[JellyfinBackend] load_seasons series=%s", qPrintable(seriesId));
 
     // As the detail page's item: a show's page without its seasons says
     // nothing, the log does.
@@ -917,7 +915,6 @@ void JellyfinBackend::load_seasons(const QString &seriesId) {
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
-        // [dev] qDebug("[JellyfinBackend] load_seasons got %d seasons", items.size());
         emit seasonsLoaded(result);
     });
 }
@@ -937,7 +934,6 @@ void JellyfinBackend::load_episodes(const QString &seriesId, const QString &seas
     q.addQueryItem("limit", "500");
     q.addQueryItem("sortBy", "AiredEpisodeOrder");
     url.setQuery(q);
-    // [dev] qDebug("[JellyfinBackend] load_episodes series=%s season=%s", qPrintable(seriesId), qPrintable(seasonId));
 
     // As the detail page's item: a season's page without its episodes says
     // nothing, the log does.
@@ -960,7 +956,6 @@ void JellyfinBackend::load_episodes(const QString &seriesId, const QString &seas
         QVariantList result;
         for (const QJsonValue &v : items)
             result.append(formatItem(v.toObject()));
-        // [dev] qDebug("[JellyfinBackend] load_episodes got %d episodes", items.size());
         emit episodesLoaded(result);
     });
 }
@@ -1189,8 +1184,6 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
 
     const int request = ++m_playbackRequest;
     auto *reply = jellyfinPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
-    // [dev] qDebug("[JellyfinBackend] PlaybackInfo POST %s audio=%d sub=%d bitrate=%d",
-    // [dev]        qPrintable(itemId), audioStreamIndex, subtitleStreamIndex, videoQualityBitrate());
     connect(reply, &QNetworkReply::finished, this, [this, reply, request, itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, directPlay]() {
         reply->deleteLater();
         // Not wanted any more: another stream asked for since, or given up.
@@ -1307,8 +1300,6 @@ void JellyfinBackend::get_playback_url(const QString &itemId, const QString &med
             }
         }
 
-        // [dev] qDebug("[JellyfinBackend] PlaybackInfo URL ready audio=%d sub=%d psId=%s",
-        // [dev]        audioStreamIndex, subtitleStreamIndex, qPrintable(playSessionId.left(8)));
         report_playback_start(itemId, mediaSourceId,
                               audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
                               subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
@@ -1571,14 +1562,6 @@ void JellyfinBackend::onSettingChanged(const QString &moduleId, const QString &k
     if (key == QLatin1String("server_url") && has_auth()
         && normalizeServerUrl(value.toString()) != m_serverUrl)
         logout();
-}
-
-QString JellyfinBackend::get_last_audio_lang() const {
-    return m_lastAudioLang;
-}
-
-QString JellyfinBackend::get_last_sub_lang() const {
-    return m_lastSubLang;
 }
 
 int JellyfinBackend::get_last_audio_lang_idx() const {

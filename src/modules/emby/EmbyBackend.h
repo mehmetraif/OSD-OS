@@ -16,7 +16,7 @@
 class EmbyBackend : public QObject, public MediaServer {
     Q_OBJECT
 public:
-    explicit EmbyBackend(const QString &appRoot, const QString &dataRoot, QObject *parent = nullptr);
+    explicit EmbyBackend(const QString &dataRoot, QObject *parent = nullptr);
 
     // Auth
     Q_INVOKABLE bool has_auth() const;
@@ -59,7 +59,6 @@ public:
     Q_INVOKABLE void load_next_episode(const QString &currentItemId);
     Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool isPaused);
     Q_INVOKABLE void report_playback_stopped(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool failed = false);
-    Q_INVOKABLE void report_playback_start(const QString &itemId, const QString &mediaSourceId, const QString &audioStreamId, const QString &subtitleStreamId, qint64 startPositionTicks = 0);
 
     // Intro/credit skip — derived from Emby's chapter markers (IntroStart/
     // IntroEnd/CreditsStart). Emits Intro/Outro segments the Player consumes.
@@ -83,8 +82,6 @@ public:
     Q_INVOKABLE void get_resume_playback_options();
     Q_INVOKABLE void load_server_preferences();
 
-    Q_INVOKABLE QString get_last_audio_lang() const;
-    Q_INVOKABLE QString get_last_sub_lang() const;
     Q_INVOKABLE int get_last_audio_lang_idx() const;
     Q_INVOKABLE int get_last_sub_lang_idx() const;
     Q_INVOKABLE void set_last_track_langs(const QString &audioLang, const QString &subLang,
@@ -125,7 +122,6 @@ public slots:
 
 private:
     friend class MediaServersTest;
-    QString m_appRoot;
     QString m_dataRoot;
     QNetworkAccessManager *m_nam;
 
@@ -223,6 +219,10 @@ private:
                           bool fromItem);
 
     QJsonObject loadConfig() const;
+
+    // The playback get_playback_url() resolved, told to the server as it starts.
+    void report_playback_start(const QString &itemId, const QString &mediaSourceId, const QString &audioStreamId,
+                               const QString &subtitleStreamId, qint64 startPositionTicks = 0);
 
     int videoQualityBitrate() const;
     int videoQualityMaxHeight() const;
