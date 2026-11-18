@@ -3,6 +3,7 @@
 #include <QProcessEnvironment>
 
 #include <algorithm>
+#include <iterator>
 #include <cctype>
 
 #ifdef Q_OS_LINUX
@@ -61,7 +62,33 @@ const Names kNames[] = {
     { "touchpad",      "TOUCHPAD", "TOUCHPAD", "TOUCHPAD", "TOUCHPAD" },
 };
 
-const char *const kActions[] = { "up", "down", "left", "right", "select", "back", "play_pause" };
+// The menus' actions, each with its name in config.json and input.cfg, its
+// row's label on a controller's page, the key the views take for it (which
+// a pad's press posts), mpv's name for that key (sent to a video that has
+// the screen, as the Player views send it to MpvController::sendKey()), and
+// what a keyboard's row calls that key.
+struct ActionInfo {
+    Action action;
+    const char *name;
+    const char *label;
+    int key;
+    const char *mpvKey;
+    const char *keyName;
+};
+const ActionInfo kActions[] = {
+    { Action::Up,        "up",         "Up",           Qt::Key_Up,     "UP",    "Arrow key" },
+    { Action::Down,      "down",       "Down",         Qt::Key_Down,   "DOWN",  "Arrow key" },
+    { Action::Left,      "left",       "Left",         Qt::Key_Left,   "LEFT",  "Arrow key" },
+    { Action::Right,     "right",      "Right",        Qt::Key_Right,  "RIGHT", "Arrow key" },
+    { Action::Select,    "select",     "Select / OK",  Qt::Key_Return, "ENTER", "Enter" },
+    { Action::Back,      "back",       "Back",         Qt::Key_Escape, "ESC",   "Esc" },
+    { Action::PlayPause, "play_pause", "Play / Pause", Qt::Key_Space,  "SPACE", "Space" },
+};
+const ActionInfo *infoOf(Action a) {
+    const auto it = std::find_if(std::cbegin(kActions), std::cend(kActions),
+                                 [a](const ActionInfo &info) { return info.action == a; });
+    return it != std::cend(kActions) ? it : nullptr;
+}
 // Other names an action goes by, which input.cfg has always taken: the
 // action's own name is the one written.
 const char *const kActionAliases[][2] = { { "playpause", "play_pause" } };
@@ -543,16 +570,16 @@ QVariantMap Profile::toVariant() const {
 
 QStringList actionNames() {
     QStringList names;
-    for (const char *a : kActions)
-        names << QLatin1String(a);
+    for (const ActionInfo &info : kActions)
+        names << QLatin1String(info.name);
     return names;
 }
 
 QString actionOf(const QString &name) {
     if (name == QLatin1String("none"))
         return name;
-    for (const char *a : kActions) {
-        if (name == QLatin1String(a))
+    for (const ActionInfo &info : kActions) {
+        if (name == QLatin1String(info.name))
             return name;
     }
     for (const auto &alias : kActionAliases) {
@@ -563,14 +590,42 @@ QString actionOf(const QString &name) {
 }
 
 QString actionLabel(const QString &action) {
-    if (action == QLatin1String("up"))         return QStringLiteral("Up");
-    if (action == QLatin1String("down"))       return QStringLiteral("Down");
-    if (action == QLatin1String("left"))       return QStringLiteral("Left");
-    if (action == QLatin1String("right"))      return QStringLiteral("Right");
-    if (action == QLatin1String("select"))     return QStringLiteral("Select / OK");
-    if (action == QLatin1String("back"))       return QStringLiteral("Back");
-    if (action == QLatin1String("play_pause")) return QStringLiteral("Play / Pause");
+    for (const ActionInfo &info : kActions) {
+        if (action == QLatin1String(info.name))
+            return QString::fromUtf8(info.label);
+    }
     return action;
+}
+
+Action actionFromName(const QString &name, bool *ok) {
+    const QString action = actionOf(name);
+    if (ok)
+        *ok = !action.isEmpty();
+    for (const ActionInfo &info : kActions) {
+        if (action == QLatin1String(info.name))
+            return info.action;
+    }
+    return Action::None;
+}
+
+QString actionName(Action a) {
+    const ActionInfo *info = infoOf(a);
+    return info ? QString::fromLatin1(info->name) : QStringLiteral("none");
+}
+
+int actionKey(Action a) {
+    const ActionInfo *info = infoOf(a);
+    return info ? info->key : 0;
+}
+
+QString actionMpvKey(Action a) {
+    const ActionInfo *info = infoOf(a);
+    return info ? QString::fromLatin1(info->mpvKey) : QString();
+}
+
+QString actionKeyName(Action a) {
+    const ActionInfo *info = infoOf(a);
+    return info ? QString::fromLatin1(info->keyName) : QString();
 }
 
 void setPlayerEnvironment(const QList<QPair<QString, QString>> &variables) {

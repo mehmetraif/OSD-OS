@@ -159,6 +159,13 @@ struct Profile {
     QVariantMap toVariant() const;
 };
 
+// The menus' actions, which a controller's inputs do: a pad's buttons, a
+// key, a click. Each is a key the views take (Up, Down, Left, Right,
+// Return, Escape, Space), which InputManager posts for a pad's press, or
+// sends to mpv by its name while a video has the screen. One table in
+// ControllerProfile.cpp holds what each is called and its keys.
+enum class Action { None, Up, Down, Left, Right, Select, Back, PlayPause };
+
 // The actions a controller's page offers, in its order, and their names.
 QStringList actionNames();
 // The action a name stands for in config.json's bindings or in input.cfg,
@@ -166,7 +173,19 @@ QStringList actionNames();
 // none, or "" for a name that is no action. Both are read through this, so
 // that what one takes the other does.
 QString actionOf(const QString &name);
+// Its row's label on a controller's page ("Select / OK"); a name that is
+// no action as it is.
 QString actionLabel(const QString &action);
+// The action a name stands for (actionOf()): None for "none", and for a
+// name that is no action, which `ok` tells apart.
+Action actionFromName(const QString &name, bool *ok = nullptr);
+// Its name ("none" for None), the key the views take for it (Qt::Key, 0 for
+// None), mpv's name for that key ("ENTER"), and that key as a keyboard's
+// row names it ("Arrow key", "Enter"); "" for None.
+QString actionName(Action a);
+int actionKey(Action a);
+QString actionMpvKey(Action a);
+QString actionKeyName(Action a);
 
 // The players (Settings → Controls → Players) for a program OSD/OS starts, a
 // script or a game: OSDOS_PLAYER<n>_NAME, _GUID (SDL's) and _DEVICE (its

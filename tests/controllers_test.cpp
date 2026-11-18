@@ -281,6 +281,49 @@ private slots:
         QCOMPARE(controllers::evdevKey(0x5, 0x45e, 0x2fd), QString("kbd-0005-045e-02fd"));
     }
 
+    // Each of the menus' actions as the one table has it: its name both
+    // ways, its row's label, the key a pad's press posts for it, mpv's name
+    // for that key, and what a keyboard's row calls it; None is none of them.
+    void actionTable() {
+        using controllers::Action;
+        struct Row { Action action; const char *name, *label; int key; const char *mpv, *keyName; };
+        const Row rows[] = {
+            { Action::Up,        "up",         "Up",           Qt::Key_Up,     "UP",    "Arrow key" },
+            { Action::Down,      "down",       "Down",         Qt::Key_Down,   "DOWN",  "Arrow key" },
+            { Action::Left,      "left",       "Left",         Qt::Key_Left,   "LEFT",  "Arrow key" },
+            { Action::Right,     "right",      "Right",        Qt::Key_Right,  "RIGHT", "Arrow key" },
+            { Action::Select,    "select",     "Select / OK",  Qt::Key_Return, "ENTER", "Enter" },
+            { Action::Back,      "back",       "Back",         Qt::Key_Escape, "ESC",   "Esc" },
+            { Action::PlayPause, "play_pause", "Play / Pause", Qt::Key_Space,  "SPACE", "Space" },
+        };
+        QStringList names;
+        for (const Row &row : rows) {
+            names << row.name;
+            bool ok = false;
+            QCOMPARE(controllers::actionFromName(row.name, &ok), row.action);
+            QVERIFY(ok);
+            QCOMPARE(controllers::actionName(row.action), QString(row.name));
+            QCOMPARE(controllers::actionLabel(row.name), QString(row.label));
+            QCOMPARE(controllers::actionKey(row.action), row.key);
+            QCOMPARE(controllers::actionMpvKey(row.action), QString(row.mpv));
+            QCOMPARE(controllers::actionKeyName(row.action), QString(row.keyName));
+        }
+        // The page's order.
+        QCOMPARE(controllers::actionNames(), names);
+        // input.cfg's other name, and none, which is a name but no action.
+        QCOMPARE(controllers::actionFromName("playpause"), Action::PlayPause);
+        bool ok = false;
+        QCOMPARE(controllers::actionFromName("none", &ok), Action::None);
+        QVERIFY(ok);
+        QCOMPARE(controllers::actionFromName("bogus", &ok), Action::None);
+        QVERIFY(!ok);
+        QCOMPARE(controllers::actionName(Action::None), QString("none"));
+        QCOMPARE(controllers::actionLabel("none"), QString("none"));
+        QCOMPARE(controllers::actionKey(Action::None), 0);
+        QVERIFY(controllers::actionMpvKey(Action::None).isEmpty());
+        QVERIFY(controllers::actionKeyName(Action::None).isEmpty());
+    }
+
     // A pad's Arcade Buttons as config.json keeps them, and as MAME and
     // RetroArch name each of its inputs.
     void arcadeAsKept() {

@@ -578,7 +578,7 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
     const controllers::Profile profile = m_profiles.value(key);
     for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
         bool ok = false;
-        const Action action = actionFromString(it.value(), &ok);
+        const Action action = controllers::actionFromName(it.value(), &ok);
         int button = -1, axis = -1, sign = 0;
         if (!ok || !parsePadInput(it.key(), &button, &axis, &sign))
             continue;
@@ -781,33 +781,6 @@ void InputManager::loadDefaultMapping() {
     m_axisMap[SDL_CONTROLLER_AXIS_LEFTY] = { Action::Up,   Action::Down  };
 }
 
-// The names are controllers::actionOf()'s, which config.json's bindings are
-// read by too: input.cfg and config.json take the same ones.
-InputManager::Action InputManager::actionFromString(const QString &name, bool *ok) {
-    const QString action = controllers::actionOf(name);
-    *ok = !action.isEmpty();
-    for (const Action a : { Action::Up, Action::Down, Action::Left, Action::Right,
-                            Action::Select, Action::Back, Action::PlayPause }) {
-        if (actionName(a) == action)
-            return a;
-    }
-    return Action::None;
-}
-
-QString InputManager::actionName(Action a) {
-    switch (a) {
-    case Action::Up:        return QStringLiteral("up");
-    case Action::Down:      return QStringLiteral("down");
-    case Action::Left:      return QStringLiteral("left");
-    case Action::Right:     return QStringLiteral("right");
-    case Action::Select:    return QStringLiteral("select");
-    case Action::Back:      return QStringLiteral("back");
-    case Action::PlayPause: return QStringLiteral("play_pause");
-    case Action::None:      break;
-    }
-    return QStringLiteral("none");
-}
-
 // What a key does when nothing is bound to it (by keyId()): the views' own
 // keys, a remote's OK and Select keys (isRemoteOk()), and a mouse's left and
 // right buttons, Select / OK and Back: an air-mouse remote's OK is a left
@@ -847,28 +820,13 @@ InputManager::Action InputManager::keyActionOn(const QString &key, int id) const
 }
 
 QVariantMap InputManager::captureOutcome(const QString &outcome, Action does) {
-    const QString name = actionName(does);
+    const QString name = controllers::actionName(does);
     return QVariantMap{ { QStringLiteral("outcome"), outcome }, { QStringLiteral("action"), name },
                         { QStringLiteral("label"), controllers::actionLabel(name) } };
 }
 
 QString InputManager::allKeys() {
     return QStringLiteral("kbd-all");
-}
-
-// The key the views take for an action by themselves, as a row names it.
-QString InputManager::defaultKeyName(Action a) {
-    switch (a) {
-    case Action::Up:
-    case Action::Down:
-    case Action::Left:
-    case Action::Right:     return QStringLiteral("Arrow key");
-    case Action::Select:    return QStringLiteral("Enter");
-    case Action::Back:      return QStringLiteral("Esc");
-    case Action::PlayPause: return QStringLiteral("Space");
-    case Action::None:      break;
-    }
-    return QString();
 }
 
 QList<int> InputManager::extraKeysFor(const QString &key, Action a) const {
@@ -881,7 +839,7 @@ QList<int> InputManager::extraKeysFor(const QString &key, Action a) const {
     } else {
         const controllers::Profile profile = m_profiles.value(key);
         for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
-            if (it.value() == actionName(a))
+            if (it.value() == controllers::actionName(a))
                 ids << it.key().toInt();
         }
     }
@@ -908,7 +866,7 @@ QVariantMap InputManager::keyCapture(const QString &key, int id, const QString &
     const Action does = keyActionOn(all ? m_activeController : key, id);
     if (does == Action::Back)
         return captureOutcome(QStringLiteral("cancel"), does);
-    if (defaultKeyAction(id) != Action::None || (does != Action::None && actionName(does) == action))
+    if (defaultKeyAction(id) != Action::None || (does != Action::None && controllers::actionName(does) == action))
         return captureOutcome(QStringLiteral("already"), does);
     const bool own = all ? m_keyRemap.contains(id) : m_profiles.value(key).bindings.contains(QString::number(id));
     if (action == QLatin1String("none") && !own)
@@ -988,7 +946,7 @@ void InputManager::loadUserMapping() {
         }
 
         bool actionOk = false;
-        const Action action = actionFromString(parts[1].toLower(), &actionOk);
+        const Action action = controllers::actionFromName(parts[1].toLower(), &actionOk);
         if (!actionOk) {
             qWarning("[input] input.cfg line %d ignored (unknown action \"%s\")",
                      lineNo, qPrintable(parts[1]));
@@ -1046,8 +1004,7 @@ void InputManager::loadKeyRemap() {
     // An action's extra keys: a number for one (0 for none), as every
     // version has written it, or a list of them.
     for (const QString &name : controllers::actionNames()) {
-        bool known = false;
-        const Action action = actionFromString(name, &known);
+        const Action action = controllers::actionFromName(name);
         const QVariant stored = m_appCore->get_setting(QString(), QStringLiteral("remote_keymap.") + name);
         const QVariantList keys = stored.typeId() == QMetaType::QVariantList ? stored.toList() : QVariantList{ stored };
         for (const QVariant &key : keys) {
@@ -1067,8 +1024,7 @@ bool InputManager::saveKeyRemap() {
         return true;
     QList<QPair<QString, QVariant>> changed;
     for (const QString &name : controllers::actionNames()) {
-        bool known = false;
-        const QList<int> ids = extraKeysFor(allKeys(), actionFromString(name, &known));
+        const QList<int> ids = extraKeysFor(allKeys(), controllers::actionFromName(name));
         QVariantList list;
         for (const int id : ids)
             list << id;
@@ -1099,7 +1055,7 @@ bool InputManager::setExtraKey(const QString &key, int id, Action a) {
     if (a == Action::None)
         profile.bindings.remove(QString::number(id));
     else
-        profile.bindings.insert(QString::number(id), actionName(a));
+        profile.bindings.insert(QString::number(id), controllers::actionName(a));
     return saveProfiles();
 }
 
@@ -1588,9 +1544,7 @@ InputManager::Action InputManager::profileAction(const QString &key, const QStri
     const auto it = m_profiles.constFind(key);
     if (it == m_profiles.constEnd())
         return Action::None;
-    bool ok = false;
-    const Action action = actionFromString(it->bindings.value(input), &ok);
-    return ok ? action : Action::None;
+    return controllers::actionFromName(it->bindings.value(input));
 }
 
 void InputManager::noteController(const QString &key) {
@@ -1705,8 +1659,7 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
 
     QVariantList rows;
     for (const QString &action : controllers::actionNames()) {
-        bool ok = false;
-        const Action a = actionFromString(action, &ok);
+        const Action a = controllers::actionFromName(action);
         QStringList names;
         QVariantList inputs;
         QString value;
@@ -1720,7 +1673,7 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
             value = names.isEmpty() ? QStringLiteral("None") : names.join(QStringLiteral(", "));
         } else {
             // The action's own key, every keyboard's extra keys, then its own.
-            names << defaultKeyName(a);
+            names << controllers::actionKeyName(a);
             if (!all) {
                 const QList<int> shared = extraKeysFor(allKeys(), a);
                 for (const int id : shared) {
@@ -1838,7 +1791,7 @@ controllers::Profile &InputManager::editProfile(const QString &key) {
 
 QVariantMap InputManager::bindControllerInput(const QString &key, const QString &input, const QString &action) {
     bool ok = false;
-    const Action wanted = actionFromString(action, &ok);
+    const Action wanted = controllers::actionFromName(action, &ok);
     if (key.isEmpty() || input.isEmpty() || !ok)
         return {};
     const QString token = input.toLower();
@@ -1873,7 +1826,7 @@ QVariantMap InputManager::bindControllerInput(const QString &key, const QString 
 
 QVariantMap InputManager::replaceControllerInput(const QString &key, const QString &input, const QString &action) {
     bool ok = false;
-    const Action wanted = actionFromString(action, &ok);
+    const Action wanted = controllers::actionFromName(action, &ok);
     if (key.isEmpty() || input.isEmpty() || !ok || wanted == Action::None)
         return {};
     const QString token = input.toLower();
@@ -1924,14 +1877,14 @@ QVariantMap InputManager::replaceControllerInput(const QString &key, const QStri
         cleared << padInputLabel(pad, gone);
     }
     if (!taker.isEmpty())
-        profile.bindings.insert(taker, actionName(does));
+        profile.bindings.insert(taker, controllers::actionName(does));
     if (!saveProfiles())
         return captureOutcome(QStringLiteral("unsaved"), wanted);
     QVariantMap result = captureOutcome(taker.isEmpty() ? QStringLiteral("set") : QStringLiteral("swapped"), wanted);
     result.insert(QStringLiteral("cleared"), cleared);
     if (!taker.isEmpty()) {
         result.insert(QStringLiteral("other"), padInputLabel(pad, taker));
-        result.insert(QStringLiteral("otherAction"), controllers::actionLabel(actionName(does)));
+        result.insert(QStringLiteral("otherAction"), controllers::actionLabel(controllers::actionName(does)));
     }
     return result;
 }
@@ -1977,7 +1930,7 @@ QVariantMap InputManager::inputRoles(const QString &key, const QString &input) c
         does = keyActionOn(key == allKeys() ? m_activeController : key, token.toInt());
     }
     if (does != Action::None)
-        action = controllers::actionLabel(actionName(does));
+        action = controllers::actionLabel(controllers::actionName(does));
     return QVariantMap{ { QStringLiteral("action"), action }, { QStringLiteral("game"), game } };
 }
 
@@ -2828,7 +2781,7 @@ void InputManager::releaseAction(Action a) {
     // A press that went to mpv over IPC (deliverPress()) may be held down
     // there for its repeats: let go with the button.
     if (windowActive())
-        postKey(qtKeyForAction(a), QEvent::KeyRelease, false);
+        postKey(controllers::actionKey(a), QEvent::KeyRelease, false);
     else
         emit mpvKeysReleased();
 }
@@ -2913,9 +2866,9 @@ void InputManager::deliverPress(Action a, bool autoRepeat) {
     // and its views are doing (setBackTaker()).
     const bool players = a == Action::Back && backIsThePlayers(QStringLiteral("a button"));
     if (windowActive() && !players)
-        postKey(qtKeyForAction(a), QEvent::KeyPress, autoRepeat);
+        postKey(controllers::actionKey(a), QEvent::KeyPress, autoRepeat);
     else
-        emit mpvKeyRequested(mpvKeyForAction(a), autoRepeat);
+        emit mpvKeyRequested(controllers::actionMpvKey(a), autoRepeat);
 }
 
 void InputManager::setBackTaker(std::function<bool()> takes) {
@@ -2951,7 +2904,7 @@ void InputManager::noteKeyToViews(const QString &name) {
 // (m_heldActions): the system repeats it itself.
 void InputManager::deliverRelease(Action a, bool autoRepeat) {
     if (windowActive())
-        postKey(qtKeyForAction(a), QEvent::KeyRelease, autoRepeat);
+        postKey(controllers::actionKey(a), QEvent::KeyRelease, autoRepeat);
     else if (!autoRepeat)
         emit mpvKeysReleased();
 }
@@ -2996,35 +2949,6 @@ void InputManager::postKey(int qtKey, QEvent::Type type, bool autoRepeat) {
         m_window,
         new QKeyEvent(type, qtKey, Qt::NoModifier,
                       kSyntheticScanCode, 0, 0, QString(), autoRepeat));
-}
-
-int InputManager::qtKeyForAction(Action a) {
-    switch (a) {
-    case Action::Up:        return Qt::Key_Up;
-    case Action::Down:      return Qt::Key_Down;
-    case Action::Left:      return Qt::Key_Left;
-    case Action::Right:     return Qt::Key_Right;
-    case Action::Select:    return Qt::Key_Return;
-    case Action::Back:      return Qt::Key_Escape;
-    case Action::PlayPause: return Qt::Key_Space;
-    case Action::None:      break;
-    }
-    return 0;
-}
-
-// Same key names the Player views pass to mpvController.sendKey().
-QString InputManager::mpvKeyForAction(Action a) {
-    switch (a) {
-    case Action::Up:        return QStringLiteral("UP");
-    case Action::Down:      return QStringLiteral("DOWN");
-    case Action::Left:      return QStringLiteral("LEFT");
-    case Action::Right:     return QStringLiteral("RIGHT");
-    case Action::Select:    return QStringLiteral("ENTER");
-    case Action::Back:      return QStringLiteral("ESC");
-    case Action::PlayPause: return QStringLiteral("SPACE");
-    case Action::None:      break;
-    }
-    return QString();
 }
 
 bool InputManager::isDirectional(Action a) {

@@ -326,7 +326,7 @@ private slots:
 #endif
 
 private:
-    enum class Action { None, Up, Down, Left, Right, Select, Back, PlayPause };
+    using Action = controllers::Action;
 
     void initSdl();
     void openController(int deviceIndex);
@@ -364,10 +364,8 @@ private:
     // isn't one the menus need, or the controller is a keyboard (it has the
     // menus' own keys), or the menus were last worked with something else.
     bool canLoseKey(const QString &key, int id, Action a) const;
-    static QString defaultKeyName(Action a);
     Action keyActionOn(const QString &key, int id) const;
     Action defaultKeyAction(int id) const;
-    static QString actionName(Action a);
     static QVariantMap captureOutcome(const QString &outcome, Action does);
     bool saveProfiles();
     void loadPlayers();
@@ -480,12 +478,9 @@ private:
     bool takesCoin() const;
     void setLastInputDevice(const QString &device);
     void updateHints();
-    static int qtKeyForAction(Action a);
-    static QString mpvKeyForAction(Action a);
     // Maps a HID media-key event to the canonical mpv key name mpv-media-keys.lua
     // binds, or an empty string for non-media keys.
     static QString mpvKeyForMediaEvent(const QKeyEvent *ke);
-    static Action actionFromString(const QString &name, bool *ok);
     static int buttonFromToken(const QString &token);
     static bool isDirectional(Action a);
 
