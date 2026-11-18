@@ -124,6 +124,8 @@ find_package(OpenSSL REQUIRED)
 add_executable(media_servers_test
     media_servers_test.cpp
     ../src/AppCore.cpp
+    ../src/util/LogSaver.cpp
+    ../src/util/Looks.cpp
     ../src/util/SetupFile.cpp
     ../src/util/LegacyNames.cpp
     ../src/util/EmbyApiBackend.cpp
