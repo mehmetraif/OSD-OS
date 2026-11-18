@@ -806,6 +806,32 @@ Rectangle {
             verify(String(router.children[0].source).indexOf("PinAuth.qml") >= 0)
         }
 
+        // A profile's PIN asked for on the way in (the users, auto sign-in
+        // off) gives way to the library in its place, and so does the PIN
+        // the library asks for again: back from the library returns to the
+        // users, never to the PIN, and back from there leaves the module.
+        function test_plexPinGivesWayInPlace() {
+            appCore.settings = { auto_sign_in: false }
+            var router = open("plex", "Root.qml", {})
+            var shown = function() { return String(router.children[0].source) }
+            verify(shown().indexOf("UserSelect.qml") >= 0, shown())
+            plexBackend.userPinRequired("7", false)
+            verify(shown().indexOf("ProfilePin.qml") >= 0, shown())
+            plexBackend.authSuccess()
+            verify(shown().indexOf("Libraries.qml") >= 0, shown())
+            plexBackend.userPinRequired("7", false)
+            verify(shown().indexOf("ProfilePin.qml") >= 0, shown())
+            plexBackend.authSuccess()
+            verify(shown().indexOf("Libraries.qml") >= 0, shown())
+            router.children[0].item.forceActiveFocus()
+            keyClick(Qt.Key_Escape)
+            verify(shown().indexOf("UserSelect.qml") >= 0, shown())
+            compare(root.backs, 0)
+            router.children[0].item.forceActiveFocus()
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
         // A card never prompts: signed out (the token refused and not
         // renewed, or a sign-out) as a card's item is looked for, its player
         // waits for a stream, or a card's set is made, no PinAuth comes; the
