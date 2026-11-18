@@ -238,7 +238,7 @@ FocusScope {
         // and ► that change it: "SPEED······◄ 1X ►".
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             value: modelData.type === "action" ? "" : menuRoot.displayValue(modelData)
             changes: modelData.type !== "action"

@@ -176,7 +176,7 @@ FocusScope {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.topMargin: root.sh * 0.0145833 //7
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
@@ -238,7 +238,7 @@ FocusScope {
             anchors.top: videoTrackRow.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
@@ -327,27 +327,27 @@ FocusScope {
         width: root.paneWidth
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: true
             label: "Playback Settings"
         }
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: "Video"
             value: videoValueClip.text
             selected: itemsRoot.focusRow === 0
         }
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: "Audio"
             value: audioValueClip.text
             selected: itemsRoot.focusRow === 1
         }
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: "Start"
             opens: true
             selected: itemsRoot.focusRow === 2

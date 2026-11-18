@@ -45,7 +45,7 @@ Rectangle {
     property real travel: 0
 
     width: root.sw * 0.75 //480
-    height: root.sh * 0.0583333 //28
+    height: root.menuRowHeight
     // Outlined rather than tinted: the OSD keeps to two colours.
     color: "transparent"
     border.width: framed ? root.px : 0

@@ -681,7 +681,7 @@ Window {
     // draws it again over its own ground (PromptScreen), so that a question
     // is asked in the layout, its answers in the pane.
     readonly property rect frameColumn: Qt.rect(sw * 0.115625, sh * 0.25, sw * 0.084375, //74, 120, 54
-        frameTall || moduleFrame ? sh * 0.525 + hintRoom : sh * 0.4666667 + helpRoom + hintRoom) //252 : 224
+        frameTall || moduleFrame ? tallListHeight : listHeight)
     // The pane: where a view's rows go, beside the frame's column, where a
     // monitor layout's frame has its rows or, with no frame, where every
     // view has its list. Across, paneX and paneWidth. Down, a menu's rows

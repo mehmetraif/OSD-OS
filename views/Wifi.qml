@@ -304,7 +304,7 @@ FocusScope {
             readonly property var row: wifiRoot.rows[index] || modelData
             readonly property string trail: row.busy ? ".".repeat(wifiRoot.dots) : ""
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: row.type === "section"
             label: (row.label || "") + (row.type === "note" ? trail : "")
             value: row.value ? row.value + trail : ""

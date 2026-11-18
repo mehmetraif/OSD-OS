@@ -133,7 +133,7 @@ FocusScope {
             required property var modelData
             required property int index
             width: optionsList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             heading: !!modelData.heading
             value: modelData.heading || modelData.note ? "" : (multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF")

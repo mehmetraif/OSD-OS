@@ -39,7 +39,7 @@ Item {
 
     // In a monitor layout's frame, where a slider is its line alone.
     readonly property bool monitor: root.monitorFramed === true
-    readonly property real lineHeight: root.sh * 0.0583333 //28
+    readonly property real lineHeight: root.menuRowHeight
     readonly property int barLines: slider && !monitor ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
     height: lineHeight * (1 + barLines)
 

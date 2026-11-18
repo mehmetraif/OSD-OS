@@ -123,7 +123,7 @@ FocusScope {
 
         delegate: Item {
             width: scriptList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The mode tag is laid out first so the name's clip region can stop
             // short of it — a long name must never run underneath the tag.

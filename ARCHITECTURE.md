@@ -902,8 +902,8 @@ FocusScope {
 
     ListView {
         id: itemList
-        anchors.topMargin: root.sh * 0.25
-        anchors.leftMargin: root.sw * 0.115625
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
 
         // restore list position on back-navigate
         Component.onCompleted: {

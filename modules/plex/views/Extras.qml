@@ -157,9 +157,10 @@ FocusScope {
         model: extras
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25
-        anchors.leftMargin: root.sw * 0.115625
-        width: root.sw * 0.76875
+        // The pane, where every view has its list (the page is in no frame).
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
         height: root.sh * 0.525 + (root.hintBar ? 0 : root.sh * 0.075) // a row more with the hint bar off
         clip: true
         focus: true

@@ -313,7 +313,7 @@ FocusScope {
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             keepValue: modelData.type === "video"
             label: modelData.label || ""
@@ -405,15 +405,15 @@ FocusScope {
     Column {
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
 
         Repeater {
             model: detailRoot.lines
             delegate: MenuRow {
                 width: parent.width
-                height: root.sh * 0.0583333 //28
+                height: root.menuRowHeight
                 label: modelData.label
                 value: modelData.value
                 // Read, not chosen: a long value scrolls all the time.
@@ -1119,6 +1119,7 @@ Each component's properties are in [ARCHITECTURE.md → Components](https://gith
 Every view also has `Main.qml`'s own properties, as `root.*`:
 
 - `sw`, `sh`, `px` (one pixel of a 240-line picture) and `contentBox` (the area views lay out in);
+- `menuRowHeight`, a menu's row, and the pane, where a view's rows go: `paneX` and `paneWidth` across, `listY` down, `listHeight` tall over a help line and `tallListHeight` with none;
 - `primaryColor`, `surfaceColor`, `globalFont`, `hints`, `appVersion`;
 - `formatTime(ms)`, `changeWindow()`, `restFor()`, `behindNote` and `videoBehind`.
 

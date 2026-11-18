@@ -1013,7 +1013,7 @@ StandInRoot {
             var list = page.list
             var rows = rowsOf(list)
             var letters = lettersOf(list)
-            var rowHeight = root.sh * 0.0583333
+            var rowHeight = root.menuRowHeight
             for (var i = 0; i < 4; i++)
                 keyClick(Qt.Key_Down)
             compare(list.currentIndex, 4)
@@ -2087,7 +2087,7 @@ StandInRoot {
         }
         // The cursor's row is one of the rows the list shows whole.
         function cursorInView(menu) {
-            var row = root.sh * 0.0583333
+            var row = root.menuRowHeight
             var top = menu.currentIndex * row
             return top >= menu.contentY - 0.5 && top + row <= menu.contentY + menu.height + 0.5
         }
@@ -2137,7 +2137,7 @@ StandInRoot {
             compare(videoUnderCursor(page), "k")
             verify(cursorInView(menu))
             // And the list not left scrolled past its new end.
-            verify(menu.contentY <= page.rows.length * root.sh * 0.0583333 - menu.height + 0.5)
+            verify(menu.contentY <= page.rows.length * root.menuRowHeight - menu.height + 0.5)
         }
 
         // The lines above the videos come and go (Retry Downloads, with a

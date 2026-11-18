@@ -314,10 +314,11 @@ FocusScope {
         visible: detail !== null
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 + root.hintRoom //252
+        // The pane, where every view has its list (the page is in no frame).
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
+        height: root.tallListHeight
         clip: true
 
         Row {
@@ -489,7 +490,7 @@ FocusScope {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.topMargin: root.sh * 0.0145833 //7
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
@@ -546,7 +547,7 @@ FocusScope {
             anchors.top: audioRow.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent

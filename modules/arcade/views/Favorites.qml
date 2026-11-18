@@ -73,7 +73,7 @@ FocusScope {
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: favoritesRoot.labelOf(modelData)
             value: favoritesRoot.valueOf(modelData)
             selected: list.currentIndex === index

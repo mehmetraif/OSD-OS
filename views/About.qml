@@ -299,12 +299,12 @@ FocusScope {
         anchors.topMargin: aboutRoot.linesTop //180
         height: aboutRoot.monitor
                 ? Math.max(1, Math.floor((root.listY + root.helpedListHeight - aboutRoot.linesTop)
-                                         / (root.sh * 0.0583333) + 0.001)) * root.sh * 0.0583333
+                                         / root.menuRowHeight + 0.001)) * root.menuRowHeight
                 : root.sh * 0.35 + root.hintRoom //168
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             label: modelData.label
             // The device's name read here, so that a new one doesn't make the

@@ -181,7 +181,7 @@ Rectangle {
     readonly property alias chrome: frameChrome
     // Where Camcorder's column stands, for a question to draw it again.
     readonly property rect frameColumn: Qt.rect(sw * 0.115625, sh * 0.25, sw * 0.084375,
-        frameTall ? sh * 0.525 + hintRoom : sh * 0.4666667 + helpRoom + hintRoom)
+        frameTall ? tallListHeight : listHeight)
 
     // --- THE PANE ---
     // Where a view's rows go: beside the column, in a monitor layout's frame,

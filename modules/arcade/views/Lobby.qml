@@ -246,7 +246,7 @@ FocusScope {
             required property var modelData
             required property int index
             width: roomList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             readonly property string mark: heading ? "" : Rooms.mark(modelData)
             heading: modelData.type === "section"
             label: heading ? modelData.label : modelData.title
@@ -283,7 +283,7 @@ FocusScope {
             required property var modelData
             required property int index
             width: roomLines.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label
             value: modelData.value || ""
             icons: modelData.type === "join" ? ["play"] : modelData.icons || []

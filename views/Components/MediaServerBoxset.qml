@@ -162,7 +162,7 @@ FocusScope {
         anchors.centerIn: parent
         // As wide as the list: a server's long error wraps instead of
         // running off the screen.
-        width: root.sw * 0.76875 //492
+        width: root.paneWidth
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: root.sh * 0.05 //24
@@ -182,10 +182,11 @@ FocusScope {
         model: categories
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 + root.hintRoom //252
+        // The pane, where every view has its list (the page is in no frame).
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
+        height: root.tallListHeight
         clip: true
         focus: true
 
@@ -205,7 +206,7 @@ FocusScope {
 
         delegate: Item {
             width: categoryList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Item {
                 id: textClip

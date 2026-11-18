@@ -45,7 +45,7 @@ StandInRoot {
                 onHeldStep: function(delta) { parent.heldSteps = parent.heldSteps.concat([delta]) }
                 delegate: MenuRow {
                     width: list.width
-                    height: root.sh * 0.0583333 //28
+                    height: root.menuRowHeight
                     label: typeof modelData === "object" && modelData ? (modelData.label || "") : "Row " + index
                     heading: typeof modelData === "object" && !!modelData && modelData.type === "section"
                     selected: list.currentIndex === index
@@ -205,7 +205,7 @@ StandInRoot {
             for (i = 0; i < 9; i++)
                 keyClick(Qt.Key_Down)
             compare(list.currentIndex, 10)
-            fuzzyCompare(list.contentY, list.originY + 11 * root.sh * 0.0583333 - list.height, 0.5)
+            fuzzyCompare(list.contentY, list.originY + 11 * root.menuRowHeight - list.height, 0.5)
         }
     }
 }

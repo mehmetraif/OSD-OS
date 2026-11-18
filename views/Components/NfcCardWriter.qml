@@ -158,7 +158,7 @@ FocusScope {
 
         Column {
             anchors.centerIn: parent
-            width: root.sw * 0.76875
+            width: root.contentBox.width
             spacing: root.sh * 0.05 //24
 
             Column {
@@ -199,7 +199,7 @@ FocusScope {
                     model: writerRoot.choices()
                     delegate: Item {
                         width: parent.width
-                        height: root.sh * 0.0583333
+                        height: root.menuRowHeight
 
                         Rectangle {
                             anchors.fill: choiceText

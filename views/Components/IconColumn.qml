@@ -41,7 +41,7 @@ Item {
             required property var modelData
             readonly property bool current: index === column.currentIndex
             width: icons.width
-            height: root.sh * 0.0583333 //28, a menu row's
+            height: root.menuRowHeight
 
             SelectionBox {
                 anchors.fill: parent

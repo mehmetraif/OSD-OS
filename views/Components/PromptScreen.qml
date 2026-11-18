@@ -133,9 +133,9 @@ Item {
 
     Column {
         // In the middle of the pane (the window's, with no frame).
-        x: prompt.paned ? root.paneX : root.sw * 0.115625 //74
+        x: prompt.paned ? root.paneX : root.contentBox.x
         anchors.verticalCenter: middle.verticalCenter
-        width: prompt.paned ? root.paneWidth : root.sw * 0.76875 //492
+        width: prompt.paned ? root.paneWidth : root.contentBox.width
         spacing: root.sh * 0.05 //24
 
         Text {
@@ -167,7 +167,7 @@ Item {
 
             ListView {
                 id: answers
-                readonly property real rowHeight: root.sh * 0.0583333 //28
+                readonly property real rowHeight: root.menuRowHeight
                 width: parent.width
                 // By the answers it is given, which it has as it is made,
                 // not by its count, which it has only once made: a window

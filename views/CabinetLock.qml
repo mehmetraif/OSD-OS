@@ -171,7 +171,7 @@ FocusScope {
             required property int index
             readonly property var row: lockRoot.rows[index]
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: row.label
             value: row.value
             changes: row.key === "lock"

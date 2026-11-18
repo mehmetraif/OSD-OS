@@ -218,7 +218,7 @@ FocusScope {
         // ending in ►.
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             // A video's title gives way to where it is.
             keepValue: modelData.type === "item"

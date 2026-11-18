@@ -240,7 +240,7 @@ FocusScope {
             readonly property bool heading: modelData.type === "section"
             readonly property bool earned: !heading && modelData.earned !== ""
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             MenuRow {
                 visible: line.heading

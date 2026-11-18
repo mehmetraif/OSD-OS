@@ -111,7 +111,7 @@ FocusScope {
 
         delegate: Item {
             width: serverList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The row as a monitor layout draws one, in its frame (Main.qml's):
             // the layout's cursor, its case, its colours.

@@ -113,7 +113,7 @@ FocusScope {
             required property int index
             readonly property bool add: index === list.count - 1
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: add ? "Add" : modelData
             opens: !add || !textListRoot.full
             dimmed: add && textListRoot.full

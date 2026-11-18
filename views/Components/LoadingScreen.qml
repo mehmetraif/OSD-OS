@@ -144,7 +144,7 @@ Item {
 
         Text {
             anchors.centerIn: parent
-            width: root.sw * 0.76875 //492
+            width: root.contentBox.width
             visible: tape.title !== ""
             text: tape.title
             color: root.loadingInk

@@ -206,7 +206,7 @@ FocusScope {
         // the one used last with a ● before the ►.
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             value: modelData.value || ""
             icons: modelData.last ? ["rec"] : []

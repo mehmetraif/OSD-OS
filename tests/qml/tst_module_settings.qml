@@ -933,7 +933,7 @@ StandInRoot {
                     list = page.children[i]
             }
             verify(list !== null)
-            var line = root.sh * 0.0583333
+            var line = root.menuRowHeight
             // Eight lines' room: the six rows, not the slider's three lines
             // (in whole pixels).
             tryVerify(function() { return Math.abs(list.shownHeight - 6 * line) < 1 })
@@ -960,7 +960,7 @@ StandInRoot {
                     list = page.children[i]
             }
             verify(list !== null)
-            var line = root.sh * 0.0583333
+            var line = root.menuRowHeight
             // ▲ round to the last row: the list at its end, lines 8 to 15 of
             // 15 in view, the slider's last two of its three lines among them.
             keyClick(Qt.Key_Up)

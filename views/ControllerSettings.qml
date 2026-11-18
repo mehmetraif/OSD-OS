@@ -225,7 +225,7 @@ FocusScope {
         delegate: MenuRow {
             readonly property bool cycles: modelData.type === "labels" || modelData.type === "pins"
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             value: modelData.value || ""
             opens: !cycles

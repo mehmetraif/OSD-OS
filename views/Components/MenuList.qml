@@ -39,13 +39,13 @@ Item {
 
     anchors.top: parent.top
     anchors.left: parent.left
-    anchors.topMargin: monitor ? root.listY : root.sh * 0.25 //120
+    anchors.topMargin: root.listY
     // The pane's: beside a layout's column where the view is in its frame
     // (Main.qml's paneX, paneWidth), else where every view has its list.
     anchors.leftMargin: root.paneX
     width: root.paneWidth
-    // A row more for each bar that is off (Main.qml's helpRoom, hintRoom).
-    height: monitor ? root.listHeight : root.sh * 0.4666667 + root.helpRoom + root.hintRoom //224
+    // A row more for each bar that is off (Main.qml's listHeight).
+    height: root.listHeight
 
     // The cursor held on its row, ▲ ▼ the host's meanwhile (heldStep): a
     // value being changed there in two steps, as Broadcast and Flat Panel

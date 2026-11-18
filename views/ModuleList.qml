@@ -264,7 +264,7 @@ FocusScope {
             readonly property bool current: menuList.currentIndex === index
                                             && !(appRoot.iconMenu && appRoot.groupIcons)
             width: menuList.width;
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The row in a monitor layout: Broadcast's "...", Flat Panel's ▶.
             Loader {

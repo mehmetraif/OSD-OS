@@ -55,7 +55,7 @@ StandInRoot {
                 focus: true
                 delegate: MenuRow {
                     width: list.width
-                    height: root.sh * 0.0583333
+                    height: root.menuRowHeight
                     label: modelData.label
                     value: modelData.value
                     changes: true
@@ -155,7 +155,7 @@ StandInRoot {
                 focus: true
                 delegate: Item {
                     width: list.width
-                    height: root.sh * 0.0583333
+                    height: root.menuRowHeight
                     Loader {
                         anchors.fill: parent
                         active: root.monitorInk === true
@@ -196,7 +196,7 @@ StandInRoot {
                 y: root.sh * 0.25
                 x: root.sw * 0.209375
                 width: root.sw * 0.3
-                height: root.sh * 0.0583333
+                height: root.menuRowHeight
                 label: "Set One By One"
                 opens: true
             }

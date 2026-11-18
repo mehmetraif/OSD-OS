@@ -463,7 +463,7 @@ FocusScope {
         // or a wait.
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
