@@ -29,8 +29,8 @@ static const QString kConnectBaseUrl = QStringLiteral("https://connect.emby.medi
 // Construction
 // ---------------------------------------------------------------------------
 
-EmbyBackend::EmbyBackend(const QString &dataRoot, QObject *parent)
-    : EmbyApiBackend(kModuleId, "Emby", QStringLiteral("emby_auth.json"), dataRoot, parent)
+EmbyBackend::EmbyBackend(const QString &dataRoot, AppCore *appCore, QObject *parent)
+    : EmbyApiBackend(kModuleId, "Emby", QStringLiteral("emby_auth.json"), dataRoot, appCore, parent)
 {
 }
 

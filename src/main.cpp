@@ -347,8 +347,8 @@ int main(int argc, char *argv[]) {
 
     LocalFilesBackend   localFiles(appRoot, dataRoot, &appCore);
     PlexBackend         plexBackend(appRoot, dataRoot);
-    JellyfinBackend     jellyfinBackend(dataRoot);
-    EmbyBackend         embyBackend(dataRoot);
+    JellyfinBackend     jellyfinBackend(dataRoot, &appCore);
+    EmbyBackend         embyBackend(dataRoot, &appCore);
     AmbientModeBackend  ambientMode(dataRoot);
     NfcReaderBackend    nfcReader(appRoot, dataRoot, &appCore);
     // Ahead of everything that takes the screen through it, so that all of

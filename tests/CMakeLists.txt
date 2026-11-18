@@ -109,12 +109,16 @@ set_tests_properties(art_pixels PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscree
 find_package(OpenSSL REQUIRED)
 add_executable(media_servers_test
     media_servers_test.cpp
+    ../src/AppCore.cpp
+    ../src/util/SetupFile.cpp
+    ../src/util/LegacyNames.cpp
     ../src/util/EmbyApiBackend.cpp
     ../src/modules/jellyfin/JellyfinBackend.cpp
     ../src/modules/emby/EmbyBackend.cpp
     ../src/modules/plex/PlexBackend.cpp)
 target_include_directories(media_servers_test PRIVATE ../src)
-target_link_libraries(media_servers_test PRIVATE Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Test OpenSSL::Crypto)
+target_link_libraries(media_servers_test PRIVATE Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test
+                                                 OpenSSL::Crypto)
 add_test(NAME media_servers COMMAND media_servers_test)
 
 # An NFC card's file: mapped again, the old one kept till the new one is

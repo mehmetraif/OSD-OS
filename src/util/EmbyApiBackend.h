@@ -14,6 +14,8 @@
 
 #include "../modules/playlists/MediaServer.h"
 
+class AppCore;
+
 // What Jellyfin's and Emby's backends share. The two servers speak one API
 // (Emby's, which Jellyfin was made from), so the sign-in kept between runs,
 // the requests, the browsing, the playback reports and the settings' choices
@@ -111,10 +113,10 @@ public slots:
 
 protected:
     // moduleId is the module's (com.osdos.jellyfin), whose settings are
-    // read; tag names the server in the log (Jellyfin); authFile is where
-    // the sign-in is kept in dataRoot (jellyfin_auth.json).
+    // read through appCore; tag names the server in the log (Jellyfin);
+    // authFile is where the sign-in is kept in dataRoot (jellyfin_auth.json).
     EmbyApiBackend(const QString &moduleId, const char *tag, const QString &authFile,
-                   const QString &dataRoot, QObject *parent);
+                   const QString &dataRoot, AppCore *appCore, QObject *parent);
 
     // The headers the server reads the token from, token empty for a request
     // made before there is one (a sign-in's).
@@ -232,8 +234,10 @@ protected:
                                        const QString &playSessionId, int subtitleStreamIndex,
                                        int maxHeight, bool tokenInUrl, const QString &token);
 
-    QJsonObject loadConfig() const;
-    QJsonObject moduleConfig() const;
+    // One of the module's settings, as AppCore has it (config.json, read
+    // again only once it has changed, with what is held back from it); as
+    // config.json has it for a backend made without AppCore (a test's).
+    QVariant setting(const QString &key) const;
     // Settings → Video Quality: auto (Direct Play), 1080p, 720p, 576p or 480p.
     QString videoQuality() const;
     // A quality's cap on the bitrate, 0 for none (Direct Play's on Emby).
@@ -245,6 +249,7 @@ protected:
     const char *const m_tag;
     const QString m_authFile;
     QString m_dataRoot;
+    AppCore *m_appCore = nullptr;
     QNetworkAccessManager *m_nam;
 
     QString m_serverUrl;

@@ -7,6 +7,7 @@
 #include <QNetworkReply>
 #include <QUrlQuery>
 
+#include "../AppCore.h"
 #include "AtomicFile.h"
 #include "EmbyApi.h"
 #include "ServerLog.h"
@@ -38,12 +39,13 @@ static const QSet<QString> kSupportedCollectionTypes = {
 // ---------------------------------------------------------------------------
 
 EmbyApiBackend::EmbyApiBackend(const QString &moduleId, const char *tag, const QString &authFile,
-                               const QString &dataRoot, QObject *parent)
+                               const QString &dataRoot, AppCore *appCore, QObject *parent)
     : QObject(parent)
     , m_moduleId(moduleId)
     , m_tag(tag)
     , m_authFile(authFile)
     , m_dataRoot(dataRoot)
+    , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
 {
     // A reply the server stops sending (a sleeping NAS, a proxy holding the
@@ -139,23 +141,22 @@ void EmbyApiBackend::clearAuthState() {
 // Config helpers
 // ---------------------------------------------------------------------------
 
-QJsonObject EmbyApiBackend::loadConfig() const {
+QVariant EmbyApiBackend::setting(const QString &key) const {
+    if (m_appCore)
+        return m_appCore->get_setting(m_moduleId, key);
     QFile f(m_dataRoot + "/config.json");
     if (f.open(QIODevice::ReadOnly)) {
         QJsonParseError err;
         QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
         if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
+            return doc.object()["modules"].toObject()[m_moduleId].toObject()[key].toVariant();
     }
     return {};
 }
 
-QJsonObject EmbyApiBackend::moduleConfig() const {
-    return loadConfig()["modules"].toObject()[m_moduleId].toObject();
-}
-
 QString EmbyApiBackend::videoQuality() const {
-    return moduleConfig()["video_quality"].toString("auto");
+    const QVariant quality = setting(QStringLiteral("video_quality"));
+    return quality.typeId() == QMetaType::QString ? quality.toString() : QStringLiteral("auto");
 }
 
 int EmbyApiBackend::qualityBitrate(const QString &quality) const {
@@ -465,14 +466,15 @@ void EmbyApiBackend::load_libraries() {
         QJsonArray items = QJsonDocument::fromJson(reply->readAll()).object()["Items"].toArray();
         // Honour the user's library filter (Settings → Libraries). Empty map ==
         // never configured, so show everything; otherwise hide explicitly-disabled ones.
-        QJsonObject libEnabled = moduleConfig()["libraries"].toObject();
+        const QVariantMap libEnabled = setting(QStringLiteral("libraries")).toMap();
         QVariantList libraries;
         for (const QJsonValue &v : items) {
             QJsonObject item = v.toObject();
             if (!kSupportedCollectionTypes.contains(item["CollectionType"].toString()))
                 continue;
             QString libId = item["Id"].toString();
-            if (!libEnabled.isEmpty() && !libEnabled[libId].toBool(true))
+            const QVariant enabled = libEnabled.value(libId);
+            if (enabled.typeId() == QMetaType::Bool && !enabled.toBool())
                 continue;
             libraries.append(QVariantMap{
                 {"key",            libId},

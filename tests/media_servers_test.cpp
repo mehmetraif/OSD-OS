@@ -1,3 +1,4 @@
+#include "AppCore.h"
 #include "modules/emby/EmbyBackend.h"
 #include "modules/jellyfin/JellyfinBackend.h"
 #include "modules/plex/PlexBackend.h"
@@ -1116,6 +1117,53 @@ private slots:
         QCOMPARE(emReady.last().at(0).toString(),
                  QStringLiteral("http://server/videos/film/master.m3u8?api_key=server&PlaySessionId=ps2"
                                 "&SubtitleStreamIndex=2&MaxHeight=720"));
+    }
+
+    // Made as main.cpp makes it, with AppCore, a backend reads its settings
+    // through it, a value AppCore holds back from config.json included (a
+    // slider's steps), and a library turned off in Settings is hidden.
+    // Registered (registerModule), it is wired by what it declares, its base
+    // class's included: the choices the settings page asked for and a
+    // sign-out reach AppCore, and a Server Address changed reaches it.
+    void settingsComeThroughAppCore() {
+        QTemporaryDir tmp;
+        AppCore appCore(tmp.path(), tmp.path());
+        EmbyBackend emby(tmp.path(), &appCore);
+        Network *network = signIn(emby);
+        appCore.registerModule(QStringLiteral("com.osdos.emby"), QStringLiteral("embyBackend"), &emby, nullptr);
+        QSignalSpy options(&appCore, &AppCore::dynamicOptionsReady);
+        QSignalSpy auth(&appCore, &AppCore::moduleAuthStateChanged);
+
+        QVERIFY(appCore.save_setting_soon(QStringLiteral("com.osdos.emby"), QStringLiteral("video_quality"),
+                                          QStringLiteral("720p")));
+        {
+            QFile config(tmp.path() + QStringLiteral("/config.json"));
+            QVERIFY(!config.open(QIODevice::ReadOnly) || !config.readAll().contains("720p"));
+        }
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1);
+        QCOMPARE(sentBody(network->last())["MaxHeight"].toInt(), 720);
+
+        QVERIFY(appCore.save_setting(QStringLiteral("com.osdos.emby"), QStringLiteral("libraries.2"), false));
+        QSignalSpy libraries(&emby, &EmbyBackend::librariesLoaded);
+        emby.load_libraries();
+        const QJsonArray views{ QJsonObject{ { "Id", "1" }, { "Name", "Films" }, { "CollectionType", "movies" } },
+                                QJsonObject{ { "Id", "2" }, { "Name", "Shows" }, { "CollectionType", "tvshows" } } };
+        network->last()->complete(QJsonDocument(QJsonObject{ { "Items", views } }).toJson());
+        network->last()->complete(films({}));    // Continue Watching: nothing
+        network->last()->complete(films({}));    // Next Up: nothing
+        QCOMPARE(libraries.count(), 1);
+        QCOMPARE(titles(libraries, 0), QStringList({ "FILMS" }));
+
+        emby.getVideoQualities();
+        QCOMPARE(options.count(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("com.osdos.emby"));
+        QCOMPARE(options.first().at(1).toString(), QStringLiteral("video_quality"));
+
+        QVERIFY(appCore.save_setting(QStringLiteral("com.osdos.emby"), QStringLiteral("server_url"),
+                                     QStringLiteral("http://elsewhere")));
+        QVERIFY(!emby.has_auth());
+        QCOMPARE(auth.count(), 1);
+        QCOMPARE(auth.first().at(0).toString(), QStringLiteral("com.osdos.emby"));
     }
 
     // An Emby source in Dolby Vision, which mpv can't show, is asked for

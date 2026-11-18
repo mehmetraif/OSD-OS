@@ -7,7 +7,7 @@
 class EmbyBackend : public EmbyApiBackend {
     Q_OBJECT
 public:
-    explicit EmbyBackend(const QString &dataRoot, QObject *parent = nullptr);
+    explicit EmbyBackend(const QString &dataRoot, AppCore *appCore = nullptr, QObject *parent = nullptr);
 
     // Username/password sign-in — direct to a single server.
     Q_INVOKABLE void authenticate(const QString &serverUrl, const QString &username, const QString &password);

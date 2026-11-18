@@ -20,8 +20,8 @@ static const QString kModuleId = QStringLiteral("com.osdos.jellyfin");
 // Construction
 // ---------------------------------------------------------------------------
 
-JellyfinBackend::JellyfinBackend(const QString &dataRoot, QObject *parent)
-    : EmbyApiBackend(kModuleId, "Jellyfin", QStringLiteral("jellyfin_auth.json"), dataRoot, parent)
+JellyfinBackend::JellyfinBackend(const QString &dataRoot, AppCore *appCore, QObject *parent)
+    : EmbyApiBackend(kModuleId, "Jellyfin", QStringLiteral("jellyfin_auth.json"), dataRoot, appCore, parent)
 {
 }
 

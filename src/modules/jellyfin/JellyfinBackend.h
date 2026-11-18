@@ -6,7 +6,7 @@
 class JellyfinBackend : public EmbyApiBackend {
     Q_OBJECT
 public:
-    explicit JellyfinBackend(const QString &dataRoot, QObject *parent = nullptr);
+    explicit JellyfinBackend(const QString &dataRoot, AppCore *appCore = nullptr, QObject *parent = nullptr);
 
     // Quick Connect (no password needed — user approves on another device)
     Q_INVOKABLE void quick_connect_initiate(const QString &serverUrl);
