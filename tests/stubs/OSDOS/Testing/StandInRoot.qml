@@ -46,6 +46,9 @@ Rectangle {
     property bool loadingThemed: true
     readonly property string loadingInk: loadingThemed ? schemeInk : schemes["Video 1"].primary
     readonly property string loadingPaper: loadingThemed ? schemePaper : schemes["Video 1"].surface
+    // The letters' bleed: the scheme's second ink (the stand-in's scheme has
+    // none but its own), or Video 1's.
+    readonly property string loadingBleed: loadingThemed ? schemeInk : schemes["Video 1"].secondary
     // No skin: the components' own drawing, and OSD/OS's own icons.
     property var skin: ({})
     function skinIcon(url) {

@@ -11,7 +11,8 @@ import OSDOS.Testing
 // anything before it first shows. And the screen saver
 // (views/Components/ScreenSaver.qml) over a view and a notice, laid out as
 // Main.qml lays them: the keys its own while it is up, and back to whoever
-// has them under it as it goes.
+// has them under it as it goes. And the loading screen's letters, bleeding
+// in the colours' second ink.
 StandInRoot {
     id: root
 
@@ -526,6 +527,48 @@ StandInRoot {
             verify(!root.saverUp)
             compare(root.quits, 0)
             compare(root.viewKeys, 1)
+        }
+    }
+
+    // The loading screen a player shows while its video starts: its letters
+    // in the loading ink, each bleeding to the right in the colours' second
+    // ink (root.loadingBleed), Video 1's with Default; no bleed with the
+    // Loading Effect off.
+    Component {
+        id: tapeLayer
+        LoadingScreen {
+            anchors.fill: parent
+            source: "Local Files"
+        }
+    }
+    TestCase {
+        name: "LoadingScreen"
+        when: windowShown
+
+        function bleeds(item) {
+            var found = []
+            for (var i = 0; i < item.children.length; i++) {
+                var child = item.children[i]
+                if (child.text === "TAPE A" && child.opacity < 1)
+                    found.push(child)
+                found = found.concat(bleeds(child))
+            }
+            return found
+        }
+        function test_bleedInTheSecondInk() {
+            root.loadingThemed = true
+            var tape = createTemporaryObject(tapeLayer, root)
+            verify(tape !== null)
+            var bleed = bleeds(tape)
+            compare(bleed.length, 1)
+            verify(bleed[0].visible)
+            verify(Qt.colorEqual(bleed[0].color, root.loadingBleed))
+            root.loadingThemed = false
+            compare(root.loadingBleed, "#C2BFE4")
+            verify(Qt.colorEqual(bleed[0].color, "#C2BFE4"))
+            tape.effect = false
+            verify(!bleed[0].visible)
+            root.loadingThemed = true
         }
     }
 }

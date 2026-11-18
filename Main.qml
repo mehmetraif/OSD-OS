@@ -1200,6 +1200,10 @@ Window {
     readonly property string bootPaper: bootThemed ? schemePaper : schemes["Video 1"].surface
     readonly property string loadingInk: loadingThemed ? schemeInk : schemes["Video 1"].primary
     readonly property string loadingPaper: loadingThemed ? schemePaper : schemes["Video 1"].surface
+    // The loading screen's letters bleed to the right in the colours' second
+    // ink: the secondary colour of the scheme in force, or of Video 1 with
+    // Default; the ink itself for a theme's colours that have none.
+    readonly property string loadingBleed: loadingThemed ? (scheme.secondary || schemeInk) : schemes["Video 1"].secondary
 
     // "transparent_background": how solid the menus' ground is over a video
     // behind them, 0 (TRANSPARENT) to 100 (SOLID: none of it shows, but it
