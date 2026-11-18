@@ -534,7 +534,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         m_playing.clear();
         emit finished(exitCode, reason, notice);
         // The sets MAME was still to be asked about, held while it played;
-        // then a check's.
+        // then a check's. Not while MAME downloads (mameMayRun()), which
+        // goes on with both once it ends.
         if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
         resumeRomCheck();
@@ -596,10 +597,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                 m_toAsk.clear();
             refresh();
         }
-        else if (!m_scan && !m_toAsk.isEmpty() && !m_launcher->isBusy())
+        else if (!m_scan && !m_toAsk.isEmpty())
             scanNext();
-        if (!m_launcher->isBusy())
-            resumeRomCheck();
+        resumeRomCheck();
         emit mameChanged();
     });
 
@@ -1572,14 +1572,23 @@ void ArcadeBackend::startScan() {
     ask.sort();
     qInfo("[Arcade] Asking MAME about %lld games", static_cast<long long>(ask.size()));
     m_toAsk = ask;
-    // Not beside a game started while the folder was read: once it has
-    // ended (the launcher's finished()).
-    if (!m_launcher->isBusy())
-        scanNext();
+    // Not beside a game started while the folder was read, nor MAME's
+    // download: once it has ended (scanNext()).
+    scanNext();
     emit scanningChanged();
 }
 
+bool ArcadeBackend::mameMayRun() const {
+    return !running() && !m_mameInstaller->running();
+}
+
 void ArcadeBackend::scanNext() {
+    // Not beside a game, one started or a LAN game waiting for its ports,
+    // which would share the machine with it, nor beside MAME's download,
+    // which puts its MAME in the folder it may run from: the launcher's
+    // and the installer's finished() ask again.
+    if (!mameMayRun())
+        return;
     // Not two of MAME's at once: a check's part waits for the asking.
     m_romCheck->pause();
     m_asked = m_toAsk.mid(0, kBatch);
@@ -1624,6 +1633,8 @@ void ArcadeBackend::pauseScan() {
     m_asked.clear();
     m_toAsk = again + m_toAsk;
     // It had listed every set it was asked about, and only had to exit.
+    // A check's part stays held: what stopped the asking (a game, MAME's
+    // download) is about to start, and goes on with it should it not.
     if (m_toAsk.isEmpty())
         finishScan();
 }
@@ -1678,12 +1689,12 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
     scan->deleteLater();
     if (!m_toAsk.isEmpty()) {
         // Not beside a game, which would share the machine with it: the rest
-        // once it has ended.
-        if (!m_launcher->isBusy())
-            scanNext();
+        // once it has ended (scanNext()).
+        scanNext();
         return;
     }
     finishScan();
+    resumeRomCheck();
 }
 
 void ArcadeBackend::finishScan() {
@@ -1695,8 +1706,6 @@ void ArcadeBackend::finishScan() {
     checkProblem();
     emit scanningChanged();
     emitShown();
-    if (!m_launcher->isBusy())
-        resumeRomCheck();
 }
 
 void ArcadeBackend::emitShown() {
@@ -2680,12 +2689,13 @@ void ArcadeBackend::checkRoms() {
     job.stamps = m_stamps;
     qInfo("[Arcade] Check ROMs: %lld games for MAME, %lld for FinalBurn Neo",
           static_cast<long long>(job.mameSets.size()), static_cast<long long>(job.fbneoSets.size()));
-    // MAME's part waits for a game or MAME's own asking to end.
-    m_romCheck->start(job, m_scan || m_launcher->isBusy());
+    // MAME's part waits for a game, MAME's download or MAME's own asking to
+    // end.
+    m_romCheck->start(job, m_scan || !mameMayRun());
 }
 
 void ArcadeBackend::resumeRomCheck() {
-    if (!m_scan)
+    if (!m_scan && mameMayRun())
         m_romCheck->resume();
 }
 
@@ -4378,6 +4388,11 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
     // output isn't this one's.
     m_launcher->clearOutput();
     emit finished(1, QStringLiteral("failed_to_start"), m_lastError);
+    // What MAME was held back from while it waited (mameMayRun()), as after
+    // a game.
+    if (!m_scan && !m_toAsk.isEmpty())
+        scanNext();
+    resumeRomCheck();
 }
 
 void ArcadeBackend::releaseClaim(const QString &address) {
@@ -5317,11 +5332,17 @@ void ArcadeBackend::downloadMame() {
     if (m_mameInstaller->running() || m_launcher->isBusy())
         return;
     m_mameMessage.clear();
-    const ProgramInstaller::Source source = ProgramInstaller::mame(m_dataRoot);
+    ProgramInstaller::Source source = ProgramInstaller::mame(m_dataRoot);
+    if (!m_mameArchive.isEmpty()) {
+        source.archive = m_mameArchive;
+        source.available = true;
+    }
     // Nor beside a batch MAME is asked about, which would be running from
     // the folder the download puts its MAME in: stopped, as for a game
     // starting, and asked again should the download fail. A download that
-    // succeeds reads every set anew (the installer's finished()).
+    // succeeds reads every set anew (the installer's finished()). Neither
+    // is started again, nor a check's part, until it has ended
+    // (mameMayRun()).
     if (source.available)
         pauseScan();
     m_romCheck->pause();
@@ -5557,8 +5578,9 @@ void ArcadeBackend::retrySetupSignIn() {
     // password.
     if (!m_raFromSetup || m_signIn || !m_raToken.isEmpty() || m_raPassword.isEmpty() || m_raPasswordGiven)
         return;
-    // Never a RetroArch beside a game's: once it is over.
-    if (!m_playing.isEmpty()) {
+    // Never a RetroArch beside a game's, nor beside a LAN game waiting for
+    // its ports: once it is over.
+    if (running()) {
         QTimer::singleShot(m_setupRetryMs, this, &ArcadeBackend::retrySetupSignIn);
         return;
     }

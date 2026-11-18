@@ -546,6 +546,9 @@ public:
     // mameProgressChanged() as it goes, mameChanged() as it starts and
     // ends, and the games read again once it is in.
     Q_INVOKABLE void downloadMame();
+    // Where downloadMame() takes MAME's archive from: mamedev's release, on
+    // a machine it is built for; or a stand-in's (a test's), on any.
+    void setMameArchive(const QUrl &url) { m_mameArchive = url; }
     Q_INVOKABLE QString lastError() const { return m_lastError; }
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
@@ -744,6 +747,13 @@ private:
     // MAME's program as it is: its path, size and time, which change with it.
     QString mameIdentity() const;
     void startScan();
+    // Whether MAME may be started for the sets, asked about (-listxml) or
+    // checked (Check ROMs' -verifyroms): not beside a game, one started or a
+    // LAN game waiting for its ports (running()), nor beside MAME's
+    // download, which puts its MAME in the folder it may run from. Each
+    // goes on with them as it ends.
+    bool mameMayRun() const;
+    // The next batch asked about, once MAME may run (mameMayRun()).
     void scanNext();
     // The MAME asked about a batch stopped, for a game starting: the sets
     // it hadn't answered for are asked about first once the game has ended.
@@ -1137,7 +1147,7 @@ private:
     // missing.
     QString romsDetail(const QString &set) const;
     // MAME's part of a check goes on once nothing else of MAME's, nor a
-    // game, is running.
+    // game, is running (mameMayRun()).
     void resumeRomCheck();
     void romCheckDone(const romcheck::Results &results);
     void saveAchievements() const;
@@ -1241,6 +1251,7 @@ private:
     FbneoInstaller *m_installer = nullptr;
     ProgramInstaller *m_retroarchInstaller = nullptr;
     ProgramInstaller *m_mameInstaller = nullptr;
+    QUrl m_mameArchive;   // setMameArchive()
     RetroAchievements *m_retroAchievements = nullptr;
     // madeSets(), by filter, made again once gamesChanged() or invalidate()
     // says the filters may hold other games.
