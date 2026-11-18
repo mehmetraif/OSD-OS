@@ -65,7 +65,9 @@ private slots:
                 { "key": "server_url", "type": "text", "default": "" },
                 { "key": "subscriptions", "type": "text_list" },
                 { "key": "emulator_video", "type": "submenu", "settings": [
-                    { "key": "vertical_monitor", "type": "list_single", "options": ["Horizontal", "Turned Right"] } ] } ] })") }
+                    { "key": "vertical_monitor", "type": "list_single", "options": ["Horizontal", "Turned Right"] } ] } ] })") },
+            { QStringLiteral("com.osdos.plex"), json(R"({ "settings": [
+                { "key": "enabled", "type": "toggle" } ] })") }
         };
         const setupexport::Form form = setupexport::formOf(extra, manifests);
         QCOMPARE(form.app.value(QStringLiteral("monitor")).toString(), QStringLiteral("Horizontal"));
@@ -85,6 +87,16 @@ private slots:
         // A list the page has no choices of, and a page of the app's.
         QVERIFY(!arcade.contains(QStringLiteral("play_at_startup")));
         QVERIFY(!arcade.contains(QStringLiteral("achievements_account")));
+        // A module whose toggle names no default is on, as the app has it on
+        // the main menu (moduleEnabledByDefault()): turned off, it goes in
+        // the file, so a card set up from it leaves the module off.
+        QCOMPARE(form.modules.value(QStringLiteral("com.osdos.plex")).value(QStringLiteral("enabled")),
+                 QJsonValue(true));
+        const QJsonObject turnedOff = setupexport::build(
+            json(R"({ "modules": { "com.osdos.plex": { "enabled": false } } })"), form, QJsonObject(),
+            setupexport::System());
+        QCOMPARE(turnedOff.value(QStringLiteral("config")).toObject(),
+                 json(R"({ "modules": { "com.osdos.plex": { "enabled": false } } })"));
 
         // The page's own rows, as the app has them built in, take every row
         // the page's form has of OSD/OS's own.

@@ -2,6 +2,7 @@
 #include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/InstallHint.h"
+#include "util/ModuleEnabled.h"
 #include "util/NetInterfaces.h"
 #include "util/SetupFile.h"
 #include <QDir>
@@ -85,7 +86,7 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
         for (const QVariant &sv : std::as_const(m.settings)) {
             const QVariantMap s = sv.toMap();
             if (s["key"].toString() == "enabled") {
-                m.enabledByDefault = s["default"].toString().toUpper() != "OFF";
+                m.enabledByDefault = moduleEnabledByDefault(s["default"].toString());
                 break;
             }
         }

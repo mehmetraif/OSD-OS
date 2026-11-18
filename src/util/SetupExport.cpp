@@ -1,5 +1,6 @@
 #include "util/SetupExport.h"
 #include "system/SystemLocale.h"
+#include "util/ModuleEnabled.h"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -57,7 +58,8 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
         if (key.isEmpty())
             continue;
         if (key == QLatin1String("enabled")) {
-            out.insert(key, row.value(QLatin1String("default")).toString().toUpper() == QLatin1String("ON"));
+            // On unless it says OFF, as the main menu has it.
+            out.insert(key, moduleEnabledByDefault(row.value(QLatin1String("default")).toString()));
             continue;
         }
         if (type == QLatin1String("toggle")) {
