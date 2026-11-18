@@ -8,8 +8,8 @@ import "../../views/Components/Hover.js" as Hover
 // alone and a gap, unless the host's rows go by a rule of their own), round
 // the ends; a list of a number of rows, which say nothing of themselves; the
 // cursor held while ▲ ▼ are the host's; the rows at an end the cursor passes
-// over shown with the one beside them (showEnds); and the mouse (Hover.js)
-// stopping on the rows the keys do.
+// over shown with the one beside them; and the mouse (Hover.js) stopping on
+// the rows the keys do.
 Rectangle {
     id: root
     color: surfaceColor
@@ -56,7 +56,6 @@ Rectangle {
             property var rows: []
             property var rule: null
             property bool held: false
-            property bool showEnds: false
             property int moves: 0
             property var heldSteps: []
             MenuList {
@@ -65,7 +64,6 @@ Rectangle {
                 focus: true
                 rule: parent.rule
                 held: parent.held
-                showEnds: parent.showEnds
                 onMoved: parent.moves++
                 onHeldStep: function(delta) { parent.heldSteps = parent.heldSteps.concat([delta]) }
                 delegate: MenuRow {
@@ -190,29 +188,29 @@ Rectangle {
             compare(page.moves, 0)
         }
 
-        // A note before the first row the cursor stops on, and one after
-        // the last: with showEnds they come into view with it, round the
-        // ends; without, the row alone.
-        function test_endsShown_data() {
-            return [{ tag: "showEnds", showEnds: true }, { tag: "the row alone", showEnds: false }]
-        }
-        function test_endsShown(data) {
-            var rows = [{ type: "note", label: "No gamepad" }]
+        // A heading over the first row the cursor stops on, and a note after
+        // the last, come into view with it, round the ends: nothing else
+        // would show them.
+        function test_endsShown() {
+            var rows = [{ type: "section", label: "Paired" }]
             for (var i = 0; i < 18; i++)
                 rows.push({ label: "Row " + i })
             rows.push({ type: "note", label: "Searching" })
-            var page = open({ rows: rows, showEnds: data.showEnds })
+            var page = open({ rows: rows })
             var list = page.list
-            var line = root.sh * 0.0583333
             list.currentIndex = 1
             list.show(1)
             keyClick(Qt.Key_Up)
             compare(list.currentIndex, 18)
-            fuzzyCompare(list.contentY, data.showEnds ? list.originY + list.contentHeight - list.height
-                                                      : list.originY + 19 * line - list.height, 0.5)
+            fuzzyCompare(list.contentY, list.originY + list.contentHeight - list.height, 0.5)
             keyClick(Qt.Key_Down)
             compare(list.currentIndex, 1)
-            fuzzyCompare(list.contentY, data.showEnds ? list.originY : list.originY + line, 0.5)
+            fuzzyCompare(list.contentY, list.originY, 0.5)
+            // A row in the middle is scrolled to alone.
+            for (i = 0; i < 9; i++)
+                keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 10)
+            fuzzyCompare(list.contentY, list.originY + 11 * root.sh * 0.0583333 - list.height, 0.5)
         }
     }
 }

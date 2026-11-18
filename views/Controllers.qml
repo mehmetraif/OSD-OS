@@ -186,9 +186,6 @@ FocusScope {
         id: list
         model: controllersRoot.rows
         focus: true
-        // The lines the cursor passes over before or after it (a note at an
-        // end of the list) shown with the cursor's.
-        showEnds: true
         onMoved: controllersRoot.notice = ""
 
         Keys.onRightPressed: {

@@ -96,7 +96,6 @@ Item {
         moved()
     }
 
-    property bool showEnds: false
     // Scrolls so that the row is in view. Rows are whole lines, a slider's
     // several (a module's settings), so a scroll can stop with one cut by an
     // edge: it carries on past it, keeping the row, as far as the list goes.
@@ -110,12 +109,13 @@ Item {
             return
         }
         view.positionViewAtIndex(i, ListView.Contain)
-        // With showEnds, the rows at an end of the list the cursor doesn't
-        // stop on (notes before the first row it does) come into view with
-        // the first or the last it stops on.
-        if (showEnds && i === selectableFrom(0, 1))
+        // The rows at an end of the list the cursor doesn't stop on (a
+        // heading over the first row, a note after the last) come into view
+        // with the first or the last it stops on: nothing else would bring
+        // them.
+        if (i === selectableFrom(0, 1))
             view.positionViewAtBeginning()
-        else if (showEnds && i === selectableFrom(count - 1, -1))
+        else if (i === selectableFrom(count - 1, -1))
             view.positionViewAtEnd()
         var top = cutAtTop()
         if (top && top !== view.currentItem)
