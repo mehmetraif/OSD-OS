@@ -94,10 +94,6 @@ FocusScope {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
         subtitle: moduleName + " / " + settingLabel
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The lines, then ADD: dimmed once the list is full.
@@ -113,7 +109,7 @@ FocusScope {
             required property int index
             readonly property bool add: index === list.count - 1
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: add ? "Add" : modelData
             opens: !add || !textListRoot.full
             dimmed: add && textListRoot.full
@@ -132,7 +128,7 @@ FocusScope {
         Keys.onRightPressed: open()
         Keys.onReturnPressed: open()
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 textListRoot.goBack()
                 event.accepted = true
             }
@@ -142,18 +138,10 @@ FocusScope {
     HelpLine {
         visible: text !== ""
         text: list.onAdd && textListRoot.full ? "The list is full: take a line out first" : textListRoot.help
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
 
     // What to do with a line.

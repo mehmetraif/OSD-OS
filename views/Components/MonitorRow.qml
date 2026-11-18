@@ -69,12 +69,12 @@ Item {
     // value is left (a third, if it wants it), and the label's share.
     readonly property real room: Math.max(0, valueEnd - gutter)
     readonly property real valueFloor: value === "" ? 0
-                                     : keepValue ? Math.min(valueText.implicitWidth, room * 0.75)
-                                     : Math.min(valueText.implicitWidth, room * 0.34)
+                                     : keepValue ? Math.min(valueClip.implicitWidth, room * 0.75)
+                                     : Math.min(valueClip.implicitWidth, room * 0.34)
     readonly property real labelRoom: flat ? (opens ? arrowX : value !== "" ? valueX : width - iconsWidth) - gutter - pad
                                            : room - (value !== "" ? valueFloor + 2 * pad : 0)
     readonly property real valueWidth: flat ? Math.max(0, width - pad - iconsWidth - valueX)
-                                            : Math.min(valueText.implicitWidth,
+                                            : Math.min(valueClip.implicitWidth,
                                                        Math.max(0, room - labelText.width - 2 * pad))
 
     // Flat Panel's bar under the selected line.
@@ -124,56 +124,19 @@ Item {
 
     // The value: against the line's end (Flat Panel's at its own column),
     // cut short when it is too long, scrolled through while it may.
-    Item {
+    ScrolledText {
         id: valueClip
         visible: line.value !== ""
         x: line.flat ? line.valueX : line.valueEnd - width
         width: line.valueWidth
         height: parent.height
-        clip: true
-
-        readonly property bool mayScroll: line.selected || line.alwaysScroll
-        Text {
-            id: valueText
-            anchors.verticalCenter: parent.verticalCenter
-            width: valueClip.mayScroll ? implicitWidth : Math.min(implicitWidth, valueClip.width)
-            elide: Text.ElideRight
-            textFormat: Text.PlainText
-            text: line.value
-            color: line.editing ? (line.broadcast ? line.pal.ground : line.pal.mark) : line.ink
-            font.family: root.globalFont
-            font.capitalization: line.flat ? Font.MixedCase : Font.AllUppercase
-            font.pixelSize: line.fontSize
-        }
-
-        // Started (and started over) a turn of the event loop after the
-        // line's layout settles, as MenuRow's is; not while the line is
-        // hidden.
-        readonly property bool scrolls: line.visible && mayScroll && valueText.implicitWidth > width + 1
-        readonly property real scrollBy: width - valueText.implicitWidth
-        onScrollsChanged: Qt.callLater(updateScroll)
-        onScrollByChanged: Qt.callLater(updateScroll)
-        function updateScroll() {
-            if (scrolls)
-                scroll.restart()
-            else
-                scroll.stop()
-        }
-        SequentialAnimation {
-            id: scroll
-            loops: Animation.Infinite
-            onRunningChanged: if (!running) valueText.x = 0
-
-            PauseAnimation { duration: 1500 }
-            NumberAnimation {
-                target: valueText
-                property: "x"
-                to: valueClip.scrollBy
-                duration: Math.abs(to) * 20
-            }
-            PauseAnimation { duration: 2000 }
-            PropertyAction { target: valueText; property: "x"; value: 0 }
-        }
+        on: line.selected || line.alwaysScroll
+        // One no more than a pixel too long for its room stands still.
+        resting: implicitWidth <= width + 1
+        text: line.value
+        color: line.editing ? (line.broadcast ? line.pal.ground : line.pal.mark) : line.ink
+        font.capitalization: line.flat ? Font.MixedCase : Font.AllUppercase
+        font.pixelSize: line.fontSize
     }
 
     // A line that opens: Studio Monitor's ► at its end, Flat Panel's before

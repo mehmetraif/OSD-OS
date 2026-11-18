@@ -2,8 +2,9 @@
 #include <QString>
 
 // Locates the mpv binary the app should spawn. The single source of truth for
-// this — MpvController (video), WeatherBackend (music) and AmbientModeBackend
-// (custom audio) all ask here, so a new resolution tier is a one-file change.
+// this — MpvController (video), MenuMusic and BackgroundMpv (Weather's music,
+// Ambient Mode's audio) all ask here, so a new resolution tier is a one-file
+// change.
 //
 // Resolution order (first hit wins), returning an absolute path or empty:
 //   1. <appDir>/mpv  — sibling of the app binary. Inside the Linux AppImage,

@@ -14,7 +14,7 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     // Used for the PIN handoff below: replacing rather than pushing keeps this
     // view from ending up on the stack twice when ProfilePin returns here.
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     property var libraries: []
@@ -50,7 +50,7 @@ FocusScope {
         // The 401-recovery retry re-runs the user switch, which can turn out to
         // need the profile's PIN.
         function onUserPinRequired(userId, wrongPin) {
-            browseRoot.replaceWith("ProfilePin.qml", {
+            browseRoot.replaceCurrent("ProfilePin.qml", {
                 userId: userId,
                 title: browseRoot.userName,
                 reauth: true,
@@ -84,31 +84,19 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: browseRoot.serverName + (browseRoot.userName ? " (" + browseRoot.userName + ")" : "")
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Loading Indicator
-    Text {
+    PaneMessage {
         visible: libraries.length === 0 && browseRoot.errorMsg === ""
         text: browseRoot.loaded ? "NO LIBRARIES" : "LOADING..."
-        color: root.tertiaryColor
-        font.family: root.globalFont
-        // In the middle of the pane.
-        x: root.paneX
-        anchors.verticalCenter: parent.verticalCenter
-        width: root.paneWidth
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
 
     // Error message
     Text {
         visible: browseRoot.errorMsg !== ""
         text: browseRoot.errorMsg
-        color: root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
@@ -172,7 +160,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 browseRoot.goBack()
                 event.accepted = true
             }
@@ -180,7 +168,7 @@ FocusScope {
 
         delegate: Item {
             width: libraryList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The row as a monitor layout draws one, in its frame (Main.qml's):
             // the layout's cursor, its case, its colours.
@@ -188,52 +176,31 @@ FocusScope {
                 anchors.fill: parent
                 active: root.monitorInk === true
                 sourceComponent: MonitorRow {
-                    label: rowText.text
+                    label: textClip.text
                     selected: libraryList.currentIndex === index
                 }
             }
 
-            Item {
+            ScrolledText {
                 id: textClip
                 visible: root.monitorInk !== true
-                width: Math.min(rowText.implicitWidth, libraryList.width)
+                width: Math.min(implicitWidth, libraryList.width)
                 height: parent.height
-                clip: true
+                on: libraryList.currentIndex === index
+                elides: false
+                text: modelData.title || ""
+                color: libraryList.currentIndex === index ? root.cursorInk : root.primaryColor
+                font.pixelSize: root.sh * 0.05 //24
+                textItem.topPadding: root.sh * 0.0041667 //2
+                textItem.leftPadding: root.sw * 0.009375 //6
+                textItem.rightPadding: root.sw * 0.009375 //6
+                textItem.bottomPadding: root.sh * 0.00625 //3
 
                 Rectangle {
-                    color: root.accentColor
-                    anchors.fill: rowText
+                    z: -1
+                    color: root.cursorColor
+                    anchors.fill: textClip.textItem
                     visible: libraryList.currentIndex === index
-                }
-
-                Text {
-                    id: rowText
-                    text: modelData.title || ""
-                    color: libraryList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                SequentialAnimation {
-                    running: (libraryList.currentIndex === index) &&
-                             (rowText.implicitWidth > textClip.width)
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) rowText.x = 0
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: rowText; property: "x"
-                        to: textClip.width - rowText.implicitWidth
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: rowText; property: "x"; value: 0 }
                 }
             }
         }
@@ -246,11 +213,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-              + (browseRoot.canSwitchServer ? " " + root.hints.change + ":SERVER" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT",
+                             browseRoot.canSwitchServer ? "change:SERVER" : ""])
     }
 }

@@ -16,17 +16,13 @@ FocusScope {
     focus: true
 
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
     }
 
     AppBar {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125
-        anchors.leftMargin: root.sw * 0.125
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
     }
@@ -105,7 +101,7 @@ FocusScope {
                     : nfcReaderBackend.cardState === "matched" ? nfcReaderBackend.videoTitle
                     : nfcReaderBackend.cardState === "unmatched" ? nfcReaderBackend.cardUid
                     : nfcReaderBackend.readerName
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -173,9 +169,5 @@ FocusScope {
     HintBar {
         id: footer
         text: root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667
-        anchors.leftMargin: root.sw * 0.125
     }
 }

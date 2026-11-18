@@ -206,7 +206,7 @@ FocusScope {
         }
     }
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -220,16 +220,12 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: libraryName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Text {
         visible: isLoading
         text: "LOADING..."
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -239,10 +235,11 @@ FocusScope {
         visible: !isLoading
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 + root.hintRoom //252
+        // The pane, where every view has its list (the page is in no frame).
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
+        height: root.tallListHeight
         clip: true
 
         Row {
@@ -256,8 +253,8 @@ FocusScope {
                 // PLAY / RSUM button
                 Rectangle {
                     id: playButton
-                    color: focusRow === 0 ? root.accentColor : root.surfaceColor
-                    border.color: focusRow === 0 ? root.accentColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.primaryColor : root.surfaceColor
+                    border.color: root.primaryColor
                     width: root.sw * 0.1875 //120
                     height: root.sh * 0.1166667 //56
                     border.width: root.sh * 0.003125 //2
@@ -275,7 +272,7 @@ FocusScope {
                 Rectangle {
                     id: extrasButton
                     visible: showRoot.hasExtras
-                    color: focusRow === 1 ? root.accentColor : "transparent"
+                    color: focusRow === 1 ? root.primaryColor : "transparent"
                     border.width: focusRow === 1 ? 0 : root.px
                     border.color: root.primaryColor
                     width: parent.width
@@ -297,7 +294,7 @@ FocusScope {
                 Rectangle {
                     id: writeCardButton
                     visible: cardWriter.available
-                    color: focusRow === 4 ? root.accentColor : "transparent"
+                    color: focusRow === 4 ? root.primaryColor : "transparent"
                     border.width: focusRow === 4 ? 0 : root.px
                     border.color: root.primaryColor
                     width: parent.width
@@ -340,7 +337,7 @@ FocusScope {
                         if (sc > 0) parts.push(sc + (sc === 1 ? " SEASON" : " SEASONS"))
                         return parts.join(" - ")
                     }
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     elide: Text.ElideRight
@@ -348,38 +345,14 @@ FocusScope {
                     font.pixelSize: root.sh * 0.0333333 //16
                 }
 
-                Item {
+                ScrolledLines {
                     id: summaryContainer
                     anchors.left: parent.left
                     anchors.right: parent.right
                     height: root.sh * 0.1375 //66
-                    clip: true
-
-                    Text {
-                        id: summaryText
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        text: item.summary || ""
-                        color: root.primaryColor
-                        font.family: root.globalFont
-                        wrapMode: Text.WordWrap
-                        font.pixelSize: root.sh * 0.0291667 //14
-                        lineHeight: 1.3
-                    }
-
-                    SequentialAnimation {
-                        running: item.summary !== null && summaryText.implicitHeight > summaryContainer.height
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) summaryText.y = 0
-                        PauseAnimation { duration: 3000 }
-                        NumberAnimation {
-                            target: summaryText; property: "y"
-                            to: summaryContainer.height - summaryText.implicitHeight
-                            duration: Math.abs(to) * 120
-                        }
-                        PauseAnimation { duration: 4000 }
-                        PropertyAction { target: summaryText; property: "y"; value: 0 }
-                    }
+                    text: item.summary || ""
+                    color: root.primaryColor
+                    font.pixelSize: root.sh * 0.0291667 //14
                 }
             }
         }
@@ -389,7 +362,7 @@ FocusScope {
             id: seasonListLabel
             anchors.top: showDetails.bottom
             text: "Seasons:"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.topMargin: root.sh * 0.0145833 //7
@@ -411,50 +384,28 @@ FocusScope {
 
             delegate: Item {
                 width: seasonList.width
-                height: root.sh * 0.0583333 //28
+                height: root.menuRowHeight
 
-                Item {
+                ScrolledText {
                     id: textClip
-                    width: Math.min(rowText.implicitWidth, seasonList.width)
+                    width: Math.min(implicitWidth, seasonList.width)
                     height: parent.height
-                    clip: true
+                    on: seasonList.currentIndex === index && focusRow === 2
+                    elides: false
+                    text: modelData.title || ""
+                    color: (seasonList.currentIndex === index && focusRow === 2)
+                           ? root.cursorInk : root.primaryColor
+                    font.pixelSize: root.sh * 0.05 //24
+                    textItem.topPadding: root.sh * 0.0041667 //2
+                    textItem.leftPadding: root.sw * 0.009375 //6
+                    textItem.rightPadding: root.sw * 0.009375 //6
+                    textItem.bottomPadding: root.sh * 0.00625 //3
 
                     Rectangle {
-                        color: root.accentColor
-                        anchors.fill: rowText
+                        z: -1
+                        color: root.cursorColor
+                        anchors.fill: textClip.textItem
                         visible: seasonList.currentIndex === index && focusRow === 2
-                    }
-
-                    Text {
-                        id: rowText
-                        text: modelData.title || ""
-                        color: (seasonList.currentIndex === index && focusRow === 2)
-                               ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: 0
-                        topPadding: root.sh * 0.0041667 //2
-                        leftPadding: root.sw * 0.009375 //6
-                        rightPadding: root.sw * 0.009375 //6
-                        bottomPadding: root.sh * 0.00625 //3
-                        font.pixelSize: root.sh * 0.05 //24
-                    }
-
-                    SequentialAnimation {
-                        running: (seasonList.currentIndex === index) &&
-                                 (focusRow === 2) &&
-                                 (rowText.implicitWidth > textClip.width)
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) rowText.x = 0
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: rowText; property: "x"
-                            to: textClip.width - rowText.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: rowText; property: "x"; value: 0 }
                     }
                 }
             }
@@ -464,11 +415,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
     // PLAY prompt. Shuffle plays as a jukebox — endless random episodes drawn
     // from this show, reporting no timeline — so it must be a deliberate choice,

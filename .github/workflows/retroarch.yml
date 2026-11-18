@@ -22,6 +22,7 @@ on:
       - 'tests/retroarch_tls_test.sh'
       - 'tests/retroarch_tls/**'
       - '.github/actions/retroarch/**'
+      - '.github/actions/apt-packages/**'
       - '.github/workflows/retroarch.yml'
   pull_request:
     paths:
@@ -30,6 +31,7 @@ on:
       - 'tests/retroarch_tls_test.sh'
       - 'tests/retroarch_tls/**'
       - '.github/actions/retroarch/**'
+      - '.github/actions/apt-packages/**'
       - '.github/workflows/retroarch.yml'
 
 permissions:

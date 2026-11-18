@@ -1,6 +1,7 @@
 #include "SystemInfo.h"
 #include "../util/Board.h"
 #include "../util/DeviceName.h"
+#include "../util/FileText.h"
 #include "../util/LegacyNames.h"
 #include "../util/NetInterfaces.h"
 #include "../util/RootRequest.h"
@@ -10,7 +11,6 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QHostAddress>
-#include <QNetworkInterface>
 #include <QRegularExpression>
 #include <QStorageInfo>
 #include <QSysInfo>
@@ -51,8 +51,7 @@ QString systemPath(const QString &path) {
     return legacy::env("SYSTEM_ROOT") + path;
 }
 QByteArray systemFile(const QString &path) {
-    QFile file(systemPath(path));
-    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    return filetext::readText(systemPath(path));
 }
 // As text: a device tree's string without the NUL that ends it.
 QString systemText(const QString &path) {

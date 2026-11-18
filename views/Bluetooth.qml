@@ -126,25 +126,13 @@ FocusScope {
         }
         // Its line gone (a device forgotten): the one now in its place.
         if (index < 0)
-            index = selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
+            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
         list.currentIndex = index
-        list.positionViewAtIndex(index, ListView.Contain)
+        list.show(index)
     }
-
-    function selectable(row) { return !!row && row.type !== "section" && row.type !== "note" }
 
     // Which line a row is, whatever it says now.
     function lineId(row) { return row.type + ":" + (row.type === "device" ? row.device.path : row.label) }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
-    }
 
     function activate(row) {
         if (!row || !bluetoothManager)
@@ -193,39 +181,14 @@ FocusScope {
         subtitle: bluetoothManager ? bluetoothManager.adapterName : ""
         // The adapter's name is no step of the way here.
         path: ["Bluetooth"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: bluetoothRoot.shownRows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: true
-        // Lines come and go as devices answer: no sliding.
-        highlightMoveDuration: 0
+        onMoved: if (bluetoothManager) bluetoothManager.clearMessage()
 
-        function move(step) {
-            if (bluetoothRoot.rows.length === 0)
-                return
-            currentIndex = bluetoothRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            if (bluetoothManager)
-                bluetoothManager.clearMessage()
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onLeftPressed: {
             var row = bluetoothRoot.rows[currentIndex]
             if (row && row.type === "power")
@@ -239,7 +202,7 @@ FocusScope {
         Keys.onReturnPressed: bluetoothRoot.activate(bluetoothRoot.rows[currentIndex])
         Keys.onEnterPressed: bluetoothRoot.activate(bluetoothRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 bluetoothRoot.goBack()
                 event.accepted = true
             }
@@ -253,20 +216,14 @@ FocusScope {
             readonly property var row: bluetoothRoot.rows[index] || modelData
             readonly property string trail: row.busy ? ".".repeat(bluetoothRoot.dots) : ""
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: row.type === "section"
             label: (row.label || "") + (row.type === "note" ? trail : "")
             value: row.value ? row.value + trail : ""
             // A long name is cut, not CONNECTED or PAIRED after it.
             keepValue: row.type === "device"
-            selected: list.currentIndex === index && bluetoothRoot.selectable(row)
+            selected: list.currentIndex === index && list.selectable(row)
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: list
-        list: list
     }
 
     // What the line is for, or how the last pairing went.
@@ -277,18 +234,10 @@ FocusScope {
         // How a pairing went is said with Help Line off too.
         always: bluetoothRoot.message !== ""
         visible: text !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
 
     // A paired device's options.
@@ -333,7 +282,7 @@ FocusScope {
             if (event.modifiers & Qt.ControlModifier)
                 return
             event.accepted = true
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+            if (root.isBack(event)
                     || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                 close()
             else if (event.key === Qt.Key_Up)
@@ -354,10 +303,6 @@ FocusScope {
             iconSource: "../../assets/images/bluetooth.svg"
             title: "Bluetooth"
             subtitle: "Details"
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.topMargin: root.sh * 0.125 //60
-            anchors.leftMargin: root.sw * 0.125 //80
         }
 
         Flickable {
@@ -398,11 +343,7 @@ FocusScope {
         }
 
         HintBar {
-            text: root.hints.back + ":BACK " + root.hints.navigate + ":SCROLL"
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
+            text: root.hintLine(["back:BACK", "navigate:SCROLL"])
         }
     }
 

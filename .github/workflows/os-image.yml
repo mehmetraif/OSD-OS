@@ -3,8 +3,22 @@ name: OS image
 # Builds the OSD/OS image (os/README.md): the app from this branch as an
 # arm64 tarball, then Raspberry Pi OS Lite plus os/stage-osdos through pi-gen.
 # Both jobs run on GitHub's native arm64 runner, so pi-gen needs no emulation.
+# The release workflow calls it for the tag, with the tag as the version: the
+# tarball, uploaded as tarball-linux-arm64, is the release's Linux arm64
+# package, and the image, named after the tag and uploaded as os-image, its
+# OSD/OS image.
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: The release's tag, which the app reports and the tarball and the image are named by
+        type: string
+        required: true
+    secrets:
+      OS_FIRST_USER_PASS:
+        description: The first user's password on the image; without it the account is locked
+        required: false
   workflow_dispatch:
   pull_request:
     paths:
@@ -13,6 +27,7 @@ on:
       - 'views/BootScreen.qml'
       - 'views/Components/VhsCassette.qml'
       - 'scripts/install.sh'
+      - '.github/actions/apt-packages/**'
       - '.github/workflows/os-image.yml'
 
 permissions:
@@ -21,6 +36,11 @@ permissions:
 concurrency:
   group: os-image-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # The release's tag; else "dev": a branch build has no release to update
+  # to, and "dev" turns the in-app updater's download off.
+  VERSION: ${{ inputs.version || 'dev' }}
 
 jobs:
   app:
@@ -31,36 +51,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      # Same toolchain as the release workflow's Linux arm64 job.
       - name: Install build dependencies
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            libqt6svg6 \
-            qt6-svg-dev \
-            qt6-shadertools-dev \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-window \
-            libdrm-dev \
-            libssl-dev \
-            libsdl2-dev \
-            libpcsclite-dev \
-            libmpv-dev \
+        uses: ./.github/actions/apt-packages
+        with:
+          packages: |
+            build-essential
+            cmake
+            qt6-base-dev
+            qt6-declarative-dev
+            libqt6svg6
+            qt6-svg-dev
+            qt6-shadertools-dev
+            qml6-module-qtquick
+            qml6-module-qtquick-controls
+            qml6-module-qtquick-window
+            libdrm-dev
+            libssl-dev
+            libsdl2-dev
+            libpcsclite-dev
+            libmpv-dev
             libminizip-dev
 
-      # APP_VERSION stays "dev": a branch build has no release to update to,
-      # and "dev" turns the in-app updater's download off.
       - name: Configure
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/install/usr/local"
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/install/usr/local" \
+            -DAPP_VERSION="$VERSION"
 
       - name: Build
         run: cmake --build build --parallel
@@ -68,7 +85,10 @@ jobs:
       - name: Install
         run: cmake --install build
 
-      # As the release workflow's Linux arm64 job has it.
+      # OSD/OS's FinalBurn Neo cores, the whole one and the LAN one,
+      # under the prefix, where the app looks for them
+      # (libretro::packagedCore(), lanCorePath()), with FinalBurn Neo's list
+      # of games and its licence.
       - name: FinalBurn Neo cores
         uses: ./.github/actions/fbneo-cores
         with:
@@ -76,6 +96,9 @@ jobs:
           dat: install/usr/local/share/osdos/fbneo/fbneo-arcade.dat
           license: install/usr/local/share/osdos/fbneo/license.txt
 
+      # OSD/OS's own RetroArch beside them, the version every machine plays
+      # with, built with TLS (libretro::packagedProgram()): Debian's, which
+      # the image has too, asks RetroAchievements over plain HTTP.
       - name: RetroArch with TLS
         uses: ./.github/actions/retroarch
         with:
@@ -85,13 +108,13 @@ jobs:
       - name: Create tarball
         run: |
           cd "${GITHUB_WORKSPACE}/install"
-          tar -czf "${GITHUB_WORKSPACE}/OSD-OS-dev-linux-arm64.tar.gz" .
+          tar -czf "${GITHUB_WORKSPACE}/OSD-OS-${VERSION}-linux-arm64.tar.gz" .
 
       - name: Upload tarball
         uses: actions/upload-artifact@v7.0.1
         with:
           name: tarball-linux-arm64
-          path: OSD-OS-dev-linux-arm64.tar.gz
+          path: OSD-OS-${{ env.VERSION }}-linux-arm64.tar.gz
           if-no-files-found: error
 
   image:
@@ -121,9 +144,12 @@ jobs:
         env:
           # Optional: without it the first user's password is locked.
           FIRST_USER_PASS: ${{ secrets.OS_FIRST_USER_PASS }}
-        run: os/build.sh OSD-OS-dev-linux-arm64.tar.gz
+        run: os/build.sh "OSD-OS-${VERSION}-linux-arm64.tar.gz"
 
+      # A branch's image as pi-gen names it, after the build date, with
+      # pi-gen's list of its packages (its .info), kept for a month.
       - name: Upload image
+        if: env.VERSION == 'dev'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: osdos-image
@@ -133,6 +159,32 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+      # A release's image is named after the tag. Neither pi-gen's name nor
+      # the release's ends like the app's packages, which the in-app updater
+      # picks by their endings. pi-gen's list of the image's packages (its
+      # .info) stays with the run: the image carries the list itself
+      # (dpkg-query -W).
+      - name: Name the release's image
+        if: env.VERSION != 'dev'
+        run: |
+          cd os/work/pi-gen/deploy
+          images=(./*.img.xz)
+          if [ "${#images[@]}" -ne 1 ] || [ ! -e "${images[0]}" ]; then
+            ls -l
+            exit 1
+          fi
+          mv -v -- "${images[0]}" "OSD-OS-${VERSION}-raspberry-pi.img.xz"
+
+      # The artifact the release workflow publishes the image from.
+      - name: Upload the release's image
+        if: env.VERSION != 'dev'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: os-image
+          path: os/work/pi-gen/deploy/OSD-OS-*-raspberry-pi.img.xz
+          if-no-files-found: error
+          compression-level: 0
 
       - name: Upload build logs
         if: failure()

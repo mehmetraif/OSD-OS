@@ -1,36 +1,12 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 import "../../views/Components" as Components
 
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
     width: 1280
     height: 960
-    property real sw: width
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    // Main.qml's: Settings' Hint Bar, and the area the views lay out in.
-    property bool hintBar: true
-    property var statusIcons: []
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    function selectorShown(item, showing) {}
     function folder(name, path) { return { name: name, path: path, isFolder: true } }
     function file(name, path) { return { name: name, path: path, isFolder: false } }
     property var entries: ({})
@@ -242,6 +218,69 @@ Rectangle {
             compare(browser.selectedItem().path, "/films/three")
             while (browser.closeFolder()) {}
             compare(browser.selectedItem().path, "/projects")
+        }
+        // The cursor's row, and what in it slides as its name scrolls.
+        function cursorRow(item) {
+            if (item.entryIndex !== undefined && item.cursor === true && item.visible)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = cursorRow(item.children[i])
+                if (found)
+                    return found
+            }
+            return null
+        }
+        function textIn(item, text) {
+            if (item.text === text)
+                return item
+            for (var i = 0; i < item.children.length; i++) {
+                var found = textIn(item.children[i], text)
+                if (found)
+                    return found
+            }
+            return null
+        }
+        // The cursor's name scrolls as far as it is too long for its column,
+        // and rests there: as the column is laid out once its rows are made
+        // (a folder just opened, its first name long), and again as the
+        // cursor goes to a name of another length.
+        function scrollsAsFarAsItOverflows(name) {
+            var row = cursorRow(browser)
+            verify(row !== null)
+            compare(row.label, name)
+            var label = textIn(row, name)
+            verify(label !== null)
+            // What moves: its line, in its room (a ScrolledText's).
+            var slider = label.textItem
+            // How far it overflows the column as it is laid out by then.
+            var distance = function() { return row.width - label.implicitWidth }
+            // From the start (started over a turn later), to the far end.
+            tryVerify(function() { return slider.x === 0 })
+            tryVerify(function() { return slider.x <= distance() + 0.5 }, 6000)
+            wait(200)
+            fuzzyCompare(slider.x, distance(), 0.5)
+            verify(distance() < -10, "the name is too long for its column: " + distance())
+        }
+        function test_longNameScrollsAsFarAsItOverflows() {
+            var first = "a film whose name runs past its end"
+            var second = "a film whose name runs on past its end"
+            var third = "a film whose name runs on past its fin"
+            root.entries["/films"] = [root.file(first, "/films/1"), root.file(second, "/films/2"),
+                                      root.file(third, "/films/3")]
+            browser.refresh("/films")
+            browser.move(1)
+            verify(browser.openFolder())
+            compare(browser.selectedItem().path, "/films/1")
+            scrollsAsFarAsItOverflows(first)
+            browser.move(1)
+            scrollsAsFarAsItOverflows(second)
+            // A name as long as the one before starts from its own beginning
+            // at once, not where that one's scroll had got to.
+            browser.move(1)
+            var row = cursorRow(browser)
+            compare(row.label, third)
+            tryCompare(textIn(row, third).textItem, "x", 0, 200)
+            scrollsAsFarAsItOverflows(third)
         }
         function test_referencePreview() {
             wait(250)

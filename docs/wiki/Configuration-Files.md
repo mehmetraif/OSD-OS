@@ -147,7 +147,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | File or folder | What it holds |
 |---|---|
 | `lists.json` | `{ "<module id>": { "recent": [...], "favorites": [...] } }`, newest first. Recently Watched keeps 30, Favorites 100 |
-| `local_files_history.json`, `nfc_reader_history.json` | `{ "<path>": { "pos": <ms>, "plPos": <video in a playlist, or -1> } }` |
+| `local_files_history.json`, `nfc_reader_history.json` | `{ "<path>": { "pos": <ms>, "plPos": <video in a playlist, or -1>, "lastPlayed": <ms since 1970> } }`, the 1000 most recently played |
 | `youtube_history.json` | By video id: `{ "pos", "title", "channelName", "lastPlayed" }` |
 | `playlists/` | Each m3u is owner-only, as it may hold a server's token |
 | `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | Sign-ins and tokens, owner-only. Sign out deletes a module's own |

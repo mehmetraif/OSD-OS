@@ -53,7 +53,7 @@ FocusScope {
         if (event.modifiers & Qt.ControlModifier)
             return
         event.accepted = true
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             canceled()
         } else if (kind === "confirm") {
             if (event.key === Qt.Key_Up || event.key === Qt.Key_Down)
@@ -72,7 +72,7 @@ FocusScope {
         currentIndex: promptRoot.choiceIndex
         onHovered: function(index) { promptRoot.choiceIndex = index }
         hint: promptRoot.kind === "confirm"
-              ? root.hints.back + ":CANCEL " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+              ? root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
               : root.hints.back + ":CANCEL"
 
         Column {

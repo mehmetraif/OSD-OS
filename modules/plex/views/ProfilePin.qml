@@ -19,10 +19,10 @@ FocusScope {
 
     property var navParams: ({})
 
-    // Success leaves via replaceWith, so this view drops off the nav stack
+    // Success leaves via replaceCurrent, so this view drops off the nav stack
     // once the PIN is accepted — backing out of the library should return to
     // whatever came before the prompt, never re-ask for the PIN.
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     property string userId: navParams.userId || ""
@@ -63,12 +63,12 @@ FocusScope {
         // screen when the retry lands, so it owns the handoff.
         function onServersLoaded(servers) {
             if (!profilePinRoot.reauth)
-                profilePinRoot.replaceWith("ServerSelect.qml", { servers: servers })
+                profilePinRoot.replaceCurrent("ServerSelect.qml", { servers: servers })
         }
 
         function onAuthSuccess() {
             if (profilePinRoot.reauth)
-                profilePinRoot.replaceWith("Libraries.qml", {})
+                profilePinRoot.replaceCurrent("Libraries.qml", {})
         }
 
         // Rejected again — stay put and let them retry.
@@ -84,8 +84,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace
-            || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             cancel()
             event.accepted = true
             return
@@ -122,10 +121,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Enter PIN"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Body
@@ -142,7 +137,7 @@ FocusScope {
             text: profilePinRoot.userTitle !== ""
                   ? "Enter the PIN for " + profilePinRoot.userTitle
                   : "Enter your profile PIN"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -162,16 +157,14 @@ FocusScope {
                     height: root.sh * 0.125 //60
                     color: "transparent"
                     border.width: root.sh * 0.0041667 //2
-                    border.color: profilePinRoot.cursor === index
-                                  ? root.accentColor : root.tertiaryColor
+                    border.color: root.primaryColor
 
                     Text {
                         // The slot under the cursor shows its digit so the spinner
                         // is usable; the rest are masked.
                         text: profilePinRoot.cursor === index
                               ? profilePinRoot.digits[index] : "*"
-                        color: profilePinRoot.cursor === index
-                               ? root.accentColor : root.primaryColor
+                        color: root.primaryColor
                         font.family: root.globalFont
                         anchors.centerIn: parent
                         font.pixelSize: root.sh * 0.0666667 //32
@@ -183,7 +176,7 @@ FocusScope {
         Text {
             visible: profilePinRoot.submitting
             text: "Checking..."
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -194,7 +187,7 @@ FocusScope {
         Text {
             visible: profilePinRoot.errorMsg !== "" && !profilePinRoot.submitting
             text: profilePinRoot.errorMsg
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -208,10 +201,6 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":DIGIT " + root.hints.change + ":CHANGE " + root.hints.select + ":SUBMIT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:DIGIT", "change:CHANGE", "select:SUBMIT"])
     }
 }

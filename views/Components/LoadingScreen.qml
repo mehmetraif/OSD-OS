@@ -78,12 +78,12 @@ Item {
         width: line.implicitWidth
         height: line.implicitHeight
 
-        // The bleed in the colours' second ink, Video 1's with Default.
+        // The bleed in the colours' second ink (Main.qml's loadingBleed).
         Text {
             x: root.px
             visible: tape.effect
             text: line.text
-            color: root.loadingThemed ? root.secondaryColor : root.schemes["Video 1"].secondary
+            color: root.loadingBleed
             opacity: 0.45
             font: line.font
         }
@@ -144,7 +144,7 @@ Item {
 
         Text {
             anchors.centerIn: parent
-            width: root.sw * 0.76875 //492
+            width: root.contentBox.width
             visible: tape.title !== ""
             text: tape.title
             color: root.loadingInk

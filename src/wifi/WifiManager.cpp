@@ -12,12 +12,8 @@
 
 #ifdef OSDOS_WIFI
 #include "../util/DBusCall.h"
-#include <QDBusArgument>
-#include <QDBusConnectionInterface>
 #include <QDBusMetaType>
 #include <QDBusObjectPath>
-#include <QDBusPendingCallWatcher>
-#include <QDBusServiceWatcher>
 #include <QDBusVariant>
 #include <QSet>
 #endif
@@ -91,10 +87,10 @@ const QString kAccessPoint   = QStringLiteral("org.freedesktop.NetworkManager.Ac
 const QString kActive        = QStringLiteral("org.freedesktop.NetworkManager.Connection.Active");
 const QString kIp4Config     = QStringLiteral("org.freedesktop.NetworkManager.IP4Config");
 const QString kSaved         = QStringLiteral("org.freedesktop.NetworkManager.Settings.Connection");
-const QString kProperties    = QStringLiteral("org.freedesktop.DBus.Properties");
-const QString kObjectManager = QStringLiteral("org.freedesktop.DBus.ObjectManager");
+using dbuscall::kObjectManager;
+using dbuscall::kProperties;
 
-constexpr int kCallTimeoutMs = 10 * 1000;
+using dbuscall::kCallTimeoutMs;
 // Long enough for NetworkManager's own tries, whose reasons are better than
 // this: the supplicant's (25 s by default), then DHCP's (45 s).
 constexpr int kConnectTimeoutMs = 90 * 1000;
@@ -118,66 +114,8 @@ constexpr uint kKeyOwe = 0x800;
 constexpr uint kKeyOweTransition = 0x1000;
 constexpr uint kKeyEapSuiteB = 0x2000;
 
-QVariant plain(const QVariant &value);
-
-// A D-Bus value with what QtDBus leaves wrapped (a container stays a
-// QDBusArgument, to be read once) made plain Qt: a map a QVariantMap, an
-// array or a structure a QVariantList, an object path a string. Bytes stay
-// bytes (an SSID) and strings a QStringList.
-QVariant plainArgument(const QDBusArgument &arg) {
-    switch (arg.currentType()) {
-    case QDBusArgument::BasicType:
-    case QDBusArgument::VariantType:
-        return plain(arg.asVariant());
-    case QDBusArgument::ArrayType: {
-        QVariantList list;
-        arg.beginArray();
-        while (!arg.atEnd())
-            list.append(plainArgument(arg));
-        arg.endArray();
-        return list;
-    }
-    case QDBusArgument::StructureType: {
-        QVariantList fields;
-        arg.beginStructure();
-        while (!arg.atEnd())
-            fields.append(plainArgument(arg));
-        arg.endStructure();
-        return fields;
-    }
-    case QDBusArgument::MapType: {
-        QVariantMap map;
-        arg.beginMap();
-        while (!arg.atEnd()) {
-            arg.beginMapEntry();
-            const QString key = plainArgument(arg).toString();
-            map.insert(key, plainArgument(arg));
-            arg.endMapEntry();
-        }
-        arg.endMap();
-        return map;
-    }
-    default:
-        return QVariant();
-    }
-}
-
-QVariant plain(const QVariant &value) {
-    const int type = value.userType();
-    if (type == qMetaTypeId<QDBusArgument>())
-        return plainArgument(value.value<QDBusArgument>());
-    if (type == qMetaTypeId<QDBusVariant>())
-        return plain(value.value<QDBusVariant>().variant());
-    if (type == qMetaTypeId<QDBusObjectPath>())
-        return value.value<QDBusObjectPath>().path();
-    return value;
-}
-
-// An object path, "" for none ("/").
-QString pathOf(const QVariant &value) {
-    const QString path = value.toString();
-    return path == QLatin1String("/") ? QString() : path;
-}
+using dbuscall::pathOf;
+using dbuscall::plain;
 
 QStringList pathsOf(const QVariant &value) {
     QStringList paths;
@@ -364,11 +302,6 @@ WifiManager::WifiManager(const QDBusConnection &bus, QObject *parent)
         qWarning("[Wi-Fi] No system bus: %s", qPrintable(m_bus.lastError().message()));
         return;
     }
-    m_watcher = new QDBusServiceWatcher(kService, m_bus,
-        QDBusServiceWatcher::WatchForRegistration | QDBusServiceWatcher::WatchForUnregistration, this);
-    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &WifiManager::load);
-    connect(m_watcher, &QDBusServiceWatcher::serviceUnregistered, this, &WifiManager::onServiceUnregistered);
-
     m_bus.connect(kService, kRootPath, kObjectManager, QStringLiteral("InterfacesAdded"),
                   this, SLOT(onInterfacesAdded(QDBusMessage)));
     m_bus.connect(kService, kRootPath, kObjectManager, QStringLiteral("InterfacesRemoved"),
@@ -381,12 +314,8 @@ WifiManager::WifiManager(const QDBusConnection &bus, QObject *parent)
                   this, SLOT(onActiveStateChanged(QDBusMessage)));
     m_bus.connect(kService, QString(), kSaved, QStringLiteral("Updated"),
                   this, SLOT(onSavedUpdated(QDBusMessage)));
-
-    // Running already (a desktop, or the app started again): taken now.
-    // Otherwise the watcher says when it comes; asking for it before would
-    // start it (D-Bus activation).
-    if (m_bus.interface() && m_bus.interface()->isServiceRegistered(kService))
-        load();
+    // Taken now if it is running already, else once it comes.
+    dbuscall::watchService(m_bus, kService, this, [this] { load(); }, [this] { onServiceUnregistered(); });
 #endif
 }
 
@@ -853,9 +782,7 @@ void WifiManager::merge(const QString &path, const QString &interface, const QVa
                         const QStringList &invalidated) {
     QVariantMap &object = m_objects[path];
     QVariantMap properties = object.value(interface).toMap();
-    properties.insert(changed);
-    for (const QString &key : invalidated)
-        properties.remove(key);
+    dbuscall::mergeProperties(properties, changed, invalidated);
     object.insert(interface, properties);
 }
 

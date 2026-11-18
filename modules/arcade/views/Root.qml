@@ -1,19 +1,10 @@
 import QtQuick
+import Components
 
-FocusScope {
+ModuleRouter {
     id: moduleRoot
-
-    // Exit signal — emitted to leave the module entirely
-    signal goBack()
-
-    property var navParams: ({})
-
-    // The module's manifest id — the single place it appears in this module's QML.
-    // Child views reference it via moduleRoot.moduleId.
-    property string moduleId: "com.osdos.arcade"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
+    moduleId: "com.osdos.arcade"
+    viewsUrl: Qt.resolvedUrl(".")
 
     // Settings → Arcade's, as the module opens. Screen: "Arcade", the
     // selection screen (ArcadeScreen.qml), unless it is set to "Original",
@@ -60,9 +51,9 @@ FocusScope {
     // A settings page is in a monitor layout's frame (Settings → Look → Menu
     // Layout), as Settings' own pages are: it says so (inFrame), and Main.qml
     // draws the frame round it. The Arcade screen, a game and a page over the
-    // list (Game Details, a room's) are not.
-    readonly property bool inFrame: !playLayer.item && !pageLayer.item && !!internalLoader.item
-                                    && internalLoader.item.inFrame === true
+    // list (Game Details, a room's) are not: Play.qml or a page over the list
+    // covers it (viewCovered), which is then neither drawn nor in the frame.
+    viewCovered: !!playLayer.item || !!pageLayer.item
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in
@@ -160,7 +151,7 @@ FocusScope {
     }
     // The keys to what is in front: a page over the list, else the list.
     function focusFront() {
-        var front = pageLayer.item || internalLoader.item
+        var front = pageLayer.item || currentView
         if (front)
             front.forceActiveFocus()
     }
@@ -218,31 +209,17 @@ FocusScope {
         return value === undefined || value === null || value === true || String(value).toUpperCase() === "ON"
     }
 
-    // Internal navigation state
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateTo(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
-            return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
+    // A view's navigateTo: a game asked for, played as Start Info Screen
+    // says; Game Details and a room's page, over the list; any other view
+    // on the stack, as the router has it.
+    opensOwn: function(path, params, listState) {
+        if (path === "Play.qml" && params && params.game)
+            moduleRoot.playGame(params, listState)
+        else if (moduleRoot.overList(path))
+            moduleRoot.openPage(path, params)
+        else
+            return false
+        return true
     }
 
     // While a game from the list runs, every key (both read the controllers)
@@ -260,31 +237,6 @@ FocusScope {
         triggeredOnStart: true
         running: arcadeBackend ? arcadeBackend.running : false
         onTriggered: if (idleTracker) idleTracker.resetActivity()
-    }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        // Under Play.qml or a page, kept but not drawn: the views draw no
-        // ground of their own, so it would show through.
-        visible: !playLayer.item && !pageLayer.item
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) {
-                // A game asked for, played as Start Info Screen says.
-                if (path === "Play.qml" && params && params.game)
-                    moduleRoot.playGame(params, listState)
-                else if (moduleRoot.overList(path))
-                    moduleRoot.openPage(path, params)
-                else
-                    moduleRoot.navigateTo(path, params, listState)
-            }
-            function onGoBack() { moduleRoot.navigateBack() }
-        }
     }
 
     // Game Details or a room's page, over the list (openPage()). A game
@@ -362,22 +314,22 @@ FocusScope {
         // account's, the game pictures', Check ROMs', the favorites' or the
         // online name's.
         if (navParams.adjustScreen)
-            navigateTo("ArcadeScreen.qml", { adjust: true })
+            navigateToView("ArcadeScreen.qml", { adjust: true })
         else if (navParams.mame)
-            navigateTo("Mame.qml", {})
+            navigateToView("Mame.qml", {})
         else if (navParams.fbneo)
-            navigateTo("Fbneo.qml", {})
+            navigateToView("Fbneo.qml", {})
         else if (navParams.achievements)
-            navigateTo("Account.qml", {})
+            navigateToView("Account.qml", {})
         else if (navParams.pictures)
-            navigateTo("Pictures.qml", {})
+            navigateToView("Pictures.qml", {})
         else if (navParams.romCheck)
-            navigateTo("RomCheck.qml", {})
+            navigateToView("RomCheck.qml", {})
         else if (navParams.favorites)
-            navigateTo("Favorites.qml", {})
+            navigateToView("Favorites.qml", {})
         else if (navParams.onlineName)
-            navigateTo("OnlineName.qml", {})
+            navigateToView("OnlineName.qml", {})
         else
-            navigateTo(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
+            navigateToView(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
 }

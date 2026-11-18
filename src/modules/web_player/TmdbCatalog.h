@@ -9,6 +9,7 @@
 #include <QVariant>
 #include <functional>
 
+class AppCore;
 class QNetworkReply;
 
 // What one streaming service carries in one country, by category, for its web
@@ -45,7 +46,8 @@ public:
         QString wikidataProperty;  // where Wikidata keeps the service's id
     };
 
-    explicit TmdbCatalog(const QString &dataRoot, const Service &service,
+    // Settings' TMDB Key is read through appCore; without one, the file's.
+    explicit TmdbCatalog(const QString &dataRoot, AppCore *appCore, const Service &service,
                          QObject *parent = nullptr);
 
     // ISO 3166-1 country ("TR") and TMDB language ("en-US"). Changing either
@@ -104,6 +106,7 @@ private:
                            const QString &type, int tmdbId, const QString &imdbId);
 
     QString m_dataRoot;
+    AppCore *m_appCore = nullptr;
     Service m_service;
     QString m_region   = QStringLiteral("TR");
     QString m_language = QStringLiteral("en-US");

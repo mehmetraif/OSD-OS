@@ -1,10 +1,10 @@
 #include "JammaPins.h"
+#include "../util/EndProcess.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
-#include <QTimer>
 
 namespace {
 
@@ -100,7 +100,5 @@ void JammaPins::stopProcess() {
         process->deleteLater();
         return;
     }
-    connect(process, &QProcess::finished, process, &QObject::deleteLater);
-    process->terminate();
-    QTimer::singleShot(kStopMs, process, &QProcess::kill);
+    endProcessLater(process, this, {}, kStopMs);
 }

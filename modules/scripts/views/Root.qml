@@ -1,62 +1,10 @@
 import QtQuick
+import Components
 
-FocusScope {
+ModuleRouter {
     id: moduleRoot
-
-    signal goBack()
-
-    property var navParams: ({})
-
-    // The module's manifest id — the single place it appears in this module's QML.
-    // Child views reference it via moduleRoot.moduleId.
-    property string moduleId: "com.osdos.scripts"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
-
-    // In the layout's frame (Main.qml) while the view shown takes its place
-    // in it: a browser or a list does, a player does not.
-    readonly property bool inFrame: !!internalLoader.item && internalLoader.item.inFrame === true
-
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateTo(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
-            return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
-    }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
-            function onGoBack() { moduleRoot.navigateBack() }
-        }
-    }
+    moduleId: "com.osdos.scripts"
+    viewsUrl: Qt.resolvedUrl(".")
 
     Component.onCompleted: {
         // Entered from a main-menu favorite (AppCore passed the sidecar's basename
@@ -72,19 +20,19 @@ FocusScope {
                 // A favorite must not bypass a gate the sidecar asked for. The
                 // prompt already lives in Items.qml, so hand the script to it
                 // rather than growing a second copy of that overlay.
-                navigateTo("Items.qml", { confirmScript: navParams.script })
+                navigateToView("Items.qml", { confirmScript: navParams.script })
             } else {
                 var mode = scriptsBackend.modeFor(navParams.script)
                 // Translate to the runner views' own param names — they expect
                 // "basename", and passing navParams straight through would hand them
                 // an empty one.
-                navigateTo(mode === "takeover" ? "Takeover.qml" : "Console.qml",
-                           { basename: navParams.script, name: navParams.name })
+                navigateToView(mode === "takeover" ? "Takeover.qml" : "Console.qml",
+                               { basename: navParams.script, name: navParams.name })
             }
         } else if (navParams.fromAppStartup && startupScript !== "" && startupScript !== "None") {
             startupTimer.start()
         } else {
-            navigateTo("Items.qml", navParams)
+            navigateToView("Items.qml", navParams)
         }
     }
 
@@ -106,14 +54,14 @@ FocusScope {
             if (mode === "") {
                 console.log("[Scripts] startup_script no longer exists: "
                             + moduleRoot.startupScript)
-                navigateTo("Items.qml", moduleRoot.navParams)
+                navigateToView("Items.qml", moduleRoot.navParams)
                 return
             }
             // Deliberately bypasses "confirm": nobody is there to answer a prompt
             // on a machine that just booted into this script on purpose.
-            navigateTo(mode === "takeover" ? "Takeover.qml" : "Console.qml",
-                       { basename: moduleRoot.startupScript,
-                         name: scriptsBackend.nameFor(moduleRoot.startupScript) })
+            navigateToView(mode === "takeover" ? "Takeover.qml" : "Console.qml",
+                           { basename: moduleRoot.startupScript,
+                             name: scriptsBackend.nameFor(moduleRoot.startupScript) })
         }
     }
 }

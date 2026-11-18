@@ -1,7 +1,5 @@
 #pragma once
 #include <QObject>
-#include <QPointer>
-#include <QProcess>
 #include <QString>
 #include <QVariantMap>
 #include <QVariantList>
@@ -9,9 +7,10 @@
 #include <QStringList>
 #include <functional>
 
+class AppCore;
+class BackgroundMpv;
 class QNetworkAccessManager;
 class QTimer;
-class QLocalSocket;
 
 // Backend for the weather module.
 //
@@ -49,8 +48,10 @@ class WeatherBackend : public QObject {
     Q_PROPERTY(bool musicPlaying READ musicPlaying NOTIFY musicStateChanged)
 
 public:
+    // The module's settings are read through appCore; without one (the
+    // tests) there are none.
     explicit WeatherBackend(const QString &appRoot, const QString &dataRoot,
-                            QObject *parent = nullptr);
+                            AppCore *appCore = nullptr, QObject *parent = nullptr);
     ~WeatherBackend() override;
 
     QString     locationName()     const { return m_locationName; }
@@ -77,7 +78,7 @@ public:
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
 
-    // Background music, as a plain mpv subprocess — no video, no screen takeover.
+    // Background music, as a plain mpv subprocess (BackgroundMpv) — no video, no screen takeover.
     // A no-op when the Music setting is off, so the view can call it
     // unconditionally.
     Q_INVOKABLE void startMusic();
@@ -102,8 +103,7 @@ public slots:
 
 private:
     friend class ReliabilityTest;
-    QJsonObject loadConfig() const;
-    QJsonObject moduleConfig() const;
+    QJsonValue  setting(const QString &key) const;
     bool        useUsUnits() const;
 
     void resolveLocation();
@@ -160,6 +160,7 @@ private:
 
     QString m_appRoot;
     QString m_dataRoot;
+    AppCore *m_appCore = nullptr;
     QNetworkAccessManager *m_nam = nullptr;
     QTimer  *m_refresh = nullptr;
 
@@ -182,9 +183,11 @@ private:
     // because the station overlay needs it and an observation cannot supply it.
     bool    m_isDay = true;
 
-    // Nearest reporting stations, nearest first, cached for the life of the
-    // process for the same reason the location is: config.json is written only
-    // on direct user interaction. Empty outside the US, and after any failure.
+    // Nearest reporting stations, nearest first, kept as long as the place is,
+    // not written anywhere for the same reason the location isn't: config.json
+    // is written only on direct user interaction. Empty outside the US, after
+    // any failure, and from the moment the place is looked up again
+    // (resolveLocation()), with the observation below.
     QStringList m_stations;
     bool        m_stationsResolved = false;
     // Last good observation, kept raw (metric, as NWS always sends it) rather
@@ -210,13 +213,7 @@ private:
 
     // Background music. Its own mpv, its own socket — entirely separate from
     // MpvController's, which owns the screen and must not be disturbed by it.
-    QProcess     *m_music       = nullptr;
-    QPointer<QProcess> m_musicEnding;   // asked to end, not gone yet
-    void endMusic(bool wait);
-    QLocalSocket *m_musicIpc    = nullptr;
-    QTimer       *m_musicConnect = nullptr;
-    QString       m_musicSocketPath;
-    bool          m_musicPaused = false;
+    BackgroundMpv *m_music = nullptr;
 
     QVariantMap  m_current;
     QVariantList m_forecast;

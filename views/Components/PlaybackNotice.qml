@@ -60,7 +60,7 @@ FocusScope {
             return
         event.accepted = true
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        if (root.isBack(event)
                 || (enter && !canRetry)) {
             close()
             dismissed()
@@ -74,7 +74,7 @@ FocusScope {
         kind: "notice"
         title: notice.title
         message: notice.reason
-        hint: root.hints.back + ":BACK" + (notice.canRetry ? " " + root.hints.select + ":RETRY" : "")
+        hint: root.hintLine(["back:BACK", notice.canRetry ? "select:RETRY" : ""])
 
         // As it is written: a command, a path or mpv's words keep their case.
         Text {

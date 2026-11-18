@@ -1,4 +1,5 @@
 #pragma once
+#include "Http.h"
 #include <QDateTime>
 #include <QList>
 #include <QObject>
@@ -61,12 +62,7 @@ signals:
     void failed(const QStringList &sets, int holdSeconds);
 
 private:
-    struct Media {
-        QUrl url;
-        std::function<void(const QByteArray &)> done;
-    };
     void next();
-    void nextMedia();
     // The address is the service's server's.
     bool isOurs(const QUrl &url) const;
 
@@ -75,6 +71,6 @@ private:
     QList<QStringList> m_queue;       // the sets to ask about, a request each
     QNetworkReply *m_reply = nullptr; // the request under way
     QDateTime m_heldUntil;
-    QList<Media> m_mediaQueue;
-    QNetworkReply *m_mediaReply = nullptr;
+    // The pictures, downloaded one at a time.
+    arcadehttp::MediaQueue m_media;
 };

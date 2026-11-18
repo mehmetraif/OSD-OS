@@ -14,17 +14,17 @@ import Components
 // Either way it resolves the first playable item, builds its stream, then
 // replaces itself with Player.qml.
 //
-// replaceWith (not navigateTo) leaves no entry on the nav stack, so backing out
-// of the player returns straight to the screen the set was started from — the
-// list, or the show/season being shuffled — with its selected row restored. This
-// mirrors CardPlay.qml, the other launcher that plays something without going
-// through a detail screen.
+// replaceCurrent (not navigateTo) puts the player in this view's place on the
+// nav stack, so backing out of it returns straight to the screen the set was
+// started from — the list, or the show/season being shuffled — with its
+// selected row restored. This mirrors CardPlay.qml, the other launcher that
+// plays something without going through a detail screen.
 FocusScope {
     id: queueRoot
 
     property var navParams: ({})
 
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     // The rows the user queued, straight from the list view: leaves and shows.
@@ -94,7 +94,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        var back = root.isBack(event)
         // While it launches only back counts, giving the launch up: the item
         // looked for and a transcode still on its way are dropped as they come.
         if (errorMessage === "") {
@@ -162,7 +162,7 @@ FocusScope {
             if (!queueRoot.launching || !queueRoot.pendingDetail) return
             var d = queueRoot.pendingDetail
             queueRoot.launching = false
-            queueRoot.replaceWith("Player.qml", {
+            queueRoot.replaceCurrent("Player.qml", {
                 streamUrl:          url,
                 plexToken:          plexToken,
                 ratingKey:          d.ratingKey,
@@ -200,6 +200,18 @@ FocusScope {
             if (!queueRoot.launching) return
             queueRoot.fail(message)
         }
+
+        // Signed out while a card's set was made (its token refused and not
+        // renewed): said here, as CardPlay says it, never the sign-in page
+        // (Root.qml shows none over a card). In the module itself, Root
+        // shows PinAuth in this view's place.
+        function onAuthRevoked() { queueRoot.signedOut() }
+        function onLogoutComplete() { queueRoot.signedOut() }
+    }
+
+    function signedOut() {
+        if (launching && moduleRoot.forCard === true)
+            fail("SIGNED OUT OF PLEX\n\nOPEN THE PLEX MODULE TO SIGN IN")
     }
 
     Component.onCompleted: start()
@@ -220,7 +232,7 @@ FocusScope {
             kind: "notice"
             title: "Playback failed"
             message: errorMessage
-            hint: root.hints.back + ":BACK " + root.hints.select + ":RETRY"
+            hint: root.hintLine(["back:BACK", "select:RETRY"])
         }
     }
 }

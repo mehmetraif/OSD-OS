@@ -674,6 +674,76 @@ private slots:
         QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
     }
 
+    // A Scaling chosen in a player's menu reaches the video under it as a
+    // session starts with it: Default is Settings', and Settings' unset is
+    // the old Auto Crop's (ON reading as Pan & Scan), as for the session's
+    // command line. The menu used to make Default Letterbox there.
+    void aPlayersMenuScalingIsTheSessions() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        QVERIFY(core.save_setting(QString(), QStringLiteral("auto_crop"), QStringLiteral("On")));
+        const QString module = QStringLiteral("com.osdos.local_files");
+        QVERIFY(core.save_setting(module, QStringLiteral("video_scaling"), QStringLiteral("Default")));
+        delete m_mpv;
+        m_mpv = new MpvController(m_dir.path(), data.path(), &core);
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        m_mpv->setActiveModule(module);
+        // An mpv process: on its command line.
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(arguments().contains(QStringLiteral("--panscan=1")), qPrintable(arguments().join(QLatin1Char(' '))));
+        m_mpv->stop();
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+
+        // Inside the window, its player's menu open over it.
+        useEmbedded(core, data.path());
+        m_mpv->setActiveModule(module);
+        QSignalSpy menu(m_mpv, &MpvController::playerMenuRequested);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        m_mpv->noteSession(menuNote("gray"));
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QCOMPARE(menu.count(), 1);
+
+        QLocalSocket probe;
+        QTRY_VERIFY_WITH_TIMEOUT((probe.state() == QLocalSocket::ConnectedState
+                                  || (probe.connectToServer(socketPath()), probe.waitForConnected(500))), 10000);
+        int asked = 0;
+        auto property = [&probe, &asked](const char *name) {
+            const int id = ++asked;
+            probe.write(QJsonDocument(QJsonObject{ { "command", QJsonArray{ "get_property", name } },
+                                                   { "request_id", id } }).toJson(QJsonDocument::Compact) + '\n');
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 3000) {
+                if (!probe.canReadLine() && !probe.waitForReadyRead(200))
+                    continue;
+                const QJsonObject answer = QJsonDocument::fromJson(probe.readLine()).object();
+                if (answer.value("request_id").toInt() == id)
+                    return answer.value("data").toVariant();
+            }
+            return QVariant(QStringLiteral("no answer"));
+        };
+        // Chosen (again, until the controller's own connection is up), and
+        // what mpv has then.
+        auto chosen = [this, &property](const char *scaling, const char *name) {
+            m_mpv->applyScaling(QLatin1String(scaling));
+            return property(name);
+        };
+        QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 1.0, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(chosen("Letterbox", "panscan").toDouble(), 0.0, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(chosen("Default", "panscan").toDouble(), 1.0, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(chosen("14:9", "panscan").toDouble(), 0.43, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(chosen("Anamorphic", "keepaspect").toBool(), false, 5000);
+        QCOMPARE(property("panscan").toDouble(), 0.0);
+        // Settings' own, once there is one.
+        QVERIFY(core.save_setting(QString(), QStringLiteral("video_scaling"), QStringLiteral("14:9")));
+        QTRY_COMPARE_WITH_TIMEOUT(chosen("Default", "panscan").toDouble(), 0.43, 5000);
+        QCOMPARE(property("keepaspect").toBool(), true);
+    }
+
     // Transparent Background: a video asked for while the last one's player
     // has its menu open over the picture (a card tapped, a favourite chosen)
     // used to hear, inside its own loadAndPlay(), that playback had ended:

@@ -245,16 +245,27 @@ private slots:
         const QVariantMap stored{
             { "name", "8BitDo Pro 2" }, { "kind", "gamepad" }, { "labels", "A_Right" },
             { "bindings", QVariantMap{ { "A", "Select" }, { "leftx-", "back" }, { "x", "bogus" },
-                                       { "", "up" }, { "b", "none" } } } };
+                                       { "", "up" }, { "b", "none" }, { "y", "PlayPause" } } } };
         const controllers::Profile p = controllers::Profile::fromVariant(stored);
         QCOMPARE(p.name, QString("8BitDo Pro 2"));
         QCOMPARE(p.kind, QString("gamepad"));
         QCOMPARE(p.labels, controllers::LabelStyle::ARight);
         // An action it doesn't know, or no input, isn't one.
-        QCOMPARE(p.bindings.size(), 3);
+        QCOMPARE(p.bindings.size(), 4);
         QCOMPARE(p.bindings.value("a"), QString("select"));
         QCOMPARE(p.bindings.value("leftx-"), QString("back"));
         QCOMPARE(p.bindings.value("b"), QString("none"));
+        // input.cfg's other name for play_pause is taken here too, as
+        // play_pause.
+        QCOMPARE(p.bindings.value("y"), QString("play_pause"));
+        // The names config.json and input.cfg take (controllers::actionOf()):
+        // each of the page's actions as itself, none, and playpause.
+        for (const QString &action : controllers::actionNames())
+            QCOMPARE(controllers::actionOf(action), action);
+        QCOMPARE(controllers::actionOf("none"), QString("none"));
+        QCOMPARE(controllers::actionOf("playpause"), QString("play_pause"));
+        QVERIFY(controllers::actionOf("bogus").isEmpty());
+        QVERIFY(controllers::actionOf("").isEmpty());
 
         const QVariantMap kept = p.toVariant();
         QCOMPARE(kept.value("labels").toString(), QString("a_right"));
@@ -268,6 +279,56 @@ private slots:
         QCOMPARE(controllers::padKey("030000005E040000EA02000001000000"),
                  QString("pad-030000005e040000ea02000001000000"));
         QCOMPARE(controllers::evdevKey(0x5, 0x45e, 0x2fd), QString("kbd-0005-045e-02fd"));
+        // A pad's key is known for one by its start alone; a keyboard's,
+        // and every keyboard's and remote's at once, aren't.
+        QVERIFY(controllers::isPadKey(controllers::padKey("030000005E040000EA02000001000000")));
+        QVERIFY(controllers::isPadKey(controllers::legacyJammaKey("03000000a0b1c2d3e4f5000000000000", "OSD/OS JAMMA P1")));
+        QVERIFY(!controllers::isPadKey(controllers::evdevKey(0x5, 0x45e, 0x2fd)));
+        QVERIFY(!controllers::isPadKey(InputManager::allKeys()));
+        QVERIFY(!controllers::isPadKey(QString()));
+    }
+
+    // Each of the menus' actions as the one table has it: its name both
+    // ways, its row's label, the key a pad's press posts for it, mpv's name
+    // for that key, and what a keyboard's row calls it; None is none of them.
+    void actionTable() {
+        using controllers::Action;
+        struct Row { Action action; const char *name, *label; int key; const char *mpv, *keyName; };
+        const Row rows[] = {
+            { Action::Up,        "up",         "Up",           Qt::Key_Up,     "UP",    "Arrow key" },
+            { Action::Down,      "down",       "Down",         Qt::Key_Down,   "DOWN",  "Arrow key" },
+            { Action::Left,      "left",       "Left",         Qt::Key_Left,   "LEFT",  "Arrow key" },
+            { Action::Right,     "right",      "Right",        Qt::Key_Right,  "RIGHT", "Arrow key" },
+            { Action::Select,    "select",     "Select / OK",  Qt::Key_Return, "ENTER", "Enter" },
+            { Action::Back,      "back",       "Back",         Qt::Key_Escape, "ESC",   "Esc" },
+            { Action::PlayPause, "play_pause", "Play / Pause", Qt::Key_Space,  "SPACE", "Space" },
+        };
+        QStringList names;
+        for (const Row &row : rows) {
+            names << row.name;
+            bool ok = false;
+            QCOMPARE(controllers::actionFromName(row.name, &ok), row.action);
+            QVERIFY(ok);
+            QCOMPARE(controllers::actionName(row.action), QString(row.name));
+            QCOMPARE(controllers::actionLabel(row.name), QString(row.label));
+            QCOMPARE(controllers::actionKey(row.action), row.key);
+            QCOMPARE(controllers::actionMpvKey(row.action), QString(row.mpv));
+            QCOMPARE(controllers::actionKeyName(row.action), QString(row.keyName));
+        }
+        // The page's order.
+        QCOMPARE(controllers::actionNames(), names);
+        // input.cfg's other name, and none, which is a name but no action.
+        QCOMPARE(controllers::actionFromName("playpause"), Action::PlayPause);
+        bool ok = false;
+        QCOMPARE(controllers::actionFromName("none", &ok), Action::None);
+        QVERIFY(ok);
+        QCOMPARE(controllers::actionFromName("bogus", &ok), Action::None);
+        QVERIFY(!ok);
+        QCOMPARE(controllers::actionName(Action::None), QString("none"));
+        QCOMPARE(controllers::actionLabel("none"), QString("none"));
+        QCOMPARE(controllers::actionKey(Action::None), 0);
+        QVERIFY(controllers::actionMpvKey(Action::None).isEmpty());
+        QVERIFY(controllers::actionKeyName(Action::None).isEmpty());
     }
 
     // A pad's Arcade Buttons as config.json keeps them, and as MAME and
@@ -2630,6 +2691,33 @@ private slots:
         steam.detach();
         QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
         QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_DPAD_DOWN, keys), QString("DOWN"));
+    }
+
+    // A pad Steam's virtual pad stands for is away on its page too, as it is
+    // in the list and for the players: its rows name every input of its map,
+    // not only those it has, none is kept as its only Select / OK, Back, Up
+    // or Down, and Replace leaves it as it is, as for a pad not connected.
+    void suppressedPadIsAway() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        VirtualPad pad, steam;
+        // Without a Back button: Back is its B alone while it is listened to.
+        QVERIFY(pad.attach("OSD/OS Test Pad", 0x1209, 0x0001,
+                           ((1u << SDL_CONTROLLER_BUTTON_MAX) - 1) & ~(1u << SDL_CONTROLLER_BUTTON_BACK)));
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        const QString key = entry(im, "OSD/OS Test Pad").value("key").toString();
+        QCOMPARE(rowValue(im.controllerPage(key), "back"), QString("B"));
+        QCOMPARE(outcome(im.bindControllerInput(key, "a", "back")), QString("only"));
+
+        QVERIFY(steam.attach("Steam Virtual Gamepad", 0x1209, 0x00ff));
+        QTRY_VERIFY(entry(im, "Steam Virtual Gamepad").value("present").toBool());
+        QVERIFY(!im.controllerPage(key).value("present").toBool());
+        QCOMPARE(rowValue(im.controllerPage(key), "back"), QString("B, BACK"));
+        QVERIFY(im.replaceControllerInput(key, "b", "select").isEmpty());
+        QCOMPARE(outcome(im.bindControllerInput(key, "a", "back")), QString("set"));
+        QCOMPARE(rowValue(im.controllerPage(key), "select"), QString("None"));
+        steam.detach();
+        pad.detach();
     }
 
     // A pad's Back button is MAME's coin key, 5, where the item with the

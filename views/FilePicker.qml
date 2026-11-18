@@ -166,10 +166,6 @@ FocusScope {
         iconSource: "../../assets/images/settings.svg"
         title: picker.navParams.label || "Settings"
         subtitle: tree.folderName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     TreeBrowser {
@@ -194,11 +190,6 @@ FocusScope {
     // Select opens a folder, and picks anything else.
     HintBar {
         readonly property var entry: tree.currentEntry
-        text: root.hints.back + ":BACK " + root.hints.arrows + ":NAVIGATE " + root.hints.select
-              + (entry && !entry.isFolder ? ":CHOOSE" : ":OPEN")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "arrows:NAVIGATE", "select:" + (entry && !entry.isFolder ? "CHOOSE" : "OPEN")])
     }
 }

@@ -275,7 +275,7 @@ FocusScope {
         }
     }
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             // A transcode still on its way is dropped as it comes.
             if (isLaunching)
                 plexBackend.cancel_stream()
@@ -293,17 +293,13 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: libraryName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Loading Indicator
     Text {
         visible: !detail
         text: "LOADING..."
-        color: root.tertiaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         anchors.centerIn: parent
         font.pixelSize: root.sh * 0.05 //24
@@ -314,10 +310,11 @@ FocusScope {
         visible: detail !== null
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
-        height: root.sh * 0.525 + root.hintRoom //252
+        // The pane, where every view has its list (the page is in no frame).
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
+        height: root.tallListHeight
         clip: true
 
         Row {
@@ -331,8 +328,8 @@ FocusScope {
                 // PLAY / RSUM button
                 Rectangle {
                     id: playButton
-                    color: focusRow === 0 ? root.accentColor : root.surfaceColor
-                    border.color: focusRow === 0 ? root.accentColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.primaryColor : root.surfaceColor
+                    border.color: root.primaryColor
                     width: root.sw * 0.1875 //120
                     height: root.sh * 0.1166667 //56
                     border.width: root.sh * 0.003125 //2
@@ -350,7 +347,7 @@ FocusScope {
                 Rectangle {
                     id: extrasButton
                     visible: detailRoot.hasExtras
-                    color: focusRow === 1 ? root.accentColor : "transparent"
+                    color: focusRow === 1 ? root.primaryColor : "transparent"
                     border.width: focusRow === 1 ? 0 : root.px
                     border.color: root.primaryColor
                     width: parent.width
@@ -373,7 +370,7 @@ FocusScope {
                 Rectangle {
                     id: writeCardButton
                     visible: cardWriter.available
-                    color: focusRow === 4 ? root.accentColor : "transparent"
+                    color: focusRow === 4 ? root.primaryColor : "transparent"
                     border.width: focusRow === 4 ? 0 : root.px
                     border.color: root.primaryColor
                     width: parent.width
@@ -422,7 +419,7 @@ FocusScope {
                         if (detail.duration) parts.push(durationStr(detail.duration))
                         return parts.join(" - ")
                     }
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     elide: Text.ElideRight
@@ -431,38 +428,14 @@ FocusScope {
                 }
 
                 // Summary
-                Item {
+                ScrolledLines {
                     id: summaryContainer
                     anchors.left: parent.left
                     anchors.right: parent.right
                     height: root.sh * 0.1375 //66
-                    clip: true
-
-                    Text {
-                        id: summaryText
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        text: detail ? detail.summary : ""
-                        color: root.primaryColor
-                        font.family: root.globalFont
-                        wrapMode: Text.WordWrap
-                        font.pixelSize: root.sh * 0.0291667 //14
-                        lineHeight: 1.3
-                    }
-
-                    SequentialAnimation {
-                        running: detail !== null && summaryText.implicitHeight > summaryContainer.height
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) summaryText.y = 0
-                        PauseAnimation { duration: 3000 }
-                        NumberAnimation {
-                            target: summaryText; property: "y"
-                            to: summaryContainer.height - summaryText.implicitHeight
-                            duration: Math.abs(to) * 120
-                        }
-                        PauseAnimation { duration: 4000 }
-                        PropertyAction { target: summaryText; property: "y"; value: 0 }
-                    }
+                    text: detail ? detail.summary : ""
+                    color: root.primaryColor
+                    font.pixelSize: root.sh * 0.0291667 //14
                 }
             }
         }
@@ -471,7 +444,7 @@ FocusScope {
         Text {
             id: pbSettingsLabel
             text: "Playback Settings:"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.top: itemDetails.bottom
@@ -489,11 +462,11 @@ FocusScope {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.topMargin: root.sh * 0.0145833 //7
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 2 ? root.accentColor : "transparent"
+                color: focusRow === 2 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -515,7 +488,7 @@ FocusScope {
 
                 Text {
                     text: "\u25C4"
-                    color: focusRow === 2 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 2 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -531,7 +504,7 @@ FocusScope {
                 }
                 Text {
                     text: "\u25BA"
-                    color: focusRow === 2 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 2 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -546,11 +519,11 @@ FocusScope {
             anchors.top: audioRow.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 3 ? root.accentColor : "transparent"
+                color: focusRow === 3 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -572,7 +545,7 @@ FocusScope {
 
                 Text {
                     text: "\u25C4"
-                    color: focusRow === 3 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 3 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -588,7 +561,7 @@ FocusScope {
                 }
                 Text {
                     text: "\u25BA"
-                    color: focusRow === 3 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 3 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -600,11 +573,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 
     // Launch overlay — covers the detail screen while Plex prepares the stream

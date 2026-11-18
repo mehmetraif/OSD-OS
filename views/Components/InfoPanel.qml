@@ -137,37 +137,13 @@ FocusScope {
             }
 
             // The story, scrolling through when it is longer than its room.
-            Item {
+            ScrolledLines {
                 id: summaryBox
                 width: parent.width
                 height: root.sh * 0.1916667 //92
-                clip: true
-
-                Text {
-                    id: summaryText
-                    width: parent.width
-                    text: info.summary
-                    color: root.primaryColor
-                    font.family: root.globalFont
-                    font.pixelSize: root.sh * 0.0291667 //14
-                    lineHeight: 1.3
-                    wrapMode: Text.WordWrap
-                }
-
-                SequentialAnimation {
-                    running: info.visible && summaryText.implicitHeight > summaryBox.height
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) summaryText.y = 0
-                    PauseAnimation { duration: 3000 }
-                    NumberAnimation {
-                        target: summaryText
-                        property: "y"
-                        to: summaryBox.height - summaryText.implicitHeight
-                        duration: Math.abs(to) * 120
-                    }
-                    PauseAnimation { duration: 4000 }
-                    PropertyAction { target: summaryText; property: "y"; value: 0 }
-                }
+                text: info.summary
+                color: root.primaryColor
+                font.pixelSize: root.sh * 0.0291667 //14
             }
         }
     }
@@ -194,9 +170,5 @@ FocusScope {
         text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
               + (info.optionsHint !== "" ? info.optionsHint + " " : "")
               + root.hints.select + ":PLAY"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

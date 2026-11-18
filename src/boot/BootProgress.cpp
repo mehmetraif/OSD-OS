@@ -1,5 +1,6 @@
 #include "BootProgress.h"
 #include "util/LegacyNames.h"
+#include "util/ProcessOver.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -58,22 +59,23 @@ BootProgress::BootProgress(QObject *parent)
         return;
     }
 
+    // Each poll's answer as each query is over, however it ended; a
+    // systemctl that can't be started closes the screen rather than leave
+    // it up until the timeout.
     m_unitsProc = new QProcess(this);
     m_stateProc = new QProcess(this);
-    connect(m_unitsProc, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {
-        applyUnitStates(m_unitsProc->readAllStandardOutput());
+    whenOver(m_unitsProc, this, [this](const ProcessEnd &end) {
+        if (end.how == ProcessEnd::NotStarted)
+            close("systemctl failed to start");
+        else
+            applyUnitStates(m_unitsProc->readAllStandardOutput());
     });
-    connect(m_stateProc, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {
-        applySystemState(m_stateProc->readAllStandardOutput());
+    whenOver(m_stateProc, this, [this](const ProcessEnd &end) {
+        if (end.how == ProcessEnd::NotStarted)
+            close("systemctl failed to start");
+        else
+            applySystemState(m_stateProc->readAllStandardOutput());
     });
-    // finished never arrives for a process that failed to start, so without
-    // this a missing systemctl would leave the screen up until the timeout.
-    for (QProcess *proc : {m_unitsProc, m_stateProc}) {
-        connect(proc, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-            if (error == QProcess::FailedToStart)
-                close("systemctl failed to start");
-        });
-    }
 
     m_pollTimer = new QTimer(this);
     m_pollTimer->setInterval(kPollMs);

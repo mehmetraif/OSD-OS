@@ -1,3 +1,4 @@
+#include "AppCore.h"
 #include "modules/emby/EmbyBackend.h"
 #include "modules/jellyfin/JellyfinBackend.h"
 #include "modules/plex/PlexBackend.h"
@@ -14,7 +15,8 @@
 
 // The Jellyfin, Emby and Plex backends against a stand-in network, whose
 // replies the test completes when it chooses: a list asked for after another
-// drops the first's reply, a list kept is shown again without asking the
+// drops the first's reply (and so do a season's episodes, a show's seasons
+// and its next episode on Jellyfin and Emby), a list kept is shown again without asking the
 // server until a playback ends, a stream given up is dropped unreported, an
 // auth check that changes nothing isn't announced, Plex's next item looked
 // for by a player left answers no one, the next episode is found beyond a
@@ -28,7 +30,13 @@
 // found again at the address it has now, Emby Connect tries a server's
 // address from outside when its LAN address gives no sign-in, Settings'
 // Libraries are told why there are none when the server can't be reached,
-// and Jellyfin's Quick Connect says a server's refusal by its status.
+// Jellyfin's Quick Connect says a server's refusal by its status, an error
+// says a refusal's status and never the address asked, a
+// Server Address changed while signed in to Jellyfin or Emby signs out of
+// the server that issued the token, which goes to no other host, and
+// Jellyfin's and Emby's backends, one code, ask each in its own way where
+// their servers differ: PlaybackInfo with their own device profiles, the
+// URLs mpv is handed, Emby's Dolby Vision transcoded.
 
 class Reply : public QNetworkReply {
 public:
@@ -45,6 +53,18 @@ public:
         emit errorOccurred(error());
         emit finished();
     }
+    // The server's refusal in Qt's own words for it, which have the address
+    // asked whole (the user's id in it), and the phrase the server sent.
+    void refuse(int status, const char *phrase) {
+        setAttribute(QNetworkRequest::HttpStatusCodeAttribute, status);
+        setAttribute(QNetworkRequest::HttpReasonPhraseAttribute, QByteArray(phrase));
+        setError(status == 404 ? ContentNotFoundError : UnknownContentError,
+                 QStringLiteral("Error transferring %1 - server replied: %2")
+                     .arg(url().toString(), QLatin1String(phrase)));
+        setFinished(true);
+        emit errorOccurred(error());
+        emit finished();
+    }
     // No answer at all: nothing at the address (the server moved, the
     // network down), so no status either.
     void drop() {
@@ -54,6 +74,7 @@ public:
         emit finished();
     }
     qint64 bytesAvailable() const override { return m_body.size() + QNetworkReply::bytesAvailable(); }
+    QByteArray sent;    // the body the request sent (a POST's)
 protected:
     qint64 readData(char *data, qint64 max) override {
         const qint64 size = qMin(max, qint64(m_body.size()));
@@ -69,8 +90,11 @@ public:
     QList<Reply *> replies;
     Reply *last() const { return replies.last(); }
 protected:
-    QNetworkReply *createRequest(Operation, const QNetworkRequest &request, QIODevice *) override {
-        auto *reply = new Reply(request, this); replies << reply; return reply;
+    QNetworkReply *createRequest(Operation, const QNetworkRequest &request, QIODevice *data) override {
+        auto *reply = new Reply(request, this); replies << reply;
+        if (data)
+            reply->sent = data->readAll();
+        return reply;
     }
 };
 
@@ -144,7 +168,7 @@ class MediaServersTest : public QObject {
     // for the whole series.
     template <typename Backend> void nextEpisodeFoundBeyondTheFirstPage() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy next(&backend, &Backend::nextEpisodeReady);
         const QByteArray current = episodes({ { "e501", 21, 1 } });
@@ -182,7 +206,7 @@ class MediaServersTest : public QObject {
     // reply, coming last, is dropped; B's is the one shown.
     template <typename Backend> void listAskedForLaterWins() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy shown(&backend, &Backend::itemsLoaded);
         backend.load_items(QStringLiteral("A"), QStringLiteral("Movie"), QStringLiteral("SortName"));
@@ -203,7 +227,7 @@ class MediaServersTest : public QObject {
     // forgets it, and the next asks the server.
     template <typename Backend> void listKeptUntilPlaybackEnds() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy shown(&backend, &Backend::itemsLoaded);
         backend.load_items(QStringLiteral("A"), QStringLiteral("Movie"), QStringLiteral("SortName"));
@@ -226,7 +250,7 @@ class MediaServersTest : public QObject {
     // next one asked for does both.
     template <typename Backend> void streamGivenUpIsDropped() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy ready(&backend, &Backend::streamUrlReady);
         const QByteArray info = QJsonDocument(QJsonObject{
@@ -281,7 +305,7 @@ class MediaServersTest : public QObject {
     }
     template <typename Backend> void librariesSayWhyThereAreNone() {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         const QJsonObject films{ { "Id", "1" }, { "Name", "Films" }, { "CollectionType", "movies" } };
         librariesSayWhyThereAreNone(backend, network,
@@ -315,7 +339,7 @@ class MediaServersTest : public QObject {
     // nothing. The page is told as before.
     template <typename Backend> void failedPageLoadsAreLogged(const char *tag) {
         QTemporaryDir tmp;
-        Backend backend(tmp.path(), tmp.path());
+        Backend backend(tmp.path());
         Network *network = signIn(backend);
         backend.m_serverUrl = QStringLiteral("http://nas.example:8096");
         backend.m_accessToken = QStringLiteral("made-up-token");
@@ -367,7 +391,156 @@ class MediaServersTest : public QObject {
         QVERIFY(seasons.last().at(0).toList().isEmpty());
     }
 
+    // What the screen says of a request the server turned down (errorOccurred,
+    // which the views write to the log too) is the server's status, never
+    // Qt's words for it, which have the address asked whole, the user's id
+    // in it; where nothing answered, the network's own word.
+    static void errorsSayNoAddress(const QSignalSpy &errors) {
+        QVERIFY(!errors.isEmpty());
+        for (const QList<QVariant> &error : errors) {
+            const QString said = error.at(0).toString();
+            QVERIFY2(said.endsWith(QLatin1String(": HTTP 404 Not Found")), qPrintable(said));
+            QVERIFY2(!said.contains(QLatin1String("made-up-user")) && !said.contains(QLatin1String("://")),
+                     qPrintable(said));
+        }
+    }
+    template <typename Backend> void errorsShowNoAddress() {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path());
+        Network *network = signIn(backend);
+        backend.m_serverUrl = QStringLiteral("http://nas.example:8096");
+        backend.m_userId = QStringLiteral("made-up-user");
+        QSignalSpy errors(&backend, &Backend::errorOccurred);
+        const QList<std::function<void()>> asks{
+            [&] { backend.check_auth(); },
+            [&] { backend.load_item_detail(QStringLiteral("film")); },
+            [&] { backend.load_seasons(QStringLiteral("show")); },
+            [&] { backend.load_episodes(QStringLiteral("show"), QStringLiteral("season")); },
+            [&] { backend.load_series_next_up(QStringLiteral("show")); },
+            [&] { backend.load_continue_watching(); },
+            [&] { backend.load_up_next(); },
+            [&] { backend.load_items(QStringLiteral("library"), QStringLiteral("Movie"), QStringLiteral("SortName")); },
+            [&] { backend.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1); },
+        };
+        for (const auto &ask : asks) {
+            ask();
+            network->last()->refuse(404, "Not Found");
+        }
+        QCOMPARE(errors.count(), asks.size());
+        errorsSayNoAddress(errors);
+        backend.load_seasons(QStringLiteral("show"));
+        network->last()->drop();
+        QCOMPARE(errors.last().at(0).toString(), QStringLiteral("LOAD SEASONS FAILED: Connection refused"));
+    }
+
+    // A season opened and left before its episodes came, another opened:
+    // the first's, answering last, are dropped, and so are a show's seasons
+    // left the same way. A show's PLAY left for another show's: the first
+    // show's next episode, answering last, opens nothing, nor does its
+    // failure cancel the second's.
+    template <typename Backend> void showOrSeasonLeftIsDropped() {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path());
+        Network *network = signIn(backend);
+        QSignalSpy seasons(&backend, &Backend::seasonsLoaded);
+        QSignalSpy episodes(&backend, &Backend::episodesLoaded);
+        QSignalSpy nextUp(&backend, &Backend::seriesNextUpReady);
+        QSignalSpy errors(&backend, &Backend::errorOccurred);
+
+        backend.load_episodes(QStringLiteral("show"), QStringLiteral("season1"));
+        Reply *season1 = network->last();
+        backend.load_episodes(QStringLiteral("show"), QStringLiteral("season2"));
+        Reply *season2 = network->last();
+        season2->complete(films({ "S2E1", "S2E2" }));
+        season1->complete(films({ "S1E1" }));
+        QCOMPARE(episodes.count(), 1);
+        QCOMPARE(titles(episodes, 0), QStringList({ "S2E1", "S2E2" }));
+
+        backend.load_seasons(QStringLiteral("showA"));
+        Reply *showA = network->last();
+        backend.load_seasons(QStringLiteral("showB"));
+        Reply *showB = network->last();
+        showA->complete(films({ "A1" }));
+        showB->complete(films({ "B1" }));
+        QCOMPARE(seasons.count(), 1);
+        QCOMPARE(titles(seasons, 0), QStringList({ "B1" }));
+
+        backend.load_series_next_up(QStringLiteral("showA"));
+        Reply *playA = network->last();
+        backend.load_series_next_up(QStringLiteral("showB"));
+        Reply *playB = network->last();
+        playB->complete(films({ "B-next" }));
+        playA->complete(films({ "A-next" }));
+        QCOMPARE(nextUp.count(), 1);
+        QCOMPARE(nextUp.at(0).at(0).toMap().value(QStringLiteral("itemId")).toString(), QStringLiteral("B-next"));
+        backend.load_series_next_up(QStringLiteral("showA"));
+        playA = network->last();
+        backend.load_series_next_up(QStringLiteral("showB"));
+        playB = network->last();
+        playA->fail(500);
+        QCOMPARE(errors.count(), 0);
+        playB->complete(films({ "B-next" }));
+        QCOMPARE(nextUp.count(), 2);
+    }
+
+    // Settings → Server Address changed while signed in: the token goes to
+    // no host but the one that issued it. The backend signs out (the revoke
+    // sent to the server signed into), and what is asked after goes nowhere;
+    // the same address again, as the sign-in saves it, changes nothing.
+    template <typename Backend> void serverAddressChangedSignsOut(const QString &moduleId) {
+        QTemporaryDir tmp;
+        Backend backend(tmp.path());
+        Network *network = signIn(backend);
+        QSignalSpy auth(&backend, &Backend::authStateChanged);
+        backend.onSettingChanged(moduleId, QStringLiteral("server_url"), QStringLiteral("http://server/"));
+        QVERIFY(backend.has_auth());
+        QCOMPARE(auth.count(), 0);
+        QVERIFY(network->replies.isEmpty());
+
+        backend.onSettingChanged(moduleId, QStringLiteral("server_url"), QStringLiteral("http://elsewhere:8096"));
+        QVERIFY(!backend.has_auth());
+        QCOMPARE(auth.count(), 1);
+        // Emby's revoke follows its device's deauth.
+        for (qsizetype i = 0; i < network->replies.size(); ++i)
+            network->replies.at(i)->complete(QByteArray());
+        QVERIFY(!network->replies.isEmpty());
+        backend.load_seasons(QStringLiteral("show"));
+        backend.load_item_detail(QStringLiteral("film"));
+        for (const Reply *reply : std::as_const(network->replies)) {
+            QCOMPARE(reply->url().host(), QStringLiteral("server"));
+            QVERIFY(!reply->url().path().contains(QLatin1String("/Items/")));
+        }
+    }
+
 private slots:
+    void jellyfinErrorsShowNoAddress() { errorsShowNoAddress<JellyfinBackend>(); }
+    void embyErrorsShowNoAddress() { errorsShowNoAddress<EmbyBackend>(); }
+    void plexErrorsShowNoAddress() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        backend.load_item_detail(QStringLiteral("10"));
+        network->last()->refuse(404, "Not Found");
+        backend.load_children(QStringLiteral("20"));
+        network->last()->refuse(404, "Not Found");
+        backend.load_continue_watching();
+        network->last()->refuse(404, "Not Found");
+        backend.request_transcode(QStringLiteral("10"), QStringLiteral("/library/parts/10"), QStringLiteral("session"),
+                                  QString(), QStringLiteral("0"), 0);
+        network->last()->refuse(404, "Not Found");
+        QCOMPARE(errors.count(), 4);
+        errorsSayNoAddress(errors);
+    }
+    void jellyfinShowOrSeasonLeftIsDropped() { showOrSeasonLeftIsDropped<JellyfinBackend>(); }
+    void embyShowOrSeasonLeftIsDropped() { showOrSeasonLeftIsDropped<EmbyBackend>(); }
+    void jellyfinServerAddressChangedSignsOut() {
+        serverAddressChangedSignsOut<JellyfinBackend>(QStringLiteral("com.osdos.jellyfin"));
+    }
+    void embyServerAddressChangedSignsOut() {
+        serverAddressChangedSignsOut<EmbyBackend>(QStringLiteral("com.osdos.emby"));
+    }
     void jellyfinLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<JellyfinBackend>(); }
     void embyLibrariesSayWhyThereAreNone() { librariesSayWhyThereAreNone<EmbyBackend>(); }
     void plexLibrariesSayWhyThereAreNone() {
@@ -450,7 +623,7 @@ private slots:
     // signed into: forgotten at sign-out, and asked again.
     void jellyfinCapabilitiesForgottenOnSignOut() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         Network *network = signIn(backend);
         backend.probeCapabilities();
         network->last()->fail(400);
@@ -474,7 +647,7 @@ private slots:
     // every opening, the server asked once.
     void jellyfinSettingsPageLearnsCapabilities() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy options(&backend, &JellyfinBackend::dynamicOptionsReady);
         const auto capabilities = [&options]() {
@@ -527,7 +700,9 @@ private slots:
             return QJsonDocument::fromJson(auth.readAll()).object().value("active_user_id").toString();
         };
         write(QStringLiteral("2"));
-        PlexBackend backend(tmp.path(), tmp.path());
+        // The module's settings are kept by AppCore, as in the app.
+        AppCore core(tmp.path(), tmp.path());
+        PlexBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend);
         backend.m_nam = network;
@@ -723,7 +898,7 @@ private slots:
     // Libraries again over the library opened meanwhile). Signing out is.
     void jellyfinAuthCheckThatChangesNothingIsQuiet() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         Network *network = signIn(backend);
         QSignalSpy changed(&backend, &JellyfinBackend::authStateChanged);
         backend.check_auth();
@@ -731,6 +906,333 @@ private slots:
         QCOMPARE(changed.count(), 0);
         backend.logout();
         QCOMPARE(changed.count(), 1);
+    }
+
+    // Jellyfin's and Emby's backends are one code (EmbyApiBackend) but where
+    // their servers differ: the header the token goes in, Emby's Continue
+    // Watching asked for videos by name, Jellyfin's episodes asked for in air
+    // order, the token in a subtitle's URL for Emby, and Emby's device
+    // dropped as it signs out, before the token is revoked. The settings
+    // page's choices, asked for by name as AppCore does, reach Jellyfin's own
+    // (which asks what the server can do too).
+    void jellyfinAndEmbyAskEachInItsOwnWay() {
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        EmbyBackend emby(tmp.path());
+        Network *jf = signIn(jellyfin);
+        Network *em = signIn(emby);
+
+        jellyfin.load_continue_watching();
+        emby.load_continue_watching();
+        const QNetworkRequest jfAsked = jf->last()->request(), emAsked = em->last()->request();
+        QVERIFY(jfAsked.rawHeader("Authorization").contains("Token=\"token\""));
+        QVERIFY(!jfAsked.hasRawHeader("X-Emby-Token"));
+        QVERIFY(emAsked.rawHeader("X-Emby-Authorization").contains("Token=\"token\""));
+        QCOMPARE(emAsked.rawHeader("X-Emby-Token"), QByteArray("token"));
+        QVERIFY(!emAsked.hasRawHeader("Authorization"));
+        QVERIFY(!QUrlQuery(jfAsked.url()).hasQueryItem(QStringLiteral("mediaTypes")));
+        QCOMPARE(QUrlQuery(emAsked.url()).queryItemValue(QStringLiteral("mediaTypes")), QStringLiteral("Video"));
+
+        jellyfin.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+        emby.load_episodes(QStringLiteral("show"), QStringLiteral("season"));
+        QCOMPARE(QUrlQuery(jf->last()->url()).queryItemValue(QStringLiteral("sortBy")),
+                 QStringLiteral("AiredEpisodeOrder"));
+        QVERIFY(!QUrlQuery(em->last()->url()).hasQueryItem(QStringLiteral("sortBy")));
+
+        const QJsonObject subtitle{ { "Type", "Subtitle" }, { "Index", 3 }, { "Codec", "subrip" },
+                                    { "IsTextSubtitleStream", true } };
+        const QJsonObject source{ { "Id", "src" }, { "MediaStreams", QJsonArray{ subtitle } } };
+        const QByteArray film = QJsonDocument(QJsonObject{ { "Id", "film" },
+                                                           { "MediaSources", QJsonArray{ source } } }).toJson();
+        QSignalSpy jfItem(&jellyfin, &JellyfinBackend::itemLoaded);
+        QSignalSpy emItem(&emby, &EmbyBackend::itemLoaded);
+        jellyfin.load_item_detail(QStringLiteral("film"));
+        jf->last()->complete(film);
+        emby.load_item_detail(QStringLiteral("film"));
+        em->last()->complete(film);
+        const auto subUrl = [](const QSignalSpy &spy) {
+            return spy.last().at(0).toMap().value(QStringLiteral("subtitleStreams")).toList().first().toMap()
+                .value(QStringLiteral("subUrl")).toString();
+        };
+        QCOMPARE(subUrl(jfItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt"));
+        QCOMPARE(subUrl(emItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt?api_key=token"));
+
+        qsizetype asked = jf->replies.size();
+        QVERIFY(QMetaObject::invokeMethod(&jellyfin, "getVideoQualities"));
+        QCOMPARE(jf->replies.size(), asked + 1);
+        QVERIFY(jf->last()->url().path().startsWith(QLatin1String("/MediaSegments/")));
+        asked = em->replies.size();
+        QVERIFY(QMetaObject::invokeMethod(&emby, "getVideoQualities"));
+        QCOMPARE(em->replies.size(), asked);
+
+        asked = jf->replies.size();
+        jellyfin.logout();
+        QCOMPARE(jf->replies.size(), asked + 1);
+        QCOMPARE(jf->last()->url().path(), QStringLiteral("/Sessions/Logout"));
+        asked = em->replies.size();
+        emby.logout();
+        QCOMPARE(em->replies.size(), asked + 1);
+        QCOMPARE(em->last()->url().path(), QStringLiteral("/Devices"));
+        em->last()->complete(QByteArray());
+        QCOMPARE(em->last()->url().path(), QStringLiteral("/Sessions/Logout"));
+        QCOMPARE(em->last()->request().rawHeader("X-Emby-Token"), QByteArray("token"));
+        QVERIFY(!jellyfin.has_auth() && !emby.has_auth());
+    }
+
+    // The URL mpv plays a transcode from, made of the server's TranscodingUrl
+    // (rewriteTranscodeUrl): Jellyfin's without the token, which mpv sends
+    // in a header, Emby's with it, the server's own kept or the backend's
+    // added; the subtitle the server took from the item's defaults taken out
+    // when the user chose none; the session the one reported with; the
+    // height held to Video Quality's, replaced or added, and left as it is
+    // for Direct Play's none. And the URL mpv plays the original file from
+    // (directStreamUrl), with Emby's token.
+    void transcodeAndDirectUrlsAreMadeForMpv() {
+        const QString server = QStringLiteral("http://server");
+        const QString asked = QStringLiteral("/videos/film/master.m3u8?DeviceId=d&MediaSourceId=film&api_key=old"
+                                             "&PlaySessionId=p1&SubtitleStreamIndex=3&SubtitleMethod=Encode&MaxHeight=1080");
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, asked, QStringLiteral("p2"), -1, 480, false,
+                                                     QStringLiteral("token")),
+                 QStringLiteral("http://server/videos/film/master.m3u8?DeviceId=d&MediaSourceId=film"
+                                "&PlaySessionId=p2&MaxHeight=480"));
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, asked, QStringLiteral("p2"), 3, 0, true,
+                                                     QStringLiteral("token")),
+                 QStringLiteral("http://server/videos/film/master.m3u8?DeviceId=d&MediaSourceId=film&api_key=old"
+                                "&PlaySessionId=p2&SubtitleStreamIndex=3&SubtitleMethod=Encode&MaxHeight=1080"));
+        // The token spelt as Jellyfin spells it too, a height by another
+        // name, and no session to pin.
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, QStringLiteral("/videos/film/master.m3u8?ApiKey=old&height=2160"),
+                                                     QString(), 3, 576, false, QString()),
+                 QStringLiteral("http://server/videos/film/master.m3u8?MaxHeight=576"));
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, QStringLiteral("/videos/film/master.m3u8?MediaSourceId=film"),
+                                                     QString(), -1, 720, true, QStringLiteral("token")),
+                 QStringLiteral("http://server/videos/film/master.m3u8?MediaSourceId=film&api_key=token&MaxHeight=720"));
+        // Signed out meanwhile: no token to add.
+        QCOMPARE(EmbyApiBackend::rewriteTranscodeUrl(server, QStringLiteral("/videos/film/master.m3u8?MediaSourceId=film"),
+                                                     QString(), -1, 0, true, QString()),
+                 QStringLiteral("http://server/videos/film/master.m3u8?MediaSourceId=film"));
+
+        QCOMPARE(EmbyApiBackend::directStreamUrl(server, QStringLiteral("film"), QStringLiteral("src"),
+                                                 QStringLiteral("p1"), QString()),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=src&PlaySessionId=p1"));
+        QCOMPARE(EmbyApiBackend::directStreamUrl(server, QStringLiteral("film"), QStringLiteral("src"),
+                                                 QString(), QStringLiteral("token")),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=src&api_key=token"));
+    }
+
+    // The body a request sent, and the methods its device profile says a
+    // subtitle format comes by.
+    static QJsonObject sentBody(const Reply *reply) { return QJsonDocument::fromJson(reply->sent).object(); }
+    static QString subtitleMethods(const QJsonObject &body, const char *format) {
+        QStringList methods;
+        for (const QJsonValue &v : body["DeviceProfile"].toObject()["SubtitleProfiles"].toArray()) {
+            if (v.toObject()["Format"].toString() == QLatin1String(format))
+                methods << v.toObject()["Method"].toString();
+        }
+        return methods.join(QLatin1Char(','));
+    }
+    // Settings → Video Quality for both servers, in config.json.
+    static void setVideoQuality(const QString &dataRoot, const char *quality) {
+        QFile config(dataRoot + QStringLiteral("/config.json"));
+        QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        const QJsonObject module{ { "video_quality", quality } };
+        config.write(QJsonDocument(QJsonObject{ { "modules", QJsonObject{ { "com.osdos.jellyfin", module },
+                                                                          { "com.osdos.emby", module } } } }).toJson());
+    }
+
+    // What PlaybackInfo is asked for, each server's way: Direct Play (Video
+    // Quality Auto) with a profile that matches anything; Jellyfin's text
+    // subtitles as sidecars or embedded, burnt in for a transcode, and
+    // Emby's always as sidecars, its image ones burnt in for a transcode;
+    // Jellyfin's Direct Play bitrate at 1000 Mbps, Emby's in its profile,
+    // which it needs; a quality's caps for a transcode. Direct Play's URL
+    // carries Emby's token and not Jellyfin's; a transcode's is held to the
+    // height asked for.
+    void playbackInfoIsAskedEachServersWay() {
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        EmbyBackend emby(tmp.path());
+        Network *jf = signIn(jellyfin);
+        Network *em = signIn(emby);
+        QSignalSpy jfReady(&jellyfin, &JellyfinBackend::streamUrlReady);
+        QSignalSpy emReady(&emby, &EmbyBackend::streamUrlReady);
+
+        jellyfin.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1);
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1);
+        Reply *jfInfo = jf->last(), *emInfo = em->last();
+        QJsonObject jfBody = sentBody(jfInfo), emBody = sentBody(emInfo);
+        QVERIFY(jfInfo->url().path().endsWith(QLatin1String("/Items/film/PlaybackInfo")));
+        QVERIFY(jfBody["EnableDirectPlay"].toBool() && emBody["EnableDirectPlay"].toBool());
+        QCOMPARE(jfBody["MaxStreamingBitrate"].toInt(), 1000000000);
+        QVERIFY(!emBody.contains(QLatin1String("MaxStreamingBitrate")));
+        QVERIFY(!jfBody.contains(QLatin1String("MaxHeight")) && !emBody.contains(QLatin1String("MaxHeight")));
+        QVERIFY(!jfBody["DeviceProfile"].toObject().contains(QLatin1String("MaxStreamingBitrate")));
+        QCOMPARE(emBody["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 2000000000);
+        QCOMPARE(jfBody["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().size(), 1);
+        QCOMPARE(emBody["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().size(), 1);
+        QCOMPARE(subtitleMethods(jfBody, "subrip"), QStringLiteral("External,Embed"));
+        QCOMPARE(subtitleMethods(jfBody, "pgssub"), QStringLiteral("Embed"));
+        QCOMPARE(subtitleMethods(emBody, "subrip"), QStringLiteral("External"));
+        QCOMPARE(subtitleMethods(emBody, "pgssub"), QStringLiteral("Embed"));
+        const QByteArray direct = QJsonDocument(QJsonObject{
+            { "PlaySessionId", "ps" },
+            { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "SupportsDirectPlay", true } } } } }).toJson();
+        jfInfo->complete(direct);
+        emInfo->complete(direct);
+        QCOMPARE(jfReady.last().at(0).toString(),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"));
+        QCOMPARE(emReady.last().at(0).toString(),
+                 QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"
+                                "&api_key=token"));
+
+        setVideoQuality(tmp.path(), "720p");
+        jellyfin.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, 2);
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, 2);
+        jfInfo = jf->last();
+        emInfo = em->last();
+        jfBody = sentBody(jfInfo);
+        emBody = sentBody(emInfo);
+        for (const QJsonObject &body : { jfBody, emBody }) {
+            QVERIFY(!body["EnableDirectPlay"].toBool());
+            QCOMPARE(body["MaxStreamingBitrate"].toInt(), 6000000);
+            QCOMPARE(body["MaxHeight"].toInt(), 720);
+            QCOMPARE(body["SubtitleStreamIndex"].toInt(), 2);
+            QVERIFY(body["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().isEmpty());
+        }
+        QCOMPARE(emBody["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 6000000);
+        QCOMPARE(subtitleMethods(jfBody, "subrip"), QStringLiteral("Encode"));
+        QCOMPARE(subtitleMethods(jfBody, "webvtt"), QString());
+        QCOMPARE(subtitleMethods(jfBody, "pgssub"), QStringLiteral("Encode"));
+        QCOMPARE(subtitleMethods(emBody, "subrip"), QStringLiteral("External"));
+        QCOMPARE(subtitleMethods(emBody, "pgssub"), QStringLiteral("Encode"));
+        // Video Quality changed before the server answers: the transcode is
+        // held to the height it was asked for at.
+        setVideoQuality(tmp.path(), "480p");
+        const QByteArray transcode = QJsonDocument(QJsonObject{
+            { "PlaySessionId", "ps2" },
+            { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "TranscodingUrl",
+                "/videos/film/master.m3u8?api_key=server&PlaySessionId=ps2&SubtitleStreamIndex=2&MaxHeight=1080" } } } } }).toJson();
+        jfInfo->complete(transcode);
+        emInfo->complete(transcode);
+        QCOMPARE(jfReady.last().at(0).toString(),
+                 QStringLiteral("http://server/videos/film/master.m3u8?PlaySessionId=ps2&SubtitleStreamIndex=2&MaxHeight=720"));
+        QCOMPARE(emReady.last().at(0).toString(),
+                 QStringLiteral("http://server/videos/film/master.m3u8?api_key=server&PlaySessionId=ps2"
+                                "&SubtitleStreamIndex=2&MaxHeight=720"));
+    }
+
+    // Made as main.cpp makes it, with AppCore, a backend reads its settings
+    // through it, a value AppCore holds back from config.json included (a
+    // slider's steps), and a library turned off in Settings is hidden.
+    // Registered (registerModule), it is wired by what it declares, its base
+    // class's included: the choices the settings page asked for and a
+    // sign-out reach AppCore, and a Server Address changed reaches it.
+    void settingsComeThroughAppCore() {
+        QTemporaryDir tmp;
+        AppCore appCore(tmp.path(), tmp.path());
+        EmbyBackend emby(tmp.path(), &appCore);
+        Network *network = signIn(emby);
+        appCore.registerModule(QStringLiteral("com.osdos.emby"), QStringLiteral("embyBackend"), &emby, nullptr);
+        QSignalSpy options(&appCore, &AppCore::dynamicOptionsReady);
+        QSignalSpy auth(&appCore, &AppCore::moduleAuthStateChanged);
+
+        QVERIFY(appCore.save_setting_soon(QStringLiteral("com.osdos.emby"), QStringLiteral("video_quality"),
+                                          QStringLiteral("720p")));
+        {
+            QFile config(tmp.path() + QStringLiteral("/config.json"));
+            QVERIFY(!config.open(QIODevice::ReadOnly) || !config.readAll().contains("720p"));
+        }
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, -1);
+        QCOMPARE(sentBody(network->last())["MaxHeight"].toInt(), 720);
+
+        QVERIFY(appCore.save_setting(QStringLiteral("com.osdos.emby"), QStringLiteral("libraries.2"), false));
+        QSignalSpy libraries(&emby, &EmbyBackend::librariesLoaded);
+        emby.load_libraries();
+        const QJsonArray views{ QJsonObject{ { "Id", "1" }, { "Name", "Films" }, { "CollectionType", "movies" } },
+                                QJsonObject{ { "Id", "2" }, { "Name", "Shows" }, { "CollectionType", "tvshows" } } };
+        network->last()->complete(QJsonDocument(QJsonObject{ { "Items", views } }).toJson());
+        network->last()->complete(films({}));    // Continue Watching: nothing
+        network->last()->complete(films({}));    // Next Up: nothing
+        QCOMPARE(libraries.count(), 1);
+        QCOMPARE(titles(libraries, 0), QStringList({ "FILMS" }));
+
+        emby.getVideoQualities();
+        QCOMPARE(options.count(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("com.osdos.emby"));
+        QCOMPARE(options.first().at(1).toString(), QStringLiteral("video_quality"));
+
+        QVERIFY(appCore.save_setting(QStringLiteral("com.osdos.emby"), QStringLiteral("server_url"),
+                                     QStringLiteral("http://elsewhere")));
+        QVERIFY(!emby.has_auth());
+        QCOMPARE(auth.count(), 1);
+        QCOMPARE(auth.first().at(0).toString(), QStringLiteral("com.osdos.emby"));
+    }
+
+    // An Emby source in Dolby Vision, which mpv can't show, is asked for
+    // again as a transcode to SDR held to 1080p and 20 Mbps (Video Quality
+    // Auto caps none), an image subtitle dropped (burnt in, it would fail
+    // the transcode) and a text one kept; the transcode's URL keeps the
+    // server's height, Auto having none of its own. The cap is the re-ask's
+    // alone: the next stream is asked for as before.
+    void embyDolbyVisionIsTranscodedCapped() {
+        QTemporaryDir tmp;
+        EmbyBackend emby(tmp.path());
+        Network *network = signIn(emby);
+        QSignalSpy ready(&emby, &EmbyBackend::streamUrlReady);
+        const auto dolbyVision = [](int subtitle, bool text) {
+            const QJsonArray streams{ QJsonObject{ { "Type", "Video" }, { "VideoRangeType", "DOVI" } },
+                                      QJsonObject{ { "Type", "Subtitle" }, { "Index", subtitle },
+                                                   { "IsTextSubtitleStream", text } } };
+            return QJsonDocument(QJsonObject{ { "PlaySessionId", "ps" }, { "MediaSources", QJsonArray{ QJsonObject{
+                { "Id", "film" }, { "SupportsDirectPlay", true }, { "MediaStreams", streams } } } } }).toJson();
+        };
+
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 1, 4);
+        network->last()->complete(dolbyVision(4, false));
+        QCOMPARE(ready.count(), 0);
+        QJsonObject body = sentBody(network->last());
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/Items/film/PlaybackInfo")));
+        QVERIFY(!body["EnableDirectPlay"].toBool());
+        QCOMPARE(body["MaxStreamingBitrate"].toInt(), 20000000);
+        QCOMPARE(body["MaxHeight"].toInt(), 1080);
+        QCOMPARE(body["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 20000000);
+        QCOMPARE(body["AudioStreamIndex"].toInt(), 1);
+        QVERIFY(!body.contains(QLatin1String("SubtitleStreamIndex")));
+        network->last()->complete(QJsonDocument(QJsonObject{ { "PlaySessionId", "t" }, { "MediaSources", QJsonArray{
+            QJsonObject{ { "Id", "film" }, { "TranscodingUrl", "/videos/film/master.m3u8?Height=2160&PlaySessionId=t" } } } } })
+                                      .toJson());
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.last().at(0).toString(),
+                 QStringLiteral("http://server/videos/film/master.m3u8?Height=2160&PlaySessionId=t&api_key=token"));
+
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 1, 5);
+        network->last()->complete(dolbyVision(5, true));
+        QCOMPARE(sentBody(network->last())["SubtitleStreamIndex"].toInt(), 5);
+
+        // A transcode the player forces (a track switched in the middle of
+        // one, a direct play that failed) is held to the same cap, and drops
+        // an image subtitle the same way.
+        emby.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 2, 4, /*forceTranscode=*/true);
+        network->last()->complete(dolbyVision(4, false));
+        body = sentBody(network->last());
+        QVERIFY(!body["EnableDirectPlay"].toBool());
+        QCOMPARE(body["MaxStreamingBitrate"].toInt(), 20000000);
+        QCOMPARE(body["MaxHeight"].toInt(), 1080);
+        QCOMPARE(body["AudioStreamIndex"].toInt(), 2);
+        QVERIFY(!body.contains(QLatin1String("SubtitleStreamIndex")));
+        const int streams = ready.count();
+        network->last()->complete(QJsonDocument(QJsonObject{ { "PlaySessionId", "t" }, { "MediaSources", QJsonArray{
+            QJsonObject{ { "Id", "film" }, { "TranscodingUrl", "/videos/film/master.m3u8?PlaySessionId=t" } } } } })
+                                      .toJson());
+        QCOMPARE(ready.count(), streams + 1);
+        QVERIFY(ready.last().at(0).toString().startsWith(QLatin1String("http://server/videos/film/master.m3u8")));
+
+        emby.get_playback_url(QStringLiteral("other"), QStringLiteral("other"), -1, -1);
+        body = sentBody(network->last());
+        QVERIFY(body["EnableDirectPlay"].toBool());
+        QVERIFY(!body.contains(QLatin1String("MaxStreamingBitrate")));
+        QVERIFY(!body.contains(QLatin1String("MaxHeight")));
+        QCOMPARE(body["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 2000000000);
     }
 
     // Quick Connect says what the server answered, as it starts and at the
@@ -742,7 +1244,7 @@ private slots:
     // the status behind Qt's words for it.
     void jellyfinQuickConnectSaysWhatTheServerAnswered() {
         QTemporaryDir tmp;
-        JellyfinBackend backend(tmp.path(), tmp.path());
+        JellyfinBackend backend(tmp.path());
         delete backend.m_nam;
         auto *network = new Network(&backend);
         backend.m_nam = network;
@@ -1041,7 +1543,7 @@ private slots:
     // is said only when both fail, and at once for a server with one address.
     void embyConnectTriesTheRemoteAddress() {
         QTemporaryDir tmp;
-        EmbyBackend backend(tmp.path(), tmp.path());
+        EmbyBackend backend(tmp.path());
         delete backend.m_nam;
         auto *network = new Network(&backend);
         backend.m_nam = network;

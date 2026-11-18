@@ -4,6 +4,7 @@
 #include "display/DisplayOutput.h"
 #include "util/Board.h"
 #include "util/DeviceName.h"
+#include "util/FileText.h"
 #include "util/SetupExport.h"
 #include "wifi/WifiManager.h"
 
@@ -48,9 +49,10 @@ void SetupExporter::finish(const QVariantMap &joined, int maxVersion, int run) {
         return;
 
     // The page's form: its own rows, built into the app, and the modules'.
-    QFile extraFile(QStringLiteral(":/setup/schema-extra.json"));
-    const QJsonObject extra = extraFile.open(QIODevice::ReadOnly)
-                                  ? QJsonDocument::fromJson(extraFile.readAll()).object() : QJsonObject();
+    QJsonObject extra;
+    QString why;
+    if (!filetext::readJsonObject(QStringLiteral(":/setup/schema-extra.json"), &extra, &why) && !why.isEmpty())
+        qWarning("[SetupExport] schema-extra.json: %s", qPrintable(why));
     QHash<QString, QJsonObject> manifests;
     const QVariantList modules = m_appCore ? m_appCore->get_installed_modules().toList() : QVariantList();
     for (const QVariant &m : modules) {
@@ -64,9 +66,10 @@ void SetupExporter::finish(const QVariantMap &joined, int maxVersion, int run) {
                                          : QJsonObject();
 
     // The Arcade's RetroAchievements account, as it keeps it.
-    QFile accountFile(m_dataRoot + QStringLiteral("/arcade/retroachievements.json"));
-    const QJsonObject account = accountFile.open(QIODevice::ReadOnly)
-                                    ? QJsonDocument::fromJson(accountFile.read(64 * 1024)).object() : QJsonObject();
+    QJsonObject account;
+    if (!filetext::readJsonObject(m_dataRoot + QStringLiteral("/arcade/retroachievements.json"), &account, &why)
+            && !why.isEmpty())
+        qWarning("[SetupExport] arcade/retroachievements.json: %s, so the account isn't carried", qPrintable(why));
 
     setupexport::System system;
     m_missing.clear();

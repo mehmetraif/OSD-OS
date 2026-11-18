@@ -182,10 +182,9 @@ FocusScope {
 
     // A Scaling (the module's video_scaling) on the video that plays, as
     // MpvController::sessionArgs() starts one with it: Default is Settings'.
+    // The controller makes it mpv's, as it does a session's.
     function applyScaling(value) {
-        var s = (!value || value === "Default") ? (appCore.get_setting("", "video_scaling") || "Letterbox") : value
-        mpvController.setVideoProperty("keepaspect", s !== "Anamorphic")
-        mpvController.setVideoProperty("panscan", s === "Pan & Scan" ? 1.0 : (s === "14:9" ? 0.43 : 0.0))
+        mpvController.applyScaling(value || "")
     }
 
     Connections {
@@ -203,10 +202,6 @@ FocusScope {
         iconSource: menuRoot.iconSource
         title: menuRoot.moduleName
         subtitle: menuRoot.title
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The lines in the place every view's list has, ▲ / ▼ while some are
@@ -229,7 +224,7 @@ FocusScope {
         Keys.onReturnPressed: menuRoot.select(currentIndex)
         Keys.onEnterPressed: menuRoot.select(currentIndex)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 menuRoot.closed()
                 event.accepted = true
             }
@@ -239,7 +234,7 @@ FocusScope {
         // and ► that change it: "SPEED······◄ 1X ►".
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             value: modelData.type === "action" ? "" : menuRoot.displayValue(modelData)
             changes: modelData.type !== "action"
@@ -251,18 +246,9 @@ FocusScope {
         property var currentRow: menuRoot.rows[list.currentIndex]
         visible: !!(currentRow && currentRow.description)
         text: (currentRow && currentRow.description) || ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
-        text: root.hints.back + ":VIDEO " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:VIDEO", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 }

@@ -447,14 +447,13 @@ FocusScope {
         return true
     }
 
-    // Broadcast and Flat Panel (Settings → Look → Menu Layout) change a
-    // value in two steps, as Settings does there: select on a toggle, a
-    // list or a slider starts it (editIndex), ▲ ▼ step it with nothing
-    // saved (editSteps, the value it would take shown: steppedValue()),
-    // select saves it through cycleValue(), and back, or the cursor moved
-    // by the mouse, leaves it as it was. ◄ ► change nothing there.
-    readonly property bool twoStep: root.monitorFramed === true
-                                    && (root.menuLayout === "Broadcast" || root.menuLayout === "Flat Panel")
+    // Broadcast and Flat Panel (Settings → Look → Menu Layout, Main.qml's
+    // twoStep) change a value in two steps, as Settings does there: select
+    // on a toggle, a list or a slider starts it (editIndex), ▲ ▼ step it
+    // with nothing saved (editSteps, the value it would take shown:
+    // steppedValue()), select saves it through cycleValue(), and back, or
+    // the cursor moved by the mouse, leaves it as it was. ◄ ► change nothing
+    // there.
     property int editIndex: -1
     property int editSteps: 0
     function stepped(item) {
@@ -630,10 +629,6 @@ FocusScope {
         title: "Settings"
         subtitle: moduleSettingsRoot.submenuLabel !== ""
                   ? moduleName + " / " + moduleSettingsRoot.submenuLabel : moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -702,7 +697,7 @@ FocusScope {
         onHeldStep: function(delta) { moduleSettingsRoot.editSteps -= delta }
 
         Keys.onLeftPressed: {
-            if (moduleSettingsRoot.twoStep) {
+            if (root.twoStep) {
                 // Flat Panel: ◄ is back, and leaves a value being changed.
                 if (root.menuLayout === "Flat Panel") {
                     if (moduleSettingsRoot.editIndex >= 0)
@@ -720,7 +715,7 @@ FocusScope {
                 return
             if (moduleSettingsRoot.opens(item))
                 openRow(item)
-            else if (!moduleSettingsRoot.twoStep)
+            else if (!root.twoStep)
                 moduleSettingsRoot.cycleValue(currentIndex, 1)
         }
 
@@ -731,7 +726,7 @@ FocusScope {
             }
             var item = schemaItems[currentIndex]
             if (!item || item._off) return
-            if (moduleSettingsRoot.twoStep && moduleSettingsRoot.stepped(item)) {
+            if (root.twoStep && moduleSettingsRoot.stepped(item)) {
                 moduleSettingsRoot.editSteps = 0
                 moduleSettingsRoot.editIndex = currentIndex
                 return
@@ -751,7 +746,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 if (moduleSettingsRoot.editIndex >= 0)
                     moduleSettingsRoot.editIndex = -1
                 else
@@ -766,8 +761,9 @@ FocusScope {
         // which ◄ ► change, stands between a ◄ and a ►. A slider ("type":
         // "slider") is its label, and the deck's tape bar in whole lines
         // under it, as in Settings: ◄ ► move the ▼ between its ends
-        // ("start_text", "end_text"), a "step" at a time.
-        delegate: Item {
+        // ("start_text", "end_text"), a "step" at a time; in a monitor
+        // layout's frame its line alone, its value a number ("60%").
+        delegate: SettingRow {
             id: rowItem
             required property var modelData
             required property int index
@@ -775,47 +771,24 @@ FocusScope {
             // place (followRows(), revision): the list's own copy of it
             // (modelData) is as the list was given it.
             readonly property var row: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[index]) || modelData
-            readonly property bool slider: row.type === "slider"
-            readonly property real lineHeight: root.sh * 0.0583333 //28
-            // In a monitor layout's frame a slider is its line alone, its
-            // value a number ("60%"), as in Settings: every row one line.
-            readonly property bool monitor: root.monitorFramed === true
-            readonly property int barLines: slider && !monitor ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
             width: settingsList.width
-            height: lineHeight * (1 + barLines)
-
-            MenuRow {
-                width: parent.width
-                height: rowItem.lineHeight
-                heading: rowItem.row.type === "section"
-                label: rowItem.row.label || ""
-                value: moduleSettingsRoot.editIndex === rowItem.index
-                    ? moduleSettingsRoot.steppedValue(rowItem.row, moduleSettingsRoot.editSteps)
-                    : moduleSettingsRoot.hasValue(rowItem.row)
-                    ? moduleSettingsRoot.currentDisplayValue(rowItem.row)
-                    : rowItem.slider && rowItem.monitor
-                      ? (moduleSettingsRoot.revision, moduleSettingsRoot.valueOf(rowItem.row)) + "%" : ""
-                editing: moduleSettingsRoot.editIndex === rowItem.index
-                opens: moduleSettingsRoot.opens(rowItem.row)
-                changes: moduleSettingsRoot.changes(rowItem.row)
-                dimmed: !!rowItem.row._off
-                selected: settingsList.currentIndex === rowItem.index
-            }
-            Loader {
-                id: tape
-                active: rowItem.slider && !rowItem.monitor
-                visible: !rowItem.row._off
-                x: root.sw * 0.009375 //6
-                y: rowItem.lineHeight + Math.round((rowItem.barLines * rowItem.lineHeight - height) / 2)
-                width: parent.width - 2 * x
-                sourceComponent: OsdTapeBar {
-                    changes: true
-                    fontSize: root.sh * 0.0333333 //16
-                    value: moduleSettingsRoot.valueOf(rowItem.row) / 100
-                    startText: rowItem.row.start_text || ""
-                    endText: rowItem.row.end_text || ""
-                }
-            }
+            heading: row.type === "section"
+            label: row.label || ""
+            value: moduleSettingsRoot.editIndex === index
+                ? moduleSettingsRoot.steppedValue(row, moduleSettingsRoot.editSteps)
+                : moduleSettingsRoot.hasValue(row)
+                ? moduleSettingsRoot.currentDisplayValue(row)
+                : slider && monitor ? (moduleSettingsRoot.revision, moduleSettingsRoot.valueOf(row)) + "%" : ""
+            editing: moduleSettingsRoot.editIndex === index
+            opens: moduleSettingsRoot.opens(row)
+            changes: moduleSettingsRoot.changes(row)
+            dimmed: !!row._off
+            selected: settingsList.currentIndex === index
+            slider: row.type === "slider"
+            barShown: !row._off
+            barValue: moduleSettingsRoot.valueOf(row) / 100
+            startText: row.start_text || ""
+            endText: row.end_text || ""
         }
     }
 
@@ -831,24 +804,16 @@ FocusScope {
         always: moduleSettingsRoot.notice !== ""
         text: moduleSettingsRoot.notice !== "" ? moduleSettingsRoot.notice
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- FOOTER ---
     HintBar {
         id: footer
         text: moduleSettingsRoot.editIndex >= 0
-              ? root.hints.back + ":CANCEL " + root.hints.navigate + ":CHANGE " + root.hints.select + ":CONFIRM"
-              : moduleSettingsRoot.twoStep
-              ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-              : root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+              ? root.hintLine(["back:CANCEL", "navigate:CHANGE", "select:CONFIRM"])
+              : root.twoStep
+              ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 
     // An action row's question (its "confirm"), what it does under it. The

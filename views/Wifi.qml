@@ -173,21 +173,9 @@ FocusScope {
         // Its line gone (a network forgotten, Wi-Fi turned off): the one now
         // in its place.
         if (index < 0)
-            index = selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
+            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
         list.currentIndex = index
-        list.positionViewAtIndex(index, ListView.Contain)
-    }
-
-    function selectable(row) { return !!row && row.type !== "section" && row.type !== "note" }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
+        list.show(index)
     }
 
     function askPassword(ssid) {
@@ -275,40 +263,15 @@ FocusScope {
         subtitle: wifiRoot.current.address || ""
         // The address is no step of the way here.
         path: ["Wi-Fi"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         visible: !keyboard.visible
         model: wifiRoot.shownRows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: true
-        // Lines come and go as networks answer: no sliding.
-        highlightMoveDuration: 0
+        onMoved: if (wifiManager) wifiManager.clearMessage()
 
-        function move(step) {
-            if (wifiRoot.rows.length === 0)
-                return
-            currentIndex = wifiRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            if (wifiManager)
-                wifiManager.clearMessage()
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onLeftPressed: {
             var row = wifiRoot.rows[currentIndex]
             if (row && row.type === "power")
@@ -322,7 +285,7 @@ FocusScope {
         Keys.onReturnPressed: wifiRoot.activate(wifiRoot.rows[currentIndex])
         Keys.onEnterPressed: wifiRoot.activate(wifiRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 wifiRoot.goBack()
                 event.accepted = true
             }
@@ -337,21 +300,14 @@ FocusScope {
             readonly property var row: wifiRoot.rows[index] || modelData
             readonly property string trail: row.busy ? ".".repeat(wifiRoot.dots) : ""
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: row.type === "section"
             label: (row.label || "") + (row.type === "note" ? trail : "")
             value: row.value ? row.value + trail : ""
             icons: row.icons || []
             keepValue: row.type === "network"
-            selected: list.currentIndex === index && wifiRoot.selectable(row)
+            selected: list.currentIndex === index && list.selectable(row)
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        visible: list.visible
-        anchors.fill: list
-        list: list
     }
 
     // What the line is for, or how the last connection went.
@@ -363,19 +319,11 @@ FocusScope {
         // that failed showed nothing at all.
         always: wifiRoot.message !== ""
         visible: text !== "" && !keyboard.visible
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         visible: !keyboard.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
 
     // A saved network's options, the one joined's, or whether one not
@@ -515,7 +463,7 @@ FocusScope {
                 return
             event.accepted = true
             var n = entries.length
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 close()
             } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && n > 0) {
                 var code = entries[index].code
@@ -542,8 +490,7 @@ FocusScope {
                 choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
                 currentIndex: countries.index
                 onHovered: function(index) { countries.index = index }
-                hint: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":LETTER "
-                      + root.hints.select + ":SELECT"
+                hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:LETTER", "select:SELECT"])
             }
         }
     }

@@ -1,4 +1,5 @@
 #include "TmdbCatalog.h"
+#include "AppCore.h"
 #include "util/LegacyNames.h"
 #include <QDateTime>
 #include <QFile>
@@ -39,8 +40,9 @@ QString encoded(const QList<QPair<QString, QString>> &query) {
 
 } // namespace
 
-TmdbCatalog::TmdbCatalog(const QString &dataRoot, const Service &service, QObject *parent)
-    : QObject(parent), m_dataRoot(dataRoot), m_service(service)
+TmdbCatalog::TmdbCatalog(const QString &dataRoot, AppCore *appCore, const Service &service,
+                         QObject *parent)
+    : QObject(parent), m_dataRoot(dataRoot), m_appCore(appCore), m_service(service)
 {
     // Overridable so tests can stand a local server in for TMDB and Wikidata.
     m_tmdbUrl = legacy::env("TMDB_URL", QStringLiteral("https://api.themoviedb.org/3"));
@@ -78,13 +80,10 @@ void TmdbCatalog::forget() {
 QString TmdbCatalog::apiKey() const {
     // Settings' TMDB Key first, typed in either module that reads the
     // catalogue (one key serves both); else the file's.
-    QFile config(m_dataRoot + QStringLiteral("/config.json"));
-    if (config.open(QIODevice::ReadOnly)) {
-        const QJsonObject modules = QJsonDocument::fromJson(config.readAll()).object()
-                                        .value(QLatin1String("modules")).toObject();
+    if (m_appCore) {
         for (const char *id : { "com.osdos.netflix", "com.osdos.prime_video" }) {
-            const QString key = modules.value(QLatin1String(id)).toObject()
-                                    .value(QLatin1String("tmdb_api_key")).toString().trimmed();
+            const QString key = m_appCore->get_setting(QLatin1String(id), QStringLiteral("tmdb_api_key"))
+                                    .toString().trimmed();
             if (!key.isEmpty())
                 return key;
         }

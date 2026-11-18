@@ -1,14 +1,10 @@
 #include "WeatherBackend.h"
-#include "../../util/MpvLocator.h"
-#include "../../audio/AudioOutput.h"
-#include "../../audio/MenuMusic.h"
-#include "../../util/EndProcess.h"
+#include "../../AppCore.h"
+#include "../../audio/BackgroundMpv.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QLocalSocket>
-#include <QProcess>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
@@ -27,7 +23,7 @@
 
 namespace {
 
-const char *kModuleId   = "com.osdos.weather";
+const QString kModuleId = QStringLiteral("com.osdos.weather");
 const char *kForecastUrl = "https://api.open-meteo.com/v1/forecast";
 const char *kGeocodeUrl  = "https://geocoding-api.open-meteo.com/v1/search";
 const char *kNwsPointsUrl = "https://api.weather.gov/points";
@@ -457,12 +453,14 @@ double localSpeed(double kmh, bool us)    { return us ? kmh / 1.609344 : kmh; }
 } // namespace
 
 WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
-                               QObject *parent)
+                               AppCore *appCore, QObject *parent)
     : QObject(parent)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
+    , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
-    , m_refresh(new QTimer(this)) {
+    , m_refresh(new QTimer(this))
+    , m_music(new BackgroundMpv(QStringLiteral("weather"), "[Weather] music", this)) {
     // A service that stops answering (a captive portal holding the socket)
     // fails after this long without a byte, and the next refresh tries
     // again, instead of the forecast waiting on it for good.
@@ -474,14 +472,12 @@ WeatherBackend::WeatherBackend(const QString &appRoot, const QString &dataRoot,
         fetchObservation();
         fetchOtherObservations();
     });
-
-    // Its own socket name: MpvController uses /osdos-mpv.sock for the player,
-    // and two mpvs sharing one path would hand the wrong process our commands.
-    m_musicSocketPath = QDir::tempPath() + QStringLiteral("/osdos-weather-music.sock");
+    connect(m_music, &BackgroundMpv::stateChanged, this, &WeatherBackend::musicStateChanged);
 }
 
+// As the app ends: mpv is gone before this returns.
 WeatherBackend::~WeatherBackend() {
-    endMusic(true);
+    m_music->end(true);
 }
 
 QString WeatherBackend::location_file_path() const {
@@ -492,30 +488,21 @@ QString WeatherBackend::music_file_path() const {
     return m_dataRoot + QStringLiteral("/weather_music.txt");
 }
 
-QJsonObject WeatherBackend::loadConfig() const {
-    QFile f(m_dataRoot + QStringLiteral("/config.json"));
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonParseError err;
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-        if (err.error == QJsonParseError::NoError && doc.isObject())
-            return doc.object();
-    }
-    return {};
-}
-
-QJsonObject WeatherBackend::moduleConfig() const {
-    return loadConfig()["modules"].toObject()[kModuleId].toObject();
+// One of the module's settings (modules.<id>.<key>), through AppCore; none
+// without one (the tests).
+QJsonValue WeatherBackend::setting(const QString &key) const {
+    return m_appCore ? QJsonValue::fromVariant(m_appCore->get_setting(kModuleId, key)) : QJsonValue();
 }
 
 bool WeatherBackend::useUsUnits() const {
-    return moduleConfig()["units"].toString(QStringLiteral("Metric"))
+    return setting(QStringLiteral("units")).toString(QStringLiteral("Metric"))
                .compare(QLatin1String("US"), Qt::CaseInsensitive) == 0;
 }
 
 void WeatherBackend::onSettingChanged(const QString &moduleId, const QString &key,
                                       const QVariant &value) {
     Q_UNUSED(value)
-    if (moduleId != QLatin1String(kModuleId)) return;
+    if (moduleId != kModuleId) return;
     // Units change the requested values, not just their presentation, so a
     // switch has to re-fetch rather than reformat. Both fetches: the extras are
     // a separate request, and refreshing only the primary left the Other
@@ -609,139 +596,43 @@ QStringList WeatherBackend::musicPlaylist() const {
 }
 
 bool WeatherBackend::musicPlaying() const {
-    return m_music && m_music->state() != QProcess::NotRunning && !m_musicPaused;
+    return m_music->running() && !m_music->paused();
 }
 
 void WeatherBackend::startMusic() {
     // Toggles are stored as JSON booleans, but tolerate the manifest's "ON"
     // spelling in case a config was written before that convention.
-    const QJsonValue setting = moduleConfig()[QStringLiteral("music")];
-    const bool enabled = setting.isString()
-                             ? setting.toString().compare(QLatin1String("ON"),
-                                                          Qt::CaseInsensitive) == 0
-                             : setting.toBool(true);
+    const QJsonValue music = setting(QStringLiteral("music"));
+    const bool enabled = music.isString()
+                             ? music.toString().compare(QLatin1String("ON"),
+                                                        Qt::CaseInsensitive) == 0
+                             : music.toBool(true);
     if (!enabled) return;
-    if (m_music) return;
-    // One asked to end a moment ago still has the sound card: not two at once.
-    if (m_musicEnding && m_musicEnding->state() != QProcess::NotRunning)
-        m_musicEnding->waitForFinished(1000);
+    if (m_music->active()) return;
 
     const QStringList tracks = musicPlaylist();
     if (tracks.isEmpty()) return;
 
-    const QString bin = mpvbin::locate();
-    if (bin.isEmpty()) {
+    // Shuffled once at load and looped forever, so the app never has to
+    // track a current track.
+    if (!m_music->start(tracks, { QStringLiteral("--shuffle") },
+                        QStringLiteral("osdos-weather-music.sock"))) {
         qWarning("[Weather] mpv not found — music will not play");
         return;
     }
-
-    QStringList args;
-    args << QStringLiteral("--no-video")
-         << QStringLiteral("--loop-playlist=inf")
-         // Shuffled once at load and looped forever, so the app never has to
-         // track a current track.
-         << QStringLiteral("--shuffle")
-         << QStringLiteral("--no-terminal")
-         << QStringLiteral("--really-quiet")
-         << QStringLiteral("--input-ipc-server=%1").arg(m_musicSocketPath)
-         // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
-         // ALSA's default (applyTo() below).
-         << AudioOutput::mpvArgs()
-         // Everything after this is a file, so an entry starting with '-'
-         // cannot be mistaken for an option.
-         << QStringLiteral("--")
-         << tracks;
-
-    m_musicPaused = false;
-    // The menu music stops first: this has the sound card now.
-    MenuMusic::hold(QStringLiteral("weather"));
-    m_music = new QProcess(this);
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
-    m_music->setProcessEnvironment(env);
-    // mpv exiting on its own (no network, no readable files) leaves a stale
-    // pointer that would make startMusic() a no-op on the next visit.
-    connect(m_music, &QProcess::finished, this, [this](int, QProcess::ExitStatus) {
-        qInfo("[Weather] music process exited");
-        stopMusic();
-    });
-    m_music->start(bin, args);
-
-    // mpv creates the socket a beat after launch, so a single connect attempt
-    // loses the race. Same retry shape as MpvController.
-    if (!m_musicIpc) {
-        m_musicIpc = new QLocalSocket(this);
-        connect(m_musicIpc, &QLocalSocket::connected, this, [this]() {
-            m_musicConnect->stop();
-        });
-    }
-    if (!m_musicConnect) {
-        m_musicConnect = new QTimer(this);
-        m_musicConnect->setInterval(100);
-        connect(m_musicConnect, &QTimer::timeout, this, [this]() {
-            if (m_musicIpc->state() == QLocalSocket::ConnectedState
-                || m_musicIpc->state() == QLocalSocket::ConnectingState)
-                return;
-            m_musicIpc->connectToServer(m_musicSocketPath);
-        });
-    }
-    m_musicConnect->start();
-
     qInfo("[Weather] music started — %lld track(s)", static_cast<long long>(tracks.size()));
-    emit musicStateChanged();
 }
 
+// Leaving the module, mpv is not waited for: the menus come back at once, mpv
+// goes in its own time, and the menu music has the card only once it has.
 void WeatherBackend::stopMusic() {
-    endMusic(false);
-}
-
-// `wait` as the app ends: mpv is gone before this returns. Leaving the
-// module, it is not waited for: the menus come back at once, mpv goes in its
-// own time, and the menu music has the card only once it has.
-void WeatherBackend::endMusic(bool wait) {
-    if (m_musicConnect) m_musicConnect->stop();
-    if (m_musicIpc)     m_musicIpc->abort();
-
-    QProcess *p = std::exchange(m_music, nullptr);  // cleared first: terminate() can re-enter
-    m_musicPaused = false;
-    if (p) {
-        p->disconnect(this);        // this slot via the finished signal
-        if (p->state() != QProcess::NotRunning && !wait) {
-            m_musicEnding = p;
-            endProcessLater(p, this, [this]() {
-                // Not while the music is on again: its hold is the new one's.
-                if (!m_music)
-                    MenuMusic::release(QStringLiteral("weather"));
-            });
-            emit musicStateChanged();
-            return;
-        }
-        if (p->state() != QProcess::NotRunning) {
-            p->terminate();
-            p->waitForFinished(1000);
-        }
-        p->deleteLater();
-    }
-    MenuMusic::release(QStringLiteral("weather"));
-    emit musicStateChanged();
+    m_music->end(false);
 }
 
 void WeatherBackend::toggleMusic() {
-    if (!m_music || m_music->state() == QProcess::NotRunning) return;
-    if (m_musicIpc->state() != QLocalSocket::ConnectedState) {
+    if (!m_music->running()) return;
+    if (!m_music->setPaused(!m_music->paused()))
         qWarning("[Weather] music IPC not connected — ignoring toggle");
-        return;
-    }
-    m_musicPaused = !m_musicPaused;
-    // set_property, not "cycle pause": our idea of the state and mpv's can then
-    // never drift apart.
-    const QJsonObject cmd{
-        { QStringLiteral("command"),
-          QJsonArray{ QStringLiteral("set_property"), QStringLiteral("pause"),
-                      m_musicPaused } }
-    };
-    m_musicIpc->write(QJsonDocument(cmd).toJson(QJsonDocument::Compact) + "\n");
-    emit musicStateChanged();
 }
 
 // ── Location ─────────────────────────────────────────────────────────────────
@@ -768,7 +659,7 @@ QStringList WeatherBackend::readLocationLines() const {
 // (modules.<id>.<key>, a list of lines): its lines that say something.
 QStringList WeatherBackend::settingLines(const char *key) const {
     QStringList lines;
-    const QJsonArray typed = moduleConfig()[QLatin1String(key)].toArray();
+    const QJsonArray typed = setting(QLatin1String(key)).toArray();
     for (const QJsonValue &v : typed) {
         const QString line = v.toString().trimmed();
         if (!line.isEmpty() && !line.startsWith(QLatin1Char('#')) && !lines.contains(line))
@@ -806,11 +697,22 @@ bool WeatherBackend::parseCoordLine(const QString &line, double *lat, double *lo
 void WeatherBackend::resolveLocation() {
     const quint64 generation = ++m_locationGeneration;
     ++m_extraLocationGeneration;
+    // The stations near the place before, and what they last observed, are
+    // not this place's: they go, so that the refresh asks them nothing more
+    // and their last observation isn't laid over this place's forecast. This
+    // place's are looked up once it is resolved; an answer for the place
+    // before still on its way is dropped (the generation, which every call
+    // here moves on).
+    m_stations.clear();
+    m_stationsResolved = false;
+    m_obs.clear();
+    m_obsTime = QDateTime();
+    m_obsStation.clear();
     // Settings' Location (modules.<id>.location) is the place; the file's
     // lines after its first are the other places then, and with no file there
     // are none. Without the setting the file says both, as it always has.
     // Settings' Other Places come before the file's.
-    const QString chosen = moduleConfig()[QStringLiteral("location")].toString().trimmed();
+    const QString chosen = setting(QStringLiteral("location")).toString().trimmed();
     QFile probe(location_file_path());
     if (chosen.isEmpty()) {
         if (!probe.exists())                                    { emitError(QStringLiteral("missing"));    return; }
@@ -932,6 +834,12 @@ void WeatherBackend::resolveOthers(const QStringList &lines) {
     const quint64 generation = ++m_extraLocationGeneration;
     m_otherPoints.clear();
     m_pendingOthers = 0;
+    // The list before's stations and observations, keyed by its indexes:
+    // not polled while this list is geocoded, where an answer would land on
+    // this list's row of the same index.
+    m_otherStations.clear();
+    m_otherObs.clear();
+    m_otherObsTime.clear();
     if (lines.isEmpty()) { fetchOthers(); return; }
 
     // Slots are pre-allocated and filled by index, not appended on completion:
@@ -1180,7 +1088,10 @@ void WeatherBackend::resolveStations() {
     if (m_stationsResolved || !m_resolved) return;
     m_stationsResolved = true;   // one attempt per location, however it ends
 
-    resolveStationsFor(m_lat, m_lon, [this](const QStringList &stations) {
+    const quint64 generation = m_locationGeneration;
+    resolveStationsFor(m_lat, m_lon, [this, generation](const QStringList &stations) {
+        // Found for a place since changed: not this one's.
+        if (generation != m_locationGeneration) return;
         m_stations = stations;
         if (m_stations.isEmpty()) return;
         qInfo("[Weather] observation stations: %s", qPrintable(m_stations.join(", ")));
@@ -1190,9 +1101,12 @@ void WeatherBackend::resolveStations() {
 
 void WeatherBackend::fetchObservation() {
     if (m_stations.isEmpty()) return;
+    const quint64 generation = m_locationGeneration;
     fetchObservationChain(m_stations, 0,
-                          [this](const QVariantMap &obs, const QDateTime &stamp,
-                                 const QString &station) {
+                          [this, generation](const QVariantMap &obs, const QDateTime &stamp,
+                                             const QString &station) {
+        // Observed at the place before: not laid over this one's forecast.
+        if (generation != m_locationGeneration) return;
         if (obs.isEmpty()) return;   // every station tried; keep the model's values
         m_obs        = obs;
         m_obsTime    = stamp;
@@ -1398,7 +1312,7 @@ void WeatherBackend::buildAlmanac(const QJsonObject &daily) {
 }
 
 bool WeatherBackend::useTwelveHour() const {
-    return moduleConfig()["hours_format"].toString(QStringLiteral("24-hour"))
+    return setting(QStringLiteral("hours_format")).toString(QStringLiteral("24-hour"))
                .startsWith(QLatin1String("12"));
 }
 
@@ -1496,19 +1410,24 @@ void WeatherBackend::resolveOtherStations() {
     m_otherObs.clear();
     m_otherObsTime.clear();
 
+    // An answer for a list since changed is dropped: its index is another
+    // place's row now.
+    const quint64 generation = m_extraLocationGeneration;
     for (int i = 0; i < m_otherPoints.size(); ++i) {
         const QVariantMap p = m_otherPoints.at(i).toMap();
         const QString name  = p["name"].toString();
         resolveStationsFor(p["lat"].toDouble(), p["lon"].toDouble(),
-                           [this, i, name](const QStringList &stations) {
+                           [this, i, name, generation](const QStringList &stations) {
+            if (generation != m_extraLocationGeneration) return;
             if (stations.isEmpty()) return;   // international, or nothing close
             m_otherStations.insert(i, stations);
             qInfo("[Weather] %s observation stations: %s",
                   qPrintable(name), qPrintable(stations.join(", ")));
             fetchObservationChain(stations, 0,
-                                  [this, i, name](const QVariantMap &obs,
-                                                  const QDateTime &stamp,
-                                                  const QString &station) {
+                                  [this, i, name, generation](const QVariantMap &obs,
+                                                              const QDateTime &stamp,
+                                                              const QString &station) {
+                if (generation != m_extraLocationGeneration) return;
                 if (obs.isEmpty()) return;
                 m_otherObs.insert(i, obs);
                 m_otherObsTime.insert(i, stamp);
@@ -1524,11 +1443,14 @@ void WeatherBackend::resolveOtherStations() {
 }
 
 void WeatherBackend::fetchOtherObservations() {
+    // As in resolveOtherStations(): not for a list since changed.
+    const quint64 generation = m_extraLocationGeneration;
     for (auto it = m_otherStations.cbegin(); it != m_otherStations.cend(); ++it) {
         const int i = it.key();
         fetchObservationChain(it.value(), 0,
-                              [this, i](const QVariantMap &obs, const QDateTime &stamp,
-                                        const QString &) {
+                              [this, i, generation](const QVariantMap &obs, const QDateTime &stamp,
+                                                    const QString &) {
+            if (generation != m_extraLocationGeneration) return;
             if (obs.isEmpty()) return;
             m_otherObs.insert(i, obs);
             m_otherObsTime.insert(i, stamp);

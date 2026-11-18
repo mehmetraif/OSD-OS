@@ -66,7 +66,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -81,10 +81,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Select User"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Body
@@ -125,7 +121,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 userSelectRoot.goBack()
                 event.accepted = true
             }
@@ -133,7 +129,7 @@ FocusScope {
 
         delegate: Item {
             width: userList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The row as a monitor layout draws one, in its frame (Main.qml's):
             // the layout's cursor, its case, its colours.
@@ -154,7 +150,7 @@ FocusScope {
                 clip: true
 
                 Rectangle {
-                    color: root.accentColor
+                    color: root.cursorColor
                     anchors.fill: rowText
                     visible: userList.currentIndex === index
                 }
@@ -162,7 +158,7 @@ FocusScope {
                 Text {
                     id: rowText
                     text: modelData.title || ""
-                    color: userList.currentIndex === index ? root.surfaceColor : root.primaryColor
+                    color: userList.currentIndex === index ? root.cursorInk : root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     anchors.verticalCenter: parent.verticalCenter
@@ -182,7 +178,7 @@ FocusScope {
     Text {
         visible: userSelectRoot.errorMsg !== ""
         text: userSelectRoot.errorMsg
-        color: root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         horizontalAlignment: Text.AlignHCenter
@@ -204,10 +200,6 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
 }

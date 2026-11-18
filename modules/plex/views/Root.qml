@@ -1,95 +1,31 @@
 import QtQuick
+import Components
 
-FocusScope {
+ModuleRouter {
     id: moduleRoot
+    moduleId: "com.osdos.plex"
+    viewsUrl: Qt.resolvedUrl(".")
 
-    // Exit signal — emitted to leave the module entirely
-    signal goBack()
+    // Opened for an NFC card (navParams.cardRef): a card never prompts, so a
+    // sign-in lost on the way is no PinAuth here. The views a card reaches
+    // say so themselves: CardPlay and QueuePlay in their notice, a card's
+    // Player in its own as a video it waited for won't come, and back from
+    // any of them returns to the card reader.
+    readonly property bool forCard: !!navParams.cardRef
 
-    property var navParams: ({})
-
-    // The module's manifest id — the single place it appears in this module's QML.
-    // Child views reference it via moduleRoot.moduleId.
-    property string moduleId: "com.osdos.plex"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
-
-    // In the layout's frame (Main.qml) while the view shown takes its place
-    // in it: a browser or a list does, a player does not.
-    readonly property bool inFrame: !!internalLoader.item && internalLoader.item.inFrame === true
-
-    // Internal navigation state
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateTo(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function replaceWith(viewPath, params) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    // Repoint the BACK target after autoplay advances in place. The top of the
-    // stack is the detail view the player was launched from; swap its item so
-    // exiting the player returns to the now-playing episode's detail screen.
-    function updateBackItem(item) {
-        if (navStack.length === 0) return
-        var top = navStack[navStack.length - 1]
-        top.params = Object.assign({}, top.params, { item: item })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
+    // Signed out (logout, or the token refused and not renewed): auth in
+    // place of every view (replaceWith), so the view signed out of isn't
+    // left on the stack for back to return to: back from PinAuth leaves the
+    // module.
+    function signedOut() {
+        if (forCard)
             return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
+        replaceWith("PinAuth.qml", {})
     }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
-            function onReplaceWith(path, params) { moduleRoot.replaceWith(path, params) }
-            function onGoBack() { moduleRoot.navigateBack() }
-            function onUpdateBackItem(item) { moduleRoot.updateBackItem(item) }
-        }
-    }
-
-    // Handle logout signal from backend: clear stack and go to auth. Replaced,
-    // not navigated to, so the view signed out of isn't put back on the stack
-    // for back to return to: back from PinAuth leaves the module.
     Connections {
         target: plexBackend
-        function onLogoutComplete() {
-            moduleRoot.navStack = []
-            moduleRoot.replaceWith("PinAuth.qml", {})
-        }
-        function onAuthRevoked() {
-            moduleRoot.navStack = []
-            moduleRoot.replaceWith("PinAuth.qml", {})
-        }
+        function onLogoutComplete() { moduleRoot.signedOut() }
+        function onAuthRevoked() { moduleRoot.signedOut() }
     }
 
     Component.onCompleted: {
@@ -103,7 +39,7 @@ FocusScope {
         // profiles from a card would sidestep the profile PIN.) A pending PIN or a
         // missing sign-in is surfaced by CardPlay as an error, not a prompt.
         if (navParams.cardRef) {
-            navigateTo("CardPlay.qml", {
+            navigateToView("CardPlay.qml", {
                 cardRef:   navParams.cardRef,
                 cardMode:  navParams.cardMode  || "",
                 cardTitle: navParams.cardTitle || "",
@@ -119,19 +55,19 @@ FocusScope {
         // straight past it into Libraries with the previous user still active.
         var pendingPin = plexBackend.pending_pin_user()
         if (state === "authed" && pendingPin !== "") {
-            navigateTo("ProfilePin.qml", { userId: pendingPin, reauth: true })
+            navigateToView("ProfilePin.qml", { userId: pendingPin, reauth: true })
         } else if (state === "authed") {
             // UserSelect reads the users kept itself, given none.
             var autoSignIn = appCore.get_setting(moduleId, "auto_sign_in")
             if (autoSignIn !== true && autoSignIn !== "ON")
-                navigateTo("UserSelect.qml", { reauth: true })
+                navigateToView("UserSelect.qml", { reauth: true })
             else
-                navigateTo("Libraries.qml", {})
+                navigateToView("Libraries.qml", {})
         } else if (state === "needs_user") {
             // Have token but no server selected yet — show user list
-            navigateTo("UserSelect.qml", {})
+            navigateToView("UserSelect.qml", {})
         } else {
-            navigateTo("PinAuth.qml", {})
+            navigateToView("PinAuth.qml", {})
         }
     }
 }

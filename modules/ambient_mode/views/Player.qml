@@ -1,4 +1,5 @@
 import QtQuick
+import Components
 
 FocusScope {
     id: playerRoot
@@ -19,32 +20,13 @@ FocusScope {
 
     focus: true
 
-    // A key's repeats go as repeats: mpv holds the key down for them, and
-    // lets it go as the key is (Keys.onReleased).
+    // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats: mpv
+    // holds the key down for them, and lets it go as the key is
+    // (Keys.onReleased).
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-            mpvController.sendKey("ESC", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Backspace) {
-            mpvController.sendKey("BS", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Up) {
-            mpvController.sendKey("UP", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Down) {
-            mpvController.sendKey("DOWN", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Left) {
-            mpvController.sendKey("LEFT", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Right) {
-            mpvController.sendKey("RIGHT", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Space) {
-            mpvController.sendKey("SPACE", event.isAutoRepeat)
-            event.accepted = true
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            mpvController.sendKey("ENTER", event.isAutoRepeat)
+        var key = MpvKeys.name(event.key)
+        if (key !== "") {
+            mpvController.sendKey(key, event.isAutoRepeat)
             event.accepted = true
         }
     }
@@ -59,16 +41,16 @@ FocusScope {
         // the single playbackEnded signal regardless of reason — stop the companion
         // audio and return to the menu. Back with Transparent Background leaves
         // the clip playing behind the menus: its audio plays on with it, and
-        // stops as the clip ends (main.cpp). A clip mpv could not play goes
-        // back the same way, nothing on the screen to say why, so the log
-        // does.
+        // stops as the clip ends (main.cpp). A clip mpv could not play says
+        // why first (PlaybackNotice), its audio stopped with it: RETRY starts
+        // both again, back leaves.
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
-            if (reason === "failed")
-                mpvController.logFailure("AmbientMode Player",
-                                         shuffleVideo ? videoPaths.length + " clips, shuffled"
-                                                      : videoPath.split("/").pop())
             if (!mpvController.background)
                 ambientModeBackend.stopAudio()
+            if (reason === "failed") {
+                failure.showMpv(true)
+                return
+            }
             goBack()
         }
     }
@@ -79,7 +61,11 @@ FocusScope {
             Qt.callLater(playerRoot.goBack)
             return
         }
+        play()
+    }
 
+    // The clip, or the shuffled clips, and the companion audio beside them.
+    function play() {
         // Shuffling hands mpv the whole library as one playlist and lets --shuffle
         // plus --loop-playlist=inf (from loop: true) cycle it, rather than the app
         // detecting each clip's end and loading a new one. First entry goes in as
@@ -101,5 +87,11 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         color: "black"
+    }
+
+    PlaybackNotice {
+        id: failure
+        onRetried: playerRoot.play()
+        onDismissed: playerRoot.goBack()
     }
 }

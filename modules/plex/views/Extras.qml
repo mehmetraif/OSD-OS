@@ -127,7 +127,7 @@ FocusScope {
         }
     }
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             // A transcode still on its way is dropped as it comes, not played
             // in the detail screen back is going to.
             if (launchingExtra)
@@ -142,10 +142,6 @@ FocusScope {
     // ---
 
     AppBar {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125
-        anchors.leftMargin: root.sw * 0.125
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: itemTitle
@@ -157,9 +153,10 @@ FocusScope {
         model: extras
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25
-        anchors.leftMargin: root.sw * 0.115625
-        width: root.sw * 0.76875
+        // The pane, where every view has its list (the page is in no frame).
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
         height: root.sh * 0.525 + (root.hintBar ? 0 : root.sh * 0.075) // a row more with the hint bar off
         clip: true
         focus: true
@@ -170,7 +167,7 @@ FocusScope {
 
             // Full-width background highlight for the active row
             Rectangle {
-                color: root.accentColor
+                color: root.cursorColor
                 anchors.fill: parent
                 visible: itemList.currentIndex === index
             }
@@ -186,43 +183,21 @@ FocusScope {
                 Text {
                     id: extraType
                     text: modelData.extraTypeLabel || ""
-                    color: itemList.currentIndex === index ? root.surfaceColor : root.secondaryColor
+                    color: itemList.currentIndex === index ? root.cursorInk : root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0208333 //10
                 }
 
                 // Clipped title with marquee scroll when it overflows the row
-                Item {
+                ScrolledText {
                     id: extraTitleClip
-                    width: Math.min(extraTitle.implicitWidth, itemList.width - root.sw * 0.021875) //14
-                    height: extraTitle.implicitHeight
-                    clip: true
-
-                    Text {
-                        id: extraTitle
-                        text: modelData.title || ""
-                        color: itemList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        font.pixelSize: root.sh * 0.0333333 //16
-                        x: 0
-                    }
-
-                    SequentialAnimation {
-                        running: (itemList.currentIndex === index) &&
-                                 (extraTitle.implicitWidth > extraTitleClip.width)
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) extraTitle.x = 0
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: extraTitle; property: "x"
-                            to: extraTitleClip.width - extraTitle.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: extraTitle; property: "x"; value: 0 }
-                    }
+                    width: Math.min(implicitWidth, itemList.width - root.sw * 0.021875) //14
+                    on: itemList.currentIndex === index
+                    elides: false
+                    text: modelData.title || ""
+                    color: itemList.currentIndex === index ? root.cursorInk : root.primaryColor
+                    font.pixelSize: root.sh * 0.0333333 //16
                 }
             }
         }
@@ -231,11 +206,7 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
     }
 
     // Launch overlay — covers the list while Plex prepares the stream so a

@@ -23,6 +23,10 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'Main.qml'
+      - 'views/**'
+      - 'modules/**'
+      - 'assets/**'
       - 'shaders/**'
       - 'thirdparty/**'
       - 'cmake/**'
@@ -30,13 +34,19 @@ on:
       - 'CMakeLists.txt'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-make.sh'
       - 'scripts/fbneo-lan.patch'
       - 'scripts/engines.env'
       - 'scripts/bsd-package.sh'
+      - 'scripts/bsd-ci.sh'
       - '.github/workflows/freebsd.yml'
   pull_request:
     paths:
       - 'src/**'
+      - 'Main.qml'
+      - 'views/**'
+      - 'modules/**'
+      - 'assets/**'
       - 'shaders/**'
       - 'thirdparty/**'
       - 'cmake/**'
@@ -44,9 +54,11 @@ on:
       - 'CMakeLists.txt'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
+      - 'scripts/fbneo-make.sh'
       - 'scripts/fbneo-lan.patch'
       - 'scripts/engines.env'
       - 'scripts/bsd-package.sh'
+      - 'scripts/bsd-ci.sh'
       - '.github/workflows/freebsd.yml'
 
 # A newer push cancels the run before it: only the newest commit's result
@@ -91,7 +103,7 @@ jobs:
         uses: actions/cache/restore@v6.1.0
         with:
           path: fbneo
-          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-lan.patch') }}
+          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
 
       # The commit scripts/engines.env names, both cores' source.
       - name: Download FinalBurn Neo's source
@@ -106,7 +118,12 @@ jobs:
       # makefile, and what the tests run with:
       # bash, Lua, and the DejaVu fonts, since the view tests lay their text
       # out in the system's monospace font and the image has no font for Qt
-      # to draw it with. OpenSSL is the system's.
+      # to draw it with. OpenSSL is the system's. Then scripts/bsd-ci.sh, which
+      # the OpenBSD build runs too: the build, the tests, the cores, the
+      # package, and the package installed, tried and removed. A mirror can
+      # list a package it doesn't have yet while it syncs ("Not Found"), so the
+      # install is tried three times, a minute apart, the catalogue fetched
+      # anew between tries.
       - name: Build, test and package in a FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
@@ -116,55 +133,15 @@ jobs:
           sync: rsync
           copyback: true
           prepare: |
-            env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake perl5 \
-              qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv
-          run: |
-            set -e
-            uname -a
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local \
-              -DCMAKE_INSTALL_PREFIX=/usr/local -DAPP_VERSION="$VERSION"
-            cmake --build build --parallel
-            DESTDIR="$PWD/stage" cmake --install build
-            cmake -S tests -B build-tests -G Ninja -DCMAKE_PREFIX_PATH=/usr/local
-            cmake --build build-tests --parallel
-            status=0
-            QT_QPA_PLATFORM=offscreen ctest --test-dir build-tests --output-on-failure --timeout 300 || status=$?
-            # A handler or a deferred call that ran on a view its Loader had
-            # let go: a warning on Linux, a crash on OpenBSD, so any is listed.
-            grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
-            [ "$status" -eq 0 ]
-            # The list of games is the last thing the scripts write. Both
-            # cores from the commit scripts/engines.env names, each from a
-            # copy of its own: the LAN core's patch goes in its copy.
-            if [ ! -f fbneo/share/osdos/fbneo/fbneo-arcade.dat ]; then
-              mkdir -p fbneo-src fbneo-lan-src
-              tar -xzf fbneo-src.tar.gz -C fbneo-src --strip-components 1
-              tar -xzf fbneo-src.tar.gz -C fbneo-lan-src --strip-components 1
-              bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo/lib/osdos fbneo/share/osdos/fbneo/license.txt
-              bash scripts/build-fbneo.sh fbneo-src fbneo/lib/osdos fbneo/share/osdos/fbneo/fbneo-arcade.dat \
-                fbneo/share/osdos/fbneo/license.txt
-            fi
-            tar -C fbneo -cf - . | tar -C stage/usr/local -xf -
-            bash scripts/bsd-package.sh stage "$VERSION" .
-            package=$(ls OSD-OS-*-freebsd-amd64.pkg)
-            # Installed as a user installs it, with mpv, which none of the
-            # program's libraries brings, taken away first.
-            pkg delete -y mpv
-            if pkg install -y "./$package"; then
-              echo "pkg install brought the package and what it needs"
-            else
-              echo "pkg install can't take the file: its packages first, then pkg add"
-              pkg install -y mpv
-              pkg add "./$package"
-            fi
-            pkg info osdos
-            /usr/local/bin/osdos --core-info /usr/local/lib/osdos/fbneo_libretro.so
-            lan=$(/usr/local/bin/osdos --core-info /usr/local/lib/osdos/osdos_lan_libretro.so)
-            echo "$lan"
-            echo "$lan" | grep -qx 'name=OSD-OS LAN Core'
-            bash tests/app_smoke_test.sh /usr/local/bin/osdos /usr/local/share/osdos /usr/local/lib/qt6/qml
-            pkg delete -y osdos
-            [ ! -e /usr/local/bin/osdos ] && [ ! -e /usr/local/lib/osdos ] && [ ! -e /usr/local/share/osdos ]
+            for try in 1 2 3; do
+              env ASSUME_ALWAYS_YES=yes pkg install -y cmake-core ninja pkgconf bash lua54 dejavu gmake perl5 \
+                qt6-base qt6-declarative qt6-svg qt6-shadertools sdl2 minizip mpv && break
+              if [ "$try" = 3 ]; then exit 1; fi
+              echo "pkg install failed (try $try of 3); trying again in a minute"
+              sleep 60
+              env ASSUME_ALWAYS_YES=yes pkg update -f
+            done
+          run: bash scripts/bsd-ci.sh "$VERSION"
 
       # Kept once it is built, whether or not the package after it is made,
       # so that a run after a failed one doesn't build it again.

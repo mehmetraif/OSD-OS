@@ -1,9 +1,7 @@
 #pragma once
+#include "ArtPixelItem.h"
 #include <QColor>
-#include <QImage>
 #include <QPointer>
-#include <QQuickItem>
-#include <QTimer>
 #include <QVector>
 
 // Settings → Look → Effects → Selector Effect, or a theme's: something always going on round
@@ -27,7 +25,7 @@
 // the last spark is out with no box to play round, it rests.
 //
 //     SelectorFx { anchors.fill: parent; target: root.selector; effect: "Sparkles" }
-class SelectorFx : public QQuickItem {
+class SelectorFx : public ArtPixelItem {
     Q_OBJECT
     Q_PROPERTY(QQuickItem *target READ target WRITE setTarget NOTIFY targetChanged)
     Q_PROPERTY(QString effect READ effect WRITE setEffect NOTIFY effectChanged)
@@ -35,8 +33,6 @@ class SelectorFx : public QQuickItem {
     // The scheme's other colour: snow passing over the box takes it, as the
     // box's label does.
     Q_PROPERTY(QColor paper READ paper WRITE setPaper NOTIFY paperChanged)
-    Q_PROPERTY(int pixel READ pixel WRITE setPixel NOTIFY pixelChanged)
-    Q_PROPERTY(bool running READ running WRITE setRunning NOTIFY runningChanged)
 public:
     explicit SelectorFx(QQuickItem *parent = nullptr);
 
@@ -48,25 +44,15 @@ public:
     void setInk(const QColor &ink);
     QColor paper() const { return m_paper; }
     void setPaper(const QColor &paper);
-    int pixel() const { return m_pixel; }
-    void setPixel(int pixel);
-    bool running() const { return m_running; }
-    void setRunning(bool running);
 
 signals:
     void targetChanged();
     void effectChanged();
     void inkChanged();
     void paperChanged();
-    void pixelChanged();
-    void runningChanged();
-
-protected:
-    QSGNode *updatePaintNode(QSGNode *old, UpdatePaintNodeData *) override;
-    void itemChange(ItemChange change, const ItemChangeData &value) override;
-    void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
+    friend class ArtPixelsTest;
     enum class Kind { None, Sparkles, Welding, Lightning, Rainbow, Snow };
     struct Spark {
         float x, y, vx, vy;     // art pixels, art pixels a second
@@ -82,9 +68,8 @@ private:
         int lit;                // frames it has shown
     };
 
-    void tick();
-    void updateRunning();
-    quint32 random();
+    void tick() override;
+    void updateRunning() override;
     float uniform(float from, float to);
     // The target's box in art pixels, in this item's coordinates; empty when
     // there is none to play round.
@@ -104,14 +89,8 @@ private:
     Kind m_kind = Kind::None;
     QColor m_ink = Qt::white;
     QColor m_paper = Qt::black;
-    int m_pixel = 2;
-    bool m_running = true;
 
-    QTimer m_timer;
-    QImage m_frame;
-    bool m_newFrame = false;
     bool m_blank = true;
-    quint32 m_seed = 0x2545F491u;
     float m_time = 0;
     float m_nextBurst = 0;
     // Flakes due but not yet fallen, a fraction of one.

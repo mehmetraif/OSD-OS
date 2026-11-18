@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ExitCodes.h"
+
 #include <QString>
 #include <QStringList>
 
@@ -25,7 +27,7 @@ void installCrashHandlers(const QString &dataRoot);
 // answering late) is noted in the journal with the memory, once in ten
 // seconds at most. Started once the event loop runs; stopped before the
 // app's own shutdown, which may take a while.
-constexpr int kStallExitCode = 70;
+constexpr int kStallExitCode = exitcode::kStall;
 void startStallWatchdog(const QString &dataRoot, int reportMs, int abortMs);
 void stopStallWatchdog();
 

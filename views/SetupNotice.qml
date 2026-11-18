@@ -17,8 +17,7 @@ FocusScope {
         if (event.modifiers & Qt.ControlModifier)
             return
         event.accepted = true
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Escape
-                || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || root.isBack(event))
             appCore.dismissSetupNotice()
     }
 

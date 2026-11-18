@@ -165,10 +165,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: detailsRoot.title
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The selected achievement's badge, large, at the right under the title
@@ -240,7 +236,7 @@ FocusScope {
             readonly property bool heading: modelData.type === "section"
             readonly property bool earned: !heading && modelData.earned !== ""
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             MenuRow {
                 visible: line.heading
@@ -288,7 +284,7 @@ FocusScope {
                 detailsRoot.play()
         }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 if (!event.isAutoRepeat)
                     detailsRoot.goBack()
                 event.accepted = true
@@ -298,18 +294,9 @@ FocusScope {
 
     HelpLine {
         text: detailsRoot.about(detailsRoot.rows[list.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
-        text: root.hints.back + ":BACK" + (detailsRoot.rows.length > 0 ? " " + root.hints.navigate + ":NAVIGATE" : "")
-              + " " + root.hints.select + ":PLAY"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", detailsRoot.rows.length > 0 ? "navigate:NAVIGATE" : "", "select:PLAY"])
     }
 }

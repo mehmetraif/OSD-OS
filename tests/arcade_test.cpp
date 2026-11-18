@@ -3,8 +3,10 @@
 #include "input/ControllerProfile.h"
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
+#include "modules/arcade/Http.h"
 #include "modules/arcade/Libretro.h"
 #include "modules/arcade/ProgramInstaller.h"
+#include "modules/arcade/RecordFile.h"
 #include "modules/arcade/Mame.h"
 #include "modules/arcade/RetroAchievements.h"
 #include "modules/arcade/RomCheck.h"
@@ -94,7 +96,8 @@ class ArcadeTest : public QObject {
     // noted as asked and as answered, and a game, whose arguments, folder,
     // display card and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
     // slowgame takes a second, as does asking about a_slowlist half of one;
-    // any other game takes $MAME_SECONDS.
+    // any other game takes $MAME_SECONDS, and -listxml exits $MAME_LIST_LINGER
+    // seconds after its answer.
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
@@ -162,6 +165,7 @@ case "$1" in
 	echo '<machine name="z80" isdevice="yes" runnable="no"><description>Zilog Z80</description></machine>'
 	echo '</mame>'
 	echo "answered" >> "$MAME_LOG"
+	[ -n "$MAME_LIST_LINGER" ] && sleep "$MAME_LIST_LINGER"
 	if [ -n "$missing" ]; then
 		echo "No matching machines found for '$missing'" >&2
 		exit 5
@@ -1603,23 +1607,20 @@ private slots:
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
-        QHash<QString, double> aspects;
-        QHash<QString, mame::Machine> machines;
-        const QHash<QString, QString> games = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"), &aspects,
-                                                                &machines);
-        QCOMPARE(games.size(), 7);
+        QHash<QString, mame::Machine> machines = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"));
+        QCOMPARE(machines.size(), 7);
         // The pictures' shapes, where the list says.
-        QCOMPARE(aspects.size(), 2);
-        QVERIFY(!aspects.contains(QStringLiteral("1943")));
-        QCOMPARE(aspects.value(QStringLiteral("sf2")), 4.0 / 3.0);
-        QCOMPARE(aspects.value(QStringLiteral("galaga")), 3.0 / 4.0);
-        QCOMPARE(games.value(QStringLiteral("sf2")), QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
-        QVERIFY(games.contains(QStringLiteral("sf2ce")));
-        QVERIFY(!games.contains(QStringLiteral("neogeo")));
+        QCOMPARE(std::count_if(machines.cbegin(), machines.cend(), [](const mame::Machine &m) { return m.aspect > 0; }), 2);
+        QCOMPARE(machines.value(QStringLiteral("1943")).aspect, 0.0);
+        QCOMPARE(machines.value(QStringLiteral("sf2")).aspect, 4.0 / 3.0);
+        QCOMPARE(machines.value(QStringLiteral("galaga")).aspect, 3.0 / 4.0);
+        QCOMPARE(machines.value(QStringLiteral("sf2")).description,
+                 QStringLiteral("Street Fighter II - The World Warrior (World 910522)"));
+        QVERIFY(machines.contains(QStringLiteral("sf2ce")));
+        QVERIFY(!machines.contains(QStringLiteral("neogeo")));
         // Each game as MAME would describe it: its year and maker, a clone's
         // parent, its driver named as MAME's are, whether it works, and a
         // vertical one's rotation.
-        QCOMPARE(machines.size(), 7);
         const mame::Machine kof98 = machines.value(QStringLiteral("kof98"));
         QCOMPARE(kof98.name, QStringLiteral("kof98"));
         QCOMPARE(kof98.description, QStringLiteral("The King of Fighters '98 - The Slugfest"));
@@ -1636,8 +1637,7 @@ private slots:
         QCOMPARE(machines.value(QStringLiteral("1943")).rotate, 90);
         QCOMPARE(machines.value(QStringLiteral("sf2")).rotate, 0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).status, QStringLiteral("good"));
-        QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat"), nullptr, &machines).isEmpty());
-        QVERIFY(machines.isEmpty());
+        QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
 
         // A sign-in RetroAchievements turned down, and one that didn't reach it.
         for (const char *refused : { "Invalid user/token combination.", "Invalid token",
@@ -1859,14 +1859,21 @@ private slots:
         const QStringList remap = libretro::remapText(launch).split(QLatin1Char('\n'));
         QVERIFY(remap.contains(QStringLiteral("input_libretro_device_p3 = \"261\"")));
         QVERIFY(!remap.filter(QStringLiteral("input_libretro_device_p1")).size());
-        // The file is OSD/OS's while there is none or it wrote it; one saved
-        // from RetroArch's menu, or put there by hand, is the user's.
+        // The file is OSD/OS's while there is none or it wrote it, what it
+        // holds read with it; one saved from RetroArch's menu, or put there
+        // by hand, is the user's.
         const QString remapFile = libretro::coreRemapPath(dir.path() + QStringLiteral("/remaps"));
-        QVERIFY(libretro::ownsRemap(remapFile));
+        QString held = QStringLiteral("not read");
+        QVERIFY(libretro::ownsRemap(remapFile, &held));
+        QCOMPARE(held, QString());
         writeFile(remapFile, libretro::remapText(launch).toUtf8());
         QVERIFY(libretro::ownsRemap(remapFile));
+        QVERIFY(libretro::ownsRemap(remapFile, &held));
+        QCOMPARE(held, libretro::remapText(launch));
         writeFile(remapFile, "input_libretro_device_p1 = \"1\"\ninput_remap_port_p1 = \"0\"\n");
         QVERIFY(!libretro::ownsRemap(remapFile));
+        QVERIFY(!libretro::ownsRemap(remapFile, &held));
+        QCOMPARE(held, QString());
         // Online, on the internet or the local network, every player plays
         // on the host's controller types. On the Classic layout, RetroArch's
         // own (a host without a panel, or one that isn't OSD/OS), a panel's
@@ -2762,6 +2769,24 @@ private slots:
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
                  QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\""),
                                QStringLiteral("input_libretro_device_p2 = \"261\"") }));
+        // Started again with the same players, the file as it is to be is
+        // left alone: not written anew (and flushed to the card) at every
+        // game.
+        {
+            const QByteArray before = contents(remap);
+            const FolderWatch watch(QFileInfo(remap).path());
+            played(arcade, QStringLiteral("sf2"));
+            QCOMPARE(contents(remap), before);
+            if (watch.fd >= 0) {
+                QStringList cameIn;
+                QStringList writtenTo;
+                watch.read(cameIn, writtenTo);
+                QVERIFY2(cameIn.isEmpty(), qPrintable(cameIn.join(QLatin1Char(' '))));
+                QVERIFY2(writtenTo.isEmpty(), qPrintable(writtenTo.join(QLatin1Char(' '))));
+            } else {
+                qWarning("the remap folder can't be watched here (inotify): that it isn't written again isn't checked");
+            }
+        }
         controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("030000005e0400008e02000014010000") } });
@@ -3572,6 +3597,130 @@ private slots:
         QVERIFY(verdicts.value(QStringLiteral("galaga")).good);
     }
 
+    // The pictures' records (RecordFile): read by folder, written whole off
+    // the GUI thread, their names in order, only once they have changed and
+    // only where there is a folder.
+    void recordFile() {
+        struct Entry {
+            int n = 0;
+            static Entry fromJson(const QJsonObject &json) { return { json.value(QStringLiteral("n")).toInt() }; }
+            QJsonObject toJson() const { return { { QStringLiteral("n"), n } }; }
+        };
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.path() + QStringLiteral("/.record.json");
+        QThreadPool saves;
+        saves.setMaxThreadCount(1);
+        RecordFile<Entry> record(QStringLiteral(".record.json"));
+        QVERIFY(record.folder().isEmpty());
+        record.load(dir.path());
+        QCOMPARE(record.folder(), dir.path());
+        QVERIFY(record.entries().isEmpty());
+        record.entries().insert(QStringLiteral("sf2"), { 2 });
+        record.entries().insert(QStringLiteral("pacman"), { 1 });
+        // Unchanged as far as it knows: nothing written.
+        record.flush(&saves);
+        saves.waitForDone();
+        QVERIFY(!QFileInfo::exists(file));
+        record.markChanged();
+        record.flush(&saves);
+        saves.waitForDone();
+        QFile written(file);
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        QCOMPARE(written.readAll(), QByteArray(R"({"pacman":{"n":1},"sf2":{"n":2}})"));
+        written.close();
+        // Written once for a change.
+        QVERIFY(QFile::remove(file));
+        record.flush(&saves);
+        saves.waitForDone();
+        QVERIFY(!QFileInfo::exists(file));
+        record.markChanged();
+        record.flush(&saves);
+        saves.waitForDone();
+        // Read back, in another folder none, and with none nothing written.
+        RecordFile<Entry> again(QStringLiteral(".record.json"));
+        again.load(dir.path());
+        QCOMPARE(again.entries().size(), 2);
+        QCOMPARE(again.entries().value(QStringLiteral("sf2")).n, 2);
+        QTemporaryDir other;
+        QVERIFY(other.isValid());
+        again.load(other.path());
+        QVERIFY(again.entries().isEmpty());
+        again.load(QString());
+        again.entries().insert(QStringLiteral("galaga"), { 3 });
+        again.markChanged();
+        again.flush(&saves);
+        saves.waitForDone();
+        QVERIFY(QDir(other.path()).entryList(QDir::Files | QDir::Hidden).isEmpty());
+    }
+
+    // The installers' download (arcadehttp::downloadToFile()) from a local
+    // server: a file whole, its progress said; and why one isn't: the
+    // server's answer, too big, or a file that can't be written.
+    void downloadToFile() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QByteArray body;
+        for (int i = 0; body.size() < 1024 * 1024; ++i)
+            body += QByteArray::number(i) + '\n';
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &body] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &body] {
+                const QByteArray path = socket->readAll().split(' ').value(1);
+                if (path == "/file")
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size())
+                                  + "\r\nConnection: close\r\n\r\n" + body);
+                else
+                    socket->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                socket->disconnectFromHost();
+            });
+        });
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
+        QNetworkAccessManager nam;
+        QObject context;
+        const auto download = [&](const QString &path, const QString &file, qint64 maxBytes, qint64 *received) {
+            QString result = QStringLiteral("not done");
+            bool done = false;
+            QNetworkReply *reply = arcadehttp::downloadToFile(
+                &nam, QUrl(base + path), file, 10000, maxBytes, QStringLiteral("the test's file"), &context,
+                [received](qint64 got, qint64) {
+                    if (received)
+                        *received = got;
+                },
+                [&](const QString &error) {
+                    result = error;
+                    done = true;
+                });
+            if (reply && !QTest::qWaitFor([&done] { return done; }, 10000))
+                result = QStringLiteral("timed out");
+            return result;
+        };
+        const QString file = dir.path() + QStringLiteral("/file.part");
+        qint64 received = 0;
+        QCOMPARE(download(QStringLiteral("/file"), file, 4 * 1024 * 1024, &received), QString());
+        QCOMPARE(contents(file), body);
+        QCOMPARE(received, body.size());
+        QCOMPARE(download(QStringLiteral("/none"), file, 4 * 1024 * 1024, nullptr),
+                 QStringLiteral("127.0.0.1 answered 404"));
+        QCOMPARE(download(QStringLiteral("/file"), file, 1024, nullptr),
+                 QStringLiteral("127.0.0.1 sent more than the test's file can be"));
+        // A file that can't be written: said at once, nothing asked for.
+        const QString nowhere = dir.path() + QStringLiteral("/no folder/file.part");
+        QVERIFY(download(QStringLiteral("/file"), nowhere, 4 * 1024 * 1024, nullptr)
+                    .startsWith(nowhere + QStringLiteral(" could not be written: ")));
+        // A disk that fills up on the way (/dev/full): failed, and why is
+        // the file's, not the download's stopping.
+        QFile full(QStringLiteral("/dev/full"));
+        if (!full.open(QIODevice::WriteOnly))
+            QSKIP("no /dev/full here");
+        QVERIFY(full.write(body) < 0 || !full.flush());
+        const QString diskFull = full.errorString();
+        full.close();
+        QCOMPARE(download(QStringLiteral("/file"), QStringLiteral("/dev/full"), 4 * 1024 * 1024, nullptr), diskFull);
+    }
+
     // Settings → Arcade → Check ROMs, started by the user: FinalBurn Neo's
     // list's CRCs against the archives' tables (a BIOS set's too), MAME's
     // -verifyroms with the folder and its bios folder; what it found picks
@@ -3693,6 +3842,24 @@ private slots:
             QVERIFY(online.contains(QStringLiteral("galaga")));
             QVERIFY(!online.contains(QStringLiteral("s1945")));
             QVERIFY(!online.contains(QStringLiteral("mslug")));
+            // Nor hosted, online or on the local network: a game's options
+            // offer neither, and hosting it says why before RetroArch starts.
+            arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+            QVERIFY(arcade.canHost(QStringLiteral("galaga")));
+            QVERIFY(arcade.canHostLan(QStringLiteral("galaga")));
+            for (const QString &set : { QStringLiteral("s1945"), QStringLiteral("mslug") }) {
+                QVERIFY2(!arcade.canHost(set), qPrintable(set));
+                QVERIFY2(!arcade.canHostLan(set), qPrintable(set));
+            }
+            const QString incomplete =
+                QStringLiteral("Files of it are missing for FinalBurn Neo, as Settings → Arcade → Check ROMs found");
+            QFile::remove(m_log);
+            QVERIFY(!arcade.hostGame(QStringLiteral("s1945")));
+            QCOMPARE(arcade.lastError(), incomplete);
+            QVERIFY(!arcade.hostLanGame(QStringLiteral("s1945")));
+            QCOMPARE(arcade.lastError(), incomplete);
+            QVERIFY(logLines(QStringLiteral("retroarch")).isEmpty());
+            arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
             arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
 
             // Hide Incomplete Games: mslug alone, whole in neither.
@@ -7203,6 +7370,151 @@ private slots:
         }
         QCOMPARE(order, QStringList({ QStringLiteral("play"), QStringLiteral("end"), QStringLiteral("listxml") }));
         QCOMPARE(logLines(QStringLiteral("listxml")), QStringList({ QStringLiteral("listxml newgame") }));
+    }
+
+    // Nor is MAME run beside its own download, which puts its MAME in the
+    // folder it runs from (Windows renames no folder a program runs from):
+    // Check ROMs started meanwhile holds its part, a FinalBurn Neo game that
+    // ends meanwhile starts neither it nor the asking the download stopped,
+    // a game of MAME's is refused, and both go on once the download has
+    // ended. A game started while a
+    // check waits only for an asking that has answered, but not exited,
+    // doesn't let the check's part go for the moment before it starts.
+    void mameNotBesideItsDownload() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "pacman.zip", "galaga.zip", "sf2.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        qputenv("RA_CONFIG_COPY", (data.path() + QStringLiteral("/ra.cfg")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qunsetenv("MAME_LIST_LINGER");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+        // MAME's archive from a stand-in that answers only once told to,
+        // without it: a download that fails, and leaves MAME as it was.
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        QPointer<QTcpSocket> asked;
+        connect(&server, &QTcpServer::newConnection, &server, [&server, &asked] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, &asked] {
+                socket->readAll();
+                asked = socket;
+            });
+        });
+        // The order MAME was run in, and RetroArch.
+        const auto runs = [this] {
+            QStringList order;
+            for (const QString &line : logLines()) {
+                const QString word = line.section(QLatin1Char(' '), 0, 0);
+                if (word == QLatin1String("listxml") || word == QLatin1String("answered")
+                    || word == QLatin1String("verifyroms") || word == QLatin1String("retroarch")
+                    || word == QLatin1String("play") || word == QLatin1String("end"))
+                    order << word;
+            }
+            return order;
+        };
+        const auto progress = [](ArcadeBackend &arcade, const char *key) {
+            return arcade.romCheckProgress().value(QLatin1String(key));
+        };
+
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        arcade.setMameArchive(QUrl(QStringLiteral("http://127.0.0.1:%1/mame.exe").arg(server.serverPort())));
+        refreshed(arcade);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("sf2"), QStringLiteral("fbneo") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("sf2")), QStringLiteral("fbneo"));
+
+        // A set new to the folder, slow to be answered for: MAME is asked
+        // about it, and stopped as the download starts.
+        writeFile(games + QStringLiteral("/a_slowlist.zip"));
+        QFile::remove(m_log);
+        arcade.refresh();
+        QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("listxml")).size(), 1, 5000);
+        arcade.downloadMame();
+        QVERIFY(arcade.mameDownloading());
+        QTRY_VERIFY_WITH_TIMEOUT(asked, 5000);
+        QVERIFY(arcade.scanning());
+
+        // Check ROMs: MAME's part held.
+        arcade.checkRoms();
+        QTRY_COMPARE_WITH_TIMEOUT(progress(arcade, "stage").toString(), QStringLiteral("MAME"), 10000);
+        QVERIFY(progress(arcade, "active").toBool());
+        QVERIFY(progress(arcade, "held").toBool());
+
+        // A game played in FinalBurn Neo meanwhile: as it ends, MAME is
+        // asked nothing, and the check's part stays held.
+        QSignalSpy finished(&arcade, &ArcadeBackend::finished);
+        QVERIFY2(arcade.play(QStringLiteral("sf2")), qPrintable(arcade.lastError()));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.first().at(1).toString(), QStringLiteral("ok"));
+        QTest::qWait(500);
+        QCOMPARE(runs(), QStringList({ QStringLiteral("listxml"), QStringLiteral("retroarch") }));
+        QVERIFY(progress(arcade, "held").toBool());
+        QVERIFY(arcade.mameDownloading());
+        // A game of MAME's is refused meanwhile, saying why: its MAME would
+        // run from the folder the download replaces.
+        finished.clear();
+        QVERIFY(!arcade.play(QStringLiteral("pacman")));
+        QCOMPARE(arcade.lastError(), QStringLiteral("MAME is still downloading"));
+        QVERIFY(!arcade.running());
+        QTest::qWait(200);
+        QVERIFY(finished.isEmpty());
+        QCOMPARE(runs(), QStringList({ QStringLiteral("listxml"), QStringLiteral("retroarch") }));
+
+        // The download ends: the set asked about again, then the check's
+        // part.
+        asked->write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        asked->disconnectFromHost();
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.mameDownloading(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!progress(arcade, "active").toBool(), 10000);
+        QCOMPARE(progress(arcade, "result").toString(), QStringLiteral("Done"));
+        QVERIFY(!arcade.scanning());
+        QCOMPARE(runs(), QStringList({ QStringLiteral("listxml"), QStringLiteral("retroarch"), QStringLiteral("listxml"),
+                                       QStringLiteral("answered"), QStringLiteral("verifyroms"),
+                                       QStringLiteral("verifyroms") }));
+
+        // A game started while a check waits for an asking that has answered
+        // for its set and has still to exit: the asking stopped, the check's
+        // part held from then until the game has ended, never let go between.
+        writeFile(games + QStringLiteral("/mspacman.zip"));
+        qputenv("MAME_LIST_LINGER", "5");
+        QFile::remove(m_log);
+        arcade.refresh();
+        QTRY_VERIFY_WITH_TIMEOUT(arcade.gameDetails(QStringLiteral("mspacman")).contains(QStringLiteral("year")), 5000);
+        QVERIFY(arcade.scanning());
+        arcade.checkRoms();
+        QTRY_VERIFY_WITH_TIMEOUT(progress(arcade, "active").toBool()
+                                     && progress(arcade, "stage").toString() == QLatin1String("MAME"), 10000);
+        QVERIFY(progress(arcade, "held").toBool());
+        bool letGo = false;
+        const QMetaObject::Connection watched =
+            connect(&arcade, &ArcadeBackend::romCheckChanged, this, [&arcade, &letGo, &progress] {
+                if (progress(arcade, "active").toBool() && !progress(arcade, "held").toBool())
+                    letGo = true;
+            });
+        finished.clear();
+        QVERIFY(arcade.play(QStringLiteral("pacman")));
+        disconnect(watched);
+        QVERIFY(!letGo);
+        QVERIFY(progress(arcade, "held").toBool());
+        QVERIFY(finished.wait(10000));
+        QTRY_VERIFY_WITH_TIMEOUT(!progress(arcade, "active").toBool(), 10000);
+        QCOMPARE(progress(arcade, "result").toString(), QStringLiteral("Done"));
+        QCOMPARE(runs(), QStringList({ QStringLiteral("listxml"), QStringLiteral("answered"), QStringLiteral("play"),
+                                       QStringLiteral("end"), QStringLiteral("verifyroms"),
+                                       QStringLiteral("verifyroms") }));
     }
 
     // A MAME with its own files beside it runs in its folder, to find them;

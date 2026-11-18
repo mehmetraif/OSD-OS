@@ -57,6 +57,7 @@
 #include "util/OsdSkinProvider.h"
 #include "util/LegacyNames.h"
 #include "util/Diagnostics.h"
+#include "util/ExitCodes.h"
 #include "util/LogFile.h"
 #include "util/SetupFile.h"
 #include "util/SetupExporter.h"
@@ -257,8 +258,8 @@ int main(int argc, char *argv[]) {
             // `systemctl stop`/`restart` apart from the user choosing Quit
             // (exit 0), the only exit that powers the Pi off, and the service
             // count it as no failure (SuccessExitStatus=), not one to start
-            // the app again after.
-            app.exit(128 + g_termSignal);
+            // the app again after (util/ExitCodes.h).
+            app.exit(exitcode::bySignal(g_termSignal));
         }
     });
     termPoll.start();
@@ -322,7 +323,7 @@ int main(int argc, char *argv[]) {
     }
 
     AppCore             appCore(appRoot, dataRoot);
-    appCore.setSetupNotice(setupfile::noticeTitle(setup), setup.lines.join(QLatin1Char('\n')));
+    appCore.setSetupNotice(setupfile::noticeTitle(setup, setupfile::Taken::AtStart), setup.lines.join(QLatin1Char('\n')));
 
     // Which physical display the UI launches on. App-level "display_index"
     // (0 = primary screen, the previous hardcoded behaviour). Lets the UI open
@@ -346,17 +347,17 @@ int main(int argc, char *argv[]) {
           displayIndex, screenGeo.width(), screenGeo.height(), screenGeo.x(), screenGeo.y());
 
     LocalFilesBackend   localFiles(appRoot, dataRoot, &appCore);
-    PlexBackend         plexBackend(appRoot, dataRoot);
-    JellyfinBackend     jellyfinBackend(appRoot, dataRoot);
-    EmbyBackend         embyBackend(appRoot, dataRoot);
-    AmbientModeBackend  ambientMode(dataRoot);
+    PlexBackend         plexBackend(appRoot, dataRoot, &appCore);
+    JellyfinBackend     jellyfinBackend(dataRoot, &appCore);
+    EmbyBackend         embyBackend(dataRoot, &appCore);
+    AmbientModeBackend  ambientMode(dataRoot, &appCore);
     NfcReaderBackend    nfcReader(appRoot, dataRoot, &appCore);
     // Ahead of everything that takes the screen through it, so that all of
     // them are destroyed before it is.
     DisplayHandoff      displayHandoff;
     YouTubeBackend      youtubeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
-    WeatherBackend      weatherBackend(appRoot, dataRoot);
-    ScriptsBackend      scriptsBackend(appRoot, dataRoot, &displayHandoff);
+    WeatherBackend      weatherBackend(appRoot, dataRoot, &appCore);
+    ScriptsBackend      scriptsBackend(appRoot, dataRoot, &appCore, &displayHandoff);
     // The games in MAME, which takes the screen as a script does.
     ArcadeBackend       arcadeBackend(appRoot, dataRoot, &appCore, &displayHandoff);
     // Over the network, only the games whose states RetroArch has the memory for.
@@ -376,7 +377,7 @@ int main(int argc, char *argv[]) {
         { QStringLiteral("Netflix"), 8, QStringLiteral("Netflix Home"),
           QStringLiteral("https://www.netflix.com/watch/%1"),
           QStringLiteral("https://www.netflix.com/search?q=%1"), QStringLiteral("P1874") } },
-        appRoot, dataRoot, &displayHandoff);
+        appRoot, dataRoot, &appCore, &displayHandoff);
     WebPlayerBackend    primeVideoBackend({
         QStringLiteral("prime_video"), QStringLiteral("https://www.primevideo.com"),
         QStringLiteral("https://www.primevideo.com/auth-redirect?signin=1&returnUrl=%2F"),
@@ -384,7 +385,7 @@ int main(int argc, char *argv[]) {
           QStringLiteral("https://www.primevideo.com/detail/%1"),
           QStringLiteral("https://www.primevideo.com/search/ref=atv_nb_sr?phrase=%1"),
           QStringLiteral("P14440") } },
-        appRoot, dataRoot, &displayHandoff);
+        appRoot, dataRoot, &appCore, &displayHandoff);
     // Lists of videos from the modules above, downloaded through them for
     // the offline ones.
     PlaylistsBackend    playlistsBackend(dataRoot, &appCore, &localFiles, &youtubeBackend,

@@ -100,12 +100,12 @@ private slots:
     // lines are the other places; changed, it is looked up again at once.
     void weatherLocationFromItsSetting() {
         QTemporaryDir tmp;
-        const auto config = [&tmp](const QByteArray &location) {
-            QFile file(tmp.path() + "/config.json");
-            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"" + location + "\"}}}");
+        // The setting saved as Settings saves it, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const QString &location) {
+            QVERIFY(core.save_setting("com.osdos.weather", "location", location));
         };
-        WeatherBackend backend(tmp.path(), tmp.path());
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend); backend.m_nam = network;
         QSignalSpy errors(&backend, &WeatherBackend::locationError);
@@ -145,10 +145,10 @@ private slots:
     // the music in place of the file's and the built-in tracks.
     void weatherListsFromTheirSettings() {
         QTemporaryDir tmp;
-        const auto config = [&tmp](const QByteArray &rest) {
-            QFile file(tmp.path() + "/config.json");
-            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            file.write("{\"modules\":{\"com.osdos.weather\":{\"location\":\"41.01, 28.98, Istanbul\"" + rest + "}}}");
+        // The settings saved as Settings saves them, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const char *key, const QVariant &value) {
+            QVERIFY(core.save_setting("com.osdos.weather", key, value));
         };
         const auto others = [](const WeatherBackend &backend) {
             QStringList names;
@@ -156,7 +156,7 @@ private slots:
                 names << point.toMap().value("name").toString();
             return names;
         };
-        WeatherBackend backend(tmp.path(), tmp.path());
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
         delete backend.m_nam;
         auto *network = new Network(&backend); backend.m_nam = network;
         {
@@ -164,11 +164,11 @@ private slots:
             QVERIFY(file.open(QIODevice::WriteOnly));
             file.write("0.0, 0.0, Passed Over\n52.52, 13.40, Berlin\n60.0, 10.0, Oslo\n");
         }
-        config("");
+        config("location", "41.01, 28.98, Istanbul");
         backend.resolveLocation();
         QCOMPARE(others(backend), QStringList({ "BERLIN", "OSLO" }));
 
-        config(",\"other_places\":[\"48.85, 2.35, Paris\",\" \",\"60.0, 10.0, Oslo\"]");
+        config("other_places", QStringList({ "48.85, 2.35, Paris", " ", "60.0, 10.0, Oslo" }));
         backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
         QCOMPARE(others(backend), QStringList({ "PARIS", "OSLO", "BERLIN" }));
 
@@ -181,9 +181,121 @@ private slots:
             file.write("filed.ogg\n");
         }
         QCOMPARE(backend.musicPlaylist(), QStringList({ tmp.path() + "/filed.ogg" }));
-        config(",\"music_list\":[\"http://music.example/a b.mp3\",\"typed.ogg\"]");
+        config("music_list", QStringList({ "http://music.example/a b.mp3", "typed.ogg" }));
         QCOMPARE(backend.musicPlaylist(),
                  QStringList({ "http://music.example/a%20b.mp3", tmp.path() + "/typed.ogg" }));
+    }
+
+    // Weather's observed weather is its place's: as Location changes, the
+    // stations found near the place before and what they last observed go,
+    // the refresh asks them nothing more, an answer for the place before
+    // that comes after is dropped, and the new place's own stations are
+    // looked up. An Other Place's stations and observation likewise land on
+    // no row once the list has changed since they were asked for.
+    void weatherObservationsFollowTheLocation() {
+        QTemporaryDir tmp;
+        // The setting saved as Settings saves it, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const QString &location) {
+            QVERIFY(core.save_setting("com.osdos.weather", "location", location));
+        };
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        // The newest request whose address has `part` in it.
+        const auto request = [network](const QString &part) -> Reply * {
+            for (qsizetype i = network->replies.size() - 1; i >= 0; --i) {
+                if (network->replies.at(i)->url().toString().contains(part))
+                    return network->replies.at(i);
+            }
+            return nullptr;
+        };
+        const auto asked = [network](const QString &part) {
+            int times = 0;
+            for (const Reply *reply : network->replies)
+                times += reply->url().toString().contains(part);
+            return times;
+        };
+        // The answers as Open-Meteo and the NWS give them, cut down.
+        const auto json = [](const QJsonObject &object) { return QJsonDocument(object).toJson(); };
+        const auto forecast = [&json](int celsius) {
+            return json({ { "utc_offset_seconds", 0 },
+                          { "current", QJsonObject{ { "temperature_2m", celsius }, { "weather_code", 0 },
+                                                    { "is_day", 1 } } },
+                          { "daily", QJsonObject() } });
+        };
+        const auto points = [&json](const QString &office) {
+            return json({ { "properties", QJsonObject{ { "observationStations",
+                "https://api.weather.gov/gridpoints/" + office + "/1,1/stations" } } } });
+        };
+        const auto stations = [&json](const QString &id, double lon, double lat) {
+            const QJsonObject station{ { "geometry", QJsonObject{ { "coordinates", QJsonArray{ lon, lat } } } },
+                                       { "properties", QJsonObject{ { "stationIdentifier", id } } } };
+            return json({ { "features", QJsonArray{ station } } });
+        };
+        const auto observation = [&json](int celsius) {
+            return json({ { "properties", QJsonObject{
+                { "timestamp", QDateTime::currentDateTimeUtc().toString(Qt::ISODate) },
+                { "temperature", QJsonObject{ { "value", celsius } } } } } });
+        };
+        const auto temperature = [&backend]() { return backend.current().value("temperature").toString(); };
+
+        // Chicago, its station's observation over the model's.
+        config("41.88, -87.63, Chicago");
+        backend.resolveLocation();
+        QVERIFY(request("/points/41.8800,-87.6300"));
+        request("/points/41.8800,-87.6300")->complete(points("LOT"));
+        QVERIFY(request("gridpoints/LOT"));
+        request("gridpoints/LOT")->complete(stations("KMDW", -87.75, 41.79));
+        QVERIFY(request("stations/KMDW/observations"));
+        request("stations/KMDW/observations")->complete(observation(30));
+        request("api.open-meteo.com")->complete(forecast(10));
+        QCOMPARE(temperature(), QString("30°"));
+
+        // A refresh's observation for Chicago still on its way as the place
+        // changes to Denver: dropped as it comes.
+        backend.fetchObservation();
+        Reply *late = request("stations/KMDW/observations");
+        config("39.74, -104.99, Denver");
+        backend.onSettingChanged("com.osdos.weather", "location", "39.74, -104.99, Denver");
+        late->complete(observation(30));
+        QVERIFY(backend.m_obs.isEmpty());
+        request("api.open-meteo.com")->complete(forecast(5));
+        QCOMPARE(temperature(), QString("5°"));
+        // The refresh asks Chicago's station nothing more.
+        const int kmdw = asked("stations/KMDW");
+        backend.fetchObservation();
+        QCOMPARE(asked("stations/KMDW"), kmdw);
+        // Denver's own station, and its observation.
+        QVERIFY(request("/points/39.7400,-104.9900"));
+        request("/points/39.7400,-104.9900")->complete(points("BOU"));
+        QVERIFY(request("gridpoints/BOU"));
+        request("gridpoints/BOU")->complete(stations("KBKF", -104.75, 39.70));
+        QVERIFY(request("stations/KBKF/observations"));
+        request("stations/KBKF/observations")->complete(observation(20));
+        QCOMPARE(backend.m_stations, QStringList({ "KBKF" }));
+        QCOMPARE(temperature(), QString("20°"));
+
+        // Other Places: Chicago's station and observation, then a refresh's
+        // on its way as the list changes to London alone.
+        backend.resolveOthers({ "41.88, -87.63, Chicago" });
+        request("/points/41.8800,-87.6300")->complete(points("LOT"));
+        request("gridpoints/LOT")->complete(stations("KMDW", -87.75, 41.79));
+        request("stations/KMDW/observations")->complete(observation(30));
+        QCOMPARE(backend.m_otherObs.size(), 1);
+        backend.fetchOtherObservations();
+        late = request("stations/KMDW/observations");
+        backend.resolveOthers({ "51.50, -0.12, London" });
+        late->complete(observation(30));
+        QVERIFY(backend.m_otherObs.isEmpty());
+        // And Chicago's station looked up, the list changed before it came.
+        backend.resolveOthers({ "41.88, -87.63, Chicago" });
+        Reply *lookup = request("/points/41.8800,-87.6300");
+        backend.resolveOthers({ "51.50, -0.12, London" });
+        lookup->complete(points("LOT"));
+        request("gridpoints/LOT")->complete(stations("KMDW", -87.75, 41.79));
+        QVERIFY(backend.m_otherStations.isEmpty());
+        QVERIFY(backend.m_otherObs.isEmpty());
     }
 
     void markerFailureDoesNotArmUpdate() {
@@ -373,6 +485,103 @@ private slots:
 #ifndef Q_OS_MAC
         QVERIFY(manager.canApply());
 #endif
+    }
+
+    // An AppImage's update applied (Apply & Restart): the staged image
+    // checked against its hash and put in place off the app's thread, the
+    // page on applying meanwhile. One changed since its download is dropped,
+    // the image in use as it was. Where the helper that starts the app again
+    // can't be written (the updates folder full or read-only), the app stays
+    // open on an error that says so, the new image in place, rather than
+    // quitting with nothing to start it again.
+    void appImageAppliedOffTheAppsThread() {
+#ifdef Q_OS_MAC
+        QSKIP("macOS updates through its disk image");
+#else
+        QTemporaryDir tmp;
+        const QString image = tmp.path() + "/OSD-OS.AppImage", data = tmp.path() + "/data";
+        const auto write = [](const QString &path, const QByteArray &bytes) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+        };
+        QVERIFY(write(image, "old"));
+        // Desktop Mode, where the app starts itself again.
+        const QByteArray appImage = qgetenv("APPIMAGE"), steam = qgetenv("SteamGamepadUI"),
+                         gamescope = qgetenv("GAMESCOPE_WAYLAND_DISPLAY");
+        const bool appImageSet = qEnvironmentVariableIsSet("APPIMAGE"), steamSet = qEnvironmentVariableIsSet("SteamGamepadUI"),
+                   gamescopeSet = qEnvironmentVariableIsSet("GAMESCOPE_WAYLAND_DISPLAY");
+        const auto restore = qScopeGuard([=] {
+            if (appImageSet) qputenv("APPIMAGE", appImage); else qunsetenv("APPIMAGE");
+            if (steamSet) qputenv("SteamGamepadUI", steam); else qunsetenv("SteamGamepadUI");
+            if (gamescopeSet) qputenv("GAMESCOPE_WAYLAND_DISPLAY", gamescope); else qunsetenv("GAMESCOPE_WAYLAND_DISPLAY");
+        });
+        qputenv("APPIMAGE", image.toUtf8());
+        qunsetenv("SteamGamepadUI");
+        qunsetenv("GAMESCOPE_WAYLAND_DISPLAY");
+        UpdateManager manager(tmp.path(), data);
+        QVERIFY(manager.canApply());
+        // Longer than one block of the copy.
+        const QByteArray newer(3 * 1024 * 1024 + 17, 'n');
+        const QString staged = data + "/updates/OSD-OS-linux-x86_64.AppImage";
+        const auto stage = [&](const QByteArray &hashed) {
+            manager.m_latestVersion = "v9.9.9";
+            manager.m_assetName = QFileInfo(staged).fileName();
+            QVERIFY(write(staged, newer));
+            QVERIFY(manager.writeStagedMarkers(QCryptographicHash::hash(hashed, QCryptographicHash::Sha256).toHex()));
+            manager.setState("readyToApply");
+        };
+
+        stage("something else");
+        manager.applyAndRestart();
+        QCOMPARE(manager.state(), QString("applying"));
+        QTRY_COMPARE(manager.state(), QString("error"));
+        QVERIFY2(manager.errorMessage().contains("invalid"), qPrintable(manager.errorMessage()));
+        QCOMPARE(contents(image), QByteArray("old"));
+        QVERIFY(!QFileInfo::exists(staged));
+        QVERIFY(!QFileInfo::exists(data + "/updates/staged.json"));
+
+        // The helper's name taken (a folder that isn't empty has it), which
+        // refuses it as a full or read-only folder would, root or not.
+        stage(newer);
+        QVERIFY(QDir().mkpath(data + "/updates/apply-appimage.sh/held"));
+        manager.applyAndRestart();
+        QCOMPARE(manager.state(), QString("applying"));
+        QTRY_COMPARE(manager.state(), QString("error"));
+        QVERIFY2(manager.errorMessage().contains("open it again"), qPrintable(manager.errorMessage()));
+        QCOMPARE(contents(image), newer);
+        QVERIFY(QFileInfo(image).isExecutable());
+        QVERIFY(!QFileInfo::exists(staged));
+        QVERIFY(!QFileInfo::exists(data + "/updates/staged.json"));
+#endif
+    }
+
+    // The helper an update starts as the app quits (launchHelper()): written
+    // whole to the updates folder, able to run, and started apart with its
+    // arguments; one that can't be written leaves the error state with what
+    // to tell the user, and starts nothing.
+    void updateHelperWrittenAndStarted() {
+        // The helpers are for the systems an update is put in place on, the
+        // AppImage's Linux and macOS, which both have /bin/bash; FreeBSD and
+        // OpenBSD update through their packages, and have no /bin/bash.
+        if (!QFileInfo::exists(QStringLiteral("/bin/bash")))
+            QSKIP("An update's helpers run on Linux and macOS, where /bin/bash is");
+        QTemporaryDir tmp;
+        UpdateManager manager(tmp.path(), tmp.path());
+        const QString ran = tmp.path() + "/ran";
+        const char script[] = "#!/bin/bash\necho \"$1 $2\" > \"$3\"\n";
+        QVERIFY(manager.launchHelper("helper.sh", script, { "one", "two", ran }, "Not started."));
+        QTRY_COMPARE(contents(ran), QByteArray("one two\n"));
+        QVERIFY(QFileInfo(tmp.path() + "/updates/helper.sh").isExecutable());
+        QCOMPARE(manager.state(), QString("idle"));
+
+        QVERIFY(QFile::remove(ran));
+        QVERIFY(QFile::remove(tmp.path() + "/updates/helper.sh"));
+        QVERIFY(QDir().mkpath(tmp.path() + "/updates/helper.sh/held"));
+        QVERIFY(!manager.launchHelper("helper.sh", script, { "one", "two", ran }, "Not started."));
+        QCOMPARE(manager.state(), QString("error"));
+        QCOMPARE(manager.errorMessage(), QString("Not started."));
+        QTest::qWait(200);
+        QVERIFY(!QFileInfo::exists(ran));
     }
 #endif
 
@@ -1232,10 +1441,10 @@ private slots:
             "OSD/OS settings: 3 set",
             "RetroAchievements: player, signed in with the password; Web API key kept",
             "Not set here: the device's name, Wi-Fi, SSH and the time zone, which an OSD/OS card alone sets" }));
-        QCOMPARE(setupfile::noticeTitle(result), QString("OSD/OS Setup applied"));
+        QCOMPARE(setupfile::noticeTitle(result, setupfile::Taken::AtStart), QString("OSD/OS Setup applied"));
         // None there: nothing to say.
         QVERIFY(setupfile::applyAtStart(data).lines.isEmpty());
-        QCOMPARE(setupfile::noticeTitle(setupfile::Result()), QString());
+        QCOMPARE(setupfile::noticeTitle(setupfile::Result(), setupfile::Taken::AtStart), QString());
 
         QVERIFY(write(setupPath, R"({"wifi": {"password": "secret"}})"));
         setupfile::Result refused = setupfile::applyAtStart(data);
@@ -1243,7 +1452,7 @@ private slots:
         QVERIFY(!QFile::exists(setupPath));
         QVERIFY2(refused.lines.first().endsWith("deleted, not applied: not OSD/OS Setup's settings"),
                  qPrintable(refused.lines.first()));
-        QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup not applied"));
+        QCOMPARE(setupfile::noticeTitle(refused, setupfile::Taken::AtStart), QString("OSD/OS Setup not applied"));
         QVERIFY(write(data + "/config.json", "{\"app\": {"));
         QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}},
                                      "retroachievements": {"key": "K1"}})"));
@@ -1251,7 +1460,7 @@ private slots:
         QVERIFY(!refused.ok);
         QCOMPARE(refused.applied, 1);
         QCOMPARE(contents(data + "/config.json"), QByteArray("{\"app\": {"));
-        QCOMPARE(setupfile::noticeTitle(refused), QString("OSD/OS Setup partly applied"));
+        QCOMPARE(setupfile::noticeTitle(refused, setupfile::Taken::AtStart), QString("OSD/OS Setup partly applied"));
     }
 
     // Settings → System → Paste OSD/OS Setup (AppCore::applySetupText()): the
@@ -1292,6 +1501,26 @@ private slots:
         QCOMPARE(notice["detail"].toString(), QString("What was pasted is not OSD/OS Setup's settings"));
         notice = core.applySetupText(R"({"osdos_setup": 1, "wifi": {"ssid": "home"}})");
         QCOMPARE(notice["title"].toString(), QString("Nothing set from OSD/OS Setup"));
+        QCOMPARE(app.count(), 1);
+
+        // A config.json that can't be read is left as it is: the settings
+        // aren't set, the account is, and the notice says it was partly
+        // pasted; with the settings alone, that it wasn't.
+        QFile config(dir.path() + "/config.json");
+        QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(config.write("{\"app\": {") > 0);
+        config.close();
+        notice = core.applySetupText(R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "Arcade"}},
+            "retroachievements": {"key": "K2"}})");
+        QVERIFY(!notice["ok"].toBool());
+        QCOMPARE(notice["title"].toString(), QString("OSD/OS Setup partly pasted"));
+        QCOMPARE(notice["detail"].toString(), QString("OSD/OS settings: not set: config.json couldn't be read, and is "
+                                                      "left as it is\nRetroAchievements: Web API key kept"));
+        QCOMPARE(account.count(), 2);
+        QCOMPARE(contents(dir.path() + "/config.json"), QByteArray("{\"app\": {"));
+        notice = core.applySetupText(R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "Arcade"}}})");
+        QVERIFY(!notice["ok"].toBool());
+        QCOMPARE(notice["title"].toString(), QString("Not pasted"));
         QCOMPARE(app.count(), 1);
     }
 };

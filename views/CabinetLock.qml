@@ -138,30 +138,16 @@ FocusScope {
     AppBar {
         iconSource: "../../assets/images/lock.svg"
         title: "Cabinet Lock"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         objectName: "lockList"
         // A model that never changes, so the cursor stays where it is as
         // the rows' values do; each row reads its own from rows.
         model: lockRoot.rows.length
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        height: root.listHeight //224
-        clip: true
         focus: true
-        highlightMoveDuration: 0
 
-        Keys.onUpPressed: currentIndex = (currentIndex + count - 1) % count
-        Keys.onDownPressed: currentIndex = (currentIndex + 1) % count
         Keys.onLeftPressed: {
             if (lockRoot.rows[currentIndex].key === "lock")
                 lockRoot.wantLock(!lockRoot.lockOn)
@@ -170,7 +156,7 @@ FocusScope {
         Keys.onReturnPressed: lockRoot.activate(lockRoot.rows[currentIndex])
         Keys.onEnterPressed: lockRoot.activate(lockRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 lockRoot.goBack()
                 event.accepted = true
             }
@@ -181,7 +167,7 @@ FocusScope {
             required property int index
             readonly property var row: lockRoot.rows[index]
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: row.label
             value: row.value
             changes: row.key === "lock"
@@ -193,20 +179,11 @@ FocusScope {
 
     HelpLine {
         text: lockRoot.rows[list.currentIndex].description
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (lockRoot.rows[list.currentIndex].key === "lock" ? root.hints.change + ":CHANGE " : "")
-              + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             lockRoot.rows[list.currentIndex].key === "lock" ? "change:CHANGE" : "", "select:SELECT"])
     }
 
     // --- WAITING FOR THE BUTTONS ---
@@ -225,7 +202,7 @@ FocusScope {
             if (event.modifiers & Qt.ControlModifier)
                 return
             if (!event.isAutoRepeat
-                    && (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+                    && root.isBack(event)
                     && inputManager)
                 inputManager.captureUnlockButtons(false)
             event.accepted = true

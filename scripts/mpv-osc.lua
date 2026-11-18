@@ -3,7 +3,8 @@ local mp_utils = require 'mp.utils'
 
 -- Optional map of external sub-file URL -> friendly track name, written by the app
 -- so the OSC can show a real subtitle name instead of mpv's URL-derived title
--- (Jellyfin sidecars are served as "Stream.srt?api_key=..."). Absent for most plays.
+-- (Jellyfin's and Emby's sidecars are served as "Stream.srt?api_key=..."). Absent for
+-- most plays.
 local subinfo = {}
 do
     local path = mp.get_opt("subinfo-file")
@@ -69,7 +70,7 @@ local function get_sub_str()
 
     local id = mp.get_property_number("current-tracks/sub/id", 0)
     if id == 0 then return "(NONE)" end
-    -- External sidecar with an app-provided friendly name (e.g. Jellyfin): use it
+    -- External sidecar with an app-provided friendly name (Jellyfin's, Emby's): use it
     -- instead of mpv's URL-derived title.
     local ext = mp.get_property("current-tracks/sub/external-filename", "") or ""
     if ext ~= "" and subinfo[ext] and subinfo[ext] ~= "" then
@@ -85,16 +86,19 @@ local function get_sub_str()
     return table.concat(parts, " ")
 end
 
--- Set by the app when the subtitle is burned into the stream and only the module
--- can change it (Jellyfin transcode): mpv has no sub track to cycle, so the
--- SUBTITLE button asks the module to re-request the stream instead.
+-- Set by the app when only the module can change the subtitle (a Jellyfin or Emby
+-- transcode: the chosen one burned into the stream, or a text one handed beside it
+-- as its only file): mpv has no other sub track to cycle, so the SUBTITLE button
+-- asks the module to re-request the stream instead.
 local sub_cycle   = mp.get_opt("sub-cycle") == "1"
--- Same for audio when the track is baked into the stream (Jellyfin transcode):
+-- Same for audio when the track is baked into the stream (a Jellyfin or Emby transcode):
 -- the AUDIO button asks the module to re-request rather than cycling locally.
 local audio_cycle = mp.get_opt("audio-cycle") == "1"
 
 -- The four Scalings of Settings (MpvController::sessionArgs), which CROP steps
--- through live: how a 16:9 picture fills the 4:3 tube.
+-- through live: how a 16:9 picture fills the 4:3 tube. Their values are
+-- MpvController::scalingProperties()'s, the app's one place for them: this
+-- table runs inside mpv, so it keeps a copy.
 local SCALINGS = {
     { name = "LETTERBOX",  panscan = 0,    keepaspect = true  },
     { name = "14:9",       panscan = 0.43, keepaspect = true  },

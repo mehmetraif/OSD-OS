@@ -7,12 +7,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QPromise>
 #include <QSysInfo>
 #include <QtConcurrent/QtConcurrentRun>
-#include <utility>
 
 namespace {
 
@@ -116,51 +113,27 @@ void ProgramInstaller::start(const Source &source) {
 }
 
 void ProgramInstaller::fetchArchive(const QUrl &url) {
-    // Given up on once nothing has come for a minute (a Wi-Fi that dropped:
-    // TCP alone takes a quarter of an hour to say so), and once it is bigger
-    // than the archive can be.
-    m_reply = m_nam->get(arcadehttp::requestFor(url, kDownloadTimeoutMs));
-    arcadehttp::limitReply(m_reply, kArchiveMaxBytes);
-    auto *file = new QFile(archivePart(), m_reply);
-    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        const QString error = QStringLiteral("%1 could not be written: %2").arg(file->fileName(), file->errorString());
-        // Nothing listens to it yet: it goes here, the file with it.
-        QNetworkReply *reply = std::exchange(m_reply, nullptr);
-        reply->abort();
-        reply->deleteLater();
-        fail(error);
-        return;
-    }
-    connect(m_reply, &QNetworkReply::readyRead, file, [this, file] {
-        if (file->write(m_reply->readAll()) < 0)
-            m_reply->abort();
-    });
-    connect(m_reply, &QNetworkReply::downloadProgress, this, [this](qint64 received, qint64 total) {
-        // No further than the download's share, should a server send more
-        // than it said.
-        if (total > 0)
-            setProgress(int(kDownloadDone * qMin(received, total) / total));
-    });
-    connect(m_reply, &QNetworkReply::finished, this, [this, file] {
-        QNetworkReply *reply = std::exchange(m_reply, nullptr);
-        reply->deleteLater();
-        if (!m_running)
-            return;
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        file->write(reply->readAll());
-        const bool flushed = file->flush();
-        file->close();
-        if (reply->error() != QNetworkReply::NoError || status != 200 || !flushed) {
-            // The server's answer first (Qt takes a 404 for an error too).
-            fail(arcadehttp::tooBig(reply, kArchiveMaxBytes) ? QStringLiteral("%1 sent more than %2's archive can be").arg(reply->url().host(), m_source.name)
-                 : status != 0 && status != 200              ? QStringLiteral("%1 answered %2").arg(reply->url().host()).arg(status)
-                 : reply->error() != QNetworkReply::NoError ? reply->errorString()
-                                                            : file->errorString());
-            return;
-        }
-        setProgress(kDownloadDone);
-        unpack();
-    });
+    // Given up on once nothing has come for a minute, and once it is bigger
+    // than the archive can be. One that failed goes (fail()).
+    arcadehttp::downloadToFile(
+        m_nam, url, archivePart(), kDownloadTimeoutMs, kArchiveMaxBytes, m_source.name + QStringLiteral("'s archive"),
+        this,
+        [this](qint64 received, qint64 total) {
+            // No further than the download's share, should a server send
+            // more than it said.
+            if (total > 0)
+                setProgress(int(kDownloadDone * qMin(received, total) / total));
+        },
+        [this](const QString &error) {
+            if (!m_running)
+                return;
+            if (!error.isEmpty()) {
+                fail(error);
+                return;
+            }
+            setProgress(kDownloadDone);
+            unpack();
+        });
 }
 
 void ProgramInstaller::unpack() {

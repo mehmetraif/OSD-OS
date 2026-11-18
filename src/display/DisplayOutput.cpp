@@ -2,6 +2,8 @@
 #include "../util/AtomicFile.h"
 #include "../util/Board.h"
 #include "../util/DurableFile.h"
+#include "../util/ExitCodes.h"
+#include "../util/FileText.h"
 #include "../util/LegacyNames.h"
 #include "../util/RootRequest.h"
 
@@ -24,8 +26,9 @@ constexpr const char *k31kHz =
 
 // The presets, in the menu's order, with the exit code osdos-stop
 // (scripts/install.sh, STOP_HELPER) writes each on, then reboots: keep the two
-// in step. kPowerOff more, it writes it and powers off. A preset is offered
-// from the launcher API whose osdos-stop knows its code.
+// in step (util/ExitCodes.h: from kDisplayPresetFirst, its place in
+// DISPLAY_PRESETS). kDisplayThenPowerOff more, it writes it and powers off. A
+// preset is offered from the launcher API whose osdos-stop knows its code.
 struct Preset {
     const char *id;     // osdos-display-<id>.txt
     const char *label;
@@ -63,10 +66,6 @@ const Preset kPresets[] = {
     { "jamma-25k",         "JAMMA 25 kHz (496x384)",       37, 6, k25kHz },
     { "jamma-31k",         "JAMMA 31 kHz (640x480)",       38, 6, k31kHz },
 };
-// osdos-stop's for the output before the last one chosen.
-constexpr int kRevertExitCode = 29;
-// Added to a preset's code: written, then off (40-59).
-constexpr int kPowerOff = 20;
 // The launcher whose osdos-stop powers off after a preset, and writes one for
 // the next start through osdos-display.socket.
 constexpr int kNextStartApi = 5;
@@ -119,11 +118,6 @@ bool boardHas(const QString &id) {
     return false;
 }
 
-QByteArray readFile(const QString &path) {
-    QFile f(path);
-    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
-}
-
 } // namespace
 
 DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
@@ -132,17 +126,17 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
       m_bootDir(legacy::env("BOOT_DIR", QStringLiteral("/boot/firmware"))),
       m_runDir(legacy::env("RUN_DIR", QStringLiteral("/run"))) {
     // Not the OSD/OS image: nothing to offer.
-    const QByteArray written = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
+    const QByteArray written = filetext::readText(m_bootDir + QStringLiteral("/osdos-display.txt"));
     if (written.isEmpty())
         return;
     // Once a preset has been written for the next start, osdos-stop keeps the
     // one this boot started on in /run: that one is in force.
-    const QByteArray atBoot = readFile(atBootPath());
+    const QByteArray atBoot = filetext::readText(atBootPath());
     const QByteArray inForce = atBoot.isEmpty() ? written : atBoot;
     const int launcherApi = legacy::envInt("LAUNCHER_API");
     for (const Preset &p : kPresets) {
         const QString id = QString::fromLatin1(p.id);
-        const QByteArray preset = readFile(presetPath(id));
+        const QByteArray preset = filetext::readText(presetPath(id));
         if (preset.isEmpty())
             continue;
         if (preset == inForce)
@@ -159,7 +153,10 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
     m_nextStartAvailable = m_powerOffAvailable && rootrequest::available(QStringLiteral("display"), kNextStartApi);
 
     // What became of the last change.
-    const QJsonObject state = QJsonDocument::fromJson(readFile(statePath())).object();
+    QJsonObject state;
+    QString why;
+    if (!filetext::readJsonObject(statePath(), &state, &why) && !why.isEmpty())
+        qWarning("[DisplayOutput] %s: %s", qPrintable(statePath()), qPrintable(why));
     if (state.isEmpty())
         return;
     const QString to = state.value(QStringLiteral("to")).toString();
@@ -213,7 +210,7 @@ bool DisplayOutput::switchTo(const QString &id, bool powerOff) {
         return false;
     if (!writeState({ { QStringLiteral("from"), currentLabel() }, { QStringLiteral("to"), id } }))
         return false;
-    const int code = p->exitCode + (powerOff ? kPowerOff : 0);
+    const int code = p->exitCode + (powerOff ? exitcode::kDisplayThenPowerOff : 0);
     qInfo("[DisplayOutput] %s -> %s%s: exit %d for osdos-stop", qPrintable(m_current), qPrintable(id),
           powerOff ? ", then off" : "", code);
     QCoreApplication::exit(code);
@@ -247,8 +244,8 @@ void DisplayOutput::nextStartDone(const QString &id, bool ok, const QString &rea
     m_busy = false;
     // As the boot partition has it now, whatever the answer: osdos-stop may
     // have written it all the same.
-    const QByteArray written = readFile(m_bootDir + QStringLiteral("/osdos-display.txt"));
-    const QByteArray atBoot = readFile(atBootPath());
+    const QByteArray written = filetext::readText(m_bootDir + QStringLiteral("/osdos-display.txt"));
+    const QByteArray atBoot = filetext::readText(atBootPath());
     m_next = atBoot.isEmpty() || written == atBoot ? QString() : presetMatching(written);
     if (!m_next.isEmpty()) {
         // What waits, to keep or go back on at the next start.
@@ -284,8 +281,8 @@ void DisplayOutput::revert() {
         return;
     if (!writeState({ { QStringLiteral("reverted"), currentLabel() } }))
         qWarning("[DisplayOutput] the note of the switch back could not be written");
-    qInfo("[DisplayOutput] %s not kept: exit %d for osdos-stop", qPrintable(m_current), kRevertExitCode);
-    QCoreApplication::exit(kRevertExitCode);
+    qInfo("[DisplayOutput] %s not kept: exit %d for osdos-stop", qPrintable(m_current), exitcode::kDisplayRevert);
+    QCoreApplication::exit(exitcode::kDisplayRevert);
 }
 
 void DisplayOutput::dismissNotice() {
@@ -314,7 +311,7 @@ bool DisplayOutput::offered(const QString &id) const {
 QString DisplayOutput::presetMatching(const QByteArray &bytes) const {
     for (const Preset &p : kPresets) {
         const QString id = QString::fromLatin1(p.id);
-        if (readFile(presetPath(id)) == bytes)
+        if (filetext::readText(presetPath(id)) == bytes)
             return id;
     }
     return QString();

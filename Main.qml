@@ -396,15 +396,9 @@ Window {
 
     // --- WINDOW CHANGES (Settings → Look → Effects → Transition, or the theme's) ---
     // A window changing, the view a loader shows (Main.qml's moduleLoader, a
-    // module's own) giving way to the next: the old one is caught as a
-    // picture (lastFace) a moment before, and the two play out the change.
-    // Fade: the old fades away over the new. Cube: the window turns over like
-    // a cube's face, the new on the next face, a way at random each time
-    // (left, right, up or down).
-    // Ripple: the old ripples out as the new ripples in. Wave: a wave runs
-    // out from a corner and dies away, the new window behind it. Drop: a drop
-    // falls in a corner, the new window inside its spreading ring. Which
-    // corner, at random. The last three are shaders, "" where there are none.
+    // module's own) giving way to the next, played out by the window itself
+    // (windowChange, Components/WindowChange, below): Fade, Cube, Ripple,
+    // Wave or Drop. The last three are shaders, "" where there are none.
     readonly property var transitionShaders: ({
         "Ripple": builtInShader("ripple"),
         "Wave":   builtInShader("wave"),
@@ -413,147 +407,10 @@ Window {
     function transitionUsable(name) {
         return !(name in transitionShaders) || (transitionShaders[name] !== "" && gpu)
     }
-    QtObject {
-        id: windowChange
-        // The change playing ("Fade", "Cube", "Ripple", "Wave", "Drop"), ""
-        // none, and how far it is, 0 the old window to 1 the new.
-        property string kind: ""
-        property real progress: 0
-        readonly property bool running: kind !== ""
-        // The old window being caught, and the change waiting for it.
-        property bool capturing: false
-        property var pending: null
-        // A change being made: a view made by it changing its own (a module's
-        // first) changes at once.
-        property bool changing: false
-        // The cube's way: 0 the new face from the right (it turns left), 1
-        // from the left, 2 from below (it turns up), 3 from above. A wave's or
-        // a drop's corner: 0 top left, 1 top right, 2 bottom left, 3 bottom
-        // right.
-        property int direction: 0
-        // The shader of the change playing, kept once it ends (a shader
-        // effect without one would draw the default).
-        property string shader: ""
-        readonly property var faceMatrix: cubeMatrix(true)
-        readonly property var lastMatrix: cubeMatrix(false)
-        // Each face shown only while it is turned towards the eye: one
-        // turned away is seen from inside the cube, where the other hides it.
-        readonly property bool faceShown: kind !== "Cube" || facing(true)
-        readonly property bool lastShown: kind !== "Cube" || facing(false)
-        // How far in front of the screen the cube is seen from, in its edges.
-        readonly property real distance: 2.5
-
-        // One face of the cube as it turns, as a 4×4 matrix: the old window's
-        // turning away, the new one's turning in. The cube's edge is the
-        // screen's width (its height, turning up or down), its middle that far
-        // behind the screen; its points are seen from two and a half widths in
-        // front, and flattened onto the screen as Qt Quick draws in two
-        // dimensions (as Rotation's projected turn is).
-        function cubeMatrix(isNew) {
-            if (kind !== "Cube")
-                return Qt.matrix4x4()
-            var across = direction < 2
-            var w = across ? root.sw : root.sh
-            var h = w / 2
-            var turn = progress * Math.PI / 2
-            var c = Math.cos(turn), s = Math.sin(turn)
-            // Along the turn a point at t goes to a*t + b, at depth z*t + e.
-            var a, b, z, e
-            if (!isNew) {
-                a = c; b = h - h * c - h * s; z = -s; e = h + h * s - h * c
-            } else {
-                a = s; b = h + h * c - h * s; z = c; e = h - h * s - h * c
-            }
-            // The other way round: mirrored.
-            if (direction % 2 === 1) {
-                b = w - a * w - b
-                e = z * w + e
-                z = -z
-            }
-            var d = distance * w
-            var cx = root.sw / 2, cy = root.sh / 2
-            if (across)
-                return Qt.matrix4x4(a + cx * z / d, 0, 0, b + cx * e / d,
-                                    cy * z / d,     1, 0, cy * e / d,
-                                    0,              0, 0, 0,
-                                    z / d,          0, 0, 1 + e / d)
-            return Qt.matrix4x4(1, cx * z / d,     0, cx * e / d,
-                                0, a + cy * z / d, 0, b + cy * e / d,
-                                0, 0,              0, 0,
-                                0, z / d,          0, 1 + e / d)
-        }
-        // Whether a face is turned towards the eye, in the middle of the
-        // screen: the new one once the turn's sine, the old one while its
-        // cosine, is past half an edge over the eye's distance from the
-        // cube's middle.
-        function facing(isNew) {
-            var turn = progress * Math.PI / 2
-            return (isNew ? Math.sin(turn) : Math.cos(turn)) * (2 * distance + 1) > 1
-        }
-    }
-    NumberAnimation {
-        id: transitionAnimation
-        target: windowChange
-        property: "progress"
-        from: 0
-        to: 1
-        duration: windowChange.kind === "Cube" ? 650 : windowChange.kind === "Wave" ? 900
-                  : windowChange.kind === "Drop" ? 1000 : 480
-        // A wave runs at one speed; a drop's ring slows as it spreads.
-        easing.type: windowChange.kind === "Wave" ? Easing.Linear
-                     : windowChange.kind === "Drop" ? Easing.OutQuad : Easing.InOutQuad
-        onFinished: windowChange.kind = ""
-    }
-    // A window that is never caught (nothing being drawn) changes all the same.
-    Timer {
-        id: catchTimeout
-        interval: 250
-        onTriggered: root.windowCaught(true)
-    }
-
     // The view `loader` shows becomes `source` (with `properties`, as
-    // Loader.setSource has them), as Settings → Look → Effects → Transition has it. Never into
-    // or out of a video's views (a player's, a launch's), nor while the
-    // effects rest, nor at the very start.
-    function changeWindow(loader, source, properties, base) {
-        var from = String(loader.source), to = String(source)
-        if (windowChange.capturing)
-            windowCaught(true)
-        if (transition === "" || windowChange.changing || effectsRest || bootActive || startupHolding
-                || from === "" || playbackView.test(from) || playbackView.test(to)) {
-            showView(loader, source, properties, base)
-            return
-        }
-        if (windowChange.running)
-            transitionAnimation.complete()
-        windowChange.pending = function() { showView(loader, source, properties, base) }
-        windowChange.capturing = true
-        lastFace.scheduleUpdate()
-        catchTimeout.restart()
-    }
-    // The old window caught (or given up on, `plain`): the change is made,
-    // and plays out unless plain.
-    function windowCaught(plain) {
-        if (!windowChange.capturing)
-            return
-        catchTimeout.stop()
-        windowChange.capturing = false
-        var change = windowChange.pending
-        windowChange.pending = null
-        windowChange.changing = true
-        change()
-        windowChange.changing = false
-        if (plain === true)
-            return
-        var kind = transition
-        if (!transitionUsable(kind))
-            kind = "Fade"
-        windowChange.direction = Math.floor(Math.random() * 4)
-        windowChange.shader = transitionShaders[kind] || ""
-        windowChange.kind = kind
-        windowChange.progress = 0
-        transitionAnimation.restart()
-    }
+    // Loader.setSource has them), as Settings → Look → Effects → Transition
+    // has it, or at once (WindowChange's change()).
+    function changeWindow(loader, source, properties, base) { windowChange.change(loader, source, properties, base) }
 
     // --- MENU MUSIC (Settings → Sound → Menu Music, or the theme's) ---
     // In the menus only: not while the effects rest, a script or a module's
@@ -639,9 +496,13 @@ Window {
     // box with its text in the surface colour, and anything dimmed is dithered
     // (Components/Dither) rather than faded. The schemes' other three colours
     // stay in their definitions, unused.
-    property string secondaryColor: primaryColor
-    property string tertiaryColor:  primaryColor
-    property string accentColor:    primaryColor
+    // Deprecated: the names the views had for them, kept for third-party
+    // modules that still read them, each the primary colour and read-only.
+    // OSD/OS's own views use primaryColor (or cursorColor and cursorInk for
+    // a selected row's box and its text).
+    readonly property alias secondaryColor: root.primaryColor
+    readonly property alias tertiaryColor:  root.primaryColor
+    readonly property alias accentColor:    root.primaryColor
 
     // A TV's tube shows the picture 4:3 whatever its mode, so a mode of
     // another shape has pixels that aren't square: a JAMMA board's 720×240
@@ -796,6 +657,10 @@ Window {
     // A monitor layout's frame is up: its chrome drawn, the view's rows in
     // its pane.
     readonly property bool monitorFramed: menuPalette !== null && viewInFrame
+    // A value changed in two steps there, as Broadcast's and Flat Panel's
+    // menus change one (Settings', a module's settings): select, ▲ ▼, then
+    // select again, back leaving it as it was; ◄ ► change nothing.
+    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
     // A layer that takes the whole screen over the view, in the scheme's
     // colours (the on-screen keyboard, an info screen: an OsdGround that is
     // not laid `inLayout`), is outside the frame, and so is whatever rests
@@ -820,7 +685,7 @@ Window {
     // draws it again over its own ground (PromptScreen), so that a question
     // is asked in the layout, its answers in the pane.
     readonly property rect frameColumn: Qt.rect(sw * 0.115625, sh * 0.25, sw * 0.084375, //74, 120, 54
-        frameTall || moduleFrame ? sh * 0.525 + hintRoom : sh * 0.4666667 + helpRoom + hintRoom) //252 : 224
+        frameTall || moduleFrame ? tallListHeight : listHeight)
     // The pane: where a view's rows go, beside the frame's column, where a
     // monitor layout's frame has its rows or, with no frame, where every
     // view has its list. Across, paneX and paneWidth. Down, a menu's rows
@@ -869,11 +734,13 @@ Window {
         return luma(a) >= luma(b) ? a : b
     }
 
-    // A look setting saved, or read at start: kept in its property. False for
-    // a key that isn't one.
-    function applyLook(key, value) {
+    // An app setting saved (onAppSettingChanged), or read at start (atStart,
+    // for each of settingKeys): kept in its property, or acted on. A key
+    // that isn't one of the shell's does nothing.
+    function applySetting(key, value, atStart) {
         var text = value === undefined || value === null ? "" : String(value)
         switch (key) {
+        // The look (Settings → Look, and Sound's menu music).
         case "osd_theme":
             theme = appCore.theme(text)
             break
@@ -895,62 +762,63 @@ Window {
             var volume = parseInt(text)
             musicVolume = isNaN(volume) ? 60 : Math.max(0, Math.min(100, volume))
             break
-        default:
-            return false
+        // The screens, each as its property reads it.
+        case "osd_frame":              osdFrame = osdFrameOf(value); break
+        case "transparent_background": backdropSolidity = solidityOf(value); break
+        case "loading_effect":         loadingEffect = value !== "Off"; break
+        case "orb_fog":                orbFogLive = value === "Live"; break
+        case "boot_colors":            bootThemed = value !== "Default"; break
+        case "loading_colors":         loadingThemed = value !== "Default"; break
+        case "hint_bar":               hintBarSetting = value !== "Off"; break
+        case "help_line":              helpLineSetting = value !== "Off"; break
+        case "status_icons":           statusIconsSetting = value !== "Off"; break
+        case "osd_background":         osdBackground = osdBackgroundOf(value); break
+        case "monitor":                monitor = monitorOf(value); break
+        case "window_mode":            setWindowed(canWindow && value === "On"); break
+        // Read as the window is made (menuLayout's binding), so not one of
+        // settingKeys: only a change comes here.
+        case "menu_layout":            menuLayout = menuLayoutOf(value); break
+        case "cabinet_lock":
+            // At start the lock is only noted: the startup module opens as at
+            // any start (openStartupModule()), the lock in force from there.
+            if (atStart)
+                cabinetLockOn = value === "On"
+            else
+                setCabinetLock(value === "On")
+            break
+        case "mouse_pointer":
+            // "off", "always" or seconds; 5 when unset (MOUSE POINTER, below).
+            pointerSetting = String(value || "5")
+            if (pointerShown)
+                pointerTimer.restart()
+            break
+        case "screensaver_timeout":
+            // Seconds, or "OFF" (parseInt's NaN): the tracker starts disabled.
+            var seconds = parseInt(value)
+            if (seconds > 0) {
+                idleTracker.threshold = seconds
+                idleTracker.enabled = true
+            } else {
+                idleTracker.enabled = false
+                if (screenSaverActive)
+                    screenSaverActive = false
+            }
+            break
         }
-        return true
     }
-    readonly property var lookKeys: ["osd_theme", "color_scheme", "skin", "text_effect", "background_effect",
-                                     "selector_effect", "screen_effect", "transition", "menu_music",
-                                     "menu_music_file", "menu_music_volume"]
+    // The settings read at start, in this order (Component.onCompleted).
+    readonly property var settingKeys: ["osd_theme", "color_scheme", "skin", "text_effect", "background_effect",
+                                        "selector_effect", "screen_effect", "transition", "menu_music",
+                                        "menu_music_file", "menu_music_volume",
+                                        "osd_frame", "transparent_background", "mouse_pointer", "loading_effect",
+                                        "orb_fog", "cabinet_lock", "boot_colors", "loading_colors", "hint_bar",
+                                        "help_line", "status_icons", "osd_background", "monitor", "window_mode",
+                                        "screensaver_timeout"]
 
     Connections {
         target: appCore
         function onAppSettingChanged(key, value) {
-            if (root.applyLook(key, value)) {
-                return
-            } else if (key === "osd_frame") {
-                root.osdFrame = root.osdFrameOf(value)
-            } else if (key === "transparent_background") {
-                root.backdropSolidity = root.solidityOf(value)
-            } else if (key === "loading_effect") {
-                root.loadingEffect = value !== "Off"
-            } else if (key === "orb_fog") {
-                root.orbFogLive = value === "Live"
-            } else if (key === "cabinet_lock") {
-                root.setCabinetLock(value === "On")
-            } else if (key === "boot_colors") {
-                root.bootThemed = value !== "Default"
-            } else if (key === "loading_colors") {
-                root.loadingThemed = value !== "Default"
-            } else if (key === "hint_bar") {
-                root.hintBarSetting = value !== "Off"
-            } else if (key === "help_line") {
-                root.helpLineSetting = value !== "Off"
-            } else if (key === "status_icons") {
-                root.statusIconsSetting = value !== "Off"
-            } else if (key === "osd_background") {
-                root.osdBackground = root.osdBackgroundOf(value)
-            } else if (key === "menu_layout") {
-                root.menuLayout = root.menuLayoutOf(value)
-            } else if (key === "window_mode") {
-                root.setWindowed(root.canWindow && value === "On")
-            } else if (key === "monitor") {
-                root.monitor = root.monitorOf(value)
-            } else if (key === "mouse_pointer") {
-                root.pointerSetting = String(value)
-                if (root.pointerShown)
-                    pointerTimer.restart()
-            } else if (key === "screensaver_timeout") {
-                var sec = parseInt(value)
-                if (sec > 0) {
-                    idleTracker.threshold = sec
-                    idleTracker.enabled = true
-                } else {  // "OFF"
-                    idleTracker.enabled = false
-                    if (screenSaverActive) screenSaverActive = false
-                }
-            }
+            root.applySetting(key, value, false)
         }
     }
 
@@ -994,31 +862,8 @@ Window {
             appCore.save_setting("", "transition", cube)
             app.transition = cube
         }
-        for (var k = 0; k < root.lookKeys.length; ++k)
-            root.applyLook(root.lookKeys[k], app[root.lookKeys[k]])
-        root.osdFrame = root.osdFrameOf(cfg.app && cfg.app.osd_frame)
-        root.backdropSolidity = root.solidityOf(cfg.app && cfg.app.transparent_background)
-        root.pointerSetting = String((cfg.app && cfg.app.mouse_pointer) || "5")
-        root.loadingEffect = !(cfg.app && cfg.app.loading_effect === "Off")
-        root.orbFogLive = !!(cfg.app && cfg.app.orb_fog === "Live")
-        root.cabinetLockOn = !!(cfg.app && cfg.app.cabinet_lock === "On")
-        root.bootThemed = !(cfg.app && cfg.app.boot_colors === "Default")
-        root.loadingThemed = !(cfg.app && cfg.app.loading_colors === "Default")
-        root.hintBarSetting = !(cfg.app && cfg.app.hint_bar === "Off")
-        root.helpLineSetting = !(cfg.app && cfg.app.help_line === "Off")
-        root.statusIconsSetting = !(cfg.app && cfg.app.status_icons === "Off")
-        root.osdBackground = root.osdBackgroundOf(cfg.app && cfg.app.osd_background)
-        root.monitor = root.monitorOf(cfg.app && cfg.app.monitor)
-        root.setWindowed(root.canWindow && !!(cfg.app && cfg.app.window_mode === "On"))
-
-        // Screensaver: the tracker starts disabled; this is the single place the
-        // saved setting is applied (live changes land in onAppSettingChanged above,
-        // mirroring color_scheme). parseInt("OFF") is NaN, so OFF stays disabled.
-        var ssSec = parseInt(cfg.app && cfg.app.screensaver_timeout)
-        if (ssSec > 0) {
-            idleTracker.threshold = ssSec
-            idleTracker.enabled = true
-        }
+        for (var k = 0; k < root.settingKeys.length; ++k)
+            root.applySetting(root.settingKeys[k], app[root.settingKeys[k]], true)
 
         // Break declarative bindings on macOS so the C++ NSWindow override
         // in forceWindowFullScreenOnScreen() isn't immediately re-fought by QML.
@@ -1057,6 +902,14 @@ Window {
     // The null guards absorb the same nulling here at app shutdown, when the
     // engine invalidates the root context itself.
     readonly property var hints: inputManager ? inputManager.hints : ({})
+    // Whether a key event is back, as every view takes it: Esc, Backspace or
+    // a remote's Back (Components/Hints.js).
+    function isBack(event) { return Hints.isBack(event) }
+    // A hint bar's line from its parts, each "key:WHAT", "" for none:
+    // root.hintLine(["back:BACK", "select:SELECT"]) is "[ESC]:BACK
+    // [ENTER]:SELECT" from the keyboard, and a binding on it follows the
+    // hints to a pad's and back (Components/Hints.js).
+    function hintLine(parts) { return Hints.line(hints, parts) }
     readonly property string appVersion: appCore ? appCore.appVersion : ""
     // A build made from source rather than a release (CMake's APP_VERSION).
     readonly property bool devBuild: appVersion === "dev"
@@ -1071,11 +924,7 @@ Window {
 
     // The startup module waits for the boot screen: most modules need the
     // network the boot screen is waiting on.
-    onBootActiveChanged: {
-        if (bootActive || startupHolding) return
-        if (moduleLoader.item) moduleLoader.item.forceActiveFocus()
-        openStartupModule()
-    }
+    onBootActiveChanged: startViews()
 
     // --- DISPLAY OUTPUT (Settings → Screen → Display Output) ---
     // displayOutput mirrored, as bootProgress is, for the same teardown-safety.
@@ -1099,12 +948,9 @@ Window {
     onStartupHoldingChanged: {
         // Gone with appCore as the app shuts down: nothing to open then.
         if (startupHolding || !appCore) return
-        if (bootActive) {
-            if (bootScreenLoader.item) bootScreenLoader.item.forceActiveFocus()
-            return
-        }
-        if (moduleLoader.item) moduleLoader.item.forceActiveFocus()
-        openStartupModule()
+        // Under the boot screen, it has the keys back.
+        if (bootActive && bootScreenLoader.item) bootScreenLoader.item.forceActiveFocus()
+        startViews()
     }
 
     // --- SCREEN SAVER STATE ---
@@ -1122,6 +968,20 @@ Window {
     property var appNavStack: []
     property var appCurrentParams: ({})
     property bool _startupNavigated: false
+
+    // The views' turn: once the boot screen and the windows before the menus
+    // (startupHolding) are done, and as each view comes after that, the view
+    // shown takes the keys and the startup module opens (once). While they
+    // are up they keep the keys: QML gives no order between a view's
+    // onLoaded and the boot screen's, so a view doesn't race it. Nothing
+    // once appCore is gone, as the app shuts down.
+    function startViews() {
+        if (bootActive || startupHolding || !appCore)
+            return
+        if (moduleLoader.item)
+            moduleLoader.item.forceActiveFocus()
+        openStartupModule()
+    }
 
     // Opens the configured startup module, once per run. A favourite chosen to
     // PLAY AT STARTUP (EntryOptions) comes first: its module opens and plays
@@ -1340,6 +1200,10 @@ Window {
     readonly property string bootPaper: bootThemed ? schemePaper : schemes["Video 1"].surface
     readonly property string loadingInk: loadingThemed ? schemeInk : schemes["Video 1"].primary
     readonly property string loadingPaper: loadingThemed ? schemePaper : schemes["Video 1"].surface
+    // The loading screen's letters bleed to the right in the colours' second
+    // ink: the secondary colour of the scheme in force, or of Video 1 with
+    // Default; the ink itself for a theme's colours that have none.
+    readonly property string loadingBleed: loadingThemed ? (scheme.secondary || schemeInk) : schemes["Video 1"].secondary
 
     // "transparent_background": how solid the menus' ground is over a video
     // behind them, 0 (TRANSPARENT) to 100 (SOLID: none of it shows, but it
@@ -1479,24 +1343,15 @@ Window {
             color: root.color
         }
 
-        // Behind a window turning over (the cube) or rippling, the dark.
-        Rectangle {
-            anchors.fill: parent
-            z: -2
-            visible: windowChange.kind === "Cube" || windowChange.kind === "Ripple"
-            color: "#000000"
-        }
-
         // --- THE WINDOW ---
         // What a view shows, on its ground (OSD BACKGROUND), with the
-        // selector's effect round the selected line: the face a window change
-        // turns away, lastFace keeping a picture of it as it was.
-        Item {
-            id: face
+        // selector's effect round the selected line, laid in the window that
+        // changes from one view to the next (Components/WindowChange: it
+        // turns this away and keeps a picture of it as it was).
+        WindowChange {
+            id: windowChange
             anchors.fill: parent
-            transform: Matrix4x4 { matrix: windowChange.faceMatrix }
-            // Not hidden (visible: false): a view keeps its focus.
-            opacity: windowChange.faceShown ? 1 : 0
+            textureSize: screen.texturePixels
 
             // What the menus are drawn on (OSD BACKGROUND), under every view.
             // Over a video behind them, as solid as Transparent Background
@@ -1605,15 +1460,9 @@ Window {
                     }
                 }
 
-                onLoaded: {
-                    // While the boot screen is up it keeps the focus; QML gives no
-                    // order between this and its own onLoaded, so don't race it. Nor
-                    // the window asking to keep a new display output, nor Setup's.
-                    if (root.bootActive || root.startupHolding)
-                        return
-                    item.forceActiveFocus()
-                    root.openStartupModule()
-                }
+                // While the boot screen is up it keeps the focus, and so do
+                // the window asking to keep a new display output and Setup's.
+                onLoaded: root.startViews()
 
                 Connections {
                     target: moduleLoader.item
@@ -1660,48 +1509,6 @@ Window {
                 paper: root.surfaceColor
                 pixel: root.px
                 running: !root.effectsRest && !root.screenSaverActive
-            }
-        }
-
-        // --- WINDOW CHANGES (Settings → Look → Effects → Transition, or the theme's) ---
-        // The window as it was, caught a moment before the next comes in
-        // (changeWindow()): under the window while it is caught, then turned
-        // away with it (the cube), faded out over it (fade), or rippled into
-        // the next (ripple).
-        ShaderEffectSource {
-            id: lastFace
-            anchors.fill: parent
-            sourceItem: face
-            textureSize: screen.texturePixels
-            live: false
-            visible: windowChange.capturing || windowChange.running
-            z: windowChange.kind === "Fade" ? 0.5 : -1.5
-            opacity: windowChange.kind === "Fade" ? 1 - windowChange.progress : windowChange.lastShown ? 1 : 0
-            transform: Matrix4x4 { matrix: windowChange.lastMatrix }
-            onScheduledUpdateCompleted: root.windowCaught()
-        }
-        // The next window, as a picture, while a shader brings it in.
-        ShaderEffectSource {
-            id: nextFace
-            anchors.fill: parent
-            sourceItem: windowChange.kind in root.transitionShaders ? face : null
-            textureSize: screen.texturePixels
-            hideSource: windowChange.kind in root.transitionShaders
-            visible: false
-        }
-        Loader {
-            anchors.fill: parent
-            z: 0.6
-            active: windowChange.kind in root.transitionShaders
-            sourceComponent: ShaderEffect {
-                fragmentShader: windowChange.shader
-                property variant from: lastFace
-                property variant to: nextFace
-                property real progress: windowChange.progress
-                property size resolution: Qt.size(root.canvasW, root.canvasH)
-                property real px: root.px
-                property point corner: Qt.point(windowChange.direction % 2, Math.floor(windowChange.direction / 2))
-                property color ink: root.primaryColor
             }
         }
 

@@ -54,8 +54,6 @@ FocusScope {
 
     property bool stoppedReported:    false
     property bool playbackStarted:    false
-    property bool overlayVisible:     false
-    property int  choiceIndex:        0
     property string resumeSetting:    "ask"
     property bool pendingRetryTranscode: false
 
@@ -70,13 +68,24 @@ FocusScope {
     // the transcode a failed direct play falls back to.
     readonly property bool waiting: pendingNextEpisode || pendingRetryTranscode
 
-    // Back to the detail screen from a wait that won't end: the server failed
-    // it, or the user gave up on it with back. Its answer, should it come, is
-    // dropped.
-    function leaveWaiting() {
+    // A wait that won't end: the server failed it, or the user gave up on it
+    // with back. Its answer, should it come, is dropped. A transcode a failed
+    // direct play fell back to is reported stopped, as a failed one is, so
+    // Plex doesn't keep the session playing; a next episode never started is
+    // reported nothing, not even as the view goes (Component.onDestruction):
+    // a stop at 0 would wipe its resume point.
+    function endWait() {
+        if (pendingRetryTranscode)
+            reportStopped(lastKnownPositionMs, lastKnownDurationMs)
+        stoppedReported = true
         pendingNextEpisode = false
         pendingRetryTranscode = false
         plexBackend.cancel_stream()
+    }
+
+    // Back to the detail screen from a wait that won't end.
+    function leaveWaiting() {
+        endWait()
         goBack()
     }
 
@@ -85,8 +94,9 @@ FocusScope {
 
     // The video that failed, again where it got to (the notice's RETRY), as
     // it was played: direct, or the transcode a failed direct play fell back
-    // to.
+    // to. Reported as playing again from there.
     function retryPlayback() {
+        stoppedReported = false
         playbackStarted = false
         doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)
     }
@@ -94,52 +104,22 @@ FocusScope {
     focus: true
 
     Keys.onPressed: function(event) {
-        if (overlayVisible) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                choiceIndex = 0
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                choiceIndex = 1
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                overlayVisible = false
-                doStartPlayback(choiceIndex === 0 ? viewOffset : 0)
-                event.accepted = true
-            }
-        } else if (waiting) {
+        // Under the resume question only its Ctrl chords come here: on to
+        // Main.qml (Ctrl+Q), not to mpv.
+        if (resumePrompt.visible)
+            return
+        if (waiting) {
             // No mpv to send the keys to: back leaves.
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+            if (root.isBack(event))
                 leaveWaiting()
             event.accepted = true
         } else {
-            // A key's repeats go as repeats: mpv holds the key down for
-            // them, and lets it go as the key is (Keys.onReleased).
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-                mpvController.sendKey("ESC", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Backspace) {
-                mpvController.sendKey("BS", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                mpvController.sendKey("UP", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                mpvController.sendKey("DOWN", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Left) {
-                mpvController.sendKey("LEFT", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Right) {
-                mpvController.sendKey("RIGHT", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Space) {
-                mpvController.sendKey("SPACE", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                mpvController.sendKey("ENTER", event.isAutoRepeat)
+            // The keys mpv takes (MpvKeys.js). A key's repeats go as
+            // repeats: mpv holds the key down for them, and lets it go as
+            // the key is (Keys.onReleased).
+            var key = MpvKeys.name(event.key)
+            if (key !== "") {
+                mpvController.sendKey(key, event.isAutoRepeat)
                 event.accepted = true
             }
         }
@@ -158,12 +138,14 @@ FocusScope {
     }
 
     // Report the final "stopped" timeline for the current episode exactly once.
-    // The fallback position/duration are used only when no live value is known.
+    // The fallback position/duration are used only when no live value is known,
+    // and the item's own resume point when neither is (a failure before the
+    // first picture, back on the resume question): a stop at 0 would wipe it.
     function reportStopped(finalPositionMs, finalDurationMs) {
         if (stoppedReported) return
         stoppedReported = true
         if (!trackProgress) return
-        var pos = lastKnownPositionMs || finalPositionMs
+        var pos = lastKnownPositionMs || finalPositionMs || viewOffset
         var dur = lastKnownDurationMs || finalDurationMs
         plexBackend.update_timeline(ratingKey, partKey, "stopped", pos, dur)
     }
@@ -243,22 +225,30 @@ FocusScope {
         }
     }
 
+    // The stream it waited for won't come: said so, and back from it to the
+    // detail screen, not a black screen with no mpv to take a key.
+    function waitFailed(msg) {
+        var next = pendingNextEpisode
+        endWait()
+        failure.show(next ? "The next video could not be started" : "The server could not stream it",
+                     msg, false)
+    }
+
     Connections {
         target: plexBackend
         function onErrorOccurred(msg) {
             console.log("[Player] Backend error: " + msg)
-            // The stream it waited for won't come: said so, and back from it
-            // to the detail screen, not a black screen with no mpv to take a
-            // key.
-            if (waiting) {
-                var next = pendingNextEpisode
-                pendingNextEpisode = false
-                pendingRetryTranscode = false
-                plexBackend.cancel_stream()
-                failure.show(next ? "The next video could not be started" : "The server could not stream it",
-                             msg, false)
-            }
+            if (waiting)
+                waitFailed(msg)
         }
+        // Signed out as a card's player waits for a stream (its token refused
+        // and not renewed, so the stream never comes): Root.qml shows no
+        // PinAuth over a card, so the wait ends here as a failed one does,
+        // and back returns to the card reader. A video playing plays on, and
+        // goes back as it ends. In the module itself, Root shows PinAuth in
+        // the player's place.
+        function onAuthRevoked() { playerRoot.signedOut() }
+        function onLogoutComplete() { playerRoot.signedOut() }
         function onStreamUrlReady(url, plexToken) {
             if (pendingNextEpisode) {
                 // Stream URL for the auto-advanced next episode just arrived.
@@ -297,6 +287,11 @@ FocusScope {
         }
     }
 
+    function signedOut() {
+        if (moduleRoot.forCard === true && waiting)
+            waitFailed("SIGNED OUT OF PLEX: OPEN THE PLEX MODULE TO SIGN IN")
+    }
+
     // Ask the backend for the next item of the queue, if there is one. Reports
     // through nextEpisodeReady, so the advance is the same code path as autoplay.
     // Returns false when there is no queue or it is exhausted.
@@ -332,7 +327,7 @@ FocusScope {
         // Repoint the BACK target so exiting returns to THIS episode's detail
         // screen, not the one we auto-advanced from. Item.qml reloads from
         // item.ratingKey, so a minimal item carrying the new keys suffices.
-        // A queue was launched with replaceWith, so the stack top is the list the
+        // A queue was launched with replaceCurrent, so the stack top is the list the
         // queue came from — leave it pointing at the list. Same for a shuffle,
         // whose stack top is the show or season being shuffled: repointing it at
         // an episode would leave a show detail screen rendering an episode.
@@ -403,8 +398,10 @@ FocusScope {
                                                   0)
                 } else {
                     // The transcode failed too, or mpv itself did (not
-                    // installed, say), which no transcode mends: why, with
-                    // RETRY.
+                    // installed, say), which no transcode mends: reported
+                    // stopped, so Plex doesn't keep the session and its
+                    // transcode playing, then why, with RETRY.
+                    reportStopped(finalPositionMs, finalDurationMs)
                     failure.showMpv(true)
                 }
                 return
@@ -469,10 +466,19 @@ FocusScope {
         autoplayNext  = allowAutoplay && (autoplayRaw === true || autoplayRaw === "ON")
 
         if (resumeSetting === "ask" && viewOffset > 0) {
-            overlayVisible = true
+            resumePrompt.open()
         } else {
             doStartPlayback(viewOffset)
         }
+    }
+
+    // Safety net: the view gone with its video not reported stopped (the
+    // app quit, PinAuth in its place, back from the resume question), or
+    // Plex shows it playing until the server times the session out. The
+    // guard in reportStopped prevents double-reporting.
+    Component.onDestruction: {
+        if (streamUrl !== "")
+            reportStopped(lastKnownPositionMs, lastKnownDurationMs)
     }
 
     Rectangle {
@@ -487,20 +493,22 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.itemDurationMs || playerRoot.lastKnownDurationMs
-            visible: streamUrl !== "" && !overlayVisible && !playbackStarted && !failure.visible
+            visible: streamUrl !== "" && !resumePrompt.visible && !playbackStarted && !failure.visible
         }
     }
 
-    PromptScreen {
-        visible: overlayVisible
-        title: "Resume playback?"
-        message: itemTitle
-        choices: [
-            "Resume from " + root.formatTime(viewOffset),
-            "Start from the beginning"
-        ]
-        currentIndex: choiceIndex
-        onHovered: function(index) { choiceIndex = index }
+    // Where to start a video with a resume point, while Resume Playback
+    // asks: back leaves.
+    ChoiceOverlay {
+        id: resumePrompt
+        anchors.fill: parent
+        promptText: "Resume playback?"
+        subtitleText: itemTitle
+        choices: [{ label: "Resume from " + root.formatTime(viewOffset), action: "resume" },
+                  { label: "Start from the beginning", action: "start" }]
+        onClosed: playerRoot.forceActiveFocus()
+        onActivated: function(action) { playerRoot.doStartPlayback(action === "resume" ? viewOffset : 0) }
+        onCanceled: playerRoot.goBack()
     }
 
     PlaybackNotice {

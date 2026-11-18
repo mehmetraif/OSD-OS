@@ -45,7 +45,12 @@ Rectangle {
     property real travel: 0
 
     width: root.sw * 0.75 //480
-    height: root.sh * 0.0583333 //28
+    height: root.menuRowHeight
+    // Its place on every view, over the hint bar (Main.qml's helpLineMargin)
+    // at the gutter's left; a view's own anchors, or the frame's place for
+    // its own (x, y), win over these.
+    x: root.sw * 0.125 //80
+    y: parent ? parent.height - height - root.helpLineMargin : 0
     // Outlined rather than tinted: the OSD keeps to two colours.
     color: "transparent"
     border.width: framed ? root.px : 0

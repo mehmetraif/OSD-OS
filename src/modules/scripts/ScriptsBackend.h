@@ -41,6 +41,7 @@ struct ScriptEntry {
     QList<QPair<QString, QString>> environment;
 };
 
+class AppCore;
 class ScriptLauncher;
 class DisplayHandoff;
 
@@ -57,7 +58,9 @@ class ScriptsBackend : public QObject {
     Q_PROPERTY(QString consoleOutput  READ consoleOutput  NOTIFY consoleOutputChanged)
     Q_PROPERTY(QString runningName    READ runningName    NOTIFY scriptRunningChanged)
 public:
-    explicit ScriptsBackend(const QString &appRoot, const QString &dataRoot,
+    // The scripts directory set in the module's settings is read through
+    // appCore; without one, the default's.
+    explicit ScriptsBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                             DisplayHandoff *handoff = nullptr,
                             QObject *parent = nullptr);
 
@@ -90,7 +93,6 @@ public:
     Q_INVOKABLE bool runScript(const QString &basename);
     Q_INVOKABLE void stopScript();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
-    Q_INVOKABLE int     lastExitCode() const;
     // Run mode for a script ("console" | "takeover"), so a view can route before
     // starting anything.
     Q_INVOKABLE QString modeFor(const QString &basename);
@@ -115,7 +117,6 @@ public slots:
 signals:
     // Wired to AppCore by registerModule's introspection.
     void dynamicOptionsReady(const QString &key, const QVariant &options);
-    void scriptsChanged();
 
     void scriptRunningChanged();
     void consoleOutputChanged();

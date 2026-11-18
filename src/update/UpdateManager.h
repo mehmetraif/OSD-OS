@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QFile>
 #include <QCryptographicHash>
 #include <QJsonObject>
@@ -17,15 +18,18 @@ class QNetworkReply;
 //     Restart" exits with code 11 so systemd relaunches immediately (see
 //     osdos-stop); otherwise the update applies on the next manual launch.
 //   - Linux (AppImage, x86_64/SteamDeck): no launcher layer — the AppImage IS
-//     the entry point. Apply swaps the verified image over $APPIMAGE in-process
-//     (keeping a .bak), then in Desktop Mode a detached helper waits for the app
-//     to quit and relaunches; in Gaming Mode (gamescope/Steam) it just quits and
-//     the user relaunches from Steam.
+//     the entry point. Apply checks and swaps the verified image over $APPIMAGE
+//     in-process, off the app's thread (state applying; keeping a .bak), then in
+//     Desktop Mode a detached helper waits for the app to quit and relaunches;
+//     in Gaming Mode (gamescope/Steam) it just quits and the user relaunches
+//     from Steam.
 //   - macOS: spawns a detached helper script that waits for the app to quit,
 //     mounts the DMG, swaps /Applications/osdos.app, and relaunches.
+// A helper that can't be written or started leaves the app open on the error
+// state, saying so, rather than quitting with nothing to follow it.
 class UpdateManager : public QObject {
     Q_OBJECT
-    // idle | checking | upToDate | updateAvailable | downloading | readyToApply | error
+    // idle | checking | upToDate | updateAvailable | downloading | readyToApply | applying | error
     Q_PROPERTY(QString state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY infoChanged)
@@ -80,6 +84,12 @@ private:
     // app starts: its backup swept, or put back where the image is gone.
     static void settleAppImage(const QString &image);
     void applyMacos();
+    // A helper script, written to the updates folder as `name`, started apart
+    // from the app with args, to do what can only be done once the app has
+    // quit. False, on the error state with `failure` for the message, when it
+    // couldn't be written or started: the app then stays open.
+    bool launchHelper(const QString &name, const char *script, const QStringList &args,
+                      const QString &failure);
     QString updatesDir() const;
     QString stagedJsonPath() const;
     QString stagedSha256Path() const;

@@ -10,7 +10,9 @@ import QtQuick
 // text, which is free to change with state. Select closes it before acting,
 // unless closeOnSelect is off: then the host closes it (close()) once it is
 // done, as one that shows what became of the choice does. A host that acts on
-// a choice before anything closes overrides choose(action).
+// a choice before anything closes overrides choose(action). Back closes it
+// and says canceled() after closed(), for a host that does something of its
+// own on back (a player's resume question leaves the player).
 FocusScope {
     id: overlayRoot
 
@@ -27,6 +29,8 @@ FocusScope {
 
     signal activated(string action)
     signal closed()
+    // Closed by back, without a choice.
+    signal canceled()
 
     visible: false
     // Hidden, it lets go of the keys.
@@ -69,10 +73,11 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        var back = root.isBack(event)
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
         if (back) {
             close()
+            canceled()
         } else if (enter) {
             // With nothing to choose (a notice), select closes it too.
             var choice = choices[choiceIndex]

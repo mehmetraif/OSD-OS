@@ -72,8 +72,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace ||
-            event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             jellyfinBackend.quick_connect_cancel()
             goBack()
             event.accepted = true
@@ -107,10 +106,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Quick Connect"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125
-        anchors.leftMargin: root.sw * 0.125
     }
 
     // Body
@@ -126,7 +121,7 @@ FocusScope {
         Text {
             visible: !failed && code !== ""
             text: qcRoot.code
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -140,7 +135,7 @@ FocusScope {
         Text {
             visible: !failed && code !== ""
             text: "Enter the above code at:\n" + serverUrl + "/web/#quickconnect"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             width: root.paneWidth //492
@@ -159,7 +154,7 @@ FocusScope {
                 text: approved ? "Approved"
                             : (code !== "" ? "Waiting"
                                             : "Connecting")
-                color: approved ? root.accentColor : root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0333333  // 16
@@ -167,7 +162,7 @@ FocusScope {
             Text {
                 id: dots
                 text: "..."
-                color: root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0333333 //16
                 SequentialAnimation on opacity {
@@ -187,7 +182,7 @@ FocusScope {
             visible: failed
             anchors.horizontalCenter: parent.horizontalCenter
             text: qcRoot.errorMsg
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             width: root.paneWidth //492
@@ -203,9 +198,5 @@ FocusScope {
     // Footer
     HintBar {
         text: failed ? root.hints.back + ":RETRY" : root.hints.back + ":CANCEL"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667  // 50
-        anchors.leftMargin: root.sw * 0.125  // 80
     }
 }

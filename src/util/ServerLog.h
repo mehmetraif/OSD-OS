@@ -13,6 +13,8 @@ namespace serverlog {
 // (and its phrase for it, where it sent one), else the network's own word
 // (Connection refused, Host nas.local not found). Never the address asked:
 // Qt's text for a request turned down has it whole, the user's id in it.
+// So it is also what the backends' errors say after their prefix ("LOAD
+// SEASONS FAILED: HTTP 404 Not Found"), shown on the screen and logged.
 inline QString why(const QNetworkReply *reply) {
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     if (status > 0) {

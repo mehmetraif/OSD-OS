@@ -204,10 +204,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: lobbyRoot.room ? lobbyRoot.room.title : "RetroArch Lobby"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Text {
@@ -246,7 +242,7 @@ FocusScope {
             required property var modelData
             required property int index
             width: roomList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             readonly property string mark: heading ? "" : Rooms.mark(modelData)
             heading: modelData.type === "section"
             label: heading ? modelData.label : modelData.title
@@ -263,7 +259,7 @@ FocusScope {
                 if (!event.isAutoRepeat)
                     lobbyRoot.open(lobbyRoot.rows[currentIndex])
                 event.accepted = true
-            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            } else if (root.isBack(event)) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.goBack()
                 event.accepted = true
@@ -283,7 +279,7 @@ FocusScope {
             required property var modelData
             required property int index
             width: roomLines.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label
             value: modelData.value || ""
             icons: modelData.type === "join" ? ["play"] : modelData.icons || []
@@ -296,7 +292,7 @@ FocusScope {
                 if (!event.isAutoRepeat && (lobbyRoot.lines[currentIndex] || {}).type === "join")
                     lobbyRoot.join()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            } else if (root.isBack(event)) {
                 if (!event.isAutoRepeat)
                     lobbyRoot.close()
                 event.accepted = true
@@ -310,22 +306,14 @@ FocusScope {
         always: true
         text: lobbyRoot.room ? ((lobbyRoot.lines[roomLines.currentIndex] || {}).description || "")
                              : lobbyRoot.about(lobbyRoot.rows[roomList.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property bool onRoom: !lobbyRoot.room && !!lobbyRoot.rows[roomList.currentIndex]
                                        && lobbyRoot.rows[roomList.currentIndex].type !== "section"
         readonly property bool onJoin: !!lobbyRoot.room && (lobbyRoot.lines[roomLines.currentIndex] || {}).type === "join"
-        text: root.hints.back + ":BACK"
-              + ((lobbyRoot.room ? lobbyRoot.lines.length : lobbyRoot.rooms.length) > 1 ? " " + root.hints.navigate + ":NAVIGATE" : "")
-              + (onRoom ? " " + root.hints.select + ":OPEN" : onJoin ? " " + root.hints.select + ":JOIN" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK",
+                             (lobbyRoot.room ? lobbyRoot.lines.length : lobbyRoot.rooms.length) > 1 ? "navigate:NAVIGATE" : "",
+                             onRoom ? "select:OPEN" : onJoin ? "select:JOIN" : ""])
     }
 }

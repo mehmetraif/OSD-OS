@@ -3,6 +3,7 @@
 #include "../../AppCore.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/FileNames.h"
+#include "../../util/PlaybackOptions.h"
 #include "NfcDriver.h"
 #include "PcscDriver.h"
 #include "Pn532SerialDriver.h"
@@ -31,6 +32,9 @@ static constexpr int kMaxRespawns = 5;
 // be reopened twice a second.
 static constexpr qint64 kDetectIntervalMs = 2000;
 static const char *kTagsDirName = "nfc_tags";
+static const QString kModuleId = QStringLiteral("com.osdos.nfc_reader");
+// Resume points kept, the most recently played, as Local Files keeps them.
+static constexpr int kMaxResumePoints = 1000;
 
 // Card refs that carry a URI scheme belonging to another module are handed off to
 // it rather than played here. Adding a module means adding a row: the rest of the
@@ -149,6 +153,7 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
     , m_appCore(appCore)
     , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
+    , m_history(dataRoot + "/nfc_reader_history.json", kMaxResumePoints)
 {
     qDebug("[NfcReader] Initializing NFC reader backend");
 
@@ -161,11 +166,10 @@ NfcReaderBackend::NfcReaderBackend(const QString &appRoot, const QString &dataRo
     m_tagsDir = m_dataRoot + "/" + kTagsDirName;
     bool configuredEnabled = false;
     if (m_appCore) {
-        const QString dir = m_appCore->get_setting(QStringLiteral("com.osdos.nfc_reader"),
-                                                   QStringLiteral("tags_directory")).toString();
+        const QString dir = m_appCore->get_setting(kModuleId, QStringLiteral("tags_directory")).toString();
         if (!dir.isEmpty())
             m_tagsDir = dir;
-        configuredEnabled = m_appCore->is_module_enabled(QStringLiteral("com.osdos.nfc_reader"));
+        configuredEnabled = m_appCore->is_module_enabled(kModuleId);
     }
     qDebug("[NfcReader] Tags dir: %s", qPrintable(tagsDirPath()));
 
@@ -337,7 +341,7 @@ void NfcReaderBackend::setTagsDir(const QString &path) {
 }
 
 void NfcReaderBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
-    if (moduleId != QLatin1String("com.osdos.nfc_reader")) return;
+    if (moduleId != kModuleId) return;
 
     if (key == QLatin1String("enabled")) {
         // Same rule as the constructor / AppCore::isModuleEnabled: only an
@@ -552,24 +556,8 @@ void NfcReaderBackend::resetAfterPlayback() {
 // plPos is the playlist item index for .m3u / YouTube-playlist mappings, -1 for
 // single items. Keyed by the mapped video path (not the card UID) so remapping
 // a card to a different video doesn't inherit the old video's resume point.
-QString NfcReaderBackend::historyFilePath() const {
-    return m_dataRoot + "/nfc_reader_history.json";
-}
-
-QVariantMap NfcReaderBackend::loadHistory() const {
-    QFile file(historyFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return {};
-    return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
-}
-
-void NfcReaderBackend::saveHistory(const QVariantMap &history) {
-    writeFileAtomically(historyFilePath(),
-                        QJsonDocument(QJsonObject::fromVariantMap(history)).toJson(QJsonDocument::Compact));
-}
-
 QVariantMap NfcReaderBackend::getSavedPosition(const QString &videoPath) {
-    const QVariant val = loadHistory().value(videoPath);
+    const QVariant val = m_history.entry(videoPath);
     if (!val.canConvert<QVariantMap>())
         return {};
     QVariantMap entry = val.toMap();
@@ -578,18 +566,14 @@ QVariantMap NfcReaderBackend::getSavedPosition(const QString &videoPath) {
 }
 
 void NfcReaderBackend::savePosition(const QString &videoPath, int positionMs, int playlistPos) {
-    QVariantMap history = loadHistory();
     QVariantMap entry;
     entry["pos"]   = positionMs;
     entry["plPos"] = playlistPos;
-    history[videoPath] = entry;
-    saveHistory(history);
+    m_history.save(videoPath, entry);
 }
 
 void NfcReaderBackend::clearPosition(const QString &videoPath) {
-    QVariantMap history = loadHistory();
-    history.remove(videoPath);
-    saveHistory(history);
+    m_history.clear(videoPath);
 }
 
 // Same format cascade as the YouTube module; only applies to mapping entries
@@ -609,43 +593,21 @@ QString NfcReaderBackend::ytdlFormatForResolution(const QString &resolution) con
 }
 
 void NfcReaderBackend::get_resume_playback_options() {
-    QVariantList options;
-    QVariantMap ask; ask["id"] = "ask"; ask["label"] = "Ask";
-    QVariantMap yes; yes["id"] = "yes"; yes["label"] = "Always";
-    QVariantMap no;  no["id"]  = "no";  no["label"]  = "Never";
-    options << ask << yes << no;
-    emit dynamicOptionsReady("resume_playback", options);
+    emit dynamicOptionsReady("resume_playback", playbackoptions::resumePlayback());
 }
 
 void NfcReaderBackend::get_auto_subtitles_options() {
-    QVariantList options;
-    QVariantMap forced; forced["id"] = "forced"; forced["label"] = "Forced Only";
-    QVariantMap on;     on["id"] = "on";         on["label"] = "On";
-    QVariantMap off;    off["id"] = "off";       off["label"] = "Off";
-    options << forced << on << off;
-    emit dynamicOptionsReady("auto_subtitles", options);
+    emit dynamicOptionsReady("auto_subtitles", playbackoptions::autoSubtitles());
+}
+
+QString NfcReaderBackend::autoSubtitlesChoice(const QVariant &saved) const {
+    return playbackoptions::chosen(playbackoptions::autoSubtitles(), saved);
 }
 
 void NfcReaderBackend::get_subtitle_languages() {
-    QStringList addedLabels;
-    QVariantList options;
-
-    QFile file(m_appRoot + "/modules/nfc_reader/iso639-1.json");
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-
-    options.append(QVariantMap{{"id","-"},{"label","Any"}});
-
-    QVariantList locList = QJsonDocument::fromJson(file.readAll()).toVariant().toList();
-    for (const QVariant loc : locList)
-    {
-        QVariantMap langOption = QVariantMap{{"id",loc.toJsonObject()["id"].toString()},{"label",loc.toJsonObject()["label"].toString()}};
-        if (langOption["label"].toString() == "" || addedLabels.contains(langOption["label"].toString())) continue;
-        addedLabels.append(langOption["label"].toString());
-        options.append(langOption);
-    }
-
-    emit dynamicOptionsReady("sub_lang", options);
+    const QVariantList options = playbackoptions::subtitleLanguages(m_appRoot);
+    if (!options.isEmpty())
+        emit dynamicOptionsReady("sub_lang", options);
 }
 
 void NfcReaderBackend::setCardState(const QString &state, const QString &uid, const QString &title) {

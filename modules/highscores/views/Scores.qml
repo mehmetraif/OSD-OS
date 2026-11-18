@@ -29,10 +29,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: tree.folderName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // No tables: what keeps them from being read, or how they come.
@@ -46,7 +42,7 @@ FocusScope {
         Text {
             width: parent.width
             text: "No high scores yet"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -56,7 +52,7 @@ FocusScope {
             width: parent.width
             text: scoresRoot.problem !== "" ? scoresRoot.problem
                   : "Play a game in Arcade: its table shows here once MAME has kept it"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -97,20 +93,11 @@ FocusScope {
         text: entry && entry.detail ? entry.detail
               : scoresRoot.reading ? "Reading the high scores…"
               : "High score tables of the Arcade games"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Footer: select opens a folder; an entry's line is only read.
     HintBar {
         readonly property var entry: tree.currentEntry
-        text: root.hints.back + ":BACK " + root.hints.arrows + ":NAVIGATE "
-              + (entry && entry.isFolder ? root.hints.select + ":OPEN" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "arrows:NAVIGATE", entry && entry.isFolder ? "select:OPEN" : ""])
     }
 }

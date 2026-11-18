@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 import "../../views/Components/Hover.js" as Hover
 
 // The Arcade module's views, modules/arcade/views/Games.qml (the original
@@ -15,66 +16,18 @@ import "../../views/Components/Hover.js" as Hover
 // played straight from the list with Start Info Screen off, under the
 // loading screen, every key kept from it meanwhile, back on it after, or
 // why it didn't play.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: framed ? sw * 0.675 : sw * 0.76875
-    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
-    // tallListHeight with no help line under them, helpedListHeight over one
-    // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    // Colour names, as Main.qml has them.
-    property string primaryColor: "white"
-    property string secondaryColor: "white"
-    property string tertiaryColor: "white"
-    property string accentColor: "white"
-    property string surfaceColor: "#000080"
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    readonly property real helpLineMargin: sh * 0.1583333
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property var selector: null
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]", coin: "[5]" })
-    function selectorShown(item, shown) {}
-    function coverShown(item, shown) {}
-    function skinIcon(url) { return url }
-    // Main.qml's, for Root.qml's views: the new one, without a transition;
-    // and whether the effects rest for the module.
-    function changeWindow(loader, source, properties) { loader.setSource(source, properties) }
-    property bool effectsResting: false
-    function restFor(layer, resting) { effectsResting = resting }
-    // Main.qml's: the screen saver is up.
-    property bool screenSaverActive: false
+    // White on navy, by the colours' names.
+    primaryColor: "white"
+    surfaceColor: "#000080"
+    // The rows' room the same whether or not the Hint Bar and the Help
+    // Line show.
+    hintRoom: 0
+    helpRoom: 0
+    helpLineMargin: sh * 0.1583333
+    // Whether the effects rest for the module (its Root's restFor()).
+    readonly property bool effectsResting: restLayers.length > 0
 
     // The module's router, as the views read it.
     QtObject {
@@ -2474,6 +2427,8 @@ Rectangle {
             var screen = openScreen()
             var name = findText(screen, "Street Fighter II", true)
             verify(name !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            name = name.textItem
             compare(name.x, 0)
             tryVerify(function() { return name.x < 0 }, 4000)
             keyClick(Qt.Key_Down)
@@ -2497,6 +2452,8 @@ Rectangle {
             for (var i = 0; i < bar.children.length && !label; ++i)
                 label = findText(bar.children[i], "All Games", true)
             verify(label !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            label = label.textItem
             var page = findText(screen, "1/3", true)
             verify(page !== null)
             var pageX = page.mapToItem(screen, 0, 0).x
@@ -2642,6 +2599,8 @@ Rectangle {
             var screen = openScreen()
             var value = findText(screen, "Data East Corporation", true)
             verify(value !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            value = value.textItem
             compare(value.width, value.implicitWidth)
             verify(value.width > value.parent.width)
             tryVerify(function() { return value.x < 0 }, 4000)
@@ -2911,10 +2870,12 @@ Rectangle {
         // Border OFF: no frame round the picture or the box under it, the
         // picture filling its place.
         function test_screenBorder() {
+            // In the screen's own look (ClassicLook.qml).
             var frames = function(screen) {
+                var look = findChild(screen, "classicLook")
                 var found = []
-                for (var i = 0; i < screen.children.length; ++i) {
-                    var item = screen.children[i]
+                for (var i = 0; i < look.children.length; ++i) {
+                    var item = look.children[i]
                     if (item.border !== undefined && item.visible && item.x === Math.round(screen.columnX * screen.u))
                         found.push(item.border.width)
                 }

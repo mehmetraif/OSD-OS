@@ -61,10 +61,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: tree.folderName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     TreeBrowser {
@@ -127,10 +123,6 @@ FocusScope {
         id: problemLine
         visible: !osk.visible && !options.visible && !info.visible && text !== ""
         text: youtubeBackend ? youtubeBackend.problem : ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
@@ -149,10 +141,6 @@ FocusScope {
                  : !entry || entry.isFolder ? ":OPEN"
                  : entry.kind === "search" ? ":SEARCH"
                  : entry.kind === "more" ? ":MORE" : ":OPEN")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     OnScreenKeyboard {

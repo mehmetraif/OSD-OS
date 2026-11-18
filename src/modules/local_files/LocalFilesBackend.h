@@ -5,6 +5,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <memory>
+#include "../../util/PositionHistory.h"
 
 class AsyncDirectoryCache;
 class AppCore;
@@ -90,7 +91,7 @@ private:
     QVariantList m_found;
     static QVariantMap entryFor(const QString &dirPath, const QString &name, bool isDir);
 
-    QString      historyFilePath() const;
-    QVariantMap  loadHistory() const;
-    void         saveHistory(const QVariantMap &history);
+    // Where each file was stopped (local_files_history.json): { pos, plPos }
+    // by its path, the most recently played kept.
+    PositionHistory m_history;
 };

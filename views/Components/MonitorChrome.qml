@@ -226,7 +226,7 @@ Item {
                                                      dim: root.primaryColor, accent: root.primaryColor,
                                                      soft: root.primaryColor, mark: root.primaryColor,
                                                      bar: root.primaryColor })
-    readonly property real rowHeight: root.sh * 0.0583333 //28, Main.qml's menuRowHeight
+    readonly property real rowHeight: root.menuRowHeight
     readonly property real inset: 3 * root.px
     // The cursor's room at a row's start (MonitorRow's): Studio Monitor's
     // and Broadcast's mark stands in it.

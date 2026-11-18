@@ -18,6 +18,7 @@
 
 class QQuickWindow;
 class QKeyEvent;
+class QWheelEvent;
 class QSocketNotifier;
 class AppCore;
 class JammaPins;
@@ -326,7 +327,7 @@ private slots:
 #endif
 
 private:
-    enum class Action { None, Up, Down, Left, Right, Select, Back, PlayPause };
+    using Action = controllers::Action;
 
     void initSdl();
     void openController(int deviceIndex);
@@ -351,7 +352,13 @@ private:
     // A pad's inputs that do an action, input.cfg's tokens, buttons first:
     // with its controller (one connected), only those it has.
     static QStringList padTokensFor(const Pad &pad, SDL_GameController *gc, Action a);
-    // The key of a pad connected by its key, -1 for one away.
+    // The pad connected with this key, m_pads.cend() for one away. A pad
+    // Steam's virtual pad stands in for (m_suppressedDevices) is away: its
+    // inputs are no longer listened to, and it isn't listed, played or
+    // shown on its page as connected.
+    using LivePad = QHash<SDL_JoystickID, Pad>::const_iterator;
+    LivePad livePad(const QString &key) const;
+    // The key of a pad connected by its key, -1 for one away (livePad()).
     SDL_JoystickID padIdOf(const QString &key) const;
     // An extra key (keyboard, remote, or allKeys' shared ones) given an
     // action, or with None taken away; false if it couldn't be saved.
@@ -364,10 +371,8 @@ private:
     // isn't one the menus need, or the controller is a keyboard (it has the
     // menus' own keys), or the menus were last worked with something else.
     bool canLoseKey(const QString &key, int id, Action a) const;
-    static QString defaultKeyName(Action a);
     Action keyActionOn(const QString &key, int id) const;
     Action defaultKeyAction(int id) const;
-    static QString actionName(Action a);
     static QVariantMap captureOutcome(const QString &outcome, Action does);
     bool saveProfiles();
     void loadPlayers();
@@ -378,7 +383,7 @@ private:
     // layout's, or with none the pad's own (arcadeDefaultInputs()); on a pad
     // connected, as they act on it (controllers::arcadeActing()).
     QStringList arcadeInputsOf(const QString &key) const;
-    // A pad's controller while it is connected, else null.
+    // A pad's controller while it is connected (livePad()), else null.
     SDL_GameController *padController(const QString &key) const;
     bool saveArcade(const QString &key, const QString &layout, const QStringList &inputs);
     static bool needsInput(int index);
@@ -429,10 +434,16 @@ private:
     void releaseHeld(const QString &source);
     void letGoOfPad(SDL_JoystickID id);
     static bool essentialAction(Action a);
-    // What a pad's press does (handleButton(), handleAxis()): MAME's coin
-    // key where the focus takes one, else its action. Nothing for a pad gone
-    // or no longer listened to since, as for a press held back.
+    // A pad's input (input.cfg's token) pressed or let go, a button's or an
+    // axis's alike (handleButton(), handleAxis()).
+    void pressPadInput(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a);
+    void releasePadInput(SDL_JoystickID which, const HeldInput &input, const QString &token);
+    // What a pad's press does (pressPadInput()): MAME's coin key where the
+    // focus takes one, else its action. Nothing for a pad gone or no longer
+    // listened to since, as for a press held back.
     void actOnPadPress(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a);
+    // The coin key let go, for an input that pressed it: false for any other.
+    bool releaseCoin(const HeldInput &input);
 
     // Cabinet Lock (captureUnlockButtons()). An input as the unlock buttons
     // name it: a pad's by the player it plays ("p1/start"), else by its key
@@ -474,18 +485,48 @@ private:
     // A key that went on to the views while a video has the screen, and who
     // has the keys there: said in the log once for each.
     void noteKeyToViews(const QString &name);
+    // eventFilter() in parts: the wheel's notches, and a key's stages, in
+    // the order eventFilter() lists them. A key as each stage takes it: the
+    // event, whether it came in at its window (rather than at an item it
+    // goes on to), whether the app made it (a pad's press, postKey()) or
+    // replayed it (replayKey()), its id (keyId()), the keyboard or remote
+    // it came from, "" where none is known, and whether that is a Consumer
+    // Control node whose press readNode() took (keyIn() works these out).
+    // Each stage's answer: true to keep the key from the views, false to
+    // let it go on, nullopt to leave it to the next.
+    bool wheelTurned(QObject *obj, const QWheelEvent *event);
+    struct KeyIn {
+        const QKeyEvent *ke = nullptr;
+        QEvent::Type type = QEvent::None;
+        bool atWindow = false;
+        bool synthetic = false;
+        bool replay = false;
+        int id = 0;
+        QString device;
+        bool takenByNode = false;
+    };
+    KeyIn keyIn(QObject *obj, const QKeyEvent *ke);
+    std::optional<bool> keyTakenByNode(const KeyIn &key);
+    std::optional<bool> keyFromKeyboard(const KeyIn &key);
+    std::optional<bool> oneShotKeyHeld(const KeyIn &key);
+    std::optional<bool> rightShiftKey(const KeyIn &key);
+    std::optional<bool> unlockButtonKey(const KeyIn &key);
+    std::optional<bool> keyTakenByWait(const KeyIn &key);
+    std::optional<bool> keyForWait(const KeyIn &key);
+    std::optional<bool> extraKey(const KeyIn &key);
+    std::optional<bool> backKeyForPlayer(const KeyIn &key);
+    std::optional<bool> unnamedKey(const KeyIn &key);
+    std::optional<bool> mediaKey(const KeyIn &key);
+    std::optional<bool> keyToViews(const KeyIn &key);
     void postKey(int qtKey, QEvent::Type type, bool autoRepeat);
     bool windowActive() const;
     // The item with the focus takes a coin (see the class's comment).
     bool takesCoin() const;
     void setLastInputDevice(const QString &device);
     void updateHints();
-    static int qtKeyForAction(Action a);
-    static QString mpvKeyForAction(Action a);
     // Maps a HID media-key event to the canonical mpv key name mpv-media-keys.lua
     // binds, or an empty string for non-media keys.
     static QString mpvKeyForMediaEvent(const QKeyEvent *ke);
-    static Action actionFromString(const QString &name, bool *ok);
     static int buttonFromToken(const QString &token);
     static bool isDirectional(Action a);
 

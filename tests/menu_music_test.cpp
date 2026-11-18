@@ -4,12 +4,18 @@
 // with no sound card to play through). And stand-ins for FluidSynth and
 // openmpt123, which write down what they were asked to make and make a file
 // of it, and for ALSA's list of sound cards (OSDOS_ASOUND_DIR).
+#include "audio/BackgroundMpv.h"
 #include "audio/MenuMusic.h"
+#include "modules/ambient_mode/AmbientModeBackend.h"
+#include "modules/weather/WeatherBackend.h"
+#include "util/RuntimeFiles.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QRegularExpression>
 #include <QScopeGuard>
 #include <QTemporaryDir>
@@ -18,9 +24,13 @@
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
 media=""
-for a in "$@"; do media="$a"; done
+for a in "$@"; do
+  case "$a" in --input-ipc-server=*) echo "socket ${a#--input-ipc-server=}" >> "$log" ;; esac
+  media="$a"
+done
 echo "start $(basename "$media") $$" >> "$log"
 if [ "$FAKE_MPV_MODE" = fail ]; then exit 2; fi
+if [ "$FAKE_MPV_MODE" = stubborn ]; then trap '' TERM; fi
 if [ "$FAKE_MPV_MODE" = card ] && ! grep -q '^ *[0-9]' "$OSDOS_ASOUND_DIR/cards"; then exit 2; fi
 case "$media" in *.xm) if [ "$FAKE_MPV_MODULE" = fail ]; then exit 2; fi ;; esac
 i=0
@@ -61,6 +71,13 @@ class MenuMusicTest : public QObject {
     }
     QStringList starts() const { return logged(QStringLiteral("start ")); }
     QStringList renders() const { return logged(QStringLiteral("render ")); }
+    // The control sockets mpv was given, in the order it was started.
+    QStringList sockets() const {
+        QStringList paths;
+        for (const QString &line : logged(QStringLiteral("socket ")))
+            paths << line.mid(7);
+        return paths;
+    }
     static bool writeFile(const QString &path, const QByteArray &data) {
         QFile f(path);
         return f.open(QIODevice::WriteOnly) && f.write(data) == data.size();
@@ -378,6 +395,129 @@ private slots:
         m_music->setWanted(true);
         QTest::qWait(1200);
         QVERIFY(starts().isEmpty());
+    }
+
+    // The control socket of the menu music's mpv, and of Weather's music's,
+    // is in the user's run-time folder (util/RuntimeFiles.h), which no other
+    // account can open, never under a name another could take first in the
+    // temp folder; asked for as each one starts, so that a folder made again
+    // since (or another login session's) is the one used.
+    void socketsInTheRunTimeFolder() {
+        const QByteArray xdg = qgetenv("XDG_RUNTIME_DIR");
+        const auto restore = qScopeGuard([xdg] { qputenv("XDG_RUNTIME_DIR", xdg); });
+        QTemporaryDir run(m_dir.path() + QStringLiteral("/run-XXXXXX")),
+                      later(m_dir.path() + QStringLiteral("/later-XXXXXX"));
+        QVERIFY(run.isValid() && later.isValid());
+        qputenv("XDG_RUNTIME_DIR", run.path().toUtf8());
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 1, 3000);
+        QCOMPARE(QFileInfo(sockets().last()).absolutePath(), run.path());
+
+        qputenv("XDG_RUNTIME_DIR", later.path().toUtf8());
+        MenuMusic::hold(QStringLiteral("x"));
+        MenuMusic::release(QStringLiteral("x"));
+        QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 2, 3000);
+        QCOMPARE(QFileInfo(sockets().last()).absolutePath(), later.path());
+
+        WeatherBackend weather(m_dir.path(), m_dir.path() + QStringLiteral("/data"));
+        weather.startMusic();
+        QTRY_COMPARE_WITH_TIMEOUT(sockets().size(), 3, 3000);
+        QCOMPARE(QFileInfo(sockets().last()).absolutePath(), later.path());
+        weather.stopMusic();
+    }
+
+    // Ambient Mode's audio ending on its own (a file mpv can't play, the
+    // sound card gone), as Weather's music does: the menu music it held off
+    // plays again, and nothing of its process is kept.
+    void ambientAudioEndingOnItsOwn() {
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        AmbientModeBackend ambient(m_dir.path() + QStringLiteral("/data"));
+        // Its environment is taken as it starts: the menu music's next mpv plays.
+        qputenv("FAKE_MPV_MODE", "fail");
+        ambient.startAudio({ m_tune });
+        qputenv("FAKE_MPV_MODE", "play");
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 2, 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(ambient.findChildren<QProcess *>().isEmpty(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        QCOMPARE(starts().size(), 3);
+    }
+
+    // Weather's music stopped twice (for the setup screen, then as the module
+    // is left) while its mpv is slow to go: the menu music it held off waits
+    // for the card until that mpv has gone, the second stop or not.
+    void weatherMusicStoppedTwice() {
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        WeatherBackend weather(m_dir.path(), m_dir.path() + QStringLiteral("/data"));
+        // Its environment is taken as it starts: an mpv that won't go when
+        // asked, killed after the grace (a second).
+        qputenv("FAKE_MPV_MODE", "stubborn");
+        weather.startMusic();
+        qputenv("FAKE_MPV_MODE", "play");
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 2, 3000);
+        QTest::qWait(150);      // the trap is set
+        weather.stopMusic();
+        weather.stopMusic();
+        QTest::qWait(850);      // past the menu music's 700 ms, short of the kill
+        QVERIFY(!m_music->playing());
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+    }
+
+    // Weather's and Ambient Mode's mpv (audio/BackgroundMpv): the menu music
+    // held off while it plays, paused over its control socket in the run-time
+    // folder; asked to end, it is gone a moment later, and the menu music
+    // plays again then; ended and waited for, it is gone as end() returns.
+    void backgroundMpv() {
+        m_music->setSource(m_tune);
+        m_music->setWanted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        const QString song = m_dir.path() + QStringLiteral("/song.ogg");
+        QVERIFY(writeFile(song, "OggS"));
+        // mpv's control socket, stood in for.
+        const QString socket = runtimefiles::path(QStringLiteral("osdos-test-audio.sock"));
+        QLocalServer::removeServer(socket);
+        QLocalServer control;
+        QVERIFY(control.listen(socket));
+
+        BackgroundMpv mpv(QStringLiteral("test"), "[Test] audio");
+        QSignalSpy changed(&mpv, &BackgroundMpv::stateChanged);
+        QVERIFY(mpv.start({ song }, { QStringLiteral("--shuffle") }, QStringLiteral("osdos-test-audio.sock")));
+        QVERIFY(mpv.active());
+        QCOMPARE(changed.size(), 1);
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(logged(QStringLiteral("start song.ogg ")).size(), 1, 3000);
+        QCOMPARE(sockets().last(), socket);
+        QVERIFY(lastAlive());
+
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 3000);
+        QLocalSocket *ipc = control.nextPendingConnection();
+        QVERIFY(mpv.setPaused(true));
+        QVERIFY(mpv.paused());
+        QTRY_VERIFY_WITH_TIMEOUT(ipc->bytesAvailable() > 0, 3000);
+        QCOMPARE(ipc->readAll(), QByteArray("{\"command\":[\"set_property\",\"pause\",true]}\n"));
+
+        QElapsedTimer asked;
+        asked.start();
+        mpv.end(false);
+        QVERIFY(asked.elapsed() < 300);
+        QVERIFY(!mpv.active());
+        QVERIFY(!mpv.paused());
+        QVERIFY(!mpv.setPaused(false));
+        QTRY_VERIFY_WITH_TIMEOUT(!lastAlive(), 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+
+        QVERIFY(mpv.start({ song }));
+        QVERIFY(!m_music->playing());
+        QTRY_COMPARE_WITH_TIMEOUT(logged(QStringLiteral("start song.ogg ")).size(), 2, 3000);
+        mpv.end(true);
+        QVERIFY(!lastAlive());
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
     }
 };
 

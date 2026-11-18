@@ -87,7 +87,7 @@ FocusScope {
     Component.onCompleted: {
         manager = inputManager
         refresh()
-        list.currentIndex = selectableFrom(0, 1)
+        list.currentIndex = list.selectableFrom(0, 1)
         list.forceActiveFocus()
     }
     // Leaving the page while it waits for a press: the controller acts again.
@@ -149,7 +149,7 @@ FocusScope {
 
         var at = list.currentIndex
         rows = items
-        list.currentIndex = at >= 0 && at < items.length && selectable(items[at]) ? at : selectableFrom(0, 1)
+        list.currentIndex = at >= 0 && at < items.length && list.selectable(items[at]) ? at : list.selectableFrom(0, 1)
     }
 
     // 2 for a pad that plays as player 2, or is chosen for player 2 while
@@ -178,18 +178,6 @@ FocusScope {
         }
         return words[page.layout] || (jamma ? "Its pins' buttons in their order"
                                             : "MAME and FinalBurn Neo number them")
-    }
-
-    function selectable(row) { return !!row && row.type !== "section" }
-
-    // The first line that can be chosen from index on, going by step, round.
-    function selectableFrom(index, step) {
-        for (var n = 0; n < rows.length; n++) {
-            var i = ((index + n * step) % rows.length + rows.length) % rows.length
-            if (selectable(rows[i]))
-                return i
-        }
-        return 0
     }
 
     function inputLabel(input) {
@@ -447,43 +435,21 @@ FocusScope {
         iconSource: "../../assets/images/keyboard.svg"
         title: pageRoot.present ? "Game Buttons" : "Not Connected"
         subtitle: pageRoot.name
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: pageRoot.rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX //74
         // Up to the control panel's drawing.
         width: panel.x - x - root.sw * 0.0125 //8
-        // One line short of the space, so the ▼ fits above the help line; a
-        // line more for each bar that is off (Main.qml's listHeight).
-        height: root.listHeight //224
-        clip: true
         focus: !pageRoot.capturing && !pageRoot.summing
-        highlightMoveDuration: 0
+        onMoved: pageRoot.notice = ""
 
-        function move(step) {
-            if (pageRoot.rows.length === 0)
-                return
-            currentIndex = pageRoot.selectableFrom(currentIndex + step, step)
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            pageRoot.notice = ""
-        }
-
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onRightPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onReturnPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onEnterPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 pageRoot.goBack()
                 event.accepted = true
             }
@@ -493,12 +459,12 @@ FocusScope {
         // or a wait.
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             label: modelData.label || ""
             value: modelData.value || ""
-            opens: pageRoot.selectable(modelData)
-            selected: list.currentIndex === index && pageRoot.selectable(modelData)
+            opens: list.selectable(modelData)
+            selected: list.currentIndex === index && list.selectable(modelData)
         }
     }
 
@@ -513,33 +479,19 @@ FocusScope {
         anchors.verticalCenter: list.verticalCenter
     }
 
-    // ▲ / ▼ while lines are hidden above or below.
-    ScrollMarks {
-        anchors.fill: list
-        list: list
-    }
-
     HelpLine {
         property var currentRow: pageRoot.rows[list.currentIndex]
         visible: !pageRoot.capturing && !pageRoot.summing && text !== ""
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
         // What became of a press is said with Help Line off too.
         always: pageRoot.notice !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         property var currentRow: pageRoot.rows[list.currentIndex]
         visible: !pageRoot.capturing && !pageRoot.summing
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.select + (currentRow && currentRow.type === "setall" ? ":START" : ":CHANGE")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "select:" + (currentRow && currentRow.type === "setall" ? "START" : "CHANGE")])
     }
 
     // The layout, from a list: back leaves it as it was.
@@ -609,7 +561,7 @@ FocusScope {
         Keys.onPressed: function(event) {
             if (event.modifiers & Qt.ControlModifier)
                 return
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+            if (root.isBack(event))
                 pageRoot.finish("cancel")
             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                 pageRoot.finish(answers[pageRoot.sumIndex].action)

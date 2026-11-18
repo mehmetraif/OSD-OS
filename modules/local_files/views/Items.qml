@@ -74,10 +74,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: tree.folderName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Empty state, in the middle of the pane.
@@ -89,7 +85,7 @@ FocusScope {
         visible: tree.rootEmpty
         Text {
             text: "No items found"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -98,7 +94,7 @@ FocusScope {
         }
         Text {
             text: "Please add items in the local files media directory"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -178,10 +174,6 @@ FocusScope {
                         : root.hints.arrows + ":NAVIGATE ")
               + root.hints.select
               + (onFile ? ":PLAY" : entry && entry.kind === "search" ? ":SEARCH" : ":OPEN")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     OnScreenKeyboard {

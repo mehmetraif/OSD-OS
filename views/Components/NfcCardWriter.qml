@@ -129,7 +129,7 @@ FocusScope {
             return
         event.accepted = true
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             close()
             return
         }
@@ -158,7 +158,7 @@ FocusScope {
 
         Column {
             anchors.centerIn: parent
-            width: root.sw * 0.76875
+            width: root.contentBox.width
             spacing: root.sh * 0.05 //24
 
             Column {
@@ -170,7 +170,7 @@ FocusScope {
                         : writerRoot.phase === "done"     ? "CARD WRITTEN FOR..."
                         : writerRoot.phase === "failed"   ? "COULD NOT WRITE CARD"
                         :                                   "WRITE CARD FOR..."
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0333333 //16
@@ -199,11 +199,11 @@ FocusScope {
                     model: writerRoot.choices()
                     delegate: Item {
                         width: parent.width
-                        height: root.sh * 0.0583333
+                        height: root.menuRowHeight
 
                         Rectangle {
                             anchors.fill: choiceText
-                            color: root.accentColor
+                            color: root.cursorColor
                             visible: index === writerRoot.choiceIndex
                         }
 
@@ -212,7 +212,7 @@ FocusScope {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: modelData.label
-                            color: index === writerRoot.choiceIndex ? root.surfaceColor : root.primaryColor
+                            color: index === writerRoot.choiceIndex ? root.cursorInk : root.primaryColor
                             font.family: root.globalFont
                             font.capitalization: Font.AllUppercase
                             topPadding: root.sh * 0.0041667
@@ -230,9 +230,8 @@ FocusScope {
                         ? root.hints.back + ":CANCEL"
                         : (writerRoot.phase === "done" || writerRoot.phase === "failed")
                           ? root.hints.select + ":DONE"
-                          : root.hints.back + ":CANCEL " + root.hints.navigate + ":NAVIGATE "
-                            + root.hints.select + ":SELECT"
-                color: root.tertiaryColor
+                          : root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0333333
                 anchors.horizontalCenter: parent.horizontalCenter

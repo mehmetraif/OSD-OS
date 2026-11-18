@@ -75,10 +75,6 @@ FocusScope {
     // letters (the hint bar's).
     readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
 
-    function isBack(key) {
-        return key === Qt.Key_Escape || key === Qt.Key_Backspace || key === Qt.Key_Back
-    }
-
     // The loading screen first, the game a moment later (start()).
     function launch() {
         if (playRoot.phase === "opening")
@@ -167,7 +163,7 @@ FocusScope {
                 return
             }
         }
-        if (!isBack(event.key))
+        if (!root.isBack(event))
             return
         if (playRoot.phase === "opening") {
             playRoot.phase = "canceled"
@@ -186,10 +182,6 @@ FocusScope {
         visible: !playRoot.arcade
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't.
@@ -354,13 +346,8 @@ FocusScope {
     HintBar {
         visible: !playRoot.loadingShown
         text: playRoot.phase !== "opening" ? root.hints.back + ":BACK"
-              : playRoot.arcade ? root.hints.back + ":CANCEL " + (playRoot.takesCoin ? root.hints.coin + ":COIN " : "")
-                                  + root.hints.play_pause + ":PLAY"
+              : playRoot.arcade ? root.hintLine(["back:CANCEL", playRoot.takesCoin ? "coin:COIN" : "", "play_pause:PLAY"])
               : root.hints.back + ":CANCEL"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     GameLoading {

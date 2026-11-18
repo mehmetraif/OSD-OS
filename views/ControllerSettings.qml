@@ -52,7 +52,7 @@ FocusScope {
         refresh()
         // Back from one of its pages: on that line.
         var state = navParams.navListState || {}
-        list.currentIndex = selectable(rows[state.currentIndex]) ? state.currentIndex : 0
+        list.currentIndex = list.selectable(rows[state.currentIndex]) ? state.currentIndex : 0
         list.forceActiveFocus()
     }
 
@@ -114,8 +114,6 @@ FocusScope {
         rows = items
         list.currentIndex = at >= 0 && at < items.length ? at : 0
     }
-
-    function selectable(row) { return !!row }
 
     function cycleLabels(step) {
         var i = styles.indexOf(page.labels || "auto")
@@ -189,32 +187,14 @@ FocusScope {
         // A pad away says so where a long name can't push it out of sight.
         title: pageRoot.present ? "Controls" : "Not Connected"
         subtitle: pageRoot.name
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
-    ListView {
+    MenuList {
         id: list
         model: pageRoot.rows
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.listY //120
-        anchors.leftMargin: root.paneX
-        width: root.paneWidth
-        height: root.listHeight //224
-        clip: true
         focus: true
-        highlightMoveDuration: 0
+        onMoved: pageRoot.notice = ""
 
-        function move(step) {
-            if (count === 0)
-                return
-            currentIndex = (currentIndex + step + count) % count
-            positionViewAtIndex(currentIndex, ListView.Contain)
-            pageRoot.notice = ""
-        }
         function change(step) {
             var row = pageRoot.rows[currentIndex]
             if (row && row.type === "labels")
@@ -225,14 +205,12 @@ FocusScope {
                 pageRoot.activate(row)
         }
 
-        Keys.onUpPressed: move(-1)
-        Keys.onDownPressed: move(1)
         Keys.onLeftPressed: change(-1)
         Keys.onRightPressed: change(1)
         Keys.onReturnPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onEnterPressed: pageRoot.activate(pageRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 pageRoot.goBack()
                 event.accepted = true
             }
@@ -243,7 +221,7 @@ FocusScope {
         delegate: MenuRow {
             readonly property bool cycles: modelData.type === "labels" || modelData.type === "pins"
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             value: modelData.value || ""
             opens: !cycles
@@ -259,23 +237,15 @@ FocusScope {
         text: pageRoot.notice !== "" ? pageRoot.notice : ((currentRow && currentRow.description) || "")
         // What a choice did is said with Help Line off too.
         always: pageRoot.notice !== ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         property var currentRow: pageRoot.rows[list.currentIndex]
         readonly property string type: currentRow ? currentRow.type : ""
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (type === "labels" || type === "pins" ? root.hints.change + ":CHANGE "
-                 : root.hints.select + (type === "test" ? ":TEST" : type === "reset" ? ":RESET"
-                                        : type === "player" ? ":CHANGE" : ":OPEN"))
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             type === "labels" || type === "pins" ? "change:CHANGE"
+                             : "select:" + (type === "test" ? "TEST" : type === "reset" ? "RESET"
+                                            : type === "player" ? "CHANGE" : "OPEN")])
     }
 
     // The player it is, from a list: back leaves it as it was.

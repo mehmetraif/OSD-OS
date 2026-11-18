@@ -251,90 +251,22 @@ jobs:
           if-no-files-found: error
 
   # ──────────────────────────────────────────────────────────────────────────────
-  # Linux arm64 — targets Raspberry Pi OS Trixie (Debian 13)
-  # Uses GitHub's native arm64 runner; no QEMU needed.
+  # Linux arm64, which targets Raspberry Pi OS Trixie (Debian 13), and the
+  # OSD/OS image for the Raspberry Pi made of it (os/README.md): the OS image
+  # workflow, called for the tag, on GitHub's native arm64 runner (no QEMU).
+  # Its first job builds the app's tarball, OSD-OS-<tag>-linux-arm64.tar.gz
+  # (artifact tarball-linux-arm64); its second puts that tarball and
+  # os/stage-osdos on Raspberry Pi OS Lite with pi-gen,
+  # OSD-OS-<tag>-raspberry-pi.img.xz (artifact os-image).
   # ──────────────────────────────────────────────────────────────────────────────
   build-linux-arm64:
-    name: Linux arm64
-    runs-on: ubuntu-24.04-arm
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-
-      - name: Install build dependencies
-        run: |
-          # The runner image ships Microsoft apt repos (azure-cli, prod) that
-          # intermittently serve broken signatures and fail `apt-get update`.
-          # This build doesn't need them, so drop them first.
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            libqt6svg6 \
-            qt6-svg-dev \
-            qt6-shadertools-dev \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-window \
-            libdrm-dev \
-            libssl-dev \
-            libsdl2-dev \
-            libpcsclite-dev \
-            libmpv-dev \
-            libminizip-dev
-
-      - name: Configure
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/install/usr/local" \
-            -DAPP_VERSION="$TAG"
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Install
-        run: cmake --install build
-
-      # OSD/OS's FinalBurn Neo cores, the whole one and the LAN one,
-      # under the prefix, where the app looks for them
-      # (libretro::packagedCore(), lanCorePath()), with FinalBurn Neo's list
-      # of games and its licence.
-      - name: FinalBurn Neo cores
-        uses: ./.github/actions/fbneo-cores
-        with:
-          core-dir: install/usr/local/lib/osdos
-          dat: install/usr/local/share/osdos/fbneo/fbneo-arcade.dat
-          license: install/usr/local/share/osdos/fbneo/license.txt
-
-      # OSD/OS's own RetroArch beside them, the version every machine plays
-      # with, built with TLS (libretro::packagedProgram()): Debian's, which
-      # the image has too, asks RetroAchievements over plain HTTP.
-      - name: RetroArch with TLS
-        uses: ./.github/actions/retroarch
-        with:
-          program-dir: install/usr/local/lib/osdos
-          licenses: install/usr/local/share/osdos/retroarch/licenses.txt
-
-      - name: Create tarball
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          cd "${GITHUB_WORKSPACE}/install"
-          tar -czf "${GITHUB_WORKSPACE}/OSD-OS-${TAG}-linux-arm64.tar.gz" .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: tarball-linux-arm64
-          path: "OSD-OS-*-linux-arm64.tar.gz"
-          if-no-files-found: error
+    name: Linux arm64 and OSD/OS image
+    uses: ./.github/workflows/os-image.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets:
+      # Optional: without it the first user's password is locked.
+      OS_FIRST_USER_PASS: ${{ secrets.OS_FIRST_USER_PASS }}
 
   # ──────────────────────────────────────────────────────────────────────────────
   # Linux x86_64 — self-contained AppImage for SteamDeck / Intel-AMD desktops.
@@ -370,61 +302,62 @@ jobs:
           modules: 'qtshadertools qtquick3d qtquicktimeline'
           cache: true
 
+      # The app toolchain + non-Qt deps and the X11/GL/xkb libs the Qt plugins
+      # pull in at deploy time; plus the deps to build mpv from source (meson
+      # + the FFmpeg 6.1 -dev set, libass/libplacebo/lua/vaapi and the
+      # Wayland/X11/EGL/DRM dev libs). We build mpv (0.40) rather than apt's
+      # 0.37 — see scripts/build-mpv.sh.
       - name: Install build + bundling dependencies
-        run: |
-          # Drop the flaky Microsoft/azure apt repos (they intermittently serve
-          # broken signatures), then install: the app toolchain + non-Qt deps and
-          # the X11/GL/xkb libs the Qt plugins pull in at deploy time; plus the
-          # deps to build mpv from source (meson + the FFmpeg 6.1 -dev set,
-          # libass/libplacebo/lua/vaapi and the Wayland/X11/EGL/DRM dev libs).
-          # We build mpv (0.40) rather than apt's 0.37 — see scripts/build-mpv.sh.
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            libdrm-dev \
-            libssl-dev \
-            libsdl2-dev \
-            libpcsclite-dev \
-            libminizip-dev \
-            libgl1-mesa-dev \
-            libxkbcommon-dev \
-            libxcb-cursor0 \
-            meson \
-            ninja-build \
-            pkg-config \
-            libavcodec-dev \
-            libavformat-dev \
-            libavutil-dev \
-            libswscale-dev \
-            libavfilter-dev \
-            libswresample-dev \
-            libass-dev \
-            libplacebo-dev \
-            liblua5.2-dev \
-            libva-dev \
-            libx11-dev \
-            libxext-dev \
-            libxrandr-dev \
-            libxpresent-dev \
-            libwayland-dev \
-            wayland-protocols \
-            libva-wayland2 \
-            libvulkan1 \
-            libgbm-dev \
-            libegl-dev \
-            libpulse-dev \
-            libasound2-dev \
-            libpipewire-0.3-dev \
-            libjpeg-dev \
-            liblcms2-dev \
-            libuchardet-dev \
+        uses: ./.github/actions/apt-packages
+        with:
+          packages: |
+            build-essential
+            cmake
+            libdrm-dev
+            libssl-dev
+            libsdl2-dev
+            libpcsclite-dev
+            libminizip-dev
+            libgl1-mesa-dev
+            libxkbcommon-dev
+            libxcb-cursor0
+            meson
+            ninja-build
+            pkg-config
+            libavcodec-dev
+            libavformat-dev
+            libavutil-dev
+            libswscale-dev
+            libavfilter-dev
+            libswresample-dev
+            libass-dev
+            libplacebo-dev
+            liblua5.2-dev
+            libva-dev
+            libx11-dev
+            libxext-dev
+            libxrandr-dev
+            libxpresent-dev
+            libwayland-dev
+            wayland-protocols
+            libva-wayland2
+            libvulkan1
+            libgbm-dev
+            libegl-dev
+            libpulse-dev
+            libasound2-dev
+            libpipewire-0.3-dev
+            libjpeg-dev
+            liblcms2-dev
+            libuchardet-dev
             libzimg-dev
 
       - name: Build mpv (0.40 from source — apt's 0.37 is too old)
         run: |
-          echo "MPV_BIN=$(scripts/build-mpv.sh)" >> "$GITHUB_ENV"
+          # Its own line, so the build's failure fails the step: inside echo's
+          # arguments a failed $(...) is ignored, and MPV_BIN is left empty.
+          bin=$(scripts/build-mpv.sh)
+          echo "MPV_BIN=$bin" >> "$GITHUB_ENV"
 
       - name: Configure
         env:
@@ -490,74 +423,6 @@ jobs:
     uses: ./.github/workflows/openbsd.yml
 
   # ──────────────────────────────────────────────────────────────────────────────
-  # The OSD/OS image for the Raspberry Pi (os/README.md): Raspberry Pi OS Lite
-  # with this release's arm64 tarball and os/stage-osdos, built by pi-gen on
-  # the native arm64 runner, as the OS image workflow builds it.
-  # ──────────────────────────────────────────────────────────────────────────────
-  build-os-image:
-    name: OSD/OS image
-    needs: build-linux-arm64
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 180
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-
-      - name: Download tarball
-        uses: actions/download-artifact@v8.0.1
-        with:
-          name: tarball-linux-arm64
-
-      # pi-gen keeps a root filesystem per stage plus the image itself; make
-      # room by dropping toolchains this job never uses.
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /opt/hostedtoolcache /usr/local/share/boost || true
-          df -h /
-
-      - name: Build image
-        env:
-          # Optional: without it the first user's password is locked.
-          FIRST_USER_PASS: ${{ secrets.OS_FIRST_USER_PASS }}
-          TAG: ${{ github.ref_name }}
-        run: os/build.sh "OSD-OS-${TAG}-linux-arm64.tar.gz"
-
-      # pi-gen names its output after the build date; the release names it
-      # after the tag. Neither name ends like the app's packages, which the
-      # in-app updater picks by their endings. pi-gen's list of the image's
-      # packages (its .info) stays with the run: the image carries the list
-      # itself (dpkg-query -W).
-      - name: Name the image
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          cd os/work/pi-gen/deploy
-          images=(./*.img.xz)
-          if [ "${#images[@]}" -ne 1 ] || [ ! -e "${images[0]}" ]; then
-            ls -l
-            exit 1
-          fi
-          mv -v -- "${images[0]}" "OSD-OS-${TAG}-raspberry-pi.img.xz"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: os-image
-          path: os/work/pi-gen/deploy/OSD-OS-*-raspberry-pi.img.xz
-          if-no-files-found: error
-          compression-level: 0
-
-      - name: Upload build logs
-        if: failure()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: pi-gen-logs
-          path: os/work/pi-gen/deploy/*.log
-          if-no-files-found: ignore
-
-  # ──────────────────────────────────────────────────────────────────────────────
   # The regression tests, on the tagged commit: a release that fails them isn't
   # published, though its builds are made.
   # ──────────────────────────────────────────────────────────────────────────────
@@ -571,7 +436,7 @@ jobs:
   release:
     name: Publish Release
     needs: [hold-release, build-macos-arm64, build-linux-arm64, build-linux-x86_64, build-windows-x64,
-            build-freebsd-amd64, build-openbsd-amd64, build-os-image, regression-tests]
+            build-freebsd-amd64, build-openbsd-amd64, regression-tests]
     # Named, as the builds' runners are: ubuntu-latest moves to a newer
     # Ubuntu under the jobs.
     runs-on: ubuntu-24.04
@@ -690,20 +555,3 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: gh release edit "$TAG" --draft=false
 
-      # Every file shows under Assets by its own name, the one the notes'
-      # Downloads table gives it: nothing labels the files. Releases v0.0.20
-      # to v0.0.23 labelled theirs with the system and what each file is,
-      # which the release page showed in place of the name; those labels are
-      # set back to the names here, at the first release that runs this, and
-      # the step finds nothing to do after that. It changes only how the page
-      # shows the files, never their names, so it never holds a release back.
-      - name: Every release's files under their own names
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[].assets[] | select((.label // "") != "" and .label != .name) | "\(.id) \(.name)"' |
-          while read -r id name; do
-            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" -f label="$name" --jq '.name'
-          done

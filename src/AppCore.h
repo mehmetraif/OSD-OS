@@ -13,8 +13,8 @@
 #include <QCoreApplication>
 
 class QQmlContext;
-class QProcess;
 class QTimer;
+class LogSaver;
 
 struct ModuleEntry {
     QString id;
@@ -70,19 +70,25 @@ public:
     Q_INVOKABLE bool isAutostartSession() const {
         return legacy::envIsSet("AUTOSTART");
     }
-    // The quit overlay's "Restart": exit 12, which the service's stop helper
-    // (osdos-stop) takes as a reboot since launcher API 2. An older install's
-    // helper would power the Pi off instead, so it isn't offered there.
+    // The quit overlay's "Exit to Terminal": the app ends with
+    // exitcode::kTerminal (util/ExitCodes.h), for which the service's stop
+    // helper (osdos-stop) puts a login prompt on the screen in its place.
+    Q_INVOKABLE void exitToTerminal();
+    // The quit overlay's "Restart": exitcode::kReboot, which osdos-stop takes
+    // as a reboot since launcher API 2. An older install's helper would power
+    // the Pi off instead, so it isn't offered there.
     Q_INVOKABLE bool canRestartSystem() const {
         return isAutostartSession() && legacy::envInt("LAUNCHER_API") >= 2;
     }
+    Q_INVOKABLE void restartSystem();
     // The quit overlay's "Save Logs", on the OSD/OS image: OSDOS_MEDIA_DIR,
     // the card's OSD-OS partition, which a computer reading the card shows as
     // a drive, and scripts/save-logs.sh beside the app (Linux only).
     Q_INVOKABLE bool canSaveLogs() const;
     // The logs a bug report wants copied to that partition's Logs folder by
-    // scripts/save-logs.sh, in a process of its own: logsSaved() says how it
-    // went. False, and nothing done, while a copy runs or where it can't.
+    // scripts/save-logs.sh, in a process of its own (util/LogSaver):
+    // logsSaved() says how it went. False, and nothing done, while a copy
+    // runs or where it can't.
     Q_INVOKABLE bool saveLogs();
 
     Q_INVOKABLE void scan_for_modules();
@@ -118,36 +124,17 @@ public:
     // then says it wasn't done (views/ModuleSettings.qml).
     Q_INVOKABLE bool invoke_module_action(const QString &moduleId, const QString &slotName);
     Q_INVOKABLE QVariant get_installed_modules();
+    // Settings → Look's colour schemes, skins and themes, as util/Looks.h reads
+    // them: the user's own colour scheme and their named ones; the skins and
+    // the themes there are, [{ id, name }] by name; one skin (Main.qml's
+    // root.skin) or theme (root.theme) read for QML, empty for none; one of
+    // the effects' shaders built into the app, as a URL.
     Q_INVOKABLE QVariantMap getCustomColorScheme() const;
     Q_INVOKABLE QVariantMap getCustomColorSchemes() const;
-    // Settings → Look → Skin: how the window is dressed, apart from the colours: the
-    // skins there are, [{ id, name }] by name. A skin is a folder with a
-    // skin.json, the app's own (assets/skins) or the data folder's (skins),
-    // one there in place of the app's of the same name; its id is the
-    // folder's name. One from before skins had their name, a theme.json of
-    // window pictures in the data folder's themes, is a skin too.
     Q_INVOKABLE QVariantList skins() const;
-    // One skin read for QML (Main.qml's root.skin): { id, name, window,
-    // titleBar, hintBar, selection, icons }, a picture of each of the
-    // window's parts it dresses ({ source URL, border, tile }) and icons
-    // ({ name: URL }) in place of OSD/OS's of those names, only those it has
-    // that can be used; empty for none, or for one gone or unreadable.
     Q_INVOKABLE QVariantMap skin(const QString &id) const;
-    // Settings → Look → Theme: the whole look in one folder with a theme.json, found
-    // as skins are (assets/themes, the data folder's themes). The themes
-    // there are, [{ id, name }] by name.
     Q_INVOKABLE QVariantList themes() const;
-    // One theme read for QML (Main.qml's root.theme): { id, name, colors,
-    // skin, effects: { text, background, selector, screen, transition },
-    // music, arcade }, those it has. colors is a scheme's name or { primary,
-    // surface }; skin as skin() reads one; each effect a preset's name or its
-    // own ({ its numbers, 0 to 1; animate; shader, a .qsb of its own });
-    // music a sound file's URL; arcade the Arcade screen's look, "orb". Empty
-    // for none, or for one gone or unreadable.
     Q_INVOKABLE QVariantMap theme(const QString &id) const;
-    // One of the effects' shaders built into the app (shaders/<name>.frag),
-    // as a URL; "" in a build without them (one made without Qt Shader
-    // Tools).
     Q_INVOKABLE QString effectShader(const QString &name) const;
     // The file picker's (views/FilePicker.qml) places, the folders its tree
     // starts from: home, where drives and partitions are mounted (/media,
@@ -156,7 +143,10 @@ public:
     Q_INVOKABLE QVariantList filePlaces() const;
     // A folder's entries for the file picker, [{ name, path, isFolder }]: its
     // folders, then its files of these types (lower case; none, no files),
-    // each by name, hidden ones left out.
+    // each by name, hidden ones left out. folderEntries() reads them on the
+    // app's thread, for a module's own view (the module guide's example,
+    // docs/wiki/Writing-a-Module.md); the file picker asks only through
+    // requestFolderEntries(), off it.
     Q_INVOKABLE QVariantList folderEntries(const QString &path, const QStringList &fileTypes) const;
     Q_INVOKABLE QVariant requestFolderEntries(const QString &path, const QStringList &fileTypes);
     Q_INVOKABLE void clearFolderCache();
@@ -195,15 +185,18 @@ public:
     // <dataRoot>/lists.json. An entry is known by its path.
     Q_INVOKABLE QVariantList get_list(const QString &moduleId, const QString &name) const;
     // Puts the entry first, in place of an earlier one with its path, and
-    // keeps the newest `limit`.
-    Q_INVOKABLE void add_to_list(const QString &moduleId, const QString &name,
+    // keeps the newest `limit`. False, and the list as the file has it,
+    // where lists.json couldn't be written (a full card) or is there but
+    // can't be read.
+    Q_INVOKABLE bool add_to_list(const QString &moduleId, const QString &name,
                                  const QVariantMap &entry, int limit = 50);
     // Several entries at once, each put first in turn as add_to_list() puts
     // one, with one read of the file and one write (an import of a hundred
-    // favourites wrote the file a hundred times).
-    void add_all_to_list(const QString &moduleId, const QString &name,
+    // favourites wrote the file a hundred times). False as add_to_list().
+    bool add_all_to_list(const QString &moduleId, const QString &name,
                          const QVariantList &entries, int limit = 100);
-    Q_INVOKABLE void remove_from_list(const QString &moduleId, const QString &name,
+    // False as add_to_list().
+    Q_INVOKABLE bool remove_from_list(const QString &moduleId, const QString &name,
                                       const QString &path);
     Q_INVOKABLE bool list_contains(const QString &moduleId, const QString &name,
                                    const QString &path) const;
@@ -272,7 +265,7 @@ private:
     bool writeHeld(bool tell);
     QJsonObject loadLists(bool *broken = nullptr) const;
     bool listsToChange(QJsonObject *lists) const;
-    void saveLists(const QJsonObject &lists) const;
+    bool saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name) const;
     // The module with this id, or null.
     const ModuleEntry *findModule(const QString &moduleId) const;
     // APP_ROOT-relative QML entry point of a module ("modules/plex/views/Root.qml").
@@ -284,15 +277,6 @@ private:
     // Resolve a module's enabled state: config override if present, else the
     // manifest default (an "enabled" setting whose default is "OFF"), else true.
     bool isModuleEnabled(const ModuleEntry &m, const QJsonObject &modulesConfig) const;
-    QVariantMap importColorScheme(const QJsonObject &obj) const;
-    // The folder of the skin or the theme (kind: "skin", "theme") with this
-    // id whose skin.json or theme.json reads, the data folder's before the
-    // app's, and that JSON; empty when there is none (or the id isn't a
-    // folder's name).
-    QString lookDir(const QString &kind, const QString &id, QJsonObject *json) const;
-    // The skins or the themes there are, id → its JSON, the first found of
-    // each id.
-    QMap<QString, QJsonObject> looks(const QString &kind) const;
     // Each value of `after` that `before` didn't have, told as save_setting
     // tells a setting it saved: an app's, a module's (a value of values by
     // its dotted keys, as Settings saves those), the status icons again for
@@ -301,8 +285,8 @@ private:
 
     QString m_appRoot;
     QString m_dataRoot;
-    // saveLogs()'s copy while it runs.
-    QProcess *m_logSaver = nullptr;
+    // saveLogs()'s copy.
+    LogSaver *m_logSaver = nullptr;
     // config.json as last read, good for as long as the file's time and
     // size stay (loadConfig()): every get_setting() read and parsed the file
     // anew, a dozen times and more as a video started.

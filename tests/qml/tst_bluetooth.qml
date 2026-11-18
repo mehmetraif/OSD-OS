@@ -1,57 +1,14 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 import "../../views/Components/Hover.js" as Hover
 
 // Settings → Network → Bluetooth, views/Bluetooth.qml, against a stand-in for
 // BluetoothManager: its lines (Bluetooth, Search, the paired devices and
 // those found), a paired device's options, and what BlueZ says while the page
 // is up changing the lines where they are, the cursor kept on its device.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    property bool framed: false
-    readonly property real paneX: sw * 0.115625
-    readonly property real paneWidth: sw * 0.76875
-    // Where a menu's rows go, down the pane (Main.qml's listY, listHeight,
-    // tallListHeight with no help line under them, helpedListHeight over one
-    // that always shows).
-    readonly property real listY: sh * 0.25
-    readonly property real listHeight: sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: sh * 0.4666667 + hintRoom
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    readonly property real helpLineMargin: sh * 0.1583333
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property var selector: null
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", select: "[ENTER]", play_pause: "[SPACE]" })
-    function selectorShown(item, shown) {}
-    function coverShown(item, shown) {}
-    function skinIcon(url) { return url }
 
     // BluetoothManager as the page uses it, its calls kept in order.
     QtObject {
@@ -134,7 +91,7 @@ Rectangle {
         function listOf(page) {
             for (var i = 0; i < page.children.length; i++) {
                 var item = page.children[i]
-                if (item.currentIndex !== undefined && item.model !== undefined && item.highlightMoveDuration !== undefined)
+                if (item.currentIndex !== undefined && item.model !== undefined && typeof item.itemAtIndex === "function")
                     return item
             }
             return null

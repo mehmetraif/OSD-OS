@@ -42,7 +42,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             // Ignore auto-repeat on Back only: holding it should behave exactly like
             // one press so that holding back to stop a script doesn't spam back through 
             // each views when your intent was to just stop the script.
@@ -69,10 +69,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: consoleRoot.scriptName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Status line
@@ -91,11 +87,11 @@ FocusScope {
             return ""
         }
         color: {
-            if (consoleRoot.startError !== "") return root.accentColor
-            if (consoleRoot.running)           return root.secondaryColor
-            if (consoleRoot.finishReason === "ok") return root.secondaryColor
-            if (consoleRoot.finishReason === "")   return root.secondaryColor
-            return root.accentColor
+            if (consoleRoot.startError !== "") return root.primaryColor
+            if (consoleRoot.running)           return root.primaryColor
+            if (consoleRoot.finishReason === "ok") return root.primaryColor
+            if (consoleRoot.finishReason === "")   return root.primaryColor
+            return root.primaryColor
         }
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
@@ -160,11 +156,6 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: (consoleRoot.running ? root.hints.back + ":STOP " : root.hints.back + ":BACK ")
-              + root.hints.navigate + ":SCROLL"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine([consoleRoot.running ? "back:STOP" : "back:BACK", "navigate:SCROLL"])
     }
 }

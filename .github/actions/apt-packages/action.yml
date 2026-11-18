@@ -1,0 +1,38 @@
+name: apt packages
+description: >
+  Packages from the Ubuntu archive, installed with apt-get on a GitHub
+  runner. The runner's image ships Microsoft's apt repositories (azure-cli,
+  prod), which intermittently serve broken signatures and fail
+  `apt-get update`; no build here needs them, so they are dropped first.
+
+inputs:
+  packages:
+    description: The packages, separated by spaces or new lines
+    required: true
+  no-install-recommends:
+    description: "'true' leaves out the packages' recommended ones (apt-get's --no-install-recommends)"
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Install the packages
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        NO_INSTALL_RECOMMENDS: ${{ inputs.no-install-recommends }}
+      run: |
+        # A word per package; read stops at the end, which it reports.
+        read -r -d '' -a packages <<< "$PACKAGES" || true
+        if [ "${#packages[@]}" -eq 0 ]; then
+          echo "::error::No packages to install"
+          exit 1
+        fi
+        options=(-y)
+        if [ "$NO_INSTALL_RECOMMENDS" = true ]; then
+          options+=(--no-install-recommends)
+        fi
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
+        sudo apt-get update
+        sudo apt-get install "${options[@]}" "${packages[@]}"

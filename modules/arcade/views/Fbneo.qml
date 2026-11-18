@@ -130,10 +130,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "FinalBurn Neo"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -143,7 +139,7 @@ FocusScope {
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: fbneoRoot.labelOf(modelData)
             value: fbneoRoot.valueOf(modelData)
             selected: list.currentIndex === index
@@ -162,7 +158,7 @@ FocusScope {
                 arcadeBackend.downloadRetroArch()
         }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 fbneoRoot.goBack()
                 event.accepted = true
             }
@@ -172,22 +168,13 @@ FocusScope {
     HelpLine {
         always: true
         text: fbneoRoot.descriptionOf(fbneoRoot.keys[list.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property string key: fbneoRoot.keys[list.currentIndex] || ""
         readonly property bool downloads: (key === "download" && !fbneoRoot.downloading)
                                           || (key === "retroarch_download" && !fbneoRoot.retroarchDownloading)
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (downloads ? " " + root.hints.select + ":DOWNLOAD"
-                 : key === "own" && !fbneoRoot.downloading ? " " + root.hints.select + ":SELECT" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             downloads ? "select:DOWNLOAD" : key === "own" && !fbneoRoot.downloading ? "select:SELECT" : ""])
     }
 }

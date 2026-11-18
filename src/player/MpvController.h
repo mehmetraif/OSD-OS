@@ -183,6 +183,11 @@ public:
     // (a player's menu where its process ended) it does nothing: the next
     // one starts with the setting.
     Q_INVOKABLE void setVideoProperty(const QString &name, const QVariant &value);
+    // A module's Scaling chosen in its player's menu (PlayerMenu), its
+    // "video_scaling" as saved, on the session that plays, as sessionArgs()
+    // starts one with it: "Default" (or none) is the app's (videoScaling()).
+    // Without a session it does nothing, as setVideoProperty().
+    Q_INVOKABLE void applyScaling(const QString &scaling);
     // Settings → Sound → Audio Output changed: a video playing behind the menus moves
     // to the card chosen at once (AudioOutput).
     void followAudioOutput();
@@ -266,18 +271,62 @@ private:
     // Where a session's files are (the paths below), in a folder of the
     // user's own (util/RuntimeFiles.h); asked for each session.
     void placeRunFiles();
+    // What a player asked loadAndPlay() for, as it asked it: made once there,
+    // and handed on to what makes the session of it.
+    struct PlaybackRequest {
+        QString url;
+        float startSeconds = 0.0f;
+        int audioTrack = -1;
+        int subTrack = -1;
+        QStringList subFiles;
+        QStringList subLangs;
+        bool loop = false;
+        int playlistStart = -1;
+        float transcodeOffsetSec = 0.0f;
+        QString plexToken;
+        bool muteAudio = false;
+        QString oscMode;
+        bool shuffle = false;
+        QStringList subTitles;
+        float imageDurationSec = 0.0f;
+        bool imageContent = false;
+        QStringList extraArgs;
+        QString jellyfinToken;
+        QStringList extraUrls;
+    };
+    // loadAndPlay() past its parameters.
+    void play(const PlaybackRequest &request);
     // The mpv options for a session, up to how its picture is shown; what
-    // plays comes after them, behind a "--".
-    QStringList sessionArgs(const QString &url, float startSeconds, int audioTrack, int subTrack,
-                            const QStringList &subFiles, const QStringList &subLangs, bool loop,
-                            int playlistStart, float transcodeOffsetSec, const QString &plexToken,
-                            bool muteAudio, const QString &oscMode, bool shuffle,
-                            const QStringList &subTitles, float imageDurationSec, bool imageContent,
-                            const QStringList &extraArgs, const QString &jellyfinToken, bool embedded);
+    // plays comes after them, behind a "--". In three parts, in this order:
+    // the session's connection, log, OSD and scripts with their options
+    // (scriptArgs()); what plays and how, from where it starts and its
+    // tracks to the sound and what fetching it takes (trackArgs()); and how
+    // its picture is shown, as Settings has it (presentationArgs()).
+    QStringList sessionArgs(const PlaybackRequest &request, bool embedded);
+    QStringList scriptArgs(const PlaybackRequest &request, bool embedded);
+    // Settings → TV / Movie → Channel Logo for scriptArgs(): its corner (""
+    // while it is off, or mpv-logo.lua isn't there), and the size of Logo
+    // Image's overlay made for the session (0 for OSD/OS's own logo).
+    struct ChannelLogo {
+        QString corner;
+        int width = 0;
+        int height = 0;
+    };
+    ChannelLogo channelLogo(bool embedded);
+    QStringList trackArgs(const PlaybackRequest &request, bool embedded) const;
+    QStringList presentationArgs(bool embedded) const;
+    // Whether an option is one presentationArgs() gives: a session behind
+    // the menus chosen again is the same session whatever they are, and
+    // takes the new ones (loadAndPlay()).
+    static bool presentationOption(const QString &arg);
     // An mpv process for a session: args its options, media what plays.
     void startProcess(QStringList args, const QStringList &media);
+    // `then` once the screen is free (screenBusy()), looked at again every
+    // few milliseconds until it is: for the session loadAndPlay() asked for
+    // as `serial`, and never once another has been asked for since.
+    void whenScreenFree(int serial, std::function<void()> then);
     // The session loadAndPlay() asked for (serial), started once the screen
-    // is free (screenBusy()).
+    // is free (whenScreenFree()).
     void launchAfterRetirement(int serial, const QStringList &args,
                                const QStringList &media, bool embedded);
     // stop() before that session started: its player is told it stopped
@@ -325,12 +374,24 @@ private:
     void appendEmbeddedVideoArgs(QStringList &args, bool gpu) const;
     // The player inside the app, made when first needed.
     EmbeddedMpv *embeddedPlayer();
-    void startEmbedded(QStringList args);
+    void startEmbedded(const QStringList &args);
     // Ends an embedded session without a word to its module: as a process
     // replaced by the next is, or one left playing behind the menus. One its
     // player still had is told it ended so (reason).
     void endEmbedded(const QString &reason = QStringLiteral("stopped"));
     void onEmbeddedFinished(const QString &lastEndReason);
+    // What an embedded session was as it went: the position and duration it
+    // got to, and whether it was behind the menus, its player's menu open.
+    struct EmbeddedEnd {
+        int pos = 0;
+        int dur = 0;
+        bool wasBackground = false;
+        bool wasMenu = false;
+    };
+    // Its end, replaced or over, for either of the above: the control
+    // connection down (closeIpc(), drain as there), its command line and
+    // note forgotten, full screen no more, and videoActive false.
+    EmbeddedEnd closeEmbeddedSession(bool drain);
     // Back during an embedded session: the menus come back over the picture.
     void detachToMenus();
     // Back during a session in an mpv process: it ends, its player's menu
@@ -345,6 +406,15 @@ private:
     // Appends the profile-specific --vo/--gpu-context/--hwdec flags (honouring the
     // app-level "mpv_video_args" override) to a forming mpv argument list.
     void appendVideoArgs(QStringList &args) const;
+    // mpv's OSD (the deck's menu, scripts/mpv-osc.lua's \fnVCR OSD Mono) in
+    // the app's VCR font from assets/fonts, for an mpv process and the player
+    // inside the window alike (sessionArgs()). On macOS and Windows, whose
+    // libass finds fonts through CoreText and DirectWrite, not fontconfig, a
+    // separate process can't see the app's fonts: --osd-fonts-dir loads them
+    // into its libass. On Linux and the BSDs, nothing: fontconfig finds the
+    // font through the FONTCONFIG_FILE each is started with
+    // (fcoverride::write()).
+    QStringList osdFontArgs() const;
     // App-level "smooth_playback" setting (default ON). On the Pi 3 this selects the
     // smooth zero-copy overlay path; turning it OFF restores the crop-capable scaler path.
     bool smoothPlaybackEnabled() const;
@@ -355,6 +425,16 @@ private:
     // Scan", "Anamorphic"): the module's own "video_scaling", unless it is
     // "Default", then the app's.
     QString videoScaling(const QString &module) const;
+    // What a Scaling is to mpv: keepaspect off for Anamorphic alone, and
+    // panscan 1 for Pan & Scan, 0.43 for 14:9 (14:9 of a 16:9 picture), else
+    // 0. The one place a Scaling becomes mpv's properties, for a session's
+    // command line (sessionArgs()) and for one that plays; the OSC scripts'
+    // CROP button (scripts/mpv-osc*.lua) steps through the same four inside mpv.
+    struct ScalingProperties {
+        bool keepaspect;
+        double panscan;
+    };
+    static ScalingProperties scalingProperties(const QString &scaling);
     // True when the active decode path can't crop (Pi 3 overlay path with smooth
     // playback ON): --panscan blanks the video there. Gates auto-crop and tells
     // the OSC scripts to hide their CROP button.
@@ -419,13 +499,12 @@ private:
     // The session's start, watched (watchStart()): what it was started
     // with, since when, whether its first picture has come, whether its mpv
     // was given a hardware decoder, whether it was told to do without one
-    // and whether it has been started again without one, and that it was
-    // ended for showing nothing.
+    // and whether its process has been started again without one, and that
+    // it was ended for showing nothing.
     QTimer       *m_startTimer     = nullptr;
     QElapsedTimer m_startClock;
     QStringList   m_launchArgs;
     QStringList   m_launchMedia;
-    bool          m_launchEmbedded = false;
     bool          m_started        = false;
     bool          m_hardwareDecode = false;
     bool          m_softwareAsked  = false;

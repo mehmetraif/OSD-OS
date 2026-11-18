@@ -180,87 +180,35 @@ The title bar draws the logo from its alpha, in the colour scheme's text colour:
 
 ### Root.qml: the router
 
-The shell loads `Root.qml` and listens for its `goBack()`, which leaves the module. The router keeps a stack of views in one `Loader`:
+The shell loads `Root.qml` and listens for its `goBack()`, which leaves the module. The router is OSD/OS's own component, `ModuleRouter` ([`views/Components/ModuleRouter.qml`](https://github.com/mehmetraif/OSD-OS/blob/main/views/Components/ModuleRouter.qml)): it keeps a stack of views in one `Loader`, opens the view a view asks for, and goes back through them. The Root gives it the module's id and the folder its views are in, and opens the first view:
 
 ```qml
 import QtQuick
+import Components
 
 // Hello Channel's router: the module's own stack of views. The shell loads
 // this file (the manifest's entry_point_qml) and listens for goBack(), which
 // leaves the module.
-FocusScope {
+ModuleRouter {
     id: moduleRoot
-
-    // Leaves the module, back to the main menu.
-    signal goBack()
-
-    property var navParams: ({})
 
     // The manifest's id: the one place it appears in this module's QML.
     // The views read it as moduleRoot.moduleId.
-    property string moduleId: "com.osdos.hello_channel"
-    property var _moduleInfo: appCore ? appCore.get_module_info(moduleId) : ({})
-    property string moduleName: _moduleInfo.name || ""
-    property string moduleIcon: _moduleInfo.icon || ""
-
-    property var navStack: []
-    property var currentParams: ({})
-
-    function navigateTo(viewPath, params, fromState) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        navStack.push({ source: internalLoader.source, params: currentParams, listState: fromState || {} })
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    // Shows a view in place of this one, without pushing it on the stack.
-    function replaceWith(viewPath, params) {
-        var resolved = Qt.resolvedUrl(viewPath)
-        currentParams = params || {}
-        root.changeWindow(internalLoader, resolved, { "navParams": params || {} })
-    }
-
-    function navigateBack() {
-        if (navStack.length === 0) {
-            moduleRoot.goBack()
-            return
-        }
-        var prev = navStack.pop()
-        if (!prev.source || prev.source.toString() === "") {
-            moduleRoot.goBack()
-            return
-        }
-        // The list state the view left with comes back in its navParams.
-        var restored = Object.assign({}, prev.params)
-        restored.navListState = prev.listState || {}
-        currentParams = restored
-        root.changeWindow(internalLoader, prev.source, { "navParams": restored })
-    }
-
-    Loader {
-        id: internalLoader
-        anchors.fill: parent
-        focus: true
-        onLoaded: { if (item) item.forceActiveFocus() }
-
-        Connections {
-            target: internalLoader.item
-            ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) { moduleRoot.navigateTo(path, params, listState) }
-            function onReplaceWith(path, params) { moduleRoot.replaceWith(path, params) }
-            function onGoBack() { moduleRoot.navigateBack() }
-        }
-    }
+    moduleId: "com.osdos.hello_channel"
+    // The views' folder, this one: a view's name is found here.
+    viewsUrl: Qt.resolvedUrl(".")
 
     // The first view. resumePlayer is set when the main menu's first row
     // takes a video playing behind the menus back (Transparent Background).
-    Component.onCompleted: navigateTo("Channels.qml", { resumePlayer: navParams.resumePlayer })
+    Component.onCompleted: navigateToView("Channels.qml", { resumePlayer: navParams.resumePlayer })
 }
 ```
 
-- **`id: moduleRoot`, always.** Views reach the router by that id: `moduleRoot.moduleId`, `moduleRoot.moduleName`, `moduleRoot.moduleIcon`.
+- **`id: moduleRoot`, always.** Views reach the router by that id: `moduleRoot.moduleId`, `moduleRoot.moduleName`, `moduleRoot.moduleIcon`, and anything else the Root declares.
 - **The id once.** `moduleId` is the only place the manifest's id is written in the module's QML.
-- **`root.changeWindow(loader, source, properties)`**, never `loader.source` or `setSource()`: it plays the transition, and rests effects and menu music for a video's view.
+- **`viewsUrl: Qt.resolvedUrl(".")`**, always: the router is in `Components`, and finds the views by their names in this folder.
+- **The module's own views** open with `navigateToView(path, params)`. The router's `navigateTo` is the shell's: it opens another module's view on the app's own stack (an NFC card handed off to the module that plays it).
+- **What a view asks for**: `navigateTo(path, params, listState)`, a view over this one; `replaceWith(path, params)`, a view in place of every one before it, so back from it leaves the module (a sign-in done); `replaceCurrent(path, params)`, a view in place of this one, back skipping it; `goBack()`, one view back. The router changes every view with `root.changeWindow(loader, source, properties)`, which plays the transition and rests effects and menu music for a video's view.
 - **Position comes back.** A view leaves with a list state (`{ currentIndex: … }`) and gets it back as `navParams.navListState`.
 - **Starting params** are in the router's own `navParams`: `resumePlayer` (below), `fromAppStartup` when OSD/OS opened the module at start, and `startupPlay`, the favourite to play at once.
 
@@ -333,10 +281,6 @@ FocusScope {
     AppBar {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -357,7 +301,7 @@ FocusScope {
                                         { currentIndex: currentIndex })
         }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 channelsRoot.goBack()
                 event.accepted = true
             }
@@ -365,7 +309,7 @@ FocusScope {
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             keepValue: modelData.type === "video"
             label: modelData.label || ""
@@ -380,21 +324,12 @@ FocusScope {
             : row.type === "video" ? row.path
             : row.type === "empty" ? "Pick a folder in Settings, Hello Channel, Video Folder"
             : "The channel's settings, and how many videos it has"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property var row: channelsRoot.rows[list.currentIndex]
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (row && row.type === "video" ? root.hints.select + ":PLAY"
-                 : row && row.type === "about" ? root.hints.select + ":OPEN" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             row && row.type === "video" ? "select:PLAY" : row && row.type === "about" ? "select:OPEN" : ""])
     }
 }
 ```
@@ -406,9 +341,9 @@ FocusScope {
 - **Files.** `appCore.folderEntries(path, types)` returns `[{ name, path, isFolder }]`: folders, then files of those types, hidden ones left out.
 - **`MenuList`**'s cursor skips rows of `type: "section"`.
 - **`MenuRow`**: `heading` makes a group's heading, `keepValue` cuts the label short rather than the value, `opens` ends the line in a ►, `changes` puts the value between ◄ and ►.
-- **`HintBar`**'s text is built from **`root.hints`**; never type `[ESC]`, and never bind to `inputManager.hints`.
+- **`HintBar`**'s text is built from **`root.hints`**, a line of several keys by **`root.hintLine()`** (each part a hint's name and what the key does, `""` for a part not shown); never type `[ESC]`, and never bind to `inputManager.hints`.
 - **Sizes** are fractions of `root.sw` and `root.sh`, with the 640 × 480 pixels in a comment.
-- **Colours and font**: `root.primaryColor` on `root.surfaceColor`, in `root.globalFont`.
+- **Colours and font**: `root.primaryColor` on `root.surfaceColor`, in `root.globalFont`. `root.secondaryColor`, `root.tertiaryColor` and `root.accentColor` are deprecated: they are `root.primaryColor` under other names, kept for modules written before.
 
 ### Detail.qml: a leaf view
 
@@ -429,7 +364,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -448,24 +383,20 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "About"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Column {
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.25 //120
-        anchors.leftMargin: root.sw * 0.115625 //74
-        width: root.sw * 0.76875 //492
+        anchors.topMargin: root.listY
+        anchors.leftMargin: root.paneX
+        width: root.paneWidth
 
         Repeater {
             model: detailRoot.lines
             delegate: MenuRow {
                 width: parent.width
-                height: root.sh * 0.0583333 //28
+                height: root.menuRowHeight
                 label: modelData.label
                 value: modelData.value
                 // Read, not chosen: a long value scrolls all the time.
@@ -476,10 +407,6 @@ FocusScope {
 
     HintBar {
         text: root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }
 ```
@@ -574,21 +501,10 @@ FocusScope {
 
     Component.onCompleted: play(savedPosition())
 
-    // mpv has the picture: the keys go to its on-screen controls.
+    // mpv has the picture: the keys go to its on-screen controls, by
+    // mpv's names (MpvKeys.js: Esc is ESC, Return is ENTER, …).
     Keys.onPressed: function(event) {
-        var key = ""
-        switch (event.key) {
-        case Qt.Key_Escape:
-        case Qt.Key_Back:      key = "ESC"; break
-        case Qt.Key_Backspace: key = "BS"; break
-        case Qt.Key_Up:        key = "UP"; break
-        case Qt.Key_Down:      key = "DOWN"; break
-        case Qt.Key_Left:      key = "LEFT"; break
-        case Qt.Key_Right:     key = "RIGHT"; break
-        case Qt.Key_Space:     key = "SPACE"; break
-        case Qt.Key_Return:
-        case Qt.Key_Enter:     key = "ENTER"; break
-        }
+        var key = MpvKeys.name(event.key)
         if (key !== "") {
             mpvController.sendKey(key)
             event.accepted = true
@@ -681,7 +597,7 @@ The app adds the rest: the board's decoder and output, Scaling, Video Levels, Au
 - **One handler for every end.** `playbackEnded(finalPositionMs, finalDurationMs, reason)` comes once, after mpv has gone. Every branch must go back or start the next video.
 - **The reasons**: `"eof"` (the end of the file), `"stopped"` (back, a stop, or a crash), `"failed"` (mpv's exit code 2), `"menu"` (only for a player whose note says `menu: true`).
 - **A failure says why.** OSD/OS's own players show a `PlaybackNotice` at `failed` (`showMpv(canRetry)`), as CONTRIBUTING.md asks. Hello Channel only logs it, to stay short.
-- **The keys go to mpv** through `mpvController.sendKey()`, by mpv's names (`ESC`, `ENTER`, `UP`, …). `ESC` ends the video, or first closes mpv's deck menu.
+- **The keys go to mpv** through `mpvController.sendKey()`, by mpv's names (`ESC`, `ENTER`, `UP`, …), which `MpvKeys.name(event.key)` gives for every key a player sends on. `ESC` ends the video, or first closes mpv's deck menu.
 - **The name.** A view whose file name ends in `Player.qml`, `Play.qml`, `Launch.qml`, `Takeover.qml`, `SignIn.qml` or `Console.qml` is a video's view: no effect, transition or menu music plays while it shows. A layer elsewhere says so with `root.restFor(item, true)`.
 - **Where it stopped.** `appCore.add_to_list(moduleId, name, entry, limit)` puts an entry first in `lists.json`, in place of one with its `path`, and keeps the newest `limit`. `get_list()`, `remove_from_list()` and `list_contains()` read and change the lists.
 
@@ -1161,25 +1077,32 @@ Every screen is drawn from the components in [`views/Components`](https://github
 
 | Component | Use it for |
 |---|---|
-| `AppBar` | The title bar: `iconSource`, `title`, `subtitle` |
-| `HintBar` | The key hints at the foot, from `root.hints` |
+| `AppBar` | The title bar: `iconSource`, `title`, `subtitle`; in its place at the top on its own |
+| `HintBar` | The key hints at the foot, from `root.hints`; in its place on its own |
 | `MenuRow`, `MenuList`, `ScrollMarks` | Menu lines, a menu of them, ▲ ▼ when lines are hidden |
-| `HelpLine` | The line about the selected row, under the menu |
+| `HelpLine` | The line about the selected row, under the menu; in its place on its own |
+| `PaneMessage` | A list's line while it has no rows (`LOADING...`, an error, `NO ITEMS FOUND`), in the middle of the pane |
+| `ScrolledText` | A line too long for its room, scrolled through while it is `on` (the selected row's) and cut short with "…" while not: `text`, `on`, `font.pixelSize` |
+| `ScrolledLines` | Lines too tall for their room (a summary), scrolled up through as they are read, and still while hidden |
 | `PromptScreen`, `ChoiceOverlay` | A full-screen question or notice, and a short list of answers |
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |
 | `LoadingScreen`, `PlayerMenu`, `PlaybackNotice` | The tape loading while a video starts, a video's own menu, the notice for a video that couldn't be played |
+| `MpvKeys` | mpv's names for the keys a player sends on as its video plays (`MpvKeys.name(event.key)`) |
 | `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |
 | `WebPlayerBrowse`, `WebPlayerLaunch` | A streaming service's catalogue and its web player |
+| `MediaServerLibraries`, `MediaServerItems`, `MediaServerItem`, `MediaServerPlayer`… | A Jellyfin-style server's libraries, lists, item pages and player (Jellyfin's and Emby's), given the module's backend |
 
 Each component's properties are in [ARCHITECTURE.md → Components](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#components-wip).
 
 Every view also has `Main.qml`'s own properties, as `root.*`:
 
 - `sw`, `sh`, `px` (one pixel of a 240-line picture) and `contentBox` (the area views lay out in);
-- `primaryColor`, `surfaceColor`, `globalFont`, `hints`, `appVersion`;
+- `menuRowHeight`, a menu's row, and the pane, where a view's rows go: `paneX` and `paneWidth` across, `listY` down, `listHeight` tall over a help line and `tallListHeight` with none;
+- `primaryColor`, `surfaceColor`, `globalFont`, `hints`, `appVersion`; `cursorColor` and `cursorInk`, a selected row's box a view draws itself and its text (`secondaryColor`, `tertiaryColor` and `accentColor` are deprecated, the primary colour);
+- `isBack(event)`, whether a key is back (Esc, Backspace or a remote's Back), as every view takes it, and `hintLine(parts)`, a hint bar's line from `root.hints` (`["back:BACK", "select:SELECT"]`);
 - `formatTime(ms)`, `changeWindow()`, `restFor()`, `behindNote` and `videoBehind`.
 
 ## Before a pull request

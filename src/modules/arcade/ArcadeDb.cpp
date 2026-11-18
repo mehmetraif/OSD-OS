@@ -21,16 +21,18 @@ constexpr qint64 kMaxPicture = 4 * 1024 * 1024;
 // After too many requests, without a Retry-After.
 constexpr int kHoldSeconds = 60;
 
-bool isPicture(const QByteArray &data) {
-    return data.startsWith("\x89PNG\r\n\x1a\n") || data.startsWith("\xff\xd8\xff");
-}
-
 } // namespace
 
 const QUrl ArcadeDb::kService(QStringLiteral("https://adb.arcadeitalia.net/service_scraper.php"));
 
 ArcadeDb::ArcadeDb(const QUrl &service, QObject *parent)
-    : QObject(parent), m_service(service), m_nam(new QNetworkAccessManager(this))
+    : QObject(parent), m_service(service), m_nam(new QNetworkAccessManager(this)),
+      // Too many requests: held off for as long as it says, the picture
+      // had as none.
+      m_media(this, m_nam, kTimeoutMs, "ArcadeDB's", &m_heldUntil, [this](QNetworkReply *reply, int, const QString &, int) {
+          m_heldUntil = QDateTime::currentDateTimeUtc().addSecs(arcadehttp::pauseAsked(reply, kHoldSeconds));
+          return false;
+      })
 {
 }
 
@@ -135,37 +137,5 @@ void ArcadeDb::media(const QUrl &url, const std::function<void(const QByteArray 
         QTimer::singleShot(0, this, [done] { done(QByteArray()); });
         return;
     }
-    m_mediaQueue.append({ url, done });
-    nextMedia();
-}
-
-void ArcadeDb::nextMedia() {
-    if (m_mediaReply || m_mediaQueue.isEmpty())
-        return;
-    if (heldOff()) {
-        QTimer::singleShot(static_cast<int>(std::max<qint64>(1, QDateTime::currentDateTimeUtc().msecsTo(m_heldUntil))),
-                           this, &ArcadeDb::nextMedia);
-        return;
-    }
-    const Media next = m_mediaQueue.takeFirst();
-    m_mediaReply = m_nam->get(arcadehttp::requestFor(next.url, kTimeoutMs));
-    QNetworkReply *reply = m_mediaReply;
-    arcadehttp::limitReply(reply, kMaxPicture);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, next] {
-        reply->deleteLater();
-        m_mediaReply = nullptr;
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        QByteArray data;
-        if (reply->error() == QNetworkReply::NoError)
-            data = reply->readAll();
-        if (data.size() > kMaxPicture || !isPicture(data)) {
-            if (arcadehttp::asksForAPause(status))
-                m_heldUntil = QDateTime::currentDateTimeUtc().addSecs(arcadehttp::pauseAsked(reply, kHoldSeconds));
-            qWarning("[Arcade] ArcadeDB's %s could not be downloaded (HTTP %d, error %d)",
-                     qPrintable(next.url.path() + QLatin1Char('?') + next.url.query()), status, int(reply->error()));
-            data.clear();
-        }
-        next.done(data);
-        nextMedia();
-    });
+    m_media.add(url, kMaxPicture, url.path() + QLatin1Char('?') + url.query(), done);
 }

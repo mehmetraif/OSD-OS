@@ -1,11 +1,9 @@
 #include "WebPlayerBackend.h"
 #include "../scripts/ScriptLauncher.h"
+#include "../../AppCore.h"
 #include "../../util/DisplayHandoff.h"
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
@@ -38,23 +36,18 @@ bool haveBrowser() {
 } // namespace
 
 WebPlayerBackend::WebPlayerBackend(const Service &service,
-                                   const QString &appRoot, const QString &dataRoot,
+                                   const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                                    DisplayHandoff *handoff, QObject *parent)
     : QObject(parent), m_service(service.id), m_url(service.homeUrl),
       m_signInUrl(service.signInUrl), m_needsChromium(service.needsChromium),
-      m_appRoot(appRoot), m_dataRoot(dataRoot)
+      m_appRoot(appRoot), m_dataRoot(dataRoot), m_appCore(appCore)
 {
     if (!service.catalog.providerName.isEmpty())
-        m_catalog = new TmdbCatalog(m_dataRoot, service.catalog, this);
-    // The catalogue's settings as they stand: AppCore isn't available to
-    // backends at construction time, so straight from config.json, as the
-    // other backends do.
-    QFile f(m_dataRoot + QStringLiteral("/config.json"));
-    if (m_catalog && f.open(QIODevice::ReadOnly)) {
-        const QJsonObject settings = QJsonDocument::fromJson(f.readAll()).object()
-            .value(QStringLiteral("modules")).toObject().value(moduleId()).toObject();
+        m_catalog = new TmdbCatalog(m_dataRoot, m_appCore, service.catalog, this);
+    // The catalogue's settings as they stand.
+    if (m_catalog && m_appCore) {
         for (const QString &key : { QStringLiteral("region"), QStringLiteral("catalog_language") })
-            applySetting(key, settings.value(key).toVariant());
+            applySetting(key, m_appCore->get_setting(moduleId(), key));
     }
 
     m_launcher = new ScriptLauncher(m_appRoot, m_dataRoot, handoff, this);
@@ -154,18 +147,15 @@ bool WebPlayerBackend::launch(const QString &url) {
 }
 
 QString WebPlayerBackend::scaling() const {
-    // Straight from config.json, as at construction: the app's settings never
-    // reach a module backend's onSettingChanged.
-    QJsonObject config;
-    QFile f(m_dataRoot + QStringLiteral("/config.json"));
-    if (f.open(QIODevice::ReadOnly))
-        config = QJsonDocument::fromJson(f.readAll()).object();
-    QString value = config.value(QStringLiteral("modules")).toObject().value(moduleId()).toObject()
-                        .value(QStringLiteral("video_scaling")).toString();
+    // Read as the player opens: the app's settings never reach a module
+    // backend's onSettingChanged.
+    const auto setting = [this](const QString &moduleId, const QString &key) {
+        return m_appCore ? m_appCore->get_setting(moduleId, key).toString() : QString();
+    };
+    QString value = setting(moduleId(), QStringLiteral("video_scaling"));
     if (value.isEmpty() || value == QLatin1String("Default")) {
-        const QJsonObject app = config.value(QStringLiteral("app")).toObject();
-        value = app.value(QStringLiteral("video_scaling")).toString();
-        if (value.isEmpty() && app.value(QStringLiteral("auto_crop")).toString() == QLatin1String("On"))
+        value = setting(QString(), QStringLiteral("video_scaling"));
+        if (value.isEmpty() && setting(QString(), QStringLiteral("auto_crop")) == QLatin1String("On"))
             value = QStringLiteral("Pan & Scan");
     }
     if (value == QLatin1String("14:9"))

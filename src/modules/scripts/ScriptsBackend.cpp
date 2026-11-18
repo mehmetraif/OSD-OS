@@ -1,21 +1,20 @@
 #include "ScriptsBackend.h"
 #include "ScriptLauncher.h"
+#include "../../AppCore.h"
 #include "../../util/AtomicFile.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileInfoList>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QDebug>
 
-static const char *kModuleId       = "com.osdos.scripts";
+static const QString kModuleId     = QStringLiteral("com.osdos.scripts");
 // Deliberately NOT "scripts": $APP_ROOT/scripts already means the app's own Lua
 // and install scripts, and two different things called "the scripts dir" would
 // make every support thread ambiguous.
 static const char *kScriptsDirName = "user_scripts";
 
-ScriptsBackend::ScriptsBackend(const QString &appRoot, const QString &dataRoot,
+ScriptsBackend::ScriptsBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                                DisplayHandoff *handoff, QObject *parent)
     : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot)
 {
@@ -27,17 +26,8 @@ ScriptsBackend::ScriptsBackend(const QString &appRoot, const QString &dataRoot,
     connect(m_launcher, &ScriptLauncher::finished,
             this, &ScriptsBackend::scriptFinished);
 
-    // Read the configured directory straight from config.json — AppCore isn't
-    // available to backends at construction time. Same approach as
-    // AmbientModeBackend / NfcReaderBackend.
-    QString configured;
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        const QJsonObject cfg = QJsonDocument::fromJson(f.readAll()).object();
-        configured = cfg["modules"].toObject()[QLatin1String(kModuleId)].toObject()
-                        ["scripts_directory"].toString();
-    }
-    setScriptsDir(configured);
+    setScriptsDir(appCore ? appCore->get_setting(kModuleId, QStringLiteral("scripts_directory")).toString()
+                          : QString());
 }
 
 // An empty (or "USE DEFAULT") setting means the dataRoot default. The folder
@@ -52,12 +42,10 @@ void ScriptsBackend::setScriptsDir(const QString &path) {
 
 void ScriptsBackend::onSettingChanged(const QString &moduleId, const QString &key,
                                       const QVariant &value) {
-    if (moduleId != QLatin1String(kModuleId)) return;
+    if (moduleId != kModuleId) return;
 
-    if (key == QLatin1String("scripts_directory")) {
+    if (key == QLatin1String("scripts_directory"))
         setScriptsDir(value.toString());
-        emit scriptsChanged();
-    }
 }
 
 QString ScriptsBackend::sidecarPathFor(const QString &scriptPath) {
@@ -270,7 +258,6 @@ void ScriptsBackend::getStartupScriptOptions() {
 
 void ScriptsBackend::rescanScripts() {
     scanScriptsDir();
-    emit scriptsChanged();
     // Settings' Auto-Run On Startup row, on the page the rescan was asked
     // from: a script just added can be chosen without the page opened again.
     getStartupScriptOptions();
@@ -316,7 +303,6 @@ bool ScriptsBackend::scriptBusy() const { return m_launcher->isBusy(); }
 bool ScriptsBackend::scriptDraining() const { return m_launcher->drainingGroup(); }
 QString ScriptsBackend::consoleOutput() const { return m_launcher->outputText(); }
 QString ScriptsBackend::runningName() const { return m_launcher->runningName(); }
-int ScriptsBackend::lastExitCode() const { return m_launcher->lastExitCode(); }
 
 QString ScriptsBackend::modeFor(const QString &basename) {
     ScriptEntry e;
@@ -380,7 +366,6 @@ bool ScriptsBackend::setFavorite(const QString &basename, bool favorite) {
 
     qDebug("[Scripts] %s favorite = %s", qPrintable(basename), favorite ? "yes" : "no");
     scanScriptsDir();
-    emit scriptsChanged();
     return true;
 }
 

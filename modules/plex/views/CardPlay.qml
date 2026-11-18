@@ -6,10 +6,10 @@ import Components
 // here, while a card naming a whole set (a collection or a playlist) hands off to
 // QueuePlay.qml, which already owns expanding and ordering a queue.
 //
-// replaceWith (not navigateTo) is the point: this view leaves no entry on the
-// module's nav stack, so backing out of the player unwinds straight to the NFC
-// module's tap screen rather than stranding the user inside Plex, which they
-// never chose to enter.
+// replaceCurrent (not navigateTo) is the point: the player takes this view's
+// place on the module's nav stack, so backing out of the player unwinds
+// straight to the NFC module's tap screen rather than stranding the user inside
+// Plex, which they never chose to enter.
 //
 // The visual language here is the NFC module's, not Plex's — a card tap should
 // look the same whatever module ends up serving it.
@@ -18,7 +18,7 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     property string cardRef:   navParams.cardRef   || ""
@@ -70,7 +70,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
+        var back = root.isBack(event)
         // While it launches only back counts, giving the launch up: a
         // transcode still on its way is dropped as it comes.
         if (errorMessage === "") {
@@ -114,7 +114,7 @@ FocusScope {
 
         // A set card never streams anything here: QueuePlay expands the rows,
         // settles their order and launches the Player, exactly as the in-app
-        // PLAY ALL / SHUFFLE rows do. replaceWith again, so the stack still
+        // PLAY ALL / SHUFFLE rows do. replaceCurrent again, so the stack still
         // unwinds straight back to the NFC tap screen.
         //
         // "shuffle" means shuffle this queue — not the endless jukebox a show or
@@ -122,7 +122,7 @@ FocusScope {
         function onCardQueueReady(items) {
             if (!cardRoot.launching) return
             cardRoot.launching = false
-            cardRoot.replaceWith("QueuePlay.qml", {
+            cardRoot.replaceCurrent("QueuePlay.qml", {
                 queueItems: items,
                 shuffle:    cardRoot.cardMode === "shuffle",
                 title:      cardRoot.cardTitle
@@ -138,7 +138,7 @@ FocusScope {
             if (!cardRoot.launching || !cardRoot.pendingDetail) return
             var d = cardRoot.pendingDetail
             cardRoot.launching = false
-            cardRoot.replaceWith("Player.qml", {
+            cardRoot.replaceCurrent("Player.qml", {
                 streamUrl:          url,
                 plexToken:          plexToken,
                 ratingKey:          d.ratingKey,
@@ -170,6 +170,17 @@ FocusScope {
             if (!cardRoot.launching) return
             cardRoot.fail(message)
         }
+
+        // Signed out while the card's item was looked for (its token refused
+        // and not renewed): said here, as a missing sign-in is, never the
+        // sign-in page (Root.qml shows none over a card).
+        function onAuthRevoked() { cardRoot.signedOut() }
+        function onLogoutComplete() { cardRoot.signedOut() }
+    }
+
+    function signedOut() {
+        if (launching)
+            fail("SIGNED OUT OF PLEX\n\nOPEN THE PLEX MODULE TO SIGN IN")
     }
 
     Component.onCompleted: {
@@ -195,7 +206,7 @@ FocusScope {
             kind: "notice"
             title: "Playback failed"
             message: errorMessage
-            hint: root.hints.back + ":BACK " + root.hints.select + ":RETRY"
+            hint: root.hintLine(["back:BACK", "select:RETRY"])
         }
     }
 }

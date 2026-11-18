@@ -1,6 +1,7 @@
 import QtQuick
 import QtTest
 import Components
+import OSDOS.Testing
 
 // Settings → Look → Menu Layout's monitor layouts (Studio Monitor, Broadcast,
 // Flat Panel) as a frame every kind of view takes its place in: the shell
@@ -11,93 +12,15 @@ import Components
 // draws its own rows (ListPager), a question asked over a view
 // (ChoiceOverlay, PromptScreen) and a layer that takes the whole screen (an
 // OsdGround, as the on-screen keyboard's). The root stands in for Main.qml
-// with its own rules for when the frame is up (monitorFramed) and when its
+// with its rules for when the frame is up (monitorFramed) and when its
 // colours are in force (monitorInk). In Standard and Camcorder nothing of it
 // shows, and every component draws as it always has.
-Rectangle {
+StandInRoot {
     id: root
+    // Video 1's colours, the screen's ground whatever the layout's.
     color: schemePaper
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color schemeInk: "#FFFFFF"
-    property color schemePaper: "#0110C5"
-    property color primaryColor: monitorInk ? menuPalette.ink : schemeInk
-    property color surfaceColor: monitorInk ? menuPalette.ground : schemePaper
-    readonly property color secondaryColor: primaryColor
-    readonly property color tertiaryColor: primaryColor
-    readonly property color accentColor: primaryColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    readonly property real menuRowHeight: sh * 0.0583333
-    readonly property real hintRoom: hintBar ? 0 : menuRowHeight
-    readonly property real helpRoom: helpLine ? 0 : menuRowHeight
-    readonly property real helpLineMargin: hintBar ? sh * 0.1583333 : sh * 0.1041667
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property bool screenSaverActive: false
-    property real fxTime: 0
-    property bool videoBehind: false
-    property int backdropSolidity: 100
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", left: "[◄]", select: "[ENTER]", play_pause: "[SPACE]" })
-    function skinIcon(url) { return url }
-    function selectorShown(item, shown) {}
-
-    // Menu Layout, its colours, and the frame, as Main.qml has them.
-    property string menuLayout: "Standard"
-    readonly property var menuPalette: ({
-        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
-                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
-        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
-                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
-        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
-                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
-    })[menuLayout] || null
-    // The grounds laid over a view, as Main.qml's selectors keep them: one
-    // not laid in the layout takes the view out of the frame's colours.
-    property var covers: []
-    function coverShown(item, shown) {
-        var list = covers.filter(function(c) { return c !== item })
-        if (shown)
-            list.push(item)
-        covers = list
-    }
-    property bool viewInFrame: true
-    property bool framed: false
-    readonly property bool monitorFramed: menuPalette !== null && viewInFrame
-    readonly property bool frameCovered: covers.some(function(c) { return c.inLayout !== true })
-    readonly property bool monitorInk: monitorFramed && !frameCovered
-    readonly property alias chrome: frameChrome
-    readonly property color cursorColor: !monitorInk ? primaryColor
-                                       : menuLayout === "Flat Panel" ? menuPalette.bar : menuPalette.mark
-    readonly property color cursorInk: !monitorInk ? surfaceColor
-                                     : menuLayout === "Flat Panel" ? menuPalette.ink : menuPalette.ground
-    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
-    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
-    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
-    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
-    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom
-                                     : hintBar ? sh * 0.8333333 : contentBox.y + contentBox.height
-    MonitorChrome {
-        id: frameChrome
-        anchors.fill: parent
-        visible: root.monitorInk
-    }
+    schemeInk: "#FFFFFF"
+    schemePaper: "#0110C5"
 
     // A menu's page, as the pages opened from Settings are made: Wi-Fi's
     // title with its address beside it, twenty rows with a value each, a
@@ -121,10 +44,6 @@ Rectangle {
                 title: "Wi-Fi"
                 subtitle: "192.0.2.2"
                 path: ["Wi-Fi"]
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: root.sh * 0.125
-                anchors.leftMargin: root.sw * 0.125
             }
             MenuList {
                 id: list
@@ -132,7 +51,7 @@ Rectangle {
                 focus: true
                 delegate: MenuRow {
                     width: list.width
-                    height: root.sh * 0.0583333
+                    height: root.menuRowHeight
                     label: modelData.label
                     value: modelData.value
                     changes: true
@@ -142,18 +61,10 @@ Rectangle {
             HelpLine {
                 id: help
                 text: parent.rows[list.currentIndex].description
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.helpLineMargin
-                anchors.leftMargin: root.sw * 0.125
             }
             HintBar {
                 id: hint
                 text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.sh * 0.1041667
-                anchors.leftMargin: root.sw * 0.125
             }
             ChoiceOverlay {
                 id: question
@@ -175,10 +86,6 @@ Rectangle {
             AppBar {
                 title: "Local Files"
                 subtitle: tree.folderName
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: root.sh * 0.125
-                anchors.leftMargin: root.sw * 0.125
             }
             TreeBrowser {
                 id: tree
@@ -196,10 +103,6 @@ Rectangle {
             HintBar {
                 id: hint
                 text: root.hints.back + ":BACK " + root.hints.arrows + ":NAVIGATE " + root.hints.select + ":OPEN"
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.bottomMargin: root.sh * 0.1041667
-                anchors.leftMargin: root.sw * 0.125
             }
         }
     }
@@ -214,10 +117,6 @@ Rectangle {
             AppBar {
                 title: "Jellyfin"
                 subtitle: "Movies"
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: root.sh * 0.125
-                anchors.leftMargin: root.sw * 0.125
             }
             ListView {
                 id: list
@@ -232,7 +131,7 @@ Rectangle {
                 focus: true
                 delegate: Item {
                     width: list.width
-                    height: root.sh * 0.0583333
+                    height: root.menuRowHeight
                     Loader {
                         anchors.fill: parent
                         active: root.monitorInk === true
@@ -273,9 +172,57 @@ Rectangle {
                 y: root.sh * 0.25
                 x: root.sw * 0.209375
                 width: root.sw * 0.3
-                height: root.sh * 0.0583333
+                height: root.menuRowHeight
                 label: "Set One By One"
                 opens: true
+            }
+        }
+    }
+
+    // A list's line while it has no rows, as a media server's says it is
+    // loading.
+    Component {
+        id: messagePage
+        FocusScope {
+            property alias message: message
+            AppBar {
+                title: "Jellyfin"
+            }
+            PaneMessage {
+                id: message
+                text: "LOADING..."
+            }
+        }
+    }
+
+    // The bars declared bare, as a view declares them, and a hint bar a view
+    // anchors elsewhere.
+    Component {
+        id: barePage
+        FocusScope {
+            property alias bar: bar
+            property alias help: help
+            property alias hint: hint
+            property alias moved: moved
+            AppBar {
+                id: bar
+                title: "Wi-Fi"
+            }
+            HelpLine {
+                id: help
+                text: "What the row does"
+            }
+            HintBar {
+                id: hint
+                text: root.hints.back + ":BACK"
+            }
+            HintBar {
+                id: moved
+                text: root.hints.back + ":BACK"
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: 10
+                anchors.rightMargin: 5
             }
         }
     }
@@ -307,10 +254,11 @@ Rectangle {
             root.viewInFrame = true
             root.hintBar = true
             root.helpLine = true
-            frameChrome.basePath = []
-            frameChrome.pageTo(null)
+            root.hints = root.keyboardHints
+            root.chrome.basePath = []
+            root.chrome.pageTo(null)
             wait(0)
-            compare(frameChrome.parts.length, 0, "a view gone leaves nothing in the frame")
+            compare(root.chrome.parts.length, 0, "a view gone leaves nothing in the frame")
         }
         function cleanup() {
             coverLoader.active = false
@@ -321,7 +269,7 @@ Rectangle {
         // last view's rows over it.
         function open(page, layout) {
             root.menuLayout = layout
-            frameChrome.pageTo(null)
+            root.chrome.pageTo(null)
             loader.sourceComponent = page
             verify(loader.item !== null)
             wait(0)
@@ -351,7 +299,7 @@ Rectangle {
         function test_noFrameInTheTwoColourLayouts(data) {
             var page = open(menuPage, data.layout)
             verify(!root.monitorFramed)
-            verify(!frameChrome.visible)
+            verify(!root.chrome.visible)
             compare(page.bar.opacity, 1)
             compare(page.hint.opacity, 1)
             compare(page.help.opacity, 1)
@@ -362,6 +310,31 @@ Rectangle {
             var row = find(page.list, function(item) { return item.label === "Row 1" && item.handed !== undefined })
             verify(row !== null)
             verify(!row.handed, "a row draws itself, the camcorder's way")
+        }
+
+        // The title bar, the help line and the hint bar each stand in their
+        // place on their own, where every view had anchored them: the title
+        // bar the gutter in from the top left, the hint bar above the foot,
+        // the help line over it, or in its place with the hint bar off. A
+        // view's anchors win over that place.
+        function test_barsInTheirPlace() {
+            var page = open(barePage, "Standard")
+            compare(page.bar.x, root.sw * 0.125)
+            compare(page.bar.y, root.sh * 0.125)
+            compare(page.hint.x, root.sw * 0.125)
+            compare(page.hint.y, page.height - page.hint.height - root.sh * 0.1041667)
+            compare(page.help.x, root.sw * 0.125)
+            compare(page.help.y, page.height - page.help.height - root.sh * 0.1583333)
+            root.hintBar = false
+            compare(page.help.y, page.height - page.help.height - root.sh * 0.1041667)
+            // The foot followed as the view's height changes.
+            page.height = 400
+            compare(page.hint.y, 400 - page.hint.height - root.sh * 0.1041667)
+            compare(page.help.y, 400 - page.help.height - root.sh * 0.1041667)
+            compare(page.bar.y, root.sh * 0.125)
+            // Anchored elsewhere, where the anchors put it.
+            compare(page.moved.x, page.width - page.moved.width - 5)
+            compare(page.moved.y, 10)
         }
 
         // A page's bars hand what they hold to the frame and draw nothing;
@@ -378,29 +351,29 @@ Rectangle {
                       guide: ["[ESC] Back", "[▲▼] Navigate", "[ENTER] Select"] }]
         }
         function test_barsHandedToTheFrame(data) {
-            frameChrome.basePath = ["Settings", "Network"]
+            root.chrome.basePath = ["Settings", "Network"]
             var page = open(menuPage, data.layout)
             verify(root.monitorFramed && root.monitorInk)
-            verify(frameChrome.visible)
+            verify(root.chrome.visible)
             compare(page.bar.opacity, 0)
             compare(page.hint.opacity, 0)
             compare(page.help.opacity, 0)
-            compare(frameChrome.title, data.title)
+            compare(root.chrome.title, data.title)
             // Broadcast's colons stand in a column: the words padded to it.
-            var guide = frameChrome.guide
+            var guide = root.chrome.guide
             compare(guide.map(function(line) { return line.replace(/ +/g, " ") }), data.guide)
             if (data.layout === "Broadcast") {
                 compare(guide[0].indexOf(":"), guide[1].indexOf(":"))
                 compare(guide[0].indexOf(":"), guide[2].indexOf(":"))
             }
-            compare(frameChrome.helpText, "What row 1 does")
+            compare(root.chrome.helpText, "What row 1 does")
             keyClick(Qt.Key_Down)
-            compare(frameChrome.helpText, "What row 2 does")
+            compare(root.chrome.helpText, "What row 2 does")
             // The view's two colours are the layout's.
             verify(Qt.colorEqual(root.primaryColor, root.menuPalette.ink))
             verify(Qt.colorEqual(root.surfaceColor, root.menuPalette.ground))
             // The way to whatever the page opens is its own.
-            compare(frameChrome.viewPath, ["Settings", "Network", "Wi-Fi"])
+            compare(root.chrome.viewPath, ["Settings", "Network", "Wi-Fi"])
         }
 
         // Its rows lie where the frame has them, drawn as the layout draws a
@@ -408,10 +381,10 @@ Rectangle {
         function test_rowsInThePane_data() { return layouts() }
         function test_rowsInThePane(data) {
             var page = open(menuPage, data.layout)
-            compare(page.list.x, frameChrome.listX)
-            compare(page.list.y, frameChrome.listY)
-            compare(page.list.width, frameChrome.listWidth)
-            compare(page.list.height, frameChrome.listHeight)
+            compare(page.list.x, root.chrome.listX)
+            compare(page.list.y, root.chrome.listY)
+            compare(page.list.width, root.chrome.listWidth)
+            compare(page.list.height, root.chrome.listHeight)
             var row = find(page.list, function(item) { return item.label === "Row 1" && item.handed !== undefined })
             verify(row !== null && row.handed)
             var drawn = find(row, function(item) { return item.pal !== undefined && item.label === "Row 1" })
@@ -420,14 +393,14 @@ Rectangle {
             verify(drawn.selected)
             var withBoth = page.list.height
             // Whole rows of it.
-            fuzzyCompare(withBoth / frameChrome.rowHeight, Math.round(withBoth / frameChrome.rowHeight), 0.001)
+            fuzzyCompare(withBoth / root.chrome.rowHeight, Math.round(withBoth / root.chrome.rowHeight), 0.001)
             root.helpLine = false
             verify(page.list.height > withBoth, "the help line's room is the rows'")
-            compare(frameChrome.helpText, "")
+            compare(root.chrome.helpText, "")
             var withoutHelp = page.list.height
             root.hintBar = false
             verify(page.list.height >= withoutHelp)
-            verify(page.list.y + page.list.height <= frameChrome.tallBottom + 0.5)
+            verify(page.list.y + page.list.height <= root.chrome.tallBottom + 0.5)
         }
 
         // Flat Panel: the rows a page at a time, the frame saying which.
@@ -435,27 +408,27 @@ Rectangle {
             var page = open(menuPage, "Flat Panel")
             var view = find(page.list, function(item) { return item.contentY !== undefined && item.count === 20 })
             verify(view !== null)
-            var per = Math.floor(view.height / frameChrome.rowHeight + 0.001)
-            tryCompare(frameChrome, "pages", Math.ceil(20 / per))
-            compare(frameChrome.page, 0)
+            var per = Math.floor(view.height / root.chrome.rowHeight + 0.001)
+            tryCompare(root.chrome, "pages", Math.ceil(20 / per))
+            compare(root.chrome.page, 0)
             for (var i = 0; i < per; i++)
                 keyClick(Qt.Key_Down)
             compare(page.list.currentIndex, per)
-            compare(frameChrome.page, 1)
-            fuzzyCompare(view.contentY, view.originY + per * frameChrome.rowHeight, 0.01)
+            compare(root.chrome.page, 1)
+            fuzzyCompare(view.contentY, view.originY + per * root.chrome.rowHeight, 0.01)
             keyClick(Qt.Key_Up)
-            compare(frameChrome.page, 0)
+            compare(root.chrome.page, 0)
             compare(view.contentY, view.originY)
             // Round from the first row to the last: the last page, its top
             // within the list.
             page.list.currentIndex = 0
             keyClick(Qt.Key_Up)
             compare(page.list.currentIndex, 19)
-            compare(frameChrome.page, frameChrome.pages - 1)
+            compare(root.chrome.page, root.chrome.pages - 1)
             verify(view.contentY <= view.originY + view.contentHeight - view.height + 0.5)
             // The other two scroll, and count no pages.
             var other = open(menuPage, "Studio Monitor")
-            compare(frameChrome.pages, 1)
+            compare(root.chrome.pages, 1)
         }
 
         // A list that draws its own rows: paged by its ListPager, as tall as
@@ -463,17 +436,17 @@ Rectangle {
         function test_ownListInThePane_data() { return layouts() }
         function test_ownListInThePane(data) {
             var page = open(listPage, data.layout)
-            compare(page.list.x, frameChrome.listX)
-            compare(page.list.y, frameChrome.listY)
-            compare(page.list.height, frameChrome.tallHeight)
-            compare(frameChrome.helpText, "")
-            var per = Math.floor(page.list.height / frameChrome.rowHeight + 0.001)
+            compare(page.list.x, root.chrome.listX)
+            compare(page.list.y, root.chrome.listY)
+            compare(page.list.height, root.chrome.tallHeight)
+            compare(root.chrome.helpText, "")
+            var per = Math.floor(page.list.height / root.chrome.rowHeight + 0.001)
             if (data.layout === "Flat Panel") {
                 verify(page.pager.paging)
-                tryCompare(frameChrome, "pages", Math.ceil(25 / per))
+                tryCompare(root.chrome, "pages", Math.ceil(25 / per))
                 page.list.currentIndex = per
-                compare(frameChrome.page, 1)
-                fuzzyCompare(page.list.contentY, page.list.originY + per * frameChrome.rowHeight, 0.01)
+                compare(root.chrome.page, 1)
+                fuzzyCompare(page.list.contentY, page.list.originY + per * root.chrome.rowHeight, 0.01)
                 // A list that doesn't show counts no pages (Camcorder's
                 // column, which is hidden in this layout; a list under a
                 // keyboard).
@@ -483,10 +456,33 @@ Rectangle {
                 verify(page.pager.paging)
             } else {
                 verify(!page.pager.paging)
-                compare(frameChrome.pages, 1)
+                compare(root.chrome.pages, 1)
             }
-            compare(frameChrome.title, data.layout === "Studio Monitor" ? "Movies"
+            compare(root.chrome.title, data.layout === "Studio Monitor" ? "Movies"
                                      : data.layout === "Broadcast" ? "Movies" : ">Jellyfin >Movies")
+        }
+
+        // A list's line while it has no rows (PaneMessage) in the middle of
+        // the pane, and as wide: where every view has its list, beside
+        // Camcorder's column, in a monitor layout's frame; a long one wraps
+        // there.
+        function test_messageInThePane_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }].concat(layouts())
+        }
+        function test_messageInThePane(data) {
+            root.framed = data.framed === true
+            var page = open(messagePage, data.layout)
+            compare(page.message.x, root.paneX)
+            compare(page.message.width, root.paneWidth)
+            if (data.layout === "Standard")
+                compare(page.message.x, root.sw * 0.115625)
+            fuzzyCompare(page.message.y + page.message.height / 2, page.height / 2, 1)
+            var oneLine = page.message.height
+            page.message.text = "THE SERVER DID NOT ANSWER: IT MAY BE OFF, OR ON ANOTHER NETWORK THAN THIS ONE"
+            verify(page.message.height > oneLine, "a long message wraps")
+            verify(page.message.contentWidth <= page.message.width + 0.5)
+            fuzzyCompare(page.message.y + page.message.height / 2, page.height / 2, 1)
         }
 
         // A question is asked in the layout: its title the frame's, its
@@ -494,16 +490,16 @@ Rectangle {
         // the view's own come back with it gone.
         function test_questionAskedInTheFrame_data() { return layouts() }
         function test_questionAskedInTheFrame(data) {
-            frameChrome.basePath = ["Settings", "Network"]
+            root.chrome.basePath = ["Settings", "Network"]
             var page = open(menuPage, data.layout)
-            var own = frameChrome.title
+            var own = root.chrome.title
             page.question.open()
             wait(0)
             verify(root.monitorInk, "a question leaves the frame's colours in force")
-            verify(frameChrome.frontLayer !== null)
-            compare(frameChrome.title, "Forget this network?")
-            compare(frameChrome.helpText, "")
-            compare(frameChrome.viewPath, ["Settings", "Network", "Wi-Fi"])
+            verify(root.chrome.frontLayer !== null)
+            compare(root.chrome.title, "Forget this network?")
+            compare(root.chrome.helpText, "")
+            compare(root.chrome.viewPath, ["Settings", "Network", "Wi-Fi"])
             var prompt = find(page.question, function(item) { return item.choices !== undefined && item.paned !== undefined })
             verify(prompt !== null && prompt.monitor)
             var ground = find(prompt, function(item) { return item.frameRole === "layer" })
@@ -511,18 +507,18 @@ Rectangle {
             // What it covers has the corners of what is under it: Studio
             // Monitor's inside is round, and the frame shows in its corners.
             var covered = find(ground, function(item) {
-                return item.radius !== undefined && item.visible && item.width === frameChrome.cover.width
+                return item.radius !== undefined && item.visible && item.width === root.chrome.cover.width
             })
             verify(covered !== null)
-            compare(covered.radius, frameChrome.coverCorner)
-            compare(frameChrome.coverCorner > 0, data.layout === "Studio Monitor")
+            compare(covered.radius, root.chrome.coverCorner)
+            compare(root.chrome.coverCorner > 0, data.layout === "Studio Monitor")
             keyClick(Qt.Key_Down)
             compare(page.question.choiceIndex, 1)
             keyClick(Qt.Key_Escape)
             verify(!page.question.visible)
-            compare(frameChrome.frontLayer, null)
-            compare(frameChrome.title, own)
-            compare(frameChrome.helpText, "What row 1 does")
+            compare(root.chrome.frontLayer, null)
+            compare(root.chrome.title, own)
+            compare(root.chrome.helpText, "What row 1 does")
         }
 
         // Studio Monitor's window is one blue shape: the tab goes down into
@@ -530,10 +526,10 @@ Rectangle {
         // side and the key guide is written on its foot. The black inside
         // lies within it, where the rows are.
         function test_studioWindowIsOnePiece() {
-            frameChrome.icons = ["play", "stop", "eject"]
+            root.chrome.icons = ["play", "stop", "eject"]
             var page = open(menuPage, "Studio Monitor")
             var part = function(name) {
-                return find(frameChrome, function(item) { return item.objectName === name })
+                return find(root.chrome, function(item) { return item.objectName === name })
             }
             var body = part("frameBody"), tab = part("frameTab"), inside = part("frameInside")
             var strip = part("frameStrip"), guide = part("frameGuide")
@@ -550,8 +546,8 @@ Rectangle {
             var edge = inside.y - body.y
             verify(edge > 0)
             fuzzyCompare(body.x + body.width - (inside.x + inside.width), edge, 0.01)
-            compare(inside.x, frameChrome.cover.x)
-            compare(inside.width, frameChrome.cover.width)
+            compare(inside.x, root.chrome.cover.x)
+            compare(inside.width, root.chrome.cover.width)
             verify(page.list.x >= inside.x && page.list.x + page.list.width <= inside.x + inside.width)
             verify(page.list.y >= inside.y && page.list.y + page.list.height <= inside.y + inside.height)
             // The icons: as much of the frame before them as after.
@@ -568,7 +564,7 @@ Rectangle {
             wait(0)
             verify(!guide.visible)
             fuzzyCompare(body.y + body.height - (inside.y + inside.height), edge, 0.01)
-            frameChrome.icons = []
+            root.chrome.icons = []
         }
 
         // A layer over the whole screen takes the view out of the frame
@@ -583,14 +579,14 @@ Rectangle {
             verify(!root.monitorInk)
             verify(Qt.colorEqual(root.primaryColor, root.schemeInk))
             compare(page.bar.opacity, 1)
-            compare(page.list.y, frameChrome.listY)
+            compare(page.list.y, root.chrome.listY)
             // The chrome goes with the ink: the layer's ground is the
             // stage's, and the tab and the window's corners showed round it.
-            verify(!frameChrome.visible, "no chrome round the layer")
+            verify(!root.chrome.visible, "no chrome round the layer")
             coverLoader.active = false
             wait(0)
             verify(root.monitorInk)
-            verify(frameChrome.visible)
+            verify(root.chrome.visible)
             compare(page.bar.opacity, 0)
         }
 
@@ -600,7 +596,7 @@ Rectangle {
             root.viewInFrame = false
             var page = open(menuPage, data.layout)
             verify(!root.monitorFramed && !root.monitorInk)
-            verify(!frameChrome.visible)
+            verify(!root.chrome.visible)
             compare(page.bar.opacity, 1)
             compare(page.list.y, root.sh * 0.25)
         }
@@ -613,15 +609,15 @@ Rectangle {
             var page = open(treePage, data.layout)
             var tree = page.tree
             verify(tree.monitor)
-            var room = data.layout === "Flat Panel" ? tree.pad : frameChrome.gutter
-            compare(tree.leftEdge, frameChrome.listX + room)
-            compare(tree.rightEdge, frameChrome.listX + frameChrome.listWidth - tree.pad)
-            compare(tree.areaBottom, frameChrome.tallBottom)
+            var room = data.layout === "Flat Panel" ? tree.pad : root.chrome.gutter
+            compare(tree.leftEdge, root.chrome.listX + room)
+            compare(tree.rightEdge, root.chrome.listX + root.chrome.listWidth - tree.pad)
+            compare(tree.areaBottom, root.chrome.tallBottom)
             compare(tree.windowed, data.layout === "Studio Monitor")
-            compare(frameChrome.title, data.layout === "Flat Panel" ? ">Local Files" : "Local Files")
+            compare(root.chrome.title, data.layout === "Flat Panel" ? ">Local Files" : "Local Files")
             keyClick(Qt.Key_Right)
             tryCompare(tree, "folderName", "Action")
-            compare(frameChrome.title, data.layout === "Studio Monitor" ? "Action"
+            compare(root.chrome.title, data.layout === "Studio Monitor" ? "Action"
                                      : data.layout === "Broadcast" ? "Action" : ">Local Files >Action")
             // The cursor is the layout's: no bar of the scheme's, and what
             // is written on it in the layout's text colour.
@@ -650,21 +646,46 @@ Rectangle {
 
         // The key guide made from a hint line, and the way joined.
         function test_guideAndPath() {
-            compare(frameChrome.hintPairs("[ESC]:BACK [▲▼]:NAVIGATE [►]:ADD TO PLAYLIST [ENTER]:PLAY").length, 4)
-            compare(frameChrome.hintPairs("[ESC]:BACK [▲▼]:NAVIGATE [►]:ADD TO PLAYLIST [ENTER]:PLAY")[2].label, "ADD TO PLAYLIST")
-            compare(frameChrome.hintPairs("[►]/[ENTER]:OPEN")[0].key, "[►]/[ENTER]")
-            compare(frameChrome.hintPairs("HOLD ANY BUTTON TO STOP (9)").length, 0)
-            compare(frameChrome.titleCase("ADD TO PLAYLIST"), "Add To Playlist")
-            compare(frameChrome.joined(["Settings", "TV / Movie"], ["Settings", "Plex"]), ["Settings", "TV / Movie", "Plex"])
-            compare(frameChrome.joined(["Settings", "Look"], ["Settings", "Look", "Effects"]), ["Settings", "Look", "Effects"])
-            compare(frameChrome.joined([], ["Local Files", "Action"]), ["Local Files", "Action"])
+            compare(root.chrome.hintPairs("[ESC]:BACK [▲▼]:NAVIGATE [►]:ADD TO PLAYLIST [ENTER]:PLAY").length, 4)
+            compare(root.chrome.hintPairs("[ESC]:BACK [▲▼]:NAVIGATE [►]:ADD TO PLAYLIST [ENTER]:PLAY")[2].label, "ADD TO PLAYLIST")
+            compare(root.chrome.hintPairs("[►]/[ENTER]:OPEN")[0].key, "[►]/[ENTER]")
+            compare(root.chrome.hintPairs("HOLD ANY BUTTON TO STOP (9)").length, 0)
+            compare(root.chrome.titleCase("ADD TO PLAYLIST"), "Add To Playlist")
+            compare(root.chrome.joined(["Settings", "TV / Movie"], ["Settings", "Plex"]), ["Settings", "TV / Movie", "Plex"])
+            compare(root.chrome.joined(["Settings", "Look"], ["Settings", "Look", "Effects"]), ["Settings", "Look", "Effects"])
+            compare(root.chrome.joined([], ["Local Files", "Action"]), ["Local Files", "Action"])
             // A hint line that is no keys is said as it is.
             var page = open(menuPage, "Studio Monitor")
             page.hint.text = "HOLD ANY BUTTON TO STOP (9)"
-            compare(frameChrome.guide, ["HOLD ANY BUTTON TO STOP (9)"])
+            compare(root.chrome.guide, ["HOLD ANY BUTTON TO STOP (9)"])
             // A view's own lines for the guide come first.
             page.hint.guide = ["[▲▼]:MENU/ITEM"]
-            compare(frameChrome.guide, ["[▲▼]:MENU/ITEM"])
+            compare(root.chrome.guide, ["[▲▼]:MENU/ITEM"])
+        }
+
+        // A hint line made from its parts (Hints.js, Main.qml's
+        // root.hintLine()): each key's hint and what it does, a space apart,
+        // a part "" left out, what it does kept whole; a hint bar's line
+        // following the hints from the keyboard's to a pad's and back. And
+        // the keys that are back (root.isBack()).
+        function test_hintLineAndBack() {
+            compare(Hints.line(root.keyboardHints, ["back:BACK", "navigate:NAVIGATE", "select:SELECT"]),
+                    "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT")
+            compare(Hints.line(root.keyboardHints, ["back:BACK", "", "select:SIGN IN"]), "[ESC]:BACK [ENTER]:SIGN IN")
+            compare(Hints.line(root.keyboardHints, ["change:", "select:A:B"]), "[◄►]: [ENTER]:A:B")
+            compare(Hints.line(root.keyboardHints, ["", ""]), "")
+            var page = open(barePage, "Standard")
+            page.hint.text = Qt.binding(function() { return root.hintLine(["back:BACK", "select:OK"]) })
+            compare(page.hint.text, "[ESC]:BACK [ENTER]:OK")
+            root.hints = Object.assign({}, root.keyboardHints, { back: "(B)", select: "(A)" })
+            compare(page.hint.text, "(B):BACK (A):OK")
+            root.hints = root.keyboardHints
+            compare(page.hint.text, "[ESC]:BACK [ENTER]:OK")
+            verify(root.isBack({ key: Qt.Key_Escape }))
+            verify(root.isBack({ key: Qt.Key_Backspace }))
+            verify(root.isBack({ key: Qt.Key_Back }))
+            verify(!root.isBack({ key: Qt.Key_Return }))
+            verify(!root.isBack({ key: Qt.Key_Left }))
         }
     }
 }

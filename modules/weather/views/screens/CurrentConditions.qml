@@ -34,7 +34,7 @@ Item {
     // Tinted at runtime rather than shipped coloured — the app has a custom
     // colour scheme feature, and a baked-in colour would be wrong the moment
     // anyone changes theme: drawn through the app's icon provider in the
-    // accent colour, as the title bar's icon is (AppBar).
+    // scheme's colour, as the title bar's icon is (AppBar).
     Image {
         id: icon
         anchors.right: parent.right
@@ -46,7 +46,7 @@ Item {
         // broken-image box.
         visible: source != ""
         source: screen.wx.iconName
-            ? "image://osdicon/" + root.accentColor.toString().replace("#", "") + "/"
+            ? "image://osdicon/" + root.primaryColor.toString().replace("#", "") + "/"
               + Qt.resolvedUrl("../../assets/images/wx/" + screen.wx.iconName + ".svg")
             : ""
     }
@@ -56,7 +56,7 @@ Item {
         anchors.top: title.bottom
         anchors.topMargin: root.sh * 0.0854167 //41
         text: (screen.wx.condition || "") + " " + (screen.wx.temperature || "")
-        color: root.accentColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.pixelSize: root.sh * 0.0875 //42
         // A long condition ("THUNDERSTORM HAIL -12°") cut short at the

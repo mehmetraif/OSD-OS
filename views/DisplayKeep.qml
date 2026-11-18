@@ -49,7 +49,7 @@ FocusScope {
         var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
         if (!keepRoot.asking) {
             // The notice: select or back closes it.
-            if (enter || event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
+            if (enter || root.isBack(event))
                 displayOutput.dismissNotice()
             return
         }
@@ -57,8 +57,7 @@ FocusScope {
             keepRoot.choiceIndex = 1 - keepRoot.choiceIndex
         } else if (enter && keepRoot.choiceIndex === 0) {
             displayOutput.keep()
-        } else if (enter || event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace
-                   || event.key === Qt.Key_Back) {
+        } else if (enter || root.isBack(event)) {
             displayOutput.revert()
         }
     }
@@ -75,7 +74,6 @@ FocusScope {
         choices: keepRoot.asking ? ["Keep", "Switch Back"] : []
         currentIndex: keepRoot.choiceIndex
         onHovered: function(index) { keepRoot.choiceIndex = index }
-        hint: keepRoot.asking ? root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
-                              : root.hints.select + ":OK"
+        hint: root.hintLine(keepRoot.asking ? ["navigate:NAVIGATE", "select:SELECT"] : ["select:OK"])
     }
 }

@@ -1,9 +1,13 @@
 #include "AppCore.h"
 #include "modules/local_files/LocalFilesBackend.h"
 #include "util/AtomicFile.h"
+#include "util/PlaybackOptions.h"
+#include "util/PositionHistory.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QThreadPool>
@@ -160,6 +164,80 @@ private slots:
         LocalFilesBackend backend(tmp.path(), tmp.path(), &restored);
         QCOMPARE(backend.getSavedPosition("film.mp4").value("pos").toInt(), 12345);
         QVERIFY(backend.getSavedPosition("other.mp4").isEmpty());
+        // Saved as a number alone, as Local Files once saved them: its pos.
+        QVERIFY(writeFileAtomically(tmp.path() + "/local_files_history.json", R"({"old.mp4": 4321})"));
+        QCOMPARE(backend.getSavedPosition("old.mp4"), QVariantMap({ { "pos", 4321 }, { "plPos", -1 } }));
+
+        // A thousand kept, the most recently played: one more puts out the
+        // one played longest ago.
+        QJsonObject full;
+        for (int i = 0; i < 1000; ++i)
+            full.insert(QString("film%1.mp4").arg(i), QJsonObject{ { "pos", 1000 }, { "plPos", -1 }, { "lastPlayed", i + 1 } });
+        QVERIFY(writeFileAtomically(tmp.path() + "/local_files_history.json", QJsonDocument(full).toJson()));
+        backend.savePosition("new.mp4", 5000, -1);
+        QCOMPARE(backend.getSavedPosition("new.mp4").value("pos").toInt(), 5000);
+        QVERIFY(backend.getSavedPosition("film0.mp4").isEmpty());
+        QCOMPARE(backend.getSavedPosition("film1.mp4").value("pos").toInt(), 1000);
+    }
+
+    // The resume points' file (util/PositionHistory.h): an entry saved in
+    // place of the one before, with when it was played, one cleared, all of
+    // them cleared with the file; and with a limit, the entries played
+    // longest ago going first once a save goes over it (one saved before
+    // there was a time first), never the one just saved.
+    void positionHistoryKeepsTheMostRecent() {
+        QTemporaryDir tmp;
+        const QString path = tmp.path() + "/history.json";
+        PositionHistory unlimited(path);
+        for (int i = 0; i < 5; ++i)
+            unlimited.save(QString::number(i), { { "pos", i } });
+        const qint64 before = QDateTime::currentMSecsSinceEpoch();
+        unlimited.save("1", { { "pos", 10 } });
+        QCOMPARE(unlimited.entries().size(), 5);
+        QCOMPARE(unlimited.entry("1").toMap().value("pos").toInt(), 10);
+        QVERIFY(unlimited.entry("1").toMap().value("lastPlayed").toLongLong() >= before);
+        unlimited.clear("1");
+        QVERIFY(!unlimited.entry("1").isValid());
+        QCOMPARE(unlimited.entries().size(), 4);
+        unlimited.clearAll();
+        QVERIFY(!QFile::exists(path));
+        QVERIFY(unlimited.entries().isEmpty());
+
+        // Two played long ago, one before there was a time, and three more.
+        QVERIFY(writeFileAtomically(path, R"({"old": {"pos": 1}, "a": {"pos": 2, "lastPlayed": 300},)"
+                                          R"( "b": {"pos": 3, "lastPlayed": 200}})"));
+        PositionHistory limited(path, 3);
+        limited.save("c", { { "pos", 4 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "a", "b", "c" }));
+        limited.save("d", { { "pos", 5 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "a", "c", "d" }));
+        limited.save("a", { { "pos", 6 } });
+        QCOMPARE(limited.entries().keys(), QStringList({ "a", "c", "d" }));
+        limited.save("e", { { "pos", 7 } });
+        QCOMPARE(limited.entries().keys().size(), 3);
+        QVERIFY(limited.entries().contains("e"));
+    }
+
+    // The playback settings' choices Local Files and the NFC Reader share
+    // (util/PlaybackOptions.h): Subtitle Language is Any, then each name of
+    // the one list once, from Local Files' folder; none without the list.
+    void subtitleLanguagesFromOneList() {
+        QTemporaryDir app;
+        QCOMPARE(playbackoptions::subtitleLanguages(app.path()), QVariantList());
+        QVERIFY(QDir().mkpath(app.path() + "/modules/local_files"));
+        QVERIFY(writeFileAtomically(app.path() + "/modules/local_files/iso639-1.json",
+                                    R"([{"id":"en","label":"English"},{"id":"fr","label":"French"},)"
+                                    R"({"id":"xx","label":""},{"id":"eng","label":"English"}])"));
+        const QVariantList expected{ QVariantMap{ { "id", "-" }, { "label", "Any" } },
+                                     QVariantMap{ { "id", "en" }, { "label", "English" } },
+                                     QVariantMap{ { "id", "fr" }, { "label", "French" } } };
+        QCOMPARE(playbackoptions::subtitleLanguages(app.path()), expected);
+        LocalFilesBackend backend(app.path(), app.path(), nullptr);
+        QSignalSpy options(&backend, &LocalFilesBackend::dynamicOptionsReady);
+        backend.get_subtitle_languages();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QString("sub_lang"));
+        QCOMPARE(options.first().at(1).toList(), expected);
     }
 
     // config.json edited by hand and left unreadable (a stray comma) is not
@@ -348,6 +426,45 @@ private slots:
         QCOMPARE(module.size(), 1);
         QCOMPARE(core.get_setting("", "color_scheme").toString(), QString("Video 2"));
         QCOMPARE(core.get_setting("com.osdos.arcade", "video").toString(), QString("BGFX"));
+#endif
+    }
+
+    // A change to a list lists.json couldn't take (a full card), or one there
+    // but unreadable, is reported not saved, as a setting is, and the list
+    // stays as the file has it.
+    void unsavedListIsReported() {
+#ifndef Q_OS_UNIX
+        QSKIP("Requires a Unix file size limit");
+#else
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        const QString id = "com.osdos.local_files";
+        QVERIFY(core.add_to_list(id, "favorites", {{"path", "/a.mp4"}}));
+        QVERIFY(core.remove_from_list(id, "recent", "/none.mp4"));
+        // Nothing to add: nothing to save, so nothing failed.
+        QVERIFY(core.add_all_to_list(id, "favorites", {}));
+
+        std::signal(SIGXFSZ, SIG_IGN);
+        rlimit limit{};
+        QCOMPARE(getrlimit(RLIMIT_FSIZE, &limit), 0);
+        const rlimit full{ 1, limit.rlim_max };
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &full), 0);
+        const bool added = core.add_to_list(id, "favorites", {{"path", "/b.mp4"}});
+        const bool addedAll = core.add_all_to_list(id, "favorites", QVariantList{ QVariantMap{{"path", "/c.mp4"}} });
+        const bool removed = core.remove_from_list(id, "favorites", "/a.mp4");
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &limit), 0);
+        QVERIFY(!added);
+        QVERIFY(!addedAll);
+        QVERIFY(!removed);
+        QVERIFY(core.list_contains(id, "favorites", "/a.mp4"));
+        QVERIFY(!core.list_contains(id, "favorites", "/b.mp4"));
+        QVERIFY(!core.list_contains(id, "favorites", "/c.mp4"));
+
+        // There but unreadable: not written over, and said so.
+        QVERIFY(writeFileAtomically(tmp.path() + "/lists.json", "{\"com.osdos.local_files\": {"));
+        QVERIFY(!core.add_to_list(id, "favorites", {{"path", "/b.mp4"}}));
+        QVERIFY(!core.remove_from_list(id, "favorites", "/a.mp4"));
 #endif
     }
 

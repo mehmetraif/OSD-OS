@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <utility>
 
+static const QString kModuleId = QStringLiteral("com.osdos.youtube");
 static const char *kSubscriptionsFileName = "youtube_subscriptions.txt";
 static const char *kPlaylistsFileName     = "youtube_playlists.txt";
 
@@ -44,7 +45,8 @@ static QString watchUrlFor(const QString &videoId) {
 
 YouTubeBackend::YouTubeBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
                                DisplayHandoff *handoff, QObject *parent)
-    : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot), m_appCore(appCore)
+    : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot), m_appCore(appCore),
+      m_history(dataRoot + "/youtube_history.json", kMaxHistoryItems)
 {
     // Google's sign-in as YouTube's own SIGN IN button opens it, back to
     // YouTube once signed in. Nothing to browse, so no catalogue.
@@ -56,7 +58,7 @@ YouTubeBackend::YouTubeBackend(const QString &appRoot, const QString &dataRoot, 
         "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue"
         "%26app%3Ddesktop%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252F");
     service.needsChromium = true;
-    m_browser = new WebPlayerBackend(service, appRoot, dataRoot, handoff, this);
+    m_browser = new WebPlayerBackend(service, appRoot, dataRoot, appCore, handoff, this);
 }
 
 QObject *YouTubeBackend::browser() const {
@@ -121,8 +123,7 @@ QStringList YouTubeBackend::listLines(const char *key, const char *fileName) con
             lines << line;
     };
     if (m_appCore) {
-        const QVariantList typed = m_appCore->get_setting(QStringLiteral("com.osdos.youtube"),
-                                                          QLatin1String(key)).toList();
+        const QVariantList typed = m_appCore->get_setting(kModuleId, QLatin1String(key)).toList();
         for (const QVariant &line : typed)
             take(line.toString());
     }
@@ -671,7 +672,7 @@ QStringList YouTubeBackend::playbackArgs(const QVariantMap &settings) const {
 QVariantMap YouTubeBackend::playbackSettings() const {
     auto setting = [this](const char *key, const char *fallback) {
         const QString value = m_appCore
-            ? m_appCore->get_setting(QStringLiteral("com.osdos.youtube"), QLatin1String(key)).toString()
+            ? m_appCore->get_setting(kModuleId, QLatin1String(key)).toString()
             : QString();
         return value.isEmpty() ? QString::fromLatin1(fallback) : value;
     };
@@ -715,24 +716,8 @@ void YouTubeBackend::get_subtitle_languages() {
 // the History list (nothing to display) and pruned first (lastPlayed 0).
 // ---------------------------------------------------------------------------
 
-QString YouTubeBackend::historyFilePath() const {
-    return m_dataRoot + "/youtube_history.json";
-}
-
-QVariantMap YouTubeBackend::loadHistory() const {
-    QFile file(historyFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return {};
-    return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
-}
-
-void YouTubeBackend::saveHistory(const QVariantMap &history) {
-    writeFileAtomically(historyFilePath(),
-                        QJsonDocument(QJsonObject::fromVariantMap(history)).toJson(QJsonDocument::Compact));
-}
-
 QVariantMap YouTubeBackend::getSavedPosition(const QString &videoId) {
-    const QVariant val = loadHistory().value(videoId);
+    const QVariant val = m_history.entry(videoId);
     if (!val.isValid())
         return {};
     return val.toMap();
@@ -740,28 +725,15 @@ QVariantMap YouTubeBackend::getSavedPosition(const QString &videoId) {
 
 void YouTubeBackend::savePosition(const QString &videoId, int positionMs,
                                   const QString &title, const QString &channelName) {
-    QVariantMap history = loadHistory();
     QVariantMap entry;
     entry["pos"]         = positionMs;
     entry["title"]       = title;
     entry["channelName"] = channelName;
-    entry["lastPlayed"]  = QDateTime::currentMSecsSinceEpoch();
-    history[videoId] = entry;
-
-    if (history.size() > kMaxHistoryItems) {
-        QStringList keys = history.keys();
-        std::sort(keys.begin(), keys.end(), [&history](const QString &a, const QString &b) {
-            return history.value(a).toMap().value("lastPlayed").toLongLong()
-                 > history.value(b).toMap().value("lastPlayed").toLongLong();
-        });
-        for (int i = kMaxHistoryItems; i < keys.size(); ++i)
-            history.remove(keys[i]);
-    }
-    saveHistory(history);
+    m_history.save(videoId, entry);     // with lastPlayed, now
 }
 
 QVariantList YouTubeBackend::getHistory() const {
-    const QVariantMap history = loadHistory();
+    const QVariantMap history = m_history.entries();
     QVariantList items;
     for (auto it = history.begin(); it != history.end(); ++it) {
         const QVariantMap entry = it.value().toMap();
@@ -784,7 +756,7 @@ QVariantList YouTubeBackend::getHistory() const {
 }
 
 void YouTubeBackend::delete_history() {
-    QFile::remove(historyFilePath());
+    m_history.clearAll();
 }
 
 // ---------------------------------------------------------------------------
@@ -874,8 +846,7 @@ static QVariantMap treeAction(const QString &name, const QString &kind, const QS
 QVariant YouTubeBackend::entries(const QString &path, bool preview) {
     QVariantList list;
     if (path == QLatin1String("favorites")) {
-        list = m_appCore ? m_appCore->get_list(QStringLiteral("com.osdos.youtube"), QStringLiteral("favorites"))
-                         : QVariantList();
+        list = m_appCore ? m_appCore->get_list(kModuleId, QStringLiteral("favorites")) : QVariantList();
     } else {
         const QVariant listed = listing(path, preview);
         if (!listed.isValid())
@@ -887,7 +858,7 @@ QVariant YouTubeBackend::entries(const QString &path, bool preview) {
     }
     // Shorts are left out with DISPLAY SHORTS off; unset is on.
     const QVariant shorts = m_appCore
-        ? m_appCore->get_setting(QStringLiteral("com.osdos.youtube"), QStringLiteral("display_shorts")) : QVariant();
+        ? m_appCore->get_setting(kModuleId, QStringLiteral("display_shorts")) : QVariant();
     const bool showShorts = !shorts.isValid() || shorts.isNull() || shorts.toBool()
                             || shorts.toString() == QLatin1String("ON");
     if (showShorts)

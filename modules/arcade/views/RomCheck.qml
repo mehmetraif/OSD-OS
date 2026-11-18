@@ -90,10 +90,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Check ROMs"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -103,7 +99,7 @@ FocusScope {
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: romCheckRoot.labelOf(modelData)
             value: romCheckRoot.valueOf(modelData)
             selected: list.currentIndex === index
@@ -116,7 +112,7 @@ FocusScope {
                 arcadeBackend.checkRoms()
         }
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 romCheckRoot.goBack()
                 event.accepted = true
             }
@@ -126,19 +122,11 @@ FocusScope {
     HelpLine {
         always: true
         text: romCheckRoot.descriptionOf(romCheckRoot.keys[list.currentIndex])
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property string key: romCheckRoot.keys[list.currentIndex] || ""
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key === "check" && !romCheckRoot.active ? " " + root.hints.select + ":CHECK" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             key === "check" && !romCheckRoot.active ? "select:CHECK" : ""])
     }
 }

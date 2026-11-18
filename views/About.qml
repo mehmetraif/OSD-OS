@@ -228,10 +228,6 @@ FocusScope {
         subtitle: licensePage.visible ? licensePage.title : root.appVersion
         // The version is no step of the way here; a licence's name is.
         path: licensePage.visible ? ["About", licensePage.title] : ["About"]
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The wordmark, as on the logo: the letters in the scheme's colour, the
@@ -299,12 +295,12 @@ FocusScope {
         anchors.topMargin: aboutRoot.linesTop //180
         height: aboutRoot.monitor
                 ? Math.max(1, Math.floor((root.listY + root.helpedListHeight - aboutRoot.linesTop)
-                                         / (root.sh * 0.0583333) + 0.001)) * root.sh * 0.0583333
+                                         / root.menuRowHeight + 0.001)) * root.menuRowHeight
                 : root.sh * 0.35 + root.hintRoom //168
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: modelData.type === "section"
             label: modelData.label
             // The device's name read here, so that a new one doesn't make the
@@ -328,7 +324,7 @@ FocusScope {
         Keys.onReturnPressed: openRow(aboutRoot.rows[currentIndex])
         Keys.onRightPressed: openRow(aboutRoot.rows[currentIndex])
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 aboutRoot.goBack()
                 event.accepted = true
             }
@@ -340,22 +336,13 @@ FocusScope {
         always: true
         visible: !licensePage.visible
         text: row && row.description ? row.description.split("{select}").join(root.hints.select) : ""
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property var row: aboutRoot.rows[list.currentIndex]
         visible: !licensePage.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (row && row.page ? " " + root.hints.select + ":OPEN"
-                 : row && row.license ? " " + root.hints.select + ":LICENSE" : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             row && row.page ? "select:OPEN" : row && row.license ? "select:LICENSE" : ""])
     }
 
     // A licence, in place of the lines below the title bar: OSD/OS's with the
@@ -394,7 +381,7 @@ FocusScope {
         Keys.onUpPressed: flick.scrollBy(-1)
         Keys.onDownPressed: flick.scrollBy(1)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 licensePage.close()
                 event.accepted = true
             }
@@ -472,11 +459,7 @@ FocusScope {
         }
 
         HintBar {
-            text: root.hints.back + ":BACK " + root.hints.navigate + ":SCROLL"
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
+            text: root.hintLine(["back:BACK", "navigate:SCROLL"])
         }
     }
 }

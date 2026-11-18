@@ -176,10 +176,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "RetroAchievements"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     MenuList {
@@ -190,7 +186,7 @@ FocusScope {
 
         delegate: MenuRow {
             width: list.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: accountRoot.labelOf(modelData)
             value: accountRoot.valueOf(modelData)
             selected: list.currentIndex === index
@@ -199,7 +195,7 @@ FocusScope {
 
         Keys.onReturnPressed: accountRoot.choose(accountRoot.currentKey)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 accountRoot.goBack()
                 event.accepted = true
             }
@@ -210,22 +206,14 @@ FocusScope {
         always: true
         visible: !keyboard.visible
         text: accountRoot.descriptionOf(accountRoot.currentKey)
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     HintBar {
         readonly property string key: accountRoot.currentKey
         visible: !keyboard.visible
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE"
-              + (key !== "" && key !== "state" && key !== "status" ? " " + root.hints.select + ":"
-                 + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : "")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             key !== "" && key !== "state" && key !== "status"
+                             ? "select:" + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : ""])
     }
 
     OnScreenKeyboard {

@@ -14,12 +14,16 @@ if(NOT OSDOS_MULTI_CONFIG AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Release unless set)" FORCE)
 endif()
 
-# Strip qDebug(...) calls in Release builds to reduce CPU/disk noise on Pi
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DQT_NO_DEBUG_OUTPUT")
-
 # Release version string. CI passes the git tag (-DAPP_VERSION=vX.Y.Z); local
 # builds report "dev", which disables the in-app self-update download path.
 set(APP_VERSION "dev" CACHE STRING "Release version (CI passes the git tag)")
+# The same as macOS writes it in the bundle's Info.plist, three numbers: 0.0.43
+# for v0.0.43 (and its -rc builds), 0.0.0 for a build that isn't a release.
+if(APP_VERSION MATCHES "^v?([0-9]+\\.[0-9]+\\.[0-9]+)")
+    set(APP_BUNDLE_VERSION "${CMAKE_MATCH_1}")
+else()
+    set(APP_BUNDLE_VERSION "0.0.0")
+endif()
 
 # The build, for Settings → System → About: the commit the tree was configured from and
 # the day. CI configures each build afresh; a local build keeps its configure's
@@ -88,9 +92,12 @@ add_executable(osdos
     src/util/LegacyNames.cpp
     src/util/Board.cpp
     src/AppCore.cpp
+    src/util/LogSaver.cpp
+    src/util/Looks.cpp
     src/modules/local_files/LocalFilesBackend.cpp
     src/modules/local_files/RemovableDrives.cpp
     src/modules/plex/PlexBackend.cpp
+    src/util/EmbyApiBackend.cpp
     src/modules/jellyfin/JellyfinBackend.cpp
     src/modules/emby/EmbyBackend.cpp
     src/modules/ambient_mode/AmbientModeBackend.cpp
@@ -105,11 +112,14 @@ add_executable(osdos
     src/modules/scripts/ScriptsBackend.cpp
     src/modules/scripts/ScriptLauncher.cpp
     src/modules/arcade/ArcadeBackend.cpp
+    src/modules/arcade/ArcadePictures.cpp
+    src/modules/arcade/LanRooms.cpp
     src/modules/arcade/Mame.cpp
     src/modules/arcade/Libretro.cpp
     src/modules/arcade/FbneoInstaller.cpp
     src/modules/arcade/ProgramInstaller.cpp
     src/modules/arcade/RetroAchievements.cpp
+    src/modules/arcade/RetroAchievementsAccount.cpp
     src/modules/arcade/ArcadeDb.cpp
     src/modules/arcade/RomCheck.cpp
     src/modules/highscores/HighScoresBackend.cpp
@@ -120,6 +130,7 @@ add_executable(osdos
     src/player/EmbeddedMpv.cpp
     src/player/VideoSurface.cpp
     src/player/VhsNoise.cpp
+    src/fx/ArtPixelItem.cpp
     src/fx/SelectorFx.cpp
     src/util/YtDlpLocator.cpp
     src/util/MpvLocator.cpp
@@ -143,6 +154,7 @@ add_executable(osdos
     src/display/DisplayOutput.cpp
     src/audio/AudioOutput.cpp
     src/audio/MenuMusic.cpp
+    src/audio/BackgroundMpv.cpp
     src/bluetooth/BluetoothManager.cpp
     src/wifi/WifiManager.cpp
     src/system/SystemInfo.cpp
@@ -152,6 +164,9 @@ add_executable(osdos
 )
 
 target_compile_definitions(osdos PRIVATE APP_VERSION="${APP_VERSION}" APP_BUILD="${APP_BUILD}")
+# No qDebug() lines in an optimised build (Release, and RelWithDebInfo with
+# its debug symbols), to spare the Pi's CPU and card the noise.
+target_compile_definitions(osdos PRIVATE $<$<CONFIG:Release,RelWithDebInfo>:QT_NO_DEBUG_OUTPUT>)
 # The engines' versions every machine plays with (scripts/engines.env).
 include(cmake/engines.cmake)
 osdos_engine_definitions(osdos)
@@ -351,8 +366,8 @@ endif()
 set_target_properties(osdos PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "OSD-OS"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${APP_BUNDLE_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${APP_BUNDLE_VERSION}"
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.osdos.app"
     MACOSX_BUNDLE_ICON_FILE "packaging/macos/osd-os"
     INSTALL_RPATH_USE_LINK_PATH TRUE

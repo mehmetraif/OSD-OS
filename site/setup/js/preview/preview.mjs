@@ -25,7 +25,7 @@ const EASINGS = {
     Drop: t => 1 - (1 - t) * (1 - t),
     other: t => t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t),
 };
-// One face of the cube as it turns (Main.qml's cubeMatrix()), column after
+// One face of the cube as it turns (WindowChange.qml's cubeMatrix()), column after
 // column as WebGL takes a matrix.
 function cubeMatrix(isNew, progress, direction) {
     const across = direction < 2;

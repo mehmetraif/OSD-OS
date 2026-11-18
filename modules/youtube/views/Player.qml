@@ -12,10 +12,8 @@ FocusScope {
     property string videoUrl: item.url || ""
     property string videoId:  item.videoId || ""
 
-    property bool   overlayVisible:   false
     property bool   playbackStarted:  false
     property int    savedPositionMs:  0
-    property int    choiceIndex:      0
     property var    ytdlArgs:         []
     // Subtitles, from ADVANCED: -2 none, 0 the Subtitle Language's (subLangs).
     property int    subTrack:         -2
@@ -38,7 +36,6 @@ FocusScope {
     focus: true
 
     function play(startMs) {
-        overlayVisible = false
         lastStartMs = startMs
         mpvController.loadAndPlay(videoUrl, startMs / 1000.0, 0, subTrack, [], subLangs, false, -1, 0.0, "", false, "", false, [], 0.0, false, ytdlArgs)
         // How the main menu takes it back once it plays behind the menus, and
@@ -148,7 +145,7 @@ FocusScope {
             if (mpvController.videoActive)
                 mpvController.stop()
             else
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             return
         }
         playerMenu.actions = menuActions()
@@ -170,49 +167,17 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (overlayVisible) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                choiceIndex = 0
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                choiceIndex = 1
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                overlayVisible = false
-                play(choiceIndex === 0 ? savedPositionMs : 0)
-                event.accepted = true
-            }
-        } else {
-            // A key's repeats go as repeats: mpv holds the key down for
-            // them, and lets it go as the key is (Keys.onReleased).
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-                mpvController.sendKey("ESC", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Backspace) {
-                mpvController.sendKey("BS", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                mpvController.sendKey("UP", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                mpvController.sendKey("DOWN", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Left) {
-                mpvController.sendKey("LEFT", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Right) {
-                mpvController.sendKey("RIGHT", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Space) {
-                mpvController.sendKey("SPACE", event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                mpvController.sendKey("ENTER", event.isAutoRepeat)
-                event.accepted = true
-            }
+        // Under the resume question only its Ctrl chords come here: on to
+        // Main.qml (Ctrl+Q), not to mpv.
+        if (resumePrompt.visible)
+            return
+        // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats:
+        // mpv holds the key down for them, and lets it go as the key is
+        // (Keys.onReleased).
+        var key = MpvKeys.name(event.key)
+        if (key !== "") {
+            mpvController.sendKey(key, event.isAutoRepeat)
+            event.accepted = true
         }
     }
     // A key let go: the one mpv holds down for its repeats, if any, with it.
@@ -270,7 +235,7 @@ FocusScope {
             playerMenu.close()
             // CLOSE VIDEO leaves the module for the main menu.
             if (closeToMainMenu)
-                moduleRoot.goBack()
+                moduleRoot.leaveModule()
             else
                 goBack()
         }
@@ -304,7 +269,7 @@ FocusScope {
             play(savedPos)
         } else if (savedPos > 0) {
             savedPositionMs = savedPos
-            overlayVisible = true
+            resumePrompt.open()
         } else {
             play(0)
         }
@@ -324,20 +289,22 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && !failure.visible
+            visible: !resumePrompt.visible && !playbackStarted && !failure.visible
         }
     }
 
-    PromptScreen {
-        visible: overlayVisible
-        title: "Resume playback?"
-        message: item.title || ""
-        choices: [
-            "Resume from " + root.formatTime(savedPositionMs),
-            "Start from the beginning"
-        ]
-        currentIndex: choiceIndex
-        onHovered: function(index) { choiceIndex = index }
+    // Where to start a video with a saved position, while Resume Playback
+    // asks: back leaves.
+    ChoiceOverlay {
+        id: resumePrompt
+        anchors.fill: parent
+        promptText: "Resume playback?"
+        subtitleText: item.title || ""
+        choices: [{ label: "Resume from " + root.formatTime(savedPositionMs), action: "resume" },
+                  { label: "Start from the beginning", action: "start" }]
+        onClosed: playerRoot.forceActiveFocus()
+        onActivated: function(action) { playerRoot.play(action === "resume" ? savedPositionMs : 0) }
+        onCanceled: playerRoot.goBack()
     }
 
     PlayerMenu {

@@ -9,7 +9,7 @@ FocusScope {
 
     property var navParams: ({})
 
-    signal replaceWith(string path, var params)
+    signal replaceCurrent(string path, var params)
     signal goBack()
 
     property string pinCode: ""
@@ -37,7 +37,7 @@ FocusScope {
                 pinAuthRoot.autoUser = users[0]
                 plexBackend.select_user(users[0].id)
             } else {
-                pinAuthRoot.replaceWith("UserSelect.qml", { users: users })
+                pinAuthRoot.replaceCurrent("UserSelect.qml", { users: users })
             }
         }
 
@@ -45,7 +45,7 @@ FocusScope {
         // on "Waiting..." forever.
         function onUserPinRequired(userId, wrongPin) {
             pinAuthRoot.waiting = false
-            pinAuthRoot.replaceWith("ProfilePin.qml", {
+            pinAuthRoot.replaceCurrent("ProfilePin.qml", {
                 userId: userId,
                 title: pinAuthRoot.autoUser ? pinAuthRoot.autoUser.title : "",
                 reauth: false,
@@ -54,7 +54,7 @@ FocusScope {
         }
 
         function onServersLoaded(servers) {
-            pinAuthRoot.replaceWith("ServerSelect.qml", { servers: servers })
+            pinAuthRoot.replaceCurrent("ServerSelect.qml", { servers: servers })
         }
 
         function onErrorOccurred(msg) {
@@ -74,7 +74,7 @@ FocusScope {
 
     focus: true
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         }
@@ -89,10 +89,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Sign in"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Body
@@ -108,7 +104,7 @@ FocusScope {
         Text {
             visible: pinCode !== ""
             text: pinCode
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -119,7 +115,7 @@ FocusScope {
         Text {
             visible: pinCode !== ""
             text: "Visit plex.tv/link and enter the code above"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -134,7 +130,7 @@ FocusScope {
 
             Text {
                 text: "Waiting"
-                color: root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0333333 //16
@@ -143,7 +139,7 @@ FocusScope {
             Text {
                 id: dots
                 text: "..."
-                color: root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.0333333 //16
 
@@ -160,7 +156,7 @@ FocusScope {
         Text {
             visible: pinCode === "" && errorMsg === ""
             text: "Requesting Pin..."
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.horizontalCenter: parent.horizontalCenter
@@ -171,7 +167,7 @@ FocusScope {
         Text {
             visible: errorMsg !== ""
             text: errorMsg
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             width: root.paneWidth //492
@@ -186,9 +182,5 @@ FocusScope {
     HintBar {
         id: footer
         text: root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

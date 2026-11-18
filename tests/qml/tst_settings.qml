@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import OSDOS.Testing
 import "../../views/Components" as Components
 import "../../views/Components/Hover.js" as Hover
 
@@ -12,89 +13,21 @@ import "../../views/Components/Hover.js" as Hover
 // (ModuleSettings, alsoModules). And the title bar its questions share with
 // every view (AppBar): a title too long for it, as a long display output's
 // name makes Switch to …?, scrolls through it.
-Rectangle {
+StandInRoot {
     id: root
-    color: surfaceColor
-    width: 640
-    height: 480
-    // Main.qml's, as the views and their components read them.
-    property real sw: width
-    // The layout's frame and its pane (Main.qml): the column's icons as a
-    // view hands them over, and where a view's rows go.
-    property var frameIcons: []
-    property int frameIndex: 0
-    property bool frameActive: false
-    property bool framed: false
-    readonly property real paneX: monitorFramed ? frameChrome.listX : framed ? sw * 0.209375 : sw * 0.115625
-    readonly property real paneWidth: monitorFramed ? frameChrome.listWidth : framed ? sw * 0.675 : sw * 0.76875
-    // A monitor layout's frame, which the shell draws under the views
-    // (Main.qml's frameChrome): up in a monitor layout, the views' bars
-    // telling it what to write, its place for their rows the pane.
-    readonly property bool monitorFramed: menuPalette !== null
-    readonly property bool monitorInk: monitorFramed
-    readonly property alias chrome: frameChrome
-    readonly property real listY: monitorFramed ? frameChrome.listY : sh * 0.25
-    readonly property real listHeight: monitorFramed ? frameChrome.listHeight : sh * 0.4666667 + helpRoom + hintRoom
-    readonly property real tallListHeight: monitorFramed ? frameChrome.tallHeight : sh * 0.525 + hintRoom
-    readonly property real helpedListHeight: monitorFramed ? frameChrome.helpedHeight : sh * 0.4666667 + hintRoom
-    readonly property real paneTop: monitorFramed ? frameChrome.listY : sh * 0.2083333
-    readonly property real paneBottom: monitorFramed ? frameChrome.tallBottom : sh * 0.8333333
-    Components.MonitorChrome {
-        id: frameChrome
-        anchors.fill: parent
-        visible: root.monitorFramed
-        icons: root.menuLayout === "Studio Monitor" ? root.frameIcons.map(function(entry) { return entry.icon }) : []
-        iconIndex: root.frameIndex
-        iconsActive: root.frameActive
-    }
-    function setFrame(icons, index, active, tall) { frameIcons = icons; frameIndex = index; frameActive = active }
-    property real sh: height
-    property real px: 2
-    property string globalFont: "monospace"
-    property color primaryColor: "white"
-    property color surfaceColor: "black"
-    // A selected cell's box and what is written in it (Main.qml's).
-    readonly property color cursorColor: primaryColor
-    readonly property color cursorInk: surfaceColor
-    property var skin: ({})
-    property bool hintBar: true
-    property bool helpLine: true
-    property var statusIcons: []
-    readonly property real hintRoom: 0
-    readonly property real helpRoom: 0
-    readonly property real helpLineMargin: sh * 0.1583333
-    property rect contentBox: Qt.rect(sw * 0.115625, sh * 0.11875, sw * 0.76875, sh * 0.7770833)
-    property rect osdWindow: contentBox
-    property string osdBackground: "Full"
-    property string osdFrame: "On"
-    property var backgroundEffect: ({})
-    property string backgroundShader: ""
-    property bool effectsRest: true
-    property real fxTime: 0
-    property var selector: null
-    property var hints: ({ back: "[ESC]", navigate: "[▲▼]", arrows: "[▲▼◄►]", change: "[◄►]",
-                           browse: "[►]", left: "[◄]", select: "[ENTER]", play_pause: "[SPACE]" })
+    // White on black in every layout, and the frame's colours in force
+    // whenever it is up.
+    primaryColor: schemeInk
+    surfaceColor: schemePaper
+    cursorColor: primaryColor
+    cursorInk: surfaceColor
+    monitorInk: monitorFramed
     // Settings → Look → Menu Layout, as Main.qml reads it.
-    property string menuLayout: "Standard"
     function menuLayoutOf(raw) {
         return ["Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"].indexOf(raw) >= 0 ? raw : "Standard"
     }
-    readonly property var menuPalette: ({
-        "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
-                            soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
-        "Broadcast":      { ground: "#3A55B4", ink: "#FFFFFF", dim: "#94A8EC", accent: "#FFFFFF",
-                            soft: "#FFFFFF", mark: "#FFFFFF", bar: "#3A55B4" },
-        "Flat Panel":     { ground: "#000000", ink: "#EDEDED", dim: "#7B7B7B", accent: "#7B7B7B",
-                            soft: "#9A9A9A", mark: "#F6CF00", bar: "#4C4C4C" }
-    })[menuLayout] || null
-    property bool videoBehind: false
-    property int backdropSolidity: 100
-    function selectorShown(item, shown) {}
-    function coverShown(item, shown) {}
-    function skinIcon(url) { return url }
     // What Settings reads of Main.qml's own.
     property bool devBuild: true
-    property string appVersion: "1.0.0"
     property bool effectsUsable: true
     property var allSchemes: ({ "Video 1": {}, "Late Night": {} })
     property var textPresets: ({ "Rainbow": {} })
@@ -141,6 +74,8 @@ Rectangle {
         }
         function isAutostartSession() { return false }
         function canRestartSystem() { return false }
+        function restartSystem() {}
+        function exitToTerminal() {}
         // Quit's Save Logs: offered while canLogs, saveLogs() counted, the
         // answer sent with logsSaved().
         property bool canLogs: false
@@ -211,11 +146,27 @@ Rectangle {
         function hasSmoothPlaybackTradeoff() { return false }
         function embeddedAvailable() { return true }
     }
+    // DisplayOutput as the page uses it: a Pi 4's outputs while available,
+    // the one in force and the one written for the next start, and what
+    // was asked of it.
     QtObject {
         id: displayOutput
         property bool available: false
+        property string boardModel: "Raspberry Pi 4 Model B"
+        property var options: [{ id: "hdmi", label: "HDMI" }, { id: "composite", label: "Composite" },
+                               { id: "jamma-240p", label: "JAMMA 240p", warning: "A 15 kHz monitor only" }]
+        property string current: "hdmi"
+        property string currentLabel: "HDMI"
+        property string next: ""
+        property string nextLabel: ""
+        property bool nextStartAvailable: true
+        property bool powerOffAvailable: false
+        property var asked: []
         signal changed()
         signal nextStartFinished(bool ok, string reason)
+        function apply(id) { asked = asked.concat(["now " + id]); return true }
+        function applyAtNextStart(id) { asked = asked.concat(["next " + id]); return true }
+        function applyAndPowerOff(id) { asked = asked.concat(["off " + id]); return true }
     }
     QtObject {
         id: audioOutput
@@ -337,6 +288,11 @@ Rectangle {
             systemSettings.message = ""
             systemSettings.asked = []
             bootProgress.available = true
+            displayOutput.available = false
+            displayOutput.next = ""
+            displayOutput.nextLabel = ""
+            displayOutput.powerOffAvailable = false
+            displayOutput.asked = []
             root.transitionPresets = ["Fade"]
             root.unusableTransitions = []
             audioOutput.available = false
@@ -376,16 +332,16 @@ Rectangle {
             return ""
         }
         // The MenuRow drawn for the line at index: the list's delegate, or
-        // the one in it (a slider's line has its bar beside it).
+        // the one in it (a SettingRow's, which has a slider's bar under it).
         function menuRow(item, index) {
             if (item.itemAtIndex !== undefined) {
                 var d = item.itemAtIndex(index)
                 if (!d)
                     return null
-                if (d.opens !== undefined)
+                if (d.keepValue !== undefined)
                     return d
                 for (var j = 0; j < d.children.length; j++) {
-                    if (d.children[j].opens !== undefined)
+                    if (d.children[j].keepValue !== undefined)
                         return d.children[j]
                 }
                 return null
@@ -569,6 +525,13 @@ Rectangle {
             compare(row(page, "Window Mode").value, "Off")
             // Display Output: nothing to switch off a Pi.
             verify(page.offReason(lines(page).indexOf("Display Output")) !== "")
+            // Where Main.qml says the menus can be a window, it can be used.
+            var was = root.canWindow
+            loader.source = ""
+            root.canWindow = true
+            page = open({ group: "screen" })
+            compare(page.offReason(at), "")
+            root.canWindow = was
         }
 
         // Paste OSD/OS Setup, on System's page before Export to OSD/OS Setup
@@ -909,6 +872,25 @@ Rectangle {
             compare(cursor(page), "About")
             hover(middle(list.itemAtIndex(6)))
             compare(cursor(page), "About")
+            // Studio Monitor's STATUS, read alone: a line under the mouse
+            // takes neither the cursor nor the keys out of the strip, which
+            // ▼ still moves along; a row of the next page takes both.
+            loader.source = ""
+            root.menuLayout = "Studio Monitor"
+            page = open()
+            list = listOf(page)
+            verify(page.inIcons())
+            compare(chromeOf(page).title, "Status")
+            var before = list.currentIndex
+            hover(middle(list.itemAtIndex(2)))
+            verify(page.inIcons(), "the keys stay in the strip")
+            verify(chromeOf(page).iconsActive)
+            compare(list.currentIndex, before)
+            keyClick(Qt.Key_Down)
+            compare(chromeOf(page).title, "TV / Movie")
+            hover(middle(list.itemAtIndex(1)))
+            verify(!page.inIcons())
+            compare(cursor(page), "Transparent Background")
         }
 
         // On the OSD/OS image Quit offers Save Logs before No: the logs go
@@ -954,6 +936,96 @@ Rectangle {
         function test_quitWithoutLogs() {
             var page = open()
             compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "No"])
+        }
+
+        // The question shown over the page (a ChoiceOverlay), or null.
+        function promptShown(item) {
+            if (item.promptText !== undefined && typeof item.open === "function")
+                return item.visible ? item : null
+            for (var i = 0; i < item.children.length; i++) {
+                var found = promptShown(item.children[i])
+                if (found)
+                    return found
+            }
+            return null
+        }
+        function labelsOf(prompt) {
+            return prompt.choices.map(function(c) { return c.label })
+        }
+
+        // Display Output on a Pi: the row says the output in force, or the
+        // one written for the next start; select opens the outputs, the
+        // cursor on the one in force. Another asks how to switch to it (At
+        // Next Start where the launcher can, and not for the one written
+        // already; Switch and Power Off where it can), a scan rate only some
+        // monitors take saying so first; the one in force, with another
+        // written for the next start, asks whether to stay on it; nothing
+        // else. At Next Start that didn't happen says why.
+        function test_displayOutputPrompts() {
+            displayOutput.available = true
+            var page = open({ group: "screen" })
+            compare(row(page, "Display Output").value, "HDMI")
+            moveTo(page, "Display Output")
+            keyClick(Qt.Key_Return)
+            var prompt = promptShown(page)
+            verify(prompt !== null)
+            compare(prompt.promptText, "Display Output")
+            compare(prompt.subtitleText, "Raspberry Pi 4 Model B\nNow: HDMI")
+            compare(labelsOf(prompt), ["HDMI", "Composite", "JAMMA 240p"])
+            compare(prompt.choiceIndex, 0)
+            // The one in force, nothing written for the next start: nothing.
+            keyClick(Qt.Key_Return)
+            compare(promptShown(page), null)
+            compare(cursor(page), "Display Output")
+            // JAMMA: its warning, then how.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            prompt = promptShown(page)
+            compare(prompt.promptText, "Switch to JAMMA 240p?")
+            compare(prompt.subtitleText, "A 15 kHz monitor only\nNow, or from the next time the Pi starts. "
+                                         + "Keep it there, or in 30 seconds it comes back to HDMI")
+            compare(labelsOf(prompt), ["Switch and Restart", "At Next Start", "Cancel"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(displayOutput.asked, ["next jamma-240p"])
+            compare(promptShown(page), null)
+            // Written for the next start: the row says so, and so do the
+            // outputs; JAMMA again has no At Next Start, Power Off has its.
+            displayOutput.next = "jamma-240p"
+            displayOutput.nextLabel = "JAMMA 240p"
+            displayOutput.powerOffAvailable = true
+            displayOutput.changed()
+            compare(row(page, "Display Output").value, "Next: JAMMA 240p")
+            compare(cursor(page), "Display Output")
+            keyClick(Qt.Key_Return)
+            prompt = promptShown(page)
+            compare(prompt.subtitleText, "Raspberry Pi 4 Model B\nNow: HDMI\nNext start: JAMMA 240p")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(labelsOf(promptShown(page)), ["Switch and Restart", "Switch and Power Off", "Cancel"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(displayOutput.asked, ["next jamma-240p", "off jamma-240p"])
+            // The one in force: stay on it.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Return)
+            prompt = promptShown(page)
+            compare(prompt.promptText, "Stay on HDMI?")
+            compare(prompt.subtitleText, "JAMMA 240p was to come at the next start")
+            keyClick(Qt.Key_Return)
+            compare(displayOutput.asked, ["next jamma-240p", "off jamma-240p", "next hdmi"])
+            compare(promptShown(page), null)
+            // Not written: why, and back to the row.
+            displayOutput.nextStartFinished(false, "the card can't be written")
+            prompt = promptShown(page)
+            compare(prompt.promptText, "Not written for the next start")
+            compare(prompt.subtitleText, "HDMI couldn't be written: the card can't be written")
+            keyClick(Qt.Key_Escape)
+            compare(promptShown(page), null)
+            compare(cursor(page), "Display Output")
+            displayOutput.nextStartFinished(true, "")
+            compare(promptShown(page), null)
         }
 
         // Menu Layout, on Look's page: one of the five layouts, saved as it
@@ -1034,8 +1106,9 @@ Rectangle {
         // of the page moved to, once, and nothing else. The settings, the
         // modules, the first screen's rows and the icons are as they were
         // read when the page was made: not read again for each icon passed,
-        // nor the icons handed to the frame anew. Look's themes and skins
-        // are listed as its rows are made, once a visit.
+        // nor the icons handed to the frame anew. The themes and skins are
+        // listed once as well, as a page first needs them (Look's, STATUS's
+        // Theme).
         function test_iconMovesMakeOnlyThePagesRows_data() {
             return [{ tag: "Camcorder", layout: "Camcorder", first: 0 },
                     { tag: "Studio Monitor", layout: "Studio Monitor", first: 1 }]
@@ -1046,11 +1119,9 @@ Rectangle {
             verify(page.inIcons())
             compare(appCore.calls.settings, 1)
             compare(appCore.calls.modules, 1)
-            // Studio Monitor opens on Status, which reads the theme's name
-            // from Look's rows.
-            var listed = data.first
-            compare(appCore.calls.themes, listed)
-            compare(appCore.calls.skins, listed)
+            // Studio Monitor opens on Status, which shows the theme's name.
+            compare(appCore.calls.themes, data.first)
+            compare(appCore.calls.skins, 0)
             var pages = page.camPages
             var icons = root.frameIcons
             var shown = []
@@ -1075,10 +1146,10 @@ Rectangle {
                 expected.push(firstRows[(i + 1) % pages.length])
             expected.push(firstRows[pages.length - 1], firstRows[pages.length - 2])
             compare(shown, expected)
-            // Look was passed once on the way: its themes and skins listed
-            // once for its rows (and once more for Status, passed once).
-            compare(appCore.calls.themes, listed + 1 + data.first)
-            compare(appCore.calls.skins, listed + 1 + data.first)
+            // Look was passed on the way, and Status again: the themes and
+            // the skins listed once, for the first of them.
+            compare(appCore.calls.themes, 1)
+            compare(appCore.calls.skins, 1)
         }
 
         // What a page's row was set to is what it shows when the icons come
@@ -1285,6 +1356,27 @@ Rectangle {
             wifiManager.state = "connected"
             bluetoothManager.adapterChanged()
             verify(page.settingsItems === built)
+        }
+
+        // Status's values as their own rows have them: the output in force,
+        // or the one written for the next start; the module started on,
+        // None for one turned off; the theme, None without one.
+        function test_statusValuesAsTheirRows() {
+            root.menuLayout = "Studio Monitor"
+            displayOutput.available = true
+            appCore.values = { startup_module: "com.osdos.local_files" }
+            var page = open()
+            compare(row(page, "Output").value, "HDMI")
+            compare(row(page, "Start On").value, "Local Files")
+            compare(row(page, "Theme").value, "None")
+            loader.source = ""
+            displayOutput.next = "composite"
+            displayOutput.nextLabel = "Composite"
+            appCore.values = { startup_module: "com.osdos.plex" }
+            page = open()
+            compare(row(page, "Output").value, "Next: Composite")
+            compare(row(page, "Start On").value, "None")
+            compare(row(page, "Cabinet Lock").value, "Off")
         }
 
         // Broadcast: the first screen as a list, Key Protect (Cabinet Lock)
@@ -1749,6 +1841,8 @@ Rectangle {
             var bar = createTemporaryObject(appBar, root, { title: "Display Output", subtitle: "Now" })
             var title = findText(bar, "Display Output")
             verify(title !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            title = title.textItem
             compare(title.parent.width, title.implicitWidth)
             verify(!title.parent.clip)
             verify(findText(bar, "Now").visible)
@@ -1763,6 +1857,8 @@ Rectangle {
             var bar = createTemporaryObject(appBar, root, { title: text, subtitle: "Now" })
             var title = findText(bar, text)
             verify(title !== null)
+            // Its line, in the room it scrolls through (a ScrolledText's).
+            title = title.textItem
             var clip = title.parent
             verify(title.implicitWidth > clip.width)
             verify(clip.clip)

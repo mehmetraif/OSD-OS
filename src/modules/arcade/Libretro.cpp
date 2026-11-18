@@ -462,13 +462,8 @@ QString datPath(const QString &dataRoot) {
                        QStringLiteral("/usr/local/share/libretro/fbneo/fbneo-arcade.dat") });
 }
 
-QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *aspects,
-                                QHash<QString, mame::Machine> *machines) {
-    QHash<QString, QString> games;
-    if (aspects)
-        aspects->clear();
-    if (machines)
-        machines->clear();
+QHash<QString, mame::Machine> readDat(const QString &path) {
+    QHash<QString, mame::Machine> games;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return games;
@@ -476,7 +471,6 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
     QString name;
     bool bios = false;
     QString description;
-    double aspect = 0;
     mame::Machine machine;
     while (!xml.atEnd()) {
         xml.readNext();
@@ -487,7 +481,6 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
                 name = attributes.value(QLatin1String("name")).toString().toLower();
                 bios = attributes.value(QLatin1String("isbios")) == QLatin1String("yes");
                 description.clear();
-                aspect = 0;
                 machine = mame::Machine();
                 machine.cloneOf = attributes.value(QLatin1String("cloneof")).toString().toLower();
                 // Its driver as MAME names its own (mame::systemOf()).
@@ -510,21 +503,16 @@ QHash<QString, QString> readDat(const QString &path, QHash<QString, double> *asp
                 const double x = attributes.value(QLatin1String("aspectx")).toDouble();
                 const double y = attributes.value(QLatin1String("aspecty")).toDouble();
                 if (x > 0 && y > 0)
-                    aspect = x / y;
+                    machine.aspect = x / y;
                 if (attributes.value(QLatin1String("orientation")) == QLatin1String("vertical"))
                     machine.rotate = 90;
             }
         } else if (xml.isEndElement()
                    && (xml.name() == QLatin1String("game") || xml.name() == QLatin1String("machine"))) {
             if (!name.isEmpty() && !bios) {
-                games.insert(name, description.isEmpty() ? name : description);
-                if (aspects && aspect > 0)
-                    aspects->insert(name, aspect);
-                if (machines) {
-                    machine.name = name;
-                    machine.description = games.value(name);
-                    machines->insert(name, machine);
-                }
+                machine.name = name;
+                machine.description = description.isEmpty() ? name : description;
+                games.insert(name, machine);
             }
             name.clear();
         }
@@ -860,11 +848,22 @@ QString remapText(const Launch &launch) {
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
-bool ownsRemap(const QString &path) {
+bool ownsRemap(const QString &path, QString *text) {
+    if (text)
+        text->clear();
     QFile file(path);
     if (!file.exists())
         return true;
-    return file.open(QIODevice::ReadOnly) && QString::fromUtf8(file.readLine()).startsWith(kOwnRemap);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    // Its first line, or all of it where what it holds is asked for: a remap
+    // file is a few lines.
+    const QString read = QString::fromUtf8(text ? file.readAll() : file.readLine());
+    if (!read.startsWith(kOwnRemap))
+        return false;
+    if (text)
+        *text = read;
+    return true;
 }
 
 QString coreOptionsPath(const QString &configDir) {

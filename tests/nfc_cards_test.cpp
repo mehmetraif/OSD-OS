@@ -83,6 +83,52 @@ private slots:
         QCOMPARE(safeFileName(QStringLiteral("abc d"), QLatin1Char(' '), 0, QStringLiteral("file"), 4),
                  QStringLiteral("abc"));
     }
+
+    // Auto Show Subtitles saved in its old form, On or Off (true or false),
+    // shows as On and Forced Only, as Local Files' does.
+    void oldSubtitleSetting() {
+        NfcReaderBackend nfc(m_data.path(), m_data.path(), nullptr);
+        QSignalSpy options(&nfc, &NfcReaderBackend::dynamicOptionsReady);
+        nfc.get_auto_subtitles_options();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("auto_subtitles"));
+        QHash<QString, QVariant> old;
+        for (const QVariant &option : options.first().at(1).toList())
+            old.insert(option.toMap().value("id").toString(), option.toMap().value("old"));
+        QCOMPARE(old.value("on"), QVariant(true));
+        QCOMPARE(old.value("forced"), QVariant(false));
+        QVERIFY(!old.value("off").isValid());
+
+        // And its player plays it so (autoSubtitlesChoice()): the old forms
+        // as On and Forced Only, the new as they are, nothing saved (or
+        // something no choice is) as the default, Forced Only.
+        QCOMPARE(nfc.autoSubtitlesChoice(QVariant(true)), QStringLiteral("on"));
+        QCOMPARE(nfc.autoSubtitlesChoice(QVariant(false)), QStringLiteral("forced"));
+        for (const QString &choice : { QStringLiteral("forced"), QStringLiteral("on"), QStringLiteral("off") })
+            QCOMPARE(nfc.autoSubtitlesChoice(choice), choice);
+        QCOMPARE(nfc.autoSubtitlesChoice(QVariant()), QStringLiteral("forced"));
+        QCOMPARE(nfc.autoSubtitlesChoice(QString()), QStringLiteral("forced"));
+        QCOMPARE(nfc.autoSubtitlesChoice(QStringLiteral("sometimes")), QStringLiteral("forced"));
+    }
+
+    // Subtitle Language's names come from the one list the app has, in Local
+    // Files' folder.
+    void subtitleLanguagesFromLocalFilesList() {
+        QTemporaryDir app;
+        QVERIFY(QDir().mkpath(app.path() + QStringLiteral("/modules/local_files")));
+        QFile list(app.path() + QStringLiteral("/modules/local_files/iso639-1.json"));
+        QVERIFY(list.open(QIODevice::WriteOnly));
+        list.write(R"([{"id":"de","label":"German"}])");
+        list.close();
+        NfcReaderBackend nfc(app.path(), m_data.path(), nullptr);
+        QSignalSpy options(&nfc, &NfcReaderBackend::dynamicOptionsReady);
+        nfc.get_subtitle_languages();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("sub_lang"));
+        const QVariantList languages = options.first().at(1).toList();
+        QCOMPARE(languages.size(), 2);
+        QCOMPARE(languages.at(1).toMap().value("label").toString(), QStringLiteral("German"));
+    }
 };
 
 QTEST_GUILESS_MAIN(NfcCardsTest)

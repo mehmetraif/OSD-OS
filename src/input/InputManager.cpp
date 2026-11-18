@@ -84,9 +84,24 @@ constexpr int kUnlockCaptureIdleMs = 10000;
 // Planted in nativeVirtualKey of a key replayed after one held back for them
 // (replayKey()), which eventFilter() lets go on then as the real key it was.
 constexpr quint32 kReplayVirtualKey = 0x240F00E;
-// The keys' source among the inputs held (HeldInput), every keyboard's.
+// MAME's coin key, which a pad's Coin is where the focus takes a coin
+// (actOnPadPress()), pressed and let go as the input is (m_coinInputs).
+constexpr int kCoinKey = Qt::Key_5;
+// The keys' source among the inputs held (HeldInput), every keyboard's,
+// and the mouse's buttons', from Qt or from its node.
 QString keySource() {
     return QStringLiteral("keys");
+}
+QString mouseSource() {
+    return QStringLiteral("mouse");
+}
+
+// SDL's GUID of a pad, as SDL writes it: what its key is made of
+// (controllers::padKey()), and what a player's environment gives it.
+QString padGuid(SDL_Joystick *joystick) {
+    char guid[64] = {};
+    SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick), guid, sizeof guid);
+    return QString::fromLatin1(guid);
 }
 
 // Qt reports both shift keys as Qt::Key_Shift; telling them apart takes the
@@ -578,7 +593,7 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
     const controllers::Profile profile = m_profiles.value(key);
     for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
         bool ok = false;
-        const Action action = actionFromString(it.value(), &ok);
+        const Action action = controllers::actionFromName(it.value(), &ok);
         int button = -1, axis = -1, sign = 0;
         if (!ok || !parsePadInput(it.key(), &button, &axis, &sign))
             continue;
@@ -613,7 +628,7 @@ InputManager::Pad InputManager::padFor(const QString &key, const QString &name, 
 
 // A pad's map by its key: a connected one's own, else what it would be.
 InputManager::Pad InputManager::padOf(const QString &key, const QString &name) const {
-    const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+    const auto live = livePad(key);
     return live != m_pads.cend() ? *live : padFor(key, name, m_seenAs.value(key).sdlType);
 }
 
@@ -674,12 +689,17 @@ QStringList InputManager::padTokensFor(const Pad &pad, SDL_GameController *gc, A
     return tokens;
 }
 
-SDL_JoystickID InputManager::padIdOf(const QString &key) const {
+InputManager::LivePad InputManager::livePad(const QString &key) const {
     for (auto it = m_pads.cbegin(); it != m_pads.cend(); ++it) {
         if (it->key == key && !m_suppressedDevices.contains(it.key()))
-            return it.key();
+            return it;
     }
-    return -1;
+    return m_pads.cend();
+}
+
+SDL_JoystickID InputManager::padIdOf(const QString &key) const {
+    const auto live = livePad(key);
+    return live != m_pads.cend() ? live.key() : -1;
 }
 
 void InputManager::rebuildPad(SDL_JoystickID id) {
@@ -687,8 +707,6 @@ void InputManager::rebuildPad(SDL_JoystickID id) {
     if (!gc)
         return;
     SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
-    char guid[64] = {};
-    SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick), guid, sizeof guid);
     // The device's own name, not its mapping's: SDL gives a pad without a
     // vendor and product the mapping of one like it, name and all, so the
     // JAMMA board's P2 would be called P1.
@@ -696,7 +714,7 @@ void InputManager::rebuildPad(SDL_JoystickID id) {
     if (!name || !*name)
         name = SDL_GameControllerName(gc);
     const int type = SDL_GameControllerGetType(gc);
-    Pad pad = padFor(controllers::padKey(QString::fromLatin1(guid)),
+    Pad pad = padFor(controllers::padKey(padGuid(joystick)),
                      name && *name ? QString::fromUtf8(name) : QStringLiteral("Gamepad"), type);
     // Its Arcade Buttons' Coin, by what it has.
     const controllers::Profile profile = m_profiles.value(pad.key);
@@ -718,10 +736,9 @@ void InputManager::adoptLegacyJammaKey(SDL_JoystickID id) {
     const QString name = QString::fromUtf8(SDL_JoystickName(joystick));
     if (!controllers::isJammaStick(name))
         return;
-    char guid[64] = {};
-    SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick), guid, sizeof guid);
-    const QString key = controllers::padKey(QString::fromLatin1(guid));
-    const QString legacy = controllers::legacyJammaKey(QString::fromLatin1(guid), name);
+    const QString guid = padGuid(joystick);
+    const QString key = controllers::padKey(guid);
+    const QString legacy = controllers::legacyJammaKey(guid, name);
     if (legacy.isEmpty() || legacy == key)
         return;
     // Its settings under its key already (made since) are the ones it keeps.
@@ -781,34 +798,6 @@ void InputManager::loadDefaultMapping() {
     m_axisMap[SDL_CONTROLLER_AXIS_LEFTY] = { Action::Up,   Action::Down  };
 }
 
-InputManager::Action InputManager::actionFromString(const QString &name, bool *ok) {
-    *ok = true;
-    if (name == "up")         return Action::Up;
-    if (name == "down")       return Action::Down;
-    if (name == "left")       return Action::Left;
-    if (name == "right")      return Action::Right;
-    if (name == "select")     return Action::Select;
-    if (name == "back")       return Action::Back;
-    if (name == "play_pause" || name == "playpause") return Action::PlayPause;
-    if (name == "none")       return Action::None;
-    *ok = false;
-    return Action::None;
-}
-
-QString InputManager::actionName(Action a) {
-    switch (a) {
-    case Action::Up:        return QStringLiteral("up");
-    case Action::Down:      return QStringLiteral("down");
-    case Action::Left:      return QStringLiteral("left");
-    case Action::Right:     return QStringLiteral("right");
-    case Action::Select:    return QStringLiteral("select");
-    case Action::Back:      return QStringLiteral("back");
-    case Action::PlayPause: return QStringLiteral("play_pause");
-    case Action::None:      break;
-    }
-    return QStringLiteral("none");
-}
-
 // What a key does when nothing is bound to it (by keyId()): the views' own
 // keys, a remote's OK and Select keys (isRemoteOk()), and a mouse's left and
 // right buttons, Select / OK and Back: an air-mouse remote's OK is a left
@@ -848,28 +837,13 @@ InputManager::Action InputManager::keyActionOn(const QString &key, int id) const
 }
 
 QVariantMap InputManager::captureOutcome(const QString &outcome, Action does) {
-    const QString name = actionName(does);
+    const QString name = controllers::actionName(does);
     return QVariantMap{ { QStringLiteral("outcome"), outcome }, { QStringLiteral("action"), name },
                         { QStringLiteral("label"), controllers::actionLabel(name) } };
 }
 
 QString InputManager::allKeys() {
     return QStringLiteral("kbd-all");
-}
-
-// The key the views take for an action by themselves, as a row names it.
-QString InputManager::defaultKeyName(Action a) {
-    switch (a) {
-    case Action::Up:
-    case Action::Down:
-    case Action::Left:
-    case Action::Right:     return QStringLiteral("Arrow key");
-    case Action::Select:    return QStringLiteral("Enter");
-    case Action::Back:      return QStringLiteral("Esc");
-    case Action::PlayPause: return QStringLiteral("Space");
-    case Action::None:      break;
-    }
-    return QString();
 }
 
 QList<int> InputManager::extraKeysFor(const QString &key, Action a) const {
@@ -882,7 +856,7 @@ QList<int> InputManager::extraKeysFor(const QString &key, Action a) const {
     } else {
         const controllers::Profile profile = m_profiles.value(key);
         for (auto it = profile.bindings.cbegin(); it != profile.bindings.cend(); ++it) {
-            if (it.value() == actionName(a))
+            if (it.value() == controllers::actionName(a))
                 ids << it.key().toInt();
         }
     }
@@ -909,7 +883,7 @@ QVariantMap InputManager::keyCapture(const QString &key, int id, const QString &
     const Action does = keyActionOn(all ? m_activeController : key, id);
     if (does == Action::Back)
         return captureOutcome(QStringLiteral("cancel"), does);
-    if (defaultKeyAction(id) != Action::None || (does != Action::None && actionName(does) == action))
+    if (defaultKeyAction(id) != Action::None || (does != Action::None && controllers::actionName(does) == action))
         return captureOutcome(QStringLiteral("already"), does);
     const bool own = all ? m_keyRemap.contains(id) : m_profiles.value(key).bindings.contains(QString::number(id));
     if (action == QLatin1String("none") && !own)
@@ -989,7 +963,7 @@ void InputManager::loadUserMapping() {
         }
 
         bool actionOk = false;
-        const Action action = actionFromString(parts[1].toLower(), &actionOk);
+        const Action action = controllers::actionFromName(parts[1].toLower(), &actionOk);
         if (!actionOk) {
             qWarning("[input] input.cfg line %d ignored (unknown action \"%s\")",
                      lineNo, qPrintable(parts[1]));
@@ -1047,8 +1021,7 @@ void InputManager::loadKeyRemap() {
     // An action's extra keys: a number for one (0 for none), as every
     // version has written it, or a list of them.
     for (const QString &name : controllers::actionNames()) {
-        bool known = false;
-        const Action action = actionFromString(name, &known);
+        const Action action = controllers::actionFromName(name);
         const QVariant stored = m_appCore->get_setting(QString(), QStringLiteral("remote_keymap.") + name);
         const QVariantList keys = stored.typeId() == QMetaType::QVariantList ? stored.toList() : QVariantList{ stored };
         for (const QVariant &key : keys) {
@@ -1068,8 +1041,7 @@ bool InputManager::saveKeyRemap() {
         return true;
     QList<QPair<QString, QVariant>> changed;
     for (const QString &name : controllers::actionNames()) {
-        bool known = false;
-        const QList<int> ids = extraKeysFor(allKeys(), actionFromString(name, &known));
+        const QList<int> ids = extraKeysFor(allKeys(), controllers::actionFromName(name));
         QVariantList list;
         for (const int id : ids)
             list << id;
@@ -1100,7 +1072,7 @@ bool InputManager::setExtraKey(const QString &key, int id, Action a) {
     if (a == Action::None)
         profile.bindings.remove(QString::number(id));
     else
-        profile.bindings.insert(QString::number(id), actionName(a));
+        profile.bindings.insert(QString::number(id), controllers::actionName(a));
     return saveProfiles();
 }
 
@@ -1292,8 +1264,8 @@ void InputManager::unlockAllHeld() {
         const Action a = m_heldInputs.take(input);
         if (a != Action::None)
             releaseAction(a);
-        else if (m_coinInputs.remove(input))
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
+        else
+            releaseCoin(input);
     }
     m_unlockSince.start();
     m_unlockTimer.start();
@@ -1369,7 +1341,7 @@ void InputManager::setPlayer(int player, const QString &key) {
 }
 
 QVariantMap InputManager::setPadPlayer(const QString &key, int player) {
-    if (!key.startsWith(QLatin1String("pad-")) || player < 0 || player > controllers::kPlayers)
+    if (!controllers::isPadKey(key) || player < 0 || player > controllers::kPlayers)
         return {};
     const auto result = [](const QString &outcome, const QString &other = QString(), int otherPlayer = 0) {
         return QVariantMap{ { QStringLiteral("outcome"), outcome }, { QStringLiteral("other"), other },
@@ -1493,10 +1465,8 @@ void InputManager::updatePlayers() {
             continue;
         SDL_Joystick *joystick = SDL_GameControllerGetJoystick(gc);
         const QString prefix = QStringLiteral("OSDOS_PLAYER%1_").arg(p + 1);
-        char guid[64] = {};
-        SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick), guid, sizeof guid);
         variables << qMakePair(prefix + QLatin1String("NAME"), m_pads.value(playing[p]).name)
-                  << qMakePair(prefix + QLatin1String("GUID"), QString::fromLatin1(guid));
+                  << qMakePair(prefix + QLatin1String("GUID"), padGuid(joystick));
 #if SDL_VERSION_ATLEAST(2, 24, 0)
         const char *path = SDL_JoystickPath(joystick);
         if (path && *path)
@@ -1589,9 +1559,7 @@ InputManager::Action InputManager::profileAction(const QString &key, const QStri
     const auto it = m_profiles.constFind(key);
     if (it == m_profiles.constEnd())
         return Action::None;
-    bool ok = false;
-    const Action action = actionFromString(it->bindings.value(input), &ok);
-    return ok ? action : Action::None;
+    return controllers::actionFromName(it->bindings.value(input));
 }
 
 void InputManager::noteController(const QString &key) {
@@ -1643,7 +1611,7 @@ QVariantList InputManager::controllers() const {
     for (auto it = m_profiles.cbegin(); it != m_profiles.cend(); ++it) {
         if (std::any_of(entries.cbegin(), entries.cbegin() + connected, [&it](const Entry &e) { return e.key == it.key(); }))
             continue;
-        const bool pad = it.key().startsWith(QLatin1String("pad-"));
+        const bool pad = controllers::isPadKey(it.key());
         QString kind = it->kind;
         if (kind.isEmpty())
             kind = pad ? QStringLiteral("gamepad") : QStringLiteral("keyboard");
@@ -1699,15 +1667,14 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
         }
     }
 
-    const bool isPad = key.startsWith(QLatin1String("pad-"));
+    const bool isPad = controllers::isPadKey(key);
     const Pad pad = isPad ? padOf(key, name) : Pad();
     // A pad connected lists the inputs it has; one away, all its map names.
     SDL_GameController *gc = isPad ? padController(key) : nullptr;
 
     QVariantList rows;
     for (const QString &action : controllers::actionNames()) {
-        bool ok = false;
-        const Action a = actionFromString(action, &ok);
+        const Action a = controllers::actionFromName(action);
         QStringList names;
         QVariantList inputs;
         QString value;
@@ -1721,7 +1688,7 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
             value = names.isEmpty() ? QStringLiteral("None") : names.join(QStringLiteral(", "));
         } else {
             // The action's own key, every keyboard's extra keys, then its own.
-            names << defaultKeyName(a);
+            names << controllers::actionKeyName(a);
             if (!all) {
                 const QList<int> shared = extraKeysFor(allKeys(), a);
                 for (const int id : shared) {
@@ -1839,16 +1806,16 @@ controllers::Profile &InputManager::editProfile(const QString &key) {
 
 QVariantMap InputManager::bindControllerInput(const QString &key, const QString &input, const QString &action) {
     bool ok = false;
-    const Action wanted = actionFromString(action, &ok);
+    const Action wanted = controllers::actionFromName(action, &ok);
     if (key.isEmpty() || input.isEmpty() || !ok)
         return {};
     const QString token = input.toLower();
-    const bool isPad = key.startsWith(QLatin1String("pad-"));
+    const bool isPad = controllers::isPadKey(key);
     if (isPad) {
         // A pad keeps a Select / OK, a Back, an Up and a Down, or the menus
         // would be out of its reach: a button pressed again to start the
         // wait, say.
-        const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+        const auto live = livePad(key);
         if (live != m_pads.cend()) {
             const Action does = padInputAction(*live, token);
             if (does == wanted)
@@ -1874,12 +1841,12 @@ QVariantMap InputManager::bindControllerInput(const QString &key, const QString 
 
 QVariantMap InputManager::replaceControllerInput(const QString &key, const QString &input, const QString &action) {
     bool ok = false;
-    const Action wanted = actionFromString(action, &ok);
+    const Action wanted = controllers::actionFromName(action, &ok);
     if (key.isEmpty() || input.isEmpty() || !ok || wanted == Action::None)
         return {};
     const QString token = input.toLower();
     QStringList cleared;
-    if (!key.startsWith(QLatin1String("pad-"))) {
+    if (!controllers::isPadKey(key)) {
         const int id = token.toInt();
         QVariantMap capture = keyCapture(key, id, action);
         const QString outcome = capture.value(QStringLiteral("outcome")).toString();
@@ -1925,14 +1892,14 @@ QVariantMap InputManager::replaceControllerInput(const QString &key, const QStri
         cleared << padInputLabel(pad, gone);
     }
     if (!taker.isEmpty())
-        profile.bindings.insert(taker, actionName(does));
+        profile.bindings.insert(taker, controllers::actionName(does));
     if (!saveProfiles())
         return captureOutcome(QStringLiteral("unsaved"), wanted);
     QVariantMap result = captureOutcome(taker.isEmpty() ? QStringLiteral("set") : QStringLiteral("swapped"), wanted);
     result.insert(QStringLiteral("cleared"), cleared);
     if (!taker.isEmpty()) {
         result.insert(QStringLiteral("other"), padInputLabel(pad, taker));
-        result.insert(QStringLiteral("otherAction"), controllers::actionLabel(actionName(does)));
+        result.insert(QStringLiteral("otherAction"), controllers::actionLabel(controllers::actionName(does)));
     }
     return result;
 }
@@ -1940,7 +1907,7 @@ QVariantMap InputManager::replaceControllerInput(const QString &key, const QStri
 QVariantMap InputManager::removeControllerInput(const QString &key, const QString &input) {
     if (key.isEmpty() || input.isEmpty())
         return {};
-    if (key.startsWith(QLatin1String("pad-")))
+    if (controllers::isPadKey(key))
         return bindControllerInput(key, input, QStringLiteral("none"));
     const int id = input.toInt();
     const bool all = key == allKeys();
@@ -1958,7 +1925,7 @@ QVariantMap InputManager::inputRoles(const QString &key, const QString &input) c
     const QString token = input.toLower();
     QString action, game;
     Action does = Action::None;
-    if (key.startsWith(QLatin1String("pad-"))) {
+    if (controllers::isPadKey(key)) {
         const Pad pad = padOf(key, m_seenAs.value(key).name);
         does = padInputAction(pad, token);
         const QStringList inputs = arcadeInputsOf(key);
@@ -1978,7 +1945,7 @@ QVariantMap InputManager::inputRoles(const QString &key, const QString &input) c
         does = keyActionOn(key == allKeys() ? m_activeController : key, token.toInt());
     }
     if (does != Action::None)
-        action = controllers::actionLabel(actionName(does));
+        action = controllers::actionLabel(controllers::actionName(does));
     return QVariantMap{ { QStringLiteral("action"), action }, { QStringLiteral("game"), game } };
 }
 
@@ -2012,7 +1979,7 @@ QStringList InputManager::arcadeInputsOf(const QString &key) const {
 }
 
 SDL_GameController *InputManager::padController(const QString &key) const {
-    const auto live = std::find_if(m_pads.cbegin(), m_pads.cend(), [&key](const Pad &p) { return p.key == key; });
+    const auto live = livePad(key);
     return live != m_pads.cend() ? m_controllers.value(live.key(), nullptr) : nullptr;
 }
 
@@ -2027,7 +1994,7 @@ bool InputManager::saveArcade(const QString &key, const QString &layout, const Q
 }
 
 QVariantMap InputManager::arcadePage(const QString &key) const {
-    if (!key.startsWith(QLatin1String("pad-")))
+    if (!controllers::isPadKey(key))
         return {};
     const QVariantMap controller = controllerPage(key);
     const QString name = controller.value(QStringLiteral("name")).toString();
@@ -2075,7 +2042,7 @@ QVariantMap InputManager::arcadePage(const QString &key) const {
 }
 
 void InputManager::setArcadeLayout(const QString &key, const QString &layout) {
-    if (!key.startsWith(QLatin1String("pad-")) || !controllers::arcadeLayouts().contains(layout))
+    if (!controllers::isPadKey(key) || !controllers::arcadeLayouts().contains(layout))
         return;
     if (layout == QLatin1String("default"))
         saveArcade(key, QString(), {});
@@ -2093,7 +2060,7 @@ QVariantMap InputManager::setArcadeInput(const QString &key, const QString &inpu
             index = i;
     }
     const QString wanted = token.toLower();
-    if (!key.startsWith(QLatin1String("pad-")) || index < 0 || (wanted.isEmpty() && needsInput(index)))
+    if (!controllers::isPadKey(key) || index < 0 || (wanted.isEmpty() && needsInput(index)))
         return {};
     const QString label = wanted.isEmpty() ? QStringLiteral("None") : padInputLabel(padOf(key, m_seenAs.value(key).name), wanted);
     const auto outcome = [&label](const QString &outcome, const QString &other = QString()) {
@@ -2127,7 +2094,7 @@ QVariantMap InputManager::setArcadeInput(const QString &key, const QString &inpu
 }
 
 QString InputManager::setArcadeInputs(const QString &key, const QStringList &tokens) {
-    if (!key.startsWith(QLatin1String("pad-")) || tokens.size() != controllers::kArcadeInputs)
+    if (!controllers::isPadKey(key) || tokens.size() != controllers::kArcadeInputs)
         return QString();
     QStringList inputs;
     for (const QString &t : tokens) {
@@ -2146,7 +2113,7 @@ bool InputManager::needsInput(int index) {
 }
 
 QString InputManager::arcadeLabel(const QString &key, const QString &input) const {
-    if (!key.startsWith(QLatin1String("pad-")))
+    if (!controllers::isPadKey(key))
         return QString();
     const Pad pad = padOf(key, m_seenAs.value(key).name);
     for (int i = 0; i < controllers::kArcadeInputs; ++i) {
@@ -2371,7 +2338,7 @@ void InputManager::adoptNodeForTest(int fd, const QString &name, bool mouse) {
 // here. Its release lets go of what its press began wherever it is seen
 // first, here or in Qt's own event.
 void InputManager::nodeClick(Qt::MouseButton button, bool press) {
-    const HeldInput held{ QStringLiteral("mouse"), int(button) };
+    const HeldInput held{ mouseSource(), int(button) };
     if (!press) {
         if (m_heldInputs.contains(held))
             releaseAction(m_heldInputs.take(held));
@@ -2653,39 +2620,51 @@ void InputManager::handleButton(SDL_JoystickID which, Uint8 button, bool pressed
         return;
     const HeldInput input{ padSource(which), button };
     const QString token = buttonToken(button);
-    if (!pressed) {
-        if (captureReleased(input))
-            return;
-        if (m_heldThroughHandoff.remove(input))
-            return;
-        if (unlockRelease(padInputId(which, token)))
-            return;
-        if (m_coinInputs.remove(input)) {
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
-            return;
-        }
-        const Action held = m_heldInputs.take(input);
-        if (held != Action::None) {
-            noteActiveController(which);
-            releaseAction(held);
-        }
-        return;
-    }
-    const Action a = pad->buttons.value(button, Action::None);
+    if (pressed)
+        pressPadInput(which, input, token, pad->buttons.value(button, Action::None));
+    else
+        releasePadInput(which, input, token);
+}
+
+// A pad's input pressed, a button or an axis pushed (its token), and the
+// action its map gives it: nothing for one held through a game; reported to
+// its page's wait; held back for Cabinet Lock's unlock buttons; else acted on.
+void InputManager::pressPadInput(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a) {
     if (heldThroughGame(which, a, token)) {
         m_heldThroughHandoff.insert(input);
         return;
     }
-    const QString key = pad->key;
+    const QString key = m_pads.value(which).key;
     noteController(key);
     if (capturing(key)) {
-        capturePressed(input, key, token, padLabel(m_labelOverrides, pad->labels, token, button));
+        capturePressed(input, key, token, padInputLabel(m_pads.value(which), token));
         return;
     }
     if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
                     isDirectional(a), [this, which, input, token, a] { actOnPadPress(which, input, token, a); }))
         return;
     actOnPadPress(which, input, token, a);
+}
+
+// A pad's input let go: the answer to its page's wait, nothing for one held
+// through a game, Cabinet Lock's, the coin key's release, or the release of
+// the action its press began, whatever the input does by then.
+void InputManager::releasePadInput(SDL_JoystickID which, const HeldInput &input, const QString &token) {
+    if (captureReleased(input) || m_heldThroughHandoff.remove(input) || unlockRelease(padInputId(which, token))
+            || releaseCoin(input))
+        return;
+    const Action held = m_heldInputs.take(input);
+    if (held != Action::None) {
+        noteActiveController(which);
+        releaseAction(held);
+    }
+}
+
+bool InputManager::releaseCoin(const HeldInput &input) {
+    if (!m_coinInputs.remove(input))
+        return false;
+    postKey(kCoinKey, QEvent::KeyRelease, false);
+    return true;
 }
 
 void InputManager::actOnPadPress(SDL_JoystickID which, const HeldInput &input, const QString &token, Action a) {
@@ -2698,7 +2677,7 @@ void InputManager::actOnPadPress(SDL_JoystickID which, const HeldInput &input, c
         noteActiveController(which);
         setLastInputDevice(QStringLiteral("gamepad"));
         m_coinInputs.insert(input);
-        postKey(Qt::Key_5, QEvent::KeyPress, false);
+        postKey(kCoinKey, QEvent::KeyPress, false);
         return;
     }
     if (a == Action::None)
@@ -2715,8 +2694,6 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     const auto pad = m_pads.constFind(which);
     if (pad == m_pads.constEnd())
         return;
-    const QString key = pad->key;
-    const controllers::LabelStyle labels = pad->labels;
     const QPair<Action, Action> actions = pad->axes.value(axis, { Action::None, Action::None });
     const HeldInput input{ padSource(which), SDL_CONTROLLER_BUTTON_MAX + axis };
 
@@ -2743,36 +2720,10 @@ void InputManager::handleAxis(SDL_JoystickID which, Uint8 axis, Sint16 value) {
     // Only a real engage/release counts as "using" this controller — idle
     // stick jitter must not steal label ownership from the pad in use. A
     // release lets go of what the engage began, as a button's does.
-    if (old != 0 && !captureReleased(input) && !m_heldThroughHandoff.remove(input)
-        && !unlockRelease(padInputId(which, axisToken(axis, old)))) {
-        if (m_coinInputs.remove(input)) {
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
-        } else {
-            const Action released = m_heldInputs.take(input);
-            if (released != Action::None) {
-                noteActiveController(which);
-                releaseAction(released);
-            }
-        }
-    }
-    if (now == 0)
-        return;
-    const QString token = axisToken(axis, now);
-    const Action pressed = now < 0 ? actions.first : actions.second;
-    if (heldThroughGame(which, pressed, token)) {
-        m_heldThroughHandoff.insert(input);
-        return;
-    }
-    noteController(key);
-    if (capturing(key)) {
-        capturePressed(input, key, token, controllers::inputLabel(labels, token));
-        return;
-    }
-    if (unlockPress(padInputId(which, token), m_unlockCapture ? padInputName(which, token) : QString(), input,
-                    isDirectional(pressed),
-                    [this, which, input, token, pressed] { actOnPadPress(which, input, token, pressed); }))
-        return;
-    actOnPadPress(which, input, token, pressed);
+    if (old != 0)
+        releasePadInput(which, input, axisToken(axis, old));
+    if (now != 0)
+        pressPadInput(which, input, axisToken(axis, now), now < 0 ? actions.first : actions.second);
 }
 
 void InputManager::pressAction(Action a) {
@@ -2829,7 +2780,7 @@ void InputManager::releaseAction(Action a) {
     // A press that went to mpv over IPC (deliverPress()) may be held down
     // there for its repeats: let go with the button.
     if (windowActive())
-        postKey(qtKeyForAction(a), QEvent::KeyRelease, false);
+        postKey(controllers::actionKey(a), QEvent::KeyRelease, false);
     else
         emit mpvKeysReleased();
 }
@@ -2872,13 +2823,10 @@ void InputManager::releaseHeld(const QString &source) {
         releaseAction(a);
     for (auto it = m_heldThroughHandoff.begin(); it != m_heldThroughHandoff.end();)
         it = it->first == source ? m_heldThroughHandoff.erase(it) : std::next(it);
-    for (auto it = m_coinInputs.begin(); it != m_coinInputs.end();) {
-        if (it->first == source) {
-            it = m_coinInputs.erase(it);
-            postKey(Qt::Key_5, QEvent::KeyRelease, false);
-        } else {
-            ++it;
-        }
+    const QSet<HeldInput> coins = m_coinInputs;
+    for (const HeldInput &coin : coins) {
+        if (coin.first == source)
+            releaseCoin(coin);
     }
     for (auto it = m_postedKeys.begin(); it != m_postedKeys.end();) {
         if (it.key().first == source) {
@@ -2914,9 +2862,9 @@ void InputManager::deliverPress(Action a, bool autoRepeat) {
     // and its views are doing (setBackTaker()).
     const bool players = a == Action::Back && backIsThePlayers(QStringLiteral("a button"));
     if (windowActive() && !players)
-        postKey(qtKeyForAction(a), QEvent::KeyPress, autoRepeat);
+        postKey(controllers::actionKey(a), QEvent::KeyPress, autoRepeat);
     else
-        emit mpvKeyRequested(mpvKeyForAction(a), autoRepeat);
+        emit mpvKeyRequested(controllers::actionMpvKey(a), autoRepeat);
 }
 
 void InputManager::setBackTaker(std::function<bool()> takes) {
@@ -2952,7 +2900,7 @@ void InputManager::noteKeyToViews(const QString &name) {
 // (m_heldActions): the system repeats it itself.
 void InputManager::deliverRelease(Action a, bool autoRepeat) {
     if (windowActive())
-        postKey(qtKeyForAction(a), QEvent::KeyRelease, autoRepeat);
+        postKey(controllers::actionKey(a), QEvent::KeyRelease, autoRepeat);
     else if (!autoRepeat)
         emit mpvKeysReleased();
 }
@@ -2999,41 +2947,12 @@ void InputManager::postKey(int qtKey, QEvent::Type type, bool autoRepeat) {
                       kSyntheticScanCode, 0, 0, QString(), autoRepeat));
 }
 
-int InputManager::qtKeyForAction(Action a) {
-    switch (a) {
-    case Action::Up:        return Qt::Key_Up;
-    case Action::Down:      return Qt::Key_Down;
-    case Action::Left:      return Qt::Key_Left;
-    case Action::Right:     return Qt::Key_Right;
-    case Action::Select:    return Qt::Key_Return;
-    case Action::Back:      return Qt::Key_Escape;
-    case Action::PlayPause: return Qt::Key_Space;
-    case Action::None:      break;
-    }
-    return 0;
-}
-
-// Same key names the Player views pass to mpvController.sendKey().
-QString InputManager::mpvKeyForAction(Action a) {
-    switch (a) {
-    case Action::Up:        return QStringLiteral("UP");
-    case Action::Down:      return QStringLiteral("DOWN");
-    case Action::Left:      return QStringLiteral("LEFT");
-    case Action::Right:     return QStringLiteral("RIGHT");
-    case Action::Select:    return QStringLiteral("ENTER");
-    case Action::Back:      return QStringLiteral("ESC");
-    case Action::PlayPause: return QStringLiteral("SPACE");
-    case Action::None:      break;
-    }
-    return QString();
-}
-
 bool InputManager::isDirectional(Action a) {
     return a == Action::Up || a == Action::Down || a == Action::Left || a == Action::Right;
 }
 
 QString InputManager::buttonLabel(const QString &key, const QString &token) const {
-    if (!key.startsWith(QLatin1String("pad-")))
+    if (!controllers::isPadKey(key))
         return QString();
     return padInputLabel(padOf(key, m_seenAs.value(key).name), token);
 }
@@ -3136,7 +3055,7 @@ void InputManager::replayKey(const QKeyEvent &ke, const QString &device) {
 bool InputManager::clickActs(Qt::MouseButton pressed, bool isPress) {
     const int extendedId = kMouseButtonBase + int(pressed);
     // Its release lets go of what its press began, as a pad's does.
-    const HeldInput button{ QStringLiteral("mouse"), int(pressed) };
+    const HeldInput button{ mouseSource(), int(pressed) };
     if (!isPress && captureReleased(button))
         return true;
     if (!isPress && m_heldInputs.contains(button)) {
@@ -3166,28 +3085,8 @@ bool InputManager::clickActs(Qt::MouseButton pressed, bool isPress) {
 
 bool InputManager::eventFilter(QObject *obj, QEvent *event) {
     const QEvent::Type type = event->type();
-
-    // The mouse wheel: each notch up or down is Up or Down, pressed and let go
-    // as a key is. Taken at the window, which Qt Quick would hand it on from
-    // to the items under the pointer; none of them scrolls by the wheel.
-    if (type == QEvent::Wheel) {
-        if (!obj || !obj->isWindowType())
-            return false;
-        if (capturing(allKeys()))
-            return true;
-        m_wheelTurn += static_cast<QWheelEvent *>(event)->angleDelta().y();
-        while (qAbs(m_wheelTurn) >= 120) {
-            const Action a = m_wheelTurn > 0 ? Action::Up : Action::Down;
-            m_wheelTurn += a == Action::Up ? -120 : 120;
-            // Delivered as a keyboard's key is, apart from what a pad holds
-            // (m_heldActions): a notch while a pad's direction was held used
-            // to end that hold and swallow the pad's own release.
-            setLastInputDevice(QStringLiteral("keyboard"));
-            deliverPress(a, false);
-            deliverRelease(a, false);
-        }
-        return true;
-    }
+    if (type == QEvent::Wheel)
+        return wheelTurned(obj, static_cast<const QWheelEvent *>(event));
 
     // Some remotes wire their center/OK button as a literal mouse click (see
     // scanNodes()'s comment for the sibling-devices story): an air mouse's OK
@@ -3208,228 +3107,308 @@ bool InputManager::eventFilter(QObject *obj, QEvent *event) {
 
     if (type != QEvent::KeyPress && type != QEvent::KeyRelease)
         return false;
-    const auto *ke = static_cast<QKeyEvent *>(event);
-    const bool synthetic = ke->nativeScanCode() == kSyntheticScanCode;
+    // A key goes through these in turn: each keeps it from the views (true),
+    // lets it go on to them (false), or leaves it to the next (nullopt). The
+    // order is what they are worth to one another: a press a Consumer Control
+    // node took never reaches the rest; Right Shift is Back before a wait
+    // can take it, so that it still cancels the wait; Cabinet Lock's unlock
+    // buttons go before a wait's keys and the extra keys; a page waiting for
+    // a press takes a key before its extra key's action could; an extra key's
+    // action goes before Back is the player's; the views have what is left.
+    using KeyStage = std::optional<bool> (InputManager::*)(const KeyIn &);
+    static constexpr KeyStage kKeyStages[] = {
+        &InputManager::keyTakenByNode,
+        &InputManager::keyFromKeyboard,
+        &InputManager::oneShotKeyHeld,
+        &InputManager::rightShiftKey,
+        &InputManager::unlockButtonKey,
+        &InputManager::keyTakenByWait,
+        &InputManager::keyForWait,
+        &InputManager::extraKey,
+        &InputManager::backKeyForPlayer,
+        &InputManager::unnamedKey,
+        &InputManager::mediaKey,
+        &InputManager::keyToViews,
+    };
+    const KeyIn key = keyIn(obj, static_cast<const QKeyEvent *>(event));
+    for (const KeyStage stage : kKeyStages) {
+        if (const std::optional<bool> taken = (this->*stage)(key))
+            return *taken;
+    }
+    return false;
+}
+
+// The mouse wheel: each notch up or down is Up or Down, pressed and let go
+// as a key is. Taken at the window, which Qt Quick would hand it on from
+// to the items under the pointer; none of them scrolls by the wheel.
+bool InputManager::wheelTurned(QObject *obj, const QWheelEvent *event) {
+    if (!obj || !obj->isWindowType())
+        return false;
+    if (capturing(allKeys()))
+        return true;
+    m_wheelTurn += event->angleDelta().y();
+    while (qAbs(m_wheelTurn) >= 120) {
+        const Action a = m_wheelTurn > 0 ? Action::Up : Action::Down;
+        m_wheelTurn += a == Action::Up ? -120 : 120;
+        // Delivered as a keyboard's key is, apart from what a pad holds
+        // (m_heldActions): a notch while a pad's direction was held used
+        // to end that hold and swallow the pad's own release.
+        setLastInputDevice(QStringLiteral("keyboard"));
+        deliverPress(a, false);
+        deliverRelease(a, false);
+    }
+    return true;
+}
+
+InputManager::KeyIn InputManager::keyIn(QObject *obj, const QKeyEvent *ke) {
+    KeyIn key{ ke, ke->type(), obj && obj->isWindowType(), ke->nativeScanCode() == kSyntheticScanCode };
     // A key held back for the unlock buttons, now given the views
     // (replayKey()): as real as it was, its keyboard the one it had.
-    const bool replay = !synthetic && ke->nativeVirtualKey() == kReplayVirtualKey;
-    const int id = keyId(ke);
+    key.replay = !key.synthetic && ke->nativeVirtualKey() == kReplayVirtualKey;
+    key.id = keyId(ke);
 
     // Whose key it is, from the keyboards' nodes (scanNodes()): worked out
     // where a real key event comes in, at its window, and not again for the
     // items it then goes on to, which see it through this filter too. A
     // Consumer Control node's press that readNode() took (acted on, or
     // reported to a wait) is that node's alone, and Qt's copy of it goes no
-    // further.
-    QString device;
-    if (replay && obj && obj->isWindowType() && !m_replayDevices.isEmpty())
-        device = m_replayDevices.takeFirst();
+    // further (keyTakenByNode()).
+    if (key.replay && key.atWindow && !m_replayDevices.isEmpty())
+        key.device = m_replayDevices.takeFirst();
 #ifdef Q_OS_LINUX
-    if (!synthetic && !replay && obj && obj->isWindowType() && !m_nodes.isEmpty()) {
+    if (!key.synthetic && !key.replay && key.atWindow && !m_nodes.isEmpty()) {
         drainNodes();
-        device = whoseKey(m_keySources, ke, m_clock.elapsed());
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat())
-            noteController(device);
-        if (device.isEmpty() && !whoseKey(m_consumerTaken, ke, m_clock.elapsed()).isEmpty())
-            return true;
+        key.device = whoseKey(m_keySources, ke, m_clock.elapsed());
+        if (key.type == QEvent::KeyPress && !ke->isAutoRepeat())
+            noteController(key.device);
+        key.takenByNode = key.device.isEmpty() && !whoseKey(m_consumerTaken, ke, m_clock.elapsed()).isEmpty();
     }
-#else
-    Q_UNUSED(obj)
 #endif
+    return key;
+}
 
-    if (type == QEvent::KeyPress && !synthetic)
+std::optional<bool> InputManager::keyTakenByNode(const KeyIn &key) {
+    return key.takenByNode ? std::optional<bool>(true) : std::nullopt;
+}
+
+std::optional<bool> InputManager::keyFromKeyboard(const KeyIn &key) {
+    if (key.type == QEvent::KeyPress && !key.synthetic)
         setLastInputDevice(QStringLiteral("keyboard"));
+    return std::nullopt;
+}
 
-    // Back, Select and Play/Pause held (or let go late): the first press
-    // only (isOneShotKey). Typing in a text field still repeats them.
-    if (ke->isAutoRepeat() && isOneShotKey(id) && !textInputHasFocus())
+// Back, Select and Play/Pause held (or let go late): the first press
+// only (isOneShotKey). Typing in a text field still repeats them.
+std::optional<bool> InputManager::oneShotKeyHeld(const KeyIn &key) {
+    if (key.ke->isAutoRepeat() && isOneShotKey(key.id) && !textInputHasFocus())
         return true;
+    return std::nullopt;
+}
 
-    // Right shift acts as Back so the keyboard works one-handed: reuse the
-    // gamepad Back path, which posts Escape into QML — or sends ESC to mpv
-    // over IPC when fullscreen mpv holds OS focus and the window can't take
-    // key events. The bare Shift event is consumed; no view binds Key_Shift.
-    //
-    // Known gap: during fullscreen playback on macOS the keyboard goes to
-    // mpv, not us, and mpv can't bind a bare modifier — so right shift only
-    // works in the player on platforms where the app keeps the keyboard
-    // (RPi/EGLFS). Same asymmetry as gamepads, minus their SDL workaround.
-    // While a text field is focused, let Right Shift behave as an ordinary
-    // modifier so the user can type shifted characters (e.g. ':' in a server
-    // URL); only repurpose it as Back when nothing editable has focus. Falling
-    // through (no return) lets the bare Shift event reach QML, where it's a
-    // harmless no-op until the next character key arrives with the modifier.
-    if (ke->key() == Qt::Key_Shift && isRightShift(ke) && !textInputHasFocus()) {
-        if (!ke->isAutoRepeat()) {
-            if (type == QEvent::KeyPress)
-                deliverPress(Action::Back, false);
-            else
-                deliverRelease(Action::Back, false);
-        }
-        return true;
+// Right shift acts as Back so the keyboard works one-handed: reuse the
+// gamepad Back path, which posts Escape into QML — or sends ESC to mpv
+// over IPC when fullscreen mpv holds OS focus and the window can't take
+// key events. The bare Shift event is consumed; no view binds Key_Shift.
+//
+// Known gap: during fullscreen playback on macOS the keyboard goes to
+// mpv, not us, and mpv can't bind a bare modifier — so right shift only
+// works in the player on platforms where the app keeps the keyboard
+// (RPi/EGLFS). Same asymmetry as gamepads, minus their SDL workaround.
+// While a text field is focused, let Right Shift behave as an ordinary
+// modifier so the user can type shifted characters (e.g. ':' in a server
+// URL); only repurpose it as Back when nothing editable has focus. Falling
+// through (no return) lets the bare Shift event reach QML, where it's a
+// harmless no-op until the next character key arrives with the modifier.
+std::optional<bool> InputManager::rightShiftKey(const KeyIn &key) {
+    if (key.ke->key() != Qt::Key_Shift || !isRightShift(key.ke) || textInputHasFocus())
+        return std::nullopt;
+    if (!key.ke->isAutoRepeat()) {
+        if (key.type == QEvent::KeyPress)
+            deliverPress(Action::Back, false);
+        else
+            deliverRelease(Action::Back, false);
     }
+    return true;
+}
 
-    // Cabinet Lock's unlock buttons (unlockKey()), where a real key comes in,
-    // at its window; and after the keys replayed that haven't come in yet.
-    if (!synthetic && !replay && obj && obj->isWindowType()) {
-        if (const std::optional<bool> taken = unlockKey(ke, id, device))
-            return *taken;
-        if (!m_replayDevices.isEmpty() && m_window) {
-            replayKey(*ke, device);
-            return true;
-        }
-    }
-
-    // A key a wait took (below) stays swallowed until it is let go: held,
-    // its repeats would act as what it has just been given. A press anew
-    // means its release went missing.
-    const HeldInput heldKey{ QStringLiteral("keys"), id };
-    if (!synthetic && m_capturedKeys.contains(ke->key())) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            m_capturedKeys.remove(ke->key());
-        } else {
-            if (type == QEvent::KeyRelease && !ke->isAutoRepeat()) {
-                m_capturedKeys.remove(ke->key());
-                // Let go: the wait's answer, if it wasn't held to stop it.
-                captureReleased(heldKey);
-            }
-            return true;
-        }
-    }
-
-    // A wait for a press of every keyboard and remote (captureController()
-    // with allKeys): every real key is swallowed and reported instead of
-    // reaching QML. Going through the signals rather than key delivery is
-    // what lets an already-remapped key be taken as itself — the remap
-    // branch below would otherwise consume it and hand the page its
-    // action's default key. Sits after the right-shift block so that alias
-    // still cancels the wait via its normal Back path.
-    if (capturing(allKeys()) && !synthetic) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            m_capturedKeys.insert(ke->key());
-            capturePressed(heldKey, allKeys(), QString::number(id), keyDisplayName(id));
-        }
+// Cabinet Lock's unlock buttons (unlockKey()), where a real key comes in,
+// at its window; and after the keys replayed that haven't come in yet.
+std::optional<bool> InputManager::unlockButtonKey(const KeyIn &key) {
+    if (key.synthetic || key.replay || !key.atWindow)
+        return std::nullopt;
+    if (const std::optional<bool> taken = unlockKey(key.ke, key.id, key.device))
+        return taken;
+    if (!m_replayDevices.isEmpty() && m_window) {
+        replayKey(*key.ke, key.device);
         return true;
     }
+    return std::nullopt;
+}
 
-    // The same for one keyboard's or remote's page: its keys are reported,
-    // everyone else's go on as usual.
-    if (capturing(device)) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            m_capturedKeys.insert(ke->key());
-            capturePressed(heldKey, device, QString::number(id), keyDisplayName(id));
-        }
-        return true;
+// A key a wait took (keyForWait()) stays swallowed until it is let go:
+// held, its repeats would act as what it has just been given. A press anew
+// means its release went missing.
+std::optional<bool> InputManager::keyTakenByWait(const KeyIn &key) {
+    if (key.synthetic || !m_capturedKeys.contains(key.ke->key()))
+        return std::nullopt;
+    if (key.type == QEvent::KeyPress && !key.ke->isAutoRepeat()) {
+        m_capturedKeys.remove(key.ke->key());
+        return std::nullopt;
     }
+    if (key.type == QEvent::KeyRelease && !key.ke->isAutoRepeat()) {
+        m_capturedKeys.remove(key.ke->key());
+        // Let go: the wait's answer, if it wasn't held to stop it.
+        captureReleased({ keySource(), key.id });
+    }
+    return true;
+}
 
+// A wait for a press of every keyboard and remote (captureController()
+// with allKeys): every real key is swallowed and reported instead of
+// reaching QML. Going through the signals rather than key delivery is
+// what lets an already-remapped key be taken as itself — the remap
+// stage after it (extraKey()) would otherwise consume it and hand the page
+// its action's default key. Comes after the right-shift stage so that
+// alias still cancels the wait via its normal Back path.
+// The same for one keyboard's or remote's page: its keys are reported,
+// everyone else's go on as usual.
+std::optional<bool> InputManager::keyForWait(const KeyIn &key) {
+    const QString waiting = capturing(allKeys()) && !key.synthetic ? allKeys()
+                          : capturing(key.device)                  ? key.device
+                                                                   : QString();
+    if (waiting.isEmpty())
+        return std::nullopt;
+    if (key.type == QEvent::KeyPress && !key.ke->isAutoRepeat()) {
+        m_capturedKeys.insert(key.ke->key());
+        capturePressed({ keySource(), key.id }, waiting, QString::number(key.id), keyDisplayName(key.id));
+    }
+    return true;
+}
+
+// Custom remote/keyboard remap (Settings → Controls → Keyboards & Remotes): an extra
+// physical key that also fires one of the six actions, delivered the same
+// way a gamepad press is: a synthesized key event carrying that action's
+// *default* Qt key, so every existing Keys.onPressed handler sees exactly
+// what it always has. The default key itself is untouched (this table is
+// additive), so remapping can't remove the app's own keyboard controls.
+// Skipped for our own synthesized events (nativeScanCode check) so two
+// remapped keys can never feed into each other, and skipped while a text
+// field has focus so typing a remapped character still works normally
+// (the hash miss is checked first — it's cheap, while textInputHasFocus
+// is a synchronous input-method query and shouldn't run per keystroke).
+// A keyboard's or a remote's own extra keys (its page in Settings →
+// Controls) come first, then the ones every keyboard shares. A remote's
+// OK that the views don't take for Return (isRemoteOk()) is Select the
+// same way.
+std::optional<bool> InputManager::extraKey(const KeyIn &key) {
+    if (key.synthetic)
+        return std::nullopt;
+    const QKeyEvent *ke = key.ke;
     // What the menus were last worked with (canLoseKey()): a key's own
     // action here, an extra key's below.
-    if (!synthetic && type == QEvent::KeyPress && !ke->isAutoRepeat() && defaultKeyAction(id) != Action::None)
-        m_lastActionBy.insert(int(defaultKeyAction(id)), id);
+    if (key.type == QEvent::KeyPress && !ke->isAutoRepeat() && defaultKeyAction(key.id) != Action::None)
+        m_lastActionBy.insert(int(defaultKeyAction(key.id)), key.id);
 
-    // Custom remote/keyboard remap (Settings → Controls → Keyboards & Remotes): an extra
-    // physical key that also fires one of the six actions, delivered the same
-    // way a gamepad press is: a synthesized key event carrying that action's
-    // *default* Qt key, so every existing Keys.onPressed handler sees exactly
-    // what it always has. The default key itself is untouched (this table is
-    // additive), so remapping can't remove the app's own keyboard controls.
-    // Skipped for our own synthesized events (nativeScanCode check) so two
-    // remapped keys can never feed into each other, and skipped while a text
-    // field has focus so typing a remapped character still works normally
-    // (the hash miss is checked first — it's cheap, while textInputHasFocus
-    // is a synchronous input-method query and shouldn't run per keystroke).
-    // A keyboard's or a remote's own extra keys (its page in Settings →
-    // Controls) come first, then the ones every keyboard shares. A remote's
-    // OK that the views don't take for Return (isRemoteOk()) is Select the
-    // same way.
-    if (!synthetic) {
-        Action remapped = device.isEmpty() ? Action::None : profileAction(device, QString::number(id));
-        if (remapped == Action::None)
-            remapped = m_keyRemap.value(id, Action::None);
-        if (remapped == Action::None && isRemoteOk(id))
-            remapped = Action::Select;
-        if (remapped != Action::None && !textInputHasFocus()) {
-            // Once per press, as the keys that stand for these by default
-            // (isOneShotKey): a held key, or a remote's release that comes
-            // late, must not select or go back again and again. A direction
-            // repeats, as a held arrow does.
-            if (ke->isAutoRepeat() && !isDirectional(remapped))
-                return true;
-            if (type == QEvent::KeyPress && !ke->isAutoRepeat())
-                m_lastActionBy.insert(int(remapped), id);
-            if (type == QEvent::KeyPress)
-                deliverPress(remapped, ke->isAutoRepeat());
-            else
-                deliverRelease(remapped, ke->isAutoRepeat());
+    Action remapped = key.device.isEmpty() ? Action::None : profileAction(key.device, QString::number(key.id));
+    if (remapped == Action::None)
+        remapped = m_keyRemap.value(key.id, Action::None);
+    if (remapped == Action::None && isRemoteOk(key.id))
+        remapped = Action::Select;
+    if (remapped == Action::None || textInputHasFocus())
+        return std::nullopt;
+    // Once per press, as the keys that stand for these by default
+    // (isOneShotKey): a held key, or a remote's release that comes
+    // late, must not select or go back again and again. A direction
+    // repeats, as a held arrow does.
+    if (ke->isAutoRepeat() && !isDirectional(remapped))
+        return true;
+    if (key.type == QEvent::KeyPress && !ke->isAutoRepeat())
+        m_lastActionBy.insert(int(remapped), key.id);
+    if (key.type == QEvent::KeyPress)
+        deliverPress(remapped, ke->isAutoRepeat());
+    else
+        deliverRelease(remapped, ke->isAutoRepeat());
+    return true;
+}
+
+// Back while a video has the screen (setBackTaker()): the player's at
+// once, as the media keys are (mediaKey()), with its repeats and its
+// release. By way of the view that has the keys it was the one key that
+// could be lost with no way left out of the video. A key bound to
+// something else went that way before (extraKey()).
+std::optional<bool> InputManager::backKeyForPlayer(const KeyIn &key) {
+    if (key.synthetic || defaultKeyAction(key.id) != Action::Back)
+        return std::nullopt;
+    const QKeyEvent *ke = key.ke;
+    if (key.type == QEvent::KeyPress && !ke->isAutoRepeat()) {
+        if (backIsThePlayers(QStringLiteral("the ") + keyDisplayName(key.id) + QStringLiteral(" key"))) {
+            m_backToPlayer.insert(ke->key());
+            emit mpvKeyRequested(ke->key() == Qt::Key_Backspace ? QStringLiteral("BS") : QStringLiteral("ESC"),
+                                 false);
             return true;
         }
-    }
-
-    // Back while a video has the screen (setBackTaker()): the player's at
-    // once, as the media keys below are, with its repeats and its release.
-    // By way of the view that has the keys it was the one key that could be
-    // lost with no way left out of the video. A key bound to something else
-    // went that way above.
-    if (!synthetic && defaultKeyAction(id) == Action::Back) {
-        if (type == QEvent::KeyPress && !ke->isAutoRepeat()) {
-            if (backIsThePlayers(QStringLiteral("the ") + keyDisplayName(id) + QStringLiteral(" key"))) {
-                m_backToPlayer.insert(ke->key());
-                emit mpvKeyRequested(ke->key() == Qt::Key_Backspace ? QStringLiteral("BS") : QStringLiteral("ESC"),
-                                     false);
-                return true;
-            }
+        m_backToPlayer.remove(ke->key());
+    } else if (m_backToPlayer.contains(ke->key())) {
+        if (key.type == QEvent::KeyRelease && !ke->isAutoRepeat())
             m_backToPlayer.remove(ke->key());
-        } else if (m_backToPlayer.contains(ke->key())) {
-            if (type == QEvent::KeyRelease && !ke->isAutoRepeat())
-                m_backToPlayer.remove(ke->key());
-            return true;
-        }
-    }
-
-#ifdef Q_OS_LINUX
-    // A key libinput's keymap has no symbol for, known by its scan code (the
-    // code plus 8): a remote's channel keys from its keyboard node, delivered
-    // as the keys they are where the views act on them (a Consumer Control
-    // node's come through readNode()).
-    if (!synthetic && ke->key() == 0) {
-        if (const int qtKey = qtKeyForEvdev(int(ke->nativeScanCode()) - 8)) {
-            postKey(qtKey, type, ke->isAutoRepeat());
-            return true;
-        }
-    }
-#endif
-
-    // HID media keys drive mpv directly over IPC (sendKey no-ops when mpv isn't
-    // running, so they're harmless while browsing). Volume keys repeat while
-    // held; the rest fire once per press so a held key is a single seek/chapter
-    // jump. On macOS during fullscreen playback mpv holds the keyboard and these
-    // never reach us — mpv binds the same names natively.
-    const QString mediaKey = mpvKeyForMediaEvent(ke);
-    if (!mediaKey.isEmpty()) {
-        // A keyboard's volume keys (a remote's Consumer Control node's are
-        // stepped once per press, readNode()).
-        // A held volume key's repeats hold the key down in mpv, which turns
-        // the volume at its own pace until the key is let go
-        // (MpvController::sendKey): sent as presses, as the keyboard repeats
-        // them (every 80 ms on the Pi's console), they queued up in a busy
-        // player and the volume went on turning after the finger had come
-        // off. Everything else fires once per press. mediaKey is the single
-        // source of truth for which key this is.
-        const bool isVolume = mediaKey.startsWith(QLatin1String("VOLUME"));
-        if (type == QEvent::KeyPress) {
-            if (!ke->isAutoRepeat() || isVolume)
-                emit mpvKeyRequested(mediaKey, ke->isAutoRepeat());
-        } else if (type == QEvent::KeyRelease && !ke->isAutoRepeat() && isVolume) {
-            emit mpvKeysReleased();
-        }
         return true;
     }
-    // On to the views. While a video has the screen, which key and who has
-    // the keys there is worth a line (once each): its player, or the key is
-    // lost.
-    if (!synthetic && type == QEvent::KeyPress && !ke->isAutoRepeat() && obj && obj->isWindowType()
+    return std::nullopt;
+}
+
+// A key libinput's keymap has no symbol for, known by its scan code (the
+// code plus 8): a remote's channel keys from its keyboard node, delivered
+// as the keys they are where the views act on them (a Consumer Control
+// node's come through readNode()). Linux only.
+std::optional<bool> InputManager::unnamedKey(const KeyIn &key) {
+#ifdef Q_OS_LINUX
+    if (!key.synthetic && key.ke->key() == 0) {
+        if (const int qtKey = qtKeyForEvdev(int(key.ke->nativeScanCode()) - 8)) {
+            postKey(qtKey, key.type, key.ke->isAutoRepeat());
+            return true;
+        }
+    }
+#else
+    Q_UNUSED(key)
+#endif
+    return std::nullopt;
+}
+
+// HID media keys drive mpv directly over IPC (sendKey no-ops when mpv isn't
+// running, so they're harmless while browsing). Volume keys repeat while
+// held; the rest fire once per press so a held key is a single seek/chapter
+// jump. On macOS during fullscreen playback mpv holds the keyboard and these
+// never reach us — mpv binds the same names natively.
+std::optional<bool> InputManager::mediaKey(const KeyIn &key) {
+    const QString mpvKey = mpvKeyForMediaEvent(key.ke);
+    if (mpvKey.isEmpty())
+        return std::nullopt;
+    // A keyboard's volume keys (a remote's Consumer Control node's are
+    // stepped once per press, readNode()).
+    // A held volume key's repeats hold the key down in mpv, which turns
+    // the volume at its own pace until the key is let go
+    // (MpvController::sendKey): sent as presses, as the keyboard repeats
+    // them (every 80 ms on the Pi's console), they queued up in a busy
+    // player and the volume went on turning after the finger had come
+    // off. Everything else fires once per press. mpvKey is the single
+    // source of truth for which key this is.
+    const bool isVolume = mpvKey.startsWith(QLatin1String("VOLUME"));
+    if (key.type == QEvent::KeyPress) {
+        if (!key.ke->isAutoRepeat() || isVolume)
+            emit mpvKeyRequested(mpvKey, key.ke->isAutoRepeat());
+    } else if (key.type == QEvent::KeyRelease && !key.ke->isAutoRepeat() && isVolume) {
+        emit mpvKeysReleased();
+    }
+    return true;
+}
+
+// On to the views. While a video has the screen, which key and who has
+// the keys there is worth a line (once each): its player, or the key is
+// lost.
+std::optional<bool> InputManager::keyToViews(const KeyIn &key) {
+    if (!key.synthetic && key.type == QEvent::KeyPress && !key.ke->isAutoRepeat() && key.atWindow
             && m_playerTakesBack && m_playerTakesBack())
-        noteKeyToViews(keyDisplayName(id));
+        noteKeyToViews(keyDisplayName(key.id));
     return false;
 }
 

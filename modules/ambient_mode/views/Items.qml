@@ -75,7 +75,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         } else if (event.key === Qt.Key_Up) {
@@ -110,10 +110,6 @@ FocusScope {
     // ---
 
     AppBar {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125
-        anchors.leftMargin: root.sw * 0.125
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
     }
@@ -128,7 +124,7 @@ FocusScope {
         visible: videoFiles.length === 0
         Text {
             text: "No items found"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -137,7 +133,7 @@ FocusScope {
         }
         Text {
             text: "Please add items in the ambient:mode media directory"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -159,7 +155,7 @@ FocusScope {
         Text {
             id: playbackSettingsLabel
             text: "Playback Settings:"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.top: parent.top
@@ -176,11 +172,11 @@ FocusScope {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.topMargin: root.sh * 0.0145833 //7
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 0 ? root.accentColor : "transparent"
+                color: focusRow === 0 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -202,51 +198,28 @@ FocusScope {
 
                 Text {
                     text: "◄"
-                    color: focusRow === 0 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
                     visible: videoSlotCount > 1
                 }
                 // Capped and clipped so a long filename can't run under the row
-                // label, with the same marquee scroll as views/ModuleSettings.qml.
-                Item {
+                // label, and scrolled through while the row is selected.
+                ScrolledText {
                     id: videoValueClip
-                    width: Math.min(videoValueText.implicitWidth, root.sw * 0.35)
+                    width: Math.min(implicitWidth, root.sw * 0.35)
                     height: parent.height
-                    clip: true
-
-                    Text {
-                        id: videoValueText
-                        // The body is hidden with no videos, but still bound.
-                        text: videoShuffleSelected ? "SHUFFLE" : (videoFiles.length > 0 ? videoFiles[videoIndex].name : "")
-                        color: focusRow === 0 ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: 0
-                        font.pixelSize: root.sh * 0.0416667 //20
-                    }
-
-                    SequentialAnimation {
-                        running: focusRow === 0 && videoValueText.implicitWidth > videoValueClip.width
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) videoValueText.x = 0
-
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: videoValueText
-                            property: "x"
-                            to: videoValueClip.width - videoValueText.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: videoValueText; property: "x"; value: 0 }
-                    }
+                    on: focusRow === 0
+                    elides: false
+                    // The body is hidden with no videos, but still bound.
+                    text: videoShuffleSelected ? "SHUFFLE" : (videoFiles.length > 0 ? videoFiles[videoIndex].name : "")
+                    color: focusRow === 0 ? root.surfaceColor : root.primaryColor
+                    font.pixelSize: root.sh * 0.0416667 //20
                 }
                 Text {
                     text: "►"
-                    color: focusRow === 0 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 0 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -261,11 +234,11 @@ FocusScope {
             anchors.top: videoTrackRow.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             Rectangle {
                 anchors.fill: parent
-                color: focusRow === 1 ? root.accentColor : "transparent"
+                color: focusRow === 1 ? root.primaryColor : "transparent"
             }
 
             Text {
@@ -287,50 +260,27 @@ FocusScope {
 
                 Text {
                     text: "◄"
-                    color: focusRow === 1 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 1 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
                     visible: audioSlotCount > 1
                 }
-                Item {
+                ScrolledText {
                     id: audioValueClip
-                    width: Math.min(audioValueText.implicitWidth, root.sw * 0.35)
+                    width: Math.min(implicitWidth, root.sw * 0.35)
                     height: parent.height
-                    clip: true
-
-                    Text {
-                        id: audioValueText
-                        text: audioShuffleSelected ? "SHUFFLE"
-                            : audioIndex === 0 ? "VIDEO AUDIO"
-                            : audioFiles[audioIndex - 1].name
-                        color: focusRow === 1 ? root.surfaceColor : root.primaryColor
-                        font.family: root.globalFont
-                        font.capitalization: Font.AllUppercase
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: 0
-                        font.pixelSize: root.sh * 0.0416667 //20
-                    }
-
-                    SequentialAnimation {
-                        running: focusRow === 1 && audioValueText.implicitWidth > audioValueClip.width
-                        loops: Animation.Infinite
-                        onRunningChanged: if (!running) audioValueText.x = 0
-
-                        PauseAnimation { duration: 1500 }
-                        NumberAnimation {
-                            target: audioValueText
-                            property: "x"
-                            to: audioValueClip.width - audioValueText.implicitWidth
-                            duration: Math.abs(to) * 20
-                        }
-                        PauseAnimation { duration: 2000 }
-                        PropertyAction { target: audioValueText; property: "x"; value: 0 }
-                    }
+                    on: focusRow === 1
+                    elides: false
+                    text: audioShuffleSelected ? "SHUFFLE"
+                        : audioIndex === 0 ? "VIDEO AUDIO"
+                        : audioFiles[audioIndex - 1].name
+                    color: focusRow === 1 ? root.surfaceColor : root.primaryColor
+                    font.pixelSize: root.sh * 0.0416667 //20
                 }
                 Text {
                     text: "►"
-                    color: focusRow === 1 ? root.surfaceColor : root.tertiaryColor
+                    color: focusRow === 1 ? root.surfaceColor : root.primaryColor
                     font.family: root.globalFont
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: root.sh * 0.0375 //18
@@ -347,8 +297,8 @@ FocusScope {
             // PLAY button
             Rectangle {
                 id: playButton
-                color: focusRow === 2 ? root.accentColor : root.surfaceColor
-                border.color: focusRow === 2 ? root.accentColor : root.tertiaryColor
+                color: focusRow === 2 ? root.primaryColor : root.surfaceColor
+                border.color: root.primaryColor
                 width: root.paneWidth //492
                 height: root.sh * 0.1166667 //56
                 border.width: root.sh * 0.003125 //2
@@ -373,27 +323,27 @@ FocusScope {
         width: root.paneWidth
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             heading: true
             label: "Playback Settings"
         }
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: "Video"
-            value: videoValueText.text
+            value: videoValueClip.text
             selected: itemsRoot.focusRow === 0
         }
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: "Audio"
-            value: audioValueText.text
+            value: audioValueClip.text
             selected: itemsRoot.focusRow === 1
         }
         MonitorRow {
             width: parent.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: "Start"
             opens: true
             selected: itemsRoot.focusRow === 2
@@ -402,10 +352,6 @@ FocusScope {
 
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE " + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667
-        anchors.leftMargin: root.sw * 0.125
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 }

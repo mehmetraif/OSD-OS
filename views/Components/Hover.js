@@ -58,12 +58,21 @@ function nearFocus(item, focused) {
     return false
 }
 
+// Whether a menu's cursor stops on a row: not on a heading (a section's, or
+// a row marked one), a note, a line read alone (Settings' STATUS) or a gap
+// (the main menu's before Settings). MenuList's rule, and the mouse's.
+function selectable(row) {
+    return !!row && row.type !== "section" && row.type !== "note" && row.type !== "info"
+           && row.gap !== true && row.heading !== true
+}
+
 // The row under a point of the stage (x, y in its coordinates) becomes the
-// current one of the list the keys go to, passing over a heading or a note,
-// which the cursor steps over too. A view with a cursor of its own takes the
-// row through a hoverRow(index, list) function on the list or an item holding
-// it (a prompt's answers, a show's seasons), the Arcade screen the point
-// through its hoverAt(x, y).
+// current one of the list the keys go to, passing over a row the cursor
+// doesn't stop on (selectable(), or a MenuList's own rule, its list's
+// selectable(row)). A view with a cursor of its own takes the row through a
+// hoverRow(index, list) function on the list or an item holding it (a
+// prompt's answers, a show's seasons), the Arcade screen the point through
+// its hoverAt(x, y).
 function follow(stage, focused, x, y) {
     var under = targetUnder(stage, x, y)
     if (!under || !focused || !nearFocus(under.item, focused))
@@ -77,7 +86,7 @@ function follow(stage, focused, x, y) {
     if (index < 0)
         return
     var row = target.model && target.model.length !== undefined ? target.model[index] : null
-    if (row && (row.type === "section" || row.type === "note" || row.heading === true))
+    if (row && !(typeof target.selectable === "function" ? target.selectable(row) : selectable(row)))
         return
     for (var host = target; host; host = host.parent) {
         if (typeof host.hoverRow === "function") {

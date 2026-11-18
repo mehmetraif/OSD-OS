@@ -10,6 +10,7 @@
 #include <QVariantMap>
 #include <QNetworkAccessManager>
 #include <functional>
+#include "../../util/PositionHistory.h"
 
 class QProcess;
 
@@ -106,11 +107,11 @@ public:
     Q_INVOKABLE QVariantMap  getSavedPosition(const QString &videoId);
     Q_INVOKABLE void         savePosition(const QString &videoId, int positionMs,
                                           const QString &title, const QString &channelName);
-    Q_INVOKABLE QVariantList getHistory() const;   // displayable entries, newest first
+    QVariantList             getHistory() const;   // displayable entries, newest first (the tree's)
     Q_INVOKABLE void         delete_history();     // settings action slot
 
     // Watch later (youtube_watch_later.json), newest-saved first, manual removal only
-    Q_INVOKABLE QVariantList getWatchLater() const;
+    QVariantList             getWatchLater() const;   // the tree's
     Q_INVOKABLE bool         isInWatchLater(const QString &videoId) const;
     Q_INVOKABLE void         addToWatchLater(const QString &videoId, const QString &title,
                                              const QString &channelName);
@@ -189,9 +190,6 @@ private:
         qint64       failedMs  = 0;
     };
 
-    QString      historyFilePath() const;
-    QVariantMap  loadHistory() const;
-    void         saveHistory(const QVariantMap &history);
     QString      watchLaterFilePath() const;
     QVariantList loadWatchLater() const;
     void         saveWatchLater(const QVariantList &list);
@@ -236,6 +234,9 @@ private:
     QString m_appRoot;
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;
+    // Watch history (youtube_history.json): the kMaxHistoryItems most
+    // recently played.
+    PositionHistory m_history;
     QNetworkAccessManager m_nam;
     WebPlayerBackend *m_browser = nullptr;
 

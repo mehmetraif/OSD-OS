@@ -2,6 +2,8 @@
 
 #include <QObject>
 #include <QHash>
+#include <QPointer>
+#include <QProcess>
 #include <QStringList>
 #include <QTimer>
 #include <QVariantList>
@@ -11,7 +13,6 @@
 
 #ifdef OSDOS_BLUETOOTH
 #include <QDBusMessage>
-class QDBusServiceWatcher;
 #endif
 
 // Settings → Network → Bluetooth: finds, pairs and connects Bluetooth devices (a
@@ -120,7 +121,7 @@ private slots:
 private:
     void load();
     void registerAgent();
-    void addObject(const QString &path, const QMap<QString, QVariantMap> &interfaces);
+    void addObject(const QString &path, const QVariantMap &interfaces);
     void chooseAdapter();
     void setBusy(const QString &path, const QString &state);
     void setMessage(const QString &text);
@@ -133,7 +134,6 @@ private:
               const QVariantList &args, int timeoutMs,
               std::function<void(const QDBusMessage &reply)> done = {});
 
-    QDBusServiceWatcher *m_watcher = nullptr;
     QHash<QString, QVariantMap> m_adapters;   // path -> Adapter1 properties
     QHash<QString, QVariantMap> m_devices;    // path -> Device1 properties
     QStringList m_seen;                       // device paths, in the order found
@@ -150,6 +150,8 @@ private:
     QString m_message;
     bool m_powerFailed = false;
     QString m_details;
+    // journalctl reading the log for details, until it has gone.
+    QPointer<QProcess> m_journal;
     QTimer m_searchTimer;
     // A search asked for and not stopped since: what a discovery that starts
     // late (the adapter was off, BlueZ was slow to confirm) is checked against.

@@ -1,16 +1,10 @@
 #include "AmbientModeBackend.h"
-#include "../../util/MpvLocator.h"
-#include "../../audio/AudioOutput.h"
-#include "../../audio/MenuMusic.h"
-#include "../../util/EndProcess.h"
+#include "../../AppCore.h"
+#include "../../audio/BackgroundMpv.h"
 #include <QDir>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QProcessEnvironment>
-#include <QStandardPaths>
 #include <QDebug>
 
+static const QString kModuleId = QStringLiteral("com.osdos.ambient_mode");
 static const QStringList kVideoExts = {
     "mp4", "mkv", "avi", "mov", "m4v", "webm", "wmv", "flv", "f4v", "mpg", "mpeg", "vob"
 };
@@ -18,23 +12,21 @@ static const QStringList kAudioExts = {
     "mp3", "wav", "flac", "m4a", "m3u", "ogg", "aac", "m3u8"
 };
 
-AmbientModeBackend::AmbientModeBackend(const QString &dataRoot, QObject *parent)
-    : QObject(parent), m_dataRoot(dataRoot), m_mediaRoot(dataRoot + "/ambient")
+AmbientModeBackend::AmbientModeBackend(const QString &dataRoot, AppCore *appCore, QObject *parent)
+    : QObject(parent), m_dataRoot(dataRoot), m_mediaRoot(dataRoot + "/ambient"),
+      m_audio(new BackgroundMpv(QStringLiteral("ambient"), "[AmbientMode] audio", this))
 {
     // Resolve the configured media directory (falls back to the dataRoot/ambient default).
-    QFile f(m_dataRoot + "/config.json");
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonObject cfg = QJsonDocument::fromJson(f.readAll()).object();
-        QString dir = cfg["modules"].toObject()["com.osdos.ambient_mode"].toObject()
-                          ["media_directory"].toString();
-        if (!dir.isEmpty())
-            setMediaRoot(dir);
-    }
+    const QString dir = appCore ? appCore->get_setting(kModuleId, QStringLiteral("media_directory")).toString()
+                                : QString();
+    if (!dir.isEmpty())
+        setMediaRoot(dir);
 }
 
+// As the app ends: mpv is gone before this returns.
 AmbientModeBackend::~AmbientModeBackend()
 {
-    endAudio(true);
+    m_audio->end(true);
 }
 
 QString AmbientModeBackend::mediaRoot() const
@@ -79,86 +71,37 @@ QVariantList AmbientModeBackend::getAudioFiles() const
 
 void AmbientModeBackend::startAudio(const QStringList &paths, bool shuffle)
 {
-    endAudio(true);
+    // The audio before is gone before this starts: not two on the card at once.
+    m_audio->end(true);
 
     if (paths.isEmpty())
         return;
 
-    const QString bin = mpvbin::locate();
-
-    if (bin.isEmpty()) {
+    // Absolute paths from scanFiles(). An .m3u/.m3u8 counts as ONE entry here:
+    // mpv expands it lazily when playback reaches it, so shuffling picks whole
+    // playlists as units and the tracks inside one still play in their listed
+    // order. mpv shuffles once, at load — with --loop-playlist=inf the same
+    // shuffled order replays on every wrap rather than being reshuffled each
+    // cycle.
+    if (!m_audio->start(paths, shuffle ? QStringList{ QStringLiteral("--shuffle") } : QStringList())) {
         qWarning("[AmbientMode] mpv not found in PATH — audio will not play");
         return;
     }
-
-    QStringList args;
-    // Playlist entries first — absolute paths from scanFiles(), so they can't be
-    // mistaken for flags. An .m3u/.m3u8 counts as ONE entry here: mpv expands it
-    // lazily when playback reaches it, so shuffling picks whole playlists as units
-    // and the tracks inside one still play in their listed order.
-    args << paths
-         << QStringLiteral("--no-video")
-         << QStringLiteral("--loop-playlist=inf")
-         << QStringLiteral("--no-terminal")
-         << QStringLiteral("--really-quiet");
-    // mpv shuffles once, at load — with --loop-playlist=inf the same shuffled order
-    // replays on every wrap rather than being reshuffled each cycle.
-    if (shuffle)
-        args << QStringLiteral("--shuffle");
-    // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
-    // ALSA's default.
-    args << AudioOutput::mpvArgs();
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
-
-    // The menu music stops first: this has the sound card now.
-    MenuMusic::hold(QStringLiteral("ambient"));
-    m_audioProcess = new QProcess(this);
-    m_audioProcess->setProcessEnvironment(env);
-    m_audioProcess->start(bin, args);
     qDebug("[AmbientMode] audio process started: %lld entr%s%s",
            static_cast<long long>(paths.size()),
            paths.size() == 1 ? "y" : "ies",
            shuffle ? ", shuffled" : "");
 }
 
+// Stopped from the player, mpv is not waited for: the menus come back at
+// once, and the menu music has the card only once mpv has gone.
 void AmbientModeBackend::stopAudio()
 {
-    endAudio(false);
-}
-
-// `wait` before the next audio starts and as the app ends: mpv is gone before
-// this returns. Stopped from the player, it is not waited for: the menus come
-// back at once, and the menu music has the card only once mpv has gone.
-void AmbientModeBackend::endAudio(bool wait)
-{
-    // One asked to end a moment ago still has the sound card.
-    if (wait && m_audioEnding && m_audioEnding->state() != QProcess::NotRunning)
-        m_audioEnding->waitForFinished(1000);
-    QProcess *process = std::exchange(m_audioProcess, nullptr);
-    if (!process)
-        return;
-    if (process->state() != QProcess::NotRunning && !wait) {
-        m_audioEnding = process;
-        endProcessLater(process, this, [this]() {
-            // Not while audio is on again: its hold is the new one's.
-            if (!m_audioProcess)
-                MenuMusic::release(QStringLiteral("ambient"));
-        });
-        qDebug("[AmbientMode] audio process asked to stop");
-        return;
-    }
-    if (process->state() != QProcess::NotRunning) {
-        process->terminate();
-        process->waitForFinished(1000);
-    }
-    process->deleteLater();
-    MenuMusic::release(QStringLiteral("ambient"));
-    qDebug("[AmbientMode] audio process stopped");
+    m_audio->end(false);
 }
 
 void AmbientModeBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value)
 {
-    if (moduleId == QLatin1String("com.osdos.ambient_mode") && key == QLatin1String("media_directory"))
+    if (moduleId == kModuleId && key == QLatin1String("media_directory"))
         setMediaRoot(value.toString());
 }

@@ -1,5 +1,6 @@
 #include "SetupFile.h"
 #include "AtomicFile.h"
+#include "FileText.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -94,19 +95,8 @@ QStringList cardOnly(const QJsonObject &setup) {
 // config.json as it is, an empty one when there is none; false when it is
 // there but can't be read, and must not be written over.
 bool readConfig(const QString &path, QJsonObject *config) {
-    QFile file(path);
-    if (!file.exists()) {
-        *config = QJsonObject();
-        return true;
-    }
-    if (!file.open(QIODevice::ReadOnly))
-        return false;
-    QJsonParseError error;
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &error);
-    if (error.error != QJsonParseError::NoError || !doc.isObject())
-        return false;
-    *config = doc.object();
-    return true;
+    *config = QJsonObject();
+    return !QFileInfo::exists(path) || filetext::readJsonObject(path, config);
 }
 
 } // namespace
@@ -239,12 +229,60 @@ QString cardOnlyLine(const QStringList &parts) {
     return QStringLiteral("Not set here: %1, which an OSD/OS card alone sets").arg(list);
 }
 
-QString noticeTitle(const Result &result) {
+QString noticeTitle(const Result &result, Taken taken) {
+    const bool pasted = taken == Taken::Pasted;
     if (result.lines.isEmpty())
         return QString();
     if (result.applied == 0)
-        return result.ok ? QStringLiteral("Nothing set from OSD/OS Setup") : QStringLiteral("OSD/OS Setup not applied");
+        return result.ok ? QStringLiteral("Nothing set from OSD/OS Setup")
+                         : pasted ? QStringLiteral("Not pasted") : QStringLiteral("OSD/OS Setup not applied");
+    if (pasted)
+        return result.ok ? QStringLiteral("OSD/OS Setup pasted") : QStringLiteral("OSD/OS Setup partly pasted");
     return result.ok ? QStringLiteral("OSD/OS Setup applied") : QStringLiteral("OSD/OS Setup partly applied");
+}
+
+int apply(const Setup &setup, const QString &dataRoot, const Target &target,
+          const std::function<void(const QString &line, bool ok)> &say) {
+    int applied = 0;
+    QString why;
+    if (!setup.config.isEmpty()) {
+        QJsonObject config;
+        if (!target.readConfig(&config)) {
+            say(QStringLiteral("OSD/OS settings: not set: config.json couldn't be read, and is left as it is"), false);
+        } else if (const QJsonObject after = merged(config, setup.config); !target.writeConfig(after)) {
+            say(QStringLiteral("OSD/OS settings: not set: config.json couldn't be written"), false);
+        } else {
+            say(settingsLine(count(setup.config)), true);
+            ++applied;
+            if (target.configWritten)
+                target.configWritten(config, after);
+        }
+    }
+    if (!setup.account.isEmpty()) {
+        if (writeAccount(setup.account, dataRoot, &why)) {
+            say(accountLine(setup.account), true);
+            ++applied;
+            if (target.accountWritten)
+                target.accountWritten();
+        } else {
+            say(QStringLiteral("RetroAchievements: not set: ") + why, false);
+        }
+    }
+    if (!setup.favorites.isEmpty()) {
+        if (writeFavorites(setup.favorites, dataRoot, &why)) {
+            say(favoritesLine(int(setup.favorites.size())), true);
+            ++applied;
+            if (target.favoritesWritten)
+                target.favoritesWritten();
+        } else {
+            say(QStringLiteral("Arcade favorites: not added: ") + why, false);
+        }
+    }
+    if (!setup.cardOnly.isEmpty())
+        say(cardOnlyLine(setup.cardOnly), true);
+    if (setup.config.isEmpty() && setup.account.isEmpty() && setup.favorites.isEmpty() && setup.cardOnly.isEmpty())
+        say(QStringLiteral("Nothing in it to set"), true);
+    return applied;
 }
 
 QStringList places(const QString &dataRoot) {
@@ -278,6 +316,13 @@ Result applyAtStart(const QString &dataRoot) {
         else
             qWarning("[Setup] %s", qPrintable(line));
     };
+    // config.json itself: nothing has read it yet.
+    const QString configPath = dataRoot + QStringLiteral("/config.json");
+    Target target;
+    target.readConfig = [&configPath](QJsonObject *config) { return readConfig(configPath, config); };
+    target.writeConfig = [&configPath](const QJsonObject &config) {
+        return writeFileAtomically(configPath, QJsonDocument(config).toJson(QJsonDocument::Indented));
+    };
     const QStringList found = places(dataRoot);
     for (int i = 0; i < found.size(); ++i) {
         QFile file(found.at(i));
@@ -308,38 +353,7 @@ Result applyAtStart(const QString &dataRoot) {
             continue;
         }
         say(QStringLiteral("From %1").arg(name));
-        if (!setup.config.isEmpty()) {
-            const QString configPath = dataRoot + QStringLiteral("/config.json");
-            QJsonObject config;
-            if (!readConfig(configPath, &config))
-                say(QStringLiteral("OSD/OS settings: not set: config.json couldn't be read, and is left as it is"), false);
-            else if (!writeFileAtomically(configPath, QJsonDocument(merged(config, setup.config)).toJson(QJsonDocument::Indented)))
-                say(QStringLiteral("OSD/OS settings: not set: config.json couldn't be written"), false);
-            else {
-                say(settingsLine(count(setup.config)));
-                ++result.applied;
-            }
-        }
-        if (!setup.account.isEmpty()) {
-            if (writeAccount(setup.account, dataRoot, &why)) {
-                say(accountLine(setup.account));
-                ++result.applied;
-            } else {
-                say(QStringLiteral("RetroAchievements: not set: ") + why, false);
-            }
-        }
-        if (!setup.favorites.isEmpty()) {
-            if (writeFavorites(setup.favorites, dataRoot, &why)) {
-                say(favoritesLine(int(setup.favorites.size())));
-                ++result.applied;
-            } else {
-                say(QStringLiteral("Arcade favorites: not added: ") + why, false);
-            }
-        }
-        if (!setup.cardOnly.isEmpty())
-            say(cardOnlyLine(setup.cardOnly));
-        if (setup.config.isEmpty() && setup.account.isEmpty() && setup.favorites.isEmpty() && setup.cardOnly.isEmpty())
-            say(QStringLiteral("Nothing in it to set"));
+        result.applied += apply(setup, dataRoot, target, say);
     }
     return result;
 }

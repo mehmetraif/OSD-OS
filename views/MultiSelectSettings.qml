@@ -113,10 +113,6 @@ FocusScope {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
         subtitle: moduleName + " / " + settingLabel
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // "NAME····◄ ON ►", a heading "GENRES ─────" over its choices. A name too
@@ -125,12 +121,15 @@ FocusScope {
         id: optionsList
         model: multiSelectRoot.rows
         focus: true
+        // A heading is a line of its own here, which turns its group on or
+        // off: the cursor, and the mouse, stop on every line.
+        rule: function(row) { return !!row }
 
         delegate: MenuRow {
             required property var modelData
             required property int index
             width: optionsList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
             label: modelData.label || ""
             heading: !!modelData.heading
             value: modelData.heading || modelData.note ? "" : (multiSelectRoot.enabledMap[modelData.id] ? "ON" : "OFF")
@@ -143,7 +142,7 @@ FocusScope {
         Keys.onRightPressed: multiSelectRoot.toggleItem(currentIndex)
         Keys.onReturnPressed: multiSelectRoot.toggleItem(currentIndex)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 multiSelectRoot.goBack()
                 event.accepted = true
             }
@@ -158,19 +157,11 @@ FocusScope {
         visible: heading || multiSelectRoot.problem !== ""
         always: !heading
         text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // --- FOOTER ---
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.change + ":CHANGE"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE"])
     }
 }

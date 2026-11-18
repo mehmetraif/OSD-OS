@@ -68,7 +68,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             // Ignore auto-repeat on Back only: holding it should behave exactly like
             // one press so that holding back to stop a script doesn't spam back through 
             // each views when your intent was to just stop the script.
@@ -109,10 +109,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: takeoverRoot.scriptName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Text {
@@ -130,9 +126,7 @@ FocusScope {
             if (takeoverRoot.finishReason !== "")                return "EXIT " + takeoverRoot.finishExitCode
             return "HANDING OFF…"
         }
-        color: (takeoverRoot.startError !== "" || takeoverRoot.finishReason === "failed"
-                || takeoverRoot.finishReason === "failed_to_start")
-               ? root.accentColor : root.secondaryColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         font.pixelSize: root.sh * 0.0333333 //16
@@ -150,7 +144,7 @@ FocusScope {
         anchors.topMargin: root.sh * 0.0104167 //5
         anchors.leftMargin: root.sw * 0.125 //80
         text: "DISPLAY COULD NOT BE HANDED OVER — RAN WITHOUT IT"
-        color: root.accentColor
+        color: root.primaryColor
         font.family: root.globalFont
         font.capitalization: Font.AllUppercase
         font.pixelSize: root.sh * 0.0291667 //14
@@ -215,10 +209,6 @@ FocusScope {
                 parts.push(root.hints.navigate + ":SCROLL")
             return parts.join(" ")
         }
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The hand-off screen. Opaque black over everything above, because on a

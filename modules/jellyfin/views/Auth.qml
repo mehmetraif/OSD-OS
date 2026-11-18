@@ -68,7 +68,7 @@ FocusScope {
             event.key === Qt.Key_AltGr) {
             return
         }
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
             return
@@ -127,10 +127,6 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Connect to Server"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Body
@@ -149,7 +145,7 @@ FocusScope {
 
             Text {
                 text: "Server URL"
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 font.pixelSize: root.sh * 0.0291667 //14
@@ -159,7 +155,7 @@ FocusScope {
                 width: parent.width
                 height: root.sh * 0.075 //36
                 color: root.surfaceColor
-                border.color: focusIndex === 0 ? root.accentColor : root.tertiaryColor
+                border.color: root.primaryColor
                 border.width: root.sh * 0.003125 //2
 
                 TextInput {
@@ -187,8 +183,8 @@ FocusScope {
         Rectangle {
             width: root.sw * 0.234375 //150
             height: root.sh * 0.0583333 //28
-            color: focusIndex === 1 ? root.accentColor : root.surfaceColor
-            border.color: focusIndex === 1 ? root.accentColor : root.tertiaryColor
+            color: focusIndex === 1 ? root.primaryColor : root.surfaceColor
+            border.color: root.primaryColor
             border.width: root.sh * 0.003125 //2
             anchors.horizontalCenter: parent.horizontalCenter
 
@@ -206,7 +202,7 @@ FocusScope {
         Text {
             visible: waiting
             text: "CONNECTING..."
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             anchors.horizontalCenter: parent.horizontalCenter
@@ -219,7 +215,7 @@ FocusScope {
         Text {
             visible: errorMsg !== ""
             text: errorMsg
-            color: root.accentColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -234,12 +230,7 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select
-              + (focusIndex === 0 ? ":TYPE" : ":CONNECT")
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:" + (focusIndex === 0 ? "TYPE" : "CONNECT")])
     }
 
     OnScreenKeyboard {

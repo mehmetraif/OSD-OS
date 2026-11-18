@@ -112,10 +112,6 @@ Item {
                                              : "../../assets/images/question.svg"
         title: prompt.title
         frameTitle: prompt.title
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // The space between the bars, or with the hint bar off, down to where it
@@ -133,9 +129,9 @@ Item {
 
     Column {
         // In the middle of the pane (the window's, with no frame).
-        x: prompt.paned ? root.paneX : root.sw * 0.115625 //74
+        x: prompt.paned ? root.paneX : root.contentBox.x
         anchors.verticalCenter: middle.verticalCenter
-        width: prompt.paned ? root.paneWidth : root.sw * 0.76875 //492
+        width: prompt.paned ? root.paneWidth : root.contentBox.width
         spacing: root.sh * 0.05 //24
 
         Text {
@@ -167,7 +163,7 @@ Item {
 
             ListView {
                 id: answers
-                readonly property real rowHeight: root.sh * 0.0583333 //28
+                readonly property real rowHeight: root.menuRowHeight
                 width: parent.width
                 // By the answers it is given, which it has as it is made,
                 // not by its count, which it has only once made: a window
@@ -260,11 +256,7 @@ Item {
         id: hintBar
         text: prompt.hint !== "" ? prompt.hint
               : prompt.choices.length > 0
-                ? root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE " + root.hints.select + ":SELECT"
+                ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
                 : root.hints.back + ":BACK"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 }

@@ -10,6 +10,8 @@ PixelIcon PixelIcon.qml
 ArcadePanel ArcadePanel.qml
 Dither Dither.qml
 MenuRow MenuRow.qml
+ScrolledText ScrolledText.qml
+ScrolledLines ScrolledLines.qml
 HelpLine HelpLine.qml
 ScrollMarks ScrollMarks.qml
 WebPlayerLaunch WebPlayerLaunch.qml
@@ -25,6 +27,9 @@ LoadingScreen LoadingScreen.qml
 PromptScreen PromptScreen.qml
 PlaybackNotice PlaybackNotice.qml
 MenuList MenuList.qml
+LetterList LetterList.qml
+PaneMessage PaneMessage.qml
+SettingRow SettingRow.qml
 ListPager ListPager.qml
 ListPicker ListPicker.qml
 PlaylistAdder PlaylistAdder.qml
@@ -37,3 +42,14 @@ MonitorChrome MonitorChrome.qml
 MonitorRow MonitorRow.qml
 PressPrompt PressPrompt.qml
 ButtonGrid ButtonGrid.qml
+WindowChange WindowChange.qml
+MpvKeys 1.0 MpvKeys.js
+Hints 1.0 Hints.js
+ModuleRouter ModuleRouter.qml
+MediaServerLibraries MediaServerLibraries.qml
+MediaServerItems MediaServerItems.qml
+MediaServerBoxset MediaServerBoxset.qml
+MediaServerItem MediaServerItem.qml
+MediaServerItemShow MediaServerItemShow.qml
+MediaServerItemSeason MediaServerItemSeason.qml
+MediaServerPlayer MediaServerPlayer.qml

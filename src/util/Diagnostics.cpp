@@ -1,4 +1,5 @@
 #include "Diagnostics.h"
+#include "FileText.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -575,8 +576,7 @@ bool statOf(const QString &path, char *state, long *parent) {
 }
 
 QByteArray firstLine(const QString &path) {
-    QFile file(path);
-    return file.open(QIODevice::ReadOnly) ? file.readAll().trimmed() : QByteArray();
+    return filetext::readText(path).trimmed();
 }
 
 const char *stateName(char state) {

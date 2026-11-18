@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include "../../util/PositionHistory.h"
 
 class NfcDriver;
 class AppCore;
@@ -87,6 +88,9 @@ public:
     Q_INVOKABLE void        get_resume_playback_options();
     Q_INVOKABLE void        get_auto_subtitles_options();
     Q_INVOKABLE void        get_subtitle_languages();
+    // Auto Show Subtitles as saved (appCore.get_setting()), as the choice it
+    // is: "forced", "on" or "off", one saved in the old On/Off form too.
+    Q_INVOKABLE QString     autoSubtitlesChoice(const QVariant &saved) const;
     Q_INVOKABLE QString     ytdlFormatForResolution(const QString &resolution) const;
 
     // True when at least one reader driver is compiled in. The PN532 serial
@@ -159,9 +163,9 @@ private:
     bool m_moduleActive = false;
     bool m_captureArmed = false;
 
-    QString     historyFilePath() const;
-    QVariantMap loadHistory() const;
-    void        saveHistory(const QVariantMap &history);
+    // Where each mapped video was stopped (nfc_reader_history.json), the most
+    // recently played kept.
+    PositionHistory m_history;
 
     QString tagsDirPath() const;
     void setTagsDir(const QString &path);

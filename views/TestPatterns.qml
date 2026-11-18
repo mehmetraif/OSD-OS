@@ -288,9 +288,8 @@ FocusScope {
             }
             Text {
                 width: parent.width
-                text: root.hints.change + ":PATTERN "
-                      + (patternsRoot.pattern.kinds.length > 1 ? root.hints.navigate + ":KIND " : "")
-                      + root.hints.select + ":HIDE " + root.hints.back + ":BACK"
+                text: root.hintLine(["change:PATTERN", patternsRoot.pattern.kinds.length > 1 ? "navigate:KIND" : "",
+                                     "select:HIDE", "back:BACK"])
                 color: "#ffffff"
                 font.family: root.globalFont
                 font.pixelSize: root.sh * 0.03

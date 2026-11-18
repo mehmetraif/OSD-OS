@@ -1,6 +1,4 @@
 #include "SelectorFx.h"
-#include <QQuickWindow>
-#include <QSGSimpleTextureNode>
 #include <QtMath>
 
 namespace {
@@ -46,11 +44,9 @@ float hash3(int x, int y, int z) {
 }
 } // namespace
 
-SelectorFx::SelectorFx(QQuickItem *parent) : QQuickItem(parent) {
-    setFlag(ItemHasContents, true);
-    m_timer.setInterval(kFrameMs);
-    connect(&m_timer, &QTimer::timeout, this, &SelectorFx::tick);
-}
+// Its random numbers start where OSD/OS Setup's live preview's do
+// (site/setup/js/preview/selector.mjs), so that the preview draws as it does.
+SelectorFx::SelectorFx(QQuickItem *parent) : ArtPixelItem(kFrameMs, 0x2545F491u, parent) {}
 
 void SelectorFx::setTarget(QQuickItem *target) {
     if (target == m_target)
@@ -92,30 +88,6 @@ void SelectorFx::setPaper(const QColor &paper) {
     emit paperChanged();
 }
 
-void SelectorFx::setPixel(int pixel) {
-    pixel = qMax(1, pixel);
-    if (pixel == m_pixel)
-        return;
-    m_pixel = pixel;
-    emit pixelChanged();
-}
-
-void SelectorFx::setRunning(bool running) {
-    if (running == m_running)
-        return;
-    m_running = running;
-    updateRunning();
-    emit runningChanged();
-}
-
-quint32 SelectorFx::random() {
-    quint32 x = m_seed;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    return m_seed = x;
-}
-
 float SelectorFx::uniform(float from, float to) {
     return from + (to - from) * ((random() & 0xFFFFFF) / float(0x1000000));
 }
@@ -125,7 +97,8 @@ QRectF SelectorFx::box() const {
             || m_target->width() <= 0 || m_target->height() <= 0)
         return {};
     const QRectF r = m_target->mapRectToItem(this, m_target->boundingRect());
-    return QRectF(r.x() / m_pixel, r.y() / m_pixel, r.width() / m_pixel, r.height() / m_pixel);
+    const int px = pixel();
+    return QRectF(r.x() / px, r.y() / px, r.width() / px, r.height() / px);
 }
 
 void SelectorFx::plot(int x, int y, QRgb color, float alpha) {
@@ -177,7 +150,9 @@ void SelectorFx::emitSparkles(const QRectF &b) {
         s.x = s.lastX = corners[c].x() + uniform(-0.5f, 0.5f);
         s.y = s.lastY = corners[c].y() + uniform(-0.5f, 0.5f);
         s.vx = side * uniform(25, 75);
-        s.vy = up * uniform(2, 22) + uniform(-8, 8);
+        // Taken in turn, whatever the compiler, as the preview takes them.
+        const float rise = uniform(2, 22);
+        s.vy = up * rise + uniform(-8, 8);
         s.age = 0;
         s.life = uniform(0.45f, 1.1f);
         s.cross = uniform(0, 1) < 0.3f;
@@ -296,8 +271,8 @@ void SelectorFx::tick() {
         m_time -= kClockWraps;
         m_nextBurst -= kClockWraps;
     }
-    const int cols = qCeil(width() / m_pixel);
-    const int rows = qCeil(height() / m_pixel);
+    const int cols = qCeil(width() / pixel());
+    const int rows = qCeil(height() / pixel());
     if (cols <= 0 || rows <= 0)
         return;
     if (m_frame.width() != cols || m_frame.height() != rows) {
@@ -426,8 +401,7 @@ void SelectorFx::tick() {
 }
 
 void SelectorFx::updateRunning() {
-    const bool run = m_running && m_kind != Kind::None && isVisible() && window()
-                     && width() > 0 && height() > 0 && (m_target || !m_sparks.isEmpty() || !m_bolts.isEmpty());
+    const bool run = canRun() && m_kind != Kind::None && (m_target || !m_sparks.isEmpty() || !m_bolts.isEmpty());
     if (run && !m_timer.isActive()) {
         m_timer.start();
     } else if (!run && m_timer.isActive()) {
@@ -441,37 +415,4 @@ void SelectorFx::updateRunning() {
             update();
         }
     }
-}
-
-void SelectorFx::itemChange(ItemChange change, const ItemChangeData &value) {
-    QQuickItem::itemChange(change, value);
-    if (change == ItemVisibleHasChanged || change == ItemSceneChange)
-        updateRunning();
-}
-
-void SelectorFx::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) {
-    QQuickItem::geometryChange(newGeometry, oldGeometry);
-    if (newGeometry.size() != oldGeometry.size())
-        updateRunning();
-}
-
-QSGNode *SelectorFx::updatePaintNode(QSGNode *old, UpdatePaintNodeData *) {
-    auto *node = static_cast<QSGSimpleTextureNode *>(old);
-    if (m_frame.isNull() || width() <= 0 || height() <= 0) {
-        delete node;
-        return nullptr;
-    }
-    if (!node) {
-        node = new QSGSimpleTextureNode;
-        node->setOwnsTexture(true);
-        // Art pixels stay square blocks, as the menus' do.
-        node->setFiltering(QSGTexture::Nearest);
-    }
-    if (m_newFrame || !node->texture()) {
-        node->setTexture(window()->createTextureFromImage(m_frame));
-        m_newFrame = false;
-    }
-    node->setRect(boundingRect());
-    node->setSourceRect(QRectF(0, 0, width() / m_pixel, height() / m_pixel));
-    return node;
 }

@@ -5,7 +5,6 @@
 #include <QUrl>
 
 class QNetworkAccessManager;
-class QNetworkReply;
 
 // A program for Windows, where no package manager brings it, downloaded as
 // a 7z archive and unpacked into <data>/arcade: RetroArch (Settings → Arcade
@@ -57,7 +56,6 @@ private:
     QString unpackFolder() const;
 
     QNetworkAccessManager *m_nam = nullptr;
-    QNetworkReply *m_reply = nullptr;
     QFutureWatcher<QString> *m_watcher = nullptr;
     Source m_source;
     int  m_progress = 0;

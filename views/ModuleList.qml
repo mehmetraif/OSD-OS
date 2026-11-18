@@ -92,14 +92,7 @@ FocusScope {
         groupIndex = (groupIndex + direction + n) % n
         menuList.model = groups[groupIndex].rows
         menuList.currentIndex = 0
-        showCurrent()
-    }
-    // Where the cursor's row shows: in Flat Panel its page.
-    function showCurrent() {
-        if (flat)
-            chrome.pageTo(menuList)
-        else
-            menuList.positionViewAtIndex(menuList.currentIndex, ListView.Contain)
+        menuList.show(0)
     }
     // ► or select on an icon: into the group's rows; Settings' opens it.
     function enterGroup() {
@@ -193,7 +186,7 @@ FocusScope {
         if (index < 0)
             index = keep && keep.currentIndex !== undefined ? Math.min(keep.currentIndex, rows.length - 1) : 0
         menuList.currentIndex = index
-        showCurrent()
+        menuList.show(index)
     }
 
     // Header: in Camcorder, the group's name. In a monitor layout the
@@ -204,10 +197,6 @@ FocusScope {
         subtitle: appRoot.camcorder && appRoot.groups[appRoot.groupIndex] ? appRoot.groups[appRoot.groupIndex].label : ""
         path: []
         frameTitle: appRoot.studio ? (appRoot.groups[appRoot.groupIndex] || { label: "OSD/OS" }).label : "OSD/OS"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Empty state
@@ -217,7 +206,7 @@ FocusScope {
         visible: appRoot.modules.length === 0 && !appRoot.behind
         Text {
             text: "No modules enabled"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -226,7 +215,7 @@ FocusScope {
         }
         Text {
             text: "Please enable one in settings"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -239,7 +228,6 @@ FocusScope {
     // Studio Monitor's strip, and the key guide: the shell's frame, under
     // the rows (Main.qml's root.chrome), which says where they go. No help
     // line: the main menu has none, and its rows take the room (tallHeight).
-    readonly property var chrome: root.chrome
     // The key guide's lines in a monitor layout, as a monitor's has them.
     readonly property var monitorGuide: {
         var h = root.hints
@@ -253,31 +241,26 @@ FocusScope {
                .concat(root.videoBehind ? [h.play_pause + " Stop"] : [])
     }
 
-    ListView {
-        id: menuList;
-        model: [];
-        anchors.top: parent.top
-        anchors.left: parent.left
-        // Where a monitor layout has its rows (MonitorChrome), beside
-        // Camcorder's icons, or where every view has its list.
-        anchors.topMargin: appRoot.monitor ? chrome.listY : root.sh * 0.25 //120
-        anchors.leftMargin: appRoot.monitor ? chrome.listX : appRoot.camcorder ? root.sw * 0.209375 : root.sw * 0.115625 //134 : 74
-        width: appRoot.monitor ? chrome.listWidth : appRoot.camcorder ? root.sw * 0.675 : root.sw * 0.76875 //432 : 492
-        height: appRoot.monitor ? chrome.tallHeight : root.sh * 0.525 + root.hintRoom //252
-        onHeightChanged: if (appRoot.flat) Qt.callLater(appRoot.showCurrent)
-        // Flat Panel's last page filled out to a whole page, and the view
-        // left where its page puts it (not moved to follow the cursor).
-        footer: Item { width: 1; height: appRoot.flat ? chrome.pageFill(menuList) : 0 }
-        highlightFollowsCurrentItem: !appRoot.flat
-        clip: true;
-        focus: true;
+    // The rows: where a monitor layout has them (MonitorChrome), beside
+    // Camcorder's icons, or where every view has its list, down to where
+    // the help line would be (tallListHeight); Flat Panel's a page at a
+    // time.
+    MenuList {
+        id: menuList
+        model: []
+        height: root.tallListHeight //252
+        focus: true
+        // In Camcorder's and Studio Monitor's icons, ▲ ▼ go from group to
+        // group.
+        held: appRoot.iconMenu && appRoot.groupIcons
+        onHeldStep: function(delta) { appRoot.moveGroup(delta) }
 
         delegate: Item {
             // In Camcorder's icons the box is on the icon.
             readonly property bool current: menuList.currentIndex === index
                                             && !(appRoot.iconMenu && appRoot.groupIcons)
             width: menuList.width;
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The row in a monitor layout: Broadcast's "...", Flat Panel's ▶.
             Loader {
@@ -290,91 +273,32 @@ FocusScope {
                 }
             }
 
-            Item {
-                id: textClipContainer;
+            // A selected name too long for the row scrolls through.
+            ScrolledText {
+                id: textClipContainer
                 visible: !appRoot.monitor
-                width: Math.min(rowText.implicitWidth, menuList.width);
-                height: parent.height;
-                clip: true;
+                width: Math.min(implicitWidth, menuList.width)
+                height: parent.height
+                on: current
+                elides: false
+                text: modelData.name
+                color: current ? root.surfaceColor : root.primaryColor
+                font.pixelSize: root.sh * 0.05 //24
+                textItem.topPadding: root.sh * 0.0041667 //2
+                textItem.leftPadding: root.sw * 0.009375 //6
+                textItem.rightPadding: root.sw * 0.009375 //6
+                textItem.bottomPadding: root.sh * 0.00625 //3
 
                 // The selected row's box, or the skin's picture of a selected
-                // line (Settings → Look → Skin).
+                // line (Settings → Look → Skin), under the name and moving
+                // with it.
                 SelectionBox {
-                    anchors.fill: rowText;
-                    visible: current;
-                }
-
-                Text {
-                    id: rowText;
-                    text: modelData.name;
-                    color: current ? root.surfaceColor : root.primaryColor;
-                    font.family: root.globalFont;
-                    font.capitalization: Font.AllUppercase;
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                SequentialAnimation {
-                    id: marqueeAnim;
-                    running: current && (rowText.implicitWidth > textClipContainer.width);
-                    loops: Animation.Infinite;
-
-                    onRunningChanged: {
-                        if (!running) rowText.x = 0;
-                    }
-
-                    PauseAnimation { 
-                        duration: 1500;
-                    }
-                    
-                    NumberAnimation {
-                        target: rowText;
-                        property: "x";
-                        to: textClipContainer.width - rowText.implicitWidth;
-                        duration: Math.abs(to) * 20;
-                    }
-
-                    PauseAnimation { 
-                        duration: 2000;
-                    }
-
-                    PropertyAction { 
-                        target: rowText; 
-                        property: "x"; 
-                        value: 0;
-                    }
+                    z: -1
+                    anchors.fill: textClipContainer.textItem
+                    visible: current
                 }
             }
         }
-
-        Keys.onUpPressed: {
-            if (appRoot.iconMenu && appRoot.groupIcons) {
-                appRoot.moveGroup(-1)
-                return
-            }
-            step(-1)
-        }
-        // A row up (-1) or down (1), round, over Broadcast's gap.
-        function step(direction) {
-            if (count === 0) return
-            do {
-                currentIndex = (currentIndex + direction + count) % count
-            } while (model[currentIndex] && model[currentIndex].gap)
-            appRoot.showCurrent()
-        }
-        Keys.onDownPressed: {
-            if (appRoot.iconMenu && appRoot.groupIcons) {
-                appRoot.moveGroup(1)
-                return
-            }
-            step(1)
-        }
-
 
         // Camcorder: ◄ from the rows to the icons, ► from the icons into the
         // rows.
@@ -391,11 +315,9 @@ FocusScope {
                 event.accepted = false
         }
 
-        // The mouse over a row (Hover.js): in Camcorder's icons, the keys go
-        // into the rows.
+        // The mouse over a row (Hover.js), which passes over the gap: in
+        // Camcorder's icons, the keys go into the rows.
         function hoverRow(index, list) {
-            if (model[index] && model[index].gap)
-                return
             appRoot.groupIcons = false
             currentIndex = index
         }
@@ -417,7 +339,7 @@ FocusScope {
         }
 
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 appRoot.navigateTo("views/Settings.qml", {}, appRoot.cursorState())
                 event.accepted = true
             } else if (event.key === Qt.Key_Space && root.videoBehind) {
@@ -427,15 +349,6 @@ FocusScope {
                 event.accepted = true
             }
         }
-    }
-
-    // ▲ / ▼ while lines are hidden above or below; Flat Panel's page says
-    // so instead.
-    ScrollMarks {
-        visible: !appRoot.flat
-        anchors.fill: menuList
-        list: menuList
-        color: root.menuPalette ? root.menuPalette.ink : root.primaryColor
     }
 
     // Camcorder's icons, the groups, at the left of the rows, and Studio
@@ -456,12 +369,8 @@ FocusScope {
     HintBar {
         id: footer
         guide: appRoot.monitor ? appRoot.monitorGuide : []
-        text: root.hints.back + ":SETTINGS " + root.hints.navigate + ":NAVIGATE "
-              + (appRoot.camcorder ? (appRoot.groupIcons ? root.hints.browse + ":OPEN " : root.hints.left + ":GROUPS ") : "")
-              + (root.videoBehind ? root.hints.play_pause + ":STOP " : "") + root.hints.select + ":SELECT"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:SETTINGS", "navigate:NAVIGATE",
+                             appRoot.camcorder ? (appRoot.groupIcons ? "browse:OPEN" : "left:GROUPS") : "",
+                             root.videoBehind ? "play_pause:STOP" : "", "select:SELECT"])
     }
 }

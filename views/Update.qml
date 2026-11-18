@@ -4,7 +4,7 @@ import Components
 // Software Update page — checks GitHub Releases via the UpdateManager backend
 // (context property "updateManager"), downloads the platform asset, and applies
 // it. All state lives in C++; this view renders updateManager.state:
-//   idle | checking | upToDate | updateAvailable | downloading | readyToApply | error
+//   idle | checking | upToDate | updateAvailable | downloading | readyToApply | applying | error
 FocusScope {
     id: updateRoot
     // In the layout's frame (Main.qml): its rows in the pane, beside the
@@ -48,6 +48,7 @@ FocusScope {
         case "updateAvailable": return "Update available"
         case "downloading":     return "Downloading... " + Math.round((updateManager ? updateManager.downloadProgress : 0) * 100) + "%"
         case "readyToApply":    return latestVersion + " ready to install"
+        case "applying":        return "Installing " + latestVersion + "..."
         case "error":           return errorMessage
         default:                return "Press " + root.hints.select + " to check for latest"
         }
@@ -109,10 +110,6 @@ FocusScope {
         iconSource: "../../assets/images/update.svg"
         title: "Update"
         //subtitle: root.appVersion
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Item {
@@ -124,7 +121,7 @@ FocusScope {
         Keys.onUpPressed:   notesFlick.scrollBy(-1)
         Keys.onDownPressed: notesFlick.scrollBy(1)
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+            if (root.isBack(event)) {
                 if (updateRoot.updState === "downloading" && updateManager)
                     updateManager.cancelDownload()
                 updateRoot.goBack()
@@ -154,7 +151,7 @@ FocusScope {
                 Text {
                     visible: updateRoot.latestVersion !== ""
                     text: "LATEST: " + updateRoot.latestVersion
-                    color: root.secondaryColor
+                    color: root.primaryColor
                     font.family: root.globalFont
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0375 //18
@@ -165,7 +162,7 @@ FocusScope {
             Text {
                 width: parent.width
                 text: updateRoot.statusText
-                color: root.accentColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 wrapMode: Text.WordWrap
@@ -177,7 +174,7 @@ FocusScope {
                 visible: updateRoot.hintText !== ""
                 width: parent.width
                 text: updateRoot.hintText
-                color: root.secondaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 // As written: it holds a command or an address to type.
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
@@ -190,7 +187,7 @@ FocusScope {
                 width: parent.width
                 height: root.sh * 0.0291667 //14
                 color: "transparent"
-                border.color: root.tertiaryColor
+                border.color: root.primaryColor
                 border.width: root.px
                 Rectangle {
                     anchors.top: parent.top
@@ -198,7 +195,7 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.margins: 2 * root.px
                     width: (parent.width - 4 * root.px) * (updateManager ? updateManager.downloadProgress : 0)
-                    color: root.accentColor
+                    color: root.primaryColor
                 }
             }
 
@@ -242,13 +239,8 @@ FocusScope {
 
         // Footer
         HintBar {
-            text: root.hints.back + ":BACK "
-                  + (updateRoot.releaseNotes !== "" ? root.hints.navigate + ":SCROLL " : "")
-                  + (updateRoot.actionLabel !== "" ? root.hints.select + ":" + updateRoot.actionLabel : "")
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.bottomMargin: root.sh * 0.1041667 //50
-            anchors.leftMargin: root.sw * 0.125 //80
+            text: root.hintLine(["back:BACK", updateRoot.releaseNotes !== "" ? "navigate:SCROLL" : "",
+                                 updateRoot.actionLabel !== "" ? "select:" + updateRoot.actionLabel : ""])
         }
     }
 

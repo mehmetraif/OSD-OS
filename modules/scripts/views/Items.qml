@@ -16,7 +16,6 @@ FocusScope {
     // None until the list has its model (Component.onCompleted).
     readonly property var currentScript: scriptList.model ? (scriptList.model[scriptList.currentIndex] || null) : null
 
-    property bool confirmVisible: false
     property var  pendingScript: null
 
     focus: true
@@ -27,10 +26,7 @@ FocusScope {
         if (!entry) return
         if (entry.confirm) {
             pendingScript = entry
-            confirmVisible = true
-            // Explicit: the list also declares focus: true, so relying on the
-            // overlay's binding alone leaves which sibling wins ambiguous.
-            confirmOverlay.forceActiveFocus()
+            confirmOverlay.open()
         } else {
             launch(entry)
         }
@@ -62,7 +58,7 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
+        if (root.isBack(event)) {
             goBack()
             event.accepted = true
         } else if (event.key === Qt.Key_Right) {
@@ -80,10 +76,6 @@ FocusScope {
     AppBar {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.topMargin: root.sh * 0.125 //60
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     // Empty state
@@ -93,7 +85,7 @@ FocusScope {
         visible: scriptList.count === 0
         Text {
             text: "No scripts found"
-            color: root.secondaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -102,7 +94,7 @@ FocusScope {
         }
         Text {
             text: "Please add .sh files to the scripts directory"
-            color: root.tertiaryColor
+            color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
             horizontalAlignment: Text.AlignHCenter
@@ -127,7 +119,7 @@ FocusScope {
 
         delegate: Item {
             width: scriptList.width
-            height: root.sh * 0.0583333 //28
+            height: root.menuRowHeight
 
             // The mode tag is laid out first so the name's clip region can stop
             // short of it — a long name must never run underneath the tag.
@@ -136,7 +128,7 @@ FocusScope {
                 visible: root.monitorInk !== true
                 text: (modelData.favorite ? "* " : "")
                       + (modelData.mode === "takeover" ? "TAKEOVER" : "CONSOLE")
-                color: scriptList.currentIndex === index ? root.accentColor : root.tertiaryColor
+                color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
                 anchors.verticalCenter: parent.verticalCenter
@@ -151,54 +143,33 @@ FocusScope {
                 anchors.fill: parent
                 active: root.monitorInk === true
                 sourceComponent: MonitorRow {
-                    label: rowText.text
+                    label: textClip.text
                     value: modeTag.text
                     selected: scriptList.currentIndex === index
                 }
             }
 
-            Item {
+            ScrolledText {
                 id: textClip
                 visible: root.monitorInk !== true
-                width: Math.min(rowText.implicitWidth,
+                width: Math.min(implicitWidth,
                                 scriptList.width - modeTag.width - root.sw * 0.028125)
                 height: parent.height
-                clip: true
+                on: scriptList.currentIndex === index
+                elides: false
+                text: modelData.name
+                color: scriptList.currentIndex === index ? root.cursorInk : root.primaryColor
+                font.pixelSize: root.sh * 0.05 //24
+                textItem.topPadding: root.sh * 0.0041667 //2
+                textItem.leftPadding: root.sw * 0.009375 //6
+                textItem.rightPadding: root.sw * 0.009375 //6
+                textItem.bottomPadding: root.sh * 0.00625 //3
 
                 Rectangle {
-                    color: root.accentColor
-                    anchors.fill: rowText
+                    z: -1
+                    color: root.cursorColor
+                    anchors.fill: textClip.textItem
                     visible: scriptList.currentIndex === index
-                }
-
-                Text {
-                    id: rowText
-                    text: modelData.name
-                    color: scriptList.currentIndex === index ? root.surfaceColor : root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: 0
-                    topPadding: root.sh * 0.0041667 //2
-                    leftPadding: root.sw * 0.009375 //6
-                    rightPadding: root.sw * 0.009375 //6
-                    bottomPadding: root.sh * 0.00625 //3
-                    font.pixelSize: root.sh * 0.05 //24
-                }
-
-                SequentialAnimation {
-                    running: (scriptList.currentIndex === index) &&
-                             (rowText.implicitWidth > textClip.width)
-                    loops: Animation.Infinite
-                    onRunningChanged: if (!running) rowText.x = 0
-                    PauseAnimation { duration: 1500 }
-                    NumberAnimation {
-                        target: rowText; property: "x"
-                        to: textClip.width - rowText.implicitWidth
-                        duration: Math.abs(to) * 20
-                    }
-                    PauseAnimation { duration: 2000 }
-                    PropertyAction { target: rowText; property: "x"; value: 0 }
                 }
             }
         }
@@ -233,10 +204,6 @@ FocusScope {
             if (s.confirm)  flags.push("CONFIRM")
             return [s.basename].concat(flags).join("\n")
         }
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.helpLineMargin
-        anchors.leftMargin: root.sw * 0.125 //80
     }
 
     Component.onCompleted: {
@@ -279,28 +246,22 @@ FocusScope {
         }
     }
 
-    // --- RUN CONFIRMATION OVERLAY --- (sidecar "confirm = yes"). The window
-    // draws its own ground (PromptScreen).
-    Item {
+    // --- RUN CONFIRMATION OVERLAY --- (sidecar "confirm = yes"). A window
+    // over the list: every key stops at it (► would otherwise mark the
+    // script a favourite under it), but for a chord like Ctrl+Q.
+    ChoiceOverlay {
         id: confirmOverlay
         anchors.fill: parent
-        visible: itemsRoot.confirmVisible
-        focus: itemsRoot.confirmVisible
         // Above the list AND the footer, which is a later sibling and would
         // otherwise draw through the overlay.
         z: 100
-
-        property int choiceIndex: 0
+        promptText: "Run script?"
+        subtitleText: itemsRoot.pendingScript ? itemsRoot.pendingScript.name : ""
         // Cancel first so a stray ENTER can't run something destructive.
-        readonly property var choices: [
-            { label: "Cancel", run: false },
-            { label: "Run",    run: true  }
-        ]
-
-        onVisibleChanged: if (visible) choiceIndex = 0
+        choices: [{ label: "Cancel", action: "cancel" },
+                  { label: "Run",    action: "run" }]
 
         function dismiss() {
-            itemsRoot.confirmVisible = false
             itemsRoot.pendingScript = null
             // Arrived here only to confirm a main-menu favorite: cancelling should
             // return to the menu, not strand the user in a list they never asked for.
@@ -308,52 +269,26 @@ FocusScope {
             else                         scriptList.forceActiveFocus()
         }
 
-        Keys.onUpPressed:   choiceIndex = Math.max(0, choiceIndex - 1)
-        Keys.onDownPressed: choiceIndex = Math.min(choices.length - 1, choiceIndex + 1)
-        Keys.onReturnPressed: {
+        onActivated: function(action) {
             var entry = itemsRoot.pendingScript
-            var doRun = choices[choiceIndex].run
-            if (doRun && entry) {
-                // Close the overlay WITHOUT going through dismiss(): for a favorite
-                // that path navigates back, which destroys this view before
-                // launch() can be called on it.
-                itemsRoot.confirmVisible = false
+            if (action === "run" && entry) {
+                // Not through dismiss(): for a favorite that path navigates
+                // back, which destroys this view before launch() can be
+                // called on it.
                 itemsRoot.pendingScript = null
                 itemsRoot.launch(entry)
             } else {
                 confirmOverlay.dismiss()
             }
         }
-        // A window over the list: every key stops here (► would otherwise
-        // mark the script a favourite under it), but for a chord like Ctrl+Q.
-        Keys.onPressed: function(event) {
-            if (event.modifiers & Qt.ControlModifier)
-                return
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
-                confirmOverlay.dismiss()
-            event.accepted = true
-        }
-
-        PromptScreen {
-            title: "Run script?"
-            message: itemsRoot.pendingScript ? itemsRoot.pendingScript.name : ""
-            choices: confirmOverlay.choices
-            currentIndex: confirmOverlay.choiceIndex
-            onHovered: function(index) { confirmOverlay.choiceIndex = index }
-        }
+        onCanceled: confirmOverlay.dismiss()
     }
 
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + root.hints.browse
-              + ((itemsRoot.currentScript && itemsRoot.currentScript.favorite)
-                 ? ":UNFAVORITE " : ":FAVORITE ")
-              + root.hints.select + ":RUN"
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.bottomMargin: root.sh * 0.1041667 //50
-        anchors.leftMargin: root.sw * 0.125 //80
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             "browse:" + (itemsRoot.currentScript && itemsRoot.currentScript.favorite ? "UNFAVORITE" : "FAVORITE"),
+                             "select:RUN"])
     }
 }
