@@ -20,7 +20,8 @@ execFileSync("python3", ["-I", join(root, "scripts/build-site.py"), out], { stdi
 const setup = join(out, "setup");
 const schema = JSON.parse(readFileSync(join(setup, "schema.json"), "utf8"));
 const read = path => readFileSync(join(root, path), "utf8");
-const settingsQml = read("views/Settings.qml");
+// Settings' source: the page, and the rows it makes its pages of.
+const settingsQml = read("views/Settings.qml") + read("views/SettingsPages.js");
 const mainQml = read("Main.qml");
 const appRows = schema.app.flatMap(group => group.settings);
 const valuesOf = row => row.options.map(([, value]) => String(value));
@@ -234,7 +235,7 @@ test("a folder it didn't build isn't replaced", () => {
 test("every General and TV / Movie row is one of Settings'", () => {
     assert.ok(appRows.length > 20);
     for (const row of appRows)
-        assert.ok(settingsQml.includes(`"${row.key}"`), `app.${row.key} in views/Settings.qml`);
+        assert.ok(settingsQml.includes(`"${row.key}"`), `app.${row.key} in views/Settings.qml or SettingsPages.js`);
 });
 
 test("the looks offered are the app's", () => {
