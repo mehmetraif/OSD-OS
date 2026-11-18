@@ -44,10 +44,8 @@ void ScriptsBackend::onSettingChanged(const QString &moduleId, const QString &ke
                                       const QVariant &value) {
     if (moduleId != kModuleId) return;
 
-    if (key == QLatin1String("scripts_directory")) {
+    if (key == QLatin1String("scripts_directory"))
         setScriptsDir(value.toString());
-        emit scriptsChanged();
-    }
 }
 
 QString ScriptsBackend::sidecarPathFor(const QString &scriptPath) {
@@ -260,7 +258,6 @@ void ScriptsBackend::getStartupScriptOptions() {
 
 void ScriptsBackend::rescanScripts() {
     scanScriptsDir();
-    emit scriptsChanged();
     // Settings' Auto-Run On Startup row, on the page the rescan was asked
     // from: a script just added can be chosen without the page opened again.
     getStartupScriptOptions();
@@ -306,7 +303,6 @@ bool ScriptsBackend::scriptBusy() const { return m_launcher->isBusy(); }
 bool ScriptsBackend::scriptDraining() const { return m_launcher->drainingGroup(); }
 QString ScriptsBackend::consoleOutput() const { return m_launcher->outputText(); }
 QString ScriptsBackend::runningName() const { return m_launcher->runningName(); }
-int ScriptsBackend::lastExitCode() const { return m_launcher->lastExitCode(); }
 
 QString ScriptsBackend::modeFor(const QString &basename) {
     ScriptEntry e;
@@ -370,7 +366,6 @@ bool ScriptsBackend::setFavorite(const QString &basename, bool favorite) {
 
     qDebug("[Scripts] %s favorite = %s", qPrintable(basename), favorite ? "yes" : "no");
     scanScriptsDir();
-    emit scriptsChanged();
     return true;
 }
 

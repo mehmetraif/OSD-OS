@@ -107,11 +107,11 @@ public:
     Q_INVOKABLE QVariantMap  getSavedPosition(const QString &videoId);
     Q_INVOKABLE void         savePosition(const QString &videoId, int positionMs,
                                           const QString &title, const QString &channelName);
-    Q_INVOKABLE QVariantList getHistory() const;   // displayable entries, newest first
+    QVariantList             getHistory() const;   // displayable entries, newest first (the tree's)
     Q_INVOKABLE void         delete_history();     // settings action slot
 
     // Watch later (youtube_watch_later.json), newest-saved first, manual removal only
-    Q_INVOKABLE QVariantList getWatchLater() const;
+    QVariantList             getWatchLater() const;   // the tree's
     Q_INVOKABLE bool         isInWatchLater(const QString &videoId) const;
     Q_INVOKABLE void         addToWatchLater(const QString &videoId, const QString &title,
                                              const QString &channelName);

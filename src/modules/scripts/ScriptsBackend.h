@@ -93,7 +93,6 @@ public:
     Q_INVOKABLE bool runScript(const QString &basename);
     Q_INVOKABLE void stopScript();
     Q_INVOKABLE QString lastError() const { return m_lastError; }
-    Q_INVOKABLE int     lastExitCode() const;
     // Run mode for a script ("console" | "takeover"), so a view can route before
     // starting anything.
     Q_INVOKABLE QString modeFor(const QString &basename);
@@ -118,7 +117,6 @@ public slots:
 signals:
     // Wired to AppCore by registerModule's introspection.
     void dynamicOptionsReady(const QString &key, const QVariant &options);
-    void scriptsChanged();
 
     void scriptRunningChanged();
     void consoleOutputChanged();
