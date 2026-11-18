@@ -22,7 +22,8 @@ import Components
 // Extras, and YouTube's, the NFC Reader's and Playlists' once the picture
 // has shown) have MpvController log it; Plex's live channels and Ambient
 // Mode's player say why, with RETRY. Every player sends mpv the same keys,
-// through one table (views/Components/MpvKeys.js).
+// through one table (views/Components/MpvKeys.js), and asks where to start
+// the same way (ChoiceOverlay), as the Scripts module asks Run script?.
 Rectangle {
     id: root
     color: surfaceColor
@@ -303,16 +304,20 @@ Rectangle {
     // players use them.
     QtObject {
         id: youtubeBackend
+        // Where the video was left: { pos }.
+        property var saved: ({})
         function playbackArgs(settings) { return [] }
         function playbackSettings() { return ({}) }
-        function getSavedPosition(videoId) { return ({}) }
+        function getSavedPosition(videoId) { return saved }
         function savePosition(videoId, pos, title, channelName) {}
         function isInWatchLater(videoId) { return false }
     }
     QtObject {
         id: nfcReaderBackend
+        // Where the card's video was left: { pos, plPos }.
+        property var saved: ({})
         function ytdlFormatForResolution(resolution) { return "best" }
-        function getSavedPosition(path) { return ({}) }
+        function getSavedPosition(path) { return saved }
         function savePosition(path, pos, plPos) {}
         function clearPosition(path) {}
         function resetAfterPlayback() {}
@@ -323,6 +328,17 @@ Rectangle {
         property int audioStops: 0
         function startAudio(paths, shuffle) { audioStarts++ }
         function stopAudio() { audioStops++ }
+    }
+
+    // ScriptsBackend as the Scripts module's list uses it: one script that
+    // asks before it runs (its sidecar's confirm = yes), one that doesn't.
+    QtObject {
+        id: scriptsBackend
+        function getScripts() {
+            return [{ basename: "backup.sh", name: "Backup", mode: "console", confirm: true, favorite: false },
+                    { basename: "hello.sh", name: "Hello", mode: "console", confirm: false, favorite: false }]
+        }
+        function setFavorite(basename, favorite) { return false }
     }
 
     // JellyfinBackend and EmbyBackend (the same) as the views use them:
@@ -403,9 +419,12 @@ Rectangle {
             items = items.filter(function(item) { return item.id !== itemId })
             playlistsChanged()
         }
+        // Where the list stopped last time.
+        property int resumeIndex: 0
+        property int resumeMs: 0
         function prepare(id, fromItemId) {
             return { file: "/data/" + id + ".m3u", count: 2, youtube: false, images: false,
-                     startIndex: -1, resumeIndex: 0, resumeMs: 0 }
+                     startIndex: -1, resumeIndex: resumeIndex, resumeMs: resumeMs }
         }
         function savedPositionMs(id) { return 0 }
         function savePosition(id, pos, plPos) {}
@@ -460,6 +479,10 @@ Rectangle {
             ambientModeBackend.audioStops = 0
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
+            playlistsBackend.resumeIndex = 0
+            playlistsBackend.resumeMs = 0
+            youtubeBackend.saved = {}
+            nfcReaderBackend.saved = {}
             for (var backend of [jellyfinBackend, embyBackend]) {
                 backend.cancels = 0
                 backend.asks = 0
@@ -491,6 +514,15 @@ Rectangle {
         function noticeOf(item) {
             for (var i = 0; i < item.children.length; i++) {
                 if (item.children[i].showMpv !== undefined)
+                    return item.children[i]
+            }
+            return null
+        }
+
+        // The player's question before its video starts (ChoiceOverlay).
+        function promptOf(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                if (item.children[i].choiceIndex !== undefined && item.children[i].step !== undefined)
                     return item.children[i]
             }
             return null
@@ -1185,7 +1217,7 @@ Rectangle {
             compare(player.filePath, "/films/C.mkv")
             compare(player.itemTitle, "C.mkv")
             compare(player.lastKnownPositionMs, 0)
-            verify(!player.overlayVisible)
+            verify(!promptOf(player).visible)
             keyClick(Qt.Key_PageUp)
             compare(mpvController.urls[2], "/films/A.mkv")
             keyClick(Qt.Key_PageDown)
@@ -1283,6 +1315,135 @@ Rectangle {
             compare(mpvController.keys, ["ESC", "ESC", "BS", "UP", "DOWN", "LEFT", "RIGHT", "SPACE", "ENTER", "ENTER"]
                                         .concat(data.channels ? ["CHANNEL_UP"] : []))
             compare(mpvController.loads, 1)
+        }
+
+        // A video with a resume point, Resume Playback on Ask: every player
+        // asks the same way (ChoiceOverlay), the cursor on resuming. ▲ from
+        // the first answer goes round to the last and ▼ from the last to the
+        // first; select on the last starts from the beginning (Local Files'
+        // playlist: shuffled), on the first where it was left. Back leaves
+        // the player with nothing played, Jellyfin and Emby reporting the
+        // playback stopped. None of the question's keys reach mpv.
+        function test_resumeQuestionGoesRound_data() {
+            var server = { streamUrl: "http://server/stream", itemId: "e1", mediaSourceId: "e1",
+                           title: "Episode 1", viewOffset: 90000 }
+            return [{ tag: "plex", module: "plex", about: "Episode 1", resume: "Resume from 1:30",
+                      params: { streamUrl: "http://plex/10", plexToken: "token", ratingKey: "10",
+                                partKey: "/library/parts/10", title: "Episode 1", viewOffset: 90000 } },
+                    { tag: "jellyfin", module: "jellyfin", params: server, about: "Episode 1",
+                      resume: "Resume from 1:30", reportsBack: true },
+                    { tag: "emby", module: "emby", params: server, about: "Episode 1",
+                      resume: "Resume from 1:30", reportsBack: true },
+                    { tag: "youtube", module: "youtube", about: "A Talk", resume: "Resume from 1:30",
+                      params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" } } },
+                    { tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" },
+                      about: "B", resume: "Resume from 1:30" },
+                    { tag: "local_files, a playlist to shuffle", module: "local_files", shuffle: "ask",
+                      params: { filePath: "/films/list.m3u", title: "list.m3u" }, question: "Start playback?",
+                      about: "list", resume: "Resume video 3 at 1:30", answers: 3 },
+                    { tag: "nfc_reader", module: "nfc_reader", params: { videoPath: "/films/A.mkv", title: "A" },
+                      about: "A", resume: "Resume from 1:30" },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" },
+                      about: "Night", resume: "Resume video 3 at 1:30" }]
+        }
+        function test_resumeQuestionGoesRound(data) {
+            appCore.settings = { resume_playback: "ask", shuffle_playback: data.shuffle || "no" }
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 },
+                                            "/films/list.m3u": { pos: 90000, plPos: 2 } }
+            youtubeBackend.saved = { pos: 90000 }
+            nfcReaderBackend.saved = { pos: 90000, plPos: -1 }
+            playlistsBackend.resumeIndex = 2
+            playlistsBackend.resumeMs = 90000
+            var answers = data.answers || 2
+
+            var prompt = promptOf(open(data.module, "Player.qml", data.params))
+            verify(prompt.visible)
+            compare(prompt.promptText, data.question || "Resume playback?")
+            compare(prompt.subtitleText, data.about)
+            compare(prompt.choices.length, answers)
+            compare(prompt.choices[0].label, data.resume)
+            compare(prompt.choices[1].label, "Start from the beginning")
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            compare(mpvController.loads, 0)
+            if (data.reportsBack)
+                compare((data.module === "emby" ? embyBackend : jellyfinBackend).stops, 1)
+
+            prompt = promptOf(open(data.module, "Player.qml", data.params))
+            keyClick(Qt.Key_Up)
+            compare(prompt.choiceIndex, answers - 1)
+            keyClick(Qt.Key_Down)
+            compare(prompt.choiceIndex, 0)
+            for (var i = 1; i < answers; i++)
+                keyClick(Qt.Key_Down)
+            compare(prompt.choiceIndex, answers - 1)
+            keyClick(Qt.Key_Down)
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 0)
+
+            prompt = promptOf(open(data.module, "Player.qml", data.params))
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(mpvController.loads, 2)
+            compare(mpvController.starts[1], 90)
+            compare(mpvController.keys, [])
+            compare(root.backs, 1)
+        }
+
+        // The Scripts module's Run script? asks as the players do: Cancel
+        // under the cursor, ▲ ▼ round both ends, Run starting the script;
+        // Cancel and back leave the list with the keys. Asked for a main
+        // menu favourite, they go back to the menu instead.
+        function test_scriptsRunQuestion() {
+            var items = open("scripts", "Items.qml", {})
+            compare(items.currentScript.name, "Backup")
+            keyClick(Qt.Key_Return)
+            var prompt = promptOf(items)
+            verify(prompt.visible)
+            compare(prompt.promptText, "Run script?")
+            compare(prompt.subtitleText, "Backup")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Cancel", "Run"])
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(prompt.choiceIndex, 1)
+            keyClick(Qt.Key_Down)
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Return)                 // Cancel
+            verify(!prompt.visible)
+            keyClick(Qt.Key_Down)                   // the list's keys again
+            compare(items.currentScript.name, "Hello")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(prompt.visible)
+            keyClick(Qt.Key_Escape)
+            verify(!prompt.visible)
+            compare(root.backs, 0)
+            compare(root.navigations.length, 0)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)                     // round to Run
+            keyClick(Qt.Key_Return)
+            verify(!prompt.visible)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Console.qml")
+            compare(root.navigations[0].params.basename, "backup.sh")
+
+            for (var key of [Qt.Key_Escape, Qt.Key_Return]) {
+                items = open("scripts", "Items.qml", { confirmScript: "backup.sh" })
+                prompt = promptOf(items)
+                tryVerify(function() { return prompt.visible })
+                var backs = root.backs
+                keyClick(key)
+                compare(root.backs, backs + 1)
+            }
+            compare(root.navigations.length, 1)
         }
 
         // mpv missing, for a playlist: said so, not its videos blamed, with

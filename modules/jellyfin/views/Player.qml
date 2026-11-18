@@ -49,8 +49,6 @@ FocusScope {
 
     property bool stoppedReported: false
     property bool playbackStarted: false
-    property bool overlayVisible:  false
-    property int  choiceIndex:     0
 
     // Intro/outro skip
     property var    segments:           []
@@ -95,27 +93,11 @@ FocusScope {
     focus: true
 
     Keys.onPressed: function(event) {
-        if (overlayVisible) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                reportStopped(0, 0)
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                choiceIndex = 0
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                choiceIndex = 1
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                overlayVisible = false
-                if (choiceIndex === 0) {
-                    beginPlayback(viewOffset)
-                } else {
-                    beginPlayback(0)
-                }
-                event.accepted = true
-            }
-        } else if (waiting) {
+        // Under the resume question only its Ctrl chords come here: on to
+        // Main.qml (Ctrl+Q), not to mpv.
+        if (resumePrompt.visible)
+            return
+        if (waiting) {
             // No mpv to send the keys to: back leaves.
             if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
                 leaveWaiting()
@@ -721,7 +703,7 @@ FocusScope {
         // "ask": prompt resume vs. start over when there's a saved position.
         // "always" (or anything else): resume directly.
         if (resumeSetting === "ask" && viewOffset > 0) {
-            overlayVisible = true
+            resumePrompt.open()
         } else {
             beginPlayback(viewOffset)
         }
@@ -747,20 +729,25 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.itemDurationMs || playerRoot.lastKnownDurationMs
-            visible: streamUrl !== "" && !overlayVisible && !playbackStarted && !failure.visible
+            visible: streamUrl !== "" && !resumePrompt.visible && !playbackStarted && !failure.visible
         }
     }
 
-    PromptScreen {
-        visible: overlayVisible
-        title: "Resume playback?"
-        message: itemTitle
-        choices: [
-            "Resume from " + root.formatTime(viewOffset),
-            "Start from the beginning"
-        ]
-        currentIndex: choiceIndex
-        onHovered: function(index) { choiceIndex = index }
+    // Where to start a video with a resume point, while Resume Playback
+    // asks: back leaves, the playback reported stopped.
+    ChoiceOverlay {
+        id: resumePrompt
+        anchors.fill: parent
+        promptText: "Resume playback?"
+        subtitleText: itemTitle
+        choices: [{ label: "Resume from " + root.formatTime(viewOffset), action: "resume" },
+                  { label: "Start from the beginning", action: "start" }]
+        onClosed: playerRoot.forceActiveFocus()
+        onActivated: function(action) { playerRoot.beginPlayback(action === "resume" ? viewOffset : 0) }
+        onCanceled: {
+            playerRoot.reportStopped(0, 0)
+            playerRoot.goBack()
+        }
     }
 
     PlaybackNotice {

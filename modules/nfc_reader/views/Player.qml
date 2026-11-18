@@ -15,10 +15,8 @@ FocusScope {
     property int    lastStartMs:     0   // what the last attempt started from, for retry
     property int    lastPlPos:       -1
 
-    property bool   overlayVisible:  false
     property int    savedPositionMs: 0
     property int    savedPlaylistPos: -1
-    property int    choiceIndex:     0
     property var    ytdlArgs:        []
     property string subtitleMode:    "forced"
     property var    subtitleLangs:   []
@@ -55,31 +53,17 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (overlayVisible) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                choiceIndex = 0
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                choiceIndex = 1
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                overlayVisible = false
-                play(choiceIndex === 0 ? savedPositionMs : 0,
-                     choiceIndex === 0 ? savedPlaylistPos : -1)
-                event.accepted = true
-            }
-        } else {
-            // The keys mpv takes (MpvKeys.js). A key's repeats go as
-            // repeats: mpv holds the key down for them, and lets it go as
-            // the key is (Keys.onReleased).
-            var key = MpvKeys.name(event.key)
-            if (key !== "") {
-                mpvController.sendKey(key, event.isAutoRepeat)
-                event.accepted = true
-            }
+        // Under the resume question only its Ctrl chords come here: on to
+        // Main.qml (Ctrl+Q), not to mpv.
+        if (resumePrompt.visible)
+            return
+        // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats:
+        // mpv holds the key down for them, and lets it go as the key is
+        // (Keys.onReleased).
+        var key = MpvKeys.name(event.key)
+        if (key !== "") {
+            mpvController.sendKey(key, event.isAutoRepeat)
+            event.accepted = true
         }
     }
     // A key let go: the one mpv holds down for its repeats, if any, with it.
@@ -188,7 +172,7 @@ FocusScope {
             // of a playlist saves the item index with a near-zero timecode.
             savedPositionMs  = savedPos
             savedPlaylistPos = savedPl
-            overlayVisible = true
+            resumePrompt.open()
         } else {
             play(0, -1)
         }
@@ -212,22 +196,30 @@ FocusScope {
             title: videoTitle
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && !failure.visible
+            visible: !resumePrompt.visible && !playbackStarted && !failure.visible
         }
     }
 
-    PromptScreen {
-        visible: overlayVisible
-        title: "Resume playback?"
-        message: videoTitle
-        choices: [
-            savedPlaylistPos >= 0
-                ? "Resume video " + (savedPlaylistPos + 1) + " at " + root.formatTime(savedPositionMs)
-                : "Resume from " + root.formatTime(savedPositionMs),
-            "Start from the beginning"
-        ]
-        currentIndex: choiceIndex
-        onHovered: function(index) { choiceIndex = index }
+    // Where to start a card's video, or its list, with a saved position,
+    // while Resume Playback asks: back leaves.
+    ChoiceOverlay {
+        id: resumePrompt
+        anchors.fill: parent
+        promptText: "Resume playback?"
+        subtitleText: videoTitle
+        choices: [{ label: savedPlaylistPos >= 0
+                        ? "Resume video " + (savedPlaylistPos + 1) + " at " + root.formatTime(savedPositionMs)
+                        : "Resume from " + root.formatTime(savedPositionMs),
+                    action: "resume" },
+                  { label: "Start from the beginning", action: "start" }]
+        onClosed: playerRoot.forceActiveFocus()
+        onActivated: function(action) {
+            if (action === "resume")
+                playerRoot.play(savedPositionMs, savedPlaylistPos)
+            else
+                playerRoot.play(0, -1)
+        }
+        onCanceled: playerRoot.goBack()
     }
 
     PlaybackNotice {

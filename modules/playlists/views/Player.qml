@@ -28,9 +28,7 @@ FocusScope {
     // m3u for every start within a session, so the same order.
     property var prepared: ({})
 
-    property bool   overlayVisible:  false
-    property int    choiceIndex:     0
-    // The resume question's choices: { label, startMs, plPos }.
+    // The resume question's choices: { label, action, startMs, plPos }.
     property var    choices:         []
 
     // The video has shown its first position: the loading screen goes.
@@ -132,10 +130,9 @@ FocusScope {
             play(prepared.resumeMs, prepared.resumeIndex)
         } else if (prepared.resumeIndex > 0 || prepared.resumeMs > 0) {
             choices = [{ label: "Resume video " + (prepared.resumeIndex + 1) + " at " + root.formatTime(prepared.resumeMs),
-                         startMs: prepared.resumeMs, plPos: prepared.resumeIndex },
-                       { label: "Start from the beginning", startMs: 0, plPos: -1 }]
-            choiceIndex = 0
-            overlayVisible = true
+                         action: "resume", startMs: prepared.resumeMs, plPos: prepared.resumeIndex },
+                       { label: "Start from the beginning", action: "start", startMs: 0, plPos: -1 }]
+            resumePrompt.open()
         } else {
             play(0, -1)
         }
@@ -210,34 +207,21 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        var back = event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back
-        var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
-        if (overlayVisible) {
-            if (back) {
-                goBack()
-            } else if (event.key === Qt.Key_Up) {
-                if (choiceIndex > 0) choiceIndex--
-            } else if (event.key === Qt.Key_Down) {
-                if (choiceIndex < choices.length - 1) choiceIndex++
-            } else if (enter) {
-                var choice = choices[choiceIndex]
-                overlayVisible = false
-                play(choice.startMs, choice.plPos)
-            }
+        // Under the resume question only its Ctrl chords come here: on to
+        // Main.qml (Ctrl+Q), not to mpv.
+        if (resumePrompt.visible)
+            return
+        // The keys mpv takes (MpvKeys.js), and a TV remote's channel keys,
+        // or its page keys: the list's next or previous video
+        // (mpv-media-keys.lua, round the list's end), once per press
+        // however long the key is held. The other keys' repeats go as
+        // repeats: mpv holds the key down for them, and lets it go as the
+        // key is (Keys.onReleased).
+        var key = MpvKeys.name(event.key, true)
+        if (key !== "") {
+            if (!(event.isAutoRepeat && MpvKeys.isChannel(key)))
+                mpvController.sendKey(key, event.isAutoRepeat)
             event.accepted = true
-        } else {
-            // The keys mpv takes (MpvKeys.js), and a TV remote's channel
-            // keys, or its page keys: the list's next or previous video
-            // (mpv-media-keys.lua, round the list's end), once per press
-            // however long the key is held. The other keys' repeats go as
-            // repeats: mpv holds the key down for them, and lets it go as
-            // the key is (Keys.onReleased).
-            var key = MpvKeys.name(event.key, true)
-            if (key !== "") {
-                if (!(event.isAutoRepeat && MpvKeys.isChannel(key)))
-                    mpvController.sendKey(key, event.isAutoRepeat)
-                event.accepted = true
-            }
         }
     }
     // A key let go: the one mpv holds down for its repeats, if any, with it.
@@ -323,7 +307,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && !failure.visible
+            visible: !resumePrompt.visible && !playbackStarted && !failure.visible
         }
     }
 
@@ -339,13 +323,19 @@ FocusScope {
         onClosed: playerRoot.backToVideo()
     }
 
-    PromptScreen {
-        visible: overlayVisible
-        title: "Resume playback?"
-        message: playerRoot.playlist.name || ""
+    // Where to start a list that stopped part-way: back leaves.
+    ChoiceOverlay {
+        id: resumePrompt
+        anchors.fill: parent
+        promptText: "Resume playback?"
+        subtitleText: playerRoot.playlist.name || ""
         choices: playerRoot.choices
-        currentIndex: choiceIndex
-        onHovered: function(index) { choiceIndex = index }
+        onClosed: playerRoot.forceActiveFocus()
+        onActivated: function(action) {
+            var choice = playerRoot.choices.filter(function(c) { return c.action === action })[0]
+            playerRoot.play(choice.startMs, choice.plPos)
+        }
+        onCanceled: playerRoot.goBack()
     }
 
     PlaybackNotice {

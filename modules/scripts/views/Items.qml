@@ -16,7 +16,6 @@ FocusScope {
     // None until the list has its model (Component.onCompleted).
     readonly property var currentScript: scriptList.model ? (scriptList.model[scriptList.currentIndex] || null) : null
 
-    property bool confirmVisible: false
     property var  pendingScript: null
 
     focus: true
@@ -27,10 +26,7 @@ FocusScope {
         if (!entry) return
         if (entry.confirm) {
             pendingScript = entry
-            confirmVisible = true
-            // Explicit: the list also declares focus: true, so relying on the
-            // overlay's binding alone leaves which sibling wins ambiguous.
-            confirmOverlay.forceActiveFocus()
+            confirmOverlay.open()
         } else {
             launch(entry)
         }
@@ -279,28 +275,22 @@ FocusScope {
         }
     }
 
-    // --- RUN CONFIRMATION OVERLAY --- (sidecar "confirm = yes"). The window
-    // draws its own ground (PromptScreen).
-    Item {
+    // --- RUN CONFIRMATION OVERLAY --- (sidecar "confirm = yes"). A window
+    // over the list: every key stops at it (► would otherwise mark the
+    // script a favourite under it), but for a chord like Ctrl+Q.
+    ChoiceOverlay {
         id: confirmOverlay
         anchors.fill: parent
-        visible: itemsRoot.confirmVisible
-        focus: itemsRoot.confirmVisible
         // Above the list AND the footer, which is a later sibling and would
         // otherwise draw through the overlay.
         z: 100
-
-        property int choiceIndex: 0
+        promptText: "Run script?"
+        subtitleText: itemsRoot.pendingScript ? itemsRoot.pendingScript.name : ""
         // Cancel first so a stray ENTER can't run something destructive.
-        readonly property var choices: [
-            { label: "Cancel", run: false },
-            { label: "Run",    run: true  }
-        ]
-
-        onVisibleChanged: if (visible) choiceIndex = 0
+        choices: [{ label: "Cancel", action: "cancel" },
+                  { label: "Run",    action: "run" }]
 
         function dismiss() {
-            itemsRoot.confirmVisible = false
             itemsRoot.pendingScript = null
             // Arrived here only to confirm a main-menu favorite: cancelling should
             // return to the menu, not strand the user in a list they never asked for.
@@ -308,39 +298,19 @@ FocusScope {
             else                         scriptList.forceActiveFocus()
         }
 
-        Keys.onUpPressed:   choiceIndex = Math.max(0, choiceIndex - 1)
-        Keys.onDownPressed: choiceIndex = Math.min(choices.length - 1, choiceIndex + 1)
-        Keys.onReturnPressed: {
+        onActivated: function(action) {
             var entry = itemsRoot.pendingScript
-            var doRun = choices[choiceIndex].run
-            if (doRun && entry) {
-                // Close the overlay WITHOUT going through dismiss(): for a favorite
-                // that path navigates back, which destroys this view before
-                // launch() can be called on it.
-                itemsRoot.confirmVisible = false
+            if (action === "run" && entry) {
+                // Not through dismiss(): for a favorite that path navigates
+                // back, which destroys this view before launch() can be
+                // called on it.
                 itemsRoot.pendingScript = null
                 itemsRoot.launch(entry)
             } else {
                 confirmOverlay.dismiss()
             }
         }
-        // A window over the list: every key stops here (► would otherwise
-        // mark the script a favourite under it), but for a chord like Ctrl+Q.
-        Keys.onPressed: function(event) {
-            if (event.modifiers & Qt.ControlModifier)
-                return
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back)
-                confirmOverlay.dismiss()
-            event.accepted = true
-        }
-
-        PromptScreen {
-            title: "Run script?"
-            message: itemsRoot.pendingScript ? itemsRoot.pendingScript.name : ""
-            choices: confirmOverlay.choices
-            currentIndex: confirmOverlay.choiceIndex
-            onHovered: function(index) { confirmOverlay.choiceIndex = index }
-        }
+        onCanceled: confirmOverlay.dismiss()
     }
 
     // Footer

@@ -11,9 +11,8 @@ FocusScope {
     property string filePath:    navParams.filePath || ""
     property string itemTitle:   navParams.title    || ""
 
-    property bool   overlayVisible:      false
-    property int    choiceIndex:         0
-    // Overlay choices, each { label, startMs, plPos, shuffle } — executed via play()
+    // The start question's choices, each { label, action, startMs, plPos,
+    // shuffle } — executed via play()
     property var    choices:             []
     property bool   loopOn:              false
     property string shuffleSetting:      "ask"
@@ -168,43 +167,29 @@ FocusScope {
     }
 
     Keys.onPressed: function(event) {
-        if (overlayVisible) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace || event.key === Qt.Key_Back) {
-                goBack()
-                event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
-                if (choiceIndex > 0) choiceIndex--
-                event.accepted = true
-            } else if (event.key === Qt.Key_Down) {
-                if (choiceIndex < choices.length - 1) choiceIndex++
-                event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                var choice = choices[choiceIndex]
-                overlayVisible = false
-                play(choice.startMs, choice.plPos, choice.shuffle)
-                event.accepted = true
-            }
-        } else {
-            // The keys mpv takes (MpvKeys.js). A key's repeats go as
-            // repeats: mpv holds the key down for them, and lets it go as
-            // the key is (Keys.onReleased).
-            var key = MpvKeys.name(event.key)
-            if (key !== "") {
-                mpvController.sendKey(key, event.isAutoRepeat)
-                event.accepted = true
-            } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_ChannelUp) {
-                // A TV remote's channel keys, or its page keys: the folder's
-                // next or previous film, once per press however long it is
-                // held, and not under the video's menu (which passes on the
-                // keys it doesn't take).
-                if (!event.isAutoRepeat && !playerMenu.visible)
-                    stepFilm(1)
-                event.accepted = true
-            } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_ChannelDown) {
-                if (!event.isAutoRepeat && !playerMenu.visible)
-                    stepFilm(-1)
-                event.accepted = true
-            }
+        // Under the start question only its Ctrl chords come here: on to
+        // Main.qml (Ctrl+Q), not to mpv.
+        if (startPrompt.visible)
+            return
+        // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats:
+        // mpv holds the key down for them, and lets it go as the key is
+        // (Keys.onReleased).
+        var key = MpvKeys.name(event.key)
+        if (key !== "") {
+            mpvController.sendKey(key, event.isAutoRepeat)
+            event.accepted = true
+        } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_ChannelUp) {
+            // A TV remote's channel keys, or its page keys: the folder's
+            // next or previous film, once per press however long it is
+            // held, and not under the video's menu (which passes on the
+            // keys it doesn't take).
+            if (!event.isAutoRepeat && !playerMenu.visible)
+                stepFilm(1)
+            event.accepted = true
+        } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_ChannelDown) {
+            if (!event.isAutoRepeat && !playerMenu.visible)
+                stepFilm(-1)
+            event.accepted = true
         }
     }
     // A key let go: the one mpv holds down for its repeats, if any, with it.
@@ -417,19 +402,18 @@ FocusScope {
             opts.push({ label: savedPl >= 0
                             ? "Resume video " + (savedPl + 1) + " at " + root.formatTime(savedPos)
                             : "Resume from " + root.formatTime(savedPos),
-                        startMs: savedPos, plPos: savedPl, shuffle: false })
+                        action: "resume", startMs: savedPos, plPos: savedPl, shuffle: false })
             if (resumeSetting === "ask")
-                opts.push({ label: "Start from the beginning", startMs: 0, plPos: -1, shuffle: false })
+                opts.push({ label: "Start from the beginning", action: "start", startMs: 0, plPos: -1, shuffle: false })
         } else if (askShuffle) {
-            opts.push({ label: "Play in order", startMs: 0, plPos: -1, shuffle: false })
+            opts.push({ label: "Play in order", action: "start", startMs: 0, plPos: -1, shuffle: false })
         }
         if (askShuffle)
-            opts.push({ label: "Shuffle", startMs: 0, plPos: -1, shuffle: true })
+            opts.push({ label: "Shuffle", action: "shuffle", startMs: 0, plPos: -1, shuffle: true })
 
         if (opts.length > 1) {
-            choices        = opts
-            choiceIndex    = 0
-            overlayVisible = true
+            choices = opts
+            startPrompt.open()
         } else {
             play(0, -1, false)
         }
@@ -465,7 +449,7 @@ FocusScope {
             source: moduleRoot.moduleName
             startMs: playerRoot.lastStartMs
             durationMs: playerRoot.lastKnownDurationMs
-            visible: !overlayVisible && !playbackStarted && !failure.visible
+            visible: !startPrompt.visible && !playbackStarted && !failure.visible
         }
     }
 
@@ -481,14 +465,21 @@ FocusScope {
         onClosed: playerRoot.backToVideo()
     }
 
-    PromptScreen {
-        visible: overlayVisible
+    // Where to start, or in what order, while Resume Playback or Shuffle
+    // Playback asks: back leaves.
+    ChoiceOverlay {
+        id: startPrompt
+        anchors.fill: parent
         // Whenever a Shuffle choice is offered, the more general question.
-        title: playerRoot.choices.some(function(c) { return c.shuffle }) ? "Start playback?" : "Resume playback?"
-        message: itemTitle.replace(/\.[^.\/]+$/, "")
+        promptText: playerRoot.choices.some(function(c) { return c.shuffle }) ? "Start playback?" : "Resume playback?"
+        subtitleText: itemTitle.replace(/\.[^.\/]+$/, "")
         choices: playerRoot.choices
-        currentIndex: choiceIndex
-        onHovered: function(index) { choiceIndex = index }
+        onClosed: playerRoot.forceActiveFocus()
+        onActivated: function(action) {
+            var choice = playerRoot.choices.filter(function(c) { return c.action === action })[0]
+            playerRoot.play(choice.startMs, choice.plPos, choice.shuffle)
+        }
+        onCanceled: playerRoot.goBack()
     }
 
     PlaybackNotice {

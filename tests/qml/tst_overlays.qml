@@ -392,6 +392,8 @@ Rectangle {
             activatedSpy.clear()
             closedSpy.target = overlay
             closedSpy.clear()
+            canceledSpy.target = overlay
+            canceledSpy.clear()
             verify(!overlay.visible)
             compare(root.promptIn(overlay), null)
             // The loader that will hold it, and no more.
@@ -417,18 +419,25 @@ Rectangle {
             compare(activatedSpy.count, 1)
             compare(activatedSpy.signalArguments[0][0], "discard")
             compare(closedSpy.count, 1)
+            compare(canceledSpy.count, 0)
             verify(!overlay.visible)
             compare(root.promptIn(overlay), prompt)
 
-            // Asked again, with other answers: the same window, on the first.
+            // Asked again, with other answers: the same window, on the first,
+            // ▲ ▼ round both ends; back closes it, canceled.
             overlay.choices = [{ label: "Yes", action: "yes" }, { label: "No", action: "no" },
                                { label: "Later", action: "later" }]
             overlay.open()
             compare(root.promptIn(overlay), prompt)
             compare(prompt.choices.length, 3)
             compare(prompt.currentIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(prompt.currentIndex, 2)
+            keyClick(Qt.Key_Down)
+            compare(prompt.currentIndex, 0)
             keyClick(Qt.Key_Escape)
             compare(closedSpy.count, 2)
+            compare(canceledSpy.count, 1)
             compare(activatedSpy.count, 1)
         }
     }
