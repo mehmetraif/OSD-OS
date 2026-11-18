@@ -104,7 +104,6 @@ These work as in the Jellyfin module, whose page has the detail:
 | The Collections library's list | With the letter panel | Without it |
 | Text subtitles with Direct Play | Every text track | Only the one you chose ([below](#subtitles)) |
 | Text subtitles in a transcode | Burned into the picture | Fetched as a file ([below](#subtitles)) |
-| AUDIO and SUBTITLE in the deck's menu during a transcode | Ask the server for a new transcode | Step through what the stream carries |
 | Dolby Vision on Direct Play | As the server decides | An SDR transcode ([below](#dolby-vision)) |
 | Intro and credit skipping | The server's media segments; settings shown only when it has them | The server's chapter markers; settings always shown ([below](#intro-skip-and-credit-skip)) |
 | Sign out | Ends the session | Also removes the device from the server |
@@ -114,7 +113,7 @@ These work as in the Jellyfin module, whose page has the detail:
 
 - **Direct Play:** only the text subtitle (SRT, ASS, WebVTT…) chosen on the item's page is fetched. For another external track, choose it there before PLAY.
 - Subtitles inside the file stay reachable with the deck's **SUBTITLE** button.
-- **A transcode:** only picture subtitles (PGS, DVB, DVD) are burned in. It carries just the audio track you chose, so pick tracks before PLAY.
+- **A transcode:** only picture subtitles (PGS, DVB, DVD) are burned in. It carries just the audio track and subtitle you chose; **AUDIO** and **SUBTITLE** in the deck's menu restart it where it was with the next one, as on [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#tracks-during-playback).
 
 ## Dolby Vision
 

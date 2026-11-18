@@ -210,6 +210,9 @@ Rectangle {
         property var starts: []
         // The subtitles each was started with: -2 none, -1 forced only, 0 any.
         property var subTracks: []
+        // The subtitle files each was handed, and the arguments added for it.
+        property var subFiles: []
+        property var extraArgs: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
         signal playlistPosChanged(int pos)
@@ -217,11 +220,15 @@ Rectangle {
         signal skipRequested()
         signal subtitleCycleRequested()
         signal audioCycleRequested()
-        function loadAndPlay(url, startSeconds, audioTrack, subTrack) {
+        function loadAndPlay(url, startSeconds, audioTrack, subTrack, files, subLangs, loop, playlistStart,
+                             transcodeOffset, plexToken, muteAudio, oscMode, shuffle, subTitles,
+                             imageDuration, imageContent, extra) {
             loads++
             urls = urls.concat([url])
             starts = starts.concat([startSeconds || 0])
             subTracks = subTracks.concat([subTrack])
+            subFiles = subFiles.concat([files || []])
+            extraArgs = extraArgs.concat([extra || []])
         }
         function noteSession(note) {}
         // The failures a player had written to the log (logFailure): which
@@ -378,7 +385,13 @@ Rectangle {
         signal segmentsReady(string itemId, var segments)
         signal itemLoaded(var detail)
         function cancel_playback_url() { cancels++ }
-        function get_playback_url() { asks++ }
+        // The stream asked for last: the item, its source, the audio and
+        // subtitle streams (-1 for none) and whether a transcode is forced.
+        property var lastAsk: []
+        function get_playback_url(itemId, mediaSourceId, audioIndex, subtitleIndex, forceTranscode) {
+            asks++
+            lastAsk = [itemId, mediaSourceId, audioIndex, subtitleIndex, forceTranscode === true]
+        }
         function get_access_token() { return "" }
         function load_next_episode(itemId) { nextAsks++ }
         function report_playback_stopped() { stops++ }
@@ -469,6 +482,9 @@ Rectangle {
             mpvController.urls = []
             mpvController.starts = []
             mpvController.subTracks = []
+            mpvController.subFiles = []
+            mpvController.extraArgs = []
+            mpvController.position = 0
             mpvController.keys = []
             mpvController.lastError = ""
             mpvController.lastErrorDetail = ""
@@ -499,6 +515,7 @@ Rectangle {
                 backend.nextAsks = 0
                 backend.stops = 0
                 backend.signIns = []
+                backend.lastAsk = []
             }
         }
 
@@ -993,6 +1010,64 @@ Rectangle {
             compare(mpvController.keys.length, 0)
             compare(backend.cancels, 1)
             compare(backend.stops, stops + 1)
+        }
+
+        // A transcode's AUDIO and SUBTITLE buttons in mpv's OSC, the stream
+        // carrying no other track to cycle to: the next track asked for as a
+        // new transcode, where the video had got to, the old one reported
+        // stopped, and the player stays. Audio goes round its tracks, the
+        // subtitles round theirs and off. Jellyfin's subtitle is burnt into
+        // the picture; Emby's text one is handed to mpv beside the stream,
+        // its image one burnt in.
+        function test_serverTrackSwitchMidTranscode_data() {
+            return [{ tag: "jellyfin", module: "jellyfin" }, { tag: "emby", module: "emby" }]
+        }
+        function test_serverTrackSwitchMidTranscode(data) {
+            var backend = data.module === "emby" ? embyBackend : jellyfinBackend
+            var player = open(data.module, "Player.qml", {
+                streamUrl: "http://server/videos/e1/master.m3u8", itemId: "e1", mediaSourceId: "e1",
+                title: "Episode 1", selectedAudioId: "1", selectedSubtitleId: "",
+                audioStreams: [{ id: 1, language: "eng", displayTitle: "English 5.1" },
+                               { id: 2, language: "fra", displayTitle: "French" }],
+                subtitleStreams: [{ id: 3, language: "eng", displayTitle: "English", subUrl: "http://server/e1/3.srt" },
+                                  { id: 4, language: "fra", displayTitle: "French PGS" }] })
+            compare(mpvController.loads, 1)
+            compare(mpvController.extraArgs[0], ["--script-opts-append=transcode-sub=Off",
+                                                 "--script-opts-append=sub-cycle=1",
+                                                 "--script-opts-append=transcode-audio=English_5.1",
+                                                 "--script-opts-append=audio-cycle=1"])
+            var stops = backend.stops
+
+            mpvController.position = 30000
+            mpvController.audioCycleRequested()
+            mpvController.playbackEnded(30000, 60000, "stopped")
+            compare(root.backs, 0)
+            compare(backend.stops, stops + 1)
+            compare(backend.asks, 1)
+            compare(backend.lastAsk, ["e1", "e1", 2, -1, true])
+            verify(player.waiting)
+            backend.streamUrlReady("http://server/videos/e1/master.m3u8?audio=2")
+            compare(mpvController.loads, 2)
+            compare(mpvController.starts[1], 30)
+            compare(mpvController.extraArgs[1][2], "--script-opts-append=transcode-audio=French")
+
+            var emby = data.module === "emby"
+            var steps = [{ sub: 3, name: "English", track: emby ? 0 : -2, files: emby ? ["http://server/e1/3.srt"] : [] },
+                         { sub: 4, name: "French_PGS", track: -2, files: [] },
+                         { sub: -1, name: "Off", track: -2, files: [] }]
+            for (var i = 0; i < steps.length; i++) {
+                mpvController.subtitleCycleRequested()
+                mpvController.playbackEnded(30000, 60000, "stopped")
+                compare(backend.lastAsk, ["e1", "e1", 2, steps[i].sub, true])
+                backend.streamUrlReady("http://server/videos/e1/master.m3u8?subtitle=" + steps[i].sub)
+                compare(mpvController.loads, 3 + i)
+                compare(mpvController.starts[2 + i], 30)
+                compare(mpvController.extraArgs[2 + i][0], "--script-opts-append=transcode-sub=" + steps[i].name)
+                compare(mpvController.subTracks[2 + i], steps[i].track)
+                compare(mpvController.subFiles[2 + i], steps[i].files)
+            }
+            compare(root.backs, 0)
+            compare(backend.stops, stops + 4)
         }
 
         // The view's on-screen keyboard.
