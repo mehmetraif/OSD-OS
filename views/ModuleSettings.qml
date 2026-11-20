@@ -467,8 +467,8 @@ FocusScope {
     // Broadcast and Flat Panel (Settings → Look → Menu Layout, Main.qml's
     // twoStep) change a value in two steps, as Settings does there: select
     // on a toggle, a list or a slider starts it (editIndex), ▲ ▼ step it
-    // with nothing saved (editSteps, the value it would take shown:
-    // steppedValue()), select saves it through cycleValue(), and back, or
+    // with nothing saved (stepEdit(): editSteps, the value it would take
+    // shown, steppedValue()), select saves it through cycleValue(), and back, or
     // the cursor moved by the mouse, leaves it as it was. ◄ ► change nothing
     // there.
     property int editIndex: -1
@@ -488,6 +488,16 @@ FocusScope {
         var at = dynamic ? chosenIndex(item) : Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
         var next = opts[((at + steps) % opts.length + opts.length) % opts.length]
         return dynamic ? next.label : next
+    }
+    // ▲ (1) or ▼ (-1) on the value being changed. A slider's step past an
+    // end, which leaves it where it is, isn't counted: the first step back
+    // then moves it, as in Settings.
+    function stepEdit(direction) {
+        var item = schemaItems[editIndex]
+        if (item && item.type === "slider"
+                && steppedValue(item, editSteps + direction) === steppedValue(item, editSteps))
+            return
+        editSteps += direction
     }
     function confirmEdit() {
         var index = editIndex, steps = editSteps
@@ -699,7 +709,7 @@ FocusScope {
         // A value being changed in two steps: the cursor stays, ▲ ▼ step
         // the value (▲ on, ▼ back, as in Settings).
         held: moduleSettingsRoot.editIndex >= 0
-        onHeldStep: function(delta) { moduleSettingsRoot.editSteps -= delta }
+        onHeldStep: function(delta) { moduleSettingsRoot.stepEdit(-delta) }
 
         Keys.onLeftPressed: {
             if (root.twoStep) {
