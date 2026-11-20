@@ -775,6 +775,28 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
+        // A game joined over the network that was played, and stopped as its
+        // host left: its name and that, not that it could not be played, nor
+        // what RetroArch printed.
+        function test_stopped() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { room: 7, host: "RYU" } })
+            tryCompare(play, "phase", "running")
+            compare(arcadeBackend.joined, [7])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "stopped", "The host left the game")
+            compare(play.phase, "stopped")
+            verify(!findChild(play, "gameLoading").visible)
+            verify(findText(play, "Street Fighter II", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, "The host left the game", true) !== null)
+            compare(findText(play, "NOT FOUND"), null)
+            compare(findText(play, "Press"), null)
+            verify(findText(play, "[ESC]:BACK", true) !== null)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
         // One that never started, and how to put MAME, or RetroArch, on for
         // this system; nothing under another reason.
         function test_error() {
@@ -3219,12 +3241,25 @@ StandInRoot {
             play = open("Play.qml", { game: "mslug", title: "Metal Slug", failed: true,
                                       message: "Missing sp-s2.sp1", output: "sp-s2.sp1 NOT FOUND" })
             compare(play.phase, "failed")
+            verify(findText(play, "Could not play Metal Slug") !== null)
             verify(findText(play, "Missing sp-s2.sp1") !== null)
             verify(findText(play, "sp-s2.sp1 NOT FOUND") !== null)
             wait(3500)
             compare(arcadeBackend.started, [])
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            // One that was played and stopped, its host gone: that, under
+            // its name.
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", failed: true, reason: "stopped",
+                                      message: "The host left the game", output: "sp-s2.sp1 NOT FOUND" })
+            compare(play.phase, "stopped")
+            verify(findText(play, "Street Fighter II", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, "The host left the game", true) !== null)
+            compare(findText(play, "NOT FOUND"), null)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 2)
         }
 
         // On, from the Arcade screen, every game waits for it to be read.
@@ -3386,6 +3421,20 @@ StandInRoot {
             var screen = shown(router)
             compare(screen.currentSet, "1942")
             compare(root.backs, 0)
+            // A game stopped as its host left the game was played: its name
+            // and that, not that it could not be played.
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return arcadeBackend.started.length === 2 })
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "stopped", "The host left the game")
+            play = shown(router)
+            compare(play.phase, "stopped")
+            verify(findText(play, "1942 (Revision B)", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, "The host left the game", true) !== null)
+            compare(findText(play, "NOT FOUND"), null)
+            keyClick(Qt.Key_Escape)
+            compare(shown(router), screen)
             arcadeBackend.playResult = false
             arcadeBackend.error = "MAME is not installed"
             keyClick(Qt.Key_Return)
@@ -3394,9 +3443,10 @@ StandInRoot {
             compare(router.playing, null)
             verify(!findChild(router, "gameLoading").visible)
             verify(findText(play, "On Test OS: install mame", true) !== null)
-            // On Recently Played: the game MAME started, not the one it
-            // couldn't.
-            compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"]])
+            // On Recently Played: the game as MAME started it, both times,
+            // not as it couldn't.
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"],
+                                    ["com.osdos.arcade", "recent", "game:1942"]])
         }
 
         // Start Info Screen on: how to come back first. The game goes on

@@ -111,9 +111,9 @@ ModuleRouter {
     // starts it. With it off the game starts from the list itself, under the
     // loading screen (GameLoading.qml), which stays on the screen while MAME
     // starts; the list has every key kept from it till the game ends
-    // (keyCatcher), and Play.qml only says why a game didn't play. Either
-    // way the list stays loaded under the game, as it was, and is on the
-    // screen again the moment the game ends.
+    // (keyCatcher), and Play.qml only says why a game didn't play, or why
+    // it stopped. Either way the list stays loaded under the game, as it
+    // was, and is on the screen again the moment the game ends.
     function playGame(params, listState) {
         if (startInfo) {
             openPlay(params)
@@ -199,9 +199,10 @@ ModuleRouter {
                 return
             moduleRoot.playing = null
             moduleRoot.focusFront()
-            // Back on the list, as after a video; else why it didn't play.
+            // Back on the list, as after a video; else why it didn't play,
+            // or why it stopped (Play.qml's ended()).
             if (reason !== "ok")
-                moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true,
+                moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true, reason: reason,
                                       message: notice, output: arcadeBackend.output() })
         }
     }

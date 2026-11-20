@@ -8,12 +8,14 @@ import Components
 // too, drawn a moment before: on a headless Pi nothing is drawn while MAME
 // runs, and what the screen showed just before the hand-off stays there
 // while MAME starts. A game that couldn't start, or that MAME ended with an
-// error, says why here: with Start Info Screen off a game starts from the
-// list itself (Root.qml's playGame), and this view opens only for that, with
-// navParams.error (it never started) or navParams.failed (MAME ended with an
-// error: message and output). Root.qml starts the game, with the credits
-// bought, and puts it on Recently Played once it has started (startGame()),
-// and keeps the screen saver off while it runs.
+// error, says why here, and so does one that was played and stopped (over
+// the network, as its host left the game): with Start Info Screen off a game
+// starts from the list itself (Root.qml's playGame), and this view opens
+// only for that, with navParams.error (it never started) or navParams.failed
+// (it ended any other way than played out: reason, message and output).
+// Root.qml starts the game, with the credits bought, and puts it on Recently
+// Played once it has started (startGame()), and keeps the screen saver off
+// while it runs.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -45,7 +47,7 @@ FocusScope {
 
     // "opening", "loading" (the loading screen drawn, the game about to be
     // started), "running", "error" (never started), "failed" (MAME ended with
-    // an error) or "canceled".
+    // an error), "stopped" (played, and ended from outside) or "canceled".
     property string phase: "opening"
     property string message: ""
     property string output: ""
@@ -88,6 +90,17 @@ FocusScope {
             playRoot.message = arcadeBackend ? arcadeBackend.lastError() : ""
         }
     }
+    // A game that ended any other way than played out, by ArcadeBackend's
+    // finished(): its reason, what to tell the player (notice) and what the
+    // engine printed. One "stopped" was played, and ended from outside (over
+    // the network, as its host left the game): its name and the notice.
+    // Any other ("failed", "failed_to_start") could not be played, and says
+    // so with the engine's own lines.
+    function ended(reason, notice, printed) {
+        playRoot.phase = reason === "stopped" ? "stopped" : "failed"
+        playRoot.message = notice || ""
+        playRoot.output = playRoot.phase === "failed" ? printed || "" : ""
+    }
 
     Component.onCompleted: {
         // Why a game played from the list didn't (Root.qml's playGame).
@@ -95,9 +108,7 @@ FocusScope {
             phase = "error"
             message = navParams.error
         } else if (navParams.failed) {
-            phase = "failed"
-            message = navParams.message || ""
-            output = navParams.output || ""
+            ended(navParams.reason, navParams.message, navParams.output)
         }
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
@@ -139,9 +150,7 @@ FocusScope {
                 playRoot.goBack()
                 return
             }
-            playRoot.phase = "failed"
-            playRoot.message = notice
-            playRoot.output = arcadeBackend.output()
+            playRoot.ended(reason, notice, arcadeBackend.output())
         }
     }
 
@@ -168,7 +177,7 @@ FocusScope {
         if (playRoot.phase === "opening") {
             playRoot.phase = "canceled"
             playRoot.goBack()
-        } else if (playRoot.phase === "error" || playRoot.phase === "failed") {
+        } else if (playRoot.phase === "error" || playRoot.phase === "failed" || playRoot.phase === "stopped") {
             playRoot.goBack()
         }
     }
@@ -184,7 +193,8 @@ FocusScope {
         title: moduleRoot.moduleName
     }
 
-    // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't.
+    // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't, or
+    // was stopped.
     ArcadeBar {
         visible: playRoot.arcade
         text: playRoot.before ? "Play" : "Stop"
@@ -294,9 +304,10 @@ FocusScope {
             wrapMode: Text.WordWrap
         }
 
-        // Why it didn't play, and what MAME said: as it is, markup and all.
+        // Why it didn't play, or why it stopped, and what MAME said: as it
+        // is, markup and all.
         Text {
-            visible: playRoot.phase === "error" || playRoot.phase === "failed"
+            visible: playRoot.phase === "error" || playRoot.phase === "failed" || playRoot.phase === "stopped"
             width: parent.width
             text: playRoot.message
             textFormat: Text.PlainText
