@@ -1004,6 +1004,36 @@ StandInRoot {
             verify(!screen.attractable)
         }
 
+        // Where Attract Mode can begin the screen saver waits from the first
+        // moment, not only once the screen goes through its games: with a
+        // time shorter than Attract After it came up first, took the keys,
+        // and Attract Mode never began. Not where it can't begin (a filter
+        // of one game, the options up), nor with Attract Mode off.
+        function test_screenAttractHoldsSaver() {
+            moduleRoot.attractMode = "In Order"
+            moduleRoot.attractAfter = 60
+            var screen = openScreen()
+            verify(screen.attractable)
+            tryVerify(function() { return idleTracker.resets > 0 }, 1000)
+            verify(!screen.attracting)
+            var hold = findChild(screen, "attractHold")
+            verify(hold.running)
+            verify(hold.interval < 30000)
+            keyClick(Qt.Key_Left)   // 6 Players, a game
+            compare(screen.count, 1)
+            verify(!hold.running)
+            keyClick(Qt.Key_Right)
+            verify(hold.running)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            verify(!hold.running)
+            keyClick(Qt.Key_Escape)
+            verify(hold.running)
+            moduleRoot.attractMode = "Off"
+            verify(!hold.running)
+        }
+
         // A game FinalBurn Neo plays takes credits bought (COIN) as MAME's
         // do, and shows them; its options offer its engine, Auto naming
         // FinalBurn Neo, and MAME chosen there is saved for it.

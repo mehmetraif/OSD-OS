@@ -289,6 +289,7 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. The credits 
 - **Attract After** sets how long the screen is left alone first: 30 Seconds, 1 Minute (the default), 2 Minutes or 5 Minutes.
 - The first button or key ends it and does nothing else. COIN also puts in a credit.
 - It waits on Search, Online Games, LAN Games and RetroArch Lobby, and on a filter of fewer than two games.
+- Where it can begin, the screen saver (Settings → Screen → Screen Saver) waits, whichever of the two times is shorter.
 
 ### The Orb look
 

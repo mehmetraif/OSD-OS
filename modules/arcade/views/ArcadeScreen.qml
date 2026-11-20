@@ -751,12 +751,23 @@ FocusScope {
     // with the keys, on a filter of games, the screen goes through them on
     // its own, the next or one at random every few seconds. The first key
     // ends it and does nothing else, but for a coin; a game moved to stays.
-    // It holds the screen saver off while it goes on.
+    // It holds the screen saver off from the moment it can begin
+    // (attractable), not only while it goes on: the saver takes the keys,
+    // which this wants here, so with a time shorter than Attract After it
+    // came up first, and the wait began again from nothing as it woke.
     property bool attracting: false
     readonly property bool attractable: moduleRoot.attractMode !== "Off" && activeFocus && !covered && !typing
                                         && !adjusting && !launching && !roomFilter && filterId !== "search"
                                         && count > 1 && !moduleRoot.playing
     onAttractableChanged: if (!attractable) attracting = false
+    Timer {
+        objectName: "attractHold"
+        interval: 10000
+        repeat: true
+        triggeredOnStart: true
+        running: arcadeScreen.attractable
+        onTriggered: if (idleTracker) idleTracker.resetActivity()
+    }
     Timer {
         id: attractIdle
         objectName: "attractIdle"
@@ -774,8 +785,6 @@ FocusScope {
     }
     // The next game, round from the last to the first, or one at random.
     function attractNext() {
-        if (idleTracker)
-            idleTracker.resetActivity()
         if (count < 2)
             return
         if (moduleRoot.attractMode !== "Random") {
