@@ -39,7 +39,9 @@
 // URLs mpv is handed, Emby's Dolby Vision transcoded. A Plex sign-in left
 // with a token and no account asks plex.tv for it again. An NFC card's
 // lookup left for another card's answers no one. Plex's shuffle asks for a
-// show's episodes once for each bag it makes of them.
+// show's episodes once for each bag it makes of them. Plex's extras, a
+// library's menu and a show's episode in progress answer the page that
+// asked last.
 
 class Reply : public QNetworkReply {
 public:
@@ -1772,6 +1774,68 @@ private slots:
         // The bag run out: made again of the show's episodes as they are now.
         QCOMPARE(draw(), 4);
         QCOMPARE(next.count(), 4);
+    }
+
+    // A show's page left for one of its seasons before its extras came: the
+    // show's, answering last, are not told to the season's page (which would
+    // offer VIEW EXTRAS for none of its own), nor is their failure. A
+    // library's menu left for another library's, and a show's episode in
+    // progress asked for by PLAY and then another show's, the same way: the
+    // one asked for last is the one told.
+    void plexExtrasMenuAndOnDeckLeftAreDropped() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+
+        QSignalSpy extras(&backend, &PlexBackend::extrasLoaded);
+        backend.load_extras(QStringLiteral("show"));
+        Reply *show = network->last();
+        backend.load_extras(QStringLiteral("season"));
+        Reply *season = network->last();
+        season->complete(plexContainer({ { "size", 0 } }));
+        QCOMPARE(extras.count(), 1);
+        show->complete(plexContainer({ { "Metadata", plexFilms({ "30" }) } }));
+        QCOMPARE(extras.count(), 1);
+        QVERIFY(extras.first().at(0).toList().isEmpty());
+        backend.load_extras(QStringLiteral("show"));
+        show = network->last();
+        backend.load_extras(QStringLiteral("season"));
+        season = network->last();
+        show->fail(500);
+        QCOMPARE(extras.count(), 1);
+        season->complete(plexContainer({ { "Metadata", plexFilms({ "31" }) } }));
+        QCOMPARE(extras.count(), 2);
+        QCOMPARE(extras.last().at(0).toList().size(), 1);
+
+        // Each library's menu is asked of the server in three requests.
+        QSignalSpy menu(&backend, &PlexBackend::capabilitiesLoaded);
+        backend.check_section_capabilities(QStringLiteral("1"));
+        const QList<Reply *> first = network->replies.mid(network->replies.size() - 3);
+        backend.check_section_capabilities(QStringLiteral("2"));
+        const QList<Reply *> second = network->replies.mid(network->replies.size() - 3);
+        for (Reply *reply : second)
+            reply->complete(plexContainer({}));
+        QCOMPARE(menu.count(), 1);
+        QVERIFY(!menu.first().at(0).toMap().value(QStringLiteral("recommended")).toBool());
+        for (Reply *reply : first)
+            reply->complete(plexContainer({ { "Hub", QJsonArray{ QJsonObject{ { "title", "Recent" } } } } }));
+        QCOMPARE(menu.count(), 1);
+
+        QSignalSpy onDeck(&backend, &PlexBackend::inProgressEpisodeLoaded);
+        const auto inProgress = [](const char *key) {
+            return plexContainer({ { "Metadata", QJsonArray{ QJsonObject{ { "ratingKey", key },
+                                                                          { "viewOffset", 5000 } } } } });
+        };
+        backend.load_on_deck_for(QStringLiteral("showA"));
+        Reply *a = network->last();
+        backend.load_on_deck_for(QStringLiteral("showB"));
+        Reply *b = network->last();
+        a->complete(inProgress("a1"));
+        QCOMPARE(onDeck.count(), 0);
+        b->complete(inProgress("b1"));
+        QCOMPARE(onDeck.count(), 1);
+        QCOMPARE(onDeck.first().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("b1"));
     }
 };
 

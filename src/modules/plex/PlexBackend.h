@@ -280,6 +280,13 @@ private:
     // so that the item left for another never shows up in its place.
     int m_detailRequest = 0;
     int m_childrenRequest = 0;
+    // An item's extras, a library's menu and a show's episode in progress
+    // (load_extras, check_section_capabilities, load_on_deck_for), the same
+    // way: a show's extras never show on the season opened from it, nor one
+    // library's menu, or one show's episode, in another's place.
+    int m_extrasRequest = 0;
+    int m_capabilitiesRequest = 0;
+    int m_onDeckRequest = 0;
     // The queue expanded last (expand_queue), the same way, forgotten with
     // cancel_stream: a set given up on never plays in place of the next.
     int m_queueRequest = 0;

@@ -1935,29 +1935,40 @@ void PlexBackend::load_folder(const QString &sectionId, const QString &folderKey
 void PlexBackend::check_section_capabilities(const QString &sectionId) {
     QString uri = serverUrl(), token = serverToken();
 
+    // The library asked about last is the one answered (m_capabilitiesRequest).
+    const int request = ++m_capabilitiesRequest;
     auto *caps = new QVariantMap{{"recommended",false},{"collections",false},{"playlists",false}};
     auto *remaining = new int(3);
-    auto done = [this, caps, remaining]() {
+    auto done = [this, request, caps, remaining]() {
         (*remaining)--;
         if (*remaining == 0) {
-            emit capabilitiesLoaded(*caps);
+            // Another library opened since: its menu is not this one's.
+            if (request == m_capabilitiesRequest)
+                emit capabilitiesLoaded(*caps);
             delete caps;
             delete remaining;
         }
+    };
+    // Asked again with the token renewed, unless the library was left meanwhile.
+    auto again = [this, request, sectionId]() {
+        handle498([this, request, sectionId] {
+            if (request == m_capabilitiesRequest)
+                check_section_capabilities(sectionId);
+        });
     };
 
     // Hubs
     QUrl hubsUrl(uri + "/hubs/sections/" + sectionId);
     QUrlQuery hq; hq.addQueryItem("count","1"); hubsUrl.setQuery(hq);
     auto *hubReply = plexGet(hubsUrl, token);
-    connect(hubReply, &QNetworkReply::finished, this, [this, hubReply, caps, done, sectionId]() {
+    connect(hubReply, &QNetworkReply::finished, this, [hubReply, caps, done, again]() {
         hubReply->deleteLater();
         if (hubReply->error() == QNetworkReply::NoError) {
             QJsonArray hubs = QJsonDocument::fromJson(hubReply->readAll())
                               .object()["MediaContainer"].toObject()["Hub"].toArray();
             (*caps)["recommended"] = !hubs.isEmpty();
         } else if (hubReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            handle498([this, sectionId]{ check_section_capabilities(sectionId); });
+            again();
         }
         done();
     });
@@ -1966,14 +1977,14 @@ void PlexBackend::check_section_capabilities(const QString &sectionId) {
     QUrl collUrl(uri + "/library/sections/" + sectionId + "/collections");
     QUrlQuery cq; cq.addQueryItem("X-Plex-Container-Size","0"); collUrl.setQuery(cq);
     auto *collReply = plexGet(collUrl, token);
-    connect(collReply, &QNetworkReply::finished, this, [this, collReply, caps, done, sectionId]() {
+    connect(collReply, &QNetworkReply::finished, this, [collReply, caps, done, again]() {
         collReply->deleteLater();
         if (collReply->error() == QNetworkReply::NoError) {
             int total = QJsonDocument::fromJson(collReply->readAll())
                         .object()["MediaContainer"].toObject()["totalSize"].toInt();
             (*caps)["collections"] = total > 0;
         } else if (collReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            handle498([this, sectionId]{ check_section_capabilities(sectionId); });
+            again();
         }
         done();
     });
@@ -1983,14 +1994,14 @@ void PlexBackend::check_section_capabilities(const QString &sectionId) {
     QUrlQuery pq; pq.addQueryItem("sectionID",sectionId); pq.addQueryItem("playlistType","video");
     pq.addQueryItem("X-Plex-Container-Size","0"); plUrl.setQuery(pq);
     auto *plReply = plexGet(plUrl, token);
-    connect(plReply, &QNetworkReply::finished, this, [this, plReply, caps, done, sectionId]() {
+    connect(plReply, &QNetworkReply::finished, this, [plReply, caps, done, again]() {
         plReply->deleteLater();
         if (plReply->error() == QNetworkReply::NoError) {
             int total = QJsonDocument::fromJson(plReply->readAll())
                         .object()["MediaContainer"].toObject()["totalSize"].toInt();
             (*caps)["playlists"] = total > 0;
         } else if (plReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            handle498([this, sectionId]{ check_section_capabilities(sectionId); });
+            again();
         }
         done();
     });
@@ -2188,12 +2199,21 @@ void PlexBackend::load_children(const QString &ratingKey) {
 
 void PlexBackend::load_extras(const QString &ratingKey) {
     QString uri = serverUrl(), token = serverToken();
+    const int request = ++m_extrasRequest;
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + ratingKey + "/extras"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey, request]() {
         reply->deleteLater();
+        // Another item's extras asked for since: this one was left, and its
+        // extras are not the page's that is shown now.
+        if (request != m_extrasRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey]{ load_extras(ratingKey); }); return;
+                // Left meanwhile, it isn't asked again in the next one's place.
+                handle498([this, request, ratingKey] {
+                    if (request == m_extrasRequest)
+                        load_extras(ratingKey);
+                });
+                return;
             }
             // No errorOccurred here: the detail views' error handlers reset
             // loading/play state, and a failed extras fetch must not do that.
@@ -2231,12 +2251,21 @@ void PlexBackend::load_extras(const QString &ratingKey) {
 
 void PlexBackend::load_on_deck_for(const QString &ratingKey) {
     QString uri = serverUrl(), token = serverToken();
+    const int request = ++m_onDeckRequest;
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + ratingKey + "/onDeck"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey, request]() {
         reply->deleteLater();
+        // Another show's asked for since (its PLAY): this one was left, and
+        // opens no episode from that show's page.
+        if (request != m_onDeckRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey]{ load_on_deck_for(ratingKey); }); return;
+                // Left meanwhile, it isn't asked again in the next one's place.
+                handle498([this, request, ratingKey] {
+                    if (request == m_onDeckRequest)
+                        load_on_deck_for(ratingKey);
+                });
+                return;
             }
             emit inProgressEpisodeLoaded(QVariantMap{}); return;
         }
