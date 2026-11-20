@@ -189,6 +189,7 @@ StandInRoot {
 
         function init() {
             root.menuLayout = "Standard"
+            root.framed = false
             root.chrome.basePath = []
             appCore.values = {}
             appCore.actions = []
@@ -529,6 +530,94 @@ StandInRoot {
             compare(page.currentDisplayValue(page.schemaItems[2]), "Favorites")
             appCore.dynamicOptionsReady("com.osdos.test", "start_filter", choices)
             compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
+        }
+
+        // A dynamic list that was a toggle once and is still saved as true
+        // or false (Local Files' Shuffle Playback): the row is on the choice
+        // that form is now (the choice's `old`), as the player takes it. It
+        // shows that choice, ◄ ► step from it, the rows that go with its
+        // value follow it, and a value changed in two steps (Broadcast) is
+        // counted from it too.
+        function test_savedAsAToggleOnce_data() {
+            return [{ tag: "false", saved: false, label: "Never", id: "no", next: "ask", nextLabel: "Ask", before: "yes" },
+                    { tag: "true", saved: true, label: "Always", id: "yes", next: "no", nextLabel: "Never", before: "ask" }]
+        }
+        function test_savedAsAToggleOnce(data) {
+            appCore.schema = [
+                { key: "shuffle", label: "Shuffle Playback", type: "list_single", options_source: "dynamic",
+                  options_slot: "shuffleOptions", default: "ask" },
+                { key: "order", label: "Order", type: "toggle", default: "ON",
+                  shown_with: { key: "shuffle", value: "no" } }
+            ]
+            var choices = [{ id: "ask", label: "Ask" }, { id: "yes", label: "Always", old: true },
+                           { id: "no", label: "Never", old: false }]
+            // The page with the row saved in its old form, its choices in.
+            var opened = function() {
+                loader.source = ""
+                appCore.values = { shuffle: data.saved }
+                var page = open()
+                appCore.dynamicOptionsReady("com.osdos.test", "shuffle", choices)
+                return page
+            }
+            var page = opened()
+            compare(page.currentDisplayValue(page.schemaItems[0]), data.label)
+            compare(menuRow(page, 0).value, data.label)
+            compare(page.valueOf(page.schemaItems[0]), data.id)
+            compare(usable(page), data.id === "no" ? ["shuffle", "order"] : ["shuffle"])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.shuffle, data.next)
+            compare(page.currentDisplayValue(page.schemaItems[0]), data.nextLabel)
+
+            page = opened()
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.shuffle, data.before)
+
+            // In Camcorder's pane as in Standard.
+            root.menuLayout = "Camcorder"
+            root.framed = true
+            page = opened()
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.shuffle, data.next)
+            root.framed = false
+
+            // In two steps: ▲ a choice on from the one it is on.
+            root.menuLayout = "Broadcast"
+            page = opened()
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, 0)
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 0).value, data.nextLabel)
+            compare(appCore.values.shuffle, data.saved)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.shuffle, data.next)
+        }
+
+        // A dynamic list on a choice its backend no longer offers (a server
+        // gone), or on none: the row is on its first choice, shown, stepped
+        // from and handed to the rows that go with it alike.
+        function test_dynamicChoiceNotOffered() {
+            appCore.schema = [
+                { key: "server", label: "Server", type: "list_single", options_source: "dynamic",
+                  options_slot: "serverOptions" },
+                { key: "sync", label: "Sync", type: "toggle", default: "ON",
+                  shown_with: { key: "server", value: "attic" } }
+            ]
+            appCore.values = { server: "cellar" }
+            var page = open()
+            // Before its choices are in, the row is what is saved.
+            compare(page.valueOf(page.schemaItems[0]), "cellar")
+            compare(page.currentDisplayValue(page.schemaItems[0]), "---")
+            appCore.dynamicOptionsReady("com.osdos.test", "server",
+                                        [{ id: "attic", label: "Attic" }, { id: "barn", label: "Barn" }])
+            compare(page.currentDisplayValue(page.schemaItems[0]), "Attic")
+            compare(page.valueOf(page.schemaItems[0]), "attic")
+            compare(usable(page), ["server", "sync"])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.server, "barn")
+            compare(usable(page), ["server"])
         }
 
         // A "text" row is typed on the on-screen keyboard: select or ► opens

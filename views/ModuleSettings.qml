@@ -306,13 +306,34 @@ FocusScope {
             if (saved === undefined || saved === null) saved = (item.default === "ON")
             return (saved === true || saved === "ON") ? "ON" : "OFF"
         }
+        // A dynamic list's choice, once its choices are in (chosenIndex());
+        // until then, what is saved.
+        if (item.options_source === "dynamic") {
+            var at = chosenIndex(item)
+            if (at >= 0)
+                return dynamicOptions[rowId(item)][at].id
+        }
         if (saved !== undefined && saved !== null && saved !== "")
             return saved
-        if (item.options_source === "dynamic") {
-            var opts = dynamicOptions[rowId(item)] || []
-            return opts.length > 0 ? opts[0].id : ""
+        return item.options_source === "dynamic" ? "" : item.default || ""
+    }
+
+    // Which of its choices a dynamic list is on, the one rule for what the
+    // row shows, what ◄ ► step from and what the rows that go with it follow:
+    // the choice saved, by its id; for a row that was a toggle once and is
+    // still saved as true or false, the choice that form is now (its `old`),
+    // as the module's player takes it (util/PlaybackOptions.h's chosen());
+    // else the first, with nothing saved or a choice no longer offered. -1
+    // while it has no choices.
+    function chosenIndex(item) {
+        var opts = dynamicOptions[rowId(item)] || []
+        var saved = valuesOf(item)[item.key]
+        var toggle = typeof saved === "boolean"
+        for (var i = 0; i < opts.length; i++) {
+            if (toggle ? opts[i].old === saved : opts[i].id === saved)
+                return i
         }
-        return item.default || ""
+        return opts.length > 0 ? 0 : -1
     }
 
     // The row with this key, at any depth.
@@ -392,12 +413,8 @@ FocusScope {
 
         if (type === "list_single") {
             if (item.options_source === "dynamic") {
-                var opts = dynamicOptions[rowId(item)] || []
-                var storedId = valuesOf(item)[key] || null
-                for (var i = 0; i < opts.length; i++) {
-                    if (opts[i].id === storedId || (storedId !== null && opts[i].old === storedId)) return opts[i].label
-                }
-                return opts.length > 0 ? opts[0].label : "---"
+                var at = chosenIndex(item)
+                return at >= 0 ? dynamicOptions[rowId(item)][at].label : "---"
             }
             return valueOf(item) || "---"
         }
@@ -468,15 +485,7 @@ FocusScope {
         var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : (item.options || [])
         if (opts.length === 0)
             return currentDisplayValue(item)
-        var at = 0
-        if (dynamic) {
-            var storedId = valuesOf(item)[item.key] || null
-            for (var i = 0; i < opts.length; i++) {
-                if (opts[i].id === storedId) { at = i; break }
-            }
-        } else {
-            at = Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
-        }
+        var at = dynamic ? chosenIndex(item) : Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
         var next = opts[((at + steps) % opts.length + opts.length) % opts.length]
         return dynamic ? next.label : next
     }
@@ -503,11 +512,7 @@ FocusScope {
             if (item.options_source === "dynamic") {
                 opts = dynamicOptions[rowId(item)] || []
                 if (opts.length === 0) return
-                var storedId = valuesOf(item)[item.key] || null
-                var curIdx = 0
-                for (var i = 0; i < opts.length; i++) {
-                    if (opts[i].id === storedId) { curIdx = i; break }
-                }
+                var curIdx = chosenIndex(item)
                 var newIdx = ((curIdx + direction) % opts.length + opts.length) % opts.length
                 if (store(item, opts[newIdx].id) && item.apply_slot) {
                     appCore.invoke_module_action(moduleOf(item), item.apply_slot)
