@@ -127,6 +127,13 @@ void EmbyApiBackend::clearAuthState() {
     m_userName.clear();
     m_serverName.clear();
     m_currentPlaySessionId.clear();
+    // The audio and subtitle languages chosen last were this user's: the
+    // next one signed in gets the ones the server keeps for them
+    // (load_server_preferences()), which these would stand in front of.
+    m_lastAudioLang.clear();
+    m_lastSubLang.clear();
+    m_lastAudioLangIdx = -1;
+    m_lastSubLangIdx = -1;
     // Sign out will wipe the auth file as the device is removed from access
     // on the server end as well. This will generate a fresh deviceId so any
     // in-session re-login / QuickConnect creates one that will be synced with the

@@ -146,8 +146,9 @@ protected:
     void notifyAuthState();
     void loadAuthState();
     void saveAuthState();
-    // The sign-in forgotten, its file too, and a new device id made for the
-    // next: a backend forgets what else it knew of the server.
+    // The sign-in forgotten, its file too, the tracks its user chose last,
+    // and a new device id made for the next: a backend forgets what else it
+    // knew of the server.
     virtual void clearAuthState();
     // The token revoked on the server as the user signs out (logout()),
     // while it is still known: /Sessions/Logout.

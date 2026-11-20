@@ -41,7 +41,8 @@
 // lookup left for another card's answers no one. Plex's shuffle asks for a
 // show's episodes once for each bag it makes of them. Plex's extras, a
 // library's menu and a show's episode in progress answer the page that
-// asked last.
+// asked last. Signing out of Jellyfin or Emby forgets the tracks chosen
+// last.
 
 class Reply : public QNetworkReply {
 public:
@@ -1836,6 +1837,40 @@ private slots:
         b->complete(inProgress("b1"));
         QCOMPARE(onDeck.count(), 1);
         QCOMPARE(onDeck.first().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("b1"));
+    }
+
+    // The audio and subtitle languages chosen last are the user's who chose
+    // them: signing out forgets them, so the next user signed in gets the
+    // languages the server keeps for them, not the last one's (Jellyfin,
+    // then Emby).
+    void signOutForgetsTheTracksChosen() {
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        EmbyBackend emby(tmp.path());
+        for (EmbyApiBackend *backend : { static_cast<EmbyApiBackend *>(&jellyfin),
+                                         static_cast<EmbyApiBackend *>(&emby) }) {
+            Network *network = signIn(*backend);
+            QSignalSpy languages(backend, &EmbyApiBackend::serverLanguagePreferencesReady);
+            backend->set_last_track_langs(QStringLiteral("fra"), QStringLiteral("eng"), 1, 0);
+            QCOMPARE(backend->get_last_audio_lang_idx(), 1);
+            QCOMPARE(backend->get_last_sub_lang_idx(), 0);
+            backend->logout();
+            QVERIFY(!backend->has_auth());
+            QCOMPARE(backend->get_last_audio_lang_idx(), -1);
+            QCOMPARE(backend->get_last_sub_lang_idx(), -1);
+            // The next user, signed in to the same server.
+            backend->m_serverUrl = QStringLiteral("http://server");
+            backend->m_accessToken = QStringLiteral("token2");
+            backend->m_userId = QStringLiteral("user2");
+            backend->load_server_preferences();
+            network->last()->complete(QJsonDocument(QJsonObject{ { "Configuration", QJsonObject{
+                { "AudioLanguagePreference", "deu" }, { "SubtitleLanguagePreference", "spa" },
+                { "SubtitleMode", "Always" } } } }).toJson());
+            QCOMPARE(languages.count(), 1);
+            QCOMPARE(languages.first().at(0).toString(), QStringLiteral("deu"));
+            QCOMPARE(languages.first().at(1).toString(), QStringLiteral("spa"));
+            QCOMPARE(languages.first().at(2).toString(), QStringLiteral("Always"));
+        }
     }
 };
 
