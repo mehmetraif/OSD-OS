@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Components
 import OSDOS.Testing
+import "../../views/Components/Hover.js" as Hover
 
 // What comes over a view, each on its own: the on-screen keyboard
 // (views/Components/OnScreenKeyboard.qml), whose keys stay the keys they are
@@ -322,6 +323,9 @@ StandInRoot {
 
         function cleanup() {
             loader.source = ""
+            root.framed = false
+            root.setFrame([], 0, false, false)
+            root.menuLayout = "Standard"
         }
 
         // The list of answers a PromptScreen draws.
@@ -398,6 +402,73 @@ StandInRoot {
             compare(closedSpy.count, 2)
             compare(canceledSpy.count, 1)
             compare(activatedSpy.count, 1)
+        }
+
+        // The frame's column of icons a PromptScreen draws again in
+        // Camcorder's frame (an IconColumn), or null.
+        function columnOf(prompt) {
+            var column = null
+            var find = function(item) {
+                if (typeof item.active === "boolean" && item.count !== undefined && item.model !== undefined)
+                    column = item
+                for (var i = 0; i < item.children.length && !column; i++)
+                    find(item.children[i])
+            }
+            find(prompt)
+            return column
+        }
+        // The mouse on an item, at its middle unless told where, as
+        // Main.qml's followPointer() has it.
+        function hover(item, x, y) {
+            var p = item.mapToItem(root, x === undefined ? item.width / 2 : x, y === undefined ? item.height / 2 : y)
+            Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+        }
+
+        // The mouse moves the cursor to the answer it is over, and nowhere
+        // from anything else: in Camcorder's frame the window draws the
+        // frame's column again beside its answers, and the mouse over an
+        // icon there leaves the cursor on its answer (the first may be Power
+        // Off, and a click is select). In Standard there is no column.
+        function test_mouseOverTheFramesColumn_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_mouseOverTheFramesColumn(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }, { icon: "eject" }], 2, false, false)
+            root.framed = data.framed
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Quit OSD/OS?",
+                               choices: [{ label: "Power Off", action: "poweroff" }, { label: "Restart", action: "restart" },
+                                         { label: "Cancel", action: "cancel" }] })
+            var overlay = loader.item
+            verify(overlay !== null, "loaded ChoiceOverlay.qml")
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var answers = answersOf(prompt)
+            keyClick(Qt.Key_Up)
+            compare(overlay.choiceIndex, 2)
+            var column = columnOf(prompt)
+            compare(column !== null, data.framed)
+            if (column) {
+                compare(column.count, 3)
+                // Each icon in turn, the first first.
+                for (var i = 0; i < 3; i++) {
+                    hover(column, column.width / 2, (i + 0.5) * root.menuRowHeight)
+                    compare(overlay.choiceIndex, 2, "the cursor left on its answer, the mouse on icon " + i)
+                }
+                // The answers beside the column, in the pane.
+                verify(answers.mapToItem(root, 0, 0).x >= column.mapToItem(root, column.width, 0).x)
+            }
+            // An answer: the cursor's.
+            hover(answers.itemAtIndex(0))
+            compare(overlay.choiceIndex, 0)
+            hover(answers.itemAtIndex(1))
+            compare(overlay.choiceIndex, 1)
+            // The title bar, and the room under the answers: nowhere.
+            hover(prompt, prompt.width / 2, root.sh * 0.15)
+            hover(prompt, prompt.width / 2, root.sh * 0.8)
+            compare(overlay.choiceIndex, 1)
         }
     }
 

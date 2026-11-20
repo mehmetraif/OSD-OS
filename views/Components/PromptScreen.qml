@@ -45,9 +45,14 @@ Item {
     property var choices: []
     property int currentIndex: 0
     // The answer the mouse is over (Main.qml's followPointer()): the host
-    // moves its cursor there (onHovered), as it does for ▲ ▼.
+    // moves its cursor there (onHovered), as it does for ▲ ▼. A row of the
+    // answers' own list alone: the frame's column, drawn again beside them
+    // in Camcorder, is a list too, and the mouse over one of its icons is
+    // over no answer.
     signal hovered(int index)
-    function hoverRow(index) {
+    function hoverRow(index, list) {
+        if (list !== answers)
+            return
         if (index >= 0 && index < choices.length && !(choices[index] && choices[index].divider))
             hovered(index)
     }
