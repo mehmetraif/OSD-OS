@@ -10,7 +10,9 @@ import OSDOS.Testing
 // waiting for one lead back to the detail screen, not a black screen with no
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
-// for back to return to, and prompts no card, whose views say so instead. A video that fails says why (PlaybackNotice), with
+// for back to return to, and prompts no card, whose views say so instead.
+// Plex's users page says it is loading while its users are asked for, or
+// why they didn't come. A video that fails says why (PlaybackNotice), with
 // RETRY, mpv itself missing without the transcode no transcode would mend.
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
 // keyboard (its signs, SHOW, the mouse), and their Continue Watching and
@@ -217,7 +219,9 @@ StandInRoot {
         function reset_device_check() {}
         function get_auth_state() { return authState }
         function pending_pin_user() { return "" }
-        function load_users_from_cache() {}
+        // The users asked for: answered by the test (usersLoaded).
+        property int userAsks: 0
+        function load_users_from_cache() { userAsks++ }
         function start_pin_auth() { return 1 }
         function cancel_pin_auth(request) {}
         function get_active_server_name() { return "Server" }
@@ -448,6 +452,7 @@ StandInRoot {
             plexBackend.nextAsks = 0
             plexBackend.cardAsks = 0
             plexBackend.queueAsks = 0
+            plexBackend.userAsks = 0
             plexBackend.authState = "authed"
             plexBackend.tunes = 0
             plexBackend.liveStops = 0
@@ -798,6 +803,33 @@ StandInRoot {
             router.children[0].item.forceActiveFocus()
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // The users page of a sign-in left without its account (the code
+        // claimed, plex.tv a moment away): the backend is asked for the
+        // users, and the page says it is loading until they come, or why
+        // they didn't; never an empty page with nothing said. Users handed
+        // to the page (the sign-in's own) are shown at once.
+        function test_plexUsersPageWaitsForTheAccount() {
+            var page = open("plex", "UserSelect.qml", {})
+            var said = function() {
+                return shownTexts(page).map(function(t) { return t.text }).join("|")
+            }
+            compare(plexBackend.userAsks, 1)
+            verify(said().indexOf("LOADING...") >= 0, said())
+            plexBackend.errorOccurred("FAILED TO LOAD ACCOUNT: Connection refused")
+            verify(said().indexOf("LOADING...") < 0, said())
+            verify(said().indexOf("FAILED TO LOAD ACCOUNT: Connection refused") >= 0, said())
+            loader.source = ""
+            page = open("plex", "UserSelect.qml", {})
+            verify(said().indexOf("LOADING...") >= 0, said())
+            plexBackend.usersLoaded([{ id: "1", title: "OWNER" }])
+            tryVerify(function() { return said().indexOf("OWNER") >= 0 }, 1000, said())
+            verify(said().indexOf("LOADING...") < 0, said())
+            loader.source = ""
+            page = open("plex", "UserSelect.qml", { users: [{ id: "1", title: "OWNER" }] })
+            compare(plexBackend.userAsks, 2)
+            verify(said().indexOf("LOADING...") < 0, said())
         }
 
         // A card never prompts: signed out (the token refused and not

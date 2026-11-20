@@ -34,6 +34,10 @@ public:
     // Asks plex.tv for a sign-in code and polls for it: the request's number,
     // for cancel_pin_auth.
     Q_INVOKABLE int  start_pin_auth();
+    // The account's users, as kept since the sign-in (usersLoaded). Signed in
+    // with none kept (the account didn't come once the code was claimed),
+    // they and their servers are asked of plex.tv again: usersLoaded once
+    // both are kept, else errorOccurred.
     Q_INVOKABLE void load_users_from_cache();
     // pin is only supplied on a retry, after plex.tv has told us the profile
     // needs one (see userPinRequired). It is never stored.

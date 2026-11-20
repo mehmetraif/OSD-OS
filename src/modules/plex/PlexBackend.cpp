@@ -1205,10 +1205,11 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
         connect(resReply, &QNetworkReply::finished, this, [this, users, resReply, token]() {
             resReply->deleteLater();
             if (resReply->error() != QNetworkReply::NoError) {
-                // Still emit users even if resource fetch fails
-                QVariantList ul;
-                for (const auto &v : users) ul.append(v.toObject().toVariantMap());
-                emit usersLoaded(ul);
+                // Said, and nothing kept: users told without their servers
+                // were users nothing was kept of, whom select_user() then
+                // didn't know. The users page asks for both again
+                // (load_users_from_cache()).
+                emit errorOccurred("FAILED TO LOAD SERVERS: " + serverlog::why(resReply));
                 return;
             }
             QJsonArray resources = QJsonDocument::fromJson(resReply->readAll()).array();
@@ -1440,6 +1441,14 @@ void PlexBackend::load_users_from_cache() {
     QVariantList users;
     for (const auto &v : auth["users"].toArray())
         users.append(v.toObject().toVariantMap());
+    // Signed in, with no one kept to choose: the account didn't come once
+    // the sign-in's code was claimed (plex.tv a moment away), and only the
+    // token was kept. Asked for again, as the sign-in does, rather than
+    // answered with none: the users page would be empty at every opening.
+    if (users.isEmpty() && !auth["auth_token"].toString().isEmpty()) {
+        fetchUsersAndServers(auth["auth_token"].toString());
+        return;
+    }
     emit usersLoaded(users);
 }
 

@@ -36,7 +36,8 @@
 // the server that issued the token, which goes to no other host, and
 // Jellyfin's and Emby's backends, one code, ask each in its own way where
 // their servers differ: PlaybackInfo with their own device profiles, the
-// URLs mpv is handed, Emby's Dolby Vision transcoded.
+// URLs mpv is handed, Emby's Dolby Vision transcoded. A Plex sign-in left
+// with a token and no account asks plex.tv for it again.
 
 class Reply : public QNetworkReply {
 public:
@@ -1605,6 +1606,64 @@ private slots:
         only->drop();
         QCOMPARE(network->last(), only);
         QCOMPARE(failed.count(), 2);
+    }
+
+    // A sign-in whose account didn't come once the code was claimed (plex.tv
+    // a moment away) leaves a token and no one to choose: the users are asked
+    // for again as their page opens, not shown as none for ever. Their
+    // servers not coming is said, rather than answered with users nothing
+    // was kept of; once both have come they are kept, and asked for no more.
+    void plexSignInWithoutItsAccountAsksForItAgain() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        backend.saveAuth(QJsonObject{ { "auth_token", "token" } });
+        QCOMPARE(backend.get_auth_state(), QStringLiteral("needs_user"));
+        QSignalSpy users(&backend, &PlexBackend::usersLoaded);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        const QByteArray home = QJsonDocument(QJsonObject{ { "users", QJsonArray{
+            QJsonObject{ { "id", 1 }, { "uuid", "owner" }, { "title", "Owner" } } } } }).toJson();
+
+        backend.load_users_from_cache();
+        QCOMPARE(network->replies.size(), 1);
+        QCOMPARE(network->last()->url().host(), QStringLiteral("plex.tv"));
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/api/v2/home/users")));
+        QCOMPARE(users.count(), 0);
+        network->last()->drop();
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(errors.last().at(0).toString(), QStringLiteral("FAILED TO LOAD ACCOUNT: Connection refused"));
+        QCOMPARE(users.count(), 0);
+
+        // The users come, their servers don't.
+        backend.load_users_from_cache();
+        network->last()->complete(home);
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/api/v2/resources")));
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 2);
+        QCOMPARE(errors.last().at(0).toString(), QStringLiteral("FAILED TO LOAD SERVERS: HTTP 500"));
+        QCOMPARE(users.count(), 0);
+        QVERIFY(backend.loadAuth()["users"].toArray().isEmpty());
+
+        // Both come: kept, the server at the address that answers.
+        backend.load_users_from_cache();
+        network->last()->complete(home);
+        network->last()->complete(QJsonDocument(QJsonArray{ QJsonObject{
+            { "clientIdentifier", "machine" }, { "name", "Home" }, { "provides", "server" },
+            { "accessToken", "server-token" },
+            { "connections", QJsonArray{ QJsonObject{ { "uri", "http://server" }, { "local", true } } } } } }).toJson());
+        QCOMPARE(network->last()->url().host(), QStringLiteral("server"));
+        network->last()->complete(QByteArray());
+        QCOMPARE(users.count(), 1);
+        QCOMPARE(users.last().at(0).toList().size(), 1);
+        QCOMPARE(backend.loadAuth()["users"].toArray().size(), 1);
+        QCOMPARE(backend.loadAuth()["servers"].toArray().size(), 1);
+        QCOMPARE(errors.count(), 2);
+        const qsizetype asked = network->replies.size();
+        backend.load_users_from_cache();
+        QCOMPARE(network->replies.size(), asked);
+        QCOMPARE(users.count(), 2);
+        QCOMPARE(users.last().at(0).toList().size(), 1);
     }
 };
 
