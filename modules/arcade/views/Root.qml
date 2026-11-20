@@ -51,9 +51,12 @@ ModuleRouter {
     // A settings page is in a monitor layout's frame (Settings → Look → Menu
     // Layout), as Settings' own pages are: it says so (inFrame), and Main.qml
     // draws the frame round it. The Arcade screen, a game and a page over the
-    // list (Game Details, a room's) are not: Play.qml or a page over the list
-    // covers it (viewCovered), which is then neither drawn nor in the frame.
-    viewCovered: !!playLayer.item || !!pageLayer.item
+    // list (Game Details, a room's) are not: Play.qml, a page over the list
+    // or the loading screen of a game played from it (playing) covers it
+    // (viewCovered), which is then neither drawn nor in the frame. On a
+    // monitor turned on its side the Arcade screen is taller than the stage
+    // the loading screen fills, and would show round it.
+    viewCovered: !!playLayer.item || !!pageLayer.item || playing !== null
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in
@@ -175,9 +178,9 @@ ModuleRouter {
     }
     // The game playGame() starts from the list, from the moment it is
     // chosen until it ends: { game, title, online, listState }; null for
-    // none. The loading screen covers the list meanwhile, and nothing of the
-    // menus moves behind it: their effects rest, as for a game's own screen
-    // (Play.qml).
+    // none. The loading screen covers the list meanwhile, which is not drawn
+    // under it (viewCovered), and nothing of the menus moves behind it:
+    // their effects rest, as for a game's own screen (Play.qml).
     property var playing: null
     onPlayingChanged: root.restFor(moduleRoot, playing !== null)
     Component.onDestruction: root.restFor(moduleRoot, false)

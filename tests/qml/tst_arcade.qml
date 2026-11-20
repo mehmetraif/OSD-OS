@@ -3264,6 +3264,10 @@ StandInRoot {
             compare(arcadeBackend.started, [])
             var loading = findChild(router, "gameLoading")
             verify(loading.visible)
+            // The list kept under it, not drawn: on a monitor turned on its
+            // side it would show round the loading screen.
+            verify(router.viewCovered)
+            verify(!screen.visible)
             verify(findText(loading, "Street Fighter II: The World Warrior", true) !== null)
             verify(findText(loading, "(World 910522)", true) !== null)
             var line = findText(loading, "Loading...", true)
@@ -3279,6 +3283,7 @@ StandInRoot {
             compare(router.playing.game, "sf2")
             verify(router.gameUp)
             verify(loading.visible)
+            verify(!screen.visible)
             verify(root.effectsResting)
             tryVerify(function() { return idleTracker.resets > 0 })
             keyClick(Qt.Key_Down)
@@ -3294,6 +3299,7 @@ StandInRoot {
             verify(!loading.visible)
             verify(!root.effectsResting)
             compare(shown(router), screen)
+            verify(screen.visible)
             compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
