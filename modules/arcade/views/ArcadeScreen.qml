@@ -550,13 +550,19 @@ FocusScope {
             wanted = filterId
         var place = filterId !== "" && (keep !== "" || keepRoom >= 0)
                     ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
-        selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
+        // In another filter than the one it was in (the wanted one's games
+        // come at last, the one shown gone), the cursor's old place is some
+        // other game's: a filter that hasn't the game kept opens on its
+        // first. In its own, the cursor stays where the game was.
+        var moved = filterId !== keptFilter
+        selected = place >= 0 ? place : (standIn || moved ? 0 : Math.max(0, Math.min(selected, count - 1)))
         // On the wheel, the game kept keeps its row while its filter is the
         // one shown still, and the game come back to after playing it the
         // row it was played from; a game landed on, or one kept as its
         // filter went, comes to the middle row, and the screen opened afresh
-        // has the first game in the top row, as a filter ◄ ► came to does.
-        var row = fromCurrent ? (filterId === keptFilter ? keptRow : middleRow)
+        // has the first game in the top row, as a filter ◄ ► came to does,
+        // and one shown without the game kept.
+        var row = fromCurrent ? (!moved ? keptRow : place >= 0 ? middleRow : 0)
                 : landOn ? middleRow
                 : navListState.row !== undefined ? navListState.row : 0
         placeWheel(Math.min(row, perPage - 1))

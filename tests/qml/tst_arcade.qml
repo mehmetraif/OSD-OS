@@ -3151,6 +3151,47 @@ StandInRoot {
             compare(screen.currentSet, "galaga")
         }
 
+        // A game the cursor was moved to that the filter shown next doesn't
+        // have isn't kept: that filter opens on its first game, in the top
+        // row on the wheel, not on whichever game has the cursor's old
+        // place. So for Start Filter's come at last behind the lists, and
+        // for the first filter as the one shown goes with the game.
+        function test_screenFilterWithoutKeptGame_data() {
+            return [{ tag: "arc", style: "Curved" }, { tag: "wheel", style: "3D Curved" }]
+        }
+        function test_screenFilterWithoutKeptGame(data) {
+            moduleRoot.listStyle = data.style
+            var shmups = ["1942", "1943", "aerofgt", "batsugun", "dodonpa", "esprade", "gunbird", "mmatrix",
+                          "raiden", "rtype", "strikers", "zerowing"]
+            var all = arcadeBackend.filterList.concat([{ id: "genres/Shmup", name: "Shmup", sets: shmups }])
+            moduleRoot.startFilter = "genres/Shmup"
+            arcadeBackend.scanning = true
+            arcadeBackend.filterList = all.filter(function(f) { return f.id === "favorites" })
+            var screen = openScreen()
+            compare(screen.filterId, "favorites")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selected, 1)
+            arcadeBackend.scanning = false
+            arcadeBackend.filterList = all
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "genres/Shmup")
+            verify(screen.count >= screen.perPage)
+            compare(screen.selected, 0)
+            compare(screen.currentSet, "1942")
+            compare(screen.selectedRow, 0)
+            // On its sixth game as the filter goes, and the game with it.
+            for (var i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "esprade")
+            arcadeBackend.filterList = all.filter(function(f) { return f.id !== "genres/Shmup" })
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.selected, 0)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 0)
+        }
+
         // The startup favourite plays at once, as if chosen in Favorites.
         function test_screenStartup() {
             var screen = openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
