@@ -159,8 +159,8 @@ FocusScope {
         } else if (row.type === "keys") {
             navigateTo("views/MenuButtons.qml", { key: row.key }, listState(row))
         } else if (row.type === "players") {
-            inputManager.resetPlayers()
-            notice = "Every player is automatic now"
+            notice = inputManager.resetPlayers() ? "Every player is automatic now"
+                                                 : "Not saved: the settings could not be written"
         } else if (row.show === "keyboards"
                    && !controllers.some(function(c) { return c.present && !isPad(c) })) {
             // No keyboard listed apart: straight to every keyboard's keys.

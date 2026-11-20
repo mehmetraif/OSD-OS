@@ -507,8 +507,8 @@ FocusScope {
         promptText: "Layout"
         subtitleText: "Custom is what was set by hand: it is kept while another is chosen"
         onActivated: function(layout) {
-            if (inputManager)
-                inputManager.setArcadeLayout(pageRoot.key, layout)
+            if (inputManager && !inputManager.setArcadeLayout(pageRoot.key, layout))
+                pageRoot.notice = "Not saved: the settings could not be written"
         }
         onClosed: list.forceActiveFocus()
     }

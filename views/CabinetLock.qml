@@ -66,7 +66,8 @@ FocusScope {
     // to stay on, or without buttons, those first.
     function wantLock(on) {
         if (!on) {
-            appCore.save_setting("", "cabinet_lock", "Off")
+            if (!appCore.save_setting("", "cabinet_lock", "Off"))
+                notSaved()
             refresh()
             return
         }
@@ -84,6 +85,14 @@ FocusScope {
         confirm.subtitleText = "OSD/OS stays on " + homeName + ". Hold " + buttons
                                + " together for three seconds to open the menus"
         confirm.open()
+    }
+
+    // A choice that couldn't be kept: said, as the page shows what was there
+    // before and would otherwise say nothing.
+    function notSaved() {
+        notice.promptText = "Not saved"
+        notice.subtitleText = "The settings could not be written: nothing has changed"
+        notice.open()
     }
 
     function startCapture() {
@@ -114,14 +123,17 @@ FocusScope {
             lockRoot.tooMany = many
             lockRoot.secondsLeft = 10
         }
-        function onUnlockCaptureEnded(saved) {
+        function onUnlockCaptureEnded(saved, unsaved) {
             if (!lockRoot.capturing)
                 return
             lockRoot.capturing = false
             list.forceActiveFocus()
             var lock = lockRoot.lockAfter && saved
             lockRoot.lockAfter = false
-            if (lock)
+            // Held long enough, but not kept: the old ones stay.
+            if (unsaved)
+                lockRoot.notSaved()
+            else if (lock)
                 lockRoot.wantLock(true)
         }
     }
@@ -235,8 +247,8 @@ FocusScope {
         choices: [{ label: "Lock", action: "lock" }, { label: "Cancel", action: "cancel" }]
         onActivated: function(action) {
             // Main.qml opens the Start on Module at once.
-            if (action === "lock")
-                appCore.save_setting("", "cabinet_lock", "On")
+            if (action === "lock" && !appCore.save_setting("", "cabinet_lock", "On"))
+                lockRoot.notSaved()
         }
         onClosed: list.forceActiveFocus()
     }

@@ -23,6 +23,10 @@
 #include <SDL.h>
 #include <functional>
 #include <memory>
+#ifdef Q_OS_UNIX
+#include <csignal>
+#include <sys/resource.h>
+#endif
 #ifdef Q_OS_LINUX
 #include <fcntl.h>
 #include <linux/input.h>
@@ -1484,6 +1488,91 @@ private slots:
         third.detach();
         QTRY_VERIFY(!entry(im, "OSD/OS Third Pad").value("present").toBool());
         QCOMPARE(outcome(im.setPadPlayer(k3, 2)), QString("away"));
+    }
+
+    // A change the settings can't be written for (a full card: a file size
+    // limit, which holds for root too) is not reported made. Every setter
+    // says so, the pads go on as the settings on the card say, and new
+    // unlock buttons held long enough end their wait as not saved, which a
+    // wait that was left is not.
+    void unsavedIsSaid() {
+#ifndef Q_OS_UNIX
+        QSKIP("Requires a Unix file size limit");
+#else
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy ended(&im, &InputManager::unlockCaptureEnded);
+        VirtualPad first, second;
+        QVERIFY(first.attach("OSD/OS First Pad", 0x1209, 0x0011));
+        QTRY_VERIFY(entry(im, "OSD/OS First Pad").value("present").toBool());
+        QVERIFY(second.attach("OSD/OS Second Pad", 0x1209, 0x0012));
+        QTRY_VERIFY(entry(im, "OSD/OS Second Pad").value("present").toBool());
+        const QString key1 = entry(im, "OSD/OS First Pad").value("key").toString();
+        const QString key2 = entry(im, "OSD/OS Second Pad").value("key").toString();
+        // What there is to change: a player chosen, an extra key, a pad's
+        // own names and Game Buttons.
+        QCOMPARE(outcome(im.setPadPlayer(key1, 2)), QString("set"));
+        QCOMPARE(outcome(im.bindControllerInput(InputManager::allKeys(), QString::number(int(Qt::Key_P)), "down")),
+                 QString("set"));
+        QVERIFY(im.setControllerLabels(key1, "shapes"));
+        QVERIFY(im.setArcadeLayout(key1, "fighting6"));
+        const QVariantList players = im.players();
+        const QJsonObject kept = savedControllers();
+
+        std::signal(SIGXFSZ, SIG_IGN);
+        rlimit limit{};
+        QCOMPARE(getrlimit(RLIMIT_FSIZE, &limit), 0);
+        const rlimit full{ 1, limit.rlim_max };
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &full), 0);
+        // Each is asked for with the card full, and looked at once it can
+        // be written to again (the test's own output among it).
+        const QString swapped = outcome(im.setPadPlayer(key2, 2));
+        const QString toAuto = outcome(im.setPadPlayer(key1, 0));
+        const bool third = im.setPlayer(3, key2);
+        const bool allAuto = im.resetPlayers();
+        const bool labels = im.setControllerLabels(key1, "numbers");
+        const bool layout = im.setArcadeLayout(key1, "neogeo4");
+        const bool reset = im.resetController(key1);
+        const bool noKeys = im.resetController(InputManager::allKeys());
+        im.captureUnlockButtons(true);
+        first.button(SDL_CONTROLLER_BUTTON_START, true);
+        const bool over = ended.wait(4000);
+        QCOMPARE(setrlimit(RLIMIT_FSIZE, &limit), 0);
+        QCOMPARE(swapped, QString("unsaved"));
+        QCOMPARE(toAuto, QString("unsaved"));
+        QVERIFY(!third);
+        QVERIFY(!allAuto);
+        QVERIFY(!labels);
+        QVERIFY(!layout);
+        QVERIFY(!reset);
+        QVERIFY(!noKeys);
+        QVERIFY(over);
+        QCOMPARE(ended.at(0), QList<QVariant>({ false, true }));
+        release(first, SDL_CONTROLLER_BUTTON_START);
+
+        // All as it was, here and on the card.
+        QCOMPARE(im.players(), players);
+        QCOMPARE(im.controllerPage(key1).value("labels").toString(), QString("shapes"));
+        QCOMPARE(im.arcadePage(key1).value("layout").toString(), QString("fighting6"));
+        QCOMPARE(rowValue(im.controllerPage(InputManager::allKeys()), "down"), QString("Arrow key + P"));
+        QCOMPARE(im.unlockButtons(), QString());
+        QCOMPARE(savedControllers(), kept);
+
+        // A wait that was left is neither saved nor unsaved; and with the
+        // card writable again each change is made, and said so.
+        ended.clear();
+        im.captureUnlockButtons(true);
+        im.captureUnlockButtons(false);
+        QCOMPARE(ended.at(0), QList<QVariant>({ false, false }));
+        QCOMPARE(outcome(im.setPadPlayer(key2, 2)), QString("set"));
+        QCOMPARE(player(im, 2).value("playing").toString(), key2);
+        QVERIFY(im.resetPlayers());
+        QVERIFY(im.setControllerLabels(key1, "numbers"));
+        QVERIFY(im.setArcadeLayout(key1, "neogeo4"));
+        QVERIFY(im.resetController(key1));
+        QVERIFY(im.resetController(InputManager::allKeys()));
+        QVERIFY(savedControllers().isEmpty());
+#endif
     }
 
     // A config.json as the version before these pages wrote it is read as it

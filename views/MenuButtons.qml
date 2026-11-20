@@ -357,9 +357,10 @@ FocusScope {
         onActivated: function(action) {
             if (action !== "reset" || !inputManager)
                 return
-            inputManager.resetController(pageRoot.key)
+            if (!inputManager.resetController(pageRoot.key))
+                pageRoot.notice = "Not saved: the settings could not be written"
             // Away, it had nothing else: its line goes from the list too.
-            if (!pageRoot.present)
+            else if (!pageRoot.present)
                 pageRoot.goBack()
             else
                 pageRoot.notice = "No extra keys now"

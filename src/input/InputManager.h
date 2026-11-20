@@ -180,8 +180,12 @@ public:
     // "" for none.
     Q_INVOKABLE QVariantMap inputRoles(const QString &key, const QString &input) const;
     // A pad's button names: "auto", "a_below", "a_right", "shapes", "numbers".
-    Q_INVOKABLE void setControllerLabels(const QString &key, const QString &style);
-    Q_INVOKABLE void resetController(const QString &key);
+    // False, as from every setter here, when the settings could not be
+    // written: nothing has changed then, and the page says so.
+    Q_INVOKABLE bool setControllerLabels(const QString &key, const QString &style);
+    // A controller's own settings forgotten; allKeys: every keyboard's and
+    // remote's extra keys.
+    Q_INVOKABLE bool resetController(const QString &key);
     // A pad's Arcade Buttons page: { key, name, present, jamma, layout,
     // layoutTitle, layouts [{ layout, title }], rows [{ input, label, token,
     // value }], choices [{ token, label }] }. layout one of
@@ -196,8 +200,9 @@ public:
     // away), in controllers::arcadeTokens()' order.
     Q_INVOKABLE QVariantMap arcadePage(const QString &key) const;
     // One of arcadePage()'s layouts: a preset's inputs, Custom's from those
-    // there are (the default ones from Default), Default none.
-    Q_INVOKABLE void setArcadeLayout(const QString &key, const QString &layout);
+    // there are (the default ones from Default), Default none. False when
+    // it could not be saved.
+    Q_INVOKABLE bool setArcadeLayout(const QString &key, const QString &layout);
     // One of its Arcade Buttons ("1" to "8", "coin", "start") made an input
     // of the pad (controllerInputCaptured()'s token), "" for none, which
     // Coin and Start never are; the layout is Custom then. Returns
@@ -221,18 +226,21 @@ public:
     // controller that isn't a pad.
     Q_INVOKABLE QString arcadeLabel(const QString &key, const QString &input) const;
     // A player's controller: a connected pad's key, or "" for Auto. A pad is
-    // one player at a time, unless two of its model are connected.
-    Q_INVOKABLE void setPlayer(int player, const QString &key);
+    // one player at a time, unless two of its model are connected. False
+    // when nothing changed: no such player, a pad that isn't there, or the
+    // settings could not be written.
+    Q_INVOKABLE bool setPlayer(int player, const QString &key);
     // The same from the pad's side (its page's PLAYER): the number it plays
     // as, 0 for Auto. A number another pad was chosen for swaps the two
     // (that one takes this pad's, or goes back to Auto if this one had
     // none); one a pad played as by Auto leaves that pad to Auto. Returns
-    // { outcome ("set", "already", "away" for a pad not connected), other,
+    // { outcome ("set", "already", "away" for a pad not connected, "unsaved"
+    // when the settings could not be written, no pad having moved), other,
     // otherPlayer }: the pad that had the number, by name, and the number it
     // plays as now (0 for none); "" where no pad moved.
     Q_INVOKABLE QVariantMap setPadPlayer(const QString &key, int player);
-    // Every player back to Auto.
-    Q_INVOKABLE void resetPlayers();
+    // Every player back to Auto; false when that could not be saved.
+    Q_INVOKABLE bool resetPlayers();
 
     // Human-readable name for a Qt::Key value (e.g. "Return", "O", "F5"), for
     // the remap screen to show what's currently bound. Used from QML.
@@ -252,7 +260,9 @@ public:
     // reported (unlockButtonsHeld()) instead of acting; those held together
     // for two seconds, one to four, become the unlock buttons, kept in
     // config.json's app.unlock_buttons, and end it (unlockCaptureEnded()),
-    // as ten seconds with nothing held do.
+    // as ten seconds with nothing held do. Held so and not saved (the
+    // settings could not be written), the old ones stay and the signal
+    // says unsaved.
     Q_INVOKABLE void captureUnlockButtons(bool on);
 
 
@@ -311,9 +321,11 @@ signals:
     void unlockRequested();
     void unlockButtonsChanged();
     // captureUnlockButtons()'s: what is held now, by name ("" for nothing),
-    // and whether that is more than four.
+    // and whether that is more than four. And its end: saved, the buttons
+    // held are the unlock buttons now; unsaved, they were held long enough
+    // but the settings could not be written; neither, the wait was left.
     void unlockButtonsHeld(const QString &names, bool tooMany);
-    void unlockCaptureEnded(bool saved);
+    void unlockCaptureEnded(bool saved, bool unsaved);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -381,6 +393,7 @@ private:
     bool saveProfiles();
     void loadPlayers();
     bool savePlayers();
+    bool choosePlayer(int player, const QString &key);
     void updatePlayers();
     controllers::Profile &editProfile(const QString &key);
     // A pad's Arcade Buttons as they are now, kArcadeInputs tokens: its
@@ -477,7 +490,7 @@ private:
     void quietUnlockHeld();
     void unlockHeldOut();
     void unlockCaptureChanged();
-    void endUnlockCapture(bool saved);
+    void endUnlockCapture(bool saved, bool unsaved = false);
     // A key's part in it (eventFilter()): true to keep the key from the
     // views, nullopt to let it go on. A key that must come after one held
     // back goes on as a replay of it, posted after that one's.

@@ -252,7 +252,9 @@ InputManager::InputManager(const QString &dataRoot, AppCore *appCore, QObject *p
         QVariantList kept;
         for (const auto &held : std::as_const(m_captureHeld))
             kept << QVariantMap{ { QStringLiteral("input"), held.first }, { QStringLiteral("name"), held.second } };
-        endUnlockCapture(m_appCore && m_appCore->save_setting(QString(), QStringLiteral("unlock_buttons"), kept));
+        // Not kept (a full card): the page says so, the old ones stay.
+        const bool saved = m_appCore && m_appCore->save_setting(QString(), QStringLiteral("unlock_buttons"), kept);
+        endUnlockCapture(saved, !saved);
     });
     m_captureIdleTimer.setSingleShot(true);
     m_captureIdleTimer.setInterval(kUnlockCaptureIdleMs);
@@ -1156,14 +1158,14 @@ void InputManager::captureUnlockButtons(bool on) {
     m_captureIdleTimer.start();
 }
 
-void InputManager::endUnlockCapture(bool saved) {
+void InputManager::endUnlockCapture(bool saved, bool unsaved) {
     if (!m_unlockCapture)
         return;
     m_unlockCapture = false;
     m_captureHeld.clear();
     m_captureHoldTimer.stop();
     m_captureIdleTimer.stop();
-    emit unlockCaptureEnded(saved);
+    emit unlockCaptureEnded(saved, unsaved);
 }
 
 // What is held while new unlock buttons are waited for: said, and kept once
@@ -1336,9 +1338,16 @@ bool InputManager::savePlayers() {
     return true;
 }
 
-void InputManager::setPlayer(int player, const QString &key) {
+bool InputManager::setPlayer(int player, const QString &key) {
+    return choosePlayer(player, key) && savePlayers();
+}
+
+// A player's pad chosen, among the players as they are to be saved
+// (savePlayers()): false for a number that is no player's, or a pad that
+// isn't there.
+bool InputManager::choosePlayer(int player, const QString &key) {
     if (player < 1 || player > controllers::kPlayers)
-        return;
+        return false;
     QString name;
     int connected = 0;
     for (auto it = m_pads.cbegin(); it != m_pads.cend(); ++it) {
@@ -1349,7 +1358,7 @@ void InputManager::setPlayer(int player, const QString &key) {
             name = it->name;
     }
     if (!key.isEmpty() && connected == 0)
-        return;   // only a pad that is there can be chosen
+        return false;   // only a pad that is there can be chosen
     const int p = player - 1;
     m_playerKeys[p] = key;
     m_playerNames[p] = name;
@@ -1362,7 +1371,7 @@ void InputManager::setPlayer(int player, const QString &key) {
         m_playerKeys[other].clear();
         m_playerNames[other].clear();
     }
-    savePlayers();
+    return true;
 }
 
 QVariantMap InputManager::setPadPlayer(const QString &key, int player) {
@@ -1383,8 +1392,7 @@ QVariantMap InputManager::setPadPlayer(const QString &key, int player) {
         }
         if (!chosen)
             return result(QStringLiteral("already"));
-        savePlayers();
-        return result(QStringLiteral("set"));
+        return result(savePlayers() ? QStringLiteral("set") : QStringLiteral("unsaved"));
     }
     if (padIdOf(key) < 0)
         return result(QStringLiteral("away"));
@@ -1399,24 +1407,26 @@ QVariantMap InputManager::setPadPlayer(const QString &key, int player) {
     const QString chosenKey = m_playerKeys[p];
     const QString chosenName = m_playerNames[p];
     const int mine = int(m_playerKeys.indexOf(key));
-    setPlayer(player, key);
+    choosePlayer(player, key);
     // One chosen for it takes this pad's number in its place: the two swap.
     if (!chosenKey.isEmpty() && chosenKey != key && mine >= 0 && m_playerKeys[mine].isEmpty()) {
         m_playerKeys[mine] = chosenKey;
         m_playerNames[mine] = chosenName;
-        savePlayers();
     }
+    // Saved together: both pads have their numbers, or neither has moved.
+    if (!savePlayers())
+        return result(QStringLiteral("unsaved"));
     if (had < 0 || hadKey == key)
         return result(QStringLiteral("set"));
     return result(QStringLiteral("set"), hadName, int(m_playerPads.indexOf(had)) + 1);
 }
 
-void InputManager::resetPlayers() {
+bool InputManager::resetPlayers() {
     for (int p = 0; p < controllers::kPlayers; ++p) {
         m_playerKeys[p].clear();
         m_playerNames[p].clear();
     }
-    savePlayers();
+    return savePlayers();
 }
 
 // Who plays: each player's chosen pad if it is there (a player whose pad is
@@ -1977,24 +1987,23 @@ QVariantMap InputManager::inputRoles(const QString &key, const QString &input) c
     return QVariantMap{ { QStringLiteral("action"), action }, { QStringLiteral("game"), game } };
 }
 
-void InputManager::setControllerLabels(const QString &key, const QString &style) {
+bool InputManager::setControllerLabels(const QString &key, const QString &style) {
     if (key.isEmpty())
-        return;
+        return false;
     editProfile(key).labels = controllers::labelStyleFromName(style);
-    saveProfiles();
+    return saveProfiles();
 }
 
-void InputManager::resetController(const QString &key) {
+bool InputManager::resetController(const QString &key) {
     if (key.isEmpty())
-        return;
+        return false;
     // Every keyboard's and remote's extra keys.
     if (key == allKeys()) {
         m_keyRemap.clear();
-        saveKeyRemap();
-        return;
+        return saveKeyRemap();
     }
     m_profiles.remove(key);
-    saveProfiles();
+    return saveProfiles();
 }
 
 // ── Arcade Buttons ────────────────────────────────────────────────────────────
@@ -2069,16 +2078,16 @@ QVariantMap InputManager::arcadePage(const QString &key) const {
                         { QStringLiteral("choices"), choices } };
 }
 
-void InputManager::setArcadeLayout(const QString &key, const QString &layout) {
+bool InputManager::setArcadeLayout(const QString &key, const QString &layout) {
     if (!controllers::isPadKey(key) || !controllers::arcadeLayouts().contains(layout))
-        return;
+        return false;
     if (layout == QLatin1String("default"))
-        saveArcade(key, QString(), {});
-    else if (layout == QLatin1String("custom"))
-        saveArcade(key, layout, m_profiles.value(key).arcadeCustom.isEmpty() ? arcadeInputsOf(key)
-                                                                           : m_profiles.value(key).arcadeCustom);
-    else
-        saveArcade(key, layout, controllers::arcadeLayoutInputs(layout, jammaPlayer(padOf(key, m_seenAs.value(key).name)) > 0));
+        return saveArcade(key, QString(), {});
+    if (layout == QLatin1String("custom"))
+        return saveArcade(key, layout, m_profiles.value(key).arcadeCustom.isEmpty() ? arcadeInputsOf(key)
+                                                                                  : m_profiles.value(key).arcadeCustom);
+    return saveArcade(key, layout,
+                      controllers::arcadeLayoutInputs(layout, jammaPlayer(padOf(key, m_seenAs.value(key).name)) > 0));
 }
 
 QVariantMap InputManager::setArcadeInput(const QString &key, const QString &input, const QString &token) {

@@ -117,13 +117,18 @@ FocusScope {
 
     function cycleLabels(step) {
         var i = styles.indexOf(page.labels || "auto")
-        inputManager.setControllerLabels(key, styles[((i < 0 ? 0 : i) + step + styles.length) % styles.length])
+        if (!inputManager.setControllerLabels(key, styles[((i < 0 ? 0 : i) + step + styles.length) % styles.length]))
+            notice = "Not saved: the settings could not be written"
     }
 
+    // The next one shows once it is kept.
     function cyclePins(step) {
-        pinLayout = (pinLayout + step + pinLayouts.length) % pinLayouts.length
-        if (appCore)
-            appCore.save_setting("", "jamma_pin_layout", pinLayouts[pinLayout])
+        var next = (pinLayout + step + pinLayouts.length) % pinLayouts.length
+        if (appCore && !appCore.save_setting("", "jamma_pin_layout", pinLayouts[next])) {
+            notice = "Not saved: the settings could not be written"
+            return
+        }
+        pinLayout = next
         refresh()
     }
 
@@ -146,6 +151,8 @@ FocusScope {
         var result = inputManager.setPadPlayer(key, number)
         if (result.outcome === "away")
             notice = "Connect it first"
+        else if (result.outcome === "unsaved")
+            notice = "Not saved: the settings could not be written"
         else if (result.outcome === "already")
             notice = number === 0 ? "Its player is automatic already" : "It is player " + number + " already"
         else if (number === 0)
@@ -268,9 +275,10 @@ FocusScope {
         onActivated: function(action) {
             if (action !== "reset" || !inputManager)
                 return
-            inputManager.resetController(pageRoot.key)
+            if (!inputManager.resetController(pageRoot.key))
+                pageRoot.notice = "Not saved: the settings could not be written"
             // Away, it had nothing else: its line goes from the list too.
-            if (!pageRoot.present)
+            else if (!pageRoot.present)
                 pageRoot.goBack()
             else
                 pageRoot.notice = "Back to the defaults"

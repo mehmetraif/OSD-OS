@@ -96,21 +96,35 @@ StandInRoot {
             return outcomes[key + " " + id] || { outcome: "set", action: "none", label: "none" }
         }
         function inputRoles(key, input) { return roles[key + " " + input] || { action: "", game: "" } }
+        // The settings can't be written (a full card): every setter says so,
+        // as InputManager's do, and changes nothing.
+        property bool unsaved: false
         function setControllerLabels(key, style) {
             note(["labels", key, style])
+            if (unsaved)
+                return false
             var p = pages
             p[key].labels = style
             pages = p
             controllersChanged()
+            return true
         }
-        function resetController(key) { note(["reset", key]) }
+        function resetController(key) {
+            note(["reset", key])
+            return !unsaved
+        }
         function setPadPlayer(key, player) {
             note(["padPlayer", key, player])
+            if (unsaved)
+                return { outcome: "unsaved", other: "", otherPlayer: 0 }
             return outcomes["player " + player] || { outcome: "set", other: "", otherPlayer: 0 }
         }
         function resetPlayers() {
             note(["resetPlayers"])
+            if (unsaved)
+                return false
             players = root.withAuto([])
+            return true
         }
         // A pad's Game Buttons: its page, a layout chosen (taken at once),
         // and what a press or a choice makes of one of them, as InputManager
@@ -120,11 +134,14 @@ StandInRoot {
         function arcadePage(key) { return copyOf(arcadePages[key]) }
         function setArcadeLayout(key, layout) {
             note(["arcadeLayout", key, layout])
+            if (unsaved)
+                return false
             var p = arcadePages
             p[key].layout = layout
             p[key].layoutTitle = p[key].layouts.filter(function(l) { return l.layout === layout })[0].title
             arcadePages = p
             controllersChanged()
+            return true
         }
         function setArcadeInput(key, input, token) {
             note(["arcadeInput", key, input, token])
@@ -140,11 +157,11 @@ StandInRoot {
         // Cabinet Lock's unlock buttons, and the wait for new ones.
         property string unlockButtons: ""
         signal unlockButtonsHeld(string names, bool tooMany)
-        signal unlockCaptureEnded(bool saved)
+        signal unlockCaptureEnded(bool saved, bool unsaved)
         function captureUnlockButtons(on) {
             note(["captureUnlock", on])
             if (!on)
-                unlockCaptureEnded(false)
+                unlockCaptureEnded(false, false)
         }
     }
 
@@ -162,7 +179,11 @@ StandInRoot {
         property var modules: [{ id: "com.osdos.arcade", name: "Arcade", enabled: true }]
         function get_installed_modules() { return modules }
         function get_setting(module, key) { return settings[key] }
+        // The settings can't be written: false, and nothing kept.
+        property bool unsaved: false
         function save_setting(module, key, value) {
+            if (unsaved)
+                return false
             var s = settings
             s[key] = value
             settings = s
@@ -302,6 +323,8 @@ StandInRoot {
                     ["X", "Y", "RB", "A", "B", "RT", "LB", "LT", "BACK", "START"])
             }
             inputManager.arcadeOutcomes = {}
+            inputManager.unsaved = false
+            appCore.unsaved = false
             appCore.settings = {}
             root.navigations = []
             root.backs = 0
@@ -1164,7 +1187,7 @@ StandInRoot {
             verify(findText(page, "At most four") !== null)
             inputManager.unlockButtonsHeld("P1 START + P2 START", false)
             inputManager.unlockButtons = "P1 START + P2 START"
-            inputManager.unlockCaptureEnded(true)
+            inputManager.unlockCaptureEnded(true, false)
             verify(!page.capturing)
             tryVerify(function() { return findText(page, "Lock the cabinet?") !== null })
             verify(findText(page, "Hold P1 START + P2 START together for three seconds") !== null)
@@ -1199,6 +1222,116 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            inputManager.unlockButtons = ""
+        }
+
+        // A choice the settings couldn't be written for (a full card): each
+        // page says so in place of what it says of a change made, and goes
+        // on showing what it had.
+        function test_notSaved() {
+            var said = "Not saved: the settings could not be written"
+            inputManager.unsaved = true
+            // Controls: every player back to Auto.
+            var page = open("Controllers.qml")
+            keys(Qt.Key_Down, 2)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["resetPlayers"])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "Every player is automatic now") === null)
+            compare(types(page), ["controller", "controller", "players", "list", "list"])
+
+            // A pad's page: its player, its button names, Reset.
+            loader.source = ""
+            page = open("ControllerSettings.qml", { key: root.padKey })
+            keys(Qt.Key_Down, 3)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["padPlayer", root.padKey, 1])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "It is player 1 now") === null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, said) === null)
+            keyClick(Qt.Key_Right)
+            compare(inputManager.last(), ["labels", root.padKey, "a_below"])
+            compare(page.rows[4].value, "Auto (A below)")
+            verify(findText(page, said) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["reset", root.padKey])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "Back to the defaults") === null)
+            // A pad away: its page stays, as its settings do.
+            loader.source = ""
+            page = open("ControllerSettings.qml", { key: root.awayKey })
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["reset", root.awayKey])
+            compare(root.backs, 0)
+            verify(findText(page, said) !== null)
+            // A JAMMA stick's Pin Names: the ones it had.
+            loader.source = ""
+            appCore.settings = { jamma_pin_layout: "Crown, CHAMMA" }
+            appCore.unsaved = true
+            page = open("ControllerSettings.qml", { key: root.jammaKey })
+            keys(Qt.Key_Down, 5)
+            keyClick(Qt.Key_Right)
+            compare(page.rows[5].value, "Crown, CHAMMA")
+            verify(findText(page, said) !== null)
+
+            // A keyboard's extra keys, all removed.
+            loader.source = ""
+            page = open("MenuButtons.qml", { key: root.keyboardKey })
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["reset", root.keyboardKey])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "No extra keys now") === null)
+
+            // Game Buttons' layout: the one it had heads its buttons still.
+            loader.source = ""
+            page = open("ArcadeButtons.qml", { key: root.padKey })
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["arcadeLayout", root.padKey, "neogeo4"])
+            compare(page.rows[2].label, "Fighting 6")
+            verify(findText(page, said) !== null)
+
+            // Cabinet Lock: unlock buttons held long enough and not kept are
+            // said so, the old ones staying; a wait left says nothing.
+            loader.source = ""
+            appCore.unsaved = false
+            appCore.settings = { startup_module: "com.osdos.arcade", cabinet_lock: "On" }
+            inputManager.unlockButtons = "P1 START"
+            page = open("CabinetLock.qml")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            inputManager.unlockButtonsHeld("P2 START", false)
+            inputManager.unlockCaptureEnded(false, true)
+            verify(!page.capturing)
+            tryVerify(function() { return findText(page, "The settings could not be written") !== null })
+            keyClick(Qt.Key_Return)
+            verify(findText(page, "The settings could not be written") === null)
+            verify(findText(page, "P1 START") !== null)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            keyClick(Qt.Key_Escape)
+            verify(!page.capturing)
+            verify(findText(page, "The settings could not be written") === null)
+            // The lock turned off and not kept: on still, and said.
+            appCore.unsaved = true
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            verify(page.lockOn)
+            tryVerify(function() { return findText(page, "The settings could not be written") !== null })
             inputManager.unlockButtons = ""
         }
 
