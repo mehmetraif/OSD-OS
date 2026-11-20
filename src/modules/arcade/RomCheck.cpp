@@ -287,13 +287,16 @@ void checkArchives(QPromise<QHash<QString, romcheck::State>> &promise, const Rom
         const QString &set = sets.at(i);
         romcheck::State state;
         // Its own archive, its parent's and those it takes ROMs from: the
-        // result holds while they are as they were.
+        // result holds while they are as they were. The whole chain, past a
+        // set already among them: a clone takes ROMs from its parent, there
+        // as its parent, and through it from the parent's BIOS set.
         QStringList family{ set };
         if (const QString parent = job.parents.value(set); !parent.isEmpty())
             family << parent;
         QString from = dat.value(set).romOf;
-        for (int depth = 0; depth < 3 && !from.isEmpty() && !family.contains(from); ++depth) {
-            family << from;
+        for (int depth = 0; depth < 3 && !from.isEmpty(); ++depth) {
+            if (!family.contains(from))
+                family << from;
             from = dat.value(from).romOf;
         }
         for (const QString &name : std::as_const(family))

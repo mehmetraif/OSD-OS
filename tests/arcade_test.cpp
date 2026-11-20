@@ -3964,6 +3964,41 @@ private slots:
             QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
         }
         QVERIFY(QFile::remove(games + QStringLiteral("/a_slowlist.zip")));
+        // A clone takes its BIOS set's ROMs through its parent, and what was
+        // found of it is held against that set too: found without a BIOS
+        // ROM, it is no longer so once the bios folder's set has changed.
+        {
+            QThreadPool::globalInstance()->waitForDone();
+            const QByteArray cloneRom("MSLX");
+            const QByteArray sfixRom("SFIX");
+            writeFile(games + QStringLiteral("/mslugx.zip"), zipOf({ { "x-p1.p1", cloneRom } }));
+            QString withClone = dat;
+            withClone.replace(QStringLiteral("</datafile>"),
+                              QStringLiteral("<game name=\"mslugx\" cloneof=\"mslug\" romof=\"mslug\">"
+                                             "<description>Metal Slug (clone)</description>"
+                                             "<rom name=\"x-p1.p1\" size=\"4\" crc=\"%1\"/>"
+                                             "<rom name=\"sfix.sfix\" merge=\"sfix.sfix\" size=\"4\" crc=\"%2\"/></game>"
+                                             "</datafile>").arg(crc(cloneRom), crc(sfixRom)));
+            writeFile(libretro::downloadedDat(data.path()), withClone.toUtf8());
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            arcade.checkRoms();
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.romCheckProgress().value(QStringLiteral("active")).toBool(), 10000);
+            QCOMPARE(romsOf(arcade, "mslugx"), QStringLiteral("1 File Missing"));
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
+            QTest::qWait(20);
+            writeFile(games + QStringLiteral("/bios/neogeo.zip"),
+                      zipOf({ { "sp-s2.sp1", biosRom }, { "sfix.sfix", sfixRom } }));
+            arcade.markChanged();
+            refreshed(arcade);
+            // mslug, and its clone.
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 2);
+            QCOMPARE(romsOf(arcade, "mslugx"), QString());
+            arcade.checkRoms();
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.romCheckProgress().value(QStringLiteral("active")).toBool(), 10000);
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
+            QCOMPARE(romsOf(arcade, "mslugx"), QString());
+        }
     }
 
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:
