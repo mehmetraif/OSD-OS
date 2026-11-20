@@ -1079,6 +1079,7 @@ void PlexBackend::cancel_stream() {
     ++m_streamRequest;
     ++m_nextRequest;
     ++m_queueRequest;
+    ++m_cardRequest;
 }
 
 // ---------------------------------------------------------------------------
@@ -2446,12 +2447,14 @@ QString PlexBackend::takeFromShuffleBag(const QString &scopeRatingKey,
 }
 
 // Loads a chosen episode's full detail and emits it as the card's result.
-void PlexBackend::emitCardDetail(const QString &ratingKey, bool trackProgress,
+void PlexBackend::emitCardDetail(int request, const QString &ratingKey, bool trackProgress,
                                  const QString &scopeRatingKey) {
     auto *reply = plexGet(QUrl(serverUrl() + "/library/metadata/" + ratingKey), serverToken());
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, trackProgress, scopeRatingKey]() {
+            [this, reply, request, trackProgress, scopeRatingKey]() {
         reply->deleteLater();
+        // The card given up, or another tapped, as its item came.
+        if (request != m_cardRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             emit cardError(QStringLiteral("COULD NOT LOAD ITEM")); return;
         }
@@ -2582,6 +2585,9 @@ void PlexBackend::load_queue_item(const QString &ratingKey) {
 }
 
 void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
+    // The card asked for last is the one answered (m_cardRequest): every
+    // step of the lookup below is for this one, or dropped.
+    const int request = ++m_cardRequest;
     if (guid.isEmpty()) { emit cardError(QStringLiteral("THIS CARD HAS NO PLEX ITEM")); return; }
     const QString uri = serverUrl(), token = serverToken();
     if (uri.isEmpty() || token.isEmpty()) {
@@ -2599,11 +2605,18 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
 
     auto *reply = plexGet(url, token);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, guid, mode, trackProgress]() {
+            [this, reply, request, guid, mode, trackProgress]() {
         reply->deleteLater();
+        // The card given up, or another tapped, meanwhile: nothing more is
+        // asked for this one, and no one is told of it.
+        if (request != m_cardRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, guid, mode]{ resolve_card(guid, mode); }); return;
+                handle498([this, request, guid, mode] {
+                    if (request == m_cardRequest)
+                        resolve_card(guid, mode);
+                });
+                return;
             }
             emit cardError(QStringLiteral("PLEX SERVER UNREACHABLE")); return;
         }
@@ -2630,7 +2643,7 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
         if (type == QLatin1String("movie") || type == QLatin1String("episode")
             || type == QLatin1String("clip")) {
             // No scope: a single item has nothing to shuffle within.
-            emitCardDetail(ratingKey, trackProgress, QString());
+            emitCardDetail(request, ratingKey, trackProgress, QString());
             return;
         }
 
@@ -2640,7 +2653,9 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
         }
 
         const bool shuffle = (mode == QLatin1String("shuffle"));
-        fetchEpisodePool(ratingKey, [this, ratingKey, shuffle, trackProgress](const QVariantList &pool) {
+        fetchEpisodePool(ratingKey, [this, request, ratingKey, shuffle, trackProgress](const QVariantList &pool) {
+            // Left as its episodes came: nothing drawn from the bag for it.
+            if (request != m_cardRequest) return;
             if (pool.isEmpty()) { emit cardError(QStringLiteral("NO EPISODES FOUND")); return; }
             if (shuffle) {
                 // The first episode is drawn from the same bag the autoplay
@@ -2648,12 +2663,12 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
                 // rather than a random first pick followed by a separate cycle.
                 // The scope travels with the detail so the Player can ask for the
                 // next draw when this episode ends.
-                emitCardDetail(takeFromShuffleBag(ratingKey, pool), trackProgress, ratingKey);
+                emitCardDetail(request, takeFromShuffleBag(ratingKey, pool), trackProgress, ratingKey);
                 return;
             }
             const QVariantMap pick = pickOnDeckEpisode(pool);
             if (pick.isEmpty()) { emit cardError(QStringLiteral("NO EPISODES FOUND")); return; }
-            emitCardDetail(pick["ratingKey"].toString(), trackProgress, QString());
+            emitCardDetail(request, pick["ratingKey"].toString(), trackProgress, QString());
         });
     });
 }
@@ -2671,6 +2686,8 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
     static const QString kCollectionPrefix = QStringLiteral("plex://collection/");
     static const QString kPlaylistPrefix   = QStringLiteral("plex://playlist/");
 
+    // A card as resolve_card()'s is: the one asked for last is answered.
+    const int request = ++m_cardRequest;
     QString path;
     if (ref.startsWith(kCollectionPrefix))
         path = "/library/collections/" + ref.mid(kCollectionPrefix.size()) + "/items";
@@ -2684,11 +2701,17 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
     }
 
     auto *reply = plexGet(QUrl(uri + path), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ref]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, ref]() {
         reply->deleteLater();
+        // The card given up, or another tapped, meanwhile.
+        if (request != m_cardRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ref]{ resolve_card_queue(ref); }); return;
+                handle498([this, request, ref] {
+                    if (request == m_cardRequest)
+                        resolve_card_queue(ref);
+                });
+                return;
             }
             // A deleted collection or playlist 404s here rather than answering
             // empty, so it has to read as the same "gone" message.
@@ -2706,7 +2729,8 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
         }
         QVariantList items;
         for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) {
+        flattenSeasons(items, [this, request](const QVariantList &flat) {
+            if (request != m_cardRequest) return;
             qDebug() << "[Plex] Card resolved — set of" << flat.size() << "rows";
             emit cardQueueReady(flat);
         });

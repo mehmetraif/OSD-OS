@@ -124,7 +124,8 @@ public:
     // given up with back): streamUrlReady answers only the last one asked for,
     // so a transcode that answers late can't start in a view that didn't ask.
     // The next item looked for (load_next_episode, load_queue_item,
-    // load_random_episode) is forgotten with it.
+    // load_random_episode) is forgotten with it, and so is a card looked for
+    // (resolve_card, resolve_card_queue).
     Q_INVOKABLE void cancel_stream();
     Q_INVOKABLE void update_timeline(const QString &ratingKey, const QString &partKey,
                                      const QString &state, int timeMs, int durationMs);
@@ -282,6 +283,12 @@ private:
     // The queue expanded last (expand_queue), the same way, forgotten with
     // cancel_stream: a set given up on never plays in place of the next.
     int m_queueRequest = 0;
+    // The NFC card looked for last (resolve_card, resolve_card_queue), the
+    // same way, forgotten with cancel_stream: a card given up, or left for
+    // another, answers at none of its steps (cardItemReady, cardQueueReady,
+    // cardError), so its item never plays, nor its failure shows, in the
+    // next card's place.
+    int m_cardRequest = 0;
 
     // GETs a few at a time, in order: a collection of shows played as a
     // queue, a shuffle's pool or a hub of seasons asks for every season's
@@ -305,7 +312,7 @@ private:
     // Draws the next ratingKey from the shuffle bag for this scope, rebuilding
     // and reshuffling when the scope changes or the bag runs out.
     QString takeFromShuffleBag(const QString &scopeRatingKey, const QVariantList &pool);
-    void emitCardDetail(const QString &ratingKey, bool trackProgress,
+    void emitCardDetail(int request, const QString &ratingKey, bool trackProgress,
                         const QString &scopeRatingKey);
     void emitNextEpisode(int request, const QString &ratingKey);
 

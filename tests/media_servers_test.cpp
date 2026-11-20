@@ -37,7 +37,8 @@
 // Jellyfin's and Emby's backends, one code, ask each in its own way where
 // their servers differ: PlaybackInfo with their own device profiles, the
 // URLs mpv is handed, Emby's Dolby Vision transcoded. A Plex sign-in left
-// with a token and no account asks plex.tv for it again.
+// with a token and no account asks plex.tv for it again. An NFC card's
+// lookup left for another card's answers no one.
 
 class Reply : public QNetworkReply {
 public:
@@ -1664,6 +1665,66 @@ private slots:
         QCOMPARE(network->replies.size(), asked);
         QCOMPARE(users.count(), 2);
         QCOMPARE(users.last().at(0).toList().size(), 1);
+    }
+
+    // An NFC card's item looked for, and the card given up (back) or another
+    // tapped before it came: the first's answer, coming late, plays in no
+    // player and fails none, at whichever step it had got to, and nothing
+    // more is asked for it; the card asked for last is the one told. A
+    // set's rows the same.
+    void plexCardLeftAnswersNoOne() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy item(&backend, &PlexBackend::cardItemReady);
+        QSignalSpy rows(&backend, &PlexBackend::cardQueueReady);
+        QSignalSpy errors(&backend, &PlexBackend::cardError);
+        const auto found = [](const QString &key) { return plexContainer({ { "Metadata", plexFilms({ key }) } }); };
+
+        // Given up as its guid is looked for: its item is not asked for.
+        backend.resolve_card(QStringLiteral("plex://movie/a"), QString());
+        Reply *a = network->last();
+        backend.cancel_stream();
+        backend.resolve_card(QStringLiteral("plex://movie/b"), QString());
+        Reply *b = network->last();
+        QVERIFY(a != b);
+        const qsizetype asked = network->replies.size();
+        a->complete(found(QStringLiteral("1")));
+        QCOMPARE(network->replies.size(), asked);
+        b->complete(found(QStringLiteral("2")));
+        // Another card tapped as the item itself is fetched.
+        Reply *second = network->last();
+        QVERIFY(second->url().path().endsWith(QLatin1String("/library/metadata/2")));
+        backend.resolve_card(QStringLiteral("plex://movie/c"), QString());
+        Reply *c = network->last();
+        second->complete(found(QStringLiteral("2")));
+        QCOMPARE(item.count(), 0);
+        c->complete(found(QStringLiteral("3")));
+        network->last()->complete(found(QStringLiteral("3")));
+        QCOMPARE(item.count(), 1);
+        QCOMPARE(item.first().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("3"));
+
+        // A card left that fails says nothing in the next one's place, and a
+        // set left answers with no rows.
+        backend.resolve_card(QStringLiteral("plex://movie/d"), QString());
+        Reply *d = network->last();
+        backend.resolve_card_queue(QStringLiteral("plex://collection/7"));
+        Reply *set = network->last();
+        d->fail(500);
+        QCOMPARE(errors.count(), 0);
+        backend.cancel_stream();
+        set->complete(plexContainer({ { "Metadata", plexFilms({ "8", "9" }) } }));
+        QCOMPARE(rows.count(), 0);
+        backend.resolve_card_queue(QStringLiteral("plex://collection/7"));
+        network->last()->complete(plexContainer({ { "Metadata", plexFilms({ "8", "9" }) } }));
+        QCOMPARE(rows.count(), 1);
+        QCOMPARE(rows.first().at(0).toList().size(), 2);
+        // The card asked for last failing is said.
+        backend.resolve_card(QStringLiteral("plex://movie/e"), QString());
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(item.count(), 1);
     }
 };
 
