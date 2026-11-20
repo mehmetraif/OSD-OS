@@ -54,6 +54,9 @@ constexpr Sint16 kAxisRelease = 12000;
 // How long an input is held, while a page waits for a press, to stop the
 // wait instead of answering it (captureHeld()).
 constexpr int kCaptureHoldMs = 1500;
+// How long after its page's own wait is out such a wait ends by itself
+// (captureControllers()): the page ends it first, unless it has gone without.
+constexpr int kCaptureSlackMs = 2000;
 
 // Held-direction auto-repeat, tuned to feel like keyboard repeat in lists.
 constexpr int kRepeatDelayMs    = 400;
@@ -1723,14 +1726,15 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
                         { QStringLiteral("rows"), rows } };
 }
 
-void InputManager::captureController(const QString &key) {
-    captureControllers(key.isEmpty() ? QStringList() : QStringList{ key });
+void InputManager::captureController(const QString &key, int seconds) {
+    captureControllers(key.isEmpty() ? QStringList() : QStringList{ key }, seconds);
 }
 
-void InputManager::captureControllers(const QStringList &keys) {
+void InputManager::captureControllers(const QStringList &keys, int seconds) {
     m_captureControllers = keys;
     m_captureControllers.removeAll(QString());
-    m_captureEnds = m_captureControllers.isEmpty() ? 0 : m_clock.elapsed() + 12000;
+    m_captureEnds = m_captureControllers.isEmpty() ? 0
+                  : m_clock.elapsed() + qint64(qMax(seconds, 1)) * 1000 + kCaptureSlackMs;
     // What is held of a controller no longer waited for answers nothing: its
     // release is only a release.
     for (auto it = m_capturePresses.begin(); it != m_capturePresses.end();)

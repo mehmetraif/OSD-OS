@@ -574,7 +574,10 @@ target_include_directories(controllers_test PRIVATE ../src)
 target_link_libraries(controllers_test PRIVATE osdos_test_core
     Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network Qt6::Test SDL2::SDL2)
 add_test(NAME controllers COMMAND controllers_test)
-set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# Its waits are InputManager's own, for real (a hold's second and a half,
+# the unlock buttons' three seconds, a page's wait run out): a minute and
+# more in all, past the minute CI gives a test without a timeout of its own.
+set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)
 
 # The app itself (the build in build/, made apart from the tests; OSDOS_APP
 # for another), started offscreen: the main menu with every module on it,

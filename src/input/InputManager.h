@@ -126,13 +126,16 @@ public:
     // nothing meanwhile. A press comes as controllerInputDown() at once, as
     // controllerInputCaptured() when it is let go (a tap: the answer), and
     // held for a second and a half as captureHeld(), which is the way out
-    // of every wait: the one who holds answers nothing. "" ends the wait,
-    // and so do 12 seconds (the page's own wait is 10), should the page go
-    // without.
-    Q_INVOKABLE void captureController(const QString &key);
+    // of every wait: the one who holds answers nothing. "" ends the wait.
+    // seconds is how long the page itself waits (its PressPrompt's count:
+    // ten, twenty for a step of Set One by One, thirty on the JAMMA board's
+    // test); the wait ends by itself a moment after that, should the page go
+    // without, and never before the page's own does.
+    static constexpr int kCaptureSeconds = 10;
+    Q_INVOKABLE void captureController(const QString &key, int seconds = kCaptureSeconds);
     // The same for several at once: the JAMMA board's two sticks, tested
     // together.
-    Q_INVOKABLE void captureControllers(const QStringList &keys);
+    Q_INVOKABLE void captureControllers(const QStringList &keys, int seconds = kCaptureSeconds);
     // An input of a controller (as controllerInputCaptured() named it) given
     // an action beside the ones that do it already (Add another); "none"
     // takes a pad's input's action away, and a keyboard's or a remote's

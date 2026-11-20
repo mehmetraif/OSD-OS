@@ -70,6 +70,10 @@ FocusScope {
     // 1 to 6, Coin, Start, then 7 and 8.
     readonly property var allOrder: [0, 1, 2, 3, 4, 5, 8, 9, 6, 7]
     readonly property bool optionalStep: settingAll && optionalAt(step)
+    // How long a wait lasts, a line's own and a step of Set One by One:
+    // the prompt counts them down, and InputManager is told the same
+    // (captureController()), so that it listens for as long.
+    readonly property int pressSeconds: 10
     readonly property int stepSeconds: 20
 
     // What the control panel lights: the line's input, blinking, so that it
@@ -276,9 +280,10 @@ FocusScope {
         notice = ""
         stepNotice = ""
         captureInput = input
-        inputManager.captureController(key)
+        var seconds = settingAll ? stepSeconds : pressSeconds
+        inputManager.captureController(key, seconds)
         prompt.visible = true
-        prompt.start(settingAll ? stepSeconds : 10)
+        prompt.start(seconds)
         prompt.forceActiveFocus()
     }
 
@@ -326,7 +331,7 @@ FocusScope {
     function askStep() {
         captureInput = page.rows[allOrder[step]].input
         prompt.start(stepSeconds)
-        inputManager.captureController(key)
+        inputManager.captureController(key, stepSeconds)
     }
 
     function take(token, label) {

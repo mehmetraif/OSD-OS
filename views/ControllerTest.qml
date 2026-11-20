@@ -152,8 +152,9 @@ FocusScope {
         return key === testRoot.key || sticks[key] !== undefined
     }
 
+    // InputManager listens for as long as the prompt counts.
     function capture() {
-        inputManager.captureControllers(jamma ? Object.keys(sticks) : [key])
+        inputManager.captureControllers(jamma ? Object.keys(sticks) : [key], testSeconds)
     }
 
     // Over: the controller acts again, and the page it came from is back.

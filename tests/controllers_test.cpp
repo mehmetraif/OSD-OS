@@ -1173,6 +1173,47 @@ private slots:
         QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
     }
 
+    // A wait lasts as long as its page says it does (ten seconds, twenty for
+    // a step of Set One by One, thirty on the JAMMA board's test), and
+    // InputManager's own end to it comes two seconds after the page's, never
+    // before: a press late in the page's time is still the wait's, and one
+    // after the wait has ended by itself acts again.
+    void waitAsLongAsItsPage() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QSignalSpy down(&im, &InputManager::controllerInputDown);
+        QSignalSpy captured(&im, &InputManager::controllerInputCaptured);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(im, "OSD/OS Test Pad").value("present").toBool());
+        const QString key = entry(im, "OSD/OS Test Pad").value("key").toString();
+
+        // A page that waits one second: a press past it is the wait's still.
+        QElapsedTimer since;
+        since.start();
+        im.captureController(key, 1);
+        QTest::qWait(1400);
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString());
+        QCOMPARE(down.count(), 1);
+        QTRY_COMPARE(captured.count(), 1);
+        QVERIFY2(since.elapsed() < 3000, qPrintable(QString::number(since.elapsed())));
+        // Three seconds on it has ended by itself, and the button acts.
+        QTest::qWait(qMax<qint64>(0, 3300 - since.elapsed()));
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString("ESC"));
+        QCOMPARE(down.count(), 1);
+
+        // A longer wait outlasts that one: a step of Set One by One's is
+        // still on when a line's own would have ended.
+        since.start();
+        im.captureController(key, 1);
+        im.captureController(key, 20);
+        QTest::qWait(3300);
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_B, keys), QString());
+        QCOMPARE(down.count(), 2);
+        im.captureController(QString());
+    }
+
     // Menu Buttons on a pad's page. Replace makes the button pressed the
     // action's only one, the ones that did it doing nothing after; where the
     // button was the pad's only Select / OK, Back, Up or Down, the first of

@@ -68,8 +68,17 @@ StandInRoot {
         function note(call) { calls = calls.concat([call]) }
         function last() { return calls[calls.length - 1] }
         function controllerPage(key) { return copyOf(pages[key]) }
-        function captureController(key) { capturing = key }
-        function captureControllers(keys) { capturing = keys.join(",") }
+        // A wait, and how long its page said it lasts (0 once it is over):
+        // InputManager listens for that long.
+        property int captureSeconds: 0
+        function captureController(key, seconds) {
+            capturing = key
+            captureSeconds = key !== "" ? seconds : 0
+        }
+        function captureControllers(keys, seconds) {
+            capturing = keys.join(",")
+            captureSeconds = keys.length > 0 ? seconds : 0
+        }
         function watchJammaPins(on) { watchingPins = on }
         function bindControllerInput(key, input, action) {
             note(["bind", key, input, action])
@@ -578,6 +587,8 @@ StandInRoot {
             compare(inputManager.capturing, root.padKey)
             verify(findText(page, "Press the new button on 8BitDo Pro 2 for [Back]") !== null)
             verify(findText(page, "Hold any button to stop\nStops by itself in 10") !== null)
+            // InputManager listens for as long as the prompt counts.
+            compare(inputManager.captureSeconds, 10)
             // A press only shown, another pad's tap: still waiting. Its own
             // tap: the answer, here a swap.
             inputManager.outcomes = { "pad-0300aaaa a": { outcome: "swapped", action: "back", label: "Back", other: "B",
@@ -775,6 +786,7 @@ StandInRoot {
             verify(prompt.visible)
             compare(inputManager.capturing, root.padKey)
             compare(prompt.secondsLeft, 10)
+            compare(inputManager.captureSeconds, 10)
             verify(findText(page, "Press the buttons on 8BitDo Pro 2\nHold any button to stop\nStops by itself in 10") !== null)
             inputManager.controllerInputDown(root.padKey, "a", "A")
             verify(findText(page, "A → Select / OK → Button 4") !== null)
@@ -832,11 +844,16 @@ StandInRoot {
             compare(inputManager.capturing, root.jammaKey + "," + root.jamma2Key)
             verify(inputManager.watchingPins)
             compare(prompt.secondsLeft, 30)
+            // InputManager listens for the thirty seconds too, from each
+            // press anew: a press late in them is still the test's.
+            compare(inputManager.captureSeconds, 30)
             verify(findText(page, "Pin names: Crown, CHAMMA") !== null)
             verify(findChild(page, "pinGrid").visible && !findChild(page, "testGrid").visible)
             // A pin and its press, the one a moment after the other: one line.
+            inputManager.captureSeconds = 0
             inputManager.jammaPinChanged(1, "0x20", "B1", true, "y")
             inputManager.controllerInputDown(root.jammaKey, "y", "4")
+            compare(inputManager.captureSeconds, 30)
             compare(page.presses.length, 1)
             verify(findText(page, "P1 B1 → 4 → Button 4") !== null)
             inputManager.jammaPinChanged(1, "0x20", "B1", false, "y")
@@ -926,6 +943,7 @@ StandInRoot {
             verify(page.capturing && prompt.visible)
             compare(inputManager.capturing, root.padKey)
             compare(prompt.secondsLeft, 10)
+            compare(inputManager.captureSeconds, 10)
             verify(findText(page, "Press the button on 8BitDo Pro 2 for [Button 1]\nHold any button to stop") !== null)
             verify(findChild(prompt, "gridCell-1").on && !findChild(prompt, "gridCell-2").on)
             compare(findChild(prompt, "gridCell-2").name, "Y")
@@ -986,6 +1004,9 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(page.settingAll && page.capturing && prompt.visible)
             compare(prompt.secondsLeft, 20)
+            // InputManager listens for a step's twenty seconds, not for a
+            // line's ten: a press late in them is still the step's answer.
+            compare(inputManager.captureSeconds, 20)
             verify(findText(page, "Set One by One (1/10)") !== null)
             verify(findText(page, "[Button 1]\nJoystick ◄ back\nHold any button to stop") !== null)
             // Button 1 needs one.
@@ -1006,9 +1027,11 @@ StandInRoot {
             verify(findText(page, "GUIDE shows MAME's menu: press another") !== null)
             compare(page.step, 1)
             prompt.secondsLeft = 2
+            inputManager.captureSeconds = 0
             tap("y", "Y")
             compare(page.step, 2)
             compare(prompt.secondsLeft, 20)
+            compare(inputManager.captureSeconds, 20)
             // A step back: Button 2 again, what it had gone.
             tap("leftx-", "L STICK ◄")
             compare(page.step, 1)

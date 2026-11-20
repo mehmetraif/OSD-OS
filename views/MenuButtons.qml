@@ -57,6 +57,9 @@ FocusScope {
     property string captureAction: ""
     property bool replacing: false
     readonly property bool capturing: captureAction !== ""
+    // How long the wait lasts: the prompt counts them down, and InputManager
+    // is told the same (captureController()), so that it listens for as long.
+    readonly property int pressSeconds: 10
     // What the last choice or press did, in the help line until the cursor moves.
     property string notice: ""
 
@@ -166,9 +169,9 @@ FocusScope {
         notice = ""
         captureAction = action
         replacing = replace
-        inputManager.captureController(key)
+        inputManager.captureController(key, pressSeconds)
         prompt.visible = true
-        prompt.start(10)
+        prompt.start(pressSeconds)
         prompt.forceActiveFocus()
     }
 
