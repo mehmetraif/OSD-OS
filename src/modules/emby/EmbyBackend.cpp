@@ -342,7 +342,10 @@ void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &ac
                 exchangeConnectKey(fallbackUrl, accessKey, QString());
         };
         if (reply->error() != QNetworkReply::NoError) {
-            failed("SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")");
+            // Nothing answering has no status to say: the network's own
+            // word for it then, as the other sign-ins say it.
+            failed(status > 0 ? "SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")"
+                              : "SERVER EXCHANGE FAILED: " + serverlog::why(reply));
             return;
         }
 

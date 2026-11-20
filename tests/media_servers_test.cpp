@@ -1611,6 +1611,8 @@ private slots:
         only->drop();
         QCOMPARE(network->last(), only);
         QCOMPARE(failed.count(), 2);
+        // No answer has no status to say: the network's own word.
+        QCOMPARE(failed.last().at(0).toString(), QStringLiteral("SERVER EXCHANGE FAILED: Connection refused"));
     }
 
     // A sign-in whose account didn't come once the code was claimed (plex.tv
