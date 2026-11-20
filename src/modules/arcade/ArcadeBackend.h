@@ -138,9 +138,9 @@ class ArcadeBackend : public QObject, private ArcadePictures::Catalog {
     Q_PROPERTY(QVariantMap picturesProgress READ picturesProgress NOTIFY picturesProgressChanged)
     // Check ROMs (checkRoms()): { active (under way), stage ("Archives":
     // their tables read, FinalBurn Neo's side; "MAME": its -verifyroms),
-    // done and total (the stage's sets), held (waiting for a game or MAME's
-    // reading of the folder to end), result ("" for none yet, "Done", or why
-    // it stopped) }.
+    // done and total (the stage's sets), held (waiting for the folder to be
+    // read and MAME to answer for its sets, or for a game or MAME's download
+    // to end), result ("" for none yet, "Done", or why it stopped) }.
     Q_PROPERTY(QVariantMap romCheckProgress READ romCheckProgress NOTIFY romCheckChanged)
     // The status icons the module adds (AppCore's statusIcons): "hiscore"
     // while Save High Scores is on, "trophy" while Online High Scores plays
@@ -266,6 +266,8 @@ public:
     // isn't chosen where the other has them all (engineOf()), the game says
     // so in its details, and Hide Incomplete Games leaves out those whole in
     // neither. One under way goes on; MAME's part waits while a game plays.
+    // Asked for before the folder has been read, or while MAME is still
+    // asked about its sets, it starts once both are done, held until then.
     Q_INVOKABLE void checkRoms();
     // What the Check ROMs page shows: { checked (when, "" for never), games
     // (those it checks), complete, fbneoOnly (whole for FinalBurn Neo, not
@@ -1052,8 +1054,13 @@ private:
     // What a game lacks, for its Game Details: "" when nothing is known
     // missing.
     QString romsDetail(const QString &set) const;
+    // The check asked for (checkRoms()), once the folder has been read and
+    // MAME has answered for every set of it; nothing before then, or with
+    // none asked for.
+    void startRomCheck();
     // MAME's part of a check goes on once nothing else of MAME's, nor a
-    // game, is running (mameMayRun()).
+    // game, is running (mameMayRun()); one that waited for MAME's answers
+    // starts.
     void resumeRomCheck();
     void romCheckDone(const romcheck::Results &results);
     // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
@@ -1200,9 +1207,11 @@ private:
     // set → its game, as FinalBurn Neo's list describes it (its shape too).
     QHash<QString, mame::Machine> m_fbneoMachines;
     QString m_fbneoFrom;          // the list of them read: its path, size and time
-    // Check ROMs: the one under way, what the last found, and each archive's
-    // stamp now, which what it found is held against.
+    // Check ROMs: the one under way, one asked for that waits for the folder
+    // and MAME's answers (startRomCheck()), what the last found, and each
+    // archive's stamp now, which what it found is held against.
     RomCheck *m_romCheck = nullptr;
+    bool m_romCheckWanted = false;
     romcheck::Results m_roms;
     QHash<QString, QString> m_stamps;
     mutable Index m_index;

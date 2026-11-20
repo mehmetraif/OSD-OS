@@ -3922,6 +3922,48 @@ private slots:
             // indexOf() takes an exact match.
             QVERIFY(lines.indexOf(QRegularExpression(QStringLiteral("verifyroms .*"))) > ended);
         }
+        // Started before the folder has been read, or while MAME is still
+        // asked about its sets (slow to answer for a_slowlist, with no
+        // games.json to know them from): it waits for both, saying so, and
+        // then checks every game, not the part of them known as it was asked
+        // for.
+        writeFile(games + QStringLiteral("/a_slowlist.zip"));
+        for (const bool beforeRead : { true, false }) {
+            QThreadPool::globalInstance()->waitForDone();
+            QFile::remove(data.path() + QStringLiteral("/arcade/games.json"));
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            const auto progress = [&arcade](const char *key) {
+                return arcade.romCheckProgress().value(QLatin1String(key));
+            };
+            QFile::remove(m_log);
+            arcade.refresh();
+            if (!beforeRead)
+                QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("listxml")).size(), 1, 5000);
+            QSignalSpy changed(&arcade, &ArcadeBackend::romCheckChanged);
+            arcade.checkRoms();
+            QVERIFY(!changed.isEmpty());
+            QVERIFY(progress("active").toBool());
+            QVERIFY(progress("held").toBool());
+            QVERIFY(progress("result").toString().isEmpty());
+            QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("listxml")).size(), 1, 5000);
+            QVERIFY(arcade.scanning());
+            QVERIFY(progress("active").toBool());
+            QVERIFY(progress("held").toBool());
+            QVERIFY(logLines(QStringLiteral("verifyroms")).isEmpty());
+            // Asked for again meanwhile, it is the one check.
+            arcade.checkRoms();
+            QTRY_VERIFY_WITH_TIMEOUT(!progress("active").toBool(), 10000);
+            QCOMPARE(progress("result").toString(), QStringLiteral("Done"));
+            QVERIFY(!arcade.scanning());
+            const QStringList lines = logLines();
+            QCOMPARE(lines.filter(QRegularExpression(QStringLiteral("^(listxml |verifyroms |answered$)"))),
+                     QStringList({ QStringLiteral("listxml a_slowlist galaga mslug pacman s1945 sf2"),
+                                   QStringLiteral("answered"),
+                                   QStringLiteral("verifyroms %1;%1/bios").arg(games),
+                                   QStringLiteral("verifyroms galaga mslug pacman s1945 sf2") }));
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
+        }
+        QVERIFY(QFile::remove(games + QStringLiteral("/a_slowlist.zip")));
     }
 
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:
@@ -7374,12 +7416,12 @@ private slots:
 
     // Nor is MAME run beside its own download, which puts its MAME in the
     // folder it runs from (Windows renames no folder a program runs from):
-    // Check ROMs started meanwhile holds its part, a FinalBurn Neo game that
+    // Check ROMs started meanwhile is held, a FinalBurn Neo game that
     // ends meanwhile starts neither it nor the asking the download stopped,
     // a game of MAME's is refused, and both go on once the download has
     // ended. A game started while a
     // check waits only for an asking that has answered, but not exited,
-    // doesn't let the check's part go for the moment before it starts.
+    // doesn't let the check go for the moment before it starts.
     void mameNotBesideItsDownload() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -7447,9 +7489,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(asked, 5000);
         QVERIFY(arcade.scanning());
 
-        // Check ROMs: MAME's part held.
+        // Check ROMs: held, MAME having still to answer for a set.
         arcade.checkRoms();
-        QTRY_COMPARE_WITH_TIMEOUT(progress(arcade, "stage").toString(), QStringLiteral("MAME"), 10000);
         QVERIFY(progress(arcade, "active").toBool());
         QVERIFY(progress(arcade, "held").toBool());
 
@@ -7486,8 +7527,8 @@ private slots:
                                        QStringLiteral("verifyroms") }));
 
         // A game started while a check waits for an asking that has answered
-        // for its set and has still to exit: the asking stopped, the check's
-        // part held from then until the game has ended, never let go between.
+        // for its set and has still to exit: the asking stopped, the check
+        // held from then until the game has ended, never let go between.
         writeFile(games + QStringLiteral("/mspacman.zip"));
         qputenv("MAME_LIST_LINGER", "5");
         QFile::remove(m_log);
@@ -7495,8 +7536,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(arcade.gameDetails(QStringLiteral("mspacman")).contains(QStringLiteral("year")), 5000);
         QVERIFY(arcade.scanning());
         arcade.checkRoms();
-        QTRY_VERIFY_WITH_TIMEOUT(progress(arcade, "active").toBool()
-                                     && progress(arcade, "stage").toString() == QLatin1String("MAME"), 10000);
+        QVERIFY(progress(arcade, "active").toBool());
         QVERIFY(progress(arcade, "held").toBool());
         bool letGo = false;
         const QMetaObject::Connection watched =

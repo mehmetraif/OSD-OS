@@ -1093,6 +1093,8 @@ void ArcadeBackend::onRead() {
     const QList<std::function<void()>> waiting = std::exchange(m_afterRead, {});
     for (const std::function<void()> &fn : waiting)
         fn();
+    // Check ROMs, asked for before the folder had been read.
+    startRomCheck();
 }
 
 void ArcadeBackend::afterRead(std::function<void()> fn) {
@@ -1183,6 +1185,8 @@ void ArcadeBackend::lookAtNames() {
         checkProblem();
         startScan();
         emit lookedAtNames();
+        // Check ROMs, asked for while the folder was looked at.
+        startRomCheck();
     });
 }
 
@@ -1895,8 +1899,26 @@ bool ArcadeBackend::sweepingPictures() const {
 // Check ROMs.
 
 void ArcadeBackend::checkRoms() {
-    if (m_romCheck->active() || m_gamesFolder.isEmpty() || !m_listed)
+    if (m_romCheck->active() || m_romCheckWanted || m_gamesFolder.isEmpty())
         return;
+    // Every game of the folder, as MAME knows it: one asked for before the
+    // folder has been read, or while MAME is still asked about its sets,
+    // waits for both, and says so (romCheckProgress()), rather than check
+    // the part of them known so far and call it done.
+    m_romCheckWanted = true;
+    emit romCheckChanged();
+    if (!m_listed && !m_reading)
+        startRead();
+    startRomCheck();
+}
+
+void ArcadeBackend::startRomCheck() {
+    // Not yet: as the folder has been read or looked at (onRead(),
+    // lookAtNames()), and as MAME has answered for the last of its sets, a
+    // game or MAME's download that held it back over (resumeRomCheck()).
+    if (!m_romCheckWanted || !m_listed || !m_cacheLoaded || m_looking || scanning())
+        return;
+    m_romCheckWanted = false;
     RomCheck::Job job;
     const bool haveMame = !mamePath().isEmpty();
     if (haveMame) {
@@ -1937,12 +1959,13 @@ void ArcadeBackend::checkRoms() {
     job.stamps = m_stamps;
     qInfo("[Arcade] Check ROMs: %lld games for MAME, %lld for FinalBurn Neo",
           static_cast<long long>(job.mameSets.size()), static_cast<long long>(job.fbneoSets.size()));
-    // MAME's part waits for a game, MAME's download or MAME's own asking to
-    // end.
-    m_romCheck->start(job, m_scan || !mameMayRun());
+    // MAME's part waits for a game or MAME's download to end.
+    m_romCheck->start(job, !mameMayRun());
 }
 
 void ArcadeBackend::resumeRomCheck() {
+    // One asked for while MAME was still asked about the sets.
+    startRomCheck();
     if (!m_scan && mameMayRun())
         m_romCheck->resume();
 }
@@ -1976,6 +1999,12 @@ void ArcadeBackend::romCheckDone(const romcheck::Results &results) {
 }
 
 QVariantMap ArcadeBackend::romCheckProgress() const {
+    // One asked for that waits for the folder and MAME's answers: under way
+    // and held, with nothing of the last one's.
+    if (m_romCheckWanted)
+        return { { QStringLiteral("active"), true }, { QStringLiteral("stage"), QStringLiteral("Archives") },
+                 { QStringLiteral("done"), 0 }, { QStringLiteral("total"), 0 },
+                 { QStringLiteral("held"), true }, { QStringLiteral("result"), QString() } };
     return m_romCheck->progress();
 }
 
