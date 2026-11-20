@@ -185,6 +185,10 @@ FocusScope {
             return
         if (index < 0)
             index = keep && keep.currentIndex !== undefined ? Math.min(keep.currentIndex, rows.length - 1) : 0
+        // Never on the gap before Settings' row, which a place kept from
+        // before a module was turned off may now be, and the first row is
+        // with no module on: on the next row the cursor stops on.
+        index = menuList.selectableFrom(index, 1)
         menuList.currentIndex = index
         menuList.show(index)
     }
