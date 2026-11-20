@@ -5754,14 +5754,16 @@ private slots:
             controllers::setPlayerEnvironment({});
         });
         const QByteArray lobby = fixture("lobby.json");
-        // big: an answer far bigger than a list of rooms. hold: the request
-        // kept unanswered (held) until answer() is called for it.
+        // big: an answer far bigger than a list of rooms. none: a lobby with
+        // no room. hold: the request kept unanswered (held) until answer()
+        // is called for it.
         bool big = false;
+        bool none = false;
         bool hold = false;
         QPointer<QTcpSocket> held;
         int asked = 0;
-        const auto answer = [&lobby, &big](QTcpSocket *socket) {
-            const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
+        const auto answer = [&lobby, &big, &none](QTcpSocket *socket) {
+            const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : none ? QByteArray("[]") : lobby;
             socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
                           + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
@@ -6176,6 +6178,27 @@ private slots:
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));
         QVERIFY(!arcade.hostGame(QStringLiteral("pacman")));
+
+        // A lobby read for the first time that has no room to join: the
+        // Online Games folder, asked for before it was read, is told so and
+        // lists that no one hosts a game, rather than wait on for rooms.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        none = true;
+        ready.clear();
+        QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
+        QVERIFY(roomsRead.wait(5000));
+        none = false;
+        QVERIFY(arcade.rooms().isEmpty());
+        QCOMPARE(ready.count(QVariantList{ QStringLiteral("online") }), 1);
+        const QVariantList noRooms = arcade.requestEntries(QStringLiteral("online")).toList();
+        QCOMPARE(names(noRooms), QStringList({ QStringLiteral("No Games Online"), QStringLiteral("RetroArch Lobby") }));
+        // Read again and found the same: nothing listed anew.
+        none = true;
+        arcade.refreshRooms();
+        QVERIFY(roomsRead.wait(5000));
+        none = false;
+        QCOMPARE(ready.count(QVariantList{ QStringLiteral("online") }), 1);
 
         // An answer far bigger than a list of rooms isn't read whole.
         big = true;

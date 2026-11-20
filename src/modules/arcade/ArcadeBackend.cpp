@@ -3620,7 +3620,7 @@ void ArcadeBackend::refreshRooms() {
     connect(m_lobbyReply, &QNetworkReply::finished, this, [this] {
         QNetworkReply *reply = std::exchange(m_lobbyReply, nullptr);
         reply->deleteLater();
-        m_roomsRead = true;
+        const bool first = !std::exchange(m_roomsRead, true);
         // What the Online Games folder and filter show of a room.
         const auto shown = [](const QList<libretro::Room> &rooms) {
             QStringList keys;
@@ -3650,11 +3650,15 @@ void ArcadeBackend::refreshRooms() {
         // The Online Games folder, and the Arcade screen's filter: read again
         // only for rooms that came or went, not at every read of a lobby as
         // it was (one every twenty seconds while it is shown), which would
-        // have the screen's filters made again each time.
-        if (shown(m_rooms) != before || m_roomsProblem != problemBefore) {
+        // have the screen's filters made again each time. The folder is
+        // told of the first read whatever it found: asked for before it, it
+        // waits to be listed (requestEntries()), with no room in the lobby
+        // too.
+        const bool changed = shown(m_rooms) != before || m_roomsProblem != problemBefore;
+        if (first || changed)
             emit entriesReady(QStringLiteral("online"));
+        if (changed)
             emit gamesChanged();
-        }
     });
 }
 
