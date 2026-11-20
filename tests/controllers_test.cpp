@@ -1425,6 +1425,42 @@ private slots:
         QCOMPARE(again.keyCapture(QString(), Qt::Key_F9, "play_pause").value("outcome").toString(), QString("already"));
     }
 
+    // Every keyboard's extra keys set whole (a pasted OSD/OS Setup's
+    // config.app.remote_keymap, which AppCore tells as "remote_keymap", not
+    // action by action) are taken up at once, as one set from the page is:
+    // the key acts, and the page shows it.
+    void extraKeysPastedWhole() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QSignalSpy changed(&im, &InputManager::controllersChanged);
+        QWindow window;
+        const auto tapKey = [&window](int key) {
+            for (const QEvent::Type type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+                QKeyEvent event(type, key, Qt::NoModifier);
+                QCoreApplication::sendEvent(&window, &event);
+            }
+        };
+        tapKey(Qt::Key_P);
+        QCOMPARE(keysOf(keys), QStringList());
+
+        const QVariantMap notice = core.applySetupText(
+            R"({"osdos_setup": 1, "config": {"app": {"remote_keymap": {"down": 80, "select": [79, 81]}}}})");
+        QVERIFY2(notice.value("ok").toBool(), qPrintable(notice.value("detail").toString()));
+        QVERIFY(changed.count() > 0);
+        const QVariantMap page = im.controllerPage(InputManager::allKeys());
+        QCOMPARE(rowValue(page, "down"), QString("Arrow key + P"));
+        QCOMPARE(rowValue(page, "select"), QString("Enter + O + Q"));
+        tapKey(Qt::Key_P);
+        QCOMPARE(keysOf(keys), QStringList({ "DOWN" }));
+        // And set whole from the app itself.
+        QVERIFY(core.save_setting(QString(), "remote_keymap", QVariantMap{ { "up", int(Qt::Key_U) } }));
+        keys.clear();
+        tapKey(Qt::Key_P);
+        tapKey(Qt::Key_U);
+        QCOMPARE(keysOf(keys), QStringList({ "UP" }));
+    }
+
     // A pad's player from its own page: Auto, or a number. A number another
     // pad was chosen for swaps the two; one a pad had by Auto leaves that pad
     // to Auto, and the answer says where it went. Every player back to Auto

@@ -1083,7 +1083,9 @@ bool InputManager::setExtraKey(const QString &key, int id, Action a) {
 
 void InputManager::onAppSettingChanged(const QString &key, const QString &value) {
     Q_UNUSED(value)
-    if (key.startsWith(QStringLiteral("remote_keymap."))) {
+    // An action's extra keys saved from their page, or all of them set whole
+    // (a pasted OSD/OS Setup's, which AppCore tells by the setting's name).
+    if (key == QLatin1String("remote_keymap") || key.startsWith(QStringLiteral("remote_keymap."))) {
         loadKeyRemap();
         // Every keyboard's page, and each keyboard's own, show them.
         emit controllersChanged();
