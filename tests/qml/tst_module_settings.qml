@@ -625,9 +625,17 @@ StandInRoot {
             verify(keyboard && options && lines)
             compare(list.lines, ["UCone", "UCtwo"])
             compare(lines.count, 3)
-            // ADD, the last row: a line typed, kept at the foot, the cursor
-            // left on ADD.
-            lines.currentIndex = 2
+            // ADD, the last row, which ▼ comes to past the lines and ▲ round
+            // from the first: a line typed, kept at the foot, the cursor left
+            // on ADD.
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 2)
+            verify(lines.onAdd)
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Up)
             verify(lines.onAdd)
             keyClick(Qt.Key_Return)
             verify(keyboard.visible)
@@ -644,7 +652,8 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(!keyboard.visible)
             // A line: change it, or take it out.
-            lines.currentIndex = 0
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 0)
             keyClick(Qt.Key_Return)
             verify(options.visible)
             compare(options.subtitleText, "UCone")

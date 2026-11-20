@@ -96,11 +96,14 @@ FocusScope {
         subtitle: moduleName + " / " + settingLabel
     }
 
-    // The lines, then ADD: dimmed once the list is full.
+    // The lines, then ADD: dimmed once the list is full. The cursor stops on
+    // every row: ADD's is an empty line, which MenuList's own rule would
+    // take for no row and step over.
     MenuList {
         id: list
         objectName: "lines"
         model: textListRoot.lines.concat([""])
+        rule: function(row) { return true }
         focus: true
         readonly property bool onAdd: currentIndex === count - 1
 
