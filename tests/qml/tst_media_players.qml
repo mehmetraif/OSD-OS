@@ -11,6 +11,7 @@ import OSDOS.Testing
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
 // for back to return to, and prompts no card, whose views say so instead.
+// A card's playback writes no track to Plex as an item's own.
 // Plex's users page says it is loading while its users are asked for, or
 // why they didn't come. A video that fails says why (PlaybackNotice), with
 // RETRY, mpv itself missing without the transcode no transcode would mend.
@@ -212,8 +213,10 @@ StandInRoot {
         function load_next_episode(ratingKey) { nextAsks++ }
         function load_queue_item(ratingKey) {}
         function load_random_episode(scope) {}
-        function set_audio_stream() {}
-        function set_subtitle_stream() {}
+        // The tracks written to the server as an item's own: [kind, stream, part].
+        property var trackWrites: []
+        function set_audio_stream(streamId, partId) { trackWrites = trackWrites.concat([["audio", streamId, partId]]) }
+        function set_subtitle_stream(streamId, partId) { trackWrites = trackWrites.concat([["subtitle", streamId, partId]]) }
         function load_item_detail(ratingKey) {}
         function load_extras(ratingKey) {}
         function load_show_year(ratingKey) {}
@@ -460,6 +463,7 @@ StandInRoot {
             plexBackend.tunes = 0
             plexBackend.liveStops = 0
             plexBackend.timelines = []
+            plexBackend.trackWrites = []
             ambientModeBackend.audioStarts = 0
             ambientModeBackend.audioStops = 0
             playlistsBackend.kind = "online"
@@ -882,6 +886,39 @@ StandInRoot {
             view.forceActiveFocus()
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // A card's playback writes no track to Plex as an item's own: not for
+        // its first item (CardPlay), and not for the ones autoplay goes on
+        // to, whose tracks are only matched to the first's by language. In
+        // the module, the episode autoplay goes on to has them written, as
+        // PLAY on its detail screen would.
+        function test_plexCardWritesNoTracks_data() {
+            return [{ tag: "card", card: true }, { tag: "module", card: false }]
+        }
+        function test_plexCardWritesNoTracks(data) {
+            appCore.settings = { autoplay_next_episode: true }
+            var first = { ratingKey: "10", partKey: "/library/parts/10", partId: "p10", title: "Episode 1",
+                          audioStreams: [{ id: "a1", language: "eng" }],
+                          subtitleStreams: [{ id: "0", language: "" }, { id: "s1", language: "eng" }],
+                          selectedAudioId: "a1", selectedSubtitleId: "s1" }
+            if (data.card) {
+                var router = open("plex", "Root.qml", { cardRef: "plex://show/abc" })
+                plexBackend.cardItemReady(first)
+                verify(String(router.children[0].source).indexOf("Player.qml") >= 0)
+            } else {
+                open("plex", "Player.qml", Object.assign({ streamUrl: "http://plex/10", plexToken: "token" }, first))
+            }
+            compare(mpvController.loads, 1)
+            compare(plexBackend.trackWrites, [])
+            mpvController.playbackEnded(60000, 60000, "eof")
+            compare(plexBackend.nextAsks, 1)
+            plexBackend.nextEpisodeReady({ ratingKey: "11", partKey: "/library/parts/11", partId: "p11", title: "Episode 2",
+                                           audioStreams: [{ id: "a2", language: "eng" }],
+                                           subtitleStreams: [{ id: "0", language: "" }, { id: "s2", language: "eng" }] })
+            compare(mpvController.loads, 2)
+            compare(mpvController.urls[1], "http://plex/11")
+            compare(plexBackend.trackWrites, data.card ? [] : [["audio", "a2", "p11"], ["subtitle", "s2", "p11"]])
         }
 
         // Jellyfin's and Emby's home screen (one shared view, each with its

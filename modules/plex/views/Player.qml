@@ -39,7 +39,8 @@ FocusScope {
     // Progress reporting is entirely client-side (the two update_timeline calls
     // below are the only ones), so suppressing them is sufficient — nothing
     // server-side marks an item watched. It also gates the per-part audio and
-    // subtitle selections persisted on autoplay (see advanceToEpisode).
+    // subtitle selections persisted on autoplay, which no card's playback
+    // writes (see advanceToEpisode).
     property bool   trackProgress:      navParams.trackProgress !== false
     // Show/season ratingKey a shuffle card draws its episodes from; empty for
     // every other kind of playback, which advances sequentially.
@@ -351,11 +352,13 @@ FocusScope {
 
         // Persist the chosen tracks to Plex, so the next play of this episode
         // anywhere remembers them (mirrors Item.qml's behavior before playback).
-        // Skipped when this session doesn't write back to Plex: CardPlay.qml
-        // skips the same call for a card's first episode, and the languages
-        // carried onto a shuffled episode are a match, not a user choice — the
-        // transcode gets its stream IDs from request_transcode's query either way.
-        if (trackProgress && partId) {
+        // Skipped when this session doesn't write back to Plex, and for every
+        // card (moduleRoot.forCard), shuffled or not: CardPlay.qml skips the
+        // same call for a card's first item, since a card tap must not rewrite
+        // the server's stored tracks, and the languages carried onto the items
+        // after it are a match, not a user choice — the transcode gets its
+        // stream IDs from request_transcode's query either way.
+        if (trackProgress && moduleRoot.forCard !== true && partId) {
             if (audioId) plexBackend.set_audio_stream(audioId, partId)
             plexBackend.set_subtitle_stream(subId, partId)
         }
