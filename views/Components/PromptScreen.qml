@@ -69,7 +69,8 @@ Item {
     // Asked in the layout's frame, where one is up (its ground's inLayout):
     // on unless a host turns it off. And what follows from it (asked):
     // whether a monitor layout's frame is round it, Flat Panel's mixed case,
-    // and whether what it is about and the answers go in the pane.
+    // whether Camcorder's column is beside it, and whether what it is about
+    // and the answers go in the pane.
     // All four are aliases, declared after `content`, so that `content`
     // keeps its place among the properties: PressPrompt's own `content` is an
     // alias of it, which a QML cache kept from an earlier version holds by
@@ -82,7 +83,8 @@ Item {
         id: asked
         readonly property bool monitor: ground.inLayout && root.monitorInk === true
         readonly property bool mixedCase: monitor && root.menuLayout === "Flat Panel"
-        readonly property bool paned: monitor || root.framed === true
+        readonly property bool columned: ground.inLayout && root.framed === true
+        readonly property bool paned: monitor || columned
     }
 
     anchors.fill: parent
@@ -97,9 +99,10 @@ Item {
     }
 
     // The frame's column again, over that ground, as the shell has it under
-    // the view: its icons, the one framed, where it stands.
+    // the view: its icons, the one framed, where it stands. Not for one
+    // asked over the whole screen.
     Loader {
-        active: prompt.visible && root.framed === true
+        active: prompt.visible && asked.columned
         sourceComponent: IconColumn {
             x: root.frameColumn.x
             y: root.frameColumn.y

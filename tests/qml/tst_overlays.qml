@@ -75,6 +75,16 @@ StandInRoot {
         onQuitAsked: root.quits++
     }
 
+    // A question on its own, as a host that keeps its keys draws it.
+    Component {
+        id: question
+        PromptScreen {
+            title: "Keep this display output?"
+            message: "HDMI 720p"
+            choices: ["Keep", "Switch Back"]
+        }
+    }
+
     SignalSpy {
         id: canceledSpy
         signalName: "canceled"
@@ -469,6 +479,41 @@ StandInRoot {
             hover(prompt, prompt.width / 2, root.sh * 0.15)
             hover(prompt, prompt.width / 2, root.sh * 0.8)
             compare(overlay.choiceIndex, 1)
+        }
+
+        // A question asked over the whole screen whatever the layout
+        // (`inLayout` off: a new display output's, before the menus): in
+        // Camcorder's frame it draws no column and lies across the window,
+        // not in the pane, as in Standard and in a monitor layout. One
+        // asked in the layout has Camcorder's column beside it, and lies in
+        // the pane.
+        function test_askedOverTheWholeScreen_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false }]
+        }
+        function test_askedOverTheWholeScreen(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var whole = createTemporaryObject(question, root, { inLayout: false })
+            verify(whole !== null)
+            verify(!whole.paned)
+            compare(columnOf(whole), null)
+            var answers = answersOf(whole)
+            compare(answers.mapToItem(root, 0, 0).x, root.contentBox.x)
+            compare(answers.width, root.contentBox.width)
+            whole.visible = false
+
+            var inIt = createTemporaryObject(question, root)
+            verify(inIt !== null)
+            compare(inIt.paned, data.layout !== "Standard")
+            compare(columnOf(inIt) !== null, data.framed)
+            answers = answersOf(inIt)
+            compare(answers.mapToItem(root, 0, 0).x, root.paneX)
+            compare(answers.width, root.paneWidth)
+            if (data.layout !== "Standard")
+                verify(root.paneX > root.contentBox.x)
         }
     }
 
