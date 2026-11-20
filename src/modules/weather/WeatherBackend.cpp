@@ -548,6 +548,12 @@ void WeatherBackend::fetchFailed() {
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 
 void WeatherBackend::start() {
+    // The refresh runs from here to stop(), while the module is open, and is
+    // started nowhere else: a place is also looked up as Settings' Location
+    // or Other Places change, with the module closed, and a refresh started
+    // as that lookup answered went on asking every ten minutes for the rest
+    // of the run, for a screen nobody was looking at.
+    m_refresh->start();
     if (m_resolved) {
         // Already resolved from an earlier visit: refresh both requests. Only
         // fetching the primary here left Other Locations showing whatever units
@@ -556,7 +562,6 @@ void WeatherBackend::start() {
         fetchOthers();
         fetchObservation();
         fetchOtherObservations();
-        m_refresh->start();
         return;
     }
     resolveLocation();
@@ -741,7 +746,6 @@ void WeatherBackend::resolveLocation() {
               qPrintable(m_locationName), m_lat, m_lon);
         fetchWeather();
         resolveStations();
-        m_refresh->start();
         resolveOthers(others);
         return;
     }
@@ -758,7 +762,6 @@ void WeatherBackend::resolveLocation() {
               qPrintable(primary), qPrintable(m_locationName), m_lat, m_lon);
         fetchWeather();
         resolveStations();
-        m_refresh->start();
         resolveOthers(others);
     });
 }

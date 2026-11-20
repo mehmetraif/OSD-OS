@@ -298,6 +298,55 @@ private slots:
         QVERIFY(backend.m_otherObs.isEmpty());
     }
 
+    // Weather asks again every ten minutes while it is open, and only then:
+    // a Location or an Other Place changed in Settings, the module closed,
+    // is looked up and fetched once and starts no refresh, and neither does
+    // a place whose lookup answers after the module was left.
+    void weatherRefreshesOnlyWhileOpen() {
+        QTemporaryDir tmp;
+        // The settings saved as Settings saves them, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const char *key, const QVariant &value) {
+            QVERIFY(core.save_setting("com.osdos.weather", key, value));
+        };
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        const QByteArray found = R"({"results":[{"name":"Paris","latitude":48.85,"longitude":2.35}]})";
+
+        // Closed, and its place set in Settings: by coordinates, then by a
+        // name that is looked up.
+        config("location", "41.01, 28.98, Istanbul");
+        backend.onSettingChanged("com.osdos.weather", "location", "41.01, 28.98, Istanbul");
+        QVERIFY(backend.m_resolved);
+        QVERIFY(!backend.m_refresh->isActive());
+        config("other_places", QStringList({ "60.0, 10.0, Oslo" }));
+        backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
+        QVERIFY(!backend.m_refresh->isActive());
+        config("location", "Paris, France");
+        backend.onSettingChanged("com.osdos.weather", "location", "Paris, France");
+        network->replies.last()->complete(found);
+        QCOMPARE(backend.m_locationName, QString("PARIS"));
+        QVERIFY(!backend.m_refresh->isActive());
+
+        // Opened, it refreshes; left, it stops.
+        backend.start();
+        QVERIFY(backend.m_refresh->isActive());
+        backend.stop();
+        QVERIFY(!backend.m_refresh->isActive());
+
+        // Opened on a place still to look up, and left before the answer.
+        backend.m_resolved = false;
+        backend.start();
+        QVERIFY(backend.m_refresh->isActive());
+        Reply *lookup = network->replies.last();
+        QVERIFY(lookup->url().toString().contains("geocoding-api"));
+        backend.stop();
+        lookup->complete(found);
+        QVERIFY(backend.m_resolved);
+        QVERIFY(!backend.m_refresh->isActive());
+    }
+
     void markerFailureDoesNotArmUpdate() {
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());
