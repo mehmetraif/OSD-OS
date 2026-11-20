@@ -38,7 +38,8 @@
 // their servers differ: PlaybackInfo with their own device profiles, the
 // URLs mpv is handed, Emby's Dolby Vision transcoded. A Plex sign-in left
 // with a token and no account asks plex.tv for it again. An NFC card's
-// lookup left for another card's answers no one.
+// lookup left for another card's answers no one. Plex's shuffle asks for a
+// show's episodes once for each bag it makes of them.
 
 class Reply : public QNetworkReply {
 public:
@@ -1725,6 +1726,52 @@ private slots:
         network->last()->fail(500);
         QCOMPARE(errors.count(), 1);
         QCOMPARE(item.count(), 1);
+    }
+
+    // A show shuffled: its episodes are asked for once (its seasons, then
+    // each season's episodes) and the bag made of them is kept, so the next
+    // draw asks for the episode drawn and nothing else; only a bag run out
+    // asks for the episodes again.
+    void plexShuffleDrawsFromTheBagItKept() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy next(&backend, &PlexBackend::nextEpisodeReady);
+        const QJsonArray seasons{ QJsonObject{ { "ratingKey", "s1" }, { "type", "season" } },
+                                  QJsonObject{ { "ratingKey", "s2" }, { "type", "season" } } };
+        // An episode drawn for the show, every request it makes answered:
+        // how many there were.
+        const auto draw = [&]() {
+            const qsizetype before = network->replies.size();
+            backend.load_random_episode(QStringLiteral("show"));
+            for (qsizetype i = before; i < network->replies.size(); ++i) {
+                Reply *reply = network->replies.at(i);
+                const QString path = reply->url().path();
+                if (path.endsWith(QLatin1String("/show/children")))
+                    reply->complete(plexContainer({ { "Metadata", seasons } }));
+                else if (path.endsWith(QLatin1String("/s1/children")))
+                    reply->complete(plexContainer({ { "Metadata", plexFilms({ "101", "102" }) } }));
+                else if (path.endsWith(QLatin1String("/s2/children")))
+                    reply->complete(plexContainer({ { "Metadata", plexFilms({ "201" }) } }));
+                else
+                    reply->complete(plexContainer({ { "Metadata", plexFilms({ path.section(QLatin1Char('/'), -1) }) } }));
+            }
+            return network->replies.size() - before;
+        };
+        QCOMPARE(draw(), 4);    // the seasons, each one's episodes, the episode drawn
+        QCOMPARE(next.count(), 1);
+        QCOMPARE(draw(), 1);
+        QCOMPARE(draw(), 1);
+        QCOMPARE(next.count(), 3);
+        QStringList drawn;
+        for (const QList<QVariant> &told : next)
+            drawn << told.at(0).toMap().value(QStringLiteral("ratingKey")).toString();
+        drawn.sort();
+        QCOMPARE(drawn, QStringList({ QStringLiteral("101"), QStringLiteral("102"), QStringLiteral("201") }));
+        // The bag run out: made again of the show's episodes as they are now.
+        QCOMPARE(draw(), 4);
+        QCOMPARE(next.count(), 4);
     }
 };
 

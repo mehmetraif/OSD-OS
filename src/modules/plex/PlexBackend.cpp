@@ -2498,6 +2498,15 @@ void PlexBackend::answerNext(int request, const QVariantMap &detail) {
 void PlexBackend::load_random_episode(const QString &scopeRatingKey) {
     const int request = ++m_nextRequest;
     if (scopeRatingKey.isEmpty()) { answerNext(request, {}); return; }
+    // The bag kept for this show or season still has episodes in it: the
+    // next is drawn from it as it is. Only a new bag is made of the pool,
+    // and asking for that at every episode was a request for each season of
+    // the show, to draw from a bag that didn't need them.
+    if (m_shuffleScope == scopeRatingKey && !m_shuffleBag.isEmpty()) {
+        m_lastShuffledKey = m_shuffleBag.takeLast();
+        emitNextEpisode(request, m_lastShuffledKey);
+        return;
+    }
     fetchEpisodePool(scopeRatingKey, [this, request, scopeRatingKey](const QVariantList &pool) {
         // Nothing drawn from the bag for a draw no longer waited for.
         if (request == m_nextRequest)
