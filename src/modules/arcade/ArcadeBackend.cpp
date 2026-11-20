@@ -2518,7 +2518,13 @@ bool ArcadeBackend::play(const QString &name, int credits) {
             cfg.close();
             const QByteArray after = mame::withDip(before, name, machine->difficulty,
                                                    machine->difficulty.valueOf(m_difficulties.value(name).toString()));
-            if (after != before && !writeFileAnew(path, after))
+            // MAME's own file, which keeps what was set in its menus too
+            // (the keys, the other switches): left alone where the switch
+            // is as chosen in it already, as it is from the second start on,
+            // and otherwise written whole or not at all. Written in place,
+            // the power going would leave it cut short, and all of that
+            // lost with it.
+            if (after != before && !writeFileAtomically(path, after))
                 qWarning("[Arcade] The difficulty couldn't be set in %s", qPrintable(path));
         }
     }

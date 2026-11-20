@@ -401,13 +401,15 @@ void ListXmlReader::read() {
 }
 
 QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip, int value) {
+    const int wanted = value & dip.mask;
+    const bool atDefault = wanted == (dip.defaultValue & dip.mask);
     const auto port = [&](QXmlStreamWriter &w) {
         w.writeEmptyElement(QStringLiteral("port"));
         w.writeAttribute(QStringLiteral("tag"), dip.tag);
         w.writeAttribute(QStringLiteral("type"), QStringLiteral("DIPSWITCH"));
         w.writeAttribute(QStringLiteral("mask"), QString::number(dip.mask));
         w.writeAttribute(QStringLiteral("defvalue"), QString::number(dip.defaultValue));
-        w.writeAttribute(QStringLiteral("value"), QString::number(value & dip.mask));
+        w.writeAttribute(QStringLiteral("value"), QString::number(wanted));
     };
     const auto fresh = [&] {
         QByteArray made;
@@ -424,8 +426,9 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
         w.writeEndDocument();
         return made;
     };
+    // No file, and the board's own setting: none is needed for it.
     if (cfg.trimmed().isEmpty())
-        return fresh();
+        return atDefault ? cfg : fresh();
 
     QByteArray out;
     QXmlStreamWriter w(&out);
@@ -438,6 +441,10 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
     int depth = 0;
     bool inSystem = false, inInput = false, written = false;
     int skipping = 0;   // within a port of the switch's, left out
+    // The switch's ports the file had, and what the last sets it to: -1 for
+    // one MAME wouldn't take (no value, or another default than the board's).
+    int ports = 0;
+    int had = -1;
     while (!r.atEnd()) {
         const QXmlStreamReader::TokenType token = r.readNext();
         if (r.hasError())
@@ -460,6 +467,10 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
                      && a.value(QLatin1String("tag")) == dip.tag
                      && a.value(QLatin1String("type")) == QLatin1String("DIPSWITCH")
                      && a.value(QLatin1String("mask")).toInt() == dip.mask) {
+                ++ports;
+                had = a.hasAttribute(QLatin1String("value"))
+                              && (a.value(QLatin1String("defvalue")).toInt() & dip.mask) == (dip.defaultValue & dip.mask)
+                          ? a.value(QLatin1String("value")).toInt() & dip.mask : -1;
                 --depth;
                 skipping = 1;
                 continue;
@@ -493,7 +504,14 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
         }
         w.writeCurrentToken(r);
     }
-    return written ? out : fresh();
+    if (!written)
+        return fresh();
+    // The file as it is, to the byte, where it says so already: the
+    // switch's one port with this value, or no port of it for the board's
+    // own, which is how MAME keeps a switch left alone.
+    if (ports == 1 ? had == wanted : (ports == 0 && atDefault))
+        return cfg;
+    return out;
 }
 
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill,

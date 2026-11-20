@@ -115,7 +115,10 @@ private:
 // starts and writes as it ends) with a DIP switch set to value: its port in
 // the game's input, as MAME writes one (tag, DIPSWITCH, mask, its default
 // and the value), in place of any it had of that switch; the rest of the
-// file as it was. A new file for none, or one MAME can't read.
+// file as it was. A new file for none, or one MAME can't read. The file as
+// it is, to the byte, where it sets the switch so already: its one port
+// with the value, or no port of it (and no file) for the board's own
+// setting, as MAME writes none for a switch at its default.
 QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip, int value);
 
 // What MAME is told of the screen (Settings → Arcade → Emulator Video): its
