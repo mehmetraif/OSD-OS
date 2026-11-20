@@ -601,6 +601,142 @@ StandInRoot {
         }
     }
 
+    // The card writer and a web player's launch page, each with what it reads
+    // of the app and of its module beside it.
+    Component {
+        id: cardWriter
+        Item {
+            property alias writer: writer
+            property alias reader: nfcReaderBackend
+            anchors.fill: parent
+            QtObject {
+                id: nfcReaderBackend
+                property bool available: true
+                property bool readerConnected: true
+                signal cardCaptured(string uid, string existing)
+                function setCardCapture(on) {}
+                function writeCardFile(uid, title, ref, mode) { return true }
+            }
+            QtObject {
+                id: appCore
+                function is_module_enabled(id) { return true }
+            }
+            NfcCardWriter {
+                id: writer
+                anchors.fill: parent
+                cardRef: "plex://movie/1"
+                cardTitle: "<b>The Film</b>"
+            }
+        }
+    }
+    Component {
+        id: launchPage
+        Item {
+            property alias page: page
+            anchors.fill: parent
+            QtObject {
+                id: moduleRoot
+                property string moduleIcon: ""
+                property string moduleName: "Netflix"
+            }
+            QtObject {
+                id: idleTracker
+                function resetActivity() {}
+            }
+            QtObject {
+                id: appCore
+                function installHint(what) { return "" }
+            }
+            // A browser that can't be started, and says why.
+            QtObject {
+                id: browser
+                property bool running: false
+                property bool opened: true
+                property var catalog: null
+                signal finished(int exitCode, string reason)
+                function launch(url) { return false }
+                function lastError() { return "<b>/opt/osdos/web-player.sh</b> could not be started" }
+            }
+            WebPlayerLaunch {
+                id: page
+                anchors.fill: parent
+                backend: browser
+                serviceName: "Netflix"
+                navParams: ({ name: "<b>The Film</b>" })
+            }
+        }
+    }
+
+    // What a server, a catalogue, a card or a file's name says is shown as
+    // it is written: a title that looks like markup is its letters, never
+    // read as markup (a picture's tag in one would fetch its address). On the
+    // info screen (views/Components/InfoPanel.qml), the card writer
+    // (views/Components/NfcCardWriter.qml) and a web player's launch page
+    // (views/Components/WebPlayerLaunch.qml).
+    TestCase {
+        name: "WordsAsWritten"
+        when: windowShown
+
+        function cleanup() {
+            loader.source = ""
+        }
+
+        // Every Text an item holds whose words have "<b>" in them, all the
+        // way down.
+        function marked(item) {
+            var found = []
+            if (item.text !== undefined && item.textFormat !== undefined && String(item.text).indexOf("<b>") >= 0)
+                found.push(item)
+            for (var i = 0; i < item.children.length; i++)
+                found = found.concat(marked(item.children[i]))
+            return found
+        }
+        // At least so many of them, each as it is written.
+        function asWritten(item, atLeast) {
+            var texts = marked(item)
+            verify(texts.length >= atLeast, texts.length + " of " + atLeast + " lines found")
+            for (var i = 0; i < texts.length; i++)
+                compare(texts[i].textFormat, Text.PlainText, String(texts[i].text))
+        }
+
+        // The entry's own name, then its title, its facts, its story and a
+        // line of its details as they come in.
+        function test_infoScreen() {
+            loader.setSource(Qt.resolvedUrl("../../views/Components/InfoPanel.qml"))
+            var info = loader.item
+            verify(info !== null, "loaded InfoPanel.qml")
+            info.show({ title: "<b>The Film</b>" })
+            asWritten(info, 1)
+            info.details = { title: "<b>The Film</b>", facts: "<b>1999</b> • 2H 10M", summary: "<b>A story.</b>",
+                             rows: [{ label: "Genre", value: "<b>Drama</b>" }] }
+            asWritten(info, 4)
+        }
+
+        // The title a card is written for, and the one a card already plays.
+        function test_cardWriter() {
+            var held = createTemporaryObject(cardWriter, root)
+            verify(held !== null)
+            held.writer.open()
+            compare(held.writer.phase, "armed")
+            asWritten(held.writer, 1)
+            held.reader.cardCaptured("04AABBCC", "<b>An Older Film</b>")
+            compare(held.writer.phase, "choose")
+            keyClick(Qt.Key_Return)
+            compare(held.writer.phase, "replace")
+            asWritten(held.writer, 2)
+        }
+
+        // The title being opened, then why it didn't open.
+        function test_webPlayerLaunch() {
+            var held = createTemporaryObject(launchPage, root)
+            verify(held !== null)
+            compare(held.page.phase, "opening")
+            asWritten(held.page, 1)
+            tryCompare(held.page, "phase", "error", 1000)
+            asWritten(held.page, 1)
+        }
+    }
+
     // The loading screen a player shows while its video starts: its letters
     // in the loading ink, each bleeding to the right in the colours' second
     // ink (root.loadingBleed), Video 1's with Default; no bleed with the

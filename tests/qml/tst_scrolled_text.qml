@@ -15,13 +15,21 @@ import Components
 // summary: up after their pause exactly as far as they overflow, resting
 // there, over from their top to the new distance when their room is made
 // another width; hidden, still at their top, and shown again started over
-// after the pause; lines that fit standing still.
+// after the pause; lines that fit standing still; a summary that looks like
+// markup shown as it is written. And what a list says in its place
+// (views/Components/PaneMessage.qml), a server's error as it is written too.
 Item {
     id: root
     width: 640
     height: 480
     // Main.qml's, as the line reads it.
     property string globalFont: "monospace"
+    // And as a list's message reads it: the stage's height, the pane and
+    // the colour.
+    property real sh: height
+    property real paneX: 74
+    property real paneWidth: 492
+    property string primaryColor: "#ffffff"
 
     readonly property string longText: "A module whose name runs past the row"
     readonly property string longStory: "A family moves into an old house by the sea for the summer, and the summer "
@@ -56,6 +64,12 @@ Item {
             height: 30
             font.pixelSize: 20
         }
+    }
+
+    // What a list says in its place.
+    Component {
+        id: message
+        PaneMessage {}
     }
 
     // A line in an item that hides it, with a box laid under its line, as a
@@ -296,6 +310,39 @@ Item {
             compare(item.textItem.wrapMode, Text.WordWrap)
             compare(item.textItem.font.family, root.globalFont)
             compare(item.textItem.font.pixelSize, 14)
+        }
+
+        // A summary is a server's words: one that looks like markup is shown
+        // as it is written, "<b>AB</b>" its nine letters and not a bold AB,
+        // and a picture's tag in it is its letters too, fetching nothing.
+        function test_markupShownAsWritten() {
+            var marked = make({ text: "<b>AB</b>", width: 600, height: 60 })
+            var plain = make({ text: "AB", width: 600, height: 60 })
+            verify(marked.textItem.implicitWidth > 2.5 * plain.textItem.implicitWidth,
+                   marked.textItem.implicitWidth + " against " + plain.textItem.implicitWidth)
+            var picture = make({ text: "<img src=\"http://127.0.0.1:9/poster.png\" width=\"400\" height=\"300\">",
+                                 width: 600, height: 60 })
+            verify(picture.textItem.implicitHeight < 100, "a line of letters, not a picture's room")
+            compare(marked.textItem.textFormat, Text.PlainText)
+        }
+    }
+
+    TestCase {
+        name: "PaneMessage"
+        when: windowShown
+
+        // In the pane, wrapped at its width; a server's error that looks
+        // like markup is shown as it is written.
+        function test_markupShownAsWritten() {
+            var marked = createTemporaryObject(message, root, { text: "<b>AB</b>" })
+            var plain = createTemporaryObject(message, root, { text: "AB" })
+            verify(marked !== null && plain !== null)
+            compare(marked.x, root.paneX)
+            compare(marked.width, root.paneWidth)
+            compare(marked.wrapMode, Text.WordWrap)
+            verify(marked.implicitWidth > 2.5 * plain.implicitWidth,
+                   marked.implicitWidth + " against " + plain.implicitWidth)
+            compare(marked.textFormat, Text.PlainText)
         }
     }
 }

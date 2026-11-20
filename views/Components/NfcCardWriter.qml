@@ -164,7 +164,9 @@ FocusScope {
             Column {
                 width: parent.width
                 spacing: root.sh * 0.0166667 //8
+                // A title is a server's or a file's words: as it is written.
                 Text {
+                    textFormat: Text.PlainText
                     text: writerRoot.phase === "armed"    ? "TAP A CARD FOR..."
                         : writerRoot.phase === "replace"  ? "THIS CARD PLAYS \"" + writerRoot.existingTitle + "\". CHANGE TO..."
                         : writerRoot.phase === "done"     ? "CARD WRITTEN FOR..."
@@ -180,6 +182,7 @@ FocusScope {
                 }
 
                 Text {
+                    textFormat: Text.PlainText
                     text: writerRoot.cardTitle
                     color: root.primaryColor
                     font.family: root.globalFont

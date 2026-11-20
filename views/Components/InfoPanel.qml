@@ -115,8 +115,10 @@ FocusScope {
             width: root.sw * 0.75 - root.sw * 0.1875 - top.spacing //336
             spacing: root.sh * 0.0166667 //8
 
+            // The catalogue's words, as they are written.
             Text {
                 width: parent.width
+                textFormat: Text.PlainText
                 text: info.title
                 color: root.primaryColor
                 font.family: root.globalFont
@@ -128,6 +130,7 @@ FocusScope {
             Text {
                 width: parent.width
                 visible: text !== ""
+                textFormat: Text.PlainText
                 text: info.facts
                 color: root.primaryColor
                 font.family: root.globalFont

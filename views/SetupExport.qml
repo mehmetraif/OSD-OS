@@ -139,8 +139,10 @@ FocusScope {
     }
 
     // Where the code would be while there is none: the settings being read,
-    // or why there is no code.
+    // or why there is no code (a Wi-Fi network's name may be in it: as it is
+    // written).
     Text {
+        textFormat: Text.PlainText
         visible: !exportRoot.asking && exportRoot.links.length === 0
         anchors.centerIn: parent
         width: root.sw - 2 * exportRoot.marginX

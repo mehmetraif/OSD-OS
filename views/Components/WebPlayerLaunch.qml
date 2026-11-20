@@ -222,8 +222,10 @@ FocusScope {
             }
         }
 
+        // A title's name is the catalogue's: as it is written.
         Text {
             width: parent.width
+            textFormat: Text.PlainText
             text: launchRoot.signIn && (launchRoot.phase === "ready" || launchRoot.phase === "opening")
                     ? "Sign in to " + launchRoot.serviceName
                 : launchRoot.phase === "opening" ? "Opening " + launchRoot.opening
@@ -288,6 +290,7 @@ FocusScope {
         Text {
             visible: launchRoot.phase === "error" || launchRoot.phase === "failed"
             width: parent.width
+            textFormat: Text.PlainText
             text: launchRoot.message
             color: root.primaryColor
             font.family: root.globalFont

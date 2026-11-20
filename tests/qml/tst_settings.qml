@@ -1816,6 +1816,121 @@ StandInRoot {
         }
     }
 
+    // Settings' pages that show words from outside the app, each with a
+    // stand-in of its own for what it reads: Update's (a release's tag, why
+    // the check failed) and Bluetooth's details (what the system says, its
+    // devices' names among it).
+    Component {
+        id: updatePage
+        Item {
+            property alias page: updateLoader.item
+            anchors.fill: parent
+            QtObject {
+                id: updateManager
+                property string state: "error"
+                property string latestVersion: "<b>v9.9.9</b>"
+                property string releaseNotes: ""
+                property string errorMessage: "<b>The server</b> could not be reached"
+                property string applyHint: ""
+                property bool canApply: false
+                property real downloadProgress: 0
+                function checkForUpdates() {}
+            }
+            Loader {
+                id: updateLoader
+                anchors.fill: parent
+                source: Qt.resolvedUrl("../../views/Update.qml")
+            }
+        }
+    }
+    Component {
+        id: bluetoothPage
+        Item {
+            property alias page: bluetoothLoader.item
+            anchors.fill: parent
+            QtObject {
+                id: bluetoothManager
+                property bool supported: true
+                property bool available: true
+                property bool powered: true
+                property bool searching: false
+                property var devices: []
+                property var prompt: ({})
+                property string message: ""
+                property bool powerFailed: false
+                property string adapterName: "den-tv"
+                property string details: "Device 00:11:22:33:44:55 <b>Pad</b>\n\tPaired: yes"
+                function stopSearch() {}
+                function cancelPairing() {}
+                function collectDetails() {}
+                function clearMessage() {}
+            }
+            Loader {
+                id: bluetoothLoader
+                anchors.fill: parent
+                source: Qt.resolvedUrl("../../views/Bluetooth.qml")
+            }
+        }
+    }
+
+    // What a release, a network or a device says is shown as it is written
+    // on Settings' pages: a name that looks like markup is its letters, never
+    // read as markup (a picture's tag in one would fetch its address).
+    TestCase {
+        name: "WordsAsWritten"
+        when: windowShown
+
+        function cleanup() {
+            loader.source = ""
+            setupExport.links = ["https://osdos.tv/setup/#1"]
+            setupExport.missing = []
+        }
+
+        // Every Text an item holds whose words have "<b>" in them, all the
+        // way down.
+        function marked(item) {
+            var found = []
+            if (item.text !== undefined && item.textFormat !== undefined && String(item.text).indexOf("<b>") >= 0)
+                found.push(item)
+            for (var i = 0; i < item.children.length; i++)
+                found = found.concat(marked(item.children[i]))
+            return found
+        }
+        // At least so many of them, each as it is written.
+        function asWritten(item, atLeast) {
+            var texts = marked(item)
+            verify(texts.length >= atLeast, texts.length + " of " + atLeast + " lines found")
+            for (var i = 0; i < texts.length; i++)
+                compare(texts[i].textFormat, Text.PlainText, String(texts[i].text))
+        }
+
+        // The latest release's tag, and why the check failed.
+        function test_update() {
+            var held = createTemporaryObject(updatePage, root)
+            verify(held !== null && held.page !== null, "loaded Update.qml")
+            compare(held.page.statusText, "<b>The server</b> could not be reached")
+            asWritten(held.page, 2)
+        }
+
+        // Bluetooth's details.
+        function test_bluetoothDetails() {
+            var held = createTemporaryObject(bluetoothPage, root)
+            verify(held !== null && held.page !== null, "loaded Bluetooth.qml")
+            asWritten(held.page, 1)
+        }
+
+        // Why Export to OSD/OS Setup has no code, a Wi-Fi network's name in
+        // it: in the question and in the code's place.
+        function test_exportWithoutACode() {
+            setupExport.links = []
+            setupExport.missing = ["Wi-Fi: <b>Attic</b>'s password couldn't be read"]
+            loader.setSource(Qt.resolvedUrl("../../views/SetupExport.qml"), { navParams: {} })
+            var page = loader.item
+            verify(page !== null, "loaded SetupExport.qml")
+            asWritten(page, 2)
+        }
+    }
+
     Component {
         id: appBar
         Components.AppBar {}

@@ -325,9 +325,11 @@ FocusScope {
                 contentY = Math.max(0, Math.min(contentHeight - height, contentY + step * line * 3))
             }
 
+            // As the system wrote it, devices' names and all.
             Text {
                 id: body
                 width: detailsText.width
+                textFormat: Text.PlainText
                 text: (bluetoothManager && bluetoothManager.details) || "…"
                 color: root.primaryColor
                 font.family: root.globalFont

@@ -17,7 +17,8 @@ import QtQuick
 //     }
 //
 // The lines wrap at its width, in the app's font, a third again as far
-// apart as the font is high, in the host's colour.
+// apart as the font is high, in the host's colour. They are shown as they
+// are written, a server's words never read as markup.
 Item {
     id: scrolled
 
@@ -51,6 +52,7 @@ Item {
     Text {
         id: lines
         width: scrolled.width
+        textFormat: Text.PlainText
         wrapMode: Text.WordWrap
         lineHeight: 1.3
         font.family: root.globalFont

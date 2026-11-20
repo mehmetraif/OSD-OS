@@ -148,8 +148,10 @@ FocusScope {
                     font.capitalization: Font.AllUppercase
                     font.pixelSize: root.sh * 0.0375 //18
                 }
+                // The release's tag, as the server has it.
                 Text {
                     visible: updateRoot.latestVersion !== ""
+                    textFormat: Text.PlainText
                     text: "LATEST: " + updateRoot.latestVersion
                     color: root.primaryColor
                     font.family: root.globalFont
@@ -158,9 +160,11 @@ FocusScope {
                 }
             }
 
-            // Status line
+            // Status line: the tag again, or why the check or the download
+            // failed, as it was said.
             Text {
                 width: parent.width
+                textFormat: Text.PlainText
                 text: updateRoot.statusText
                 color: root.primaryColor
                 font.family: root.globalFont
