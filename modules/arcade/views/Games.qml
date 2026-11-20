@@ -84,10 +84,16 @@ FocusScope {
             startupEntry = entry
             return
         }
+        // Favorites' row in the tree's first folder: where the backend lists
+        // it, after Online Games and LAN Games while those are on.
+        var top = arcadeBackend.requestEntries("top") || []
+        var row = 0
+        while (row < top.length && top[row].path !== "favorites")
+            ++row
         var favorites = arcadeBackend.requestEntries("favorites")
         for (var i = 0; i < favorites.length; ++i) {
             if (favorites[i].path === entry.path) {
-                var trail = [{ path: "top", sel: 1, name: "", pushed: false },
+                var trail = [{ path: "top", sel: row, name: "", pushed: false },
                              { path: "favorites", sel: i, name: "Favorites", pushed: false }]
                 // There as it plays, for a game played from the tree itself.
                 tree.reopen(trail)

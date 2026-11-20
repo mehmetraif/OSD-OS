@@ -689,6 +689,20 @@ StandInRoot {
             compare(nav.listState.trail[1].path, "favorites")
             // The tree there as it plays, its line on the game.
             verify(findText(games, "1980") !== null)
+            // With Online Play and LAN Play on, their folders come first:
+            // Favorites is wherever the backend lists it, not the second row.
+            loader.source = ""
+            root.navigations = []
+            arcadeBackend.entries["top"] = [{ name: "Online Games", path: "online", isFolder: true },
+                                            { name: "LAN Games", path: "lan", isFolder: true }]
+                                           .concat(arcadeBackend.entries["top"])
+            games = open("Games.qml", { startupPlay: { name: "Pac-Man (Midway)", path: "game:pacman" } })
+            tryVerify(function() { return root.navigations.length === 1 })
+            nav = root.navigations[0]
+            compare(nav.params.game, "pacman")
+            verify(findText(games, "1980") !== null)
+            compare(nav.listState.trail[0].sel, 3)
+            compare(nav.listState.trail[1].path, "favorites")
         }
 
         // While the folder is read, the startup favourite waits for it, on
