@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Components
 import OSDOS.Testing
+import "../../views/Components/Hover.js" as Hover
 
 // The media server modules' players, detail screens and routers (Plex,
 // Jellyfin, Emby: modules/*/views/Player.qml, Item.qml, Root.qml) against
@@ -1203,6 +1204,50 @@ StandInRoot {
             compare(letters.currentIndex, list.letterIndex.length - 1)
             keyClick(Qt.Key_Right)
             compare(list.letterIndex[letters.currentIndex].letter, "#")
+            loader.sourceComponent = undefined
+        }
+
+        // The mouse over a letter (Hover.js), with the keys in the letters,
+        // is ▲ ▼ to it: the cursor on the letter and the rows jumped to the
+        // first under it, at the top of the list. With the keys in the rows
+        // the letters are not the mouse's. In Standard, and in Camcorder's
+        // pane.
+        function test_letterListMouseOnALetter_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_letterListMouseOnALetter(data) {
+            root.menuLayout = data.layout
+            root.framed = data.framed
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            var letters = lettersOf(list)
+            var hover = function(index) {
+                var cell = letters.itemAtIndex(index)
+                verify(cell !== null, "letter " + index + " drawn")
+                var p = cell.mapToItem(root, cell.width / 2, cell.height / 2)
+                Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+            }
+            hover(3)
+            compare(letters.currentIndex, 0)
+            compare(list.currentIndex, 0)
+            keyClick(Qt.Key_Right)
+            verify(list.letterNavActive)
+            // C: Clue, the sixth row.
+            hover(3)
+            compare(list.letterIndex[letters.currentIndex].letter, "C")
+            compare(list.currentIndex, 5)
+            fuzzyCompare(rows.contentY, rows.originY + 5 * root.menuRowHeight, 0.5)
+            // And back up to #, as ▲ would go.
+            hover(0)
+            compare(list.currentIndex, 0)
+            fuzzyCompare(rows.contentY, rows.originY, 0.5)
+            hover(2)
+            keyClick(Qt.Key_Return)
+            verify(!list.letterNavActive)
+            compare(list.currentIndex, 3)
+            root.framed = false
             loader.sourceComponent = undefined
         }
 
