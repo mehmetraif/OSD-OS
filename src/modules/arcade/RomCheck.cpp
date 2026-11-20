@@ -410,7 +410,13 @@ void RomCheck::resume() {
         return;
     m_held = false;
     emit progressChanged();
-    if (m_stage == QLatin1String("MAME") && !m_process)
+    if (m_stage != QLatin1String("MAME") || m_process)
+        return;
+    // Held as MAME had answered for the last of the sets and had only to
+    // exit: done. Asked with no set, it would check every machine it knows.
+    if (m_toVerify.isEmpty())
+        finish(QStringLiteral("Done"));
+    else
         verifyNext();
 }
 

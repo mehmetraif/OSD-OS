@@ -97,7 +97,8 @@ class ArcadeTest : public QObject {
     // display card and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
     // slowgame takes a second, as does asking about a_slowlist half of one;
     // any other game takes $MAME_SECONDS, and -listxml exits $MAME_LIST_LINGER
-    // seconds after its answer.
+    // seconds after its answer, -verifyroms $MAME_VERIFY_LINGER after its
+    // verdicts.
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
@@ -147,6 +148,7 @@ if [ "$1" = "-rompath" ] && [ "$3" = "-verifyroms" ]; then
 		esac
 	done
 	echo "$# romsets found"
+	[ -n "$MAME_VERIFY_LINGER" ] && sleep "$MAME_VERIFY_LINGER"
 	[ "$bad" = 1 ] && exit 2
 	exit 0
 fi
@@ -3698,6 +3700,42 @@ private slots:
         reader.finish();
         verdicts = reader.take();
         QVERIFY(verdicts.value(QStringLiteral("galaga")).good);
+    }
+
+    // A check held (a game starting) as MAME has answered for the last of
+    // its sets and has only to exit, then let go: done, with what MAME said.
+    // MAME isn't asked again with no set to check, which would have it check
+    // every machine it knows.
+    void romCheckLetGoWithNothingLeft() {
+        RomCheck::Job job;
+        job.mame = mamePath();
+        job.rompath = m_games;
+        job.workDir = m_data.path();
+        job.mameFrom = QStringLiteral("a mame");
+        job.mameSets = QStringList{ QStringLiteral("pacman"), QStringLiteral("sf2") };
+        qputenv("MAME_VERIFY_LINGER", "5");
+        const auto linger = qScopeGuard([] { qunsetenv("MAME_VERIFY_LINGER"); });
+        QFile::remove(m_log);
+        RomCheck check;
+        QSignalSpy done(&check, &RomCheck::done);
+        check.start(job, false);
+        const auto progress = [&check](const char *key) { return check.progress().value(QLatin1String(key)); };
+        QTRY_VERIFY_WITH_TIMEOUT(progress("stage").toString() == QLatin1String("MAME") && progress("done").toInt() == 2,
+                                 10000);
+        QVERIFY(check.active());
+        check.pause();
+        QVERIFY(check.active());
+        QVERIFY(progress("held").toBool());
+        QVERIFY(done.isEmpty());
+        check.resume();
+        QVERIFY(!check.active());
+        QCOMPARE(progress("result").toString(), QStringLiteral("Done"));
+        QCOMPARE(done.size(), 1);
+        const romcheck::Results results = done.first().first().value<romcheck::Results>();
+        QCOMPARE(results.sets.value(QStringLiteral("pacman")).mame, 1);
+        QCOMPARE(results.sets.value(QStringLiteral("sf2")).mame, -1);
+        QCOMPARE(logLines(QStringLiteral("verifyroms")),
+                 QStringList({ QStringLiteral("verifyroms ") + m_games, QStringLiteral("verifyroms pacman sf2") }));
     }
 
     // The pictures' records (RecordFile): read by folder, written whole off

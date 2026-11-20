@@ -137,7 +137,8 @@ public:
     // Starts one, held from the start (held: a game or MAME's -listxml
     // running) till resume(). Nothing while one is under way.
     void start(const Job &job, bool held);
-    // MAME's batch stopped where it had got to, the rest asked after resume().
+    // MAME's batch stopped where it had got to, the rest asked after
+    // resume(), which ends the check where none is left to ask.
     void pause();
     void resume();
     // { active, stage ("Archives" or "MAME"), done, total, held, result
