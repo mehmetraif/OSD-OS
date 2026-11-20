@@ -18,7 +18,8 @@ import OSDOS.Testing
 // keyboard (its signs, SHOW, the mouse), and their Continue Watching and
 // Next Up put the cursor back on the item left; the A–Z list the media
 // servers' lists are (LetterList), on its own; and Plex's list, each kind of
-// it, its letters and its rows. And Local Files' player: a remote's
+// it, its letters and its rows. A list takes a backend's error for its own
+// only while it waits for its rows. And Local Files' player: a remote's
 // channel or page keys step through the folder's films.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
@@ -358,6 +359,8 @@ StandInRoot {
         signal upNextLoaded(var items)
         function load_continue_watching() {}
         function load_up_next() {}
+        function load_items(parentId, includeTypes, sortBy) {}
+        function load_boxset_children(parentId) {}
     }
     ServerBackend { id: jellyfinBackend }
     ServerBackend { id: embyBackend }
@@ -950,6 +953,45 @@ StandInRoot {
             list = opened(left, ["a", "b"])
             compare(currentItemId(list), "b")
         }
+        // A list takes a backend's error for its own only while it waits for
+        // its rows: said then, and gone as the rows come after all (the
+        // error was another request's). One that comes once the rows are
+        // there (a request of a page left, failing late) is not this
+        // list's, and isn't drawn over its rows. Plex's list and its
+        // libraries, Jellyfin's and Emby's list and box set.
+        function test_listErrorOnlyWhileWaiting_data() {
+            var film = { ratingKey: "r1", itemId: "i1", title: "ALIEN", type: "movie" }
+            var show = { ratingKey: "r2", itemId: "i2", title: "ALIEN NATION", type: "series" }
+            var boxSet = { item: { itemId: "b1", title: "Alien" } }
+            return [
+                { tag: "plex list", module: "plex", view: "Items.qml", params: { listType: "library_all", sectionId: "7" },
+                  answer: "itemsLoaded", rows: [film], error: "errorMessage" },
+                { tag: "plex libraries", module: "plex", view: "Libraries.qml", params: {}, answer: "librariesLoaded",
+                  rows: [{ key: "1", title: "FILMS", sectionId: "1", sectionType: "movie" }], error: "errorMsg" },
+                { tag: "jellyfin list", module: "jellyfin", view: "Items.qml", params: { parentId: "l1" },
+                  answer: "itemsLoaded", rows: [film], error: "errorMessage" },
+                { tag: "emby list", module: "emby", view: "Items.qml", params: { parentId: "l1" },
+                  answer: "itemsLoaded", rows: [film], error: "errorMessage" },
+                { tag: "jellyfin box set", module: "jellyfin", view: "Boxset.qml", params: boxSet,
+                  answer: "boxsetChildrenLoaded", rows: [film, show], error: "errorMessage" },
+                { tag: "emby box set", module: "emby", view: "Boxset.qml", params: boxSet,
+                  answer: "boxsetChildrenLoaded", rows: [film, show], error: "errorMessage" }
+            ]
+        }
+        function test_listErrorOnlyWhileWaiting(data) {
+            var backend = data.module === "plex" ? plexBackend : data.module === "emby" ? embyBackend : jellyfinBackend
+            var page = open(data.module, data.view, data.params)
+            backend[data.answer](data.rows)
+            backend.errorOccurred("LOAD DETAIL FAILED: HTTP 404")
+            compare(page[data.error], "")
+            loader.source = ""
+            page = open(data.module, data.view, data.params)
+            backend.errorOccurred("LOAD LIBRARY FAILED: HTTP 500")
+            compare(page[data.error], "LOAD LIBRARY FAILED: HTTP 500")
+            backend[data.answer](data.rows)
+            compare(page[data.error], "")
+        }
+
         // The item a list view's cursor is on (its list of items, not of
         // letters).
         function currentItemId(list) {

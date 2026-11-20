@@ -61,6 +61,7 @@ FocusScope {
 
         function onBoxsetChildrenLoaded(children) {
             boxsetRoot.isLoading = false
+            boxsetRoot.errorMessage = ""
 
             // Bucket children by content type. Each bucket is re-sorted by
             // release date (oldest first) via sortCollectionItems before handoff.
@@ -97,10 +98,14 @@ FocusScope {
             }
         }
 
+        // Its own only while it waits for the box set, as a list's is
+        // (MediaServerItems): never drawn over the rows once they are shown.
         function onErrorOccurred(msg) {
+            console.log("[" + moduleRoot.moduleName + " Boxset] Error: " + msg)
+            if (!boxsetRoot.isLoading)
+                return
             boxsetRoot.isLoading = false
             boxsetRoot.errorMessage = msg
-            console.log("[" + moduleRoot.moduleName + " Boxset] Error: " + msg)
         }
     }
 
