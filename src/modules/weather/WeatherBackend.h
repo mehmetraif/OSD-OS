@@ -107,6 +107,9 @@ private:
     bool        useUsUnits() const;
 
     void resolveLocation();
+    // The place resolved: its name and where it is, and the forecast of a
+    // place somewhere else dropped.
+    void setPlace(const QString &name, double lat, double lon);
     void geocode(const QString &rawLine);
     // '#'-commented, one-entry-per-line config files: the location list and the
     // music playlist share the format, so they share the reader.

@@ -347,6 +347,97 @@ private slots:
         QVERIFY(!backend.m_refresh->isActive());
     }
 
+    // The forecast Weather holds is its place's: a Location changed to
+    // another place takes the place before's forecast away with it, so the
+    // new place's name is never over it, and a forecast that then can't be
+    // fetched is told as one that never came. The same place under another
+    // name, or its Other Places changed, keeps the forecast it has.
+    void weatherForecastGoesWithItsPlace() {
+        QTemporaryDir tmp;
+        // The setting saved as Settings saves it, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const char *key, const QVariant &value) {
+            QVERIFY(core.save_setting("com.osdos.weather", key, value));
+        };
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        // The newest request for the place's forecast (one place's, where the
+        // Other Places' asks for several at once).
+        const auto request = [network](const QString &latitude) -> Reply * {
+            for (qsizetype i = network->replies.size() - 1; i >= 0; --i) {
+                if (network->replies.at(i)->url().toString().contains("latitude=" + latitude + "&"))
+                    return network->replies.at(i);
+            }
+            return nullptr;
+        };
+        const QByteArray forecast = QJsonDocument(QJsonObject{
+            { "utc_offset_seconds", 0 },
+            { "current", QJsonObject{ { "temperature_2m", 10 }, { "weather_code", 0 }, { "is_day", 1 } } },
+            { "daily", QJsonObject{ { "time", QJsonArray{ "2026-01-01" } },
+                                    { "temperature_2m_min", QJsonArray{ 1 } },
+                                    { "temperature_2m_max", QJsonArray{ 9 } },
+                                    { "weather_code", QJsonArray{ 0 } } } } }).toJson();
+        QSignalSpy errors(&backend, &WeatherBackend::locationError);
+        QSignalSpy changes(&backend, &WeatherBackend::dataChanged);
+
+        // Chicago and its forecast.
+        config("location", "41.88, -87.63, Chicago");
+        backend.resolveLocation();
+        QVERIFY(request("41.8800"));
+        request("41.8800")->complete(forecast);
+        QVERIFY(backend.hasData());
+        QCOMPARE(backend.current().value("temperature").toString(), QString("10°"));
+        QCOMPARE(backend.forecast().size(), 1);
+
+        // The same place under another name, and its Other Places changed:
+        // the forecast is still its own.
+        config("location", "41.88, -87.63, Home");
+        backend.onSettingChanged("com.osdos.weather", "location", "41.88, -87.63, Home");
+        QCOMPARE(backend.locationName(), QString("HOME"));
+        QVERIFY(backend.hasData());
+        config("other_places", QStringList({ "60.0, 10.0, Oslo" }));
+        backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
+        QVERIFY(backend.hasData());
+        QCOMPARE(backend.forecast().size(), 1);
+
+        // Denver: Chicago's forecast goes as the place does.
+        changes.clear();
+        config("location", "39.74, -104.99, Denver");
+        backend.onSettingChanged("com.osdos.weather", "location", "39.74, -104.99, Denver");
+        QCOMPARE(backend.locationName(), QString("DENVER"));
+        QVERIFY(!backend.hasData());
+        QVERIFY(backend.current().isEmpty());
+        QVERIFY(backend.forecast().isEmpty());
+        QVERIFY(backend.almanac().isEmpty());
+        QVERIFY(changes.size() >= 1);
+        // Denver's can't be fetched: said, as with nothing to show.
+        Reply *failing = request("39.7400");
+        QVERIFY(failing);
+        failing->complete("{}");
+        QTRY_COMPARE(errors.size(), 1);
+        QCOMPARE(errors.first().first().toString(), QString("network"));
+        QVERIFY(!backend.hasData());
+        // And once it comes, it is Denver's.
+        backend.fetchWeather();
+        request("39.7400")->complete(forecast);
+        QVERIFY(backend.hasData());
+        QCOMPARE(backend.locationName(), QString("DENVER"));
+
+        // A place by name: the forecast before stays under its own name
+        // until the lookup says where the new one is.
+        config("location", "Paris, France");
+        backend.onSettingChanged("com.osdos.weather", "location", "Paris, France");
+        QCOMPARE(backend.locationName(), QString("DENVER"));
+        QVERIFY(backend.hasData());
+        Reply *lookup = network->replies.last();
+        QVERIFY(lookup->url().toString().contains("geocoding-api"));
+        lookup->complete(R"({"results":[{"name":"Paris","latitude":48.85,"longitude":2.35}]})");
+        QCOMPARE(backend.locationName(), QString("PARIS"));
+        QVERIFY(!backend.hasData());
+    }
+
     void markerFailureDoesNotArmUpdate() {
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());

@@ -513,7 +513,8 @@ void WeatherBackend::onSettingChanged(const QString &moduleId, const QString &ke
         fetchOthers();
     }
     // Another place: looked up again, where the file's was looked up once a
-    // run. The forecast on the screen stays until the new one is in.
+    // run. The forecast held stays until the lookup says where the new place
+    // is, and goes then if that is somewhere else (setPlace()).
     if (key == QLatin1String("location")) {
         m_resolved = false;
         resolveLocation();
@@ -738,10 +739,7 @@ void WeatherBackend::resolveLocation() {
     double lat = 0.0, lon = 0.0;
     QString label;
     if (parseCoordLine(primary, &lat, &lon, &label)) {
-        m_locationName = label;
-        m_lat = lat;
-        m_lon = lon;
-        m_resolved = true;
+        setPlace(label, lat, lon);
         qInfo("[Weather] using explicit coordinates -> %s (%.4f, %.4f)",
               qPrintable(m_locationName), m_lat, m_lon);
         fetchWeather();
@@ -754,16 +752,33 @@ void WeatherBackend::resolveLocation() {
                                                   double la, double lo) {
         if (generation != m_locationGeneration) return;
         if (!ok) { emitError(name); return; }   // name carries the reason here
-        m_locationName = name;
-        m_lat = la;
-        m_lon = lo;
-        m_resolved = true;
+        setPlace(name, la, lo);
         qInfo("[Weather] resolved \"%s\" -> %s (%.4f, %.4f)",
               qPrintable(primary), qPrintable(m_locationName), m_lat, m_lon);
         fetchWeather();
         resolveStations();
         resolveOthers(others);
     });
+}
+
+// The place, as its coordinates were typed or as the lookup found them. A
+// forecast held for somewhere else is the place before's: it goes with that
+// place, so that this one's name is never shown over it, and until this
+// place's own is in there is none (LOADING, and a fetch that fails is told as
+// one that never came, fetchFailed()). The same place under another name
+// keeps its forecast.
+void WeatherBackend::setPlace(const QString &name, double lat, double lon) {
+    const bool elsewhere = m_hasData && (lat != m_lat || lon != m_lon);
+    m_locationName = name;
+    m_lat = lat;
+    m_lon = lon;
+    m_resolved = true;
+    if (!elsewhere) return;
+    m_hasData = false;
+    m_current.clear();
+    m_forecast.clear();
+    m_almanac.clear();
+    emit dataChanged();
 }
 
 // Geocodes one "Name, qualifier, ..." line. Reports failure through `done` with
