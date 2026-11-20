@@ -127,10 +127,8 @@ ModuleRouter {
         root.changeWindow(playLayer, Qt.resolvedUrl("Play.qml"), { "navParams": params || {} })
     }
     function closePlay() {
-        if (!playLayer.item)
-            return
-        root.changeWindow(playLayer, "", {})
-        focusFront()
+        if (playLayer.item)
+            root.changeWindow(playLayer, "", {})
     }
     // Game Details and a room's page over the list too (pageLayer): back
     // from one is the list as it was left, at once, where it used to be
@@ -144,12 +142,13 @@ ModuleRouter {
         root.changeWindow(pageLayer, Qt.resolvedUrl(path), { "navParams": params || {} })
     }
     function closePage() {
-        if (!pageLayer.item)
-            return
-        root.changeWindow(pageLayer, "", {})
-        focusFront()
+        if (pageLayer.item)
+            root.changeWindow(pageLayer, "", {})
     }
-    // The keys to what is in front: a page over the list, else the list.
+    // The keys to what is in front: a page over the list, else the list. As
+    // a layer's view goes (its onItemChanged), not as it is asked to: with a
+    // window transition on, root.changeWindow() makes the change a moment
+    // later, and the keys given back before it would be the view's that goes.
     function focusFront() {
         var front = pageLayer.item || currentView
         if (front)
@@ -248,6 +247,7 @@ ModuleRouter {
         anchors.fill: parent
         visible: !playLayer.item
         onLoaded: { if (item) item.forceActiveFocus() }
+        onItemChanged: if (!item) moduleRoot.focusFront()
 
         Connections {
             target: pageLayer.item
@@ -268,6 +268,7 @@ ModuleRouter {
         objectName: "playLayer"
         anchors.fill: parent
         onLoaded: { if (item) item.forceActiveFocus() }
+        onItemChanged: if (!item) moduleRoot.focusFront()
 
         Connections {
             target: playLayer.item

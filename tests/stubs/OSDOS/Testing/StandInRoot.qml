@@ -215,8 +215,18 @@ Rectangle {
 
     // --- THE SHELL ---
     // Main.qml's changeWindow(): here the new view at once, without its
-    // transition.
-    function changeWindow(loader, source, properties, base) { loader.setSource(source, properties) }
+    // transition; or, for a test that sets changesDeferred, a moment later,
+    // as a transition has it (WindowChange catches the old window first),
+    // but for a loader's first view and into or out of a video's view.
+    property bool changesDeferred: false
+    readonly property var playbackView: /(Player|Play|Takeover|SignIn|Launch|Console)\.qml$/
+    function changeWindow(loader, source, properties, base) {
+        var from = String(loader.source)
+        if (!changesDeferred || from === "" || playbackView.test(from) || playbackView.test(String(source)))
+            loader.setSource(source, properties)
+        else
+            Qt.callLater(function() { if (loader) loader.setSource(source, properties) })
+    }
     // Where the menus can be a window on a desktop (Window Mode).
     property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
                              || Qt.platform.pluginName === "wayland"

@@ -570,6 +570,7 @@ StandInRoot {
             appCore.saved = {}
             root.navigations = []
             root.backs = 0
+            root.changesDeferred = false
         }
 
         function cleanup() {
@@ -3393,6 +3394,38 @@ StandInRoot {
             verify(!router.gameUp)
             verify(screen.visible)
             compare(screen.currentSet, "sf2")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            compare(root.backs, 0)
+        }
+
+        // Game Details over the list, and back from it, at once or with a
+        // window transition on, the change made a moment later (the
+        // stand-in's changesDeferred, as WindowChange makes it): once the
+        // page has gone the list has the keys again, and Attract Mode its
+        // turn.
+        function test_rootPageBack_data() {
+            return [{ tag: "at once", deferred: false }, { tag: "with a transition", deferred: true }]
+        }
+        function test_rootPageBack(data) {
+            root.changesDeferred = data.deferred
+            var router = openRoot({ screen: "Arcade", attract_mode: "In Order" })
+            var screen = shown(router)
+            var page = findChild(router, "pageLayer")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Down)   // Game Details
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return page.item !== null })
+            verify(page.item.activeFocus)
+            verify(!screen.visible)
+            verify(!screen.attractable)
+            keyClick(Qt.Key_Escape)
+            tryCompare(page, "item", null)
+            verify(screen.visible)
+            verify(screen.activeFocus)
+            verify(screen.attractable)
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
             compare(root.backs, 0)
