@@ -7499,6 +7499,42 @@ private slots:
         QCOMPARE(logLines(QStringLiteral("listxml")), QStringList({ QStringLiteral("listxml newgame") }));
     }
 
+    // A set that comes into the folder while MAME is asked about the others
+    // is asked about as that asking ends, not left for the next time the
+    // list opens.
+    void scanAsksSetsNewToTheFolder() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        writeFile(games + QStringLiteral("/pacman.zip"));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        // MAME answers at once and takes its time to exit: the asking is
+        // still under way while the folder is read again.
+        qputenv("MAME_LIST_LINGER", "3");
+        const auto linger = qScopeGuard([] { qunsetenv("MAME_LIST_LINGER"); });
+        QFile::remove(m_log);
+        arcade.refresh();
+        QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("answered")).size(), 1, 5000);
+        QVERIFY(arcade.scanning());
+        writeFile(games + QStringLiteral("/galaga.zip"));
+        QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
+        arcade.refresh();
+        QTRY_VERIFY_WITH_TIMEOUT(reading.size() >= 2 && !arcade.reading(), 5000);
+        QVERIFY(arcade.scanning());
+        QCOMPARE(logLines(QStringLiteral("listxml")), QStringList({ QStringLiteral("listxml pacman") }));
+        qunsetenv("MAME_LIST_LINGER");
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.looking() && !arcade.scanning(), 10000);
+        QCOMPARE(logLines(QStringLiteral("listxml")),
+                 QStringList({ QStringLiteral("listxml pacman"), QStringLiteral("listxml galaga") }));
+        QVERIFY(arcade.gameDetails(QStringLiteral("galaga")).contains(QStringLiteral("year")));
+    }
+
     // Nor is MAME run beside its own download, which puts its MAME in the
     // folder it runs from (Windows renames no folder a program runs from):
     // Check ROMs started meanwhile is held, a FinalBurn Neo game that

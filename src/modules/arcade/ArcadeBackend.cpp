@@ -1413,6 +1413,12 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
         return;
     }
     finishScan();
+    // The sets that came into the folder meanwhile: a read that listed them
+    // while this went on left them for its end (startScan()). Not after an
+    // asking that failed, which would fail again: the next time the list
+    // opens.
+    if (!m_scanFailed)
+        startScan();
     resumeRomCheck();
 }
 
