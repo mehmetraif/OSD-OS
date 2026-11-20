@@ -1291,6 +1291,33 @@ private slots:
                 startup << choice.toMap().value(QStringLiteral("label")).toString();
         }
         QVERIFY2(startup.contains(QStringLiteral("Killer Instinct")), qPrintable(startup.join(QStringLiteral(" | "))));
+
+        // A list that couldn't be saved (a lists.json that isn't JSON is
+        // never written over): the import says so, not how many it added,
+        // and OSD/OS Setup's file is kept for the next start, when it is
+        // taken.
+        const QString lists = m_data.path() + QStringLiteral("/lists.json");
+        writeFile(lists, "{ not JSON");
+        writeFile(file, "galaga\nmslug\n");
+        QSignalSpy changed(&again, &ArcadeBackend::gamesChanged);
+        done = again.importFavorites();
+        QVERIFY(!done.value(QStringLiteral("ok")).toBool());
+        QCOMPARE(done.value(QStringLiteral("message")).toString(),
+                 QStringLiteral("The favorites couldn't be saved: none added from ") + file);
+        QVERIFY(changed.isEmpty());
+        QCOMPARE(contents(lists), QByteArray("{ not JSON"));
+        writeFile(setup, R"({"favorites": ["galaga"]})");
+        again.afterReadTakeSetupFavorites();
+        QVERIFY(QFileInfo::exists(setup));
+        QVERIFY(QFile::remove(lists));
+        again.afterReadTakeSetupFavorites();
+        QVERIFY(!QFileInfo::exists(setup));
+        QCOMPARE(again.favoriteSets(), QStringList({ QStringLiteral("galaga") }));
+        // One that names only games there already has nothing to save.
+        writeFile(lists, "{ not JSON");
+        writeFile(setup, R"({"favorites": []})");
+        again.afterReadTakeSetupFavorites();
+        QVERIFY(!QFileInfo::exists(setup));
     }
 
     // MAME's cfg file with a DIP switch set: as MAME writes one, in place of

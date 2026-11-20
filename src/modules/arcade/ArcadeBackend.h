@@ -342,7 +342,8 @@ public:
     // The favourites' sets, in the list's order.
     QStringList favoriteSets() const;
     // The sets added to the favourites, those not there yet, as many as
-    // fit: { added, there, full } (full: those that didn't fit).
+    // fit: { added, there, full, saved } (full: those that didn't fit;
+    // saved: false where the list couldn't be written, and none was added).
     QVariantMap addFavorites(const QStringList &sets);
     // The file's text of the sets, a title after each; and the sets a file
     // names (anything after a # left out, a line's set alone, MAME's names
@@ -1064,7 +1065,8 @@ private:
     void resumeRomCheck();
     void romCheckDone(const romcheck::Results &results);
     // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
-    // once the games have been read, then gone (takeSetupFavorites()).
+    // once the games have been read, then gone (takeSetupFavorites()); kept
+    // for the next start where the list couldn't be saved.
     QString setupFavoritesPath() const { return m_home + QStringLiteral("/favorites-setup.json"); }
     void takeSetupFavorites();
 public:

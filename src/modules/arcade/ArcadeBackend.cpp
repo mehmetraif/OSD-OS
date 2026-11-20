@@ -2874,14 +2874,20 @@ QVariantMap ArcadeBackend::addFavorites(const QStringList &sets) {
                                     { QStringLiteral("path"), QStringLiteral("game:") + *it },
                                     { QStringLiteral("isFolder"), false } });
     }
-    if (m_appCore)
-        m_appCore->add_all_to_list(kModuleId, QStringLiteral("favorites"), entries, kMostFavorites);
+    // Not saved (a card that is full, a lists.json that can't be read and
+    // so isn't written over): none of them is a favourite, and none is
+    // said to be.
+    const bool saved = adding.isEmpty()
+                       || (m_appCore && m_appCore->add_all_to_list(kModuleId, QStringLiteral("favorites"), entries,
+                                                                   kMostFavorites));
+    if (!saved)
+        adding.clear();
     if (!adding.isEmpty()) {
         m_madeSets.clear();
         emit gamesChanged();
     }
     return { { QStringLiteral("added"), int(adding.size()) }, { QStringLiteral("there"), already },
-             { QStringLiteral("full"), full } };
+             { QStringLiteral("full"), full }, { QStringLiteral("saved"), saved } };
 }
 
 QVariantMap ArcadeBackend::exportFavorites() {
@@ -2907,6 +2913,9 @@ QVariantMap ArcadeBackend::importFavorites() {
     if (sets.isEmpty())
         return { { QStringLiteral("ok"), false }, { QStringLiteral("message"), file + QStringLiteral(" names no game") } };
     const QVariantMap done = addFavorites(sets);
+    if (!done.value(QStringLiteral("saved")).toBool())
+        return { { QStringLiteral("ok"), false },
+                 { QStringLiteral("message"), QStringLiteral("The favorites couldn't be saved: none added from ") + file } };
     QStringList parts{ QStringLiteral("%1 added").arg(done.value(QStringLiteral("added")).toInt()) };
     if (done.value(QStringLiteral("there")).toInt() > 0)
         parts << QStringLiteral("%1 there already").arg(done.value(QStringLiteral("there")).toInt());
@@ -2936,6 +2945,12 @@ void ArcadeBackend::takeSetupFavorites() {
             sets << set;
     }
     const QVariantMap done = addFavorites(sets);
+    // Kept where they couldn't be saved, for the next start to take: gone,
+    // they would be lost with nothing said.
+    if (!done.value(QStringLiteral("saved")).toBool()) {
+        qWarning("[Arcade] Favorites from OSD/OS Setup couldn't be saved: kept for the next start");
+        return;
+    }
     qInfo("[Arcade] Favorites from OSD/OS Setup: %d added, %d there already, %d didn't fit",
           done.value(QStringLiteral("added")).toInt(), done.value(QStringLiteral("there")).toInt(),
           done.value(QStringLiteral("full")).toInt());
