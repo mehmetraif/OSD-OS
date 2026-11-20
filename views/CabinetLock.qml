@@ -45,7 +45,8 @@ FocusScope {
         { key: "buttons", label: "Unlock Buttons", value: buttons !== "" ? buttons : "None",
           description: "One to four buttons or keys held together, a direction among them if you like:"
                        + " select, then hold them for two seconds. Each but a direction waits a moment for the"
-                       + " rest before it acts, so a START among them never starts a game" }
+                       + " rest before it acts, so a START among them never starts a game; one alone acts as"
+                       + " it is let go" }
     ]
 
     function refresh() {

@@ -1204,6 +1204,20 @@ bool InputManager::unlockPress(const QString &id, const QString &name, const Hel
         return false;
     }
     m_unlockHeld.insert(id, input);
+    if (m_unlockInputs.size() == 1) {
+        // The only unlock button: held, it is the unlock itself, so every
+        // press of it would be all of them held, and none would ever act.
+        // Its press waits until it is let go, when it acts as a tap
+        // (unlockRelease()), or until it has been held long enough, when it
+        // never does (unlockHeldOut()). A direction acts at once, as among
+        // several, and is let go of as it unlocks.
+        m_unlockSince.start();
+        m_unlockTimer.start();
+        if (direction && m_heldBack.isEmpty())
+            return false;
+        m_heldBack.append({ id, input.first, act });
+        return true;
+    }
     if (m_unlockHeld.size() == m_unlockInputs.size()) {
         unlockAllHeld();
         return true;
@@ -1252,10 +1266,17 @@ void InputManager::flushHeldBack() {
         h.act();
 }
 
-// All the unlock buttons held: none of them acts. What one began before the
-// rest came (a direction's move) is let go of, so that it goes no further,
-// and a key's repeats and its release go nowhere.
+// All the unlock buttons held: none of them acts.
 void InputManager::unlockAllHeld() {
+    quietUnlockHeld();
+    m_unlockSince.start();
+    m_unlockTimer.start();
+}
+
+// The unlock buttons held act no further: a press that waited is dropped,
+// what one began before (a direction's move) is let go of, and a key's
+// repeats and its release go nowhere.
+void InputManager::quietUnlockHeld() {
     m_heldBack.clear();
     m_heldBackTimer.stop();
     for (auto it = m_unlockHeld.cbegin(); it != m_unlockHeld.cend(); ++it) {
@@ -1270,13 +1291,14 @@ void InputManager::unlockAllHeld() {
         else
             releaseCoin(input);
     }
-    m_unlockSince.start();
-    m_unlockTimer.start();
 }
 
-// All of them held for kUnlockHoldMs.
+// All of them held for kUnlockHoldMs. An only one's press waited for this or
+// for its release (unlockPress()): it is dropped here, as several's are once
+// they are all held.
 void InputManager::unlockHeldOut() {
     m_unlockTimer.stop();
+    quietUnlockHeld();
     qInfo("[input] unlock buttons held: %s", qPrintable(unlockButtons()));
     emit unlockRequested();
 }
@@ -1489,8 +1511,10 @@ void InputManager::updatePlayers() {
     controllers::setPadMappings(mappings);
 
     // An unlock button is named by its pad's player (padInputId()): one held
-    // as the players change counts once pressed again.
+    // as the players change counts once pressed again, and a press of it
+    // that waited acts now (an only one's waits on no timer).
     if (m_playerPads != playing) {
+        flushHeldBack();
         m_unlockHeld.clear();
         m_unlockTimer.stop();
     }

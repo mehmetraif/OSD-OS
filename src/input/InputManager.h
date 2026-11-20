@@ -60,7 +60,8 @@ class JammaPins;
 // unlockRequested(), and Main.qml opens the main menu. A press of one of them
 // that isn't a direction waits a moment for the rest before it acts, so that
 // a START among them doesn't start a game first; once they are all held,
-// none of them acts.
+// none of them acts. One alone acts as it is let go, short of those three
+// seconds.
 class InputManager : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString lastInputDevice READ lastInputDevice NOTIFY lastInputDeviceChanged)
@@ -460,7 +461,9 @@ private:
     // with the lock on, one of them held back until the rest come or a moment
     // has gone by (true), act then, but a direction, which acts at once
     // unless one is held back already; all of them held, kept from the views
-    // (true). False for a press to act on now.
+    // (true). The only one there is has no rest to wait for: it is held
+    // back until it is let go, or held long enough. False for a press to
+    // act on now.
     bool unlockPress(const QString &id, const QString &name, const HeldInput &input, bool direction,
                      const std::function<void()> &act);
     // A release: reported while they are waited for (true); else, all of
@@ -471,6 +474,7 @@ private:
     bool heldBack(const QString &id) const;
     void flushHeldBack();
     void unlockAllHeld();
+    void quietUnlockHeld();
     void unlockHeldOut();
     void unlockCaptureChanged();
     void endUnlockCapture(bool saved);

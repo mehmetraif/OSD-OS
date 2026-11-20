@@ -3046,6 +3046,108 @@ private slots:
         window.removeEventFilter(&catcher);
         im.setTargetWindow(nullptr);
     }
+
+    // Cabinet Lock with one unlock button: the button still does what it
+    // does. Its press waits until it is let go, when it acts as a tap, or
+    // until it has been held three seconds, when it unlocks and never acts;
+    // another input's press lets it go first, as among several; a direction
+    // alone acts at once and stops as it unlocks. A key the same.
+    void loneUnlockButton() {
+        const auto only = [](const char *input, const char *name) {
+            return QVariantList{ QVariantMap{ { "input", QString::fromUtf8(input) }, { "name", QString::fromUtf8(name) } } };
+        };
+        AppCore core(m_app.path(), m_data.path());
+        QVERIFY(core.save_setting(QString(), "unlock_buttons", only("p1/start", "P1 START")));
+        QVERIFY(core.save_setting(QString(), "cabinet_lock", "On"));
+        InputManager im(m_data.path(), &core);
+        QSignalSpy keys(&im, &InputManager::mpvKeyRequested);
+        QSignalSpy letGo(&im, &InputManager::mpvKeysReleased);
+        QSignalSpy unlock(&im, &InputManager::unlockRequested);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Test Pad"));
+        QTRY_COMPARE(player(im, 1).value("name").toString(), QString("OSD/OS Test Pad"));
+        QCOMPARE(im.unlockButtons(), QString("P1 START"));
+
+        // A tap: nothing while it is down, its action as it is let go.
+        hold(pad, SDL_CONTROLLER_BUTTON_START);
+        QTest::qWait(500);
+        QCOMPARE(keysOf(keys), QStringList());
+        release(pad, SDL_CONTROLLER_BUTTON_START);
+        QTRY_COMPARE(keysOf(keys), QStringList({ "SPACE" }));
+        QTRY_COMPARE(letGo.count(), 1);
+        // Another button pressed meanwhile: START first, then that one.
+        keys.clear();
+        hold(pad, SDL_CONTROLLER_BUTTON_START);
+        hold(pad, SDL_CONTROLLER_BUTTON_A);
+        QTRY_COMPARE(keysOf(keys), QStringList({ "SPACE", "ENTER" }));
+        release(pad, SDL_CONTROLLER_BUTTON_A);
+        release(pad, SDL_CONTROLLER_BUTTON_START);
+        QTRY_COMPARE(letGo.count(), 3);
+        QCOMPARE(unlock.count(), 0);
+        // Held three seconds: unlock, and it acts neither then nor let go.
+        keys.clear();
+        hold(pad, SDL_CONTROLLER_BUTTON_START);
+        QVERIFY(unlock.wait(4000));
+        release(pad, SDL_CONTROLLER_BUTTON_START);
+        QTest::qWait(300);
+        QCOMPARE(keysOf(keys), QStringList());
+        QCOMPARE(unlock.count(), 1);
+
+        // A direction alone moves at once, and stops as it unlocks.
+        QVERIFY(core.save_setting(QString(), "unlock_buttons", only("p1/dpup", "P1 D-PAD ▲")));
+        QCOMPARE(im.unlockButtons(), QString("P1 D-PAD ▲"));
+        unlock.clear();
+        QCOMPARE(tap(pad, SDL_CONTROLLER_BUTTON_DPAD_UP, keys), QString("UP"));
+        keys.clear();
+        hold(pad, SDL_CONTROLLER_BUTTON_DPAD_UP);
+        QVERIFY(unlock.wait(4000));
+        const int moves = keys.count();
+        QVERIFY(moves > 1);
+        QTest::qWait(400);
+        QCOMPARE(keys.count(), moves);
+        release(pad, SDL_CONTROLLER_BUTTON_DPAD_UP);
+
+        // A key alone: its tap reaches the window as it is let go, press and
+        // release; held, it unlocks and the window has neither.
+        QQuickWindow window;
+        im.setTargetWindow(&window);
+        struct Catcher : QObject {
+            QList<int> pressed, released;
+            bool eventFilter(QObject *, QEvent *event) override {
+                if (event->type() == QEvent::KeyPress)
+                    pressed << static_cast<QKeyEvent *>(event)->key();
+                else if (event->type() == QEvent::KeyRelease)
+                    released << static_cast<QKeyEvent *>(event)->key();
+                return false;
+            }
+        } catcher;
+        window.installEventFilter(&catcher);
+        const auto send = [&window](QEvent::Type type, int key, bool repeat = false) {
+            QKeyEvent event(type, key, Qt::NoModifier, QString(), repeat);
+            QCoreApplication::sendEvent(&window, &event);
+        };
+        QVERIFY(core.save_setting(QString(), "unlock_buttons", only("key/49", "1")));
+        unlock.clear();
+        send(QEvent::KeyPress, Qt::Key_1);
+        send(QEvent::KeyPress, Qt::Key_1, true);
+        QTest::qWait(400);
+        QCOMPARE(catcher.pressed, QList<int>());
+        send(QEvent::KeyRelease, Qt::Key_1);
+        QTRY_COMPARE(catcher.released, QList<int>({ Qt::Key_1 }));
+        QCOMPARE(catcher.pressed, QList<int>({ Qt::Key_1 }));
+        catcher.pressed.clear();
+        catcher.released.clear();
+        send(QEvent::KeyPress, Qt::Key_1);
+        QVERIFY(unlock.wait(4000));
+        send(QEvent::KeyPress, Qt::Key_1, true);
+        send(QEvent::KeyRelease, Qt::Key_1);
+        QTest::qWait(300);
+        QCOMPARE(catcher.pressed, QList<int>());
+        QCOMPARE(catcher.released, QList<int>());
+        QCOMPARE(unlock.count(), 1);
+        window.removeEventFilter(&catcher);
+        im.setTargetWindow(nullptr);
+    }
 };
 
 QTEST_MAIN(ControllersTest)

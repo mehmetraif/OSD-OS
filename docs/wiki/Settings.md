@@ -351,6 +351,7 @@ While it is locked:
 - **Back** on the start module goes nowhere, and **Ctrl+Q** doesn't quit.
 - **The unlock buttons**, held together for three seconds, open the main menu. Held again, or after a restart, OSD/OS is locked again.
 - An unlock button pressed alone acts 0.3 seconds late; a direction acts at once.
+- With only one unlock button, that button acts as it is let go (a tap), since holding it is the unlock; a direction still acts at once.
 
 To turn the lock off from outside (forgotten buttons, a pad that is gone), either:
 
