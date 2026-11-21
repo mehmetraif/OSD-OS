@@ -2,6 +2,7 @@
 #include "Http.h"
 #include "Libretro.h"
 #include "Mame.h"
+#include "../../util/DurableFile.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -128,6 +129,11 @@ FbneoInstaller::FbneoInstaller(const QString &dataRoot, QObject *parent)
         emit progressChanged();
         emit finished(true, QString());
     });
+    // What a download stopped by the app closing left: up to tens of
+    // megabytes on the card, and nothing downloads yet.
+    for (const QString &path : { libretro::downloadedCore(m_dataRoot) + QStringLiteral(".zip"),
+                                 libretro::downloadedDat(m_dataRoot), libretro::downloadedLicense(m_dataRoot) })
+        QFile::remove(partOf(path));
 }
 
 void FbneoInstaller::start(const Source &source) {
@@ -201,7 +207,16 @@ void FbneoInstaller::unpack() {
             cleanUp();
             return error;
         }
-        // Over the ones before, whole, then the zip goes.
+        // On the card before they go over the ones before (a power cut
+        // after the rename would leave them short, and nothing to go back
+        // to), then over them, whole, then the zip goes.
+        for (const QString &path : { dat, license }) {
+            const QString why = syncPath(partOf(path));
+            if (!why.isEmpty()) {
+                cleanUp();
+                return QStringLiteral("%1 could not be written: %2").arg(partOf(path), why);
+            }
+        }
         for (const QString &path : { dat, license }) {
             const QString why = putInPlace(partOf(path), path);
             if (!why.isEmpty()) {
@@ -210,6 +225,13 @@ void FbneoInstaller::unpack() {
             }
         }
         cleanUp();
+        // The renames on the card too: the core's (QSaveFile wrote it whole)
+        // and the list's and licence's.
+        for (const QString &folder : { QFileInfo(core).absolutePath(), QFileInfo(dat).absolutePath() }) {
+            const QString why = syncPath(folder, true);
+            if (!why.isEmpty())
+                qWarning("[Arcade] %s could not be synced: %s", qPrintable(folder), qPrintable(why));
+        }
         return QString();
     }));
 }

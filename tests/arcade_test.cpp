@@ -4184,7 +4184,14 @@ private slots:
             return !parts.hasNext();
         };
 
+        // What a download stopped by the app closing left goes when the app
+        // starts again, before anything is downloaded.
+        for (const QString &path : { core + QStringLiteral(".zip.part"), libretro::downloadedDat(data.path()) + QStringLiteral(".part"),
+                                     libretro::downloadedLicense(data.path()) + QStringLiteral(".part") })
+            writeFile(path, "half a download");
+        QVERIFY(!noParts());
         FbneoInstaller installer(data.path());
+        QVERIFY(noParts());
         QSignalSpy finished(&installer, &FbneoInstaller::finished);
         installer.start(source("/core.zip", "/fbneo.dat"));
         QVERIFY(installer.running());
