@@ -76,6 +76,25 @@ private slots:
 #endif
     }
 
+    // The format a YouTube card hands yt-dlp, character for character: H.264
+    // first at the resolution's height, 480 lines for one it doesn't offer.
+    void youtubeFormat() {
+        NfcReaderBackend nfc(m_data.path(), m_data.path(), nullptr);
+        const auto format = [](int height) {
+            return QStringLiteral("bestvideo[height<=?%1][vcodec^=avc1]+bestaudio/bestvideo[height<=?%1]+bestaudio/"
+                                  "best[height<=?%1]/best").arg(height);
+        };
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("480p")), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("720p")), format(720));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("1080p")), format(1080));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("360p")), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("2160p")), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QString()), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("720p")),
+                 QStringLiteral("bestvideo[height<=?720][vcodec^=avc1]+bestaudio/bestvideo[height<=?720]+bestaudio/"
+                                "best[height<=?720]/best"));
+    }
+
     void longTitle() {
         NfcReaderBackend nfc(m_data.path(), m_data.path(), nullptr);
         // Two bytes a letter, then four (a letter of two UTF-16 halves).

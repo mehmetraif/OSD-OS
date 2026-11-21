@@ -313,6 +313,51 @@ private slots:
         QCOMPARE(opened(QStringLiteral("1?next=evil")), search);
         QCOMPARE(opened(QString()), search);
     }
+
+    // The format each ADVANCED choice hands yt-dlp, character for character:
+    // H.264 ahead of any codec, a dub's language ahead of the codec, and the
+    // original track and plain best last.
+    void formats() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QFile config(data.path() + QStringLiteral("/config.json"));
+        QVERIFY(config.open(QIODevice::WriteOnly));
+        config.write("{}");
+        config.close();
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        const QString plain480 = QStringLiteral(
+            "bestvideo[height<=?480][vcodec^=avc1]+bestaudio/bestvideo[height<=?480]+bestaudio/"
+            "best[height<=?480]/best");
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("480p"), QStringLiteral("H.264"), QStringLiteral("Any"),
+                                    QStringLiteral("original")), plain480);
+        // A resolution it doesn't know is 480p; "Original" in any case is no language.
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("576i"), QStringLiteral("H.264"), QStringLiteral("Any"),
+                                    QStringLiteral("ORIGINAL")), plain480);
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("1080p"), QStringLiteral("Any"), QStringLiteral("30"),
+                                    QStringLiteral("pt-BR")),
+                 QStringLiteral("bestvideo[height<=?1080][fps<=?30]+bestaudio[language^=pt-br]/"
+                                "bestvideo[height<=?1080][fps<=?30]+bestaudio/"
+                                "best[height<=?1080][fps<=?30]/best"));
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("2160p"), QStringLiteral("H.264"), QStringLiteral("60"),
+                                    QStringLiteral(" ES ")),
+                 QStringLiteral("bestvideo[height<=?2160][vcodec^=avc1]+bestaudio[language^=es]/"
+                                "bestvideo[height<=?2160]+bestaudio[language^=es]/"
+                                "bestvideo[height<=?2160][vcodec^=avc1]+bestaudio/"
+                                "bestvideo[height<=?2160]+bestaudio/best[height<=?2160]/best"));
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("240p"), QStringLiteral("H.264"), QStringLiteral("Any"), QString()),
+                 QStringLiteral("bestvideo[height<=?240][vcodec^=avc1]+bestaudio/bestvideo[height<=?240]+bestaudio/"
+                                "best[height<=?240]/best"));
+        // What mpv and a download are given, from the settings' defaults.
+        QCOMPARE(youtube.playbackArgs(youtube.playbackSettings()),
+                 QStringList({ QStringLiteral("--ytdl=yes"), QStringLiteral("--ytdl-format=") + plain480 }));
+        QCOMPARE(youtube.downloadArgs(true),
+                 QStringList({ QStringLiteral("-f"), plain480, QStringLiteral("--merge-output-format"),
+                               QStringLiteral("mp4") }));
+        QCOMPARE(youtube.downloadArgs(false),
+                 QStringList({ QStringLiteral("-f"),
+                               QStringLiteral("best[height<=?480][vcodec^=avc1]/best[height<=?480]/best") }));
+    }
 };
 
 QTEST_GUILESS_MAIN(YouTubeTest)
