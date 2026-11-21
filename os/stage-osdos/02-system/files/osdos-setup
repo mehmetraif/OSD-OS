@@ -383,7 +383,7 @@ class Setup:
         # login off (pi-gen's PUBKEY_ONLY_SSH) mustn't win over its being on.
         try:
             if password_login:
-                self.write_root(self.path(SSHD_CONF), "# OSD/OS Setup: pi's password logs in too.\n"
+                self.write_root(self.path(SSHD_CONF), f"# OSD/OS Setup: {self.user}'s password logs in too.\n"
                                                       "PasswordAuthentication yes\n", 0o644)
             else:
                 self.write_root(self.path(SSHD_CONF), "# OSD/OS Setup: only the keys in ~/.ssh/authorized_keys log in.\n"
