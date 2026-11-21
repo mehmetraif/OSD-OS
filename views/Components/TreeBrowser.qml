@@ -343,15 +343,25 @@ FocusScope {
 
     // Places the columns side by side. The one with the cursor, when nothing
     // in it branches, takes the room up to the right edge for long names.
+    // With expandedFolderPreviews a folder's column keeps to a third of the
+    // room, for the branches to its right; but the one beside a last column
+    // of files, which draws no branch, has what those files leave it, so a
+    // long name (RECENTLY WATCHED) shows whole where there is room for it.
     function placeColumns() {
         var xs = []
         var ws = []
         var x = 0
+        var whole = rightEdge - leftEdge
+        var last = trail.count > 0 ? listing(trail.get(trail.count - 1).path) : null
+        var lastNeeds = last && last.leaf ? Math.min(last.fullWidth, whole) : -1
         for (var i = 0; i < trail.count; ++i) {
             var l = listing(trail.get(i).path)
             var w = l.width
-            if (expandedFolderPreviews && !l.leaf)
-                w = Math.min(w, (rightEdge - leftEdge - 2 * branchGap) / 3)
+            if (expandedFolderPreviews && !l.leaf) {
+                var third = (whole - 2 * branchGap) / 3
+                w = Math.min(w, i === trail.count - 2 && lastNeeds >= 0
+                                ? Math.max(third, whole - pad - gap - lastNeeds) : third)
+            }
             if (i === trail.count - 1 && l.leaf) {
                 // The cursor's box reaches a pad past the column.
                 var room = rightEdge - leftEdge - pad - (i > 0 ? ws[i - 1] + gap : 0)

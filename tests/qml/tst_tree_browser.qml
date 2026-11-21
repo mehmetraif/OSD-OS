@@ -340,6 +340,29 @@ StandInRoot {
             fuzzyCompare(slider.x, distance(), 0.5)
             verify(distance() < -10, "the name is too long for its column: " + distance())
         }
+        // A folder's column keeps to a third of the room while the branches
+        // need the rest; beside a folder of files, which draws none, it has
+        // the room the files leave it, and a long name shows whole.
+        function test_folderColumnBesideFilesHasItsRoom() {
+            var name = "recently watched"
+            root.entries["/"] = [root.folder(name, "/recent"), root.folder("films", "/films"),
+                                 root.folder("projects", "/projects")]
+            root.entries["/recent"] = [root.file("one", "/recent/one")]
+            browser.refresh("/")
+            browser.relayout()
+            var third = (browser.rightEdge - browser.leftEdge - 2 * browser.branchGap) / 3
+            verify(browser.textWidth(name) > third, "a name longer than a third")
+            compare(browser.columnW[0], third)
+            browser.move(1)
+            verify(browser.openFolder())
+            compare(browser.selectedItem().path, "/films/one")
+            compare(browser.columnW[0], browser.textWidth(name))
+            verify(browser.columnW[0] + browser.gap + browser.columnW[1] <= browser.rightEdge - browser.leftEdge,
+                   "both in the room")
+            verify(browser.closeFolder())
+            compare(browser.columnW[0], third)
+        }
+
         function test_longNameScrollsAsFarAsItOverflows() {
             var first = "a film whose name runs past its end"
             var second = "a film whose name runs on past its end"
