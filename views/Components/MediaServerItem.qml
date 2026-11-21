@@ -645,9 +645,9 @@ FocusScope {
     }
 
     // Launch overlay — covers the detail screen while the stream URL is prepared.
-    Rectangle {
+    // The loading screen draws its own ground.
+    Item {
         anchors.fill: parent
-        color: root.surfaceColor
         visible: isLaunching
         z: 100
 

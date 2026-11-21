@@ -1223,8 +1223,7 @@ void EmbyApiBackend::fetchNextEpisode(const QString &seriesId, const QString &it
 }
 
 void EmbyApiBackend::report_playback_start(const QString &itemId, const QString &mediaSourceId,
-                                           const QString &audioStreamId, const QString &subtitleStreamId,
-                                           qint64 startPositionTicks) {
+                                           const QString &audioStreamId, const QString &subtitleStreamId) {
     if (!has_auth()) return;
 
     // Called from get_playback_url() once PlaybackInfo resolves, so the session
@@ -1239,8 +1238,6 @@ void EmbyApiBackend::report_playback_start(const QString &itemId, const QString 
                                                              : m_currentPlayMethod;
     body["IsPaused"]          = false;
     body["CanSeek"]           = true;
-    if (startPositionTicks > 0)
-        body["StartPositionTicks"] = startPositionTicks;
     if (!audioStreamId.isEmpty())
         body["AudioStreamIndex"] = audioStreamId.toInt();
     if (!subtitleStreamId.isEmpty())

@@ -30,7 +30,7 @@ ModuleRouter {
         // Show an initial view synchronously so the module always renders a
         // screen, even if the background token check stalls on an unreachable
         // server. check_auth() then validates the stored token; onAuthStateChanged
-        // (and onAuthRevoked) re-route to Auth.qml if it was revoked.
+        // re-routes to Auth.qml if it was revoked.
         if (embyBackend.get_auth_state() === "authed") {
             replaceWith("Libraries.qml", {})
             embyBackend.check_auth()

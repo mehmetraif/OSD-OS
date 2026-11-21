@@ -199,7 +199,7 @@ protected:
 
     // The playback get_playback_url() resolved, told to the server as it starts.
     void report_playback_start(const QString &itemId, const QString &mediaSourceId, const QString &audioStreamId,
-                               const QString &subtitleStreamId, qint64 startPositionTicks = 0);
+                               const QString &subtitleStreamId);
 
     // get_playback_url(), with sdrCap: an otherwise uncapped transcode held
     // to 1080p and 20 Mbps (Emby's Dolby Vision source, transcoded to SDR).
