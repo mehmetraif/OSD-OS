@@ -4,7 +4,7 @@ The Jellyfin module plays films, series and home videos from a [Jellyfin](https:
 
 <table>
 <tr><th width="50%">Jellyfin</th><th width="50%">Add to Playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/jellyfin.png" width="100%" alt="Jellyfin: Connect to Server, with the Server URL field and the Quick Connect button" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? The playlists, then New Online Playlist and New Offline Playlist" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/jellyfin.png" width="100%" alt="Jellyfin: Connect to Server, with the Server Address field and the Quick Connect button" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? The playlists first, then a line and New Online Playlist, New Offline Playlist below it" /></td></tr>
 </table>
 
 ## What you need

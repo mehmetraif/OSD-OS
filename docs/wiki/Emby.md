@@ -4,7 +4,7 @@ The Emby module plays films, series and home videos from an [Emby](https://emby.
 
 <table>
 <tr><th width="50%">Emby</th><th width="50%">Resume</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/emby.png" width="100%" alt="Emby: Connect to Server, with Local Server or Emby Connect, Server URL, Username, Password and Sign In" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume playback? Resume from 1:12:34, or start from the beginning" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/emby.png" width="100%" alt="Emby: Connect to Server, with Your Server (marked) or Emby Connect, Server Address, Username, Password, Sign In, and the status line under the form" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume playback? Resume from 1:12:34, or start from the beginning" /></td></tr>
 </table>
 
 ## What you need

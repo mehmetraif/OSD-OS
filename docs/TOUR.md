@@ -79,7 +79,7 @@ Every screen below is the app itself, running at 640×480. The film and YouTube 
 <table>
 <tr><th width="33%">Plex</th><th width="33%">Jellyfin</th><th width="33%">Emby</th></tr>
 <tr><td><img src="screenshots/plex-sign-in.png" width="100%" alt="Plex" /></td><td><img src="screenshots/jellyfin.png" width="100%" alt="Jellyfin" /></td><td><img src="screenshots/emby.png" width="100%" alt="Emby" /></td></tr>
-<tr><td>Sign in with a code at plex.tv/link.</td><td>Connect to a server with Quick Connect.</td><td>A server on your network, or Emby Connect.</td></tr>
+<tr><td>Sign in with a code at plex.tv/link.</td><td>Connect to a server with Quick Connect.</td><td>Your own server, at home or away, or Emby Connect.</td></tr>
 </table>
 
 Once signed in, each opens on the server's Continue Watching and its libraries. See [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) for everything they do.

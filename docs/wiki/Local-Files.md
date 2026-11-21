@@ -49,7 +49,7 @@ Selecting **Media Folder** opens the folder picker, the same tree:
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker: Use This Folder at the top of each folder" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: Enabled, Media Folder, Loop Playback, Shuffle Playback, Resume Playback, Subtitles, Subtitles In, Image Duration 5 sec, and the help line of the row under the cursor" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker: Use This Folder at the top of each folder" /></td></tr>
 <tr><td>Local Files' settings.</td><td>USE THIS FOLDER picks the folder open, Default Folder the module's own.</td></tr>
 </table>
 
@@ -256,7 +256,7 @@ Positions are kept in `local_files_history.json` in the data folder, the 1000 mo
 
 <table>
 <tr><th width="50%">The video's menu</th><th width="50%">Main menu</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' player menu over the picture: Auto Show Subtitles, Subtitle Language, Loop Playback, Scaling, Add to Favorites, Play at Startup, Browse Local Files, Close Video" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="The main menu leading with the video playing behind it" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' menu for a video over the picture: Back to Local Files, Stop, to Main Menu, then Subtitles, Subtitles In, Loop Playback, Scaling and Add to Favorites" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="The main menu leading with the video playing behind it" /></td></tr>
 <tr><td>Back during a video opens its menu.</td><td>The main menu leads with the video: select takes it back to full screen.</td></tr>
 </table>
 

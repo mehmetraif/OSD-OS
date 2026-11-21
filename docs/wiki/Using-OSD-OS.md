@@ -158,7 +158,7 @@ In Netflix, Prime Video and YouTube a title has an info screen: a **PLAY ►** b
 
 <table>
 <tr><th width="50%">Options</th><th width="50%">Add to Playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/options.png" width="100%" alt="Options for a video file: ADD TO FAVORITES, PLAY AT STARTUP, ADD TO PLAYLIST" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for a video: the playlists, then NEW ONLINE PLAYLIST and NEW OFFLINE PLAYLIST" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/options.png" width="100%" alt="Options for a video file: ADD TO FAVORITES, PLAY AT STARTUP, ADD TO PLAYLIST" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for a video: the playlists, a line, then NEW ONLINE PLAYLIST and NEW OFFLINE PLAYLIST below it" /></td></tr>
 <tr><td>► on any video.</td><td>From a video's options, or ► on PLAY in Jellyfin and Emby.</td></tr>
 </table>
 
@@ -245,7 +245,7 @@ During a video, ▲ or ▼ opens the deck's menu. Its top left names the audio t
 
 ### The video's own menu
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' menu for a video over the picture: AUTO SHOW SUBTITLES FORCED ONLY, SUBTITLE LANGUAGE ANY, LOOP PLAYBACK OFF, SCALING DEFAULT, ADD TO FAVORITES, PLAY AT STARTUP, BROWSE LOCAL FILES, CLOSE VIDEO" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' menu for a video over the picture: BACK TO LOCAL FILES under the cursor, STOP, TO MAIN MENU, then SUBTITLES FORCED ONLY, SUBTITLES IN ANY, LOOP PLAYBACK OFF, SCALING DEFAULT, ADD TO FAVORITES" />
 
 Local Files, YouTube and Playlists give a video a menu of its own:
 

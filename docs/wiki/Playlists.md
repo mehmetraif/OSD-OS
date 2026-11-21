@@ -6,7 +6,7 @@ The module is in [modules/playlists](https://github.com/mehmetraif/OSD-OS/tree/m
 
 <table>
 <tr><th width="50%">Playlists</th><th width="50%">An offline playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlists.png" width="100%" alt="Playlists: New Online Playlist, New Offline Playlist, then Martial Arts Night 2/5 Offline, Anime Night 3/3 Offline and Sunday Matinee 6 Online" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist.png" width="100%" alt="The page of the offline playlist Martial Arts Night: Retry Downloads, Delete Playlist, then its videos, Ready, 29%, Queued or Not Allowed" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlists.png" width="100%" alt="Playlists: Martial Arts Night 2/5 Offline, Anime Night 3/3 Offline and Sunday Matinee 6 Online, then New Online Playlist and New Offline Playlist under the NEW heading" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist.png" width="100%" alt="The page of the offline playlist Martial Arts Night: Retry Downloads, Delete Playlist, then its videos, Ready, 29%, Queued or Not Allowed" /></td></tr>
 <tr><td>Online playlists, and offline ones with how many of their videos are on the device.</td><td>Each video downloads once, in the background.</td></tr>
 </table>
 
@@ -77,7 +77,7 @@ Select on a video opens its choices:
 
 <table>
 <tr><th width="50%">Adding videos</th><th width="50%">Add to Playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist-add.png" width="100%" alt="Add to Martial Arts Night: Jellyfin's Continue Watching, Next Up and Movies, Movies open on its films" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for Mortal Kombat (1995).mp4: Martial Arts Night (Offline), Anime Night (Offline), Sunday Matinee, New Online Playlist, New Offline Playlist" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist-add.png" width="100%" alt="Add to Martial Arts Night: Jellyfin's Continue Watching, Next Up and Movies, Movies open on its films" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for Mortal Kombat (1995).mp4: Martial Arts Night (Offline), Anime Night (Offline), Sunday Matinee, a line, then New Online Playlist, New Offline Playlist below it" /></td></tr>
 <tr><td>Local Files, YouTube, Jellyfin and Emby in one tree. Select adds a video and stays, for the next.</td><td>From a module itself: a video's options (►), or ► on PLAY in Jellyfin and Emby.</td></tr>
 </table>
 
