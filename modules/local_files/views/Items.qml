@@ -150,10 +150,12 @@ FocusScope {
         function onEntriesReady(path) { tree.refresh(path) }
         // A drive plugged in or taken out: the top of the tree lists it or
         // not, folders open on one taken out close, and the two lists show
-        // its files again or leave them out.
+        // its files again or leave them out. The backend let go of the reads
+        // under way, so the folders waiting on one ask again.
         function onDrivesChanged(gone) {
             for (var i = 0; i < gone.length; ++i)
                 tree.leave(gone[i])
+            tree.refreshPending()
             tree.refresh(itemsRoot.rootPath, true)
             tree.refresh("recent", true)
             tree.refresh("favorites", true)

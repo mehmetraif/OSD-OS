@@ -108,6 +108,20 @@ FocusScope {
             layoutBranches(true)
     }
 
+    // Every folder still on its way asked for again: for a host whose source
+    // dropped the reads under way (Local Files' as a drive comes or goes),
+    // whose answers would never come. Folders that have come in stay as
+    // they are.
+    function refreshPending() {
+        var waiting = []
+        for (var p in listings) {
+            if (listings[p].pending)
+                waiting.push(p)
+        }
+        for (var i = 0; i < waiting.length; ++i)
+            refresh(waiting[i])
+    }
+
     // The cursor of an open folder put on its entry at entryPath: for a host
     // that opened the tree down a trail on trust (savedTrail, its folders
     // still on their way), as each folder comes in. False when the folder

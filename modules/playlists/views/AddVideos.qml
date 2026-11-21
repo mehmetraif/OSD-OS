@@ -170,6 +170,7 @@ FocusScope {
         function onDrivesChanged(gone) {
             for (var i = 0; i < gone.length; ++i)
                 tree.leave("local:" + gone[i])
+            tree.refreshPending()
             tree.refresh("local:" + localFilesBackend.mediaRoot(), true)
         }
     }
