@@ -69,12 +69,15 @@ Item {
         color: "#000000"
     }
 
-    // Bouncing logo — classic DVD player screen saver
+    // Bouncing logo — classic DVD player screen saver. A tenth of the
+    // screen's width, as the one over a paused video
+    // (scripts/mpv-screensaver.lua).
     Image {
         id: bounceLogo
+        objectName: "bounceLogo"
         source: "../../assets/images/logo.svg"
-        sourceSize.width: root.sw * 0.05
-        sourceSize.height: root.sw * 0.05
+        sourceSize.width: root.sw * 0.1
+        sourceSize.height: root.sw * 0.1
         fillMode: Image.PreserveAspectFit
         antialiasing: true
 

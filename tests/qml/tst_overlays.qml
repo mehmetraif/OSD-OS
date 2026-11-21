@@ -618,6 +618,16 @@ StandInRoot {
             compare(root.viewKeys, 1)
         }
 
+        // The logo is a tenth of the screen's width, the size of the one
+        // over a paused video.
+        function test_theLogoIsATenthAcross() {
+            root.saverUp = true
+            var logo = findChild(saver, "bounceLogo")
+            verify(logo !== null)
+            verify(Math.abs(logo.sourceSize.width - root.sw * 0.1) <= 1,
+                   "the logo's width: " + logo.sourceSize.width + " of " + root.sw)
+        }
+
         // A question the view asks while the saver is up (the update's, as
         // its download ends) opens under it without the keys: the saver
         // keeps them, the key that wakes it answers nothing, and the
