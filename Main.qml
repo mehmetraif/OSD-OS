@@ -461,7 +461,7 @@ Window {
     readonly property var layoutRead: ({ name: "Standard" })
     property string menuLayout: {
         if (appCore)
-            layoutRead.name = menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
+            layoutRead.name = menuLayoutOf(appCore.get_setting("", "menu_layout"))
         return layoutRead.name
     }
     // The monitor layouts' colours, whatever the colour scheme: the ground,

@@ -404,7 +404,7 @@ FocusScope {
     // A backend that sends a row's choices again may have put its value back
     // (a profile switch that failed): the saved value is read again.
     function readAgain(mid, own, key) {
-        var saved = savedIn((appCore.get_settings().modules || {})[mid] || {}, key)
+        var saved = appCore.get_setting(mid, key)
         var shown = own === "" ? currentValues : (alsoValues[own] || {})
         if (saved === undefined || savedIn(shown, key) === saved) return
         var values = withSaved(shown, key, saved)
