@@ -45,7 +45,7 @@ QtObject {
     // A setting changed in the menu that the video can't take as it plays:
     // the session starts again where it is as the menu closes.
     property bool reloadOnClose: false
-    // CLOSE VIDEO: the session's end leaves the module for the main menu.
+    // STOP, TO MAIN MENU: the session's end leaves the module for the main menu.
     property bool closeToMainMenu: false
 
     // Back during the video, or its end for the menu: the player opens its
@@ -83,7 +83,7 @@ QtObject {
             mpvController.releaseKeys()
     }
 
-    // Back to the module's menus, or, after CLOSE VIDEO, to the main menu.
+    // Back to the module's menus, or, after STOP, TO MAIN MENU, to the main menu.
     function leave() {
         if (closeToMainMenu)
             moduleRoot.leaveModule()
@@ -91,10 +91,10 @@ QtObject {
             player.goBack()
     }
 
-    // The menu's own lines: BROWSE (the module's menus, the video playing on
-    // behind them) and CLOSE VIDEO. True when it was one of them. Ended for
-    // the menu (an mpv process has the screen), the video is saved already,
-    // and nothing plays to stop: the player goes itself.
+    // The menu's own lines: BACK TO <MODULE> (the module's menus, the video
+    // playing on behind them) and STOP, TO MAIN MENU. True when it was one of
+    // them. Ended for the menu (an mpv process has the screen), the video is
+    // saved already, and nothing plays to stop: the player goes itself.
     function menuAction(action) {
         if (action === "browse") {
             menu.close()

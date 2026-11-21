@@ -264,11 +264,11 @@ Back during a video (with the deck's menu closed) opens the video's own menu:
 
 | Line | What it does |
 |---|---|
+| **Back to Local Files** | Back to the tree. With Transparent Background the video plays on behind it; without, it stops where it is |
+| **Stop, to Main Menu** | Stops the video and leaves Local Files for the main menu |
 | **Auto Show Subtitles**, **Subtitle Language** | ◄ ► change the module setting; the video reloads where it is as you go back to it |
 | **Loop Playback**, **Scaling** | ◄ ► change it; with Transparent Background the playing video takes it at once |
 | **Add to Favorites**, **Play at Startup** | As in the file's options |
-| **Browse Local Files** | Back to the tree |
-| **Close Video** | Stops the video and leaves Local Files for the main menu |
 
 - Back in the menu returns to the video.
 - A setting changed here is saved as the module's setting.

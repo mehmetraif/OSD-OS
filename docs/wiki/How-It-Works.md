@@ -293,10 +293,10 @@ stateDiagram-v2
     FullScreen --> Behind: back
     FullScreen --> PlayerMenu: back, in Local Files or YouTube
     PlayerMenu --> FullScreen: back
-    PlayerMenu --> Behind: Browse
+    PlayerMenu --> Behind: Back to the module
     Behind --> FullScreen: chosen again, or its row on the main menu
     FullScreen --> [*]: it plays out
-    PlayerMenu --> [*]: Close Video
+    PlayerMenu --> [*]: Stop, to Main Menu
     Behind --> [*]: play/pause on the main menu, another video, a hand-off, the setting off
 ```
 

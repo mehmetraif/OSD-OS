@@ -74,8 +74,10 @@ StandInRoot {
         }
         function get_module_info(id) { return { name: moduleRoot.moduleName, icon: "" } }
         function is_module_enabled(id) { return false }
-        // The video's menu (PlayerMenu): the module's rows, none here.
-        function get_module_settings_schema(id) { return [] }
+        // The video's menu (PlayerMenu): the module's rows, none unless a
+        // test gives some.
+        property var schema: []
+        function get_module_settings_schema(id) { return schema }
         function invoke_module_action(id, slot) {}
         function save_setting(id, key, value) {}
         signal dynamicOptionsReady(string moduleId, string key, var items)
@@ -495,7 +497,9 @@ StandInRoot {
             root.videoBehind = false
             root.takeBackNote = ({})
             appCore.settings = {}
+            appCore.schema = []
             appCore.lists = {}
+            root.hints = root.keyboardHints
             mpvController.loads = 0
             mpvController.urls = []
             mpvController.starts = []
@@ -2305,7 +2309,98 @@ StandInRoot {
             compare(mpvController.playlistStarts[0], 2)
         }
 
-        // CLOSE VIDEO in a player's menu (YouTube's, Local Files',
+        // A video's own menu (PlayerMenu) in every player that has one: its
+        // two ways out first, under the cursor as it opens, each with its
+        // help, then a gap the cursor passes over, then the settings, then
+        // the player's own lines. The same rows with Transparent Background
+        // on (a video behind the menus) and off; only BACK TO's help says
+        // which. The hint bar names CHANGE on a setting alone and SELECT on
+        // an action alone, in a keyboard's names and a pad's.
+        function test_playerMenu_data() {
+            var talk = { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" }
+            var rows = []
+            for (var module of ["youtube", "local_files", "playlists"]) {
+                for (var behind of [false, true]) {
+                    for (var pad of [false, true]) {
+                        rows.push({ tag: module + (behind ? ", behind the menus" : ", ended for it") + (pad ? ", a pad" : ""),
+                                    module: module, behind: behind, pad: pad,
+                                    params: module === "youtube" ? { item: talk }
+                                          : module === "local_files" ? { filePath: "/films/B.mkv", title: "B.mkv" }
+                                          : { playlistId: "p1" },
+                                    own: module === "youtube" ? ["Add to Favorites", "Play at Startup", "Save to Watch Later"]
+                                       : module === "local_files" ? ["Add to Favorites", "Play at Startup"] : [] })
+                    }
+                }
+            }
+            return rows
+        }
+        function test_playerMenu(data) {
+            appCore.settings = { resume_playback: "no", shuffle_playback: "no" }
+            appCore.schema = [{ key: "video_scaling", label: "Scaling", type: "list_single",
+                                options: ["Default", "Fit"], default: "Default" }]
+            playlistsBackend.resumeIndex = -1
+            moduleRoot.moduleName = data.module === "youtube" ? "YouTube"
+                                  : data.module === "local_files" ? "Local Files" : "Playlists"
+            if (data.pad)
+                root.hints = Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" })
+            var h = root.hints
+            var player = open(data.module, "Player.qml", data.params)
+            mpvController.videoActive = data.behind
+            player.openMenu()
+            var menu = null
+            for (var i = 0; i < player.children.length; i++) {
+                if (typeof player.children[i].exits === "function")
+                    menu = player.children[i]
+            }
+            verify(menu !== null && menu.visible)
+            var name = moduleRoot.moduleName
+            compare(menu.rows.map(function(r) { return r.label || "" }),
+                    ["Back to " + name, "Stop, to Main Menu", "", "Scaling"].concat(data.own))
+            compare(menu.rows[2].gap, true)
+            compare(menu.rows[0].description, data.behind ? "To " + name + "'s lists, the video playing on behind them"
+                                                          : "To " + name + "'s lists. The video stops where it is")
+            compare(menu.rows[1].description, "Ends the video and goes to the main menu")
+            var hintBar = function() {
+                for (var j = 0; j < menu.children.length; j++) {
+                    var item = menu.children[j]
+                    if (typeof item.text === "string" && item.text.indexOf(":VIDEO") >= 0)
+                        return item.text
+                }
+                return ""
+            }
+            var list = null
+            for (var k = 0; k < menu.children.length; k++) {
+                if (menu.children[k].currentIndex !== undefined && typeof menu.children[k].step === "function")
+                    list = menu.children[k]
+            }
+            compare(list.currentIndex, 0)
+            compare(hintBar(), h.back + ":VIDEO " + h.navigate + ":NAVIGATE " + h.select + ":SELECT")
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 1)
+            compare(hintBar(), h.back + ":VIDEO " + h.navigate + ":NAVIGATE " + h.select + ":SELECT")
+            // Over the gap to the first setting.
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 3)
+            compare(hintBar(), h.back + ":VIDEO " + h.navigate + ":NAVIGATE " + h.change + ":CHANGE")
+            keyClick(Qt.Key_Up)
+            compare(list.currentIndex, 1)
+            // ◄ ► on a way out change nothing.
+            keyClick(Qt.Key_Right)
+            compare(list.currentIndex, 1)
+            verify(menu.visible)
+            // STOP, TO MAIN MENU leaves the module, the video stopped first
+            // where one plays.
+            keyClick(Qt.Key_Return)
+            verify(!menu.visible)
+            if (data.behind) {
+                compare(root.leaves, 0)
+                mpvController.videoActive = false
+                mpvController.playbackEnded(5000, 60000, "stopped")
+            }
+            compare(root.leaves, 1)
+        }
+
+        // STOP, TO MAIN MENU in a player's menu (YouTube's, Local Files',
         // Playlists'): the video stopped, then the module left at once for
         // the main menu (the router's leaveModule), not one view back; with
         // no video left playing, the module left there and then.

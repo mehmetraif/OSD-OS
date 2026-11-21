@@ -34,8 +34,8 @@ flowchart TD
     video -- "back (most modules)" --> module
     video -- "back (Local Files, YouTube, Playlists)" --> vmenu["The video's own menu"]
     vmenu -- back --> video
-    vmenu -- Browse --> module
-    vmenu -- "Close Video" --> menu
+    vmenu -- "Back to <module>" --> module
+    vmenu -- "Stop, to Main Menu" --> menu
 ```
 
 With [Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#transparent-background) on, the video plays on behind wherever back leads.
@@ -251,16 +251,18 @@ Local Files, YouTube and Playlists give a video a menu of its own:
 
 | Module | Its lines |
 |---|---|
-| Local Files | Auto Show Subtitles, Subtitle Language, Loop Playback, Scaling; Add to Favorites, Play at Startup, Browse Local Files, Close Video |
-| YouTube | Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed; Add to Favorites, Play at Startup, Save to Watch Later, Browse YouTube, Close Video |
-| Playlists | Subtitles, Loop Playback, Scaling; Browse Playlists, Close Video |
+| Local Files | Back to Local Files, Stop, to Main Menu; Auto Show Subtitles, Subtitle Language, Loop Playback, Scaling; Add to Favorites, Play at Startup |
+| YouTube | Back to YouTube, Stop, to Main Menu; Subtitles, Subtitle Language, Audio Language, Playback Speed, Scaling, Playback Resolution; Add to Favorites, Play at Startup, Save to Watch Later |
+| Playlists | Back to Playlists, Stop, to Main Menu; Subtitles, Loop Playback, Scaling |
+
+- The two ways out lead, the cursor on the first as the menu opens, each with a help line. A gap parts them from the settings. YouTube's Video Codec and Max Frame Rate are only in its settings' **Advanced**.
 
 - **◄ ►** change a setting. It is saved at once, as the module's own setting.
 - Loop Playback, Scaling and Playback Speed apply at once. The rest apply as you go back to the video, which reloads where it is.
-- **Browse** returns to the module's menus. **Close Video** ends the video and goes to the main menu.
+- **Back to <module>** returns to the module's menus. **Stop, to Main Menu** ends the video and goes to the main menu.
 - **Back** returns to the video. Play/pause still pauses it. The hint bar reads `[ESC]:VIDEO`.
 - **Without Transparent Background** the video stops for the menu, and starts again where it was as the menu closes.
-- **Browse** then leaves the video stopped. The main menu leads with `► <title>`: select starts it again there, without asking. The row stays until another video plays.
+- **Back to <module>** then leaves the video stopped, as its help line says. The main menu leads with `► <title>`: select starts it again there, without asking. The row stays until another video plays.
 
 ### A service's own player
 

@@ -5,9 +5,10 @@ import Components
 // writes for it (prepare(): shuffled there, for a list that is), from the
 // video chosen on its page (PLAY FROM HERE), else from where it stopped (it
 // asks, as Local Files does), else from its first. mpv's display has ◄ ► for
-// the previous and next video. Back opens its menu (PlayerMenu: SUBTITLES,
-// LOOP PLAYBACK, Scaling, BROWSE PLAYLISTS, CLOSE VIDEO). Where it stopped is
-// kept for next time, and forgotten once the list has played out.
+// the previous and next video. Back opens its menu (PlayerMenu: BACK TO
+// PLAYLISTS, STOP, TO MAIN MENU, then SUBTITLES, LOOP PLAYBACK and Scaling).
+// Where it stopped is kept for next time, and forgotten once the list has
+// played out.
 //
 // YouTube videos on an online list play as the YouTube module plays them
 // (its ADVANCED settings, through yt-dlp); Jellyfin and Emby ones stream from
@@ -88,7 +89,7 @@ FocusScope {
         playlist = playlistsBackend.playlist(playlistId)
 
         // This list, still playing behind the menus: full screen where it
-        // is, without asking, the same session going on. Left with Browse,
+        // is, without asking, the same session going on. Left with BACK TO <MODULE>,
         // it starts again where it was saved, without asking either.
         var note = root.takeBackNote
         var takenBack = fromItemId === "" && note.module === moduleRoot.moduleId && note.params
@@ -171,7 +172,7 @@ FocusScope {
 
     // --- Its menu ---
     function openMenu() {
-        playerMenu.actions = [{ label: "Browse " + moduleRoot.moduleName, action: "browse" }]
+        playerMenu.actions = []
         playerMenu.open(playlist.name || "")
     }
     // A setting changed in the menu: loop and the Scaling at once; one the

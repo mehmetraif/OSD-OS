@@ -39,7 +39,7 @@ FocusScope {
     // the video playing on behind it, with Transparent Background; without,
     // the video ends for it (mpv has the screen) and starts again where it
     // was as the menu closes. A change the video can't take as it plays (its
-    // subtitles) reloads it where it is as the menu closes; CLOSE VIDEO goes
+    // subtitles) reloads it where it is as the menu closes; STOP, TO MAIN MENU goes
     // back to the main menu. How it was started, for that reload.
     property bool   startedShuffled: false
 
@@ -80,7 +80,6 @@ FocusScope {
     function menuActions() {
         return EntryFavorites.choices(EntryFavorites.isFavorite(appCore, moduleRoot.moduleId, entry),
                                       EntryFavorites.isAtStartup(appCore, moduleRoot.moduleId, entry))
-               .concat([{ label: "Browse " + moduleRoot.moduleName, action: "browse" }])
     }
     // A setting changed in the menu: loop and the Scaling at once, the
     // subtitles as the menu closes.
@@ -109,7 +108,7 @@ FocusScope {
     }
     // The session started again where it is. A shuffled playlist's places
     // are gone with its order (mpv's shuffle, made again at each start), so
-    // it starts shuffled afresh, as it does taken back from Browse.
+    // it starts shuffled afresh, as it does taken back from BACK TO LOCAL FILES.
     function playAgain() {
         if (startedShuffled)
             play(0, -1, true)
@@ -263,7 +262,7 @@ FocusScope {
         // This file, still playing behind the menus: it goes on full screen
         // where it is, without asking, the same session (takeBack(): what
         // back saved can't say where it is, as nothing in its first seconds
-        // or near its end is saved). Left with Browse, it starts again where
+        // or near its end is saved). Left with BACK TO <MODULE>, it starts again where
         // it was saved, at the playlist's video then; a shuffled playlist's
         // places are gone with its order, so it starts shuffled afresh.
         var note = root.takeBackNote
@@ -420,7 +419,7 @@ FocusScope {
     PlaybackNotice {
         id: failure
         onRetried: playerRoot.playAgain()
-        // CLOSE VIDEO leaves the module for the main menu.
+        // After STOP, TO MAIN MENU it leaves the module for the main menu.
         onDismissed: session.leave()
     }
 

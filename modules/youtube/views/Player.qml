@@ -59,8 +59,7 @@ FocusScope {
         var later = youtubeBackend.isInWatchLater(videoId)
         return EntryFavorites.choices(EntryFavorites.isFavorite(appCore, moduleRoot.moduleId, entry),
                                       EntryFavorites.isAtStartup(appCore, moduleRoot.moduleId, entry))
-               .concat([{ label: later ? "Remove from Watch Later" : "Save to Watch Later", action: "later" },
-                        { label: "Browse " + moduleRoot.moduleName, action: "browse" }])
+               .concat([{ label: later ? "Remove from Watch Later" : "Save to Watch Later", action: "later" }])
     }
     // A setting changed in the menu: the speed and the Scaling at once, the
     // rest as the menu closes.
@@ -106,7 +105,7 @@ FocusScope {
     // the video ends for it (mpv has the screen) and starts again where it
     // was as the menu closes. A change the video can't take as it plays (its
     // format, its audio, its subtitles) reloads it where it is as the menu
-    // closes; CLOSE VIDEO goes back to the main menu.
+    // closes; STOP, TO MAIN MENU goes back to the main menu.
     PlayerSession {
         id: session
         player: playerRoot
@@ -162,7 +161,7 @@ FocusScope {
         // This video, still playing behind the menus: it goes on full screen
         // where it is, without asking, the same session (takeBack(): what
         // back saved can't say where it is, as nothing in its first seconds
-        // or near its end is saved); left with Browse, it starts again where
+        // or near its end is saved); left with BACK TO <MODULE>, it starts again where
         // it was saved.
         var note = root.takeBackNote
         var behind = note.module === moduleRoot.moduleId && note.params && note.params.item
@@ -226,8 +225,10 @@ FocusScope {
         moduleId: moduleRoot.moduleId
         iconSource: moduleRoot.moduleIcon
         moduleName: moduleRoot.moduleName
-        keys: ["playback_resolution", "video_codec", "max_frame_rate", "video_scaling",
-               "audio_language", "subtitles", "subtitle_language", "playback_speed"]
+        // The everyday ones: Video Codec and Max Frame Rate stay in its
+        // settings' ADVANCED.
+        keys: ["subtitles", "subtitle_language", "audio_language", "playback_speed", "video_scaling",
+               "playback_resolution"]
         onSettingChanged: function(key, value) { playerRoot.applySetting(key, value) }
         onActivated: function(action) { playerRoot.menuAction(action) }
         onClosed: playerRoot.backToVideo()

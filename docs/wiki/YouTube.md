@@ -204,10 +204,10 @@ Positions live in `youtube_history.json`; **Delete Recently Watched** forgets th
 
 Back during a video opens its menu; back again returns to the video.
 
-1. Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language and Playback Speed. ◄ ► change and save one.
-2. **Add to Favorites**, **Play at Startup**, **Save to Watch Later** (or their opposites).
-3. **Browse YouTube**: back to the tree.
-4. **Close Video**: to the main menu.
+1. **Back to YouTube**: back to the tree.
+2. **Stop, to Main Menu**: ends the video and goes to the main menu.
+3. Subtitles, Subtitle Language, Audio Language, Playback Speed, Scaling and Playback Resolution. ◄ ► change and save one. Video Codec and Max Frame Rate are in YouTube's settings, under **Advanced**.
+4. **Add to Favorites**, **Play at Startup**, **Save to Watch Later** (or their opposites).
 
 With Transparent Background the video plays on under the menu; without it, the video stops for the menu ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu)).
 

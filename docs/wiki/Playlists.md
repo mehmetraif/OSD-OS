@@ -158,13 +158,13 @@ Back during a video (with the deck's menu closed) opens the list's own menu:
 
 | Line | What it does |
 |---|---|
+| **Back to Playlists** | Back to the list's page |
+| **Stop, to Main Menu** | Stops the list and leaves Playlists for the main menu |
 | **Subtitles** | ◄ ► change the module setting; the video starts again where it is as you go back to it |
 | **Loop Playback**, **Scaling** | ◄ ► change it; with Transparent Background the playing list takes it at once |
-| **Browse Playlists** | Back to the list's page |
-| **Close Video** | Stops the list and leaves Playlists for the main menu |
 
 - Back in the menu returns to the video. A setting changed here is saved as the module's setting.
-- **After Browse Playlists** the main menu leads with a row for the list, `► <NAME>`. That row, or **Play** on the list's page, takes the list back.
+- **After Back to Playlists** the main menu leads with a row for the list, `► <NAME>`. That row, or **Play** on the list's page, takes the list back.
 - **With Transparent Background** the list plays on behind the menus, and comes back full screen where it is.
 - **Without it** the list stops for the menu. It starts again at the video it was on, without asking; a shuffled list starts shuffled afresh.
 
