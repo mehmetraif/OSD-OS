@@ -51,8 +51,14 @@ FocusScope {
     // Each first-screen row's icon (PixelIcon's names), by its key or type.
     readonly property var pageIcons: ({ group_tv: "tv", group_arcade: "joystick", group_look: "sparkle",
                                         group_screen: "monitor", group_sound: "speaker", remap_controls: "gamepad",
-                                        group_network: "antenna", group_startup: "power", group_system: "gear",
+                                        group_network: "antenna", group_startup: "play", group_system: "gear",
                                         quit: "eject", group_status: "status" })
+    // Quit's under autostart (the OSD/OS image), where it is a power menu:
+    // the power symbol.
+    function pageIcon(row) {
+        var key = pageKey(row)
+        return key === "quit" && autostartSession ? "power" : pageIcons[key] || ""
+    }
     // Studio Monitor's first page, before the first screen's.
     readonly property var statusPage: ({ type: "submenu", key: "group_status", label: "Status",
                                          description: "What is set, at a glance: the outputs, the network, the theme and what OSD/OS starts on",
@@ -239,15 +245,17 @@ FocusScope {
     // OSD-OS partition, which a computer shows as a drive (AppCore::saveLogs).
     property bool canSaveLogs: false
     readonly property var saveLogsOption: settingsRoot.canSaveLogs ? [{ label: "Save Logs", action: "logs" }] : []
+    // The answer that keeps the session first, under the cursor as the
+    // question opens: select twice never ends it.
     property var quitOptions: settingsRoot.autostartSession
-        ? [{ label: "Power Off",        action: "quit"     }]
+        ? [{ label: "Cancel",           action: "cancel"   },
+           { label: "Power Off",        action: "quit"     }]
           .concat(settingsRoot.canRestart ? [{ label: "Restart", action: "restart" }] : [])
           .concat([{ label: "Exit to Terminal", action: "terminal" }])
           .concat(saveLogsOption)
-          .concat([{ label: "Cancel",           action: "cancel"   }])
-        : [{ label: "Yes", action: "quit" }]
+        : [{ label: "No",  action: "cancel" },
+           { label: "Yes", action: "quit" }]
           .concat(saveLogsOption)
-          .concat([{ label: "No",  action: "cancel" }])
 
     // The page made, or made again where what it is made from may have
     // changed (a theme chosen, settings pasted, the layout, a row another
@@ -282,7 +290,7 @@ FocusScope {
         builtLayout = layout
         builtIcons = iconMenu
         var pages = iconMenu ? (studio ? [statusPage] : []).concat(first) : []
-        var icons = pages.map(function(row) { return { icon: pageIcons[pageKey(row)] || "" } })
+        var icons = pages.map(function(row) { return { icon: pageIcon(row) } })
         pageIconList = icons
         camPages = pages.map(function(row, i) { return { row: row, icon: icons[i].icon } })
     }
@@ -1027,7 +1035,7 @@ FocusScope {
     ChoiceOverlay {
         id: quitPrompt
         anchors.fill: parent
-        promptText: "Really quit?"
+        promptText: settingsRoot.autostartSession ? "Power off?" : "Really quit?"
         choices: quitOptions
         onActivated: function(act) {
             if (act === "quit")          Qt.quit()

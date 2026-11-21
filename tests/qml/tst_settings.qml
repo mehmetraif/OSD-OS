@@ -67,19 +67,21 @@ StandInRoot {
         function get_installed_modules() {
             calls.modules++
             var all = moreModules.concat(
-                   [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
-                    { id: "com.osdos.highscores", name: "High Scores", has_settings: true, settings_group: "arcade", enabled: false },
-                    { id: "com.osdos.local_files", name: "Local Files", has_settings: true, settings_group: "tv", enabled: true },
+                   // In AppCore's order: by group, then each manifest's menu_order.
+                   [{ id: "com.osdos.local_files", name: "Local Files", has_settings: true, settings_group: "tv", enabled: true },
                     { id: "com.osdos.plex", name: "Plex", has_settings: true, settings_group: "tv", enabled: false },
+                    { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true },
+                    { id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
+                    { id: "com.osdos.highscores", name: "High Scores", has_settings: true, settings_group: "arcade", enabled: false },
                     { id: "com.osdos.scripts", name: "Scripts", has_settings: true, settings_group: "", enabled: false },
-                    { id: "com.osdos.radio", name: "Radio", has_settings: true, settings_group: "radio", enabled: false },
-                    { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true }])
+                    { id: "com.osdos.radio", name: "Radio", has_settings: true, settings_group: "radio", enabled: false }])
             return all.map(function(m) {
                 var own = moduleValues[m.id] || {}
                 return own.enabled === undefined ? m : Object.assign({}, m, { enabled: own.enabled })
             })
         }
-        function isAutostartSession() { return false }
+        property bool autostart: false
+        function isAutostartSession() { return autostart }
         function canRestartSystem() { return false }
         function restartSystem() {}
         function exitToTerminal() {}
@@ -287,6 +289,7 @@ StandInRoot {
             appCore.moduleValues = {}
             appCore.pasted = ""
             appCore.canLogs = false
+            appCore.autostart = false
             appCore.logSaves = 0
             appCore.writes = 0
             appCore.held = []
@@ -1028,7 +1031,8 @@ StandInRoot {
             var list = listOf(page)
             list.currentIndex = all.indexOf("Quit")
             keyClick(Qt.Key_Return)
-            compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "Save Logs", "No"])
+            compare(page.quitOptions.map(function(o) { return o.label }), ["No", "Yes", "Save Logs"])
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(appCore.logSaves, 1)
@@ -1047,7 +1051,7 @@ StandInRoot {
             compare(cursor(page), "Quit")
             // A copy that failed says why.
             keyClick(Qt.Key_Return)
-            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(appCore.logSaves, 2)
             appCore.logsSaved(false, "The card's OSD-OS partition isn't there or can't be written")
@@ -1057,10 +1061,50 @@ StandInRoot {
             verify(!notice.visible, "select closes it too")
         }
 
-        // Nothing to save logs to (not the image): Quit is Yes or No.
+        // Nothing to save logs to (not the image): Quit is No or Yes, the
+        // cursor opening on No, so select twice keeps the session.
         function test_quitWithoutLogs() {
             var page = open()
-            compare(page.quitOptions.map(function(o) { return o.label }), ["Yes", "No"])
+            compare(page.quitOptions.map(function(o) { return o.label }), ["No", "Yes"])
+            listOf(page).currentIndex = lines(page).indexOf("Quit")
+            keyClick(Qt.Key_Return)
+            var prompt = promptShown(page)
+            compare(prompt.promptText, "Really quit?")
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Return)
+            compare(promptShown(page), null)
+            compare(cursor(page), "Quit")
+        }
+
+        // Under autostart (the OSD/OS image) Quit is a power menu: the row
+        // Power with the power symbol in Camcorder's column (Startup has the
+        // play symbol), the question "Power off?", Cancel under the cursor.
+        function test_powerMenu() {
+            appCore.autostart = true
+            appCore.canLogs = true
+            var page = open()
+            compare(lines(page).slice(-1), ["Power"])
+            compare(page.quitOptions.map(function(o) { return o.label }),
+                    ["Cancel", "Power Off", "Exit to Terminal", "Save Logs"])
+            moveTo(page, "Power")
+            keyClick(Qt.Key_Return)
+            var prompt = promptShown(page)
+            compare(prompt.promptText, "Power off?")
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Return)
+            compare(promptShown(page), null)
+            compare(cursor(page), "Power")
+            loader.source = ""
+            root.menuLayout = "Camcorder"
+            page = open()
+            var icons = page.camPages.map(function(p) { return p.row.label + ":" + p.icon })
+            verify(icons.indexOf("Power:power") >= 0, icons)
+            verify(icons.indexOf("Startup:play") >= 0, icons)
+            loader.source = ""
+            appCore.autostart = false
+            page = open()
+            icons = page.camPages.map(function(p) { return p.row.label + ":" + p.icon })
+            verify(icons.indexOf("Quit:eject") >= 0, icons)
         }
 
         // The question shown over the page (a ChoiceOverlay), or null.
@@ -1236,13 +1280,13 @@ StandInRoot {
             var page = open()
             verify(page.camcorder)
             compare(page.camPages.map(function(p) { return p.icon }),
-                    ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "power", "gear", "eject"])
+                    ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "play", "gear", "eject"])
             compare(page.camIndex, 0)
             verify(page.inIcons())
             // Handed to the shell, which draws the column and keeps it
             // beside the pages opened from here.
             verify(page.inFrame && page.ownsFrame)
-            compare(frameIcons(), ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "power", "gear", "eject"])
+            compare(frameIcons(), ["tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "play", "gear", "eject"])
             compare(root.frameIndex, 0)
             verify(root.frameActive)
             compare(lines(page).slice(0, 2), ["Scaling", "Transparent Background"])
@@ -1457,7 +1501,7 @@ StandInRoot {
             var chrome = chromeOf(page)
             verify(chrome !== null && chrome.visible)
             compare(page.camPages.map(function(p) { return p.icon }),
-                    ["status", "tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "power", "gear", "eject"])
+                    ["status", "tv", "joystick", "sparkle", "monitor", "speaker", "gamepad", "antenna", "play", "gear", "eject"])
             compare(chrome.icons.length, 11)
             compare(chrome.title, "Status")
             compare(lines(page), ["Output", "Audio", "Wi-Fi", "Bluetooth", "Theme", "Start On", "Cabinet Lock",
@@ -1854,7 +1898,7 @@ StandInRoot {
         // nothing; it follows Start on Module as that changes on the page,
         // and still opens its page. Studio Monitor's Status says the same.
         function test_cabinetLockRow() {
-            appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.arcade" }
+            appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.local_files" }
             var page = open({ group: "startup" })
             compare(row(page, "Cabinet Lock").value, "On")
             compare(cursor(page), "Start on Module")
@@ -1872,7 +1916,7 @@ StandInRoot {
             keyClick(Qt.Key_Up)
             compare(cursor(page), "Start on Module")
             keyClick(Qt.Key_Right)
-            compare(appCore.values.startup_module, "com.osdos.arcade")
+            compare(appCore.values.startup_module, "com.osdos.local_files")
             compare(row(page, "Cabinet Lock").value, "On")
             // A module turned off since is no module to stay on; off is Off.
             loader.source = ""

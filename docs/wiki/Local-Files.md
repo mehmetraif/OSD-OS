@@ -57,7 +57,7 @@ Selecting **Media Folder** opens the folder picker, the same tree:
 
 On its first boot the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image) keeps 8 GiB of the card for the system. The rest becomes an exFAT partition labelled **OSD-OS**, which Windows and macOS read:
 
-1. Quit OSD/OS (Settings → Quit → **Power Off**) and take the card out.
+1. Quit OSD/OS (Settings → Power → **Power Off**) and take the card out.
 2. Put it in the computer's card reader. It shows up as two drives, **bootfs** and **OSD-OS**. Copy your films into the **Movies** folder on **OSD-OS**.
 3. Windows also offers to format the system's partition. Always answer **Cancel**: formatting it erases the system.
 4. Put the card back in the Pi.

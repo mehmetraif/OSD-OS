@@ -340,7 +340,7 @@ On a Mac the folder is `~/Library/Application\ Support/OSD-OS/themes`.
 
 On the OSD/OS image:
 
-- Work as `pi`, over SSH or from Settings → Quit → Exit to Terminal ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)).
+- Work as `pi`, over SSH or from Settings → Power → Exit to Terminal ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image)).
 - Without a network, copy the folder onto the card's **OSD-OS** partition from a computer, then on the Pi: `cp -r /media/OSD-OS/my-theme ~/.local/share/OSD-OS/themes/`.
 - A USB drive's files are under `/media/usb/<its label>/`.
 

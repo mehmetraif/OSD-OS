@@ -296,7 +296,7 @@ The Playlists module downloads into a **Playlists** folder in **Movies** (its Do
 
 ### Copying films onto it
 
-1. Quit OSD/OS (Settings → Quit → Power Off) and take the card out.
+1. Quit OSD/OS (Settings → Power → Power Off) and take the card out.
 2. In a computer the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films into **Movies** on **OSD-OS**.
 3. If Windows offers to format the system's partition, choose **Cancel**: formatting erases the system.
 4. Put the card back. Local Files opens `/media/OSD-OS/Movies` until its Media Folder setting names another folder.
@@ -418,15 +418,15 @@ For `sudo` on an image built without a password, give `pi` a password on OSD/OS 
 <tr><td>Settings → Quit, run by hand. On the image it offers the choices below.</td><td>Settings → System → Update.</td></tr>
 </table>
 
-Settings → **Quit** on the image asks **Really quit?** with:
+Settings → **Power** on the image (Quit's row there, with the power symbol in Camcorder's column) asks **Power off?** with **Cancel** under the cursor:
 
 | Choice | OSD/OS exits with | Then |
 |---|---|---|
+| **Cancel** | | Back to Settings |
 | **Power Off** | 0 | The Pi powers off |
 | **Restart** | 12 | The Pi reboots |
 | **Exit to Terminal** | 10 | A login shell on the screen (`tty1`); the Pi stays on |
 | **Save Logs** | | The logs are copied to the film partition's `Logs` folder (offered with that partition) |
-| **Cancel** | | Back to Settings |
 
 Ctrl+Q on a keyboard quits at once, as Power Off does.
 

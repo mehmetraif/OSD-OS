@@ -378,12 +378,12 @@ Back on the main menu opens Settings. A line has its value between the arrows th
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="REALLY QUIT?: YES, SAVE LOGS and NO" />
 
-**Quit** is the last line of Settings. It asks **Really quit?**:
+**Quit** is the last line of Settings. It asks **Really quit?**, the cursor on the answer that stays (**No**, **Cancel**). Started with the system the row is **Power**, with the power symbol in Camcorder's column, and asks **Power off?**:
 
 | Started | Choices |
 |---|---|
-| By hand (`osdos`), on a Mac, as an AppImage | **Yes**, **No**; on the OSD/OS image, **Save Logs** between them |
-| With the system: the OSD/OS image, or `install.sh`'s autostart service | **Power Off**, **Restart**, **Exit to Terminal**, **Save Logs** (on the image), **Cancel** |
+| By hand (`osdos`), on a Mac, as an AppImage | **No**, **Yes** |
+| With the system: the OSD/OS image, or `install.sh`'s autostart service | **Cancel**, **Power Off**, **Restart**, **Exit to Terminal**, **Save Logs** (on the image) |
 
 - **Power Off** quits OSD/OS and switches the Pi off. To switch it on again, unplug its power and plug it back in (a Pi 5 also has a power button).
 - **Restart** reboots the Pi. If it is missing, run `install.sh` once more ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#updating-with-installsh)).

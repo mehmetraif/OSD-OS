@@ -359,7 +359,7 @@ A change made by hand while OSD/OS runs reaches the per-video settings at the ne
 ## Editing by hand
 
 1. **Stop OSD/OS.**
-   - Under the autostart service, over SSH: `sudo systemctl stop osdos`. This leaves the Pi on; Settings → Quit would power it off.
+   - Under the autostart service, over SSH: `sudo systemctl stop osdos`. This leaves the Pi on; Settings → Power would power it off.
    - Run by hand, or on a Mac: Settings → Quit, or Ctrl+Q.
 2. **Edit**, for example `nano ~/.local/share/OSD-OS/config.json`. One missing comma makes the file unreadable.
 3. **Check it** before starting. An error names the line and the column:

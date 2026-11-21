@@ -216,7 +216,7 @@ Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and 
 
 ### The user, the password and SSH
 
-The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Quit) or SSH.
+The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Power) or SSH.
 
 - **The password.** A release image's `pi` has the password of the repository secret `OS_FIRST_USER_PASS`, if the release was built with one. Without one, Exit to Terminal logs `pi` in by itself, without `sudo`.
 - **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`.

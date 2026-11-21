@@ -41,7 +41,8 @@ function firstRows(items) {
     items.push(groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes"))
     items.push(groupRow("startup", "What OSD/OS opens on: Start on Module, Play at Startup and Cabinet Lock"))
     items.push(groupRow("system", "OSD/OS Setup's settings pasted, Update, About, and the settings of the modules of no group"))
-    items.push({ type: "quit", label: "Quit",
+    // On the OSD/OS image (autostart) a power menu, and named so.
+    items.push({ type: "quit", label: settingsRoot.autostartSession ? "Power" : "Quit",
                  description: settingsRoot.autostartSession ? "Power off or restart the Pi, or leave OSD/OS for a terminal"
                                                             : "Leave OSD/OS" })
     // Broadcast's and Flat Panel's: Cabinet Lock as a monitor's Key

@@ -534,14 +534,14 @@ The first screen's last row.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Quit" />
 
-Select asks **Really quit?**. Run by hand, or on a Mac, the answers are **Yes** and **No**. Started by the autostart service (`OSDOS_AUTOSTART` is set, as on the OSD/OS image), they are:
+Select asks **Really quit?**, the cursor on the answer that stays, so select twice never ends the session. Run by hand, or on a Mac, the answers are **No** and **Yes**. Started by the autostart service (`OSDOS_AUTOSTART` is set, as on the OSD/OS image) the row is a power menu: it is called **Power**, has the power symbol in Camcorder's column (Startup has the play symbol), and asks **Power off?**:
 
 | Answer | What it does |
 |---|---|
+| Cancel | Nothing |
 | Power Off | Powers the Pi off |
 | Restart | Reboots. Offered with `OSDOS_LAUNCHER_API` 2 or later |
 | Exit to Terminal | Starts a login shell on `tty1`; `sudo systemctl start osdos` brings OSD/OS back |
-| Cancel | Nothing |
 
 - On the OSD/OS image both questions also offer **Save Logs**, which copies the logs to the card's OSD-OS partition ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#where-the-log-is)).
 - Ctrl+Q quits too; under the service that is Power Off.

@@ -15,7 +15,7 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
 | The AppImage | The terminal it was started from | `./OSD-OS-linux-x86_64.AppImage` |
 | Windows | `osdos.log` in the data folder, the run before's in `osdos-previous.log` | Open `%APPDATA%\OSD-OS\osdos.log` in Notepad |
 
-**The logs on the card: Settings → Quit → Save Logs.** On the image it copies the logs to the card's **OSD-OS** partition, which a computer shows as a drive, into `Logs\<date_time>\`:
+**The logs on the card: Settings → Power → Save Logs** (Settings → Quit off the image). On the image it copies the logs to the card's **OSD-OS** partition, which a computer shows as a drive, into `Logs\<date_time>\`:
 
 | File | What it holds |
 |---|---|
@@ -39,7 +39,7 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
   osdos 2>&1 | tee ~/osdos.log
   ```
 
-- Settings → Quit → **Exit to Terminal** stops the app without `sudo` and leaves a login shell on the TV. `sudo systemctl start osdos`, or a reboot, brings the service back.
+- Settings → Power → **Exit to Terminal** stops the app without `sudo` and leaves a login shell on the TV. `sudo systemctl start osdos`, or a reboot, brings the service back.
 - An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)).
 
 <table>
