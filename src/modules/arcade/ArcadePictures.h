@@ -197,10 +197,9 @@ private:
     void onSnapDownloaded(const QString &set, bool title, const QByteArray &data);
     void finishSnap(const QString &set, bool saved);
     // A picture of RetroAchievements' downloaded for a game, or not (data
-    // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
-    // the first number no picture of that name has there, so that a file
-    // already there, the user's own or one saved before, is never written
-    // over; then its record kept.
+    // empty): saved off the GUI thread as <name>_<n> in the snap folder
+    // (savePicture(), which never writes over a file there); then its record
+    // kept.
     void onPictureDownloaded(const QString &name, const QString &path, const QByteArray &data);
     void finishPicture(const QString &name, bool saved);
     // What kind of picture one saved is, as it goes among a game's: one

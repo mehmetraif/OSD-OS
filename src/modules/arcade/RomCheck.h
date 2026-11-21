@@ -103,8 +103,8 @@ QByteArray toJson(const Results &results);
 
 // A check under way, a stage at a time: the archives first (their stamps
 // and FinalBurn Neo's CRCs, off the app's thread), then MAME's -verifyroms,
-// a batch of sets at a time. MAME's batches stop while a game or MAME's
-// -listxml runs (pause()), and go on after (resume()).
+// a batch of sets at a time. MAME's batches stop while a game, MAME's
+// download or MAME's -listxml runs (pause()), and go on after (resume()).
 class RomCheck : public QObject {
     Q_OBJECT
 public:
@@ -132,8 +132,8 @@ public:
     ~RomCheck() override;
 
     bool active() const { return m_active; }
-    // Starts one, held from the start (held: a game or MAME's -listxml
-    // running) till resume(). Nothing while one is under way.
+    // Starts one, held from the start (held: a game or MAME's download
+    // under way) till resume(). Nothing while one is under way.
     void start(const Job &job, bool held);
     // MAME's batch stopped where it had got to, the rest asked after
     // resume(), which ends the check where none is left to ask.

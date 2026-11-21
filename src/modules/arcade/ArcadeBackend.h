@@ -58,7 +58,8 @@ class QTimer;
 //   Arcade screen lists them a filter at a time (filters(), filterGames()):
 //   All Games, Favorites, Recently Played, RetroAchievements (the games it
 //   has achievements or leaderboards of), Playable Online (those that can be
-//   played online, madeSets()), each genre
+//   played online), Vertical Games (those whose screen stood upright,
+//   madeSets()), each genre
 //   (made from catver.ini's categories, in the games folder or in
 //   <data>/arcade), each number of players, each decade and each publisher,
 //   and Not Recognized, as
@@ -97,18 +98,13 @@ class ArcadeBackend : public QObject, private ArcadePictures::Catalog {
     // read.
     Q_PROPERTY(bool played READ played NOTIFY playedChanged)
     // The RetroAchievements account RetroArch plays FinalBurn Neo's games under
-    // (Online High Scores): its user ("" for none), and its state: "none",
-    // "checking" (RetroArch signing in with it now, with the sign-in core:
-    // RetroAchievementsAccount::checkSignIn()), "pending" (RetroArch to take
-    // the password at the next game and swap it for a token;
-    // achievementsMessage says why not now, when it was tried), "signedIn" (a
-    // token), or "failed" (achievementsMessage says why).
+    // (Online High Scores): RetroAchievementsAccount's user(), state() and
+    // message().
     Q_PROPERTY(QString achievementsUser READ achievementsUser NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsState READ achievementsState NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsMessage READ achievementsMessage NOTIFY achievementsChanged)
     // A Web API key is kept, for the leaderboards, the pictures and the
-    // achievements; RetroAchievements refused it; it took it (an answer came
-    // with it).
+    // achievements; RetroAchievementsAccount::keyRefused() and keyWorks().
     Q_PROPERTY(bool achievementsKey READ achievementsKey NOTIFY achievementsChanged)
     Q_PROPERTY(bool achievementsKeyRefused READ achievementsKeyRefused NOTIFY achievementsChanged)
     Q_PROPERTY(bool achievementsKeyWorks READ achievementsKeyWorks NOTIFY achievementsChanged)
@@ -192,8 +188,8 @@ public:
     // hosts a game), "online" (Online Games, with Online Play on, even
     // while no one in the lobby hosts a game of the folder's), "lobby"
     // (RetroArch Lobby: every room of it, with Online Play on, even while it
-    // has none), "achievements" and "netplay" (RetroAchievements and
-    // Playable Online, with a game on them), "genres/<genre>",
+    // has none), "achievements", "netplay" and "vertical" (RetroAchievements,
+    // Playable Online and Vertical Games, with a game on them), "genres/<genre>",
     // "players/<n>", "years/<decade>" ("years/unknown"),
     // "makers/<publisher>", "unknown" (Not Recognized), and last "search"
     // (Search: its own row, then the games setSearch()'s words find); all
@@ -689,7 +685,7 @@ private:
         QSet<QString> folders;
         QHash<QString, QString> otherFolders;
         // Each archive's stamp by its set's name, its bios folder's too
-        // (romcheck::stampOf()).
+        // (mame::stampOf()).
         QHash<QString, QString> stamps;
         // romcheck.json, read with games.json (cacheAsked).
         romcheck::Results roms;
@@ -834,8 +830,9 @@ private:
     const QStringList &searchRows() const;
     // A filter's made from what each game is now: RetroAchievements', the
     // games, by name, that achievements or a leaderboard's scores can be had
-    // in, and Playable Online's, those that can be played online; kept until
-    // the filters may hold other games.
+    // in, Playable Online's, those that can be played online, and Vertical
+    // Games', those whose screen stood upright; kept until the filters may
+    // hold other games.
     QStringList madeSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
@@ -957,7 +954,7 @@ private:
         QString game;
         QString joinAddress;
         QString host;
-        // Hosted with OSD/OS's own core for CV1000 games (libretro::kLanCoreName).
+        // Hosted with OSD/OS's LAN core (libretro::kLanCoreName).
         bool lanCore = false;
     };
     // layout: the host's, as it said before the ports (Classic for none).
@@ -1157,8 +1154,8 @@ private:
     QString m_retroarchVersionOf;
     QString m_coreVersion;
     QString m_coreVersionOf;
-    // OSD/OS's own core for CV1000 games, which LAN Games' rooms of it are
-    // matched against (libretro::lanCorePath()).
+    // OSD/OS's LAN core, which LAN Games' rooms of it are matched against
+    // (libretro::lanCorePath()).
     QString m_lanCoreVersion;
     QString m_lanCoreVersionOf;
     qint64 m_memory = -1;  // setMemory()

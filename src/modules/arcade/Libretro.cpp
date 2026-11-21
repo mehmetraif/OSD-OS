@@ -404,7 +404,7 @@ qint64 netplayStateSize(const QString &sourceFile, bool lanCore) {
     // The boards whose states are 8 MiB or more, at their largest set's:
     // - Cave's CV1000: 136.75 to 144.75 MiB on FinalBurn Neo's core, its
     //   128 MiB of video memory among them, and 8.75 to 16.75 MiB on
-    //   OSD/OS's own, which plays its games alone, without it.
+    //   OSD/OS's LAN core, which plays them without it.
     // - Killer Instinct's: its 8.5 MiB of RAM and, under 64 KiB, its CPUs'
     //   and sound's, as its driver's DrvScan() has them, since it doesn't
     //   start on zero-filled ROMs to be measured.
@@ -1292,7 +1292,7 @@ std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &addre
     room.password = passwords & 1;
     room.spectatePassword = passwords & 2;
     room.joinAddress = joinAddressOf(address, static_cast<int>(number(8)), QString());
-    // FinalBurn Neo, or OSD/OS's own for a CV1000 game (lanCorePath()).
+    // FinalBurn Neo, or OSD/OS's LAN core (lanCorePath()).
     room.joinable = (room.core == kCoreName || room.core == kLanCoreName) && !room.game.isEmpty()
                     && !room.joinAddress.isEmpty();
     return room;
@@ -1313,8 +1313,8 @@ static_assert(kMostPorts == controllers::kPlayers, "a port for each player the m
 
 namespace {
 // The claims' packets: a query for so many ports, an answer giving the
-// first and how many, and a release, each a line of ASCII with its numbers
-// after it.
+// first and how many, a release, and the host's layout, each a line of
+// ASCII with its numbers or its word after it.
 const char kClaimQueryHead[] = "OSDOS PORTS? ";
 const char kClaimAnswerHead[] = "OSDOS PORTS ";
 const char kClaimReleaseText[] = "OSDOS PORTS FREE";

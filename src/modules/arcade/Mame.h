@@ -31,7 +31,6 @@ QString downloadedMame(const QString &dataRoot);
 // else Debian's own. "" when there is none.
 QString pluginsFolder(const QString &program);
 
-// A machine as -listxml describes it: what the game list shows and sorts by.
 // A DIP switch, as -listxml has it: its port's tag, its bits (mask), the
 // value it is set to on the board (its default) and each of its settings,
 // a name and the bits, in MAME's order.
@@ -51,6 +50,7 @@ struct Dip {
 // "Difficulty", "Game Difficulty", "Difficulty Level".
 bool isDifficulty(const QString &dipName);
 
+// A machine as -listxml describes it: what the game list shows and sorts by.
 struct Machine {
     QString name;          // its short name, its set's: "pacman"
     QString description;   // "Pac-Man (Midway)"

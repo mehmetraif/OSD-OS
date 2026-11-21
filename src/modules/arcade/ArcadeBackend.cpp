@@ -144,7 +144,7 @@ constexpr std::pair<const char *, const char *> kLists[] = {
 constexpr std::pair<const char *, const char *> kUnknown = { "unknown", "Not Recognized" };
 // The lists kept here, Favorites and Recently Played, which the Arcade
 // screen has with or without a game on them; the others are made of what
-// RetroAchievements and FinalBurn Neo have, and come with a game on them.
+// each game is (madeSets()), and come with a game on them.
 bool ownList(QLatin1String id) {
     return id == QLatin1String("favorites") || id == QLatin1String("recent");
 }
@@ -688,8 +688,6 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_pictures->setSource(value.toString());
     } else if (key == QLatin1String("lan_play")) {
         m_lanPlay = value.toString() == QLatin1String("On");
-        // Off: the rooms heard forgotten, so that none of them is offered
-        // once it is on again, before the network has been asked.
         if (!m_lanPlay) {
             m_lan->forget();
             m_lanShown.clear();
@@ -1297,10 +1295,8 @@ bool ArcadeBackend::mameMayRun() const {
 }
 
 void ArcadeBackend::scanNext() {
-    // Not beside a game, one started or a LAN game waiting for its ports,
-    // which would share the machine with it, nor beside MAME's download,
-    // which puts its MAME in the folder it may run from: the launcher's
-    // and the installer's finished() ask again.
+    // Not beside what mameMayRun() names, which would share the machine
+    // with it or replace its MAME: resumeMame() asks again as that ends.
     if (!mameMayRun())
         return;
     // Not two of MAME's at once: a check's part waits for the asking.
@@ -1696,8 +1692,8 @@ QVariantList ArcadeBackend::filters() {
         list << filter(QStringLiteral("online"), QStringLiteral("Online Games"), online);
     if (m_onlinePlay && haveGames)
         list << filter(QStringLiteral("lobby"), QStringLiteral("RetroArch Lobby"), m_lobby.size());
-    // RetroAchievements and Playable Online, made of what RetroAchievements
-    // and FinalBurn Neo have: with a game on them.
+    // RetroAchievements, Playable Online and Vertical Games, made of what
+    // each game is (madeSets()): with a game on them.
     for (const auto &[id, name] : kLists) {
         if (ownList(QLatin1String(id)) || !menuShows(QLatin1String(id)))
             continue;
@@ -2147,7 +2143,7 @@ void ArcadeBackend::startFilterOptions() {
         // Favorites and Recently Played whether or not they hold a game yet;
         // with LAN Play on LAN Games, and with Online Play on Online Games
         // and RetroArch's lobby, which may have no room; the lists made of
-        // what RetroAchievements and FinalBurn Neo have; then the places.
+        // what each game is (madeSets()); then the places.
         const auto option = [](const QString &id, const QString &label) {
             return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label } };
         };
@@ -3218,18 +3214,12 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // joining takes what it was told, Classic from a host that said nothing
     // (RetroArch alone, an older OSD/OS, or a room of the lobby).
     launch.layout = hosting ? libretro::hostLayout(launch.panels, launch.arcade, gamePlayers(name)) : layout;
-    // The game's ports this machine's players take. Hosting online, from 1
-    // (hostPorts()); joining a room of the lobby, RetroArch's own: one port,
-    // the first free. On the local network on OSD/OS's LAN core every
-    // controller of this machine's takes a port (a host's from 1, a machine
-    // joining those its host's OSD/OS gave), and the core seats a port's
-    // player in the game as it first presses COIN or START (the host's
-    // player 1 is player 1), so that the players take their places in the
-    // order they come in, and a controller no one plays holds none. On
-    // FinalBurn Neo's own core (a build without OSD/OS's), where a port is
-    // its player, one port a machine, its player 1's: a machine can't take
-    // another once it plays (RetroArch's host drops one that asks). With no
-    // answer from the host, RetroArch's first free.
+    // The game's ports this machine's players take, as playFbneo() is
+    // declared to give them. On OSD/OS's LAN core the host's player 1 is
+    // player 1 and the others take their places in the order they come in, a
+    // controller no one plays holding none. On FinalBurn Neo's own core (a
+    // build without OSD/OS's) a port is its player, and a machine can't take
+    // another once it plays (RetroArch's host drops one that asks).
     int most = libretro::kMostPorts;
     const int own = hostPorts(name, &most);
     const int ports = lanCore ? libretro::localPorts(guids) : 1;
@@ -3520,8 +3510,8 @@ QVariantList ArcadeBackend::lanRooms() const {
             continue;
         // What its host answered with, as the lobby's rooms are told of
         // (FinalBurn Neo is ready, so ours are what is known of them; a room
-        // of OSD/OS's own core for CV1000 games, against that core, and
-        // whether it is here, coreHere), and where it is joined: its host's
+        // of OSD/OS's LAN core, against that core, and whether it is here,
+        // coreHere), and where it is joined: its host's
         // address on this network, and the game's file in the folder.
         const bool coreHere = !lanCore || lanCoreHere;
         QVariantMap info = roomInfo(room, now, coreHere, lanCore ? m_lanCoreVersion : m_coreVersion, m_retroarchVersion);
@@ -3558,8 +3548,8 @@ QVariantList ArcadeBackend::rooms() const {
 
 QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime &now, bool ready,
                                     const QString &yourCore, const QString &yourRetroArch) const {
-    // FinalBurn Neo's, or OSD/OS's own core's for a CV1000 game, hosted on
-    // the local network (libretro::lanCorePath()).
+    // FinalBurn Neo's, or OSD/OS's LAN core's, hosted on the local network
+    // (libretro::lanCorePath()).
     const bool lanCore = room.core == libretro::kLanCoreName;
     const bool fbneo = lanCore || room.core == QLatin1String("FinalBurn Neo");
     const bool have = fbneo && !room.game.isEmpty() && fbneoHas(room.game);
@@ -3744,11 +3734,9 @@ void ArcadeBackend::downloadGenres() {
 }
 
 void ArcadeBackend::raiseOwnDownloads() {
-    // RetroArch and MAME as OSD/OS downloaded them (Windows), older than the
-    // versions every machine plays with (scripts/engines.env): the floor
-    // rose with an update, and they rise with it, once a run each, as their
-    // versions are learned. Not beside a game, which may be playing in one.
-    // A program installed otherwise is the system's or the user's.
+    // The floor rose with an update, and OSD/OS's own downloads rise with it;
+    // a program installed otherwise is the system's or the user's. Not beside
+    // a game, which may be playing in one.
     if (m_launcher->isBusy())
         return;
     const auto older = [](const QString &have, const QString &want) {
@@ -4007,7 +3995,7 @@ QString ArcadeBackend::lanDetail(const libretro::Room &room) const {
                                 room.joinAddress.section(QLatin1Char('|'), 0, 0)),
                        m_sets.value(room.game) };
     // Its core and RetroArch against ours, as the lobby's rooms are matched
-    // (a room of OSD/OS's own core for CV1000 games against that core).
+    // (a room of OSD/OS's LAN core against that core).
     const QString &yourCore = room.core == libretro::kLanCoreName ? m_lanCoreVersion : m_coreVersion;
     const QString core = coreMatch(room.coreVersion, yourCore);
     const QString retroarch = retroarchMatch(room.retroarch, m_retroarchVersion);

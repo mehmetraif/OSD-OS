@@ -29,7 +29,7 @@ class QTimer;
 // - its achievements, and which of them the account has earned, kept five
 //   minutes (achievements(): its Game Details');
 // - where its pictures are on the media server (findPictures(): the Arcade
-//   screen's, which ArcadeBackend downloads with media()).
+//   screen's, which ArcadePictures downloads with media()).
 // One request is under way at a time, achievements first, and of each only
 // the game last asked for is read, a moment after it was: a list scrolled
 // through asks for none of the games passed. A game's pictures asked for by
