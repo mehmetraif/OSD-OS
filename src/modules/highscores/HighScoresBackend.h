@@ -88,9 +88,15 @@ signals:
 
 private:
     QHash<QString, Source> listSources() const;
-    // openhi2txt's MAME folder: links to the Arcade module's hiscore and
-    // nvram, and to MAME's hiscore.dat.
+    // openhi2txt's MAME folder (readRoot()): links to the Arcade module's
+    // hiscore and nvram, and to MAME's hiscore.dat; without links, MAME's
+    // hiscore.dat copied into the Arcade module's folder, whenever it is
+    // not the same file.
     void prepareRoot() const;
+    // The folder openhi2txt reads as MAME's: <data>/highscores/mame, of
+    // links; without them, <data>/arcade itself, whose hiscore and nvram
+    // are MAME's.
+    QString readRoot() const;
     // What the games are read with, the definitions and hiscore.dat, and
     // how what is read is kept: when it changes, every game is read again.
     QString definitionsIdentity() const;
@@ -122,6 +128,14 @@ private:
     mutable QString m_definitionsStamp;
     mutable QString m_definitionsIdentity;
     QString m_namesFrom;     // gamesJsonIdentity() the names were taken from
+    // Whether the folder openhi2txt reads is made of links. Not on Windows,
+    // where QFile::link() makes a shortcut (a .lnk file), which openhi2txt
+    // can't follow.
+#ifdef Q_OS_WIN
+    bool m_links = false;
+#else
+    bool m_links = true;
+#endif
     bool m_loaded = false;
     bool m_reading = false;
     bool m_again = false;    // a refresh asked for while reading
