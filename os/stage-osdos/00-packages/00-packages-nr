@@ -2,7 +2,7 @@
 # (desktop sessions only) and plus alsa-utils. Without recommends, so mpv doesn't drag in xdg-utils
 # and friends. tests/image_packages_test.sh checks the two lists agree.
 libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins
-qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window
+qml6-module-qtquick qml6-module-qtquick-window
 # Qt Quick 3D, which draws the Arcade screen's Orb look (the Orb theme's).
 qml6-module-qtquick3d qml6-module-qtquick3d-helpers
 libsdl2-2.0-0 libpcsclite1

@@ -56,7 +56,6 @@ sudo apt-get install -y \
     qt6-svg-plugins \
     qt6-wayland \
     qml6-module-qtquick \
-    qml6-module-qtquick-controls \
     qml6-module-qtquick-window \
     libsdl2-2.0-0 \
     libpcsclite1 \

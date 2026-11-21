@@ -87,8 +87,7 @@ sudo apt-get update
 sudo apt-get install -y \
   build-essential cmake pkgconf \
   qt6-base-dev qt6-declarative-dev \
-  qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-window \
+  qml6-module-qtquick qml6-module-qtquick-window \
   libqt6svg6 qt6-svg-dev qt6-svg-plugins qt6-wayland \
   qt6-shadertools-dev \
   libdrm-dev libxkbcommon-dev libssl-dev \
