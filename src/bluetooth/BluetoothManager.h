@@ -49,6 +49,10 @@ class BluetoothManager : public QObject {
     // the device says it is ("Keyboard", "Keyboard+Mouse", "Gamepad"…, or "");
     // busy is "pairing", "connecting", "disconnecting" or "".
     Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)
+    // An input device (a pad, a keyboard, a mouse, a remote) is connected:
+    // on a Raspberry Pi it shares the radio with 2.4 GHz Wi-Fi, which the
+    // Arcade's LAN games warn of (ArcadeBackend::lanLinkWarning()).
+    Q_PROPERTY(bool inputConnected READ inputConnected NOTIFY devicesChanged)
     // What pairing needs shown, while it does: { kind, name, code, entered }.
     // kind "passkey": type code on the device, then its Enter (entered digits
     // so far); "pin": the same, for an older device; "confirm": does the
@@ -73,6 +77,9 @@ public:
     bool powered() const;
     bool searching() const;
     QVariantList devices() const;
+    bool inputConnected() const { return hasInputConnected(devices()); }
+    // Whether devices, as devices() lists them, has an input device connected.
+    static bool hasInputConnected(const QVariantList &devices);
     QVariantMap prompt() const { return m_prompt; }
     QString message() const { return m_message; }
     bool powerFailed() const { return m_powerFailed; }

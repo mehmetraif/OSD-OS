@@ -8,6 +8,7 @@
 #include "../../util/FileText.h"
 #include "../../util/LegacyNames.h"
 #include "../../util/ProcessOver.h"
+#include "../../wifi/LinkAdvice.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
 #include "LanRooms.h"
@@ -4427,4 +4428,40 @@ QString ArcadeBackend::noticeFor(int exitCode, const QString &reason) const {
         return notice;
     }
     }
+}
+
+// --- The link to the local network (lanLinkWarning()) ---
+
+void ArcadeBackend::setLinkSources(QObject *wifi, QObject *bluetooth) {
+    m_linkWifi = wifi;
+    m_linkBluetooth = bluetooth;
+}
+
+QString ArcadeBackend::lanLinkWarning(int room) const {
+    if (!m_linkWifi || !m_linkBluetooth)
+        return QString();
+    QHostAddress peer;
+    if (room >= 0) {
+        for (const libretro::Room &r : m_lan->rooms()) {
+            if (r.id == room) {
+                peer = QHostAddress(r.joinAddress.section(QLatin1Char('|'), 0, 0));
+                break;
+            }
+        }
+        if (peer.isNull())
+            return QString();
+    }
+    const QString route = linkadvice::routeInterface(
+        QString::fromLatin1(filetext::readText(legacy::env("PROC_NET_DIR", QStringLiteral("/proc/net")) + QStringLiteral("/route"), 1 << 20)),
+        peer);
+    const QVariantMap wifi = m_linkWifi->property("current").toMap();
+    const QString line = linkadvice::warning(route, m_linkWifi->property("state").toString(), wifi,
+                                             m_linkBluetooth->property("inputConnected").toBool());
+    if (line != m_linkWarningLogged) {
+        m_linkWarningLogged = line;
+        if (!line.isEmpty())
+            qInfo("[Arcade] LAN game over %s at %u MHz with a Bluetooth input device connected: %s",
+                  qPrintable(route), wifi.value(QStringLiteral("frequency")).toUInt(), qPrintable(line));
+    }
+    return line;
 }

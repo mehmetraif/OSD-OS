@@ -59,18 +59,24 @@ class WifiManager : public QObject {
     // "disconnected", "connecting", "connected", "disconnecting"; "" without
     // a device.
     Q_PROPERTY(QString state READ state NOTIFY stateChanged)
-    // The network joined, or being joined: { ssid, bars, address } (bars 0-4,
-    // address its IPv4 address once it has one); empty otherwise.
+    // The network joined, or being joined: { ssid, bars, address, band,
+    // frequency, interface } (bars 0-4, address its IPv4 address once it has
+    // one; band "2.4 GHz", "5 GHz" or "6 GHz" of frequency, the access
+    // point's in MHz (linkadvice::bandOf()), "" and 0 while unknown;
+    // interface the device's, wlan0); empty otherwise.
     Q_PROPERTY(QVariantMap current READ current NOTIFY stateChanged)
     // The search mode is on.
     Q_PROPERTY(bool searching READ searching NOTIFY searchingChanged)
-    // [{ ssid, bars, secured, security, known, heard, active, busy }]: the
+    // [{ ssid, bars, band, secured, security, known, heard, active, busy }]: the
     // networks heard, one line a name, and the saved ones out of reach: the
     // one joined first, then the saved ones, then the others, the strongest
     // first. bars is the signal, 0-4; security "open", "owe" (Enhanced Open),
     // "wpa", "sae" (WPA3), "wep" or "enterprise" (a user name too, which
     // can't be typed here), "" for one not heard; secured, a password
-    // wanted; known, saved; busy "connecting", "disconnecting" or "".
+    // wanted; known, saved; busy "connecting", "disconnecting" or ""; band
+    // the bands its access points are heard on, "2.4 GHz", "5 GHz", "6 GHz"
+    // or several ("2.4/5 GHz": a router's two radios under one name), ""
+    // for one not heard (linkadvice::bandsOf()).
     Q_PROPERTY(QVariantList networks READ networks NOTIFY networksChanged)
     // The country the radio keeps to the rules of (an ISO 3166 code, "" while
     // none is set), and its name.
@@ -161,6 +167,9 @@ private:
         QString path;
         int strength = 0;
         QString security;
+        // The strongest one's frequency in MHz, and every one's heard.
+        uint frequency = 0;
+        QList<uint> frequencies;
     };
     // A connection on its way: the network, the active connection once
     // NetworkManager has answered, and the one added for it, deleted should
@@ -210,6 +219,8 @@ private:
     QTimer m_attemptTimer;
     QTimer m_scanTimer;
     QTimer m_refreshTimer;
+    // The frequency last written to the log, so that a band is told once.
+    uint m_loggedFrequency = 0;
 #endif
 
 private:

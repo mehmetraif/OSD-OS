@@ -8966,6 +8966,61 @@ private slots:
                  QStringList({ QStringLiteral("listxml acefruit galaga kinst mslug neogeo notagame pacman sf2 xmen6p") }));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("system")).toString(), QStringLiteral("CPS-1"));
     }
+
+    // lanLinkWarning(): Host LAN Game's line of the link, against stand-ins
+    // for Settings → Network's Wi-Fi and Bluetooth (objects with their
+    // properties) and for /proc/net/route (OSDOS_PROC_NET_DIR). The line
+    // with the route through Wi-Fi at 2.4 GHz and a Bluetooth input device
+    // connected, written to the log once; nothing at 5 GHz, through a cable,
+    // without the pads, without the sources, or for a room no longer there.
+    void lanLinkWarning() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const auto hex = [](const char *address) {
+            quint32 raw = 0;
+            qToBigEndian(QHostAddress(QLatin1String(address)).toIPv4Address(), &raw);
+            return QStringLiteral("%1").arg(raw, 8, 16, QLatin1Char('0')).toUpper();
+        };
+        const auto routes = [&](const char *iface) {
+            writeFile(data.path() + QStringLiteral("/route"),
+                      QStringLiteral("Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n"
+                                     "%1\t00000000\t%2\t0003\t0\t0\t600\t00000000\t0\t0\t0\n")
+                          .arg(QLatin1String(iface), hex("192.168.1.1")).toUtf8());
+        };
+        routes("wlan0");
+        qputenv("OSDOS_PROC_NET_DIR", data.path().toUtf8());
+        const auto restore = qScopeGuard([] { qunsetenv("OSDOS_PROC_NET_DIR"); });
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+
+        QObject wifi;
+        QObject bluetooth;
+        wifi.setProperty("state", QStringLiteral("connected"));
+        wifi.setProperty("current", QVariantMap{ { QStringLiteral("interface"), QStringLiteral("wlan0") },
+                                                 { QStringLiteral("frequency"), 2437u },
+                                                 { QStringLiteral("band"), QStringLiteral("2.4 GHz") } });
+        bluetooth.setProperty("inputConnected", true);
+        arcade.setLinkSources(&wifi, &bluetooth);
+        const QString line = QStringLiteral("Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable");
+        QTest::ignoreMessage(QtInfoMsg, qPrintable(QStringLiteral("[Arcade] LAN game over wlan0 at 2437 MHz with a "
+                                                                  "Bluetooth input device connected: ") + line));
+        QCOMPARE(arcade.lanLinkWarning(), line);
+        QCOMPARE(arcade.lanLinkWarning(), line);   // logged once
+        QCOMPARE(arcade.lanLinkWarning(7), QString());   // no such room
+
+        bluetooth.setProperty("inputConnected", false);
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+        bluetooth.setProperty("inputConnected", true);
+        wifi.setProperty("current", QVariantMap{ { QStringLiteral("interface"), QStringLiteral("wlan0") },
+                                                 { QStringLiteral("frequency"), 5180u } });
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+        wifi.setProperty("current", QVariantMap{ { QStringLiteral("interface"), QStringLiteral("wlan0") },
+                                                 { QStringLiteral("frequency"), 2412u } });
+        routes("eth0");
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+        QFile::remove(data.path() + QStringLiteral("/route"));
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+    }
 };
 
 

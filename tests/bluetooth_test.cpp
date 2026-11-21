@@ -66,6 +66,23 @@ private slots:
         QCOMPARE(starts().size(), 1);
     }
 
+    // A Bluetooth input device connected (inputConnected, which the Arcade's
+    // LAN games read): a pad, keyboard, mouse or remote that is connected;
+    // not one only paired, nor a speaker. Without BlueZ (the test's), none.
+    void inputConnected() {
+        const auto device = [](const char *kind, bool connected) {
+            return QVariantMap{ { QStringLiteral("kind"), QLatin1String(kind) },
+                                { QStringLiteral("connected"), connected }, { QStringLiteral("paired"), true } };
+        };
+        QVERIFY(!BluetoothManager::hasInputConnected({}));
+        QVERIFY(!BluetoothManager::hasInputConnected({ device("Gamepad", false), device("Audio", true) }));
+        QVERIFY(!BluetoothManager::hasInputConnected({ device("", true), device("Phone", true) }));
+        for (const char *kind : { "Gamepad", "Keyboard", "Mouse", "Keyboard+Mouse", "Remote", "Tablet" })
+            QVERIFY2(BluetoothManager::hasInputConnected({ device("Audio", true), device(kind, true) }), kind);
+        BluetoothManager manager;
+        QVERIFY(!manager.inputConnected());
+    }
+
     // A log that takes too long (a large journal on a slow card): a press
     // while it is read starts no second one; at the time limit what it wrote
     // by then is shown, with why there is no more, and it is ended. A press

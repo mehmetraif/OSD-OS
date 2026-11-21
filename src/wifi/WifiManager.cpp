@@ -1,4 +1,5 @@
 #include "WifiManager.h"
+#include "LinkAdvice.h"
 #include "../util/LegacyNames.h"
 #include "../util/RootRequest.h"
 
@@ -858,9 +859,14 @@ void WifiManager::refresh() {
         if (ssid.isEmpty() || ssid.count('\0') == ssid.size())
             continue;
         const int strength = ap.value(QStringLiteral("Strength")).toInt();
+        const uint frequency = ap.value(QStringLiteral("Frequency")).toUInt();
         auto found = heard.find(ssid);
+        QList<uint> frequencies = found == heard.end() ? QList<uint>() : found->frequencies;
+        frequencies.append(frequency);
         if (found == heard.end() || strength > found->strength)
-            heard.insert(ssid, { path, strength, securityOf(ap) });
+            heard.insert(ssid, { path, strength, securityOf(ap), frequency, frequencies });
+        else
+            found->frequencies = frequencies;
     }
     m_heard = heard;
 
@@ -896,10 +902,17 @@ void WifiManager::refresh() {
     if ((state == QLatin1String("connected") || state == QLatin1String("connecting")
          || state == QLatin1String("disconnecting")) && !currentSsid.isEmpty()) {
         current.insert(QStringLiteral("ssid"), QString::fromUtf8(currentSsid));
-        const int strength = currentSsid == activeSsid && !activeAp.isEmpty()
-                                 ? activeAp.value(QStringLiteral("Strength")).toInt()
-                                 : heard.value(currentSsid).strength;
+        const bool onActive = currentSsid == activeSsid && !activeAp.isEmpty();
+        const int strength = onActive ? activeAp.value(QStringLiteral("Strength")).toInt()
+                                      : heard.value(currentSsid).strength;
         current.insert(QStringLiteral("bars"), barsOf(strength));
+        // The band of the access point the device is on, else (on the way
+        // to one) of the strongest heard by the name.
+        const uint frequency = onActive ? activeAp.value(QStringLiteral("Frequency")).toUInt()
+                                        : heard.value(currentSsid).frequency;
+        current.insert(QStringLiteral("frequency"), frequency);
+        current.insert(QStringLiteral("band"), linkadvice::bandOf(frequency));
+        current.insert(QStringLiteral("interface"), deviceName);
         if (state == QLatin1String("connected")) {
             const QVariantMap ip4 = interfaceOf(pathOf(deviceProperties.value(QStringLiteral("Ip4Config"))), kIp4Config);
             current.insert(QStringLiteral("address"), ip4.value(QStringLiteral("AddressData")).toList().value(0)
@@ -917,9 +930,12 @@ void WifiManager::refresh() {
         m_ssids.insert(QString::fromUtf8(ssid), ssid);
     }
     const bool joined = state == QLatin1String("connected") || state == QLatin1String("disconnecting");
-    if (joined && !activeSsid.isEmpty() && !heard.contains(activeSsid))
+    if (joined && !activeSsid.isEmpty() && !heard.contains(activeSsid)) {
+        const uint frequency = activeAp.value(QStringLiteral("Frequency")).toUInt();
         heard.insert(activeSsid, { QString(), activeAp.value(QStringLiteral("Strength")).toInt(),
-                                   activeAp.isEmpty() ? QStringLiteral("wpa") : securityOf(activeAp) });
+                                   activeAp.isEmpty() ? QStringLiteral("wpa") : securityOf(activeAp), frequency,
+                                   frequency ? QList<uint>{ frequency } : QList<uint>() });
+    }
     struct Line {
         QVariantMap entry;
         int rank;
@@ -941,6 +957,7 @@ void WifiManager::refresh() {
         QVariantMap entry{
             { QStringLiteral("ssid"), name },
             { QStringLiteral("bars"), bars },
+            { QStringLiteral("band"), linkadvice::bandsOf(it->frequencies) },
             { QStringLiteral("security"), it->security },
             { QStringLiteral("secured"), needsPassword(it->security) },
             { QStringLiteral("known"), known.contains(ssid) },
@@ -959,6 +976,7 @@ void WifiManager::refresh() {
         QVariantMap entry{
             { QStringLiteral("ssid"), name },
             { QStringLiteral("bars"), 0 },
+            { QStringLiteral("band"), QString() },
             { QStringLiteral("security"), QString() },
             { QStringLiteral("secured"), false },
             { QStringLiteral("known"), true },
@@ -987,6 +1005,17 @@ void WifiManager::refresh() {
     m_enabled = enabled;
     m_state = state;
     m_current = current;
+    // The band joined, in the log once each time it changes: what a game's
+    // link was on can be read back after it (2.4 GHz shares the Pi's radio
+    // with Bluetooth).
+    const uint joinedFrequency = state == QLatin1String("connected") ? current.value(QStringLiteral("frequency")).toUInt() : 0;
+    if (joinedFrequency != m_loggedFrequency) {
+        m_loggedFrequency = joinedFrequency;
+        const QString band = linkadvice::bandOf(joinedFrequency);
+        if (joinedFrequency)
+            qInfo("[Wi-Fi] On %u MHz (%s) through %s", joinedFrequency,
+                  qPrintable(band.isEmpty() ? QStringLiteral("another band") : band), qPrintable(deviceName));
+    }
     if (!enabled)
         stopSearch();
     if (stateDiffers)

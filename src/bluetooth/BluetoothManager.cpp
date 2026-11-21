@@ -260,6 +260,19 @@ QVariantList BluetoothManager::devices() const {
     return list;
 }
 
+bool BluetoothManager::hasInputConnected(const QVariantList &devices) {
+    static const QStringList kInput = { QStringLiteral("Gamepad"), QStringLiteral("Keyboard"),
+                                        QStringLiteral("Mouse"), QStringLiteral("Keyboard+Mouse"),
+                                        QStringLiteral("Remote"), QStringLiteral("Tablet") };
+    for (const QVariant &v : devices) {
+        const QVariantMap device = v.toMap();
+        if (device.value(QStringLiteral("connected")).toBool()
+            && kInput.contains(device.value(QStringLiteral("kind")).toString()))
+            return true;
+    }
+    return false;
+}
+
 void BluetoothManager::setPowered(bool on) {
 #ifdef OSDOS_BLUETOOTH
     if (m_adapterPath.isEmpty())

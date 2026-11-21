@@ -547,6 +547,22 @@ public:
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
 
+    // The link a LAN game goes over: Settings → Network's Wi-Fi and
+    // Bluetooth (WifiManager and BluetoothManager, read by their
+    // properties: Wi-Fi's state and current, Bluetooth's inputConnected),
+    // given once by main.cpp; none, as in a test that gives none, warns of
+    // nothing.
+    void setLinkSources(QObject *wifi, QObject *bluetooth);
+    // The one line Host LAN Game (room -1) and a LAN Games room (its id)
+    // show of the link to the local network, or "": "Wi-Fi is on 2.4 GHz
+    // with Bluetooth pads: use 5 GHz or a cable" when the route to the room's
+    // host (hosting: to the local network) goes through the Wi-Fi device on
+    // a frequency below 3000 MHz while a Bluetooth input device is connected
+    // (linkadvice::warning()). The route is the kernel's (/proc/net/route,
+    // OSDOS_PROC_NET_DIR standing in for /proc/net); elsewhere than on Linux
+    // there is none, and nothing is said. Written to the log when it changes.
+    Q_INVOKABLE QString lanLinkWarning(int room = -1) const;
+
     // manifest: rescan (action): MAME asked about every set again; then
     // every game's pictures looked for (ArcadePictures::startPictureSweep()).
     Q_INVOKABLE void rescan();
@@ -1277,4 +1293,8 @@ private:
     QElapsedTimer m_coinClock;
     QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
+    // setLinkSources()'s, and the last line lanLinkWarning() logged.
+    QPointer<QObject> m_linkWifi;
+    QPointer<QObject> m_linkBluetooth;
+    mutable QString m_linkWarningLogged;
 };

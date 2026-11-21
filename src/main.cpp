@@ -400,6 +400,8 @@ int main(int argc, char *argv[]) {
     MenuMusic           menuMusic(dataRoot);     // Settings → Sound → Menu Music, or a theme's
     BluetoothManager    bluetoothManager;  // Settings → Network → Bluetooth (BlueZ on Linux)
     WifiManager         wifiManager;       // Settings → Network → Wi-Fi (NetworkManager on Linux)
+    // The Arcade's LAN games warn of 2.4 GHz Wi-Fi beside Bluetooth pads.
+    arcadeBackend.setLinkSources(&wifiManager, &bluetoothManager);
     // Settings → System → About → System Information, the films' drive Local Files'
     // folder's.
     SystemInfo          systemInfo(dataRoot, [&localFiles] { return localFiles.mediaRoot(); });
