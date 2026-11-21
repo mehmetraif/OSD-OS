@@ -105,7 +105,7 @@ These work as in the Jellyfin module, whose page has the detail:
 | Text subtitles in a transcode | Burned into the picture | Fetched as a file ([below](#subtitles)) |
 | Dolby Vision on Direct Play | As the server decides | An SDR transcode ([below](#dolby-vision)) |
 | Intro and credit skipping | The server's media segments; settings shown only when it has them | The server's chapter markers; settings always shown ([below](#intro-skip-and-credit-skip)) |
-| Sign out | Ends the session | Also removes the device from the server |
+| Sign Out | Ends the session | Also removes the device from the server |
 | The token | In a request header | Also in the stream's address (`api_key`): treat mpv's log as private |
 
 ## Subtitles
@@ -145,7 +145,7 @@ Settings → TV / Movie → Emby. Everything but Enabled and Scaling shows only 
 | Intro Skip | Off, Auto, Button | Off | What happens at a marked intro | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at marked credits | `outro_skip` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Emby; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign out | (an action) | | Removes this device from the server and forgets the sign-in | |
+| Sign Out | (an action) | | Removes this device from the server and forgets the sign-in | |
 
 ### How the values are saved
 

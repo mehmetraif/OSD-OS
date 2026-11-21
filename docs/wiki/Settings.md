@@ -490,18 +490,18 @@ Marks in the table: \* only with Screen on Arcade; † only once signed in.
 |---|---|---|
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `com.osdos.ambient_mode` | Enabled, Media Directory, Auto-Launch Playback, Scaling |
 | [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) | `com.osdos.arcade` | Enabled; GAMES: Games Folder, Hide Bootlegs, Hide Incomplete Games, Regions, Read the Games Again, Check ROMs, Favorites; ARCADE SCREEN: Screen, Start Filter\*, Menu Filters\*, List Style\*, Border\*, Info Background\*, Screen Adjustment\*, Hint Bar\*, Help Line\*, Attract Mode\*, Attract After\* (with Attract Mode on); PLAYING: Start Info Screen, Play Mode, Play at Startup; SCORES AND PICTURES: Save High Scores, Online High Scores, RetroAchievements Account, Game Pictures (Pictures From on its page); ONLINE AND LAN: Online Play, Relay Server (with Online Play on), LAN Play, LAN Sync (Smooth or Responsive, default Smooth; with LAN Play on), Online Name (with Online Play or LAN Play on); EMULATORS: MAME, FinalBurn Neo, Emulator Video (Game Picture, Screen Shape, Integer Scale, Vertical Games, MAME Video) |
-| [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | Enabled, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Intro Skip†, Credit Skip†, Scaling, Sign out† |
+| [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | Enabled, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Intro Skip†, Credit Skip†, Scaling, Sign Out† |
 | [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | Enabled, the row named **High Scores** on the Arcade page under the **HIGH SCORES** heading |
-| [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | Enabled, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Intro Skip† and Credit Skip† (where the server has the Intro Skipper plugin), Scaling, Sign out† |
+| [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | Enabled, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Intro Skip† and Credit Skip† (where the server has the Intro Skipper plugin), Scaling, Sign Out† |
 | [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration, Hide File Extensions, Scaling |
-| [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
+| [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign Out |
 | [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `com.osdos.nfc_reader` | Enabled, Tags Directory, Resume Playback, YouTube Video Resolution, Auto Show Subtitles, Subtitle Language, Scaling |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | `com.osdos.playlists` | Enabled, Download Folder, Subtitles, Loop Playback, Scaling |
-| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `com.osdos.plex` | Enabled, Current User†, Auto Sign In†, Server†, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Scaling, Sign out† |
-| [Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.prime_video` | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign out |
+| [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `com.osdos.plex` | Enabled, Current User†, Auto Sign In†, Server†, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Scaling, Sign Out† |
+| [Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.prime_video` | Enabled, Catalogue Region, Catalogue Language, Scaling, Sign in, Sign Out |
 | [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | `com.osdos.scripts` | Enabled, Scripts Directory, Auto-Run On Startup, Rescan Scripts |
 | [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | `com.osdos.weather` | Enabled, Displays, Music, Units, Screen Time, Hours Format |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | Enabled, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed, Resume Playback, Display Shorts), Delete Watch Later, Delete Recently Watched, Sign in, Sign out |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | Enabled, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed, Resume Playback, Display Shorts), Delete Watch Later, Delete Recently Watched, Sign in, Sign Out |
 
 Each module's wiki page explains its rows. A module's own **Scaling** is **Default** (follow Settings → TV / Movie → Scaling) or one of the four, for that module only.
 
@@ -515,7 +515,7 @@ Each module's wiki page explains its rows. A module's own **Scaling** is **Defau
 | `submenu` | Select opens a page of its own rows | Its rows' keys, flat under the module |
 | `directory_browser` | Select opens the folder picker: **Default Folder**, the places, and **Use This Folder** in every folder | The folder's path; `""` for the module's own |
 | `slider` | ◄ ► move it a step | A number from 0 to 100 |
-| `action` | Select runs it at once (Sign out) | Nothing |
+| `action` | Select runs it; one that deletes or signs out asks first, Cancel under the cursor, then its verb (Sign Out, Delete) | Nothing |
 | `module_view` | Select opens one of the module's own screens (Sign in) | Nothing |
 
 The manifest's fields are in [Writing a module](https://github.com/mehmetraif/OSD-OS/wiki/Writing-a-Module#the-manifest). A row is dimmed, its help line saying why, until:

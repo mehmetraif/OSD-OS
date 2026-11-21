@@ -160,7 +160,7 @@ Settings → TV / Movie → **Netflix**, with keys under `modules.com.osdos.netf
 | Catalogue Language | English, Turkish | English | The language of titles, genres and stories. | `catalog_language` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in the service's player. Default follows Settings → TV / Movie → Scaling. | `video_scaling` |
 | Sign in | Select | | Opens the service's sign-in page full screen. | |
-| Sign out | Select | | Forgets the sign-in: deletes the profile. | |
+| Sign Out | Select | | Forgets the sign-in: deletes the profile. | |
 
 The app's **Info Screen** (`app.info_screen`), **Play at Startup** (`app.startup_favorite`) and **Scaling** (`app.video_scaling`) apply too ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 

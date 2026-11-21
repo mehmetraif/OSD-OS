@@ -596,7 +596,8 @@ FocusScope {
     // words ("done": "Watch Later deleted"), else its label and "done", or
     // that it wasn't done where the backend has no such slot. A row that
     // deletes or signs out carries "confirm", a question asked first in the
-    // standard window: Yes or No, No under the cursor, and back is No.
+    // standard window: Cancel, under the cursor as it opens, then the row's
+    // own verb (verbOf()); back is Cancel.
     property string notice: ""
     property var asking: null
     function activateAction(item) {
@@ -607,7 +608,12 @@ FocusScope {
         }
         asking = item
         confirmPrompt.open()
-        confirmPrompt.choiceIndex = 1
+    }
+    // What a question's second answer, and the hint on an action row, say:
+    // the row's "verb" ("Delete" for Delete Watch Later), else its label
+    // ("Sign Out").
+    function verbOf(item) {
+        return item ? String(item.verb || item.label || "OK") : ""
     }
     function runAction(item) {
         var called = appCore.invoke_module_action(moduleOf(item), item.action_slot)
@@ -853,19 +859,21 @@ FocusScope {
               : root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
     }
 
-    // An action row's question (its "confirm"), what it does under it. The
-    // answer is taken once the window has closed and the list has the keys
-    // again; back, or No, does nothing.
+    // An action row's question (its "confirm"), what it does under it, and
+    // the answers: Cancel first, under the cursor, then the action's verb.
+    // The answer is taken once the window has closed and the list has the
+    // keys again; back, or Cancel, does nothing.
     ChoiceOverlay {
         id: confirmPrompt
         objectName: "confirmPrompt"
         anchors.fill: parent
         promptText: moduleSettingsRoot.asking ? String(moduleSettingsRoot.asking.confirm) : ""
         subtitleText: moduleSettingsRoot.asking ? (moduleSettingsRoot.asking.description || "") : ""
-        choices: [{ label: "Yes", action: "yes" }, { label: "No", action: "no" }]
+        choices: [{ label: "Cancel", action: "cancel" },
+                  { label: moduleSettingsRoot.verbOf(moduleSettingsRoot.asking), action: "do" }]
         onActivated: function(action) {
             var item = moduleSettingsRoot.asking
-            if (action === "yes" && item)
+            if (action === "do" && item)
                 moduleSettingsRoot.runAction(item)
         }
         onClosed: settingsList.forceActiveFocus()

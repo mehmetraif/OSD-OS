@@ -67,7 +67,8 @@ Each setting is an object:
 | `apply_slot` | `list_single` with dynamic choices | A backend slot called after each change |
 | `action_slot` | `action` | The backend slot select calls |
 | `done` | `action` | What the help line says once the slot has been called, in a few words (`"Scripts folder read again"`), until the cursor moves. Without it, the label and `done` |
-| `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Yes or No, with No under the cursor. The row's `description` is shown under it |
+| `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Cancel, under the cursor as it opens, then the row's verb. The row's `description` is shown under it |
+| `verb` | `action` | The question's second answer, the action's own word (`"Delete"`), also on the hint bar on the row. Without it, the label (`Sign Out`) |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
 | `settings` | `submenu` | Its own rows, in this same format |
 | `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |

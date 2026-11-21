@@ -186,7 +186,7 @@ Settings → TV / Movie → Jellyfin. Everything but Enabled and Scaling shows o
 | Intro Skip | Off, Auto, Button | Off | What happens at an intro segment | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at a credits segment | `outro_skip` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Jellyfin; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign out | (an action) | | Revokes the token on the server and forgets it here | |
+| Sign Out | (an action) | | Revokes the token on the server and forgets it here | |
 
 ### How the values are saved
 

@@ -70,7 +70,7 @@
     },
     {
       "key": "sign_out",
-      "label": "Sign out",
+      "label": "Sign Out",
       "type": "action",
       "action_slot": "signOut",
       "confirm": "Sign out of Netflix?",

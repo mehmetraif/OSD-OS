@@ -84,7 +84,7 @@
     },
     {
       "key": "logout",
-      "label": "Sign out",
+      "label": "Sign Out",
       "type": "action",
       "action_slot": "logout",
       "confirm": "Sign out of Jellyfin?",

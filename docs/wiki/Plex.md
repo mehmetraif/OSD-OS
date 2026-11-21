@@ -200,7 +200,7 @@ Settings → TV / Movie → Plex. Everything but Enabled and Scaling shows only 
 | Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the season's next episode when one ends | `autoplay_next_episode` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Plex; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign out | (an action) | | Signs out of Plex on this device | |
+| Sign Out | (an action) | | Signs out of Plex on this device | |
 
 ### How the values are saved
 

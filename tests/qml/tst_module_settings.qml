@@ -1311,14 +1311,15 @@ StandInRoot {
 
         // A row that deletes or signs out (its "confirm") asks first, in the
         // standard question window: the question, what the row does under
-        // it, Yes and No with No under the cursor. No and back do nothing
-        // and leave nothing said; Yes calls the slot, and the help line says
-        // what became of it.
+        // it, Cancel under the cursor and then the row's verb (its "verb",
+        // else its label). Cancel and back do nothing and leave nothing
+        // said; the verb calls the slot, and the help line says what became
+        // of it.
         function test_actionAsksFirst() {
             appCore.schema = [
                 { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
                 { key: "delete_history", label: "Delete Recently Watched", type: "action",
-                  action_slot: "delete_history", confirm: "Delete Recently Watched?",
+                  action_slot: "delete_history", confirm: "Delete Recently Watched?", verb: "Delete",
                   done: "Recently Watched deleted", description: "Empties Recently Watched" }
             ]
             var page = open()
@@ -1332,10 +1333,10 @@ StandInRoot {
             compare(prompt.promptText, "Delete Recently Watched?")
             compare(prompt.promptKind, "question")
             compare(prompt.subtitleText, "Empties Recently Watched")
-            compare(prompt.choices.map(function(c) { return c.label }), ["Yes", "No"])
-            compare(prompt.choices[prompt.choiceIndex].label, "No")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Cancel", "Delete"])
+            compare(prompt.choices[prompt.choiceIndex].label, "Cancel")
 
-            // No.
+            // Cancel.
             keyClick(Qt.Key_Return)
             verify(!prompt.visible)
             compare(appCore.actions, [])
@@ -1343,15 +1344,15 @@ StandInRoot {
             // Back.
             keyClick(Qt.Key_Return)
             verify(prompt.visible)
-            compare(prompt.choices[prompt.choiceIndex].label, "No")
+            compare(prompt.choices[prompt.choiceIndex].label, "Cancel")
             keyClick(Qt.Key_Escape)
             verify(!prompt.visible)
             compare(appCore.actions, [])
             compare(help.text, "Empties Recently Watched")
-            // Yes.
+            // Delete.
             keyClick(Qt.Key_Return)
-            keyClick(Qt.Key_Up)
-            compare(prompt.choices[prompt.choiceIndex].label, "Yes")
+            keyClick(Qt.Key_Down)
+            compare(prompt.choices[prompt.choiceIndex].label, "Delete")
             keyClick(Qt.Key_Return)
             verify(!prompt.visible)
             compare(appCore.actions, ["delete_history"])
@@ -1368,7 +1369,7 @@ StandInRoot {
         // dimmed again where it stands, and what it did is still said.
         function test_signOutAsksFirst() {
             appCore.schema = [
-                { key: "logout", label: "Sign out", type: "action", action_slot: "logout",
+                { key: "logout", label: "Sign Out", type: "action", action_slot: "logout",
                   confirm: "Sign out of Plex?", done: "Signing out of Plex", requires_auth: true }
             ]
             var page = open()
@@ -1385,7 +1386,9 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(prompt.visible)
             compare(prompt.promptText, "Sign out of Plex?")
-            keyClick(Qt.Key_Up)
+            compare(prompt.choices.map(function(c) { return c.label }), ["Cancel", "Sign Out"])
+            compare(prompt.choices[prompt.choiceIndex].label, "Cancel")
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(appCore.actions, ["logout"])
             compare(help.text, "Signing out of Plex")

@@ -294,7 +294,7 @@ Settings → TV / Movie → **YouTube**:
 | Delete Watch Later | Select | | Asks first, then deletes `youtube_watch_later.json`. | |
 | Delete Recently Watched | Select | | Asks first, then deletes `youtube_history.json`: Recently Watched and every resume point. | |
 | Sign in | Select | | See [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). | |
-| Sign out | Select | | Asks first, then deletes the sign-in's browser profile. Does nothing while the browser is open. | |
+| Sign Out | Select | | Asks first, then deletes the sign-in's browser profile. Does nothing while the browser is open. | |
 
 App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Startup From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
 
