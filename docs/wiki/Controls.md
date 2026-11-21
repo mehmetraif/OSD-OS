@@ -461,16 +461,16 @@ In `config.json`, under `app.controllers`, by the controller's key:
 
 | Controller | Its key | Its `bindings` |
 |---|---|---|
-| A gamepad | `pad-` and SDL's GUID for it, in lower case | Its inputs by `input.cfg`'s names (`a`, `dpup`, `leftx-`, `lefttrigger+`), each with an action, or `none` |
+| A gamepad | `pad-` and the part of SDL's GUID for it that stays the same from one connection to the next, in lower case: its maker and product, whatever it is plugged into (USB or Bluetooth) and however Windows hears it (XInput, Raw Input); for a pad SDL knows by its name alone, that name | Its inputs by `input.cfg`'s names (`a`, `dpup`, `leftx-`, `lefttrigger+`), each with an action, or `none` |
 | A keyboard or a remote | `kbd-` and its connection, maker and product in hex: `kbd-0005-046d-b342` is a Bluetooth (`0005`) Logitech (`046d`) K380 (`b342`) | Its extra keys, by the numbers All Keyboards & Remotes saves them as, each with an action |
 
-Beside `bindings` come `labels` (`auto`, `a_below`, `a_right`, `shapes` or `numbers`), a pad's `arcade`, and `name` and `kind`. A controller with nothing of its own isn't written. A pad's key is in the log as it comes: `[input] controller added: 8BitDo Pro 2 (pad-…)`. Settings written by an earlier version are read as they are, the names it gave the four label styles too.
+Beside `bindings` come `labels` (`auto`, `a_below`, `a_right`, `shapes` or `numbers`), a pad's `arcade`, and `name` and `kind`. A controller with nothing of its own isn't written. A pad's key is in the log as it comes, with SDL's GUID for it, whether settings were found for it and the Game Buttons layout it plays with: `[input] controller added: 8BitDo Pro 2 (pad-00000000c82d00000360000000000000), SDL GUID 0300c9b8c82d00000360000000007801: settings found; Game Buttons Fighting 6, chosen`. A pad without settings of its own takes those of a pad of the same maker and name that has them, the same pad over another connection (`settings of the same pad over another connection`). Settings written by an earlier version are read as they are, the names it gave the four label styles too; a pad's, which that version kept under SDL's whole GUID, are read under its key now (`settings saved under its earlier key pad-…`) and written under it at the next change. As each arcade game starts, the log says what every player plays with: `[Arcade] game starts in FinalBurn Neo, joypad driver sdl2: P1 "8BitDo Pro 2" pad-…, layout Fighting 6, buttons 1-8, coin, start: 2 3 10 0 1 +5 9 +4 4 6, device "8BitDo Pro 2"`.
 
 ```json
 {
   "app": {
     "controllers": {
-      "pad-0300c9b8c82d00000360000000007801": {
+      "pad-00000000c82d00000360000000000000": {
         "name": "8BitDo Pro 2",
         "kind": "gamepad",
         "labels": "a_right",

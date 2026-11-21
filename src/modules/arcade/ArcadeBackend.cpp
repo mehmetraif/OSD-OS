@@ -2532,6 +2532,9 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         m_lastError = QStringLiteral("MAME's controller file could not be written");
         return false;
     }
+    // What each player plays with: MAME picks its own joystick provider.
+    qInfo("[Arcade] %s", qPrintable(controllers::playersLogLine(QStringLiteral("MAME"), QStringLiteral("MAME's default"),
+                                                                many, arcade, controllers::playerGuids())));
 
     QStringList args{ name,
                       QStringLiteral("-rompath"), rompath(),
@@ -3299,6 +3302,9 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         m_lan->stopClaims();
         return false;
     }
+    // What each player plays with, the joypad driver as configText() writes it.
+    qInfo("[Arcade] %s", qPrintable(controllers::playersLogLine(QStringLiteral("FinalBurn Neo"), QStringLiteral("sdl2"),
+                                                                many, launch.arcade, launch.pads)));
     // This run's log: the last one's mustn't speak for it.
     QFile::remove(launch.log);
 

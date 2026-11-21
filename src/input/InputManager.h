@@ -368,6 +368,7 @@ private:
     void rebuildPads();
     void rebuildPad(SDL_JoystickID id);
     void adoptLegacyJammaKey(SDL_JoystickID id);
+    void logPadAdded(SDL_JoystickID id, const QString &guid, const QString &ownKey) const;
     struct Pad;
     Pad padFor(const QString &key, const QString &name, int sdlType) const;
     Pad padOf(const QString &key, const QString &name) const;
@@ -612,6 +613,15 @@ private:
     QHash<SDL_JoystickID, Pad> m_pads;
     QHash<qint64, int> m_axisState;                  // (pad, axis) → engaged direction: -1 / 0 / +1
     QHash<QString, controllers::Profile> m_profiles; // config.json app.controllers.<key>
+    // The key each profile read was saved under where it isn't its key now
+    // (controllers::currentKey(): an earlier version's whole SDL GUID), for
+    // the line a pad that connects is logged with. The next save writes it
+    // under its key now.
+    QHash<QString, QString> m_profileFrom;
+    // Each connected pad's key, as it was found when it connected
+    // (controllers::sharedPadKey()): kept while it stays, so that its page
+    // goes on being its own whatever settings are saved or reset meanwhile.
+    QHash<SDL_JoystickID, QString> m_padKeys;
     // What each controller was last seen as, kept once it goes, for its page
     // while it is away: its name, its kind and a pad's SDL type (its Auto
     // labels).

@@ -400,8 +400,13 @@ void InputManager::openController(int deviceIndex) {
     SDL_JoystickID id = SDL_JoystickInstanceID(joystick);
     m_controllers.insert(id, gc);
     adoptLegacyJammaKey(id);
+    // Its key, by what of its GUID stays the same from one connection to the
+    // next, or the same pad's over another connection (sharedPadKey()).
+    const QString guid = padGuid(joystick);
+    const QString own = controllers::padKey(guid);
+    m_padKeys.insert(id, controllers::sharedPadKey(own, name, m_profiles));
     rebuildPad(id);
-    qInfo("[input] controller added: %s (%s)", qPrintable(m_pads.value(id).name), qPrintable(m_pads.value(id).key));
+    logPadAdded(id, guid, own);
     recomputeSuppressedDevices();
     updatePlayers();
     emit controllersChanged();
@@ -415,6 +420,7 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
     qInfo("[input] controller removed: %s", qPrintable(m_pads.value(instanceId).name));
     SDL_GameControllerClose(gc);
     m_pads.remove(instanceId);
+    m_padKeys.remove(instanceId);
     m_lateAfterHandoff.remove(instanceId);
 
     letGoOfPad(instanceId);
@@ -719,7 +725,7 @@ void InputManager::rebuildPad(SDL_JoystickID id) {
     if (!name || !*name)
         name = SDL_GameControllerName(gc);
     const int type = SDL_GameControllerGetType(gc);
-    Pad pad = padFor(controllers::padKey(padGuid(joystick)),
+    Pad pad = padFor(m_padKeys.value(id, controllers::padKey(padGuid(joystick))),
                      name && *name ? QString::fromUtf8(name) : QStringLiteral("Gamepad"), type);
     m_seenAs.insert(pad.key, { pad.name, pad.arcade ? QStringLiteral("arcade") : QStringLiteral("gamepad"), type });
     // Its Arcade Buttons' Coin, by what it has (Auto's is Back in both rows).
@@ -766,6 +772,28 @@ void InputManager::adoptLegacyJammaKey(SDL_JoystickID id) {
         saveProfiles();
     if (player)
         savePlayers();
+}
+
+// The line a pad that connects is logged with, which says what its settings
+// are found by: its name, its key, SDL's GUID for it, where its settings came
+// from, and the layout its games get.
+void InputManager::logPadAdded(SDL_JoystickID id, const QString &guid, const QString &ownKey) const {
+    const Pad pad = m_pads.value(id);
+    QString settings;
+    if (!m_profiles.contains(pad.key))
+        settings = QStringLiteral("no settings saved for it");
+    else if (pad.key != ownKey)
+        settings = QStringLiteral("settings of the same pad over another connection");
+    else if (m_profileFrom.contains(pad.key))
+        settings = QStringLiteral("settings saved under its earlier key %1").arg(m_profileFrom.value(pad.key));
+    else
+        settings = QStringLiteral("settings found");
+    const QString layout = arcadeLayoutOf(pad.key);
+    const QString chosen = m_profiles.value(pad.key).arcadeLayout.isEmpty() ? QStringLiteral(", none chosen")
+                                                                             : QStringLiteral(", chosen");
+    qInfo("[input] controller added: %s (%s), SDL GUID %s: %s; Game Buttons %s%s",
+          qPrintable(pad.name), qPrintable(pad.key), qPrintable(guid), qPrintable(settings),
+          qPrintable(controllers::arcadeLayoutTitle(layout)), qPrintable(chosen));
 }
 
 void InputManager::rebuildPads() {
@@ -1315,7 +1343,8 @@ void InputManager::loadPlayers() {
     const QVariantMap all = m_appCore->get_setting(QString(), QStringLiteral("players")).toMap();
     for (int p = 0; p < controllers::kPlayers; ++p) {
         const QVariantMap one = all.value(QString::number(p + 1)).toMap();
-        m_playerKeys[p] = one.value(QStringLiteral("key")).toString();
+        // A pad's as an earlier version keyed it, read as it is keyed now.
+        m_playerKeys[p] = controllers::currentKey(one.value(QStringLiteral("key")).toString());
         m_playerNames[p] = one.value(QStringLiteral("name")).toString();
     }
 }
@@ -1549,18 +1578,43 @@ QVariantList InputManager::players() const {
 }
 
 // config.json's app.controllers: each controller's profile, by its key.
+//
+// A pad's profile saved by an earlier version, under its whole SDL GUID, is
+// read under its key now (controllers::currentKey()), and written under it at
+// the next save. Two of them that are one now (the same model under two of
+// XInput's slots, or over USB and Bluetooth) give it one: the one with a
+// Game Buttons layout chosen, else the first by key; the other stays under
+// its old key, listed while it is away, so that nothing set is lost.
 void InputManager::loadProfiles() {
     m_profiles.clear();
+    m_profileFrom.clear();
     if (!m_appCore)
         return;
     const QVariantMap all = m_appCore->get_setting(QString(), QStringLiteral("controllers")).toMap();
+    struct Read { QString key; QString current; controllers::Profile profile; };
+    QList<Read> read;
     for (auto it = all.cbegin(); it != all.cend(); ++it) {
         const controllers::Profile profile = controllers::Profile::fromVariant(it.value());
-        if (profile.isEmpty())
+        if (!profile.isEmpty())
+            read.append({ it.key(), controllers::currentKey(it.key()), profile });
+    }
+    // Those under their key now first, then those with a layout chosen, each
+    // by key (as QVariantMap has them).
+    std::stable_sort(read.begin(), read.end(), [](const Read &a, const Read &b) {
+        const bool aCurrent = a.key == a.current, bCurrent = b.key == b.current;
+        if (aCurrent != bCurrent)
+            return aCurrent;
+        return !a.profile.arcadeLayout.isEmpty() && b.profile.arcadeLayout.isEmpty();
+    });
+    for (const Read &r : std::as_const(read)) {
+        const QString key = m_profiles.contains(r.current) ? r.key : r.current;
+        if (m_profiles.contains(key))
             continue;
-        m_profiles.insert(it.key(), profile);
-        if (!profile.name.isEmpty() && !m_seenAs.contains(it.key()))
-            m_seenAs.insert(it.key(), { profile.name, profile.kind, profile.sdlType });
+        m_profiles.insert(key, r.profile);
+        if (key != r.key)
+            m_profileFrom.insert(key, r.key);
+        if (!r.profile.name.isEmpty() && !m_seenAs.contains(key))
+            m_seenAs.insert(key, { r.profile.name, r.profile.kind, r.profile.sdlType });
     }
 }
 
@@ -2239,6 +2293,11 @@ void InputManager::publishArcade() {
         SDL_GameController *gc = m_controllers.value(id, nullptr);
         const QString key = m_pads.value(id).key;
         const QString layout = arcadeLayoutOf(key);
+        if (gc) {
+            binds.key = key;
+            binds.name = m_pads.value(id).name;
+            binds.layout = layout;
+        }
         if (gc && layout != QLatin1String("default")) {
             const controllers::PadShape shape = padShape(gc);
             const auto bind = [&shape](const QStringList &row, QStringList &mame, QStringList &retroarch) {

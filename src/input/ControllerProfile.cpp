@@ -1,6 +1,7 @@
 #include "ControllerProfile.h"
 
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <iterator>
@@ -388,8 +389,82 @@ QString inputLabel(LabelStyle style, const QString &token) {
     return plain.toUpper();
 }
 
+namespace {
+
+bool isHexGuid(const QString &guid) {
+    if (guid.size() != 32)
+        return false;
+    return std::all_of(guid.cbegin(), guid.cend(), [](QChar c) {
+        return std::isxdigit(static_cast<unsigned char>(c.toLatin1())) != 0;
+    });
+}
+
+// SDL's GUID with a vendor and a product (SDL_CreateJoystickGUID()): its bus,
+// its name's checksum, then the vendor and the product, two bytes each,
+// little-endian, with two bytes of zeros after each; then the version and
+// the driver's two bytes. A GUID SDL knows no vendor and product of has its
+// name where they would be, which leaves no zeros there.
+bool hasVendorAndProduct(const QString &guid) {
+    return guid.mid(12, 4) == QLatin1String("0000") && guid.mid(20, 4) == QLatin1String("0000")
+           && (guid.mid(8, 4) != QLatin1String("0000") || guid.mid(16, 4) != QLatin1String("0000"));
+}
+
+// The GUID's vendor in it ("5e04"), of a key or a GUID made stable.
+QString guidVendor(const QString &guid) {
+    return guid.mid(8, 4);
+}
+
+} // namespace
+
+QString stablePadGuid(const QString &sdlGuid) {
+    const QString guid = sdlGuid.toLower();
+    if (!isHexGuid(guid))
+        return guid;
+    if (hasVendorAndProduct(guid))
+        return QStringLiteral("00000000") + guid.mid(8, 4) + QStringLiteral("0000") + guid.mid(16, 4)
+               + QStringLiteral("000000000000");
+    // XInput's ('x', the driver's byte) without a vendor and a product: the
+    // checksum of a name that is its slot's.
+    if (guid.mid(28, 2) == QLatin1String("78")) {
+        QString out = guid;
+        out.replace(4, 4, QStringLiteral("0000"));
+        return out;
+    }
+    return guid;
+}
+
 QString padKey(const QString &sdlGuid) {
-    return kPadKeyPrefix + sdlGuid.toLower();
+    return kPadKeyPrefix + stablePadGuid(sdlGuid);
+}
+
+QString currentKey(const QString &key) {
+    return isPadKey(key) ? padKey(key.mid(kPadKeyPrefix.size())) : key;
+}
+
+QString padModelName(const QString &name) {
+    static const QRegularExpression slot(QStringLiteral("^((?:XInput|X360) .*\\S)\\s+#\\d+$"));
+    const QRegularExpressionMatch match = slot.match(name);
+    return match.hasMatch() ? match.captured(1) : name;
+}
+
+QString sharedPadKey(const QString &key, const QString &name, const QHash<QString, Profile> &profiles) {
+    const QString guid = key.mid(kPadKeyPrefix.size());
+    if (!isPadKey(key) || profiles.contains(key) || !isHexGuid(guid) || !hasVendorAndProduct(guid)
+        || guidVendor(guid) == QLatin1String("0000"))
+        return key;
+    const QString model = padModelName(name);
+    if (model.isEmpty())
+        return key;
+    // By key, so that the one taken is the same at every start.
+    QStringList keys = profiles.keys();
+    keys.sort();
+    for (const QString &other : std::as_const(keys)) {
+        const QString otherGuid = other.mid(kPadKeyPrefix.size());
+        if (isPadKey(other) && isHexGuid(otherGuid) && hasVendorAndProduct(otherGuid)
+            && guidVendor(otherGuid) == guidVendor(guid) && padModelName(profiles.value(other).name) == model)
+            return other;
+    }
+    return key;
 }
 
 bool isPadKey(const QString &key) {
@@ -699,6 +774,39 @@ QList<ArcadeBinds> playerArcade() {
     QList<ArcadeBinds> binds = playerArcadeBinds();
     binds.resize(kPlayers);
     return binds;
+}
+
+QString playersLogLine(const QString &engine, const QString &driver, bool manyButtons,
+                       const QList<QStringList> &applied, const QStringList &devices) {
+    const QStringList names = playerNames();
+    const QStringList guids = playerGuids();
+    const QList<ArcadeBinds> arcade = playerArcade();
+    QStringList players;
+    for (int p = 0; p < kPlayers; ++p) {
+        if (guids.value(p).isEmpty())
+            continue;
+        const ArcadeBinds &binds = arcade.at(p);
+        const QString layout = binds.layout.isEmpty() ? QStringLiteral("default") : binds.layout;
+        QString title = arcadeLayoutTitle(layout);
+        if (layout == QLatin1String("auto"))
+            title += QStringLiteral(" (%1)").arg(arcadeLayoutTitle(manyButtons ? QStringLiteral("fighting6")
+                                                                               : QStringLiteral("neogeo4")));
+        const QStringList written = applied.value(p);
+        QStringList shown;
+        for (const QString &bind : written)
+            shown << (bind.isEmpty() ? QStringLiteral("-") : bind);
+        QString line = QStringLiteral("P%1 \"%2\" %3, layout %4, ")
+                           .arg(p + 1)
+                           .arg(names.value(p), binds.key.isEmpty() ? padKey(guids.value(p)) : binds.key, title);
+        line += written.isEmpty() ? (layout == QLatin1String("default") ? QStringLiteral("the engine's own buttons")
+                                                                        : QStringLiteral("not applied (online)"))
+                                  : QStringLiteral("buttons 1-8, coin, start: ") + shown.join(QLatin1Char(' '));
+        if (!devices.value(p).isEmpty())
+            line += QStringLiteral(", device \"%1\"").arg(devices.value(p));
+        players << line;
+    }
+    return QStringLiteral("game starts in %1, joypad driver %2: %3")
+        .arg(engine, driver, players.isEmpty() ? QStringLiteral("no player has a pad") : players.join(QStringLiteral("; ")));
 }
 
 void setPadMappings(const QStringList &mappings) {

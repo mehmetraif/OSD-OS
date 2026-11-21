@@ -36,7 +36,37 @@ QVariantList labelStyles();
 // makes it one of the four first.
 QString inputLabel(LabelStyle style, const QString &token);
 
+// A pad's key: "pad-" and SDL's GUID for it (lower case) as far as that GUID
+// names the model and stays the same from one connection to the next
+// (stablePadGuid()), so that the same pad finds its settings again whatever
+// it was plugged into, and the same model shares them.
 QString padKey(const QString &sdlGuid);
+// SDL's GUID of a pad, lower case, without what changes between two
+// connections of the same pad. A GUID with a vendor and a product keeps those
+// alone: its bus (USB or Bluetooth), the checksum of the name SDL gives it,
+// its version and its driver's bytes (XInput's, HIDAPI's, Raw Input's...)
+// are zeroed. An XInput pad SDL knows no vendor and product of is named by
+// its slot ("XInput Controller #2", as the slot it gets may change), the
+// name's checksum in its GUID with it: that checksum is zeroed. Any other
+// GUID (a pad SDL knows by its bus and its name alone, the name in the
+// GUID) is kept as it is. "" stays "".
+QString stablePadGuid(const QString &sdlGuid);
+// The key a profile, or a player's choice, saved by an earlier version is
+// read under now: a pad's whole SDL GUID made stable (padKey()); any other
+// key as it is.
+QString currentKey(const QString &key);
+// A pad's name without the slot number SDL names an XInput pad by when it
+// knows no vendor and product of it ("XInput Controller #2" is "XInput
+// Controller"); any other name as it is.
+QString padModelName(const QString &name);
+// The key a pad that connects takes its settings by: its own (padKey())
+// when it has settings or isn't known by its vendor and product; else the
+// key of a pad of the same vendor and the same name (padModelName()) that
+// has settings, the same pad over another connection (a pad has a product
+// number of its own over Bluetooth); else its own. profiles: the settings
+// kept, by key.
+struct Profile;
+QString sharedPadKey(const QString &key, const QString &name, const QHash<QString, Profile> &profiles);
 // Whether a controller's key is a pad's (padKey()), not a keyboard's or a
 // remote's.
 bool isPadKey(const QString &key);
@@ -241,12 +271,18 @@ QString mappingWithoutCrc(const QString &mapping);
 // it plays there as Engine's does. InputManager keeps them as it keeps the
 // players' environment; the Arcade module writes them for each game.
 // kPlayers entries.
+// key, name and layout: the player's pad's key and name, and the layout in
+// force for it (arcadeLayouts()' name, "default" for Engine's), for the log
+// line a game starts with (playersLogLine()).
 struct ArcadeBinds {
     QStringList mame;
     QStringList retroarch;
     QStringList mameMany;
     QStringList retroarchMany;
     bool automatic = false;
+    QString key;
+    QString name;
+    QString layout;
     bool isEmpty() const { return mame.isEmpty(); }
     QStringList mameFor(bool manyButtons) const { return automatic && manyButtons ? mameMany : mame; }
     QStringList retroarchFor(bool manyButtons) const { return automatic && manyButtons ? retroarchMany : retroarch; }
@@ -254,6 +290,15 @@ struct ArcadeBinds {
 };
 void setPlayerArcade(const QList<ArcadeBinds> &players);
 QList<ArcadeBinds> playerArcade();
+// The line the Arcade module logs as a game starts, so that a saved log says
+// what each player played with: for each player with a pad, its name and key,
+// the layout in force for it (Auto with the row the game takes, manyButtons),
+// the binds written for it (applied, the engine's names for Button 1 to 8,
+// Coin and Start; none for Engine's, or Auto online) and the device the
+// engine keeps for that player (devices, "" for none said); engine and
+// driver name the emulator and the joypad driver it is told to use.
+QString playersLogLine(const QString &engine, const QString &driver, bool manyButtons,
+                       const QList<QStringList> &applied, const QStringList &devices = {});
 
 // Which keyboard or remote a key came from. Qt doesn't say; the nodes, read
 // beside it, do: each press noted as it comes, then taken by the key event
