@@ -471,6 +471,14 @@ private slots:
         QVERIFY(!UpdateManager::isNewer("v0.0.9", "v0.0.9"));
         QVERIFY(!UpdateManager::isNewer("nightly", "v0.0.9"));
         QVERIFY(UpdateManager::isNewer("v0.0.9", "dev"));
+        // A build of commits after a tag, as git describe names it (a
+        // locally built AppImage's): after that release, before the next.
+        QVERIFY(!UpdateManager::isNewer("v0.0.43", "v0.0.43-12-g1a2b3c4"));
+        QVERIFY(!UpdateManager::isNewer("v0.0.42", "v0.0.43-12-g1a2b3c4"));
+        QVERIFY(UpdateManager::isNewer("v0.0.44", "v0.0.43-12-g1a2b3c4"));
+        QVERIFY(!UpdateManager::isNewer("v0.1.0-rc.1", "v0.1.0-rc.1-3-gabcdef0"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0-rc.2", "v0.1.0-rc.1-3-gabcdef0"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0", "v0.1.0-rc.1-3-gabcdef0"));
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());
         const QString running = QCoreApplication::applicationVersion();

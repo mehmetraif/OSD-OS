@@ -15,6 +15,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStorageInfo>
 #include <QSysInfo>
 #include <QTimer>
@@ -221,8 +222,15 @@ static int comparePrerelease(const QString &a, const QString &b) {
 // Whether release is newer than running: by their numbers, and at the same
 // numbers a release ahead of a prerelease of it (v0.2.0 after v0.2.0-rc.1).
 // A running version that isn't one, a build from source's, takes any release
-// but its own name; a release that isn't one is never newer.
+// but its own name; a release that isn't one is never newer. One running a
+// build of commits after a tag, as git describe names it (v0.0.43-12-g1a2b3c4,
+// a locally built AppImage's), is after that tag's release, not a prerelease
+// of it.
 bool UpdateManager::isNewer(const QString &release, const QString &running) {
+    static const QRegularExpression described(QStringLiteral("^(.+)-[0-9]+-g[0-9a-f]+$"));
+    const QRegularExpressionMatch after = described.match(running.trimmed());
+    if (after.hasMatch())
+        return isNewer(release, after.captured(1));
     QList<int> r, c;
     QString rPre, cPre;
     if (!parseVersion(running, &c, &cPre))
