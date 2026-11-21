@@ -213,7 +213,7 @@ class Setup:
                            ("SSH", lambda: self.ssh(system)),
                            ("Time zone", lambda: self.timezone(system)),
                            ("Keyboard", lambda: self.keyboard(system)),
-                           ("Display output", lambda: self.display(part("display"), device))):
+                           ("Display output", lambda: self.display(part("display")))):
             self.step(name, step)
         # Its passwords go with it.
         try:
@@ -428,7 +428,7 @@ class Setup:
         else:
             self.say(f"Keyboard: {layout}")
 
-    def display(self, display, device):
+    def display(self, display):
         preset = display.get("preset")
         if preset is None:
             return
@@ -481,30 +481,24 @@ class Setup:
         return family, name.startswith(("Raspberry Pi 400", "Raspberry Pi 500"))
 
     # --- The app's user's files.
-    def home(self):
+    def account(self):
+        """The app's user's home, user id and group id as /etc/passwd has
+        them, or ("", "", "")."""
         try:
             with open(self.path("/etc/passwd")) as f:
                 for line in f:
                     fields = line.rstrip("\n").split(":")
                     if len(fields) >= 7 and fields[0] == self.user:
-                        return self.path(fields[5])
+                        return self.path(fields[5]), fields[2], fields[3]
         except OSError:
             pass
-        return ""
-
-    def ids(self):
-        with open(self.path("/etc/passwd")) as f:
-            for line in f:
-                fields = line.rstrip("\n").split(":")
-                if len(fields) >= 7 and fields[0] == self.user:
-                    return int(fields[2]), int(fields[3])
-        raise KeyError(self.user)
+        return "", "", ""
 
     def write_user_files(self, files, label):
         """OSD/OS's settings, the RetroAchievements account or the SSH keys,
         written by this program again as the app's user: what it said, or
         None when it couldn't be run."""
-        home = self.home()
+        home, uid, gid = self.account()
         if not home:
             self.fail(f"{label}: not set: there is no user {self.user}")
             return None
@@ -512,8 +506,7 @@ class Setup:
         try:
             options = {}
             if os.geteuid() == 0:
-                uid, gid = self.ids()
-                options = {"user": uid, "group": gid, "extra_groups": []}
+                options = {"user": int(uid), "group": int(gid), "extra_groups": []}
             done = subprocess.run(args, input=json.dumps(files), capture_output=True, text=True,
                                   timeout=COMMAND_TIMEOUT, env={"PATH": PATH, "HOME": home, "LC_ALL": "C.UTF-8"},
                                   cwd="/", **options)
