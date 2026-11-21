@@ -20,6 +20,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 - A value that can't be saved (a full or read-only disk) isn't applied. The log says `[AppCore] Setting not saved: …`.
 - The first screen's title bar shows a release's version and the device's IP address. A page shows its name: `SETTINGS | LOOK`.
 - The help line under a page says what the selected row is, then what the value on it does, and follows ◄ ► as the value changes.
+- The hint bar names only the keys the selected row takes: **OPEN** on a row ending in ►, **CHANGE** on a list, **ON/OFF** where select turns a slider on or off, **ON/OFF** and **SETTINGS** on a module's row, and only back on a dimmed row.
 - No row is hidden. One that can't be used is dimmed, and its help line starts with why ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#rows-dimmed-in-settings)).
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with Window Frame selected and dimmed rows for Orb Fog and Window Frame, the help line starting: Only with OSD Background on Window" />

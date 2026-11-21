@@ -199,7 +199,9 @@ FocusScope {
     readonly property var monitorGuide: {
         var h = root.hints
         if (studio)
-            return [h.navigate + ":MENU/ITEM", (inIcons() ? h.browse + ":ENTER" : h.change + ":CHANGE"), h.back + ":BACK"]
+            return [h.navigate + ":MENU/ITEM"].concat(inIcons() ? [h.browse + ":ENTER"]
+                                                      : rowHints.map(function(part) { return root.hintLine([part]) }),
+                                                      [h.back + ":BACK"])
         if (broadcast)
             return editIndex >= 0 ? ["TO CHANGE  :" + h.navigate, "TO CONFIRM :" + h.select, "TO CANCEL  :" + h.back]
                                   : ["TO SELECT  :" + h.navigate, "TO ENTER   :" + h.select, "TO CANCEL  :" + h.back]
@@ -908,8 +910,32 @@ FocusScope {
     HintBar {
         id: footer
         guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", settingsRoot.inIcons() ? "browse:OPEN" : "change:CHANGE",
-                             "select:SELECT"])
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE"].concat(settingsRoot.rowHints))
+    }
+    // The keys the row under the cursor takes, as its hint bar names them
+    // (root.hintLine()'s parts), as a controller's page words its own: a
+    // page's in the icons opens; a row that opens a page, a picker or a
+    // question OPEN (PASTE for Paste OSD/OS Setup); a list CHANGE; a slider
+    // that can be off CHANGE and select's ON/OFF; a module's row ◄ ►'s
+    // ON/OFF and select's SETTINGS; a dimmed row none but back's and the
+    // cursor's.
+    readonly property var rowHints: {
+        if (inIcons())
+            return ["browse:OPEN"]
+        var row = (revision, settingsItems[settingsList.currentIndex])
+        if (!row || row.type === "info" || (revision, offReason(settingsList.currentIndex)) !== "")
+            return []
+        if (row.type === "module")
+            return root.twoStep ? ["select:SETTINGS"] : ["change:ON/OFF", "select:SETTINGS"]
+        if (row.type === "paste_setup")
+            return ["select:PASTE"]
+        if (settingsList.opens(row))
+            return ["select:OPEN"]
+        if (row.type === "slider" && row.on !== undefined)
+            return root.twoStep ? ["select:CHANGE"] : ["change:CHANGE", "select:ON/OFF"]
+        if (row.type === "list_single" || row.type === "slider")
+            return [root.twoStep ? "select:CHANGE" : "change:CHANGE"]
+        return []
     }
 
     // The keys back from a question or a notice that closed: to another

@@ -517,6 +517,47 @@ StandInRoot {
             compare(page.helpValue, "Broadcast")
         }
 
+        // The hint bar says what the keys do on the row under the cursor:
+        // OPEN on a row that opens, CHANGE on a list, ON/OFF for a slider
+        // that can be off, a module's ON/OFF and SETTINGS, PASTE, and on a
+        // dimmed row back alone, never [◄►]:CHANGE [ENTER]:SELECT on every
+        // row.
+        function hintOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].frameRole === "hints")
+                    return page.children[i].text
+            }
+            return ""
+        }
+        function test_hintsByRow() {
+            var page = open()
+            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN")
+            loader.source = ""
+            page = open({ group: "tv" })
+            compare(cursor(page), "Scaling")
+            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE")
+            moveTo(page, "Transparent Background")
+            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:ON/OFF")
+            moveTo(page, "Info Screen")
+            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE")
+            moveTo(page, "Plex")
+            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [◄►]:ON/OFF [ENTER]:SETTINGS")
+            moveTo(page, "Video Arguments")
+            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN")
+            loader.source = ""
+            page = open({ group: "system" })
+            moveTo(page, "Paste OSD/OS Setup")
+            compare(hintOf(page), page.canPaste ? "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:PASTE" : "[ESC]:BACK [▲▼]:NAVIGATE")
+            loader.source = ""
+            // Studio Monitor's guide the same way.
+            root.menuLayout = "Studio Monitor"
+            page = open({ group: "tv" })
+            moveTo(page, "Info Screen")
+            compare(page.monitorGuide, ["[▲▼]:MENU/ITEM", "[ESC]:BACK"])
+            moveTo(page, "Plex")
+            compare(page.monitorGuide, ["[▲▼]:MENU/ITEM", "[◄►]:ON/OFF", "[ENTER]:SETTINGS", "[ESC]:BACK"])
+        }
+
         // Sound: Menu Music's rows dimmed while it is Off, each saying for
         // what; Audio Output dimmed where OSD/OS can't choose a sound card.
         function test_soundPage() {
