@@ -17,6 +17,7 @@ on:
   push:
     branches: [main]
     paths: &paths
+      - 'scripts/build-fbneo-cores.sh'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-make.sh'

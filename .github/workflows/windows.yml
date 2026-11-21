@@ -24,6 +24,7 @@ on:
       - 'cmake/**'
       - 'CMakeLists.txt'
       - 'os/stage-osdos/03-boot/files/display-presets.json'
+      - 'scripts/build-fbneo-cores.sh'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-make.sh'
