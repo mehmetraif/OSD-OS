@@ -782,10 +782,16 @@ StandInRoot {
         }
     }
 
+    // MpvController, as the loading screen hears it: a video inside the
+    // window has drawn a picture.
+    QtObject {
+        id: mpvController
+        signal videoFrameReady()
+    }
     // The loading screen a player shows while its video starts: its letters
     // in the loading ink, each bleeding to the right in the colours' second
     // ink (root.loadingBleed), Video 1's with Default; no bleed with the
-    // Loading Effect off.
+    // Loading Effect off. And when it moves.
     Component {
         id: tapeLayer
         LoadingScreen {
@@ -821,6 +827,32 @@ StandInRoot {
             tape.effect = false
             verify(!bleed[0].visible)
             root.loadingThemed = true
+        }
+
+        // With Transparent Background it goes on moving while the window's
+        // video has no picture yet (nothing is drawn over it), and rests
+        // once one is over it; its session gone, and shown again, it moves.
+        // While another process has the screen it rests.
+        function test_restsUnderAPicture() {
+            var tape = createTemporaryObject(tapeLayer, root)
+            verify(tape.live)
+            root.videoActive = true
+            verify(tape.live)
+            mpvController.videoFrameReady()
+            verify(!tape.live)
+            root.videoActive = false
+            verify(tape.live)
+            root.videoActive = true
+            verify(tape.live)
+            mpvController.videoFrameReady()
+            verify(!tape.live)
+            tape.visible = false
+            tape.visible = true
+            verify(tape.live)
+            root.videoActive = false
+            root.screenHandedOff = true
+            verify(!tape.live)
+            root.screenHandedOff = false
         }
     }
 }
