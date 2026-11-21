@@ -216,6 +216,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_include_directories(playback_retire_test PRIVATE ${MPV_INCLUDEDIR})
     endif()
     add_test(NAME playback_retire COMMAND playback_retire_test)
+    # Its stand-in for mpv runs as a process and the controller's waits for
+    # real, test after test (a start watched, a player ended, a session given
+    # up on): past the minute CI gives a test without a timeout of its own.
+    set_tests_properties(playback_retire PROPERTIES TIMEOUT 180)
 
     # The menu music, against a stand-in for mpv: it plays in the menus, and
     # stops at once when anything else is about to play sound. And the app's
@@ -496,6 +500,10 @@ osdos_qml_test(controls_views tst_controllers.qml)
 # The Arcade module's views (modules/arcade/views/Games.qml, ArcadeScreen.qml,
 # Play.qml) against a stand-in for ArcadeBackend.
 osdos_qml_test(arcade_views tst_arcade.qml)
+# Its views' own waits run for real (a held select, Attract Mode's idle time,
+# a name's scroll), view after view: a minute in all, the minute CI gives a
+# test without a timeout of its own.
+set_tests_properties(arcade_views PROPERTIES TIMEOUT 180)
 # A module's settings page (views/ModuleSettings.qml) against a stand-in for
 # AppCore: rows that follow another row's value.
 osdos_qml_test(module_settings_view tst_module_settings.qml)
