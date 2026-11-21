@@ -7,18 +7,9 @@ import Components
 // (ArcadeBackend::downloadMame()): mamedev's release for 64-bit Windows of
 // the version the OSD/OS image has, into OSD/OS's own folder, under MAME's
 // line while there is none, or the one downloaded is the one found.
-FocusScope {
+KeyedPage {
     id: mameRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "MAME"
 
     readonly property bool downloading: arcadeBackend ? arcadeBackend.mameDownloading : false
     readonly property int progress: arcadeBackend ? arcadeBackend.mameProgress : 0
@@ -27,20 +18,14 @@ FocusScope {
     property int revision: 0
     readonly property var info: (revision, downloading, arcadeBackend ? arcadeBackend.mameInfo() : ({}))
 
-    // The page's lines, by key: the list is made again only when a line
-    // comes or goes, so the cursor stays where it is as a download goes on.
-    property var keys: []
+    // The page's lines, by key.
     function updateKeys() {
         var made = ["mame"]
         if (info.canDownload && (!info.mame || info.downloaded))
             made.push("download")
         if (info.mame)
             made.push("plugin")
-        if (JSON.stringify(made) === JSON.stringify(keys))
-            return
-        var at = keys[list.currentIndex]
-        keys = made
-        list.currentIndex = Math.max(0, made.indexOf(at))
+        setKeys(made)
     }
     onInfoChanged: updateKeys()
     Component.onCompleted: updateKeys()
@@ -90,47 +75,11 @@ FocusScope {
         function onScanningChanged() { mameRoot.revision++ }
     }
 
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "MAME"
+    function selectWord(key) {
+        return key === "download" && !downloading ? "DOWNLOAD" : ""
     }
-
-    MenuList {
-        id: list
-        model: mameRoot.keys
-        focus: true
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: mameRoot.labelOf(modelData)
-            value: mameRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-            keepValue: true
-        }
-
-        Keys.onReturnPressed: {
-            var key = mameRoot.keys[currentIndex]
-            if (arcadeBackend && key === "download" && !mameRoot.downloading)
-                arcadeBackend.downloadMame()
-        }
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                mameRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        text: mameRoot.descriptionOf(mameRoot.keys[list.currentIndex])
-    }
-
-    HintBar {
-        readonly property string key: mameRoot.keys[list.currentIndex] || ""
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             key === "download" && !mameRoot.downloading ? "select:DOWNLOAD" : ""])
+    function choose(key) {
+        if (arcadeBackend && key === "download" && !downloading)
+            arcadeBackend.downloadMame()
     }
 }

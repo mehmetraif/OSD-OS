@@ -13,18 +13,9 @@ import Components
 // takes, or else at the next game. The page says how that went
 // (achievementsState), and whether RetroAchievements took the key, which it
 // is asked about as it is typed and as the page opens.
-FocusScope {
+KeyedPage {
     id: accountRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "RetroAchievements"
 
     readonly property string user: arcadeBackend ? arcadeBackend.achievementsUser : ""
     readonly property string accountState: arcadeBackend ? arcadeBackend.achievementsState : "none"
@@ -42,10 +33,8 @@ FocusScope {
                                       : accountState === "checking" ? "Checking"
                                       : accountState === "pending" ? "At the Next Game"
                                       : accountState === "failed" ? "Not Signed In" : "None"
-    // The page's lines, by key: the list is made again only when a line
-    // comes or goes (signed in, a key kept), the cursor kept on its line.
-    property var keys: []
-    readonly property string currentKey: keys[list.currentIndex] || ""
+    covered: keyboard.visible
+    // The page's lines, by key: signed in or not, a key kept or not.
     function updateKeys() {
         var made = ["state", "status"]
         if (accountState === "signedIn" || accountState === "pending" || accountState === "checking")
@@ -55,13 +44,7 @@ FocusScope {
         made.push("key")
         if (keyKept)
             made.push("forgetKey")
-        if (JSON.stringify(made) === JSON.stringify(keys))
-            return
-        var at = keys[list.currentIndex]
-        keys = made
-        // The list made again, on the line it was on, or the first (a line
-        // gone: signed in).
-        list.currentIndex = Math.max(0, made.indexOf(at))
+        setKeys(made)
     }
     onAccountStateChanged: {
         updateKeys()
@@ -70,7 +53,7 @@ FocusScope {
         if (accountState === "failed") {
             if (typedUser === "")
                 typedUser = user
-            list.currentIndex = Math.max(0, keys.indexOf("password"))
+            currentIndex = Math.max(0, keys.indexOf("password"))
         }
     }
     onKeyKeptChanged: updateKeys()
@@ -172,48 +155,9 @@ FocusScope {
         }
     }
 
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "RetroAchievements"
-    }
-
-    MenuList {
-        id: list
-        model: accountRoot.keys
-        visible: !keyboard.visible
-        focus: !keyboard.visible
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: accountRoot.labelOf(modelData)
-            value: accountRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-            keepValue: true
-        }
-
-        Keys.onReturnPressed: accountRoot.choose(accountRoot.currentKey)
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                accountRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        visible: !keyboard.visible
-        text: accountRoot.descriptionOf(accountRoot.currentKey)
-    }
-
-    HintBar {
-        readonly property string key: accountRoot.currentKey
-        visible: !keyboard.visible
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             key !== "" && key !== "state" && key !== "status"
-                             ? "select:" + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : ""])
+    function selectWord(key) {
+        return key !== "" && key !== "state" && key !== "status"
+               ? (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : ""
     }
 
     OnScreenKeyboard {
@@ -229,11 +173,11 @@ FocusScope {
             else if (accountRoot.typing === "key" && arcadeBackend)
                 arcadeBackend.setAchievementsKey(text.trim())
             accountRoot.typing = ""
-            list.forceActiveFocus()
+            accountRoot.focusList()
         }
         onCanceled: {
             accountRoot.typing = ""
-            list.forceActiveFocus()
+            accountRoot.focusList()
         }
     }
 }

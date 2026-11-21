@@ -5,18 +5,9 @@ import Components
 // whole, as the last check found (ArcadeBackend::romCheckInfo()), and Check
 // ROMs itself (ArcadeBackend::checkRoms()), started here alone, with how far
 // it has got.
-FocusScope {
+KeyedPage {
     id: romCheckRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "Check ROMs"
 
     readonly property var progress: (arcadeBackend && arcadeBackend.romCheckProgress) || ({})
     readonly property bool active: !!progress.active
@@ -26,7 +17,7 @@ FocusScope {
     readonly property var info: (revision, arcadeBackend ? arcadeBackend.romCheckInfo() : ({}))
     onActiveChanged: revision++
 
-    readonly property var keys: ["last", "complete", "fbneoOnly", "mameOnly", "incomplete", "unchecked", "check"]
+    keys: ["last", "complete", "fbneoOnly", "mameOnly", "incomplete", "unchecked", "check"]
 
     function labelOf(key) {
         switch (key) {
@@ -86,47 +77,11 @@ FocusScope {
         function onScanningChanged() { romCheckRoot.revision++ }
     }
 
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "Check ROMs"
+    function selectWord(key) {
+        return key === "check" && !active ? "CHECK" : ""
     }
-
-    MenuList {
-        id: list
-        model: romCheckRoot.keys
-        focus: true
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: romCheckRoot.labelOf(modelData)
-            value: romCheckRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-            keepValue: true
-        }
-
-        Keys.onReturnPressed: {
-            var key = romCheckRoot.keys[currentIndex]
-            if (arcadeBackend && key === "check" && !romCheckRoot.active)
-                arcadeBackend.checkRoms()
-        }
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                romCheckRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        text: romCheckRoot.descriptionOf(romCheckRoot.keys[list.currentIndex])
-    }
-
-    HintBar {
-        readonly property string key: romCheckRoot.keys[list.currentIndex] || ""
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             key === "check" && !romCheckRoot.active ? "select:CHECK" : ""])
+    function choose(key) {
+        if (arcadeBackend && key === "check" && !active)
+            arcadeBackend.checkRoms()
     }
 }
