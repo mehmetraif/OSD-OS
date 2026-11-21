@@ -1038,7 +1038,7 @@ Window {
     }
 
     // --- CABINET LOCK (Settings → Startup → Cabinet Lock, views/CabinetLock.qml) ---
-    // On, OSD/OS stays on its Start on Module, a cabinet's Arcade screen:
+    // On, OSD/OS stays on its Start On module, a cabinet's Arcade screen:
     // back there goes nowhere, and back from anywhere else comes to it, so
     // the main menu, Settings and Quit are out of reach, as is Ctrl+Q. The
     // unlock buttons held together for three seconds
@@ -1057,7 +1057,7 @@ Window {
     // goes nowhere (onGoBack): that view leaves BACK out of its hints.
     readonly property bool leavingBarred: cabinetLocked() && appCore.moduleIdForSource(moduleLoader.source.toString())
                                           === appCore.get_setting("", "startup_module")
-    // The Start on Module alone above the main menu, as at startup.
+    // The Start On module alone above the main menu, as at startup.
     function openHome() {
         var entry = appCore.startupModuleEntryPoint()
         if (!entry)

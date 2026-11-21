@@ -591,7 +591,7 @@ function networkRows(items) {
     })
 }
 
-// Start on Module's value: the name of the module it names while that one
+// Start On's value: the name of the module it names while that one
 // is turned on, else None. STATUS shows it too.
 function startModuleName() {
     var id = appSettings["startup_module"] || "None"
@@ -601,7 +601,7 @@ function startModuleName() {
 
 // STARTUP: what OSD/OS opens on, and keeping it there.
 function startupRows(items) {
-    // Start on Module — pick a module to auto-launch into on startup.
+    // Start On — pick a module to auto-launch into on startup.
     // Only present enabled modules as options so disabled ones won't display.
     // The setting is keyed by module id and the picker shows the display name
     // If the stored id isn't an enabled module, the display falls back to None.
@@ -624,7 +624,7 @@ function startupRows(items) {
     })
 
     // Play at Startup — a favourite played straight after the boot screen,
-    // ahead of Start on Module. It is chosen in its module (right on it,
+    // ahead of Start On. It is chosen in its module (right on it,
     // OPTIONS, PLAY AT STARTUP); here it can only be turned off.
     var startupFav = appSettings["startup_favorite"]
     var favName = startupFav && startupFav.path ? (startupFav.name || "Favorite") : ""
@@ -661,9 +661,9 @@ function startupRows(items) {
     items.push(cabinetLockRow())
 }
 
-// CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
+// CABINET LOCK — OSD/OS kept on Start On, the main menu and
 // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
-// On with no module to stay on (Start on Module set to None since, or
+// On with no module to stay on (Start On set to None since, or
 // its module turned off) it locks nothing (Main.qml's cabinetLocked()),
 // and the row says so.
 function cabinetLockRow() {
@@ -680,7 +680,7 @@ function cabinetLockRow() {
         moduleId: ""
     }
 }
-// Whether Start on Module names a module that is turned on, as
+// Whether Start On names a module that is turned on, as
 // AppCore::startupModuleEntryPoint() has it.
 function startModuleThere() {
     var id = appSettings["startup_module"] || "None"

@@ -84,7 +84,7 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
     // The main menu's order, made here once so that whatever lists the
     // modules follows it without a sort of its own: the main menu in every
     // Menu Layout, Settings' MODULES rows and its Arcade page's first module,
-    // Start on Module's choices.
+    // Start On's choices.
     std::stable_sort(m_modules.begin(), m_modules.end(), menuOrderBefore);
 }
 

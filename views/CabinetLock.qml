@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// Settings → Startup → Cabinet Lock: OSD/OS kept on its Start on Module, a cabinet's
+// Settings → Startup → Cabinet Lock: OSD/OS kept on its Start On module, a cabinet's
 // Arcade screen, while the lock is on (Main.qml). Back there goes nowhere,
 // so the main menu, Settings and Quit are out of reach, but for the unlock
 // buttons: one to four inputs of any pads and keyboards, a direction among
@@ -24,7 +24,7 @@ FocusScope {
     // tears down (see Bluetooth.qml).
     readonly property string buttons: inputManager ? inputManager.unlockButtons : ""
     property bool lockOn: false
-    // The Start on Module's name, "" for none (or one turned off).
+    // The Start On's name, "" for none (or one turned off).
     property string homeName: ""
 
     // Waiting for new unlock buttons: what is held now, by name, more than
@@ -246,7 +246,7 @@ FocusScope {
         promptText: "Lock the cabinet?"
         choices: [{ label: "Lock", action: "lock" }, { label: "Cancel", action: "cancel" }]
         onActivated: function(action) {
-            // Main.qml opens the Start on Module at once.
+            // Main.qml opens the Start On module at once.
             if (action === "lock" && !appCore.save_setting("", "cabinet_lock", "On"))
                 lockRoot.notSaved()
         }

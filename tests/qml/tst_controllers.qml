@@ -1260,7 +1260,7 @@ StandInRoot {
             compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", false])
             verify(!page.capturing)
             verify(findText(page, "P1 START + P2 START") !== null)
-            // On with no module to stay on any more (Start on Module set to
+            // On with no module to stay on any more (Start On set to
             // None since): it locks nothing, and its line says so.
             appCore.settings = { cabinet_lock: "On" }
             page.refresh()

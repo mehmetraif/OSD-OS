@@ -696,7 +696,7 @@ FocusScope {
         }
         // A module's row: the module turned on or off (its "enabled", as its
         // own page's ENABLED saves it), the page made again from what the
-        // modules are now (Info Screen and Start on Module follow them). In
+        // modules are now (Info Screen and Start On follow them). In
         // Broadcast and Flat Panel, which change a value in two steps,
         // ► and select open its page, where ENABLED is.
         function toggleModule() {

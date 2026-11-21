@@ -15,7 +15,7 @@ let preview = null;
 
 function fresh() {
     return {
-        // autoStartup: what Start on Module was before Arcade Cabinet set it
+        // autoStartup: what Start On was before Arcade Cabinet set it
         // ({ was }), which TV puts back; null once it is the user's own.
         kind: "tv", showTv: false, autoStartup: null,
         model: "pi4",
@@ -773,7 +773,7 @@ function importText(textRead, name, { codes = false } = {}) {
                 notes.push(codes ? `They set ${what.join(", ")}: keep the file they make to yourself.`
                                  : `It sets ${what.join(", ")}: keep those only from a file of your own.`);
         } else {
-            // Its Start on Module the file's own, whatever the device.
+            // Its Start On the file's own, whatever the device.
             state.config = values.config;
             state.autoStartup = null;
             notes.push(`Read OSD/OS's settings from ${name}.`);

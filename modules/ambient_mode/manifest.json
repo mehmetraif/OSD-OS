@@ -26,8 +26,8 @@
       "type": "toggle",
       "default": "OFF",
       "shown_with": { "app": "startup_module", "value": "com.osdos.ambient_mode",
-                      "reason": "Only with Start on Module on Ambient:Mode (Settings > Startup)" },
-      "description": "Starts playing, shuffled, as OSD/OS starts on Ambient:Mode (Start on Module, in Settings > Startup)"
+                      "reason": "Only with Start On on Ambient:Mode (Settings > Startup)" },
+      "description": "Starts playing, shuffled, as OSD/OS starts on Ambient:Mode (Start On, in Settings > Startup)"
     },
     {
       "key": "video_scaling",

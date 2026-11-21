@@ -955,7 +955,7 @@ StandInRoot {
         // A module's row (TV / Movie's, System's) says whether the module is
         // on, in AppCore's order; ◄ ► turn it on and off, saved as the
         // module's enabled, and the rows that follow the modules follow it
-        // (Info Screen, Start on Module); select and ► open its settings.
+        // (Info Screen, Start On); select and ► open its settings.
         // Broadcast and Flat Panel change a value in two steps: there ►
         // opens it as select does.
         function test_moduleRows() {
@@ -2321,9 +2321,9 @@ StandInRoot {
         }
 
         // Cabinet Lock's row says what the lock does now: On while there is a
-        // Start on Module to stay on; with none (set to None since, or its
+        // Start On to stay on; with none (set to None since, or its
         // module turned off) On (No Module), the help line saying it locks
-        // nothing; it follows Start on Module as that changes on the page,
+        // nothing; it follows Start On as that changes on the page,
         // and still opens its page. Studio Monitor's Status says the same.
         function test_cabinetLockRow() {
             appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.local_files" }

@@ -342,12 +342,12 @@ test("each module's rows are its manifest's, with values it takes", () => {
     }
     const startOn = valuesOf(appRows.find(r => r.key === "startup_module")).filter(v => v !== "None");
     for (const id of startOn)
-        assert.ok(manifests.has(id), `Start on Module's ${id}`);
+        assert.ok(manifests.has(id), `Start On's ${id}`);
 });
 
 // The modules in the main menu's order, as AppCore makes it: by group (TV /
 // Movie, Arcade, the rest), then by each manifest's menu_order. Setup's page,
-// its preview's main menu and Start on Module's choices take them so.
+// its preview's main menu and Start On's choices take them so.
 test("the modules in the main menu's order", () => {
     const menu = ["local_files", "playlists", "plex", "jellyfin", "emby", "youtube", "netflix", "prime_video",
                   "nfc_reader", "weather", "ambient_mode", "arcade", "highscores", "scripts"]

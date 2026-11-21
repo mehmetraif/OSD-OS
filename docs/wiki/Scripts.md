@@ -106,8 +106,8 @@ A script with `favorite = yes` (or marked with ► in the list) gets its own row
 
 ## Running a script at start
 
-1. Settings → Startup → **Start on Module**: Scripts.
-2. Settings → System → Scripts → **Auto-Run On Startup**: the script (**None** by default). The row is dimmed, its help line saying **Only with Start on Module on Scripts (Settings > Startup)**, until step 1 is done.
+1. Settings → Startup → **Start On**: Scripts.
+2. Settings → System → Scripts → **Auto-Run On Startup**: the script (**None** by default). The row is dimmed, its help line saying **Only with Start On on Scripts (Settings > Startup)**, until step 1 is done.
 
 - At start, OSD/OS opens Scripts and runs the script without asking, even with `confirm = yes`.
 - If the script no longer exists, the Scripts list opens instead.
