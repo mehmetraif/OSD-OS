@@ -3885,6 +3885,16 @@ static QVariantMap roomEntry(const QVariantMap &room, bool lan, const QString &d
     return entry;
 }
 
+// A folder's row saying why it has no room, a filter's status ({ name,
+// detail }) as a line of the tree.
+static QVariantMap messageEntry(const QString &path, const QVariantMap &status) {
+    return { { QStringLiteral("name"), status.value(QStringLiteral("name")) },
+             { QStringLiteral("path"), path },
+             { QStringLiteral("isFolder"), false },
+             { QStringLiteral("kind"), QStringLiteral("message") },
+             { QStringLiteral("detail"), status.value(QStringLiteral("detail")) } };
+}
+
 QVariantList ArcadeBackend::roomEntries() const {
     QVariantList entries;
     for (const QVariant &value : rooms()) {
@@ -3896,16 +3906,8 @@ QVariantList ArcadeBackend::roomEntries() const {
                                       country.isEmpty() ? QString() : QStringLiteral(" in ") + country,
                                       m_sets.value(room.value(QStringLiteral("set")).toString())));
     }
-    if (entries.isEmpty()) {
-        const bool failed = !m_roomsProblem.isEmpty();
-        entries << QVariantMap{ { QStringLiteral("name"), failed ? QStringLiteral("Lobby Not Reachable") : QStringLiteral("No Games Online") },
-                                { QStringLiteral("path"), QStringLiteral("online/none") },
-                                { QStringLiteral("isFolder"), false },
-                                { QStringLiteral("kind"), QStringLiteral("message") },
-                                { QStringLiteral("detail"), failed ? m_roomsProblem
-                                                            : QStringLiteral("No one in RetroArch's lobby hosts a game you have: "
-                                                                             "host one from a game's options") } };
-    }
+    if (entries.isEmpty())
+        entries << messageEntry(QStringLiteral("online/none"), lobbyStatus());
     // The whole lobby, of every core (Lobby.qml).
     entries << QVariantMap{ { QStringLiteral("name"), QStringLiteral("RetroArch Lobby") },
                             { QStringLiteral("path"), QStringLiteral("lobby") },
@@ -3943,14 +3945,8 @@ QVariantList ArcadeBackend::lanRoomEntries() const {
         const QVariantMap room = value.toMap();
         entries << roomEntry(room, true, room.value(QStringLiteral("detail")).toString());
     }
-    if (entries.isEmpty()) {
-        const QVariantMap status = lanStatus();
-        entries << QVariantMap{ { QStringLiteral("name"), status.value(QStringLiteral("name")) },
-                                { QStringLiteral("path"), QStringLiteral("lan/none") },
-                                { QStringLiteral("isFolder"), false },
-                                { QStringLiteral("kind"), QStringLiteral("message") },
-                                { QStringLiteral("detail"), status.value(QStringLiteral("detail")) } };
-    }
+    if (entries.isEmpty())
+        entries << messageEntry(QStringLiteral("lan/none"), lanStatus());
     return entries;
 }
 
@@ -3968,21 +3964,25 @@ QVariantMap ArcadeBackend::lanStatus() const {
                       QStringLiteral("No one on this network hosts a game you have: host one from a game's options"));
 }
 
+QVariantMap ArcadeBackend::lobbyStatus() const {
+    // As the tree's Online Games says it (roomEntries()).
+    if (!m_roomsRead)
+        return filterSays(QStringLiteral("Reading RetroArch's Lobby…"),
+                          QStringLiteral("A game hosted there that you have comes here as soon as it is found"));
+    if (!m_roomsProblem.isEmpty())
+        return filterSays(QStringLiteral("Lobby Not Reachable"), m_roomsProblem);
+    return filterSays(QStringLiteral("No Games Online"),
+                      QStringLiteral("No one in RetroArch's lobby hosts a game you have: host one from a game's options"));
+}
+
 QVariantMap ArcadeBackend::filterStatus(const QString &filter) const {
     if (filter == QLatin1String("lan"))
         return lanStatus();
     if (filter == QLatin1String("online")) {
-        // As the tree's Online Games says it (roomEntries()).
         if (!fbneoReady())
             return filterSays(QStringLiteral("FinalBurn Neo Not Installed"),
                               QStringLiteral("Online games play in FinalBurn Neo: Settings → Arcade → FinalBurn Neo"));
-        if (!m_roomsRead)
-            return filterSays(QStringLiteral("Reading RetroArch's Lobby…"),
-                              QStringLiteral("A game hosted there that you have comes here as soon as it is found"));
-        if (!m_roomsProblem.isEmpty())
-            return filterSays(QStringLiteral("Lobby Not Reachable"), m_roomsProblem);
-        return filterSays(QStringLiteral("No Games Online"),
-                          QStringLiteral("No one in RetroArch's lobby hosts a game you have: host one from a game's options"));
+        return lobbyStatus();
     }
     if (filter == QLatin1String("favorites"))
         return filterSays(QStringLiteral("No Favorites"),

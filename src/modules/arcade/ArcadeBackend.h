@@ -995,6 +995,10 @@ private:
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
+    // What Online Games says of the lobby while it lists no game, as
+    // filterStatus(): still being read, why it couldn't be, or that no one
+    // there hosts a game of the folder's.
+    QVariantMap lobbyStatus() const;
     // The LAN Games folder listed again, and the Arcade screen's filter with
     // it, once its entries (the rooms, their lines, or why there are none)
     // are other than they were.
