@@ -152,6 +152,20 @@ QString securityOf(const QVariantMap &ap) {
     return QStringLiteral("open");
 }
 
+// A saved connection's security as an access point's is named above, from
+// NetworkManager's key management.
+QString securityOfSaved(const QString &keyManagement) {
+    if (keyManagement.isEmpty())
+        return QStringLiteral("open");
+    if (keyManagement == QLatin1String("wpa-psk"))
+        return QStringLiteral("wpa");
+    if (keyManagement == QLatin1String("sae") || keyManagement == QLatin1String("owe"))
+        return keyManagement;
+    if (keyManagement == QLatin1String("none"))
+        return QStringLiteral("wep");
+    return QStringLiteral("enterprise");
+}
+
 bool needsPassword(const QString &security) {
     return security == QLatin1String("wpa") || security == QLatin1String("sae")
         || security == QLatin1String("wep") || security == QLatin1String("enterprise");
@@ -417,8 +431,13 @@ void WifiManager::connectTo(const QString &ssid, const QString &password) {
              kCallTimeoutMs, [this, attempt](const QDBusMessage &reply) { activated(attempt, reply, false); });
         return;
     }
-    const QString security = heard.path.isEmpty() ? (password.isEmpty() ? QStringLiteral("open") : QStringLiteral("wpa"))
-                                                  : heard.security;
+    // One saved and not heard, by its saved security; one saved hidden (a
+    // network that doesn't say its name) saved hidden again. Else a guess.
+    const QVariantMap savedAs = saved.isEmpty() ? QVariantMap() : m_saved.value(saved.constFirst());
+    const QString security = !heard.path.isEmpty() ? heard.security
+                             : !savedAs.isEmpty()  ? securityOfSaved(savedAs.value(QStringLiteral("security")).toString())
+                             : password.isEmpty()  ? QStringLiteral("open")
+                                                   : QStringLiteral("wpa");
     if (security == QLatin1String("enterprise")) {
         setMessage(ssid + QStringLiteral(" wants a user name too (WPA Enterprise), which can't be typed here"));
         return;
@@ -427,7 +446,7 @@ void WifiManager::connectTo(const QString &ssid, const QString &password) {
         setMessage(ssid + QStringLiteral(" wants its password"));
         return;
     }
-    addAndActivate(ssid, bytes, security, password, false, heard.path);
+    addAndActivate(ssid, bytes, security, password, savedAs.value(QStringLiteral("hidden")).toBool(), heard.path);
 #else
     Q_UNUSED(ssid)
     Q_UNUSED(password)
