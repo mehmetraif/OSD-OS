@@ -49,7 +49,8 @@ FocusScope {
         // extraArgs opts into yt-dlp so YouTube-page URLs in the mapping
         // resolve; safe for local files and direct media URLs, which the
         // native demuxer handles before the ytdl hook ever runs.
-        mpvController.loadAndPlay(videoPath, startMs / 1000.0, -1, subFlag, [], subtitleLangs, false, plPos, 0.0, "", false, "", false, [], 0.0, false, ytdlArgs)
+        mpvController.loadAndPlay({ url: videoPath, startSeconds: startMs / 1000.0, subTrack: subFlag,
+                                    subLangs: subtitleLangs, playlistStart: plPos, extraArgs: ytdlArgs })
     }
 
     Keys.onPressed: function(event) {

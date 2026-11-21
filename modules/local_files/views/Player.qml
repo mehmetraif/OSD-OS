@@ -449,7 +449,10 @@ FocusScope {
         lastStartMs = startMs
         lastKnownPositionMs = startMs
         lastKnownPlaylistPos = plPos
-        mpvController.loadAndPlay(filePath, startMs > 0 ? startMs / 1000.0 : 0.0, 0, subFlag, [], subtitleLangs, loopOn, plPos, 0.0, "", false, "", shuffle, [], imageDurationSec, imageContent)
+        mpvController.loadAndPlay({ url: filePath, startSeconds: startMs > 0 ? startMs / 1000.0 : 0.0,
+                                    subTrack: subFlag, subLangs: subtitleLangs, loop: loopOn,
+                                    playlistStart: plPos, shuffle: shuffle,
+                                    imageDurationSec: imageDurationSec, imageContent: imageContent })
         // How the main menu takes it back once it plays behind the menus, and
         // how it was started, which taking it back repeats.
         mpvController.noteSession({ module: moduleRoot.moduleId,

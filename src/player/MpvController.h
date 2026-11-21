@@ -63,23 +63,18 @@ public:
     int duration()    const { return m_duration;    }
     int playlistPos() const { return m_playlistPos; }
 
-    Q_INVOKABLE void loadAndPlay(const QString &url, float startSeconds,
-                                  int audioTrack, int subTrack,
-                                  const QStringList &subFiles = {},
-                                  const QStringList &subLangs = {},
-                                  bool loop = false,
-                                  int playlistStart = -1,
-                                  float transcodeOffsetSec = 0.0f,
-                                  const QString &plexToken = {},
-                                  bool muteAudio = false,
-                                  const QString &oscMode = {},
-                                  bool shuffle = false,
-                                  const QStringList &subTitles = {},
-                                  float imageDurationSec = 0.0f,
-                                  bool imageContent = false,
-                                  const QStringList &extraArgs = {},
-                                  const QString &jellyfinToken = {},
-                                  const QStringList &extraUrls = {});
+    // Plays a video: one request with named fields, each left out at its
+    // default (PlaybackRequest's below). `url` is what plays; `startSeconds`
+    // where; `audioTrack` mpv's --aid, 0 or less its own choice; `subTrack`
+    // -2 none, -1 forced only (the default), 0 any, above 0 mpv's --sid;
+    // `subFiles` sidecars, `subTitles` their names for the OSC, `subLangs`
+    // the languages to prefer; `loop`, `shuffle` and `playlistStart` (-1
+    // its first) for a playlist; `transcodeOffsetSec`; `plexToken` and
+    // `jellyfinToken` (Jellyfin's and Emby's) for a server's stream;
+    // `muteAudio`; `oscMode` ("ambient"); `imageDurationSec` and
+    // `imageContent` for stills; `extraArgs`, mpv options of the player's
+    // own; `extraUrls`, more of the playlist after `url`.
+    Q_INVOKABLE void loadAndPlay(const QVariantMap &request);
     // What a video inside the window needs, loaded ahead off the app's
     // thread where videos play there (Transparent Background): libmpv and
     // the libraries under it, which the first video otherwise waits for.
@@ -282,7 +277,8 @@ private:
     // user's own (util/RuntimeFiles.h); asked for each session.
     void placeRunFiles();
     // What a player asked loadAndPlay() for, as it asked it: made once there,
-    // and handed on to what makes the session of it.
+    // from its fields of the same names, and handed on to what makes the
+    // session of it.
     struct PlaybackRequest {
         QString url;
         float startSeconds = 0.0f;
@@ -303,8 +299,9 @@ private:
         QStringList extraArgs;
         QString jellyfinToken;
         QStringList extraUrls;
+        static PlaybackRequest fromMap(const QVariantMap &map);
     };
-    // loadAndPlay() past its parameters.
+    // loadAndPlay() past its request's fields.
     void play(const PlaybackRequest &request);
     // The mpv options for a session, up to how its picture is shown; what
     // plays comes after them, behind a "--". In three parts, in this order:

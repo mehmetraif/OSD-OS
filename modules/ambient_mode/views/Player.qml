@@ -72,9 +72,8 @@ FocusScope {
         // the url, the rest as extra playlist entries.
         var first = shuffleVideo ? videoPaths[0] : videoPath
         var rest  = shuffleVideo ? videoPaths.slice(1) : []
-        mpvController.loadAndPlay(first, 0.0, 0, -1, [], [], true, -1, 0.0, "",
-                                  hasCustomAudio, "ambient", shuffleVideo, [], 0.0,
-                                  false, [], "", rest)
+        mpvController.loadAndPlay({ url: first, subTrack: -1, loop: true, muteAudio: hasCustomAudio,
+                                    oscMode: "ambient", shuffle: shuffleVideo, extraUrls: rest })
 
         // Companion audio is a second, independent mpv process — it does its own
         // shuffling and looping (see AmbientModeBackend::startAudio).

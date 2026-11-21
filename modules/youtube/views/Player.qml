@@ -40,7 +40,8 @@ FocusScope {
     function play(startMs) {
         lastStartMs = startMs
         lastKnownPositionMs = startMs
-        mpvController.loadAndPlay(videoUrl, startMs / 1000.0, 0, subTrack, [], subLangs, false, -1, 0.0, "", false, "", false, [], 0.0, false, ytdlArgs)
+        mpvController.loadAndPlay({ url: videoUrl, startSeconds: startMs / 1000.0, subTrack: subTrack,
+                                    subLangs: subLangs, extraArgs: ytdlArgs })
         // How the main menu takes it back once it plays behind the menus, and
         // that back opens this player's menu.
         mpvController.noteSession({ module: moduleRoot.moduleId, title: item.title || "",

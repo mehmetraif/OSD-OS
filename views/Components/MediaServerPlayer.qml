@@ -452,17 +452,17 @@ FocusScope {
             ]
 
             var tsub = sidecarSubsInTranscode ? buildSubArgs() : { track: -2, urls: [], titles: [] }
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
-                                       -1, tsub.track, tsub.urls, [], false, -1, 0.0, "",
-                                       false, "", false, tsub.titles, 0.0, false, extra, token)
+            mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0,
+                                        subTrack: tsub.track, subFiles: tsub.urls, subTitles: tsub.titles,
+                                        extraArgs: extra, jellyfinToken: token })
         } else {
             // Direct play: file served whole. audioIdx is 0-based → mpv's 1-based
             // --aid; subtitles come from buildSubArgs (sidecars + --sid).
             var audioTrack = audioStreams.length > 0 ? audioIdx + 1 : 0
             var sub = buildSubArgs()
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
-                                       audioTrack, sub.track, sub.urls, [], false, -1, 0.0, "",
-                                       false, "", false, sub.titles, 0.0, false, [], token)
+            mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0,
+                                        audioTrack: audioTrack, subTrack: sub.track, subFiles: sub.urls,
+                                        subTitles: sub.titles, jellyfinToken: token })
         }
     }
 

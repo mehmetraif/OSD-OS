@@ -857,37 +857,39 @@ bool MpvController::presentationOption(const QString &arg) {
                        [&arg](const QLatin1String &option) { return arg.startsWith(option); });
 }
 
-void MpvController::loadAndPlay(const QString &url, float startSeconds,
-                                 int audioTrack, int subTrack,
-                                 const QStringList &subFiles,
-                                 const QStringList &subLangs, bool loop,
-                                 int playlistStart, float transcodeOffsetSec,
-                                 const QString &plexToken, bool muteAudio,
-                                 const QString &oscMode, bool shuffle,
-                                 const QStringList &subTitles, float imageDurationSec,
-                                 bool imageContent, const QStringList &extraArgs, const QString &jellyfinToken,
-                                 const QStringList &extraUrls) {
+MpvController::PlaybackRequest MpvController::PlaybackRequest::fromMap(const QVariantMap &map) {
     PlaybackRequest request;
-    request.url = url;
-    request.startSeconds = startSeconds;
-    request.audioTrack = audioTrack;
-    request.subTrack = subTrack;
-    request.subFiles = subFiles;
-    request.subLangs = subLangs;
-    request.loop = loop;
-    request.playlistStart = playlistStart;
-    request.transcodeOffsetSec = transcodeOffsetSec;
-    request.plexToken = plexToken;
-    request.muteAudio = muteAudio;
-    request.oscMode = oscMode;
-    request.shuffle = shuffle;
-    request.subTitles = subTitles;
-    request.imageDurationSec = imageDurationSec;
-    request.imageContent = imageContent;
-    request.extraArgs = extraArgs;
-    request.jellyfinToken = jellyfinToken;
-    request.extraUrls = extraUrls;
-    play(request);
+    for (auto it = map.cbegin(); it != map.cend(); ++it) {
+        const QString &key = it.key();
+        const QVariant &value = it.value();
+        if (key == QLatin1String("url"))                     request.url = value.toString();
+        else if (key == QLatin1String("startSeconds"))       request.startSeconds = value.toFloat();
+        else if (key == QLatin1String("audioTrack"))         request.audioTrack = value.toInt();
+        else if (key == QLatin1String("subTrack"))           request.subTrack = value.toInt();
+        else if (key == QLatin1String("subFiles"))           request.subFiles = value.toStringList();
+        else if (key == QLatin1String("subLangs"))           request.subLangs = value.toStringList();
+        else if (key == QLatin1String("loop"))               request.loop = value.toBool();
+        else if (key == QLatin1String("playlistStart"))      request.playlistStart = value.toInt();
+        else if (key == QLatin1String("transcodeOffsetSec")) request.transcodeOffsetSec = value.toFloat();
+        else if (key == QLatin1String("plexToken"))          request.plexToken = value.toString();
+        else if (key == QLatin1String("muteAudio"))          request.muteAudio = value.toBool();
+        else if (key == QLatin1String("oscMode"))            request.oscMode = value.toString();
+        else if (key == QLatin1String("shuffle"))            request.shuffle = value.toBool();
+        else if (key == QLatin1String("subTitles"))          request.subTitles = value.toStringList();
+        else if (key == QLatin1String("imageDurationSec"))   request.imageDurationSec = value.toFloat();
+        else if (key == QLatin1String("imageContent"))       request.imageContent = value.toBool();
+        else if (key == QLatin1String("extraArgs"))          request.extraArgs = value.toStringList();
+        else if (key == QLatin1String("jellyfinToken"))      request.jellyfinToken = value.toString();
+        else if (key == QLatin1String("extraUrls"))          request.extraUrls = value.toStringList();
+        // A name mistyped would otherwise leave its field at its default
+        // without a word.
+        else qWarning("[MpvController] loadAndPlay: no such field \"%s\"", qPrintable(key));
+    }
+    return request;
+}
+
+void MpvController::loadAndPlay(const QVariantMap &request) {
+    play(PlaybackRequest::fromMap(request));
 }
 
 void MpvController::play(const PlaybackRequest &request) {

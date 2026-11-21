@@ -168,9 +168,10 @@ FocusScope {
         lastKnownPositionMs = startMs
         lastKnownPlaylistPos = plPos
         var spec = specFor(prepared)
-        mpvController.loadAndPlay(spec.file, startMs > 0 ? startMs / 1000.0 : 0.0, 0, spec.subTrack, [],
-                                  spec.subLangs, spec.loop, plPos, 0.0, "", false, "", false, [],
-                                  spec.imageSec, spec.images, spec.extraArgs)
+        mpvController.loadAndPlay({ url: spec.file, startSeconds: startMs > 0 ? startMs / 1000.0 : 0.0,
+                                    subTrack: spec.subTrack, subLangs: spec.subLangs, loop: spec.loop,
+                                    playlistStart: plPos, imageDurationSec: spec.imageSec,
+                                    imageContent: spec.images, extraArgs: spec.extraArgs })
         // How the main menu takes it back once it plays behind the menus.
         mpvController.noteSession({ module: moduleRoot.moduleId, title: playlist.name || "",
                                     params: { playlistId: playlistId, prepared: prepared, plPos: plPos },

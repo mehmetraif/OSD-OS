@@ -490,9 +490,10 @@ FocusScope {
         playbackStarted = false
         startMs = fromMs
         var loop = !!appCore.get_setting(moduleRoot.moduleId, "loop_playback")
-        // url, start (s), audio track (0: mpv's choice), subtitles (-2: off),
-        // subtitle files, subtitle languages, loop.
-        mpvController.loadAndPlay(filePath, fromMs / 1000.0, 0, -2, [], [], loop)
+        // What plays, from where (s), subtitles off (-2), and loop; every
+        // field left out has its default.
+        mpvController.loadAndPlay({ url: filePath, startSeconds: fromMs / 1000.0,
+                                    subTrack: -2, loop: loop })
         // With Transparent Background, how the main menu's first row takes
         // the video back once it plays behind the menus.
         mpvController.noteSession({ module: moduleRoot.moduleId, title: itemTitle,
@@ -560,7 +561,7 @@ sequenceDiagram
     participant P as Player.qml
     participant C as mpvController
     participant M as mpv
-    P->>C: loadAndPlay(file, start, 0, -2, [], [], loop)
+    P->>C: loadAndPlay({ url, startSeconds, subTrack, loop })
     P->>C: noteSession({ module, title, params })
     C->>M: starts it (an mpv process, or libmpv in the window)
     M-->>C: time-pos, duration
@@ -573,22 +574,22 @@ sequenceDiagram
 
 ### loadAndPlay
 
-`mpvController.loadAndPlay()` takes the video and how to play it. Everything after the first four arguments has a default:
+`mpvController.loadAndPlay()` takes one request: the video and how to play it, as named fields. Every field but `url` has a default, and one left out has it (a name it doesn't know is a warning in the log):
 
-| # | Argument | Hello Channel passes | What it is |
-|---|---|---|---|
-| 1 | `url` | the file's path | A file, a playlist (`.m3u`) or a stream's URL |
-| 2 | `startSeconds` | the saved position | Where to start; under half a second, from the beginning |
-| 3 | `audioTrack` | `0` | `0` for mpv's choice, else a track's number |
-| 4 | `subTrack` | `-2` | `-2` subtitles off, `0` on, `-1` forced only (needs mpv 0.38 or newer), above 0 a track's number |
-| 5, 6 | `subFiles`, `subLangs` | `[]`, `[]` | Subtitle files to load; preferred subtitle languages |
-| 7 | `loop` | Loop Playback | Over and over (`--loop-playlist=inf`) |
-| 8 | `playlistStart` | | Where in a playlist to start, `-1` for its start |
-| 12 | `oscMode` | | `"ambient"` for Ambient:Mode's own on-screen controls |
-| 13 | `shuffle` | | A playlist in random order |
-| 15, 16 | `imageDurationSec`, `imageContent` | | For pictures: how long each shows |
-| 17 | `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
-| 19 | `extraUrls` | | More files after the first, one playlist |
+| Field | Hello Channel passes | What it is |
+|---|---|---|
+| `url` | the file's path | A file, a playlist (`.m3u`) or a stream's URL |
+| `startSeconds` | the saved position | Where to start; under half a second, from the beginning |
+| `audioTrack` | | `0` or less (the default) for mpv's choice, else a track's number |
+| `subTrack` | `-2` | `-2` subtitles off, `0` on, `-1` forced only (the default; needs mpv 0.38 or newer), above 0 a track's number |
+| `subFiles`, `subLangs` | | Subtitle files to load; preferred subtitle languages |
+| `loop` | Loop Playback | Over and over (`--loop-playlist=inf`) |
+| `playlistStart` | | Where in a playlist to start, `-1` (the default) for its start |
+| `oscMode` | | `"ambient"` for Ambient:Mode's own on-screen controls |
+| `shuffle` | | A playlist in random order |
+| `imageDurationSec`, `imageContent` | | For pictures: how long each shows |
+| `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
+| `extraUrls` | | More files after the first, one playlist |
 
 The app adds the rest: the board's decoder and output, Scaling, Video Levels, Audio Output, the channel logo and the IPC socket ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 

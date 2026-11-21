@@ -112,7 +112,7 @@ FocusScope {
             livePlayerRoot.streamUrl = url
             livePlayerRoot.plexToken = plexToken
             // Live always transcodes (HLS): no separate audio/sub tracks to pick.
-            mpvController.loadAndPlay(url, 0, 0, -1, [], [], false, -1, 0.0, plexToken)
+            mpvController.loadAndPlay({ url: url, subTrack: -1, plexToken: plexToken })
         }
 
         function onErrorOccurred(msg) {

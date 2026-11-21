@@ -230,11 +230,13 @@ FocusScope {
             // to the resume point. This keeps everything before offsetMs seekable, so
             // the user can rewind past the resume point. Its subtitle, if any, is
             // burnt into the picture: no track for mpv to show (-2, --sid=no).
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0, 0, -2, [], [], false, -1, 0.0, plexToken)
+            mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0, subTrack: -2,
+                                        plexToken: plexToken })
         } else {
             var sub = buildSubArgs()
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
-                                       audioIdx + 1, sub.track, sub.urls, [], false, -1, 0.0, plexToken)
+            mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0,
+                                        audioTrack: audioIdx + 1, subTrack: sub.track, subFiles: sub.urls,
+                                        plexToken: plexToken })
         }
     }
 

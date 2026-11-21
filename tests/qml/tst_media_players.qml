@@ -152,17 +152,17 @@ StandInRoot {
         signal skipRequested()
         signal subtitleCycleRequested()
         signal audioCycleRequested()
-        function loadAndPlay(url, startSeconds, audioTrack, subTrack, files, subLangs, loop, playlistStart,
-                             transcodeOffset, plexToken, muteAudio, oscMode, shuffle, subTitles,
-                             imageDuration, imageContent, extra) {
+        // MpvController's: one request, its fields at their defaults where
+        // left out.
+        function loadAndPlay(request) {
             loads++
-            urls = urls.concat([url])
-            starts = starts.concat([startSeconds || 0])
-            subTracks = subTracks.concat([subTrack])
-            subFiles = subFiles.concat([files || []])
-            extraArgs = extraArgs.concat([extra || []])
-            playlistStarts = playlistStarts.concat([playlistStart])
-            shuffles = shuffles.concat([!!shuffle])
+            urls = urls.concat([request.url])
+            starts = starts.concat([request.startSeconds || 0])
+            subTracks = subTracks.concat([request.subTrack !== undefined ? request.subTrack : -1])
+            subFiles = subFiles.concat([request.subFiles || []])
+            extraArgs = extraArgs.concat([request.extraArgs || []])
+            playlistStarts = playlistStarts.concat([request.playlistStart !== undefined ? request.playlistStart : -1])
+            shuffles = shuffles.concat([!!request.shuffle])
         }
         function noteSession(note) {}
         // The session behind the menus taken back where it is, if there is

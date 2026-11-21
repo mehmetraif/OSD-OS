@@ -208,8 +208,8 @@ class PlaybackRetireTest : public QObject {
         return QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     }
     void play(const char *name, float startSeconds = 0) {
-        m_mpv->loadAndPlay(m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4"),
-                           startSeconds, -1, -1);
+        m_mpv->loadAndPlay({ { "url", m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4") },
+                             { "startSeconds", startSeconds } });
     }
     // The warnings written to the log while `what` runs, each as it is
     // written.
@@ -266,8 +266,7 @@ class PlaybackRetireTest : public QObject {
     }
     // A picture mpv makes itself (lavfi), without a file or sound.
     void playPicture(const char *source) {
-        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:") + QLatin1String(source), 0, -1, -1, {}, {}, false, -1, 0,
-                           QString(), true);
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("av://lavfi:") + QLatin1String(source) }, { "muteAudio", true } });
     }
     static bool write(const QString &path, const QByteArray &text) {
         QFile file(path);
@@ -476,8 +475,9 @@ private slots:
 
         // Plex: its token is a header, its addresses hold none.
         const QString plexSub = QStringLiteral("https://plex.example:32400/library/streams/9");
-        m_mpv->loadAndPlay(QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4"), 0, 1, 0, { plexSub },
-                           {}, false, -1, 0, QStringLiteral("made-up-plex-token"));
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4") },
+                             { "audioTrack", 1 }, { "subTrack", 0 }, { "subFiles", QStringList { plexSub } },
+                             { "plexToken", QStringLiteral("made-up-plex-token") } });
         QTRY_VERIFY_WITH_TIMEOUT(happened("start film"), 5000);
         QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
         QVERIFY2(!commandLine().contains(QLatin1String("http-header-fields")), qPrintable(commandLine()));
@@ -496,8 +496,9 @@ private slots:
         QVERIFY(!QFile::exists(privateOptions()));
 
         // Jellyfin: the same, its header with quotes of its own.
-        m_mpv->loadAndPlay(QStringLiteral("https://jellyfin.example/Videos/7/stream.mp4"), 0, 1, -2, {}, {}, false, -1, 0,
-                           QString(), false, QString(), false, {}, 0, false, {}, QStringLiteral("made-up-jellyfin-token"));
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("https://jellyfin.example/Videos/7/stream.mp4") },
+                             { "audioTrack", 1 }, { "subTrack", -2 },
+                             { "jellyfinToken", QStringLiteral("made-up-jellyfin-token") } });
         QTRY_VERIFY_WITH_TIMEOUT(happened("start stream"), 5000);
         QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
         QCOMPARE(contents(privateOptions()),
@@ -512,8 +513,9 @@ private slots:
                                                     "?api_key=made-up-emby-key"),
                                      QStringLiteral("http://emby.example:8096/Videos/7/7/Subtitles/2/Stream.ass"
                                                     "?api_key=made-up-emby-key") };
-        m_mpv->loadAndPlay(embyStream, 90, 1, 0, { embySubs[0], embySubs[1] }, {}, false, -1, 0, QString(), false,
-                           QString(), false, {}, 0, false, {}, QStringLiteral("made-up-emby-key"));
+        m_mpv->loadAndPlay({ { "url", embyStream }, { "startSeconds", 90 }, { "audioTrack", 1 }, { "subTrack", 0 },
+                             { "subFiles", QStringList { embySubs[0], embySubs[1] } },
+                             { "jellyfinToken", QStringLiteral("made-up-emby-key") } });
         QTRY_VERIFY_WITH_TIMEOUT(happened("start stream?static=true&mediaSourceId=7&api_key=made-up-emby-key"), 5000);
         QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
         QVERIFY2(!commandLine().contains(QLatin1String("emby.example")), qPrintable(commandLine()));
@@ -553,8 +555,8 @@ private slots:
         QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^\\[AtomicFile\\] Could not write ")));
         QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral(
                                                "^\\[MpvController\\] Cannot start playback: what mpv is handed in a file")));
-        m_mpv->loadAndPlay(QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4"), 0, 1, 0, {}, {}, false,
-                           -1, 0, QStringLiteral("made-up-plex-token"));
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4") },
+                             { "audioTrack", 1 }, { "subTrack", 0 }, { "plexToken", QStringLiteral("made-up-plex-token") } });
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
         QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not be started"));
@@ -580,8 +582,9 @@ private slots:
         const QString subs[] = {
             server.address() + QStringLiteral("/Videos/7/7/Subtitles/3/Stream.srt?api_key=made-up-emby-key"),
             server.address() + QStringLiteral("/Videos/7/7/Subtitles/2/Stream.srt?api_key=made-up-emby-key") };
-        m_mpv->loadAndPlay(stream, 0, 1, 0, { subs[0], subs[1] }, {}, false, -1, 0, QString(), false, QString(), false,
-                           {}, 0, false, {}, QStringLiteral("made-up-emby-key"));
+        m_mpv->loadAndPlay({ { "url", stream }, { "audioTrack", 1 }, { "subTrack", 0 },
+                             { "subFiles", QStringList { subs[0], subs[1] } },
+                             { "jellyfinToken", QStringLiteral("made-up-emby-key") } });
         QTRY_VERIFY_WITH_TIMEOUT(happened("start stream?static=true&api_key=made-up-emby-key"), 5000);
         QVERIFY(QFile::exists(privateOptions()));
         QVERIFY(QFile::exists(privateMedia()));
@@ -634,9 +637,9 @@ private slots:
         const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
         ServerStandIn server;
         QVERIFY(server.listen(QHostAddress::LocalHost));
-        m_mpv->loadAndPlay(server.address() + QStringLiteral("/Videos/7/stream?static=true&api_key=made-up-emby-key"),
-                           0, -1, -2, {}, {}, false, -1, 0, QStringLiteral("made-up-plex-token"), true, QString(), false,
-                           {}, 0, false, {}, QStringLiteral("made-up-emby-key"));
+        m_mpv->loadAndPlay({ { "url", server.address() + QStringLiteral("/Videos/7/stream?static=true&api_key=made-up-emby-key") },
+                             { "subTrack", -2 }, { "plexToken", QStringLiteral("made-up-plex-token") }, { "muteAudio", true },
+                             { "jellyfinToken", QStringLiteral("made-up-emby-key") } });
         QTRY_VERIFY_WITH_TIMEOUT(!server.asked.isEmpty(), 15000);
         const QByteArray request = server.asked.first();
         QVERIFY2(request.startsWith("GET /Videos/7/stream?static=true&api_key=made-up-emby-key HTTP/"),
@@ -807,8 +810,7 @@ private slots:
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
         QSignalSpy background(m_mpv, &MpvController::backgroundChanged);
         // A picture mpv makes itself, without a file or sound.
-        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10"), 0, -1, -1, {}, {}, false, -1, 0,
-                           QString(), true);
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10") }, { "muteAudio", true } });
         QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
         QCOMPARE(m_mpv->videoFrame().size(), QSize(640, 480));
@@ -855,8 +857,8 @@ private slots:
         const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
         // A second of picture and of sound that mpv makes itself.
-        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:testsrc=size=64x48:rate=10:duration=1[out0];sine=duration=1[out1]"),
-                           0, -1, -1, {}, {}, false, -1, 0, QString(), true);
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("av://lavfi:testsrc=size=64x48:rate=10:duration=1[out0];sine=duration=1[out1]") },
+                             { "muteAudio", true } });
         QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 20000);
         QVERIFY2(ended.first().at(2).toString() != QLatin1String("failed"), "a video that played was called failed");
@@ -1524,7 +1526,7 @@ private slots:
         qputenv("FAKE_MPV_MODE", mode);
         LogCapture log;
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
-        m_mpv->loadAndPlay(address, 0, -1, -1);
+        m_mpv->loadAndPlay({ { "url", address } });
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
         // The line mpv printed, among the "[mpv]" ones.
@@ -1642,9 +1644,9 @@ private slots:
         LogCapture log;
         // A scheme no mpv has a protocol for (nothing is looked up or
         // reached), then a picture mpv makes itself.
-        m_mpv->loadAndPlay(QStringLiteral("nosuch://ann:made-up-password@nas.example/films/a.mkv?ApiKey=made-up-key"),
-                           0, -1, -1, {}, {}, false, -1, 0, QString(), true, QString(), false, {}, 0, false, {},
-                           QString(), {QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10")});
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("nosuch://ann:made-up-password@nas.example/films/a.mkv?ApiKey=made-up-key") },
+                             { "muteAudio", true },
+                             { "extraUrls", QStringList { QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10") } } });
         // mpv's own line on it, not the launch line's.
         static const QRegularExpression mpvSaid(QStringLiteral("\\[mpv\\] [^\\n]*nosuch://[^\\n]*"));
         QTRY_VERIFY2_WITH_TIMEOUT(mpvSaid.match(log.text()).hasMatch(), qPrintable(log.text()), 10000);
@@ -1784,8 +1786,8 @@ private slots:
     // Each mpv is asked once, by its own list of options.
     void forcedSubtitlesAsTheInstalledMpvTakesThem() {
         const auto forcedOnly = [this](const char *film) {
-            m_mpv->loadAndPlay(m_dir.path() + QStringLiteral("/") + QLatin1String(film) + QStringLiteral(".mp4"), 0,
-                               0, -1, {});
+            m_mpv->loadAndPlay({ { "url", m_dir.path() + QStringLiteral("/") + QLatin1String(film) + QStringLiteral(".mp4") },
+                                 { "audioTrack", 0 }, { "subTrack", -1 } });
         };
         forcedOnly("A");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);

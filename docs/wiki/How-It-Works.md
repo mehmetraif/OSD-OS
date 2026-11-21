@@ -232,7 +232,7 @@ sequenceDiagram
     participant M as MpvController
     participant MM as MenuMusic
     participant X as mpv
-    V->>M: loadAndPlay(url, start, tracks, …)
+    V->>M: loadAndPlay({ url, startSeconds, tracks, … })
     M->>MM: hold("video"): the music stops
     M->>M: build the command line, retire the old mpv
     Note over M: 50 ms later, once the loading screen is drawn
