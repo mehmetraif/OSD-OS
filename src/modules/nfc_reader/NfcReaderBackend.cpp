@@ -4,6 +4,7 @@
 #include "../../util/AtomicFile.h"
 #include "../../util/FileNames.h"
 #include "../../util/PlaybackOptions.h"
+#include "../../util/YtDlpFormat.h"
 #include "NfcDriver.h"
 #include "PcscDriver.h"
 #include "Pn532SerialDriver.h"
@@ -580,20 +581,16 @@ void NfcReaderBackend::clearPosition(const QString &videoPath) {
     m_history.clear(videoPath);
 }
 
-// Same format cascade as the YouTube module; only applies to mapping entries
-// that resolve through yt-dlp (YouTube page URLs) — local files and direct
-// media URLs never reach the ytdl hook.
+// The YouTube module's format at its defaults but the height; only applies to
+// mapping entries that resolve through yt-dlp (YouTube page URLs) — local
+// files and direct media URLs never reach the ytdl hook.
 QString NfcReaderBackend::ytdlFormatForResolution(const QString &resolution) const {
     int height = 480;
     if (resolution == QLatin1String("720p"))
         height = 720;
     else if (resolution == QLatin1String("1080p"))
         height = 1080;
-    // H.264 first (RPi hardware decode), then any codec at the cap, then best
-    return QStringLiteral("bestvideo[height<=?%1][vcodec^=avc1]+bestaudio/"
-                          "bestvideo[height<=?%1]+bestaudio/"
-                          "best[height<=?%1]/best")
-        .arg(height);
+    return ytdlp::format(height, true, false, QString());
 }
 
 void NfcReaderBackend::get_resume_playback_options() {

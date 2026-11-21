@@ -4,6 +4,7 @@
 #include "../web_player/WebPlayerBackend.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/InstallHint.h"
+#include "../../util/YtDlpFormat.h"
 #include "../../util/YtDlpLocator.h"
 
 #include <QDateTime>
@@ -601,30 +602,8 @@ static int resolutionHeight(const QString &resolution) {
 
 QString YouTubeBackend::ytdlFormat(const QString &resolution, const QString &codec,
                                    const QString &maxFrameRate, const QString &audioLanguage) const {
-    // "<=?" also takes a format that doesn't say its height or rate.
-    QString cap = QStringLiteral("[height<=?%1]").arg(resolutionHeight(resolution));
-    if (maxFrameRate == QLatin1String("30"))
-        cap += QStringLiteral("[fps<=?30]");
-
-    QStringList videos;
-    if (codec != QLatin1String("Any"))
-        videos << QStringLiteral("bestvideo") + cap + QStringLiteral("[vcodec^=avc1]");
-    videos << QStringLiteral("bestvideo") + cap;
-
-    // Plain bestaudio is the original track: yt-dlp ranks it first.
-    QStringList audios;
-    const QString language = audioLanguage.trimmed().toLower();
-    if (!language.isEmpty() && language != QLatin1String("original"))
-        audios << QStringLiteral("bestaudio[language^=%1]").arg(language);
-    audios << QStringLiteral("bestaudio");
-
-    // The language outranks the codec: a dub in VP9 before the original in H.264.
-    QStringList choices;
-    for (const QString &audio : audios)
-        for (const QString &video : videos)
-            choices << video + QLatin1Char('+') + audio;
-    choices << QStringLiteral("best") + cap << QStringLiteral("best");
-    return choices.join(QLatin1Char('/'));
+    return ytdlp::format(resolutionHeight(resolution), codec != QLatin1String("Any"),
+                         maxFrameRate == QLatin1String("30"), audioLanguage);
 }
 
 QString YouTubeBackend::ytdlFormat(const QVariantMap &settings) const {
