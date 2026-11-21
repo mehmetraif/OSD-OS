@@ -462,10 +462,7 @@ FocusScope {
             return
         }
         resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
-        // Match ModuleSettings.qml's reading of a toggle: stored as a real bool
-        // once the user touches it, but accept the legacy "ON" string too.
-        var autoplayRaw = appCore.get_setting(moduleRoot.moduleId, "autoplay_next_episode")
-        autoplayNext  = allowAutoplay && (autoplayRaw === true || autoplayRaw === "ON")
+        autoplayNext  = allowAutoplay && root.settingOn(moduleRoot.moduleId, "autoplay_next_episode", false)
 
         if (resumeSetting === "ask" && viewOffset > 0) {
             resumePrompt.open()

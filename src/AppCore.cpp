@@ -231,6 +231,18 @@ QVariant AppCore::get_setting(const QString &moduleId, const QString &key) {
     return target[key].toVariant();
 }
 
+bool AppCore::setting_on(const QString &moduleId, const QString &key, bool fallback) {
+    const QVariant value = get_setting(moduleId, key);
+    if (value.typeId() == QMetaType::Bool)
+        return value.toBool();
+    const QString text = value.toString();
+    if (text.compare(QLatin1String("ON"), Qt::CaseInsensitive) == 0)
+        return true;
+    if (text.compare(QLatin1String("OFF"), Qt::CaseInsensitive) == 0)
+        return false;
+    return fallback;
+}
+
 QStringList AppCore::settingPath(const QString &key) {
     const QStringList parts = key.split('.', Qt::KeepEmptyParts);
     return parts.size() == 2 ? parts : QStringList{ key };

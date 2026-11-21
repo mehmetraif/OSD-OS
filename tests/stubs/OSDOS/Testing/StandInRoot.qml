@@ -121,6 +121,16 @@ Rectangle {
     // Main.qml has them.
     function isBack(event) { return Hints.isBack(event) }
     function hintLine(parts) { return Hints.line(hints, parts) }
+    // A toggle's setting as Main.qml reads it (AppCore::setting_on()), from
+    // the test's appCore: true or false, "ON" or "OFF" in any case, else
+    // the fallback.
+    function settingOn(moduleId, key, fallback) {
+        var value = appCore.get_setting(moduleId, key)
+        if (value === true || value === false)
+            return value
+        var text = typeof value === "string" ? value.toUpperCase() : ""
+        return text === "ON" ? true : text === "OFF" ? false : !!fallback
+    }
     // No Cabinet Lock: back leaves the start module (a test sets it).
     property bool leavingBarred: false
 

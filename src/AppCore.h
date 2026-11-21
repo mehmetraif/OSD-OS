@@ -94,6 +94,10 @@ public:
     Q_INVOKABLE void scan_for_modules();
     Q_INVOKABLE QVariant get_settings();
     Q_INVOKABLE QVariant get_setting(const QString &moduleId, const QString &key);
+    // A toggle's setting, on or off: saved as true or false, or in an older
+    // config as the manifest's "ON" or "OFF" (in any case); `fallback`, its
+    // manifest default, while nothing is saved, or what is saved is neither.
+    Q_INVOKABLE bool setting_on(const QString &moduleId, const QString &key, bool fallback);
     // False when config.json couldn't be written (a full or read-only card):
     // nothing then changes, and no setting changed is signalled.
     Q_INVOKABLE bool save_setting(const QString &moduleId, const QString &key, const QVariant &value);

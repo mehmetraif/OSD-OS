@@ -51,10 +51,9 @@ FocusScope {
     // now: the module's SUBTITLES and LOOP PLAYBACK, the YouTube module's
     // ways for its videos, Local Files' IMAGE DURATION for a still image.
     function specFor(prepared) {
-        var loop = setting(moduleRoot.moduleId, "loop_playback", false)
         var subtitles = setting(moduleRoot.moduleId, "subtitles", "Forced Only")
         // mpv's: 0 any, -1 forced only, -2 none.
-        var spec = { file: prepared.file, loop: loop === true || loop === "ON",
+        var spec = { file: prepared.file, loop: root.settingOn(moduleRoot.moduleId, "loop_playback", false),
                      extraArgs: [], subTrack: subtitles === "On" ? 0 : subtitles === "Off" ? -2 : -1,
                      subLangs: [], imageSec: 0.0, images: !!prepared.images }
         if (prepared.youtube && typeof youtubeBackend !== "undefined" && youtubeBackend) {

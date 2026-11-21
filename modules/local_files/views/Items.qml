@@ -23,10 +23,7 @@ FocusScope {
     // On unless Hide File Extensions was turned off (the manifest's default
     // is ON, which get_setting doesn't know: a setting never saved reads as
     // nothing).
-    readonly property bool hideExtensions: {
-        var v = appCore ? appCore.get_setting(moduleRoot.moduleId, "hide_extensions") : true
-        return v === undefined || v === null || v === true || v === "ON"
-    }
+    readonly property bool hideExtensions: appCore ? root.settingOn(moduleRoot.moduleId, "hide_extensions", true) : true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()

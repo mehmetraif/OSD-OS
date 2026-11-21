@@ -925,6 +925,9 @@ Window {
     // [ENTER]:SELECT" from the keyboard, and a binding on it follows the
     // hints to a pad's and back (Components/Hints.js).
     function hintLine(parts) { return Hints.line(hints, parts) }
+    // A toggle's setting, on or off, whichever form it is saved in, else
+    // `fallback`, its manifest default (AppCore::setting_on()).
+    function settingOn(moduleId, key, fallback) { return appCore ? appCore.setting_on(moduleId, key, !!fallback) : !!fallback }
     readonly property string appVersion: appCore ? appCore.appVersion : ""
     // A build made from source rather than a release (CMake's APP_VERSION).
     readonly property bool devBuild: appVersion === "dev"

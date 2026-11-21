@@ -260,6 +260,26 @@ private slots:
         QCOMPARE(backend.autoSubtitlesChoice(QString()), QStringLiteral("forced"));
     }
 
+    // A toggle's setting as every reader of one reads it (setting_on()): true
+    // or false as saved, an older config's "ON" or "OFF" in any case as on
+    // and off, and the fallback for nothing saved or anything else.
+    void toggleSettings() {
+        QTemporaryDir tmp;
+        AppCore core(tmp.path(), tmp.path());
+        const QVariantList saved{ true, false, QStringLiteral("ON"), QStringLiteral("OFF"), QStringLiteral("on"),
+                                  QStringLiteral("Off"), QString(), QStringLiteral("sometimes") };
+        const QList<int> asSaved{ 1, 0, 1, 0, 1, 0, -1, -1 };  // -1: the fallback
+        for (int i = 0; i < saved.size(); ++i) {
+            QVERIFY(core.save_setting("m", QStringLiteral("t%1").arg(i), saved[i]));
+            for (bool fallback : { false, true })
+                QCOMPARE(core.setting_on("m", QStringLiteral("t%1").arg(i), fallback),
+                         asSaved[i] < 0 ? fallback : asSaved[i] == 1);
+        }
+        QCOMPARE(core.setting_on("m", "never_saved", true), true);
+        QCOMPARE(core.setting_on("m", "never_saved", false), false);
+        QCOMPARE(core.setting_on("", "t0", false), false);
+    }
+
     // config.json edited by hand and left unreadable (a stray comma) is not
     // written over: a save would put the defaults in place of every setting
     // in it. The lists the same way. An empty file is as none.
