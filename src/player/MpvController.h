@@ -453,7 +453,7 @@ private:
     // panscan 1 for Pan & Scan, 0.43 for 14:9 (14:9 of a 16:9 picture), else
     // 0. The one place a Scaling becomes mpv's properties, for a session's
     // command line (sessionArgs()) and for one that plays; the OSC scripts'
-    // CROP button (scripts/mpv-osc*.lua) steps through the same four inside mpv.
+    // CROP button (scripts/osdos-osd.lua) steps through the same four inside mpv.
     struct ScalingProperties {
         bool keepaspect;
         double panscan;

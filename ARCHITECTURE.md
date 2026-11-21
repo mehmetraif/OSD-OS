@@ -417,7 +417,7 @@ app constants →
 
 ### Custom OSC (Lua)
 
-The on-screen controls mpv shows during playback are custom Lua scripts in `scripts/` (`mpv-osc.lua` for normal playback, `mpv-osc-ambient.lua` for Ambient Mode), loaded via mpv's `--script=` flag. Options are passed in with `--script-opts=` (e.g. `transcode-offset=<sec>`). The remote's key events reach these scripts through the `keypress` IPC bridge described above.
+The on-screen controls mpv shows during playback are custom Lua scripts in `scripts/` (`mpv-osc.lua` for normal playback, `mpv-osc-ambient.lua` for Ambient Mode), loaded via mpv's `--script=` flag. What they draw with (the colours, the rectangles and labels in VCR OSD Mono, the menus' measures, CROP's four Scalings and the flushing of key bindings) is written once in `scripts/osdos-osd.lua`, which the deck menus, the volume bar (`mpv-media-keys.lua`) and the screen saver load from their own folder; it is not a script of its own and is never given to `--script=`. Options are passed in with `--script-opts=` (e.g. `transcode-offset=<sec>`). The remote's key events reach these scripts through the `keypress` IPC bridge described above.
 
 ### The channel logo (`scripts/mpv-logo.lua`)
 

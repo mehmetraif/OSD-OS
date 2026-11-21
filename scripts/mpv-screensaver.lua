@@ -7,6 +7,9 @@
 -- only wakes the screen saver, the next press acts normally.
 
 local assdraw = require("mp.assdraw")
+-- The key flushing the OSD/OS scripts share, from this file's own folder
+-- (see osdos-osd.lua for why so).
+local osd = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "") .. "osdos-osd.lua")
 
 -- Raw script-opts key (same convention as mpv-osc.lua's transcode-offset);
 -- mp.options.read_options would instead expect a "screensaver-" prefix.
@@ -105,16 +108,9 @@ local DISMISS_KEYS = {
     "VOLUME_UP", "VOLUME_DOWN", "MUTE",
 }
 
--- A script's key bindings reach mpv's input from an idle handler, after the
--- callback that added or removed them returns. Flushed here instead, so that
--- OSD/OS is told the saver is up (osdos-screensaver shown, on which it sends
--- back to mpv for the saver to take) only once the keys are the saver's, and
--- told it is down only once they are given back; a key in between would have
--- gone where it shouldn't (mpv 0.35 and later; older ones apply bindings at
--- once).
-local function flush_keybindings()
-    if mp.flush_keybindings then mp.flush_keybindings() end
-end
+-- OSD/OS is told the saver is up only once the keys are the saver's, and
+-- down only once they are given back (osd.flush_keybindings).
+local flush_keybindings = osd.flush_keybindings
 
 activate = function()
     if ss_active then return end

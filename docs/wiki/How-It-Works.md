@@ -247,7 +247,7 @@ sequenceDiagram
 ```
 
 1. **The command line** comes from `sessionArgs()`. What plays comes last, after `--`.
-2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), `mpv-media-keys.lua` (media keys, the VOLUME bar), `mpv-logo.lua` (the channel logo), `mpv-screensaver.lua`, and for photos `mpv-slideshow-redraw.lua`.
+2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), `mpv-media-keys.lua` (media keys, the VOLUME bar), `mpv-logo.lua` (the channel logo), `mpv-screensaver.lua`, and for photos `mpv-slideshow-redraw.lua`. The menus, the bar and the saver draw with `osdos-osd.lua`, which they load from their own folder.
 3. **The old player** is told to quit (SIGTERM), killed a second later, and given up on after five seconds. The new one waits until it is gone.
 4. **The socket.** `MpvController` sends JSON commands over `osdos-mpv.sock`, in a folder only OSD/OS's user can open (`/tmp/runtime-pi` on the image; [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). `osdos-input.conf` beside it maps Escape and Backspace to `script-message osdos-menu` (back) and Enter to pause.
 5. **The end.** `playbackEnded(finalPos, finalDur, reason)` comes once mpv has exited and, on a Pi, the screen is the app's again:
