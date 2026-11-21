@@ -312,6 +312,61 @@ StandInRoot {
             return null
         }
 
+        // A row that does something only on some machines (Arcade's CPU at
+        // Full Speed, on a Raspberry Pi): its capability asked for of the
+        // backend once as the page opens, by the slot the row names, on a
+        // submenu's page too; dimmed with the row's own reason until the
+        // backend reports it, ◄ ► leaving it as it is, and usable once it
+        // does. A capability named alone keeps the server's reason and asks
+        // nothing.
+        function test_capabilityByMachine() {
+            var pi = { name: "raspberry_pi", slot: "machineCapabilities", reason: "Only on a Raspberry Pi" }
+            appCore.schema = [
+                { key: "skip", label: "Skip Intros", type: "toggle", default: "ON", requires_capability: "mediasegments" },
+                { key: "full", label: "CPU at Full Speed", type: "toggle", default: "ON", requires_capability: pi,
+                  description: "The processor clocked high\n[ON] Steadier  [OFF] As set" },
+                { key: "video", label: "Emulator Video", type: "submenu", settings: [
+                    { key: "buffers", label: "Frame Buffers", type: "list_single", options: ["Auto", "Two"],
+                      default: "Auto", requires_capability: pi }] }
+            ]
+            var page = open()
+            compare(appCore.actions, ["machineCapabilities"])
+            compare(off(page, "skip"), "Not offered by the server")
+            compare(off(page, "full"), "Only on a Raspberry Pi")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "full")
+            var help = findChild(page, "helpLine")
+            verify(help.shownText.indexOf("Only on a Raspberry Pi") === 0, help.shownText)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.full, undefined)
+            compare(menuRow(page, 1).value, "ON")
+            verify(menuRow(page, 1).dimmed)
+            // Elsewhere than on a Pi the backend says so, and nothing changes.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", [])
+            compare(off(page, "full"), "Only on a Raspberry Pi")
+            // On a Pi: usable.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["raspberry_pi"])
+            compare(off(page, "full"), "")
+            compare(off(page, "skip"), "Not offered by the server")
+            verify(!menuRow(page, 1).dimmed)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.full, false)
+            // Asked once, however often the rows are made again.
+            compare(appCore.actions, ["machineCapabilities"])
+            loader.source = ""
+
+            appCore.actions = []
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "video" } })
+            page = loader.item
+            page.forceActiveFocus()
+            compare(keys(page), ["buffers"])
+            compare(appCore.actions, ["machineCapabilities"])
+            compare(off(page, "buffers"), "Only on a Raspberry Pi")
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["raspberry_pi"])
+            compare(off(page, "buffers"), "")
+        }
+
         // What dims a row changes (the row it goes with, what the server can
         // do, a sign-in): the rows dimmed or usable otherwise change in
         // place. No line of the list is made again, the list stays where it

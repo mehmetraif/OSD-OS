@@ -74,7 +74,7 @@ Each setting is an object:
 | `settings` | `submenu` | Its own rows, in this same format |
 | `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |
 | `requires_auth` | Every type | Usable only while the backend's `get_auth_state()` is neither `""` nor `"none"`. Dimmed until then (`Only once signed in`) |
-| `requires_capability` | Every type | Usable only while the backend's choices for `_capabilities` name it. Dimmed otherwise (`Not offered by the server`) |
+| `requires_capability` | Every type | Usable only while the backend's choices for `_capabilities` name it. Dimmed otherwise (`Not offered by the server`). As `{ "name", "slot", "reason" }`, the page asks the backend's `slot` for it as it opens, and the help line gives `reason` while it is missing (Arcade's rows that do something only on a Raspberry Pi) |
 | `shown_with` | Every type | Usable only while another row has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`. A toggle's value is `"ON"` or `"OFF"`; an unset row counts as its `default`. A list of them holds while any holds. Or an app setting's value: `{ "app": "startup_module", "value": "com.osdos.scripts", "reason": "Only with Start On on Scripts (Settings > Startup)" }`, the help line opening with its `reason`. Dimmed otherwise; a dimmed row keeps what was saved |
 
 The types, as Settings shows and saves them:

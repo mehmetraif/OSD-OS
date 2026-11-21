@@ -612,6 +612,12 @@ public:
     // typed, else the default. The default isn't marked so: "(default)"
     // beside a device's name doesn't fit the row in Camcorder.
     Q_INVOKABLE void onlineNameOptions();
+    // manifest: what this machine is, for the rows that do something only
+    // on one (requires_capability's slot): dynamicOptionsReady's
+    // "_capabilities", ["raspberry_pi"] on a Raspberry Pi (setBoard()), for
+    // CPU at Full Speed and Emulator Video's Frame Buffers; [] elsewhere,
+    // where the page dims them.
+    Q_INVOKABLE void machineCapabilities();
 
     // The sets played last, newest first: the High Scores module's Recently
     // Played, as main.cpp hands them over.

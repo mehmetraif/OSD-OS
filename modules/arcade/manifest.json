@@ -292,8 +292,32 @@
       "description": "The name the others see, online and on the network\n[DEFAULT] Online, the RetroAchievements account's, else OSD-OS; on the network, this device's name (Settings → System → About → System Information)"
     },
     {
+      "key": "show_ping",
+      "label": "Show Ping",
+      "type": "toggle",
+      "default": "OFF",
+      "shown_with": [{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }],
+      "description": "Each player's ping on RetroArch's screen during a game over the network; the app's log has a line on each game either way\n[ON] Shown, to tell how the link plays  [OFF] Not shown"
+    },
+    {
       "type": "section",
       "label": "Emulators"
+    },
+    {
+      "key": "sound_buffer",
+      "label": "Sound Buffer",
+      "type": "list_single",
+      "options": ["Auto", "RetroArch's"],
+      "default": "Auto",
+      "description": "How long FinalBurn Neo's sound is held before it plays\n[AUTO] 48 ms, the sound closer to the picture; on a Raspberry Pi 4 RetroArch's 64 ms with a lighter resampler  [RETROARCH'S] RetroArch's own, if the sound crackles"
+    },
+    {
+      "key": "cpu_full_speed",
+      "label": "CPU at Full Speed",
+      "type": "toggle",
+      "default": "ON",
+      "requires_capability": { "name": "raspberry_pi", "slot": "machineCapabilities", "reason": "Only on a Raspberry Pi" },
+      "description": "While a game plays, in MAME and FinalBurn Neo alike, the Pi's processor clocked as high as it goes, and put back after it, on the OSD/OS image or after install.sh\n[ON] Steadier frames, the Pi warmer; a Pi already hot or throttled keeps its own clock  [OFF] The processor's clock as the system sets it"
     },
     {
       "key": "mame",
@@ -356,6 +380,23 @@
           "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
           "default": "Auto",
           "description": "How MAME draws the game: try another when a game shows no picture\n[AUTO] As MAME's own settings say"
+        },
+        {
+          "key": "mame_vsync",
+          "label": "MAME Vsync",
+          "type": "list_single",
+          "options": ["Auto", "On", "Off"],
+          "default": "Auto",
+          "description": "Each frame of MAME's held for the screen's refresh, against tearing and judder\n[AUTO] On on a Raspberry Pi 4 or 5 drawing on the console, off elsewhere  [ON] Always  [OFF] Never, if a game runs slow with it"
+        },
+        {
+          "key": "frame_buffers",
+          "label": "Frame Buffers",
+          "type": "list_single",
+          "options": ["Auto", "Two", "Three"],
+          "default": "Auto",
+          "requires_capability": { "name": "raspberry_pi", "slot": "machineCapabilities", "reason": "Only on a Raspberry Pi" },
+          "description": "How many frames FinalBurn Neo's RetroArch keeps queued for the screen, drawing on the console\n[AUTO] Two on a Raspberry Pi 5, Three on the others  [TWO] Each frame a refresh sooner, but a late frame held a whole refresh  [THREE] RetroArch's own"
         }
       ]
     }

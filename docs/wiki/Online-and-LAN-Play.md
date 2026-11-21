@@ -130,6 +130,11 @@ For a smooth game:
   - A router that gives both its bands one name lets the Pi pick either, and a Pi behind a TV may pick 2.4 GHz. Giving the 5 GHz band a name of its own, and joining that one, keeps it there.
   - A Pi whose Wi-Fi country isn't set to where it is may not hear the router's 5 GHz channel at all: **Settings → Network → Wi-Fi → Country**.
   - To see the band a Pi is on: the app's log has `[Wi-Fi] On 2437 MHz (2.4 GHz) through wlan0` each time it changes, and on the Pi, `iw dev wlan0 link` gives `freq` (below 3000 is 2.4 GHz), `iw reg get` the country the radio keeps to, and `bluetoothctl devices Connected` the Bluetooth devices connected.
+- **Each machine's own settings**, in **Settings → Arcade**, left on their defaults unless a game says otherwise:
+  - **CPU at Full Speed** (EMULATORS, ON): a Pi's CPU at its full clock for the length of the game. Only on a Raspberry Pi.
+  - **Sound Buffer** (EMULATORS, Auto): 48 ms of FinalBurn Neo's sound held, on a Pi 4 RetroArch's 64 ms with a lighter resampler; **RetroArch's** if the sound crackles.
+  - **Frame Buffers** (Emulator Video, Auto): on a Pi 5's console, two frames queued for the screen rather than RetroArch's three, each frame a refresh sooner. Only on a Raspberry Pi.
+  - **MAME Vsync** (Emulator Video, Auto): for MAME's games played alone, each frame held for the screen's refresh on a Pi 4 or 5.
 
 #### A Windows PC
 
@@ -148,7 +153,7 @@ The PC's packets also go ahead on Wi-Fi only under a QoS policy ([INSTALL.md →
 
 To tell whether a change (LAN Sync, a cable, another host) helped:
 
-- **Settings → Arcade → Show Ping**, ON, shows each player's ping on RetroArch's screen during the game. It is off by default.
+- **Settings → Arcade → Show Ping**, ON, shows each player's ping on RetroArch's screen during the game. It is under ONLINE AND LAN, after Online Name, usable while Online Play or LAN Play is On, and off by default.
 - As a game over the network ends, the app's log has one line on it, which **Quit → Save Logs** carries:
 
   `arcade: network game: sf2, joined on the LAN, 12 min 40 s; peers: the host 12 ms; left 1; stalls 0, catch-ups 0, savestates 0, CRC mismatches 0, desyncs 0, pauses 0, netplay errors 0; achievements: signed in`

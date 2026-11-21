@@ -241,8 +241,8 @@ FocusScope {
             if (item.requires_auth && signedOut(state)) {
                 off = authReason(schema)
                 by = "auth"
-            } else if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) {
-                off = "Not offered by the server"
+            } else if (capabilityOf(item) && caps.indexOf(capabilityOf(item).name) < 0) {
+                off = capabilityOf(item).reason
                 by = "capability"
             } else if (item.shown_with && !shownWith(item.shown_with, mid)) {
                 off = shownWithReason(item.shown_with, mid)
@@ -255,6 +255,25 @@ FocusScope {
             rows.push(off !== "" ? Object.assign({ _off: off, _offBy: by }, row) : row)
         }
         return rows
+    }
+
+    // What a row's "requires_capability" asks of the backend, as { name,
+    // slot, reason }: the capability, the backend's slot that reports it
+    // as the page opens ("" for a backend that reports it of itself, as
+    // Jellyfin's mediasegments comes with its choices), and the help line's
+    // reason while it isn't there. The manifest names it alone
+    // ("mediasegments": "Not offered by the server") or as { "name", "slot",
+    // "reason" }, as Arcade's rows that do something only on a Raspberry Pi:
+    // { "name": "raspberry_pi", "slot": "machineCapabilities", "reason":
+    // "Only on a Raspberry Pi" }.
+    function capabilityOf(item) {
+        var need = item.requires_capability
+        if (!need)
+            return null
+        if (typeof need === "object")
+            return { name: String(need.name), slot: String(need.slot || ""),
+                     reason: String(need.reason || "Not offered by the server") }
+        return { name: String(need), slot: "", reason: "Not offered by the server" }
     }
 
     // What a row's "shown_with" waits for, in words: "Only with Screen on
@@ -465,12 +484,19 @@ FocusScope {
     // asked for yet (a row a sign-in or a capability no longer keeps back),
     // or of all of them again (a sign-in changes them). A multi-select
     // row's too, for how many of them are on (multiValue()); its own page
-    // asks again as it opens.
+    // asks again as it opens. And, once a page, for the capabilities a row
+    // waits on whose backend reports them when asked (capabilityOf()'s slot).
     property var askedOptions: ({})
     function requestOptions(again) {
         for (var i = 0; i < schemaItems.length; i++) {
             var item = schemaItems[i]
             var id = rowId(item)
+            var cap = capabilityOf(item)
+            var capId = cap && cap.slot !== "" ? optionKey(item._module || "", "_capabilities") + ":" + cap.slot : ""
+            if (capId !== "" && !askedOptions[capId]) {
+                askedOptions[capId] = true
+                appCore.invoke_module_action(moduleOf(item), cap.slot)
+            }
             if (item.options_source === "dynamic" && item.options_slot
                 && item._offBy !== "auth" && item._offBy !== "capability"
                 && (again || (dynamicOptions[id] === undefined && !askedOptions[id]))) {

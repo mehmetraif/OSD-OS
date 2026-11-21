@@ -2268,6 +2268,13 @@ void ArcadeBackend::onlineNameOptions() {
                                                         { QStringLiteral("label"), name } } });
 }
 
+void ArcadeBackend::machineCapabilities() {
+    QVariantList capabilities;
+    if (m_board != board::Family::Other)
+        capabilities << QStringLiteral("raspberry_pi");
+    emit dynamicOptionsReady(QStringLiteral("_capabilities"), capabilities);
+}
+
 // ---------------------------------------------------------------------------
 // The original screen's tree.
 

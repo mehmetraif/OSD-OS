@@ -392,6 +392,40 @@ test("Arcade's rows without the headings Settings groups them under, each shown 
         assert.ok(row.description, `${row.key} has a help line`);
 });
 
+// The rows for how the emulators play and how a game over the network is
+// shown, in their groups on the device, each with the default the backend
+// takes while nothing is saved (ArcadeBackend::applySetting(), GameSystem).
+test("Arcade's emulator and network rows in their groups, with the backend's defaults", () => {
+    const rows = JSON.parse(readFileSync(join(root, "modules/arcade/manifest.json"), "utf8")).settings;
+    const groupOf = key => {
+        let group = "";
+        for (const row of rows) {
+            if (row.type === "section")
+                group = row.label;
+            if (row.key === key || (row.settings || []).some(r => r.key === key))
+                return row.settings ? `${group} / ${row.label}` : group;
+        }
+        return "";
+    };
+    assert.equal(groupOf("show_ping"), "Online and LAN");
+    assert.equal(rows[rows.findIndex(r => r.key === "online_name") + 1].key, "show_ping");
+    assert.equal(groupOf("sound_buffer"), "Emulators");
+    assert.equal(groupOf("cpu_full_speed"), "Emulators");
+    assert.equal(groupOf("mame_vsync"), "Emulators / Emulator Video");
+    assert.equal(groupOf("frame_buffers"), "Emulators / Emulator Video");
+
+    const arcade = schema.modules.find(m => m.id === "com.osdos.arcade").settings;
+    const row = key => arcade.find(r => r.key === key);
+    assert.deepEqual([row("show_ping").type, row("show_ping").default], ["toggle", false]);
+    assert.deepEqual(row("show_ping").shown_with, [{ key: "online_play", value: "On" }, { key: "lan_play", value: "On" }]);
+    assert.deepEqual([row("cpu_full_speed").type, row("cpu_full_speed").default], ["toggle", true]);
+    assert.deepEqual(valuesOf(row("mame_vsync")), ["Auto", "On", "Off"]);
+    assert.deepEqual(valuesOf(row("frame_buffers")), ["Auto", "Two", "Three"]);
+    assert.deepEqual(valuesOf(row("sound_buffer")), ["Auto", "RetroArch's"]);
+    for (const key of ["mame_vsync", "frame_buffers", "sound_buffer"])
+        assert.equal(row(key).default, "Auto", key);
+});
+
 test("defaults are among the values, and rows show with rows that are there", () => {
     const scopes = [["app", appRows], ...schema.modules.map(m => [m.id, m.settings])];
     for (const [scope, rows] of scopes) {

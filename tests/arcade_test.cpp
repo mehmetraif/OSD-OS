@@ -3,6 +3,7 @@
 #include "input/ControllerProfile.h"
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
+#include "modules/arcade/GameSystem.h"
 #include "modules/arcade/Http.h"
 #include "modules/arcade/LanRooms.h"
 #include "modules/arcade/Libretro.h"
@@ -8922,6 +8923,45 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QString());
         arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
         QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "OSD-OS=OSD-OS" }));
+    }
+
+    // What the machine is, for Settings → Arcade's rows that do something
+    // only on a Raspberry Pi (CPU at Full Speed, Frame Buffers): the
+    // manifest's slot for them answers with the capability on any Pi and
+    // none elsewhere, and is the one those rows name.
+    void machineCapabilities() {
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        for (const auto &[family, expected] : { std::pair{ board::Family::Pi3, QStringList{ "raspberry_pi" } },
+                                                std::pair{ board::Family::Pi4, QStringList{ "raspberry_pi" } },
+                                                std::pair{ board::Family::Pi5, QStringList{ "raspberry_pi" } },
+                                                std::pair{ board::Family::Other, QStringList{} } }) {
+            arcade.setBoard(family);
+            options.clear();
+            QVERIFY(QMetaObject::invokeMethod(&arcade, "machineCapabilities"));
+            QCOMPARE(options.size(), 1);
+            QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("_capabilities"));
+            QCOMPARE(options.at(0).at(1).toStringList(), expected);
+        }
+        QFile file(QStringLiteral(TESTS_DIR "/../modules/arcade/manifest.json"));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QStringList named;
+        std::function<void(const QJsonArray &)> walk = [&](const QJsonArray &rows) {
+            for (const QJsonValue &v : rows) {
+                const QJsonObject row = v.toObject();
+                const QJsonObject need = row.value(QLatin1String("requires_capability")).toObject();
+                if (need.value(QLatin1String("name")).toString() == QLatin1String("raspberry_pi")) {
+                    QCOMPARE(need.value(QLatin1String("slot")).toString(), QStringLiteral("machineCapabilities"));
+                    QCOMPARE(need.value(QLatin1String("reason")).toString(), QStringLiteral("Only on a Raspberry Pi"));
+                    named << row.value(QLatin1String("key")).toString();
+                }
+                walk(row.value(QLatin1String("settings")).toArray());
+            }
+        };
+        walk(QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("settings")).toArray());
+        QCOMPARE(named, QStringList({ "cpu_full_speed", "frame_buffers" }));
+        QCOMPARE(QString::fromLatin1(GameSystem::kFullSpeedKey), QStringLiteral("cpu_full_speed"));
     }
 
     void regionsOfNames() {

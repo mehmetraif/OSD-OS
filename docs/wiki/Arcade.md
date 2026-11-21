@@ -562,7 +562,7 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 | Vertical Games | Horizontal, Turned Right, Turned Left | Turns the vertical games for a monitor you turn on its side for them ([A monitor on its side](#a-monitor-on-its-side-tate)) | `modules.com.osdos.arcade.vertical_monitor` |
 | MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | How MAME draws. **Auto** leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL). Try another when a game shows no picture | `modules.com.osdos.arcade.video` |
 | MAME Vsync | Auto, On, Off | Each frame of MAME's waits for the screen's refresh (`-waitvsync`), against tearing and judder. **Auto**: on on a Raspberry Pi 4 or 5 drawing on the console, off elsewhere. **Off** if a game runs slow with it | `modules.com.osdos.arcade.mame_vsync` |
-| Frame Buffers | Auto, Two, Three | How many frames RetroArch keeps queued for the screen on the console (`video_max_swapchain_images`). **Two** shows each frame a refresh sooner than RetroArch's own **Three**, but a frame that comes late is held a whole refresh. **Auto**: Two on a Raspberry Pi 5, Three on a Pi 4 and elsewhere. A desktop's RetroArch keeps its own | `modules.com.osdos.arcade.frame_buffers` |
+| Frame Buffers | Auto, Two, Three | How many frames RetroArch keeps queued for the screen on the console (`video_max_swapchain_images`). **Two** shows each frame a refresh sooner than RetroArch's own **Three**, but a frame that comes late is held a whole refresh. **Auto**: Two on a Raspberry Pi 5, Three on the other Pis. A desktop's RetroArch keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.frame_buffers` |
 
 ## Settings
 
@@ -606,9 +606,10 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | LAN Play | Off, On | Off | Play on the same network, in FinalBurn Neo | `modules.com.osdos.arcade.lan_play` |
 | LAN Sync | Smooth, Responsive | Smooth | How a game you host keeps its machines together. **Smooth**: the joiners follow the host, so host on the fastest machine, on a cable. **Responsive**: every machine plays ahead, with a frame of input latency ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)). Shown while LAN Play is On | `modules.com.osdos.arcade.lan_sync` |
 | Online Name | (on-screen keyboard) | Online, the RetroAchievements account's, else OSD-OS; on the local network, the device's name | The name the others see, shown on the row: the one typed, else the default (with LAN Play on, the device's name). Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.online_name` |
+| Show Ping | ON, OFF | OFF | Over the network, each player's ping on RetroArch's screen during the game ([How a game went](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#how-a-game-went)). Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.show_ping` |
 | **EMULATORS** | | | | |
-| Show Ping | ON, OFF | OFF | Over the network, each player's ping on RetroArch's screen. Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.show_ping` |
 | Sound Buffer | Auto, RetroArch's | Auto | FinalBurn Neo's sound buffer. **Auto**: 48 ms, so the sound trails the picture less, and on a Raspberry Pi 4 RetroArch's 64 ms with a lighter resampler. **RetroArch's**: RetroArch's own 64 ms and resampler, if the sound crackles | `modules.com.osdos.arcade.sound_buffer` |
+| CPU at Full Speed | ON, OFF | ON | While a game plays, in MAME or FinalBurn Neo, the Pi's CPU governor at `performance`, put back as the game ends, on the OSD/OS image or after `install.sh` ([The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). A Pi already hot or throttled keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.cpu_full_speed` |
 | MAME, FinalBurn Neo | (pages) | | [MAME's page](#mames-page), [The core and RetroArch](#the-core-and-retroarch) | |
 | Emulator Video | (page) | | Seven settings ([Emulator Video](#emulator-video)) | |
 
@@ -616,7 +617,7 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 
 | Key | Saved as |
 |---|---|
-| `enabled`, `hide_bootlegs`, `hide_incomplete`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores`, `show_ping` | `true` or `false` |
+| `enabled`, `hide_bootlegs`, `hide_incomplete`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores`, `show_ping`, `cpu_full_speed` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `regions` | The regions turned on or off, by id: `{ "japan": false }`. The ids: `world`, `usa`, `europe`, `asia`, `japan`, `korea`, `china`, `hong_kong`, `taiwan`, `hispanic`, `brazil`, `oceania`, `others` |
 | `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"`, `"online"`, `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"vertical"` (Vertical Games), `"genres/<genre>"`, `"players/<n>"`, `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` |
