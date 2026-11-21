@@ -2797,6 +2797,19 @@ private slots:
         QCOMPARE(player(im, 6).value("name").toString(), QString("OSD/OS Pad 3"));
         im.setPlayer(3, QString());
 
+        // Players 1 to 3 chosen: the JAMMA board's sticks are the first left,
+        // ahead of the other pads, for player 4 as for player 5.
+        const QString keyOf[3] = { entry(im, "OSD/OS Pad 1").value("key").toString(),
+                                   entry(im, "OSD/OS Pad 2").value("key").toString(),
+                                   entry(im, "OSD/OS Pad 3").value("key").toString() };
+        for (int p = 1; p <= 3; ++p)
+            im.setPlayer(p, keyOf[p - 1]);
+        QCOMPARE(player(im, 4).value("name").toString(), QString("OSD/OS JAMMA P1"));
+        QCOMPARE(player(im, 5).value("name").toString(), QString("OSD/OS JAMMA P2"));
+        QCOMPARE(player(im, 6).value("name").toString(), QString("OSD/OS Pad 4"));
+        QVERIFY(im.resetPlayers());
+        QCOMPARE(player(im, 1).value("name").toString(), QString("OSD/OS JAMMA P1"));
+
         // Three of a model are three players; a fourth chosen takes it from
         // the highest-numbered of the others.
         VirtualPad trio[2];

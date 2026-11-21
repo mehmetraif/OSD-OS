@@ -1473,7 +1473,7 @@ void InputManager::updatePlayers() {
         if (!m_playerKeys.value(p).isEmpty())
             continue;
         const auto free = std::find_if(order.cbegin(), order.cend(), [&](SDL_JoystickID id) {
-            return !taken.contains(id) && rank(id) == p;
+            return !taken.contains(id) && jammaPlayer(m_pads.value(id)) == p + 1;
         });
         const auto first = std::find_if(order.cbegin(), order.cend(), [&](SDL_JoystickID id) {
             return !taken.contains(id);
