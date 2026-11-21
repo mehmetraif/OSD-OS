@@ -209,6 +209,8 @@ jobs:
         run: echo "notarized=${DEVELOPER_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Create DMG
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           # Standard installer layout: the app plus an /Applications symlink so
           # users drag one onto the other inside the DMG window. Also avoids a
@@ -222,7 +224,7 @@ jobs:
             -volname "OSD-OS" \
             -srcfolder "$STAGE" \
             -ov -format UDZO \
-            "OSD-OS-${{ github.ref_name }}-macOS-arm64.dmg"
+            "OSD-OS-${TAG}-macOS-arm64.dmg"
 
       - name: Notarize and staple
         if: env.DEVELOPER_ID == 'true'
@@ -230,8 +232,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAG: ${{ github.ref_name }}
         run: |
-          DMG="OSD-OS-${{ github.ref_name }}-macOS-arm64.dmg"
+          DMG="OSD-OS-${TAG}-macOS-arm64.dmg"
           xcrun notarytool submit "$DMG" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
