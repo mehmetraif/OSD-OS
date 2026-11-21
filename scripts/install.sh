@@ -525,6 +525,10 @@ Environment=OSDOS_AUTOSTART=1
 # The app's user's own folder for what the launcher writes for a run (Qt's KMS
 # configuration): /run/osdos.
 RuntimeDirectory=osdos
+# An arcade game's RetroArch or MAME runs at nice -5, ahead of the app and
+# the system's services: the lowest nice the app may give. No real-time
+# priority, which could starve the rest.
+LimitNICE=-5
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStart=${LAUNCHER}
 Restart=on-failure

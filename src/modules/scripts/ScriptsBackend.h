@@ -39,6 +39,11 @@ struct ScriptEntry {
     QStringList argv;
     QString     workingDirectory;
     QList<QPair<QString, QString>> environment;
+    // Its nice value, below 0 to run it ahead of the rest of the system (the
+    // Arcade module's emulator on a Pi); set only where the system's limit
+    // lets the app's user give it (RLIMIT_NICE, the unit's LimitNICE=), and
+    // left at the app's own otherwise. Unix only.
+    int         nice = 0;
 };
 
 class AppCore;

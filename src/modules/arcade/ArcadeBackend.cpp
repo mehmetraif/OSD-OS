@@ -2630,6 +2630,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     const QString own = ownFolder();
     entry.workingDirectory = own.isEmpty() ? m_home : own;
     entry.environment = padEnvironment(m_dataRoot);
+    entry.nice = GameSystem::emulatorNice();
 
     // MAME asked about the sets meanwhile would share the machine with the
     // game: it is stopped, and asked again once the game has ended.
@@ -3432,6 +3433,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     entry.argv = libretro::arguments(launch);
     entry.workingDirectory = home;
     entry.environment = padEnvironment(m_dataRoot);
+    entry.nice = GameSystem::emulatorNice();
 
     // As for MAME: the batch MAME is asked meanwhile shares the machine.
     pauseScan();

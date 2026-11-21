@@ -8,8 +8,10 @@
 // which the test is run with once and once without).
 #include "AppCore.h"
 #include "modules/arcade/GameSystem.h"
+#include "modules/scripts/ScriptLauncher.h"
 
 #include <QElapsedTimer>
+#include <QFile>
 #include <QLocalServer>
 #include <QRegularExpression>
 #include <QLocalSocket>
@@ -20,6 +22,9 @@
 #include <QtTest>
 
 #include <memory>
+
+#include <sys/resource.h>
+#include <unistd.h>
 
 namespace {
 
@@ -226,6 +231,40 @@ private slots:
             QTest::ignoreMessage(QtInfoMsg,
                                  "arcade: system during the game: not measured (osdos-game.socket said \"nothing this does\")");
         QCOMPARE(system.ended(), QString());
+    }
+
+    // RetroArch or MAME ahead of the rest on a Pi: nice -5 there, nothing
+    // elsewhere; and the launcher gives it, where the limit lets it (root,
+    // or RLIMIT_NICE as the service's LimitNICE=-5 sets it).
+    void emulatorNice() {
+        QCOMPARE(GameSystem::emulatorNice(), onPi() ? -5 : 0);
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QFile script(dir.filePath(QStringLiteral("nice.sh")));
+        QVERIFY(script.open(QIODevice::WriteOnly));
+        script.write("#!/bin/sh\nawk '{ print \"nice=\" $19 }' /proc/$$/stat\n");
+        script.close();
+        QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+        struct rlimit limit {};
+        const bool allowed = ::geteuid() == 0
+                             || (::getrlimit(RLIMIT_NICE, &limit) == 0
+                                 && (limit.rlim_cur == RLIM_INFINITY || limit.rlim_cur >= 25));
+        for (const int nice : { -5, 0 }) {
+            ScriptLauncher launcher(dir.path(), dir.path(), nullptr);
+            ScriptEntry entry;
+            entry.path = script.fileName();
+            entry.basename = QStringLiteral("nice.sh");
+            entry.nice = nice;
+            QSignalSpy finished(&launcher, &ScriptLauncher::finished);
+            if (nice < 0 && !allowed)
+                QTest::ignoreMessage(QtInfoMsg,
+                                     "[Scripts] 'nice.sh' runs at the app's priority: nice -5 isn't allowed here (LimitNICE=)");
+            QString error;
+            QVERIFY2(launcher.start(entry, &error), qPrintable(error));
+            QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 10000);
+            QCOMPARE(launcher.outputText().trimmed(),
+                     QStringLiteral("nice=%1").arg(nice < 0 && allowed ? nice : 0));
+        }
     }
 
     // Without the helper (a launcher before level 11, or no socket), nothing

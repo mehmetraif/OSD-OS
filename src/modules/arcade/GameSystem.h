@@ -35,6 +35,12 @@ public:
     // speed, On when nothing is saved.
     static constexpr const char *kFullSpeedKey = "cpu_full_speed";
 
+    // The nice value RetroArch or MAME runs at: -5 on a Raspberry Pi, ahead
+    // of the app and the system's services (no real-time priority, which
+    // could starve them), 0 elsewhere. The launcher gives it only where the
+    // app's service allows it (LimitNICE=-5).
+    static int emulatorNice();
+
     // A game has started; network: it plays over the network.
     void started(bool network);
     // The game has ended: everything the helper changed put back, and what

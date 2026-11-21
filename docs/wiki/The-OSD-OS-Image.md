@@ -224,6 +224,7 @@ Environment=OSDOS_AUTOSTART=1
 Environment=OSDOS_BOOT_UNITS_FILE=/etc/osdos/boot-units
 Environment=OSDOS_READY_FILE=/run/osdos/ready
 RuntimeDirectory=osdos
+LimitNICE=-5
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStartPre=-/usr/lib/osdos/wait-for-display
 ExecStart=/usr/local/bin/osdos
@@ -243,6 +244,7 @@ WantedBy=multi-user.target
 ```
 
 - **`OSDOS_AUTOSTART=1`**: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output.
+- **`LimitNICE=-5`**: an arcade game's RetroArch or MAME runs at nice -5, ahead of OSD/OS itself and the system's services, so that a busy moment of theirs (NetworkManager, the journal) waits for the game rather than the other way round. No real-time priority, which could starve them. The `osdos.service` `install.sh` writes has it too; without it the game runs at OSD/OS's own priority and the log says so (`runs at the app's priority`). `ps -o pid,ni,cls,rtprio,comm -C retroarch` shows it during a game.
 - **A crash** starts OSD/OS again after five seconds. When the third start in two minutes fails too, a login prompt comes up (`osdos-terminal.service`). The Pi stays on.
 - **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` sets `OSDOS_MEDIA_DIR=/media/OSD-OS`. Local Files then opens **Movies** there and the Arcade module **Games/Arcade**, while their folder settings are unset.
 

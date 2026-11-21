@@ -24,6 +24,10 @@ GameSystem::~GameSystem() {
     close();
 }
 
+int GameSystem::emulatorNice() {
+    return board::family() != board::Family::Other ? -5 : 0;
+}
+
 bool GameSystem::fullSpeedWanted() const {
     const QVariant value = m_appCore ? m_appCore->get_setting(kModuleId, QLatin1String(kFullSpeedKey)) : QVariant();
     if (!value.isValid() || value.isNull())

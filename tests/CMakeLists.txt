@@ -247,9 +247,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # The system around an arcade game (GameSystem) against a stand-in for
     # osdos-game.socket: what a game's start sends and its end, the
     # connection held between, the line of what the Pi did and the notice,
-    # and nothing asked without the helper.
+    # nothing asked without the helper; and the emulator's nice, given by
+    # the launcher where the limit allows it.
     osdos_cpp_test(game_system SOURCES ../src/modules/arcade/GameSystem.cpp
-        LIBRARIES osdos_test_system osdos_test_core Qt6::Network)
+        LIBRARIES osdos_test_launch osdos_test_system osdos_test_core Qt6::Network)
     # The same as a Raspberry Pi 4, where a game without the helper says so.
     add_test(NAME game_system_pi4 COMMAND game_system_test)
     set_tests_properties(game_system_pi4 PROPERTIES ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 4 Model B Rev 1.5")
