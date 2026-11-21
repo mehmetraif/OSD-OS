@@ -83,8 +83,7 @@ Item {
         // Resolved here, so a path relative to this file works as it always
         // has.
         source: appBar.iconSource.toString() !== "" && appBar.logoHeight > 0
-                ? "image://osdicon/" + root.primaryColor.toString().replace("#", "")
-                  + "/" + root.skinIcon(Qt.resolvedUrl(appBar.iconSource))
+                ? root.iconUrl(root.primaryColor, root.skinIcon(Qt.resolvedUrl(appBar.iconSource)))
                 : ""
     }
 

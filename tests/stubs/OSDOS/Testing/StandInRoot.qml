@@ -60,6 +60,11 @@ Rectangle {
         var name = module ? module[1] : path.replace(/^.*\//, "").replace(/\.[^.]*$/, "")
         return icons[name.toLowerCase()] || url
     }
+    // An icon drawn in one colour by OsdIconProvider: what `url` draws, in
+    // `colour`.
+    function iconUrl(colour, url) {
+        return "image://osdicon/" + String(colour).replace("#", "") + "/" + url
+    }
 
     // --- THE BARS AND THE OSD BACKGROUND ---
     // Settings' Hint Bar, Help Line and status icons (none on).

@@ -212,6 +212,11 @@ Window {
         var name = module ? module[1] : path.replace(/^.*\//, "").replace(/\.[^.]*$/, "")
         return icons[name.toLowerCase()] || url
     }
+    // An icon drawn in one colour by OsdIconProvider: what `url` draws, in
+    // `colour`.
+    function iconUrl(colour, url) {
+        return "image://osdicon/" + String(colour).replace("#", "") + "/" + url
+    }
 
     // The effects there are, by name, as Settings offers them. The screen's
     // and the text's are numbers the screen's shader takes

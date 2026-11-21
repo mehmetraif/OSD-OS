@@ -55,30 +55,11 @@ Item {
                 border.width: root.px
                 antialiasing: false
             }
-            PixelIcon {
-                visible: !cell.modelData.source
-                name: cell.modelData.icon || ""
+            IconCell {
+                anchors.fill: parent
+                symbol: cell.modelData.icon || ""
+                logo: String(cell.modelData.source || "")
                 color: cell.current && column.active ? root.surfaceColor : root.primaryColor
-                // On whole art pixels, so the symbol stays as crisp as the text.
-                x: Math.round((cell.width - width) / 2 / root.px) * root.px
-                y: Math.round((cell.height - height) / 2 / root.px) * root.px
-            }
-            // A module's logo (`source`), in the place of a symbol: drawn by
-            // OsdIconProvider in the column's colour, as the title bar's is,
-            // or the skin's icon of its name.
-            Image {
-                visible: !!cell.modelData.source
-                readonly property real box: Math.round(root.sh * 0.0375 / root.px) * root.px //18
-                height: box
-                width: Math.min(implicitWidth, cell.width - 4 * root.px)
-                fillMode: Image.PreserveAspectFit
-                sourceSize.height: box
-                x: Math.round((cell.width - width) / 2 / root.px) * root.px
-                y: Math.round((cell.height - height) / 2 / root.px) * root.px
-                source: cell.modelData.source
-                        ? "image://osdicon/" + String(cell.current && column.active ? root.surfaceColor : root.primaryColor).replace("#", "")
-                          + "/" + root.skinIcon(cell.modelData.source)
-                        : ""
             }
         }
     }
