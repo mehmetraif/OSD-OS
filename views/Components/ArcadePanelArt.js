@@ -1,6 +1,6 @@
 .pragma library
 
-// The Arcade Buttons page's drawing (ArcadePanel.qml): a two-player arcade
+// The Game Buttons page's drawing (ArcadePanel.qml): a two-player arcade
 // cabinet's control panel, with a little of the cabinet above and below it,
 // in two-colour isometric pixel art. The panel's top rises towards the back:
 // on it each player has a ball-top stick and six buttons in two rows of

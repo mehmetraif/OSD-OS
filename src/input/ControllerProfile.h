@@ -65,7 +65,7 @@ bool hasMouseButtons(const QSet<int> &keys);
 // Sound → Audio Output is where that device belongs.
 bool looksLikeUsbAudioHid(const QString &name);
 
-// Settings → Controls → a pad → Arcade Buttons: which of its inputs is each
+// Settings → Controls → a pad → Game Buttons: which of its inputs is each
 // of a cabinet's, Button 1 to 8, Coin and Start (kArcadeInputs, in that
 // order), the same in MAME and FinalBurn Neo. An input is input.cfg's token:
 // a button ("x", "rightshoulder"), a trigger pressed ("righttrigger+"), or

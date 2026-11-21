@@ -33,8 +33,8 @@ class JammaPins;
 // The same Action/synthesized-key machinery also backs keyboard/remote-button
 // remapping (Settings → Controls → Keyboards & Remotes): extra physical keys
 // can be bound to an action via config.json's "remote_keymap.<action>" settings,
-// on top of (never replacing) that action's default key, see keyRemap handling
-// in eventFilter().
+// on top of (never replacing) that action's default key, see m_keyRemap's
+// handling in eventFilter().
 //
 // Settings → Controls also sets each controller apart (ControllerProfile):
 // every pad has its own map, the shared one with its profile's bindings over
@@ -49,7 +49,7 @@ class JammaPins;
 // key, 5, instead of its action, so the view handles the key alone, as it
 // does from a keyboard.
 //
-// A pad's Arcade Buttons (Settings → Controls → a pad → Arcade Buttons) are
+// A pad's Arcade Buttons (Settings → Controls → a pad → Game Buttons) are
 // which of its inputs is each of a cabinet's, Button 1 to 8, Coin and Start,
 // in every game: kept in its profile, and given to the Arcade module for
 // each player as MAME and RetroArch name them (controllers::playerArcade()).
@@ -194,20 +194,21 @@ public:
     // A controller's own settings forgotten; allKeys: every keyboard's and
     // remote's extra keys.
     Q_INVOKABLE bool resetController(const QString &key);
-    // A pad's Arcade Buttons page: { key, name, present, jamma, layout,
+    // A pad's Game Buttons page: { key, name, present, jamma, layout,
     // layoutTitle, layouts [{ layout, title }], rows [{ input, label, token,
-    // value }], choices [{ token, label }] }. layout one of
-    // controllers::arcadeLayouts(); a row's input "1" to "8", "coin" or "start", its
-    // token the pad's input that is it, as it acts on a pad connected
-    // (arcadeInputsOf()) ("" for none; under Default the one a layout of its
-    // own starts from), and value that as the pad's labels call it, "None"
-    // for none or one a pad connected hasn't. Under Default
+    // value }], manyRows, choices [{ token, label }] }. layout one of
+    // controllers::arcadeLayouts(); a row's input "1" to "8", "coin" or
+    // "start", its token the pad's input that is it, as it acts on a pad
+    // connected (arcadeInputsOf()) ("" for none; under Default the one a
+    // layout of its own starts from), and value that as the pad's labels
+    // call it, "None" for none or one a pad connected hasn't. Under Default
     // the rows are the pad's own: a JAMMA stick's pins' buttons; another
     // pad's buttons "Engine's", MAME and FinalBurn Neo laying them out their
     // own ways. Under Auto (arcadeLayoutOf()) the rows are a game of up to
     // four buttons', and manyRows a game of five or more's (Fighting 6's),
-    // which the page says in words; [] under any other layout. choices: the inputs it has that can be one (every one for a pad
-    // away), in controllers::arcadeTokens()' order.
+    // which the page says in words; [] under any other layout. choices: the
+    // inputs it has that can be one (every one for a pad away), in
+    // controllers::arcadeTokens()' order.
     Q_INVOKABLE QVariantMap arcadePage(const QString &key) const;
     // One of arcadePage()'s layouts: a preset's inputs, Custom's from those
     // there are (the default ones from Default, the four-button row from
@@ -225,7 +226,7 @@ public:
     // "menu" for Guide, MAME's menu; "unsaved". label: what the input is
     // called.
     Q_INVOKABLE QVariantMap setArcadeInput(const QString &key, const QString &input, const QString &token);
-    // All ten at once (Set All Buttons), in kArcadeInputs' order: "set",
+    // All ten at once (Set One by One), in kArcadeInputs' order: "set",
     // "unsaved", or "" for a list that isn't ten different ones of the pad's
     // ("" for none), Coin and Start among them.
     Q_INVOKABLE QString setArcadeInputs(const QString &key, const QStringList &tokens);

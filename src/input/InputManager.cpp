@@ -1013,8 +1013,7 @@ void InputManager::loadUserMapping() {
 }
 
 // Keyboard/remote-button remap, config.json's app.remote_keymap.<action>,
-// each an int Qt::Key value (or unset/0, meaning "no extra key for this
-// action"). Set from Settings → Controls → Keyboards & Remotes (views/MenuButtons.qml).
+// each action's extra keys (key ids, as keyId() gives them). Set from Settings → Controls → Keyboards & Remotes (views/MenuButtons.qml).
 // Unlike input.cfg's gamepad rebinds, this is additive: it never removes an
 // action's default key, it only adds one more physical key that also fires
 // it, so a bad remap can't lock the menus out from a plain keyboard.
@@ -3368,7 +3367,7 @@ std::optional<bool> InputManager::keyForWait(const KeyIn &key) {
 }
 
 // Custom remote/keyboard remap (Settings → Controls → Keyboards & Remotes): an extra
-// physical key that also fires one of the six actions, delivered the same
+// physical key that also fires one of the seven actions, delivered the same
 // way a gamepad press is: a synthesized key event carrying that action's
 // *default* Qt key, so every existing Keys.onPressed handler sees exactly
 // what it always has. The default key itself is untouched (this table is
@@ -3502,8 +3501,8 @@ void InputManager::setLastInputDevice(const QString &device) {
     updateHints();
 }
 
-// hints drives the footer labels in every view. Keyboard values are the exact
-// strings the footers used before this existed; gamepad values come from a
+// hints drives the footer labels in every view. Keyboard values are the
+// keys' own names ([ESC], [ENTER]); gamepad values come from a
 // reverse lookup of the map of the pad last touched (enum order puts face
 // buttons first), in its labels: input.cfg's for a button, else its style's
 // (Settings → Controls, or what the pad says it is). Directional glyphs stay —

@@ -2,7 +2,7 @@ import QtQuick
 import "JammaPinLayouts.js" as JammaPinLayouts
 
 // The JAMMA board's controls on a JAMMA stick's Test Buttons page
-// (ControllerSettings.qml): the edge connector's control pins, player 1's
+// (ControllerTest.qml): the edge connector's control pins, player 1's
 // on the parts side (16 to 27) and player 2's on the solder side (T to e), a
 // column each for Coin, Start, the joystick and buttons 1 to 6. A pin is lit
 // while its switch is held and stays marked once it has been, so a control
