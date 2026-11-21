@@ -28,10 +28,8 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
 
     // Its own socket name: MpvController uses osdos-mpv.sock for the player,
     // and two mpvs sharing one path would hand the wrong process our commands.
-    // In a folder of the user's own rather than the temp folder every account
-    // writes in (util/RuntimeFiles.h), asked for at each start: the folder may
-    // have been taken away and made again since. Where there is none, it
-    // plays without one, and can't be paused.
+    // Asked for at each start: the run-time folder may have been taken away
+    // and made again since.
     m_socketPath = socketName.isEmpty() ? QString() : runtimefiles::path(socketName);
 
     QStringList args;

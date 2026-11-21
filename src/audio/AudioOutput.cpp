@@ -461,16 +461,13 @@ void raiseLevels(const QString &program, const QString &id) {
 }
 
 // A card at its full level as it is given to a player ("" for ALSA's default
-// card): the volume is what it plays into, a TV's, or an amplifier's knob (a
-// JAMMA board's). Each of its controls with a playback volume below 0 dB
-// goes to 0 dB, its top where that is lower, or one that gives no dB to
-// 100%; one switched off is switched on. Never lower: one set above 0 dB
-// (the AV jack goes to +4 dB, which can clip) stays so. A control of an
-// input is left as it is, its capture's or its playback's, which plays what
-// comes in (a microphone's, a line in's). Once for the players given it
-// within a moment of each other, and off the GUI
-// thread (raiseLevels()): the player starts meanwhile, and plays into the
-// levels as they rise.
+// card), as AudioOutput::card() says: an amplifier's knob may be a JAMMA
+// board's. Never lower: one set above 0 dB (the AV jack goes to +4 dB, which
+// can clip) stays so. A control of an input is left as it is, its capture's
+// or its playback's, which plays what comes in (a microphone's, a line
+// in's). Once for the players given it within a moment of each other, and
+// off the GUI thread (raiseLevels()): the player starts meanwhile, and plays
+// into the levels as they rise.
 void keepFull(const QString &id) {
     static QString last;
     static QElapsedTimer since;
@@ -591,9 +588,7 @@ AudioOutput::Player AudioOutput::forPlayer(bool inApp) {
         args << alsaAlone();
     const QString id = card();
     player.card = id;
-    // Auto's card reaches a process as ALSA's default (applyTo()), so that an
-    // audio-device in its mpv.conf still has the last word: only a card
-    // chosen goes on its command line. libmpv reads neither.
+    // Only a card chosen goes on a process's command line (Player::mpvArgs).
     if (!id.isEmpty() && (inApp || id == g_card))
         args << QStringLiteral("--audio-device=") + deviceOf(id);
     return player;
