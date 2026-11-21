@@ -23,7 +23,8 @@ import "../../views/Components/Hover.js" as Hover
 // it, its letters and its rows. A list takes a backend's error for its own
 // only while it waits for its rows. And Local Files' player: a remote's
 // channel or page keys step through the folder's films. A video behind the
-// menus, chosen again, is taken back where it is (takeBack).
+// menus, chosen again, is taken back where it is (takeBack); back before
+// a video's first picture keeps where it was to start.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
 // The sign-in pages keep an error as long as Qt's own inside the page.
@@ -141,6 +142,8 @@ StandInRoot {
         // The subtitle files each was handed, and the arguments added for it.
         property var subFiles: []
         property var extraArgs: []
+        // The playlist's video each was started at (-1 its first).
+        property var playlistStarts: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
         signal playlistPosChanged(int pos)
@@ -157,6 +160,7 @@ StandInRoot {
             subTracks = subTracks.concat([subTrack])
             subFiles = subFiles.concat([files || []])
             extraArgs = extraArgs.concat([extra || []])
+            playlistStarts = playlistStarts.concat([playlistStart])
         }
         function noteSession(note) {}
         // The session behind the menus taken back where it is, if there is
@@ -413,7 +417,9 @@ StandInRoot {
                      startIndex: -1, resumeIndex: resumeIndex, resumeMs: resumeMs }
         }
         function savedPositionMs(id) { return 0 }
-        function savePosition(id, pos, plPos) {}
+        // The places saved: [plPos, ms].
+        property var saves: []
+        function savePosition(id, plPos, ms) { saves = saves.concat([[plPos, ms]]) }
         function clearPosition(id) {}
     }
 
@@ -455,6 +461,7 @@ StandInRoot {
             mpvController.subTracks = []
             mpvController.subFiles = []
             mpvController.extraArgs = []
+            mpvController.playlistStarts = []
             mpvController.position = 0
             mpvController.keys = []
             mpvController.lastError = ""
@@ -480,6 +487,7 @@ StandInRoot {
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
             playlistsBackend.resumeIndex = 0
             playlistsBackend.resumeMs = 0
+            playlistsBackend.saves = []
             youtubeBackend.saved = {}
             nfcReaderBackend.saved = {}
             for (var backend of [jellyfinBackend, embyBackend]) {
@@ -1806,7 +1814,8 @@ StandInRoot {
             compare(appCore.lists.recent[0].path, "/films/C.mkv")
             compare(player.filePath, "/films/C.mkv")
             compare(player.itemTitle, "C.mkv")
-            compare(player.lastKnownPositionMs, 0)
+            // Where C was asked to start, until mpv says otherwise.
+            compare(player.lastKnownPositionMs, 90000)
             verify(!promptOf(player).visible)
             keyClick(Qt.Key_PageUp)
             compare(mpvController.urls[2], "/films/A.mkv")
@@ -2024,6 +2033,57 @@ StandInRoot {
             compare(mpvController.takeBacks, 1)
             compare(mpvController.loads, 1)
             compare(mpvController.starts[0], 90)
+        }
+
+        // Back before the first picture, an mpv process having the screen:
+        // the video ends for its player's menu, and closing the menu starts
+        // it again where it was asked to start, at the playlist's video, its
+        // resume point kept, not from the beginning. mpv saying it is at
+        // that video changes nothing; only another video starts at nothing.
+        function test_backBeforeThePictureKeepsTheResumePoint_data() {
+            return [{ tag: "youtube", module: "youtube", settings: { resume_playback: "Always" },
+                      params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" } } },
+                    { tag: "local_files", module: "local_files", settings: { resume_playback: "yes", shuffle_playback: "no" },
+                      params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                    { tag: "local_files, a playlist", module: "local_files", playlist: true,
+                      settings: { resume_playback: "yes", shuffle_playback: "no" },
+                      params: { filePath: "/films/list.m3u", title: "list.m3u" } },
+                    { tag: "playlists", module: "playlists", playlist: true, settings: {},
+                      params: { playlistId: "p1" } }]
+        }
+        function test_backBeforeThePictureKeepsTheResumePoint(data) {
+            appCore.settings = data.settings
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 },
+                                            "/films/list.m3u": { pos: 90000, plPos: 2 } }
+            youtubeBackend.saved = { pos: 90000 }
+            playlistsBackend.resumeIndex = 2
+            playlistsBackend.resumeMs = 90000
+            var player = open(data.module, "Player.qml", data.params)
+            if (data.module === "playlists")
+                keyClick(Qt.Key_Return)   // Resume video 3 at 1:30
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 90)
+            if (data.playlist) {
+                compare(mpvController.playlistStarts[0], 2)
+                mpvController.playlistPosChanged(2)
+            }
+            mpvController.playbackEnded(0, 0, "menu")
+            if (data.module === "local_files")
+                compare(localFilesBackend.positions[data.params.filePath].pos, 90000)
+            if (data.module === "playlists")
+                compare(playlistsBackend.saves, [[2, 90000]])
+            player.backToVideo()
+            compare(mpvController.loads, 2)
+            compare(mpvController.starts[1], 90)
+            if (data.playlist) {
+                compare(mpvController.playlistStarts[1], 2)
+                if (data.module === "local_files")
+                    compare(localFilesBackend.positions[data.params.filePath].plPos, 2)
+                // On to the next video: it is at nothing yet.
+                mpvController.playlistPosChanged(3)
+                compare(player.lastKnownPositionMs, 0)
+                compare(player.lastKnownPlaylistPos, 3)
+            }
         }
 
         // CLOSE VIDEO in a player's menu (YouTube's, Local Files',

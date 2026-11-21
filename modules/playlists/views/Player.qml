@@ -34,6 +34,11 @@ FocusScope {
     // The video has shown its first position: the loading screen goes.
     property bool   playbackStarted: false
     property int    lastStartMs:     0
+    // Where the session is, for its save at the end and its start again
+    // after the menu: where play() asked it to start (the list's video, -1
+    // its first, and the point in it) until mpv says otherwise, so that back
+    // before its first picture keeps the resume point; the point is zeroed
+    // only as mpv goes on to another video.
     property int    lastKnownPositionMs:  0
     property int    lastKnownDurationMs:  0
     property int    lastKnownPlaylistPos: -1
@@ -141,6 +146,8 @@ FocusScope {
         playbackStarted = false
         lastStartMs = startMs
         startedAt = plPos
+        lastKnownPositionMs = startMs
+        lastKnownPlaylistPos = plPos
         var spec = specFor(prepared)
         mpvController.loadAndPlay(spec.file, startMs > 0 ? startMs / 1000.0 : 0.0, 0, spec.subTrack, [],
                                   spec.subLangs, spec.loop, plPos, 0.0, "", false, "", false, [],
@@ -246,8 +253,9 @@ FocusScope {
         }
         function onPlaylistPosChanged(pos) {
             if (pos >= 0) {
+                if (pos !== Math.max(0, playerRoot.lastKnownPlaylistPos))
+                    playerRoot.lastKnownPositionMs = 0
                 playerRoot.lastKnownPlaylistPos = pos
-                playerRoot.lastKnownPositionMs  = 0
             }
         }
 

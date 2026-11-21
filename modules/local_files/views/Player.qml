@@ -33,7 +33,11 @@ FocusScope {
     // Where the last start began, for the loading screen's counter.
     property int    lastStartMs:          0
 
-    // Track last non-null values during playback for robust save on exit
+    // Where the session is, for its save at the end and its start again
+    // after the menu: where play() asked it to start (the video of a
+    // playlist, -1 its first, and the point in it) until mpv says
+    // otherwise, so that back before its first picture keeps the resume
+    // point; the point is zeroed only as mpv goes on to another video.
     property int    lastKnownPositionMs:  0
     property int    lastKnownDurationMs:  0
     property int    lastKnownPlaylistPos: -1
@@ -283,8 +287,9 @@ FocusScope {
         }
         function onPlaylistPosChanged(pos) {
             if (pos >= 0) {
+                if (pos !== Math.max(0, playerRoot.lastKnownPlaylistPos))
+                    playerRoot.lastKnownPositionMs = 0
                 playerRoot.lastKnownPlaylistPos = pos
-                playerRoot.lastKnownPositionMs  = 0
             }
         }
 
@@ -425,6 +430,8 @@ FocusScope {
     function play(startMs, plPos, shuffle) {
         playbackStarted = false
         lastStartMs = startMs
+        lastKnownPositionMs = startMs
+        lastKnownPlaylistPos = plPos
         mpvController.loadAndPlay(filePath, startMs > 0 ? startMs / 1000.0 : 0.0, 0, subFlag, [], subtitleLangs, loopOn, plPos, 0.0, "", false, "", shuffle, [], imageDurationSec, imageContent)
         // How the main menu takes it back once it plays behind the menus, and
         // how it was started, which taking it back repeats.

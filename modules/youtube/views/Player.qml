@@ -20,7 +20,9 @@ FocusScope {
     property var    subLangs:         []
     property int    lastStartMs:      0   // what the last attempt started from, for retry
 
-    // Track last non-null values during playback for robust save on exit
+    // Where the session is, for its save at the end and its start again
+    // after the menu: where it was asked to start until mpv says otherwise
+    // (back before its first picture keeps the resume point).
     property int    lastKnownPositionMs: 0
     property int    lastKnownDurationMs: 0
 
@@ -37,6 +39,7 @@ FocusScope {
 
     function play(startMs) {
         lastStartMs = startMs
+        lastKnownPositionMs = startMs
         mpvController.loadAndPlay(videoUrl, startMs / 1000.0, 0, subTrack, [], subLangs, false, -1, 0.0, "", false, "", false, [], 0.0, false, ytdlArgs)
         // How the main menu takes it back once it plays behind the menus, and
         // that back opens this player's menu.
