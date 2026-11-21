@@ -186,10 +186,38 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
+      # pi-gen puts its build.log in deploy/ only once a build has succeeded;
+      # a failed one leaves it in the container it was built in, which
+      # build-docker.sh keeps after a failure. Whatever there is of it, and the
+      # container's own output, goes into a folder of the job's own for the
+      # upload below. Each container is taken (the runner starts with none,
+      # so they are pi-gen's), whatever its name. This step never fails the
+      # job itself: what it can't find, it leaves.
+      - name: Collect build logs
+        if: failure()
+        continue-on-error: true
+        run: |
+          set +e
+          logs="${GITHUB_WORKSPACE}/os/work/pi-gen-logs"
+          mkdir -p "${logs}"
+          for c in $(docker ps -aq 2> /dev/null); do
+            name=$(docker inspect -f '{{.Name}}' "${c}" | tr -d /)
+            docker logs "${c}" > "${logs}/${name:-$c}-output.log" 2>&1
+            # Only the build.log files out of the container's work folder,
+            # which holds each stage's root filesystem too.
+            timeout 900 docker cp "${c}:/pi-gen/work" - 2> /dev/null \
+              | timeout 900 tar -xf - -C "${logs}" --wildcards --no-anchored \
+                  --transform "s#^#${name:-$c}-#" --transform "s#/#_#g" 'build.log' 2> /dev/null
+          done
+          ls -lR "${logs}"
+          exit 0
+
       - name: Upload build logs
         if: failure()
         uses: actions/upload-artifact@v7.0.1
         with:
           name: pi-gen-logs
-          path: os/work/pi-gen/deploy/*.log
+          path: |
+            os/work/pi-gen/deploy/*.log
+            os/work/pi-gen-logs/
           if-no-files-found: ignore
