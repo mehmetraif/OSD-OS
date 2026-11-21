@@ -15,6 +15,11 @@ import "../../views/Components/Hover.js" as Hover
 // name makes Switch to …?, scrolls through it.
 StandInRoot {
     id: root
+    // The app's own font, for what is measured in it (the hint bar's line).
+    FontLoader {
+        id: vcrFont
+        source: "../../assets/fonts/VCR_OSD_MONO_1.001.ttf"
+    }
     // White on black in every layout, and the frame's colours in force
     // whenever it is up.
     primaryColor: schemeInk
@@ -569,11 +574,11 @@ StandInRoot {
             compare(cursor(page), "Scaling")
             compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE")
             moveTo(page, "Transparent Background")
-            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:ON/OFF")
+            compare(hintOf(page), "[ESC]:BACK [◄►]:CHANGE [ENTER]:ON/OFF")
             moveTo(page, "Info Screen")
             compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE")
             moveTo(page, "Plex")
-            compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [◄►]:ON/OFF [ENTER]:SETTINGS")
+            compare(hintOf(page), "[ESC]:BACK [◄►]:ON/OFF [ENTER]:SETTINGS")
             moveTo(page, "Video Arguments")
             compare(hintOf(page), "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN")
             loader.source = ""
@@ -588,6 +593,47 @@ StandInRoot {
             compare(page.monitorGuide, ["[▲▼]:MENU/ITEM", "[ESC]:BACK"])
             moveTo(page, "Plex")
             compare(page.monitorGuide, ["[▲▼]:MENU/ITEM", "[◄►]:ON/OFF", "[ENTER]:SETTINGS", "[ESC]:BACK"])
+        }
+
+        // Every row's hint line fits the bar at the bar's own size, in the
+        // app's font, in Standard and in Camcorder, with a keyboard's names
+        // and a pad's: none is stepped down to a smaller one.
+        function test_hintsFitTheBar_data() {
+            var pad = Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" })
+            return [{ tag: "Standard, a keyboard", layout: "Standard", hints: root.keyboardHints },
+                    { tag: "Standard, a pad", layout: "Standard", hints: pad },
+                    { tag: "Camcorder, a keyboard", layout: "Camcorder", hints: root.keyboardHints },
+                    { tag: "Camcorder, a pad", layout: "Camcorder", hints: pad }]
+        }
+        function test_hintsFitTheBar(data) {
+            tryVerify(function() { return vcrFont.status === FontLoader.Ready })
+            root.globalFont = vcrFont.name
+            root.menuLayout = data.layout
+            root.hints = data.hints
+            appCore.moreModules = [{ id: "com.osdos.youtube", name: "YouTube", has_settings: true,
+                                     settings_group: "tv", enabled: true }]
+            var tooSmall = []
+            for (var group of ["tv", "look", "effects", "screen", "sound", "network", "startup", "system"]) {
+                var page = open({ group: group })
+                var list = listOf(page)
+                var bar = null
+                for (var c = 0; c < page.children.length; c++) {
+                    if (page.children[c].frameRole === "hints")
+                        bar = page.children[c]
+                }
+                verify(bar !== null)
+                for (var i = 0; i < page.settingsItems.length; i++) {
+                    if (page.settingsItems[i].type === "section")
+                        continue
+                    list.currentIndex = i
+                    if (bar.font.pixelSize < bar.largest)
+                        tooSmall.push(group + " / " + page.settingsItems[i].label + ": " + bar.text)
+                }
+                loader.source = ""
+            }
+            root.globalFont = "monospace"
+            root.hints = root.keyboardHints
+            compare(tooSmall, [])
         }
 
         // A page opens on its first row that can be used, not a dimmed one

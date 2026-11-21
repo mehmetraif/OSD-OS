@@ -1227,6 +1227,12 @@ StandInRoot {
             var page = open("CabinetLock.qml")
             verify(findText(page, "Cabinet Lock") !== null)
             verify(findText(page, "None") !== null)
+            // The hint line at the bar's own size: the lock's row names
+            // select's ON/OFF (its ◄ ► do the same), the buttons' SELECT.
+            verify(findText(page, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:ON/OFF") !== null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SELECT") !== null)
+            keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(inputManager.calls[inputManager.calls.length - 1], ["captureUnlock", true])
             verify(page.capturing)

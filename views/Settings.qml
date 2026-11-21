@@ -941,7 +941,11 @@ FocusScope {
     HintBar {
         id: footer
         guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE"].concat(settingsRoot.rowHints))
+        // A row with two keys of its own (a module's, a slider that can be
+        // off) leaves NAVIGATE out, which the list makes plain: the line then
+        // fits the bar at its own size, as every other does.
+        text: root.hintLine(["back:BACK", settingsRoot.rowHints.length > 1 ? "" : "navigate:NAVIGATE"]
+                            .concat(settingsRoot.rowHints))
     }
     // The keys the row under the cursor takes, as its hint bar names them
     // (root.hintLine()'s parts), as a controller's page words its own: a

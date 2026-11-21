@@ -195,8 +195,10 @@ FocusScope {
     }
 
     HintBar {
+        // On the lock's row ◄ ► and select alike turn it on or off: its own
+        // ◄ ► say so, and the line names select's, at the bar's own size.
         text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             lockRoot.rows[list.currentIndex].key === "lock" ? "change:CHANGE" : "", "select:SELECT"])
+                             lockRoot.rows[list.currentIndex].key === "lock" ? "select:ON/OFF" : "select:SELECT"])
     }
 
     // --- WAITING FOR THE BUTTONS ---

@@ -507,7 +507,7 @@ On Linux OSD/OS reads each keyboard's and remote's device itself (`/dev/input/ev
 
 ## The hints at the foot of the screen
 
-The bar at the foot of every screen names the keys that work there (`[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT`). It shows a keyboard's names after a key, a gamepad's after a gamepad button.
+The bar at the foot of every screen names the keys that work there (`[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE`). It shows a keyboard's names after a key, a gamepad's after a gamepad button.
 
 | Hint | Keyboard | A below | A right | Shapes | Numbers |
 |---|---|---|---|---|---|
