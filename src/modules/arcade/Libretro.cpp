@@ -551,10 +551,12 @@ QByteArray remotePadMessage(int button, bool down) {
 QString reservedDevice(const QString &guid, const QString &name, bool byVendor) {
     if (!byVendor) {
         // The mappings are kept without the GUID's checksum (mappingWithoutCrc()).
+        // One SDL makes for a pad its own driver knows (XInput's, Raw
+        // Input's, HIDAPI's) is named "*": SDL names that pad by its own name.
         const QString key = controllers::mappingWithoutCrc(guid + QLatin1Char(','));
         for (const QString &mapping : controllers::padMappings()) {
             const QString mapped = mapping.section(QLatin1Char(','), 1, 1);
-            if (mapping.startsWith(key) && !mapped.isEmpty())
+            if (mapping.startsWith(key) && !mapped.isEmpty() && mapped != QLatin1String("*"))
                 return mapped;
         }
         return name;

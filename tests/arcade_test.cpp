@@ -1825,6 +1825,22 @@ private slots:
                                               QStringLiteral("Xbox 360 Controller"), false),
                      QStringLiteral("Xbox 360 Controller"));
         }
+        // On Windows SDL maps a pad its own drivers know (XInput's 'x', Raw
+        // Input's 'r', HIDAPI's 'h') with a mapping it names "*", and names
+        // the pad by the pad's own name: that name, never "*", which no pad
+        // RetroArch sees is called, and which would leave a lone pad on the
+        // first port kept for no one (player 2's, without its Game Buttons).
+        {
+            controllers::setPadMappings({ QStringLiteral("030000005e040000130b000009057200,*,a:b0,b:b1"),
+                                          QStringLiteral("030000005e0400008e02000000007801,*,a:b0,b:b1") });
+            const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
+            QCOMPARE(libretro::reservedDevice(QStringLiteral("03001e8f5e040000130b000009057200"),
+                                              QStringLiteral("Wireless Pad Pro"), false),
+                     QStringLiteral("Wireless Pad Pro"));
+            QCOMPARE(libretro::reservedDevice(QStringLiteral("0300a1b25e0400008e02000000007801"),
+                                              QStringLiteral("Wired Pad"), false),
+                     QStringLiteral("Wired Pad"));
+        }
 
         libretro::Launch launch;
         launch.core = QStringLiteral("/cores/fbneo_libretro.so");
