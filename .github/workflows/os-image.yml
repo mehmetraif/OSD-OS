@@ -3,18 +3,13 @@ name: OS image
 # Builds the OSD/OS image (os/README.md): the app from this branch as an
 # arm64 tarball, then Raspberry Pi OS Lite plus os/stage-osdos through pi-gen.
 # Both jobs run on GitHub's native arm64 runner, so pi-gen needs no emulation.
-# The release workflow calls it for the tag, with the tag as the version: the
+# The release workflow calls it for the tag, which is then the version: the
 # tarball, uploaded as tarball-linux-arm64, is the release's Linux arm64
 # package, and the image, named after the tag and uploaded as os-image, its
 # OSD/OS image.
 
 on:
   workflow_call:
-    inputs:
-      version:
-        description: The release's tag, which the app reports and the tarball and the image are named by
-        type: string
-        required: true
     secrets:
       OS_FIRST_USER_PASS:
         description: The first user's password on the image; without it the account is locked
@@ -38,9 +33,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # The release's tag; else "dev": a branch build has no release to update
-  # to, and "dev" turns the in-app updater's download off.
-  VERSION: ${{ inputs.version || 'dev' }}
+  # The release's tag, which the app reports and the tarball and the image
+  # are named by; else "dev": a branch build has no release to update to,
+  # and "dev" turns the in-app updater's download off.
+  VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
 
 jobs:
   app:
