@@ -1,6 +1,7 @@
 import QtQuick
 import Components
 import "ControlsText.js" as ControlsText
+import "JammaPinLayouts.js" as JammaPinLayouts
 
 // A gamepad's page, from Settings → Controls (Controllers.qml): six lines,
 // each one job.
@@ -13,7 +14,7 @@ import "ControlsText.js" as ControlsText
 //     RESET ►                            all of it back to the defaults, asked first
 //
 // One of the JAMMA board's sticks has a seventh, PIN NAMES: the layout its
-// test names the board's pins by (JammaPinGrid.layouts), kept in config.json
+// test names the board's pins by (JammaPinLayouts.js), kept in config.json
 // as app.jamma_pin_layout. A pad away has NOT CONNECTED for its title, and
 // what needs it connected says so when chosen.
 FocusScope {
@@ -36,8 +37,8 @@ FocusScope {
     // Its name as last seen: kept once a reset leaves nothing of one away.
     property string name: ""
 
-    // The layouts a JAMMA stick's test names the board's pins by.
-    readonly property var pinLayouts: ["OSD/OS", "Crown, CHAMMA", "JammaPi"]
+    // The layouts a JAMMA stick's test names the board's pins by, by name.
+    readonly property var pinLayouts: JammaPinLayouts.layouts.map(function(l) { return l.name })
     property int pinLayout: 0
 
     property var rows: []
