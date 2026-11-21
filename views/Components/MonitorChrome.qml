@@ -211,7 +211,9 @@ Item {
     // Help Line is on, or always where its lines are the page itself.
     readonly property string helpText: {
         var help = helpPart
-        return help && (help.always === true || root.helpLine) ? String(help.text || "") : ""
+        // As the view's own would show it: its row's value's part alone.
+        return help && (help.always === true || root.helpLine)
+               ? String((help.shownText !== undefined ? help.shownText : help.text) || "") : ""
     }
 
     // Flat Panel's page and pages, as pageTo() leaves them.

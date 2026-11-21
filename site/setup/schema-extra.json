@@ -94,7 +94,7 @@
           "help": "The channel logo's picture on the device, a PNG with a clear background best. Empty: OSD/OS's." },
         { "key": "info_screen", "label": "Info Screen", "type": "choice", "default": "3",
           "options": [["Off", "off"], ["Key", "key"], ["1 sec", "1"], ["2 sec", "2"], ["3 sec", "3"], ["5 sec", "5"]],
-          "help": "A film's details in Netflix, Prime Video and YouTube. [KEY] With right on a film. [SEC] Also on its own once the cursor rests on it." },
+          "help": "A film's details in Netflix, Prime Video and YouTube: with right on a film, and with a time also on its own once the cursor has rested on the film that long. [KEY] Only with right on a film. [OFF] Never." },
         { "key": "mpv_video_args", "label": "Video Arguments", "type": "text", "default": "", "placeholder": "--vo=gpu --hwdec=no",
           "max_length": 120, "trim": true,
           "help": "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device. Empty: OSD/OS's own." }

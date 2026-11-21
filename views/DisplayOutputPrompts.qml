@@ -70,6 +70,34 @@ Item {
         }
         onClosed: prompts.closed()
     }
+    // The line for the output under the cursor (display-presets.json's
+    // help): what it is for, its lines and rate, what its name leaves out.
+    // In the chooser's own window (the PromptScreen it draws), over its
+    // ground. A question has no help line in a monitor layout's frame,
+    // whose own is under the question's window: this one draws itself
+    // where the frame has its own, as the frame's would be drawn.
+    readonly property var outputUnder: outputOptions[outputPrompt.choiceIndex] || ({})
+    function promptWindow(overlay) {
+        for (var i = 0; i < overlay.children.length; i++) {
+            if (overlay.children[i].item)
+                return overlay.children[i].item
+        }
+        return null
+    }
+    HelpLine {
+        readonly property var frame: root.monitorInk === true && root.chrome ? root.chrome : null
+        objectName: "outputHelp"
+        parent: prompts.promptWindow(outputPrompt) || prompts
+        z: 1
+        visible: outputPrompt.visible && text !== ""
+        text: prompts.outputUnder.help || ""
+        ofFrame: frame !== null
+        x: frame ? frame.helpX : root.sw * 0.125 //80
+        y: frame ? frame.helpY : parent ? parent.height - height - root.helpLineMargin : 0
+        width: frame ? frame.helpW : root.sw * 0.75 //480
+        ink: frame ? (root.studioLayout || root.flatLayout ? frame.pal.soft : frame.pal.ink) : root.primaryColor
+        framed: frame ? root.studioLayout : true
+    }
 
     // Now, with a restart; written now for the next start, the Pi left on;
     // or written, then off: on the new output the next time it is switched

@@ -65,7 +65,7 @@ The menu lists, in this order, the presets that are on the boot partition and th
 
 ## Switching
 
-1. Select **Settings → Screen → Display Output**. The chooser shows the Pi's model and **Now: <output>**.
+1. Select **Settings → Screen → Display Output**. The chooser shows the Pi's model and **Now: <output>**, and the help line says what the output under the cursor is for: the board or jack it goes through, its lines and rate.
 2. Choose another output. OSD/OS asks **Switch to <output>?**:
    - **Switch and Restart**: the Pi restarts on it now.
    - **At Next Start**: written now. The Pi stays on its output, and starts on the new one the next time it starts ([At the next start](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#at-the-next-start)).

@@ -200,6 +200,8 @@ private slots:
             if (m.value("id") == "jamma-25k") warning25 = m.value("warning").toString();
             if (m.value("id") == "jamma-31k") warning31 = m.value("warning").toString();
             if (m.value("id") == "jamma-240p") warning240 = m.value("warning").toString();
+            // Each has its line for the chooser.
+            QVERIFY2(!m.value("help").toString().isEmpty(), qPrintable(m.value("id").toString()));
             // Each names its scan rate, then its preset's resolution.
             const QString id = m.value("id").toString();
             if (!id.startsWith(QLatin1String("jamma-")))

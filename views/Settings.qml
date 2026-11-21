@@ -806,16 +806,32 @@ FocusScope {
     // line that scrolls when it is too long for the box.
     // A dimmed row's says first why it can't be used now.
     // In Camcorder's icons, the page's.
-    readonly property var helpRow: inIcons() ? (camPages[camIndex] || {}).row : settingsItems[settingsList.currentIndex]
+    // Read again as a row changes in place (revision), its value with it.
+    readonly property var helpRow: (revision, inIcons() ? (camPages[camIndex] || {}).row : settingsItems[settingsList.currentIndex])
     readonly property string helpOff: inIcons() ? "" : (revision, offReason(settingsList.currentIndex))
     // "[ENTER]" in a row's description is select's name on the controller in
     // use, as the hint bar has it.
     readonly property string helpText: (helpOff !== "" ? helpOff + "\n" : "")
                                        + ((helpRow && helpRow.description) || "").split("[ENTER]").join(root.hints.select)
+    // The value on the row, as it shows it (the one being changed, in a
+    // value's second step): the help line has the row's first part and that
+    // value's [ ] alone (HelpLine's value). A page's row in the icons has
+    // none: its line whole.
+    function helpValueOf(row, index) {
+        if (!row || inIcons())
+            return ""
+        if (row.type === "slider")
+            return index === editIndex ? shownValue(row, index) : row.on === undefined ? "" : row.on ? "On" : "Off"
+        var v = index === editIndex ? editValue : row.value
+        return v === undefined || v === null ? "" : String(v)
+    }
+    readonly property string helpValue: (revision, editIndex, editValue,
+                                         helpValueOf(helpRow, settingsList.currentIndex))
     HelpLine {
         objectName: "helpLine"
         visible: text !== ""
         text: settingsRoot.helpText
+        value: settingsRoot.helpValue
     }
 
     HintBar {

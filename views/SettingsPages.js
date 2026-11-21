@@ -96,7 +96,7 @@ function groupRow(group, description, label) {
 // the page listed them (themes(), AppCore::themes()).
 function themeRow() {
     return lookRow("osd_theme", "Theme", "None", themes(),
-        "The whole look in one: the color scheme, the skin, the effects and the menu music\n[NONE] OSD/OS's own  Choosing one sets each row below back to the theme's  A new one is a folder in the data folder's themes, see the wiki")
+        "The whole look in one: the color scheme, the skin, the effects and the menu music, each row below set back to the theme's as one is chosen (a new one is a folder in the data folder's themes: see the wiki)\n[NONE] OSD/OS's own")
 }
 
 // LOOK: the theme and its parts, the effects on a page of their own, and
@@ -127,7 +127,7 @@ function lookRows(items) {
 
     // Main.qml's schemes, the custom ones among them (root.allSchemes).
     items.push(partRow("color_scheme", "Color Scheme", Object.keys(root.allSchemes), false,
-        "The two colors everything is drawn in\n[THEME] The theme's, else Video 1  Please see the wiki for details on adding a custom one"))
+        "The two colors everything is drawn in (a custom one: see the wiki)\n[THEME] The theme's, else Video 1"))
 
     // Skin — how the window is dressed, apart from the colours: the
     // shapes of its frame, bars and selected line, and its icons, in the
@@ -136,7 +136,7 @@ function lookRows(items) {
     // A skin chosen before skins had their name was saved as app.theme.
     var skinSaved = appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || "")
     var skinRow = lookRow("skin", "Skin", "Theme", skins(),
-        "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors\n[THEME] The theme's  [NONE] OSD/OS's own  A new one is a folder in the data folder's skins, see the wiki",
+        "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors (a new one is a folder in the data folder's skins: see the wiki)\n[THEME] The theme's  [NONE] OSD/OS's own",
         skinSaved)
     skinRow.options.splice(1, 0, "None")
     skinRow.values.splice(1, 0, "Off")
@@ -290,6 +290,8 @@ function screenRows(items) {
         var nextLabel = displayOutput.nextLabel
         var currentLabel = displayOutput.currentLabel
         var later = displayOutput.nextStartAvailable || displayOutput.powerOffAvailable
+        // The one in force's line, as the chooser has it for each.
+        var inForce = (displayOutput.options || []).filter(function(o) { return o.id === displayOutput.current })[0]
         items.push({
             type: "display_output",
             label: "Display Output",
@@ -297,7 +299,8 @@ function screenRows(items) {
             description: (next !== "" ? "Now " + currentLabel + ", " + nextLabel + " from the next start • " : "")
                          + "Where the picture goes, among the outputs this Pi has: "
                          + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                         + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 3, Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p at 720, 320 or 1920 across, 320 the games' own pixels and 1920 a super resolution; 288p at 720 or 1920; 480i at 720 or 640 and 576i on a Pi 4 or a Pi 3), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
+                         + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds"
+                         + (inForce && inForce.help ? "\n[" + currentLabel + "] " + inForce.help : ""),
             moduleId: ""
         })
     } else {
@@ -837,7 +840,7 @@ function tvRows(items) {
         options: infoOpts,
         values: infoVals,
         value: infoOpts[infoIdx < 0 ? infoVals.indexOf("3") : infoIdx],
-        description: "A film's details in Netflix, Prime Video and YouTube\n[KEY] With right on a film  [SEC] Also on its own once the cursor rests on it",
+        description: "A film's details in Netflix, Prime Video and YouTube: with right on a film, and with a time also on its own once the cursor has rested on the film that long\n[KEY] Only with right on a film  [OFF] Never",
         unavailable: infoRead ? "" : "Only with Netflix, Prime Video or YouTube enabled",
         moduleId: ""
     })

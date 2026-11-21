@@ -27,6 +27,7 @@ struct Preset {
     int launcherApi = 0;
     QStringList boards;
     bool keyboard = true;
+    QString help;     // its line in the chooser
     QString warning;  // said as it is chosen
 };
 
@@ -50,6 +51,7 @@ const QList<Preset> &presets() {
             for (const QJsonValue &b : o.value(QStringLiteral("boards")).toArray())
                 p.boards << b.toString();
             p.keyboard = o.value(QStringLiteral("keyboard")).toBool(true);
+            p.help = o.value(QStringLiteral("help")).toString();
             p.warning = o.value(QStringLiteral("warning")).toString();
             out << p;
         }
@@ -115,6 +117,7 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
         if (boardHas(p) && launcherApi >= p.launcherApi)
             m_options.append(QVariantMap{ { QStringLiteral("id"), id },
                                           { QStringLiteral("label"), p.label },
+                                          { QStringLiteral("help"), p.help },
                                           { QStringLiteral("warning"), p.warning } });
     }
     m_available = legacy::envIsSet("AUTOSTART") && launcherApi >= 3 && m_options.size() > 1;

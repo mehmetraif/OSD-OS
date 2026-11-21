@@ -153,8 +153,9 @@ StandInRoot {
         id: displayOutput
         property bool available: false
         property string boardModel: "Raspberry Pi 4 Model B"
-        property var options: [{ id: "hdmi", label: "HDMI" }, { id: "composite", label: "Composite" },
-                               { id: "jamma-240p", label: "JAMMA 240p", warning: "A 15 kHz monitor only" }]
+        property var options: [{ id: "hdmi", label: "HDMI", help: "A TV on HDMI" },
+                               { id: "composite", label: "Composite", help: "A TV on the AV jack" },
+                               { id: "jamma-240p", label: "JAMMA 240p", help: "An arcade monitor", warning: "A 15 kHz monitor only" }]
         property string current: "hdmi"
         property string currentLabel: "HDMI"
         property string next: ""
@@ -442,6 +443,59 @@ StandInRoot {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.values.osd_frame, "Off")
+        }
+
+        // The help line: the row's first part, then only the [ ] of the value
+        // on the row, following ◄ ► (Menu Layout's five took over a minute to
+        // scroll past); a key's bracket ([ENTER]) stays; a dimmed row's reason
+        // first; a row with no value, or no [ ], whole.
+        function test_helpLineFollowsTheValue() {
+            var page = open({ group: "look" })
+            moveTo(page, "Menu Layout")
+            var help = helpOf(page)
+            compare(help.value, "Standard")
+            compare(help.shownText, "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time")
+            keyClick(Qt.Key_Right)
+            compare(help.value, "Camcorder")
+            verify(help.shownText.indexOf("[CAMCORDER] As a camcorder's menu") > 0, help.shownText)
+            verify(help.shownText.indexOf("[STANDARD]") < 0, help.shownText)
+            verify(help.shownText.indexOf("[FLAT PANEL]") < 0, help.shownText)
+            // A value with none of its own: the first part alone.
+            moveTo(page, "Theme")
+            compare(help.value, "None")
+            verify(help.shownText.indexOf("[NONE] OSD/OS's own") > 0, help.shownText)
+            // A dimmed row: why, first.
+            moveTo(page, "Window Frame")
+            compare(help.shownText, "Only with OSD Background on Window\nThe frame of the OSD Background's window\n[ON] A line in the color scheme's color")
+            loader.source = ""
+            // A key's bracket stays with the value's.
+            page = open({ group: "tv" })
+            moveTo(page, "Transparent Background")
+            help = helpOf(page)
+            compare(help.value, "Off")
+            verify(help.shownText.indexOf("[ENTER] On or off") > 0, help.shownText)
+            verify(help.shownText.indexOf("[SOLID]") < 0, help.shownText)
+            // A value with a note: its name before the note.
+            compare(help.cut("Head\n[THEME] The theme's  [OFF] None", "Theme (Glow)"), "Head\n[THEME] The theme's")
+            compare(help.cut("Head\n[AUTO] Any  [UNPLUGGED] Away", "USB Card (Unplugged)"), "Head\n[UNPLUGGED] Away")
+            // No value, or no [ ]: whole.
+            compare(help.cut("Head\n[A] One  [B] Two", ""), "Head\n[A] One  [B] Two")
+            compare(help.cut("Head, no brackets", "On"), "Head, no brackets")
+            compare(help.cut("Head\n[A] One  [B] Two", "C"), "Head")
+            loader.source = ""
+            // In a value's second step, the value being changed.
+            root.menuLayout = "Broadcast"
+            appCore.values = { menu_layout: "Broadcast" }
+            page = open({ group: "look" })
+            moveTo(page, "Menu Layout")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            compare(page.helpValue, page.editValue)
+            verify(page.editValue !== "Broadcast")
+            verify(helpOf(page).shownText.indexOf("[" + String(page.editValue).toUpperCase() + "]") > 0)
+            verify(root.chrome.helpText.indexOf("[BROADCAST]") < 0, root.chrome.helpText)
+            keyClick(Qt.Key_Escape)
+            compare(page.helpValue, "Broadcast")
         }
 
         // Sound: Menu Music's rows dimmed while it is Off, each saying for
@@ -973,6 +1027,16 @@ StandInRoot {
             compare(prompt.subtitleText, "Raspberry Pi 4 Model B\nNow: HDMI")
             compare(labelsOf(prompt), ["HDMI", "Composite", "JAMMA 240p"])
             compare(prompt.choiceIndex, 0)
+            // The line for the output under the cursor, in the chooser's
+            // window; the row's, the one in force's.
+            var outputHelp = findChild(prompt, "outputHelp") || findChild(page, "outputHelp")
+            verify(outputHelp !== null)
+            verify(outputHelp.visible)
+            compare(outputHelp.text, "A TV on HDMI")
+            keyClick(Qt.Key_Down)
+            compare(outputHelp.text, "A TV on the AV jack")
+            keyClick(Qt.Key_Up)
+            verify(row(page, "Display Output").description.indexOf("\n[HDMI] A TV on HDMI") > 0)
             // The one in force, nothing written for the next start: nothing.
             keyClick(Qt.Key_Return)
             compare(promptShown(page), null)
