@@ -62,7 +62,7 @@ Each setting is an object:
 | `type` | Every type | One of the types below |
 | `default` | `toggle`, `list_single`, `slider` | What the row shows while nothing is saved: `"ON"` or `"OFF"`, one of the options, or a slider's number. OSD/OS doesn't write it: your code must read an unset key as this default too |
 | `description` | Every type | The help line while the row is selected. Lines split with `\n` are joined with `•`. By convention `[WORD]` explains one choice |
-| `options` | `list_single` | The choices, saved as written |
+| `options` | `list_single` | The choices, saved as written; or each `{ "id": "60 SEC", "label": "1 min" }`, the label shown over the id saved |
 | `options_source`, `options_slot` | `list_single`, `multiselect_submenu` | `"dynamic"`, and the backend slot that sends the choices ([part 3](#part-3-a-c-backend)) |
 | `apply_slot` | `list_single` with dynamic choices | A backend slot called after each change |
 | `action_slot` | `action` | The backend slot select calls |

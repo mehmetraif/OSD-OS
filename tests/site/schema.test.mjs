@@ -267,6 +267,13 @@ test("YouTube's everyday rows come before its Advanced heading, their keys as sa
                             "playback_resolution", "video_codec", "max_frame_rate", "playback_speed"]);
 });
 
+test("a manifest's choice with a label shows it over the value saved", () => {
+    const weather = schema.modules.find(m => m.id === "com.osdos.weather");
+    const row = weather.settings.find(r => r.key === "screen_time");
+    assert.deepEqual(row.options, [["10 sec", "10 SEC"], ["30 sec", "30 SEC"], ["1 min", "60 SEC"]]);
+    assert.equal(row.default, "10 SEC");
+});
+
 test("a manifest's condition on an app setting is passed over, the row shown whatever is set", () => {
     const manifest = JSON.parse(readFileSync(join(root, "modules/ambient_mode/manifest.json"), "utf8"));
     const inManifest = manifest.settings.find(r => r.key === "auto_launch");

@@ -115,7 +115,7 @@ Other variables:
 ├── jellyfin_auth.json          the Jellyfin sign-in        (owner-only)
 ├── emby_auth.json              the Emby sign-in            (owner-only)
 ├── tmdb_api_key.txt            you write it, if you like: the TMDB key, where Settings' TMDB Key is empty
-├── weather_location.txt        you write it, if you like: Weather's places, beside Settings' Location and Other Places
+├── weather_location.txt        you write it, if you like: Weather's places, beside Settings' Location and Other Locations
 ├── weather_music.txt           you write it, if you like: Weather's music
 ├── custom_color_schemes.json   you write it, if you like: color schemes of your own
 ├── custom_color_scheme.json    you write it, if you like: the scheme called Custom

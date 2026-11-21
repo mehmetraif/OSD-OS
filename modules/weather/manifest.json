@@ -24,7 +24,7 @@
     },
     {
       "key": "other_places",
-      "label": "Other Places",
+      "label": "Other Locations",
       "type": "text_list",
       "max_length": 64,
       "max_lines": 12,
@@ -32,7 +32,7 @@
     },
     {
       "key": "displays",
-      "label": "Displays",
+      "label": "Screens",
       "type": "multiselect_submenu",
       "options_source": "dynamic",
       "options_slot": "getDisplays",
@@ -62,9 +62,10 @@
     },
     {
       "key": "screen_time",
-      "label": "Screen Time",
+      "label": "Time per Screen",
       "type": "list_single",
-      "options": ["10 SEC", "30 SEC", "60 SEC"],
+      "options": [{ "id": "10 SEC", "label": "10 sec" }, { "id": "30 SEC", "label": "30 sec" },
+                  { "id": "60 SEC", "label": "1 min" }],
       "default": "10 SEC",
       "description": "How long each screen stays up before the loop advances"
     },

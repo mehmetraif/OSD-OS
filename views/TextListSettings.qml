@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// A module's text_list row (YouTube's Subscriptions, Weather's Other Places):
+// A module's text_list row (YouTube's Subscriptions, Weather's Other Locations):
 // the lines typed for it, one a row, and ADD under them. Select on ADD types a
 // new line on the on-screen keyboard; select on a line asks whether to change
 // it or take it out. The row is saved whole at every change, as a list of

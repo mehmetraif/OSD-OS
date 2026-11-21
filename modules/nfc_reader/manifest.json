@@ -15,9 +15,10 @@
     },
     {
       "key": "tags_directory",
-      "label": "Tags Directory",
+      "label": "Cards Folder",
       "type": "directory_browser",
-      "default": ""
+      "default": "",
+      "description": "The folder of the cards' files, a text file a card, naming what it plays\n[DEFAULT] nfc_tags in the data folder"
     },
     {
       "key": "resume_playback",

@@ -17,7 +17,7 @@ The Scripts module lists the `.sh` files in a folder and runs the one you choose
    | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/user_scripts/` |
    | macOS | `~/Library/Application Support/OSD-OS/user_scripts/` |
 
-   Or pick another with Settings → System → Scripts → **Scripts Directory**: **USE THIS FOLDER** picks the one open, **Default Folder** goes back to `user_scripts`.
+   Or pick another with Settings → System → Scripts → **Scripts Folder**: **USE THIS FOLDER** picks the one open, **Default Folder** goes back to `user_scripts`.
 3. Open **Scripts**. Every script gets its `.txt` file the first time it is listed; edit it to name the script and choose its mode.
 
 - Scripts are the files ending in `.sh` (in any case) directly in the folder, sorted by name.
@@ -257,7 +257,7 @@ Settings → System → **Scripts**. The keys sit under `modules.com.osdos.scrip
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | On, Off | Off | Shows Scripts, and the favourites' rows, on the main menu. | `enabled` |
-| Scripts Directory | A folder, or Default Folder | Default (`user_scripts` in the data folder) | The folder holding your `.sh` files. | `scripts_directory` (`""` for the default) |
+| Scripts Folder | A folder, or Default Folder | Default (`user_scripts` in the data folder) | The folder holding your `.sh` files. | `scripts_directory` (`""` for the default) |
 | Auto-Run On Startup | None, or one of your scripts | None | Runs that script when OSD/OS starts on this module. | `startup_script` (the script's file name, or `None`) |
 | Rescan Scripts | Select | | Reads the scripts folder again and writes any missing `.txt` files. | |
 
@@ -265,7 +265,7 @@ Settings → System → **Scripts**. The keys sit under `modules.com.osdos.scrip
 
 | File | What it is |
 |---|---|
-| `user_scripts/*.sh` (or the Scripts Directory) | Your scripts |
+| `user_scripts/*.sh` (or the Scripts Folder) | Your scripts |
 | `user_scripts/*.txt` | Each script's settings |
 
 ```json
@@ -287,7 +287,7 @@ Settings → System → **Scripts**. The keys sit under `modules.com.osdos.scrip
 
 | Message or symptom | What to do |
 |---|---|
-| **No scripts found** | The files must end in `.sh` and sit directly in the scripts folder (check Scripts Directory), readable by the user OSD/OS runs as. |
+| **No scripts found** | The files must end in `.sh` and sit directly in the scripts folder (check Scripts Folder), readable by the user OSD/OS runs as. |
 | **COULD NOT START: …** | The reason follows: **File no longer exists**, **Not a regular file**, **File is not readable**, **Not executable and /bin/sh is missing**, **Another script is still running** (a takeover's processes are still exiting), or **The screen is in use**. |
 | **FAILED TO START** | A `#!` line names a program that isn't installed, or the script has Windows line ends. `sed -i 's/\r$//' script.sh` removes them. |
 | A bash script fails with `/bin/sh` errors (`[[: not found`, `Syntax error`) | It isn't executable. `chmod +x` it, with `#!/bin/bash` as its first line. |

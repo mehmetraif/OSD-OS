@@ -390,6 +390,28 @@ FocusScope {
         return item.options_source === "dynamic" ? "" : item.default || ""
     }
 
+    // A list's own choices (manifest "options") as { id, label }: each a
+    // string, saved and shown as written, or { "id", "label" }, the label
+    // shown over the id saved (Weather's Time per Screen: "1 min" over
+    // "60 SEC"), as a dynamic list's are.
+    function staticChoices(item) {
+        return Array.from(item.options || []).map(function(o) {
+            return o !== null && typeof o === "object"
+                   ? { id: String(o.id), label: String(o.label !== undefined ? o.label : o.id) }
+                   : { id: String(o), label: String(o) }
+        })
+    }
+    // Where a list of its own choices is: the one saved (or its default),
+    // -1 where no choice is that.
+    function staticIndex(item, choices) {
+        var value = String(valueOf(item))
+        for (var i = 0; i < choices.length; i++) {
+            if (choices[i].id === value)
+                return i
+        }
+        return -1
+    }
+
     // Which of its choices a dynamic list is on, the one rule for what the
     // row shows, what ◄ ► step from and what the rows that go with it follow:
     // the choice saved, by its id; for a row that was a toggle once and is
@@ -529,7 +551,11 @@ FocusScope {
                 var at = chosenIndex(item)
                 return at >= 0 ? dynamicOptions[rowId(item)][at].label : "---"
             }
-            return valueOf(item) || "---"
+            // Its choice's name; a value no choice is (saved by an older
+            // version) as it is.
+            var choices = staticChoices(item)
+            var own = staticIndex(item, choices)
+            return own >= 0 ? choices[own].label : (valueOf(item) || "---")
         }
 
         if (type === "directory_browser") {
@@ -600,12 +626,11 @@ FocusScope {
         if (item.type === "slider")
             return Math.max(0, Math.min(100, valueOf(item) + steps * (item.step || 10))) + "%"
         var dynamic = item.options_source === "dynamic"
-        var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : (item.options || [])
+        var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : staticChoices(item)
         if (opts.length === 0)
             return currentDisplayValue(item)
-        var at = dynamic ? chosenIndex(item) : Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
-        var next = opts[((at + steps) % opts.length + opts.length) % opts.length]
-        return dynamic ? next.label : next
+        var at = dynamic ? chosenIndex(item) : Math.max(0, staticIndex(item, opts))
+        return opts[((at + steps) % opts.length + opts.length) % opts.length].label
     }
     // ▲ (1) or ▼ (-1) on the value being changed. A slider's step past an
     // end, which leaves it where it is, isn't counted: the first step back
@@ -646,13 +671,11 @@ FocusScope {
                     appCore.invoke_module_action(moduleOf(item), item.apply_slot)
                 }
             } else {
-                opts = item.options || []
+                opts = staticChoices(item)
                 if (opts.length === 0) return
                 // From the value shown: an unset one shows its default.
-                var curVal = valueOf(item) || opts[0]
-                var ci = opts.indexOf(curVal)
-                if (ci < 0) ci = 0
-                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length])
+                var ci = Math.max(0, staticIndex(item, opts))
+                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length].id)
             }
             settingsList.forceLayout()
         } else if (item.type === "slider") {

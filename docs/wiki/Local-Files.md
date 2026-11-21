@@ -28,7 +28,7 @@ Local Files shows one media folder, with the USB drives plugged in above it.
 
 ### The media folder
 
-**Settings → TV / Movie → Local Files → Media Directory** names the folder Local Files shows. Until you pick one it reads **Default**:
+**Settings → TV / Movie → Local Files → Media Folder** names the folder Local Files shows. Until you pick one it reads **Default**:
 
 | Where OSD/OS runs | Default media folder |
 |---|---|
@@ -42,14 +42,14 @@ Local Files shows one media folder, with the USB drives plugged in above it.
 - The Movies folder is created if it isn't there.
 - The [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module's games go in `Games/Arcade` beside Movies.
 
-Selecting **Media Directory** opens the folder picker, the same tree:
+Selecting **Media Folder** opens the folder picker, the same tree:
 
 - It starts from **Default Folder** (the default above), Home, Media (`/media`), Drives (`/run/media/<user>`), Volumes (`/Volumes`, on a Mac) and Root (`/`).
 - Each folder's first entry is **Use This Folder**, which picks that folder. The new folder is used at once.
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: Enabled, Media Directory, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker: Use This Folder at the top of each folder" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: Enabled, Media Folder, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker: Use This Folder at the top of each folder" /></td></tr>
 <tr><td>Local Files' settings.</td><td>USE THIS FOLDER picks the folder open, Default Folder the module's own.</td></tr>
 </table>
 
@@ -241,7 +241,7 @@ Positions are kept in `local_files_history.json` in the data folder, the 1000 mo
 
 ### Still images
 
-- A still image is shown for **Image Duration** (5, 10, 30 or 60 seconds; mpv's `--image-display-duration`). Then mpv moves on: to the playlist's next entry, or back to the tree.
+- A still image is shown for **Image Duration** (5 sec, 10 sec, 30 sec or 1 min; mpv's `--image-display-duration`). Then mpv moves on: to the playlist's next entry, or back to the tree.
 - An animated GIF plays as a clip.
 - A playlist of images is a slideshow. Shuffle Playback shuffles it; Loop Playback runs it round for good.
 
@@ -281,13 +281,13 @@ Settings → TV / Movie → Local Files.
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | ON, OFF | ON | Shows Local Files on the main menu | `modules.com.osdos.local_files.enabled` |
-| Media Directory | a folder, or Default | Default | The folder Local Files shows | `modules.com.osdos.local_files.media_directory` |
+| Media Folder | a folder, or Default | Default | The folder Local Files shows | `modules.com.osdos.local_files.media_directory` |
 | Loop Playback | ON, OFF | OFF | What happens when the last video of a folder or a playlist ends: ON starts again from the first | `modules.com.osdos.local_files.loop_playback` |
 | Shuffle Playback | Ask, Always, Never | Ask | Plays playlists in random order | `modules.com.osdos.local_files.shuffle_playback` |
 | Resume Playback | Ask, Always, Never | Ask | Whether a video resumes where it was stopped | `modules.com.osdos.local_files.resume_playback` |
 | Subtitles | Off, Forced Only, On | Forced Only | Which subtitles show as a video starts | `modules.com.osdos.local_files.auto_subtitles` |
 | Subtitle Language | Any, or a language | Any | The subtitle language mpv picks first | `modules.com.osdos.local_files.sub_lang` |
-| Image Duration | 5, 10, 30, 60 Seconds | 5 Seconds | How long a still image is shown | `modules.com.osdos.local_files.image_duration` |
+| Image Duration | 5 sec, 10 sec, 30 sec, 1 min | 5 sec | How long a still image is shown | `modules.com.osdos.local_files.image_duration` |
 | Hide File Extensions | ON, OFF | ON | Leaves `.mkv` and the like off the names | `modules.com.osdos.local_files.hide_extensions` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen here | `modules.com.osdos.local_files.video_scaling` |
 
@@ -441,22 +441,22 @@ To change the default itself on Raspberry Pi OS with `scripts/install.sh`, give 
 Environment=OSDOS_MEDIA_DIR=/mnt/films
 ```
 
-Then run `sudo systemctl daemon-reload` and `sudo systemctl restart osdos`. The default is then `/mnt/films/Movies`, and the Arcade module's `/mnt/films/Games/Arcade`. Media Directory, once set, still wins over it.
+Then run `sudo systemctl daemon-reload` and `sudo systemctl restart osdos`. The default is then `/mnt/films/Movies`, and the Arcade module's `/mnt/films/Games/Arcade`. Media Folder, once set, still wins over it.
 
 ## Tips
 
 - **Name files the way you want to read them.** The tree sorts by name as on disk: `S01E01 …` sorts episodes.
 - **Use a playlist as a channel.** An m3u with Shuffle Playback on Always and Loop Playback on never ends; make it Play at Startup and the TV turns on into it.
-- **A network share** works when the system mounts it: point Media Directory at it.
+- **A network share** works when the system mounts it: point Media Folder at it.
 - **A symlink** inside the media folder brings another folder into the tree. Search won't walk into it.
 
 ## Troubleshooting
 
 | Problem | What to check |
 |---|---|
-| **No items found** | The media folder is empty, or isn't the one you think: Media Directory shows the path. On the image, the films go in the **Movies** folder on the **OSD-OS** drive, not on **bootfs** |
+| **No items found** | The media folder is empty, or isn't the one you think: Media Folder shows the path. On the image, the films go in the **Movies** folder on the **OSD-OS** drive, not on **bootfs** |
 | A file isn't listed | Its extension isn't one of [those Local Files plays](#what-it-plays), or its name starts with a dot. Rename it, or list it in an m3u |
-| A USB drive doesn't show | See [what counts as a drive](#usb-drives). On Linux a drive mounted at `/mnt/…` doesn't count: set Media Directory to it. On the image, `journalctl -u 'osdos-usb-mount@*'` says why it wasn't mounted (an encrypted volume, swap or a RAID member never is) |
+| A USB drive doesn't show | See [what counts as a drive](#usb-drives). On Linux a drive mounted at `/mnt/…` doesn't count: set Media Folder to it. On the image, `journalctl -u 'osdos-usb-mount@*'` says why it wasn't mounted (an encrypted volume, swap or a RAID member never is) |
 | No resume question | The video was stopped in its first 5 seconds or its last 5%, or Resume Playback is Always or Never |
 | No subtitles | Subtitles is Forced Only (the default): set it to On. A sidecar `.srt` must have the video's name |
 | A playlist entry is skipped | mpv couldn't open it: a relative path is taken from the playlist's folder; a drive is out; a YouTube link isn't played here |

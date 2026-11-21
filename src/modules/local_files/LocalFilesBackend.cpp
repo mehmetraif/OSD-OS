@@ -160,10 +160,10 @@ QString LocalFilesBackend::autoSubtitlesChoice(const QVariant &saved) const {
 
 void LocalFilesBackend::get_image_duration_options() {
     QVariantList options;
-    QVariantMap five;   five["id"]   = "5";  five["label"]   = "5 Seconds";
-    QVariantMap ten;    ten["id"]    = "10"; ten["label"]    = "10 Seconds";
-    QVariantMap thirty; thirty["id"] = "30"; thirty["label"] = "30 Seconds";
-    QVariantMap sixty;  sixty["id"]  = "60"; sixty["label"]  = "60 Seconds";
+    QVariantMap five;   five["id"]   = "5";  five["label"]   = "5 sec";
+    QVariantMap ten;    ten["id"]    = "10"; ten["label"]    = "10 sec";
+    QVariantMap thirty; thirty["id"] = "30"; thirty["label"] = "30 sec";
+    QVariantMap sixty;  sixty["id"]  = "60"; sixty["label"]  = "1 min";
     options << five << ten << thirty << sixty;
     emit dynamicOptionsReady("image_duration", options);
 }

@@ -368,7 +368,7 @@ A video on a drive that was pulled out drops out of Recently Watched and Favorit
 | No **OSD-OS** drive on the card | The first boot keeps 8 GiB for the system and makes the rest the exFAT **OSD-OS** partition. A card with less than 2 GiB to spare gets none | Use a bigger card |
 | No **OSD-OS** drive after a first boot that was cut short | The partition was made but not yet formatted | Switch the Pi on again: the next boot formats it |
 | Windows offers to format a drive | It can't read the system's partition | Always **Cancel**: formatting it erases the system |
-| Films copied on, not in Local Files | Local Files opens the partition's **Movies** folder (`/media/OSD-OS/Movies`), unless its Media Directory names another | Move them into **Movies**, or choose Settings → TV / Movie → Local Files → Media Directory → Default Folder |
+| Films copied on, not in Local Files | Local Files opens the partition's **Movies** folder (`/media/OSD-OS/Movies`), unless its Media Folder names another | Move them into **Movies**, or choose Settings → TV / Movie → Local Files → Media Folder → Default Folder |
 | Offline playlists fail, naming the folder | A card flashed with an old image mounts the partition read-only (`ro` in `/etc/fstab`) | Flash the current image, or change `ro` to `rw,noexec,nosuid,nodev` and the line's last `0` to `2` |
 
 The partition is checked with `fsck.exfat` at every boot. More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card).

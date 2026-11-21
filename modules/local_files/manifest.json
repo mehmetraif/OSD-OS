@@ -15,7 +15,7 @@
     },
     {
       "key": "media_directory",
-      "label": "Media Directory",
+      "label": "Media Folder",
       "type": "directory_browser",
       "default": "",
       "description": "The folder Local Files shows\n[DEFAULT] On the OSD/OS image, the Movies folder on the card's OSD-OS partition, where films copied onto the card from a computer go; elsewhere Movies in a media folder in the data folder"

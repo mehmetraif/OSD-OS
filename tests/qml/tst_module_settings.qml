@@ -1629,6 +1629,43 @@ StandInRoot {
             compare(appCore.values.auto_subtitles, data.left)
         }
 
+        // A list's own choices may each be { "id", "label" }: the label
+        // shown over the id saved (Weather's Time per Screen, "1 min" over
+        // "60 SEC"), ◄ ► and the two-step layouts stepping by them, a row
+        // shown with it following the id; a value no choice is shows as
+        // saved.
+        function test_staticChoiceLabels_data() {
+            return [{ tag: "Standard", layout: "Standard" }, { tag: "Flat Panel", layout: "Flat Panel" }]
+        }
+        function test_staticChoiceLabels(data) {
+            appCore.schema = [
+                { key: "screen_time", label: "Time per Screen", type: "list_single", default: "10 SEC",
+                  options: [{ id: "10 SEC", label: "10 sec" }, { id: "30 SEC", label: "30 sec" },
+                            { id: "60 SEC", label: "1 min" }] },
+                { key: "fast", label: "Fast", type: "toggle", default: "OFF",
+                  shown_with: { key: "screen_time", value: "60 SEC" } }
+            ]
+            root.menuLayout = data.layout
+            var page = open()
+            compare(menuRow(page, 0).value, "10 sec")
+            verify(off(page, "fast") !== "")
+            if (root.twoStep) {
+                keyClick(Qt.Key_Return)
+                keyClick(Qt.Key_Down)
+                compare(menuRow(page, 0).value, "1 min")
+                keyClick(Qt.Key_Return)
+            } else {
+                keyClick(Qt.Key_Left)
+            }
+            compare(appCore.values.screen_time, "60 SEC")
+            compare(menuRow(page, 0).value, "1 min")
+            compare(off(page, "fast"), "")
+            loader.source = ""
+            appCore.values = { screen_time: "15 SEC" }
+            page = open()
+            compare(menuRow(page, 0).value, "15 SEC")
+        }
+
         // A row moved out of a submenu onto the first page (YouTube's
         // Subtitles) reads what was saved while it was in there: a
         // submenu's rows are saved flat under the module, by their keys.

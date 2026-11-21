@@ -299,7 +299,7 @@ The Playlists module downloads into a **Playlists** folder in **Movies** (its Do
 1. Quit OSD/OS (Settings → Quit → Power Off) and take the card out.
 2. In a computer the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films into **Movies** on **OSD-OS**.
 3. If Windows offers to format the system's partition, choose **Cancel**: formatting erases the system.
-4. Put the card back. Local Files opens `/media/OSD-OS/Movies` until its Media Directory setting names another folder.
+4. Put the card back. Local Files opens `/media/OSD-OS/Movies` until its Media Folder setting names another folder.
 
 Arcade games go in **Games/Arcade** beside **Movies** ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)).
 

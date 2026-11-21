@@ -109,7 +109,7 @@
         "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
         "auto_subtitles": [["Off", "off"], ["Forced Only", "forced"], ["On", "on"]],
         "sub_lang": "languages",
-        "image_duration": [["5 Seconds", "5"], ["10 Seconds", "10"], ["30 Seconds", "30"], ["60 Seconds", "60"]]
+        "image_duration": [["5 sec", "5"], ["10 sec", "10"], ["30 sec", "30"], ["1 min", "60"]]
       }
     },
     "com.osdos.nfc_reader": {

@@ -180,7 +180,7 @@ Back during a video (with the deck's menu closed) opens the list's own menu:
 
 ### Where they go
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker, here for Local Files' Media Directory: Use This Folder at the top of each folder" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker, here for Local Files' Media Folder: Use This Folder at the top of each folder" />
 
 **Settings → TV / Movie → Playlists → Download Folder** names the folder, on the folder picker: **Use This Folder** picks the folder open, **Default Folder** the default. The default is a **Playlists** folder in Local Files' media folder:
 

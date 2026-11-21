@@ -15,7 +15,7 @@
     },
     {
       "key": "media_directory",
-      "label": "Media Directory",
+      "label": "Media Folder",
       "type": "directory_browser",
       "default": ""
     },

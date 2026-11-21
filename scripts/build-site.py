@@ -78,8 +78,13 @@ THEME_RECORDED = {
 
 
 def option(o):
-    """An option as [label, value]: a string is both."""
-    return [o, o] if isinstance(o, str) else [o[0], o[1]]
+    """An option as [label, value]: a string is both; a manifest's
+    { "id", "label" } its label over its id, as the app shows it."""
+    if isinstance(o, str):
+        return [o, o]
+    if isinstance(o, dict):
+        return [o.get("label", o["id"]), o["id"]]
+    return [o[0], o[1]]
 
 
 def help_text(description):

@@ -17,7 +17,7 @@ A backdrop for the room: a video of your choice plays on a loop, with music of y
    | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/ambient/` |
    | macOS | `~/Library/Application Support/OSD-OS/ambient/` |
 
-   Or pick another with Settings → TV / Movie → Ambient:Mode → **Media Directory**: USE THIS FOLDER picks the folder open, Default Folder the module's own. On the OSD/OS image, make an `Ambient` folder on the card's **OSD-OS** drive from a computer, then pick `/media/OSD-OS/Ambient`.
+   Or pick another with Settings → TV / Movie → Ambient:Mode → **Media Folder**: USE THIS FOLDER picks the folder open, Default Folder the module's own. On the OSD/OS image, make an `Ambient` folder on the card's **OSD-OS** drive from a computer, then pick `/media/OSD-OS/Ambient`.
 3. Open **Ambient:Mode** from the main menu.
 
 Only files directly in the folder are listed, by name, and only these types (in any case):
@@ -119,7 +119,7 @@ Settings → TV / Movie → **Ambient:Mode**:
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | On, Off | Off | Shows Ambient:Mode on the main menu | `modules.com.osdos.ambient_mode.enabled` |
-| Media Directory | A folder, or Default Folder | Default (`ambient` in the data folder) | Where the clips and the music are | `modules.com.osdos.ambient_mode.media_directory` (`""` for the default) |
+| Media Folder | A folder, or Default Folder | Default (`ambient` in the data folder) | Where the clips and the music are | `modules.com.osdos.ambient_mode.media_directory` (`""` for the default) |
 | Auto-Launch Playback | On, Off | Off | Plays, shuffled, as soon as OSD/OS starts on this module ([above](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode#starting-by-itself)) | `modules.com.osdos.ambient_mode.auto_launch` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 clip fills a 4:3 screen in this module. Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.ambient_mode.video_scaling` |
 
@@ -129,7 +129,7 @@ What you chose on the module's screen isn't remembered between visits.
 
 | What happens | What to do |
 |---|---|
-| **No items found** | No video of a listed type sits directly in the media folder. Check Media Directory and the files' extensions |
+| **No items found** | No video of a listed type sits directly in the media folder. Check Media Folder and the files' extensions |
 | No music | The music needs mpv on the `PATH` or beside the app: otherwise the log says `[AmbientMode] mpv not found in PATH — audio will not play`. In a playlist, check the paths: names are case-sensitive on Linux. Check Settings → Sound → Audio Output too |
 | Black bars round the clip | Set Scaling (Pan & Scan fills a 4:3 screen with a 16:9 clip), or use CROP in the playback menu |
 | It doesn't start by itself | Start on Module must be Ambient:Mode, Auto-Launch Playback On, and the folder must hold a video. A Play at Startup favourite comes first |

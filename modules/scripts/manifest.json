@@ -14,10 +14,10 @@
     },
     {
       "key": "scripts_directory",
-      "label": "Scripts Directory",
+      "label": "Scripts Folder",
       "type": "directory_browser",
       "default": "",
-      "description": "Folder holding your .sh files\nDefault: user_scripts in the app's data directory"
+      "description": "The folder of your .sh files\n[DEFAULT] user_scripts in the data folder"
     },
     {
       "key": "startup_script",
