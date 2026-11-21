@@ -2076,6 +2076,26 @@ StandInRoot {
             root.hints = root.keyboardHints
         }
 
+        // Emby's status line: a long error wraps onto as many lines as it
+        // needs across the form, none of it cut, and stays above the hint
+        // bar, in Standard and in Camcorder's narrower pane.
+        function test_embyStatusLineWraps_data() {
+            return [{ tag: "standard", framed: false }, { tag: "camcorder", framed: true }]
+        }
+        function test_embyStatusLineWraps(data) {
+            root.framed = data.framed
+            var auth = open("emby", "Auth.qml", {})
+            var error = "CONNECTION FAILED: Host jellyfin.media.home.internal.mycompanydomain.example.com not found"
+            embyBackend.errorOccurred(error)
+            var line = shownTexts(auth).filter(function(t) { return t.text === error })[0]
+            verify(line !== undefined)
+            verify(line.lineCount > 1, "wrapped")
+            verify(!line.truncated, "nothing cut")
+            var bottom = line.mapToItem(root, 0, line.contentHeight).y
+            verify(bottom <= root.sh * 0.85, "above the hint bar: " + bottom)
+            root.framed = false
+        }
+
         // The keyboard's signs: every one a keyboard has, SHIFT changing the
         // second row; the mouse moves the box to the key under it; a real
         // keyboard's Delete deletes.

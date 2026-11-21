@@ -228,14 +228,15 @@ FocusScope {
     }
 
     Column {
+        id: form
         anchors.top: parent.top
         // Close enough to the title bar, with the method row, for the Sign
-        // In button to stay clear of the footer hints.
-        anchors.topMargin: authRoot.paned ? root.paneTop : root.sh * 0.25 //120
+        // In button to stay clear of the footer hints, and for three lines
+        // of the status line under it.
+        anchors.topMargin: root.paneTop //100
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.horizontalCenterOffset: authRoot.paned ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
-        // Closer together in a frame's pane, which is shorter.
-        spacing: authRoot.paned ? root.sh * 0.0333333 : root.sh * 0.05 //16 : 24
+        spacing: root.sh * 0.0333333 //16
         // Not under the on-screen keyboard, whose ground starts below the
         // title bar, above the pane's top. Drawn transparent rather than
         // hidden, so the field the keyboard gives the keys back to can take
@@ -397,30 +398,10 @@ FocusScope {
             }
         }
 
-        // Group 2 — actions (status line + the Sign In button)
+        // Group 2 — the Sign In button, the status line under it.
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: root.sh * 0.025 //16
-
-            // status line: connecting > error > guidance for the current step
-            Text {
-                text: waiting ? "CONNECTING..."
-                    : (errorMsg !== "" ? errorMsg
-                    : (focusIndex === idxMethod
-                       ? (method === 1 ? "Emby Connect: your emby.media account finds your server"
-                                       : "Your server, at home or away: sign in by its address")
-                    : (method === 1 ? "EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL"
-                    : "SIGN IN WITH YOUR SERVER ACCOUNT")))
-                color: root.primaryColor
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
-                horizontalAlignment: Text.AlignHCenter
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: root.sw * 0.5
-                elide: Text.ElideRight
-                maximumLineCount: 1
-                font.pixelSize: root.sh * 0.0291667 //14
-            }
 
             // Single submit — the method row above already decided which flow
             // this runs.
@@ -442,6 +423,38 @@ FocusScope {
                 }
             }
         }
+    }
+
+    // The status line, under the form: connecting > error > what the row
+    // under the cursor is for. As many lines as it needs, across the form's
+    // width (a server's address is one long name, broken where the line
+    // ends), down to the hint bar and no further.
+    Text {
+        id: statusLine
+        readonly property real limit: root.monitorFramed === true ? root.paneBottom : hintBar.y
+        anchors.top: form.bottom
+        anchors.topMargin: root.sh * 0.025 //12
+        anchors.horizontalCenter: form.horizontalCenter
+        width: authRoot.formWidth
+        height: Math.max(font.pixelSize * 1.3, limit - y - root.sh * 0.0125)
+        opacity: keyboard.visible ? 0 : 1
+        text: waiting ? "CONNECTING..."
+            : (errorMsg !== "" ? errorMsg
+            : (focusIndex === idxMethod
+               ? (method === 1 ? "Emby Connect: your emby.media account finds your server"
+                               : "Your server, at home or away: sign in by its address")
+            : (method === 1 ? "EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL"
+            : "SIGN IN WITH YOUR SERVER ACCOUNT")))
+        color: root.primaryColor
+        font.family: root.globalFont
+        font.capitalization: Font.AllUppercase
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignTop
+        wrapMode: Text.Wrap
+        maximumLineCount: Math.max(1, Math.floor(height / (font.pixelSize * 1.2)))
+        elide: Text.ElideRight
+        clip: true
+        font.pixelSize: root.sh * 0.0291667 //14
     }
 
     // Footer: on the method row ◄ ► choose and select goes on to the form.
