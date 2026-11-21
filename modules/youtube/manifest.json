@@ -37,10 +37,56 @@
       "description": "Your playlists, a line each: a playlist's link or its id, with a name and | before it if you like\nyoutube_playlists.txt in the data folder adds its own"
     },
     {
+      "key": "subtitles",
+      "label": "Subtitles",
+      "type": "list_single",
+      "options": ["Off", "On", "With Auto"],
+      "default": "Off",
+      "description": "[ON] A video's subtitles in Subtitle Language, where it has them  [WITH AUTO] Also YouTube's automatic captions"
+    },
+    {
+      "key": "subtitle_language",
+      "label": "Subtitle Language",
+      "type": "list_single",
+      "options_source": "dynamic",
+      "options_slot": "get_subtitle_languages",
+      "default": "en"
+    },
+    {
+      "key": "audio_language",
+      "label": "Audio Language",
+      "type": "list_single",
+      "options_source": "dynamic",
+      "options_slot": "get_audio_languages",
+      "default": "original",
+      "description": "The audio track of a video that has several\n[ORIGINAL] The one it was made in"
+    },
+    {
+      "key": "resume_playback",
+      "label": "Resume Playback",
+      "type": "list_single",
+      "options": ["Ask", "Always"],
+      "default": "Ask"
+    },
+    {
+      "key": "video_scaling",
+      "label": "Scaling",
+      "type": "list_single",
+      "options": ["Default", "Letterbox", "14:9", "Pan & Scan", "Anamorphic"],
+      "default": "Default",
+      "description": "How a 16:9 picture fills the 4:3 screen in this module\n[DEFAULT] As Settings' Scaling says"
+    },
+    {
+      "key": "display_shorts",
+      "label": "Show Shorts",
+      "type": "toggle",
+      "default": "ON"
+    },
+    {
       "key": "advanced",
       "label": "Advanced",
       "type": "submenu",
-      "description": "Picture, sound, subtitles, speed and the rest of YouTube's settings",
+      "description": "Picture and speed: the most a video plays at, its codec and frame rate, and how fast it plays",
       "settings": [
         {
           "key": "playback_resolution",
@@ -67,57 +113,11 @@
           "description": "[30] 30 fps where a video also has 60: lighter on a Pi"
         },
         {
-          "key": "video_scaling",
-          "label": "Scaling",
-          "type": "list_single",
-          "options": ["Default", "Letterbox", "14:9", "Pan & Scan", "Anamorphic"],
-          "default": "Default",
-          "description": "How a 16:9 picture fills the 4:3 screen in this module\n[DEFAULT] As Settings' Scaling says"
-        },
-        {
-          "key": "audio_language",
-          "label": "Audio Language",
-          "type": "list_single",
-          "options_source": "dynamic",
-          "options_slot": "get_audio_languages",
-          "default": "original",
-          "description": "The audio track of a video that has several\n[ORIGINAL] The one it was made in"
-        },
-        {
-          "key": "subtitles",
-          "label": "Subtitles",
-          "type": "list_single",
-          "options": ["Off", "On", "With Auto"],
-          "default": "Off",
-          "description": "[ON] A video's subtitles in Subtitle Language, where it has them  [WITH AUTO] Also YouTube's automatic captions"
-        },
-        {
-          "key": "subtitle_language",
-          "label": "Subtitle Language",
-          "type": "list_single",
-          "options_source": "dynamic",
-          "options_slot": "get_subtitle_languages",
-          "default": "en"
-        },
-        {
           "key": "playback_speed",
           "label": "Playback Speed",
           "type": "list_single",
           "options": ["0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"],
           "default": "1x"
-        },
-        {
-          "key": "resume_playback",
-          "label": "Resume Playback",
-          "type": "list_single",
-          "options": ["Ask", "Always"],
-          "default": "Ask"
-        },
-        {
-          "key": "display_shorts",
-          "label": "Display Shorts",
-          "type": "toggle",
-          "default": "ON"
         }
       ]
     },

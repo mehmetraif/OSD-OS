@@ -259,6 +259,14 @@ test("the looks offered are the app's", () => {
     assert.match(settingsQml, /key: "orb_fog",[\s\S]*?options: \["Picture", "Live"\]/);
 });
 
+test("YouTube's everyday rows come before its Advanced heading, their keys as saved", () => {
+    const youtube = schema.modules.find(m => m.id === "com.osdos.youtube");
+    const rows = youtube.settings.map(r => r.type === "heading" ? `# ${r.label}` : r.key);
+    assert.deepEqual(rows, ["subscriptions", "playlists", "subtitles", "subtitle_language", "audio_language",
+                            "resume_playback", "video_scaling", "display_shorts", "# Advanced",
+                            "playback_resolution", "video_codec", "max_frame_rate", "playback_speed"]);
+});
+
 test("a manifest's condition on an app setting is passed over, the row shown whatever is set", () => {
     const manifest = JSON.parse(readFileSync(join(root, "modules/ambient_mode/manifest.json"), "utf8"));
     const inManifest = manifest.settings.find(r => r.key === "auto_launch");

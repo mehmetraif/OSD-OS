@@ -1577,6 +1577,35 @@ StandInRoot {
             compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:ADD")
         }
 
+        // A row moved out of a submenu onto the first page (YouTube's
+        // Subtitles) reads what was saved while it was in there: a
+        // submenu's rows are saved flat under the module, by their keys.
+        function test_rowMovedOutOfSubmenu() {
+            appCore.values = { subtitles: "On", playback_speed: "2x" }
+            appCore.schema = [
+                { key: "advanced", label: "Advanced", type: "submenu", settings: [
+                    { key: "subtitles", label: "Subtitles", type: "list_single", options: ["Off", "On"], default: "Off" },
+                    { key: "playback_speed", label: "Playback Speed", type: "list_single", options: ["1x", "2x"], default: "1x" }] }
+            ]
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "advanced" } })
+            compare(menuRow(loader.item, 0).value, "On")
+            loader.source = ""
+            appCore.schema = [
+                { key: "subtitles", label: "Subtitles", type: "list_single", options: ["Off", "On"], default: "Off" },
+                { key: "advanced", label: "Advanced", type: "submenu", settings: [
+                    { key: "playback_speed", label: "Playback Speed", type: "list_single", options: ["1x", "2x"], default: "1x" }] }
+            ]
+            var page = open()
+            compare(menuRow(page, 0).value, "On")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.subtitles, "Off")
+            loader.source = ""
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "advanced" } })
+            compare(menuRow(loader.item, 0).value, "2x")
+        }
+
         // An account module's two rows: SIGN IN after ENABLED, its value who
         // is signed in (the name its slot sends) or SIGNED OUT, opening the
         // module's own sign-in; SIGN OUT last, dimmed while signed out. The

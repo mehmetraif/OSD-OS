@@ -501,7 +501,7 @@ Marks in the table: \* only with Screen on Arcade; † only once signed in.
 | [Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.prime_video` | Enabled, Sign In, TMDB Key, Catalogue Region, Catalogue Language, Scaling, Sign Out† |
 | [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | `com.osdos.scripts` | Enabled, Scripts Directory, Auto-Run On Startup, Rescan Scripts |
 | [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | `com.osdos.weather` | Enabled, Displays, Music, Units, Screen Time, Hours Format |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | Enabled, Sign In, Subscriptions, Playlists, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language, Playback Speed, Resume Playback, Display Shorts), Delete Watch Later, Delete Recently Watched, Sign Out† |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | Enabled, Sign In, Subscriptions, Playlists, Subtitles, Subtitle Language, Audio Language, Resume Playback, Scaling, Show Shorts, Advanced (Playback Resolution, Video Codec, Max Frame Rate, Playback Speed), Delete Watch Later, Delete Recently Watched, Sign Out† |
 
 Each module's wiki page explains its rows. A module's own **Scaling** is **Default** (follow Settings → TV / Movie → Scaling) or one of the four, for that module only.
 
