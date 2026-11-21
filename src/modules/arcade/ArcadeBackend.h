@@ -30,6 +30,7 @@ class DisplayHandoff;
 class FbneoInstaller;
 class LanRooms;
 class ProgramInstaller;
+struct ProcessEnd;
 class RetroAchievements;
 class RetroAchievementsAccount;
 class QNetworkAccessManager;
@@ -765,7 +766,7 @@ private:
     // it hadn't answered for are asked about first once the game has ended.
     void pauseScan();
     void takeMachines();
-    void onScanFinished(int exitCode, QProcess::ExitStatus status);
+    void onScanFinished(const ProcessEnd &end);
     // Every set asked about: games.json saved, and the views told.
     void finishScan();
     // entriesReady for every folder asked for since the last time, and

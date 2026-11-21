@@ -1,4 +1,5 @@
 #include "RomCheck.h"
+#include "../../util/ProcessOver.h"
 #include "../../util/SevenZip.h"
 #include <QFile>
 #include <QJsonArray>
@@ -430,12 +431,7 @@ void RomCheck::verifyNext() {
     // its verdicts leave out too.
     m_process->setStandardErrorFile(QProcess::nullDevice());
     connect(m_process, &QProcess::readyReadStandardOutput, this, &RomCheck::verifyRead);
-    connect(m_process, &QProcess::finished, this, &RomCheck::verifyFinished);
-    connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-        // finished() never comes for one that didn't start.
-        if (error == QProcess::FailedToStart)
-            verifyFinished(-1, QProcess::CrashExit);
-    });
+    whenOver(m_process, this, [this](const ProcessEnd &end) { verifyFinished(end); });
     m_process->start(m_job.mame, QStringList{ QStringLiteral("-rompath"), m_job.rompath, QStringLiteral("-verifyroms") }
                                      + m_batch);
     m_watchdog->start();
@@ -459,7 +455,7 @@ void RomCheck::verifyRead() {
         emit progressChanged();
 }
 
-void RomCheck::verifyFinished(int exitCode, QProcess::ExitStatus status) {
+void RomCheck::verifyFinished(const ProcessEnd &end) {
     if (!m_process)
         return;
     m_watchdog->stop();
@@ -471,8 +467,8 @@ void RomCheck::verifyFinished(int exitCode, QProcess::ExitStatus status) {
     m_process = nullptr;
     // All good (0), some not (2, missing files), or none found at all (5,
     // no such system): an answer. Anything else isn't one.
-    if (status != QProcess::NormalExit || (exitCode != 0 && exitCode != 2 && exitCode != 5)) {
-        qWarning("[Arcade] Check ROMs: MAME couldn't check the games (exit %d)", exitCode);
+    if (end.how != ProcessEnd::Exited || (end.code != 0 && end.code != 2 && end.code != 5)) {
+        qWarning("[Arcade] Check ROMs: MAME couldn't check the games (exit %d)", end.code);
         finish(QStringLiteral("MAME Could Not Check"));
         return;
     }

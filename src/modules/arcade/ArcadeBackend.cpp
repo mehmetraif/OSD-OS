@@ -6,6 +6,7 @@
 #include "../../util/AtomicFile.h"
 #include "../../util/DeviceName.h"
 #include "../../util/LegacyNames.h"
+#include "../../util/ProcessOver.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
 #include "LanRooms.h"
@@ -1323,12 +1324,7 @@ void ArcadeBackend::scanNext() {
         m_reader.addData(m_scan->readAllStandardOutput());
         takeMachines();
     });
-    connect(m_scan, &QProcess::finished, this, &ArcadeBackend::onScanFinished);
-    connect(m_scan, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-        // finished() never comes for one that didn't start.
-        if (error == QProcess::FailedToStart)
-            onScanFinished(-1, QProcess::CrashExit);
-    });
+    whenOver(m_scan, this, [this](const ProcessEnd &end) { onScanFinished(end); });
     m_scan->start(mamePath(), QStringList{ QStringLiteral("-listxml"), QStringLiteral("-nodtd") } + m_asked);
     m_scanTimer->start();
 }
@@ -1369,7 +1365,7 @@ void ArcadeBackend::takeMachines() {
     }
 }
 
-void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
+void ArcadeBackend::onScanFinished(const ProcessEnd &end) {
     if (!m_scan)
         return;
     m_scanTimer->stop();
@@ -1377,8 +1373,8 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
     takeMachines();
     // An answer whole: the sets it has no machine of it says it hasn't
     // (exit code 5), and those it lists it lists in full.
-    const bool answered = status == QProcess::NormalExit
-                          && (exitCode == 0 || exitCode == kNoSuchSystem) && !m_reader.failed();
+    const bool answered = end.how == ProcessEnd::Exited
+                          && (end.code == 0 || end.code == kNoSuchSystem) && !m_reader.failed();
     if (answered) {
         for (const QString &name : std::as_const(m_asked)) {
             if (!m_machines.contains(name))
@@ -1397,7 +1393,7 @@ void ArcadeBackend::onScanFinished(int exitCode, QProcess::ExitStatus status) {
         if (!m_toAsk.isEmpty() && (!m_cacheSaved.isValid() || m_cacheSaved.elapsed() >= kCacheSaveMs))
             saveCache();
     } else {
-        qWarning("[Arcade] MAME could not list the games (exit %d): %s", exitCode,
+        qWarning("[Arcade] MAME could not list the games (exit %d): %s", end.code,
                  qPrintable(m_scan->errorString()));
         m_scanFailed = true;
         // The rest are asked about the next time the list opens.
@@ -3874,21 +3870,12 @@ QProcess *ArcadeBackend::askVersion(const QString &program, const QStringList &a
                                     const std::function<void(const QByteArray &, bool)> &take) {
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::MergedChannels);
-    // Once, whichever way it ends.
-    const auto done = [this, process, take] {
-        if (process->property("done").toBool())
-            return;
-        process->setProperty("done", true);
+    whenOver(process, this, [this, process, take](const ProcessEnd &) {
         take(process->readAll(), process->property("timedOut").toBool());
         process->deleteLater();
         emit roomsChanged();
         // LAN Games' lines, which say it against each room's.
         showLanRooms();
-    };
-    connect(process, &QProcess::finished, this, done);
-    connect(process, &QProcess::errorOccurred, this, [done](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart)
-            done();
     });
     QTimer::singleShot(m_versionReadMs, process, [process] {
         process->setProperty("timedOut", true);

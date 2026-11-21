@@ -1,5 +1,6 @@
 #include "RetroAchievementsAccount.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/ProcessOver.h"
 #include "RetroAchievements.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -208,11 +209,7 @@ void RetroAchievementsAccount::checkSignIn() {
     environment.insert(QStringLiteral("XDG_CONFIG_HOME"), dir + QStringLiteral("/config"));
     m_signIn->setProcessEnvironment(environment);
     connect(m_signIn, &QProcess::readyReadStandardOutput, this, &RetroAchievementsAccount::readSignIn);
-    connect(m_signIn, &QProcess::finished, this, &RetroAchievementsAccount::signInEnded);
-    connect(m_signIn, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart)
-            signInEnded();
-    });
+    whenOver(m_signIn, this, [this](const ProcessEnd &) { signInEnded(); });
     // Not said how it went in time: stopped, and what it saved read all the
     // same; and killed if even that doesn't end it. Once it has said, it is
     // being stopped already: a second SIGTERM would end it unsaved.

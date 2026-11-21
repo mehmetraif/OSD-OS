@@ -13,6 +13,8 @@
 #include <QVariantMap>
 #include <functional>
 
+struct ProcessEnd;
+
 // Settings → Arcade → Check ROMs: whether each game's files are whole for
 // the engines that play it. The user starts it, as it reads every archive of
 // the folder (minutes on a Pi); nothing starts it by itself. FinalBurn Neo's
@@ -153,7 +155,7 @@ private:
     void archivesRead();
     void verifyNext();
     void verifyRead();
-    void verifyFinished(int exitCode, QProcess::ExitStatus status);
+    void verifyFinished(const ProcessEnd &end);
     void stopProcess();
     void finish(const QString &result);
 
