@@ -182,7 +182,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off.
 
 Three settings hide games from every filter and list, on both screens. Favorites and Recently Played keep the hidden games.
 
-- **Hide Hacks and Bootlegs** hides the sets marked as a bootleg or a hack, in the parentheses of the name (`Galaga (bootleg)`) or as the maker.
+- **Hide Bootlegs** hides the sets marked as a bootleg or a hack, in the parentheses of the name (`Galaga (bootleg)`) or as the maker.
 - **Hide Incomplete Games** hides the games [Check ROMs](#check-roms) found files missing of for every engine that knows them.
 - **Regions** hides the sets of the regions turned off: World, USA, Europe, Asia, Japan, Korea, China, Hong Kong, Taiwan, Hispanic, Brazil, Oceania and Others.
 
@@ -568,7 +568,7 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | Enabled | ON, OFF | OFF | Shows Arcade on the main menu. The games need MAME, and FinalBurn Neo's RetroArch | `modules.com.osdos.arcade.enabled` |
 | **GAMES** | | | | |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets ([Setting it up](#setting-it-up)) | `modules.com.osdos.arcade.games_directory` |
-| Hide Hacks and Bootlegs | ON, OFF | OFF | Hides bootleg and hack sets ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
+| Hide Bootlegs | ON, OFF | OFF | Hides bootleg and hack sets ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
 | Hide Incomplete Games | ON, OFF | OFF | Hides the games Check ROMs found incomplete | `modules.com.osdos.arcade.hide_incomplete` |
 | Regions | Each region ON or OFF | All ON | Hides a region's sets ([Filters](#filters)) | `modules.com.osdos.arcade.regions` |
 | Read the Games Again | (action) | | [Reading the games](#reading-the-games) | |

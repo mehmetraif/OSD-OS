@@ -1452,7 +1452,7 @@ bool ArcadeBackend::isGame(const QString &set) const {
     const mame::Machine *machine = machineOf(set);
     if (!machine)
         return true;
-    // Hide Hacks and Bootlegs: the makers' own releases alone, whichever of
+    // Hide Bootlegs: the makers' own releases alone, whichever of
     // MAME and FinalBurn Neo's list describes the set.
     if (!machine->isGame() || (m_hideBootlegs && mame::isBootlegOrHack(*machine)))
         return false;

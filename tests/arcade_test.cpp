@@ -8414,7 +8414,7 @@ private slots:
         QCOMPARE(standIn.asked.size(), 1);
     }
 
-    // Settings → Arcade → Hide Hacks and Bootlegs: the sets MAME calls a
+    // Settings → Arcade → Hide Bootlegs: the sets MAME calls a
     // bootleg or a hack, in their name's parentheses or as their maker, leave
     // every list and filter, Favorites and Recently Played too, as it is
     // turned on, and are back as it is turned off; Not Recognized is as it
