@@ -98,6 +98,24 @@ constexpr qint64 kMaxText = 256 * 1024;
 
 } // namespace
 
+QJsonValue nearestChoice(const QJsonValue &value, const QStringList &choices) {
+    const QString text = value.isDouble() ? QString::number(value.toDouble()) : value.toString();
+    if (choices.isEmpty() || choices.contains(text))
+        return value;
+    // As JavaScript's parseInt() reads it: the whole number it starts with.
+    static const QRegularExpression leading(QStringLiteral("^\\s*([+-]?\\d+)"));
+    const QRegularExpressionMatch number = leading.match(text);
+    const qint64 seconds = number.hasMatch() ? number.captured(1).toLongLong() : 0;
+    QString nearest;
+    for (const QString &choice : choices) {
+        bool ok = false;
+        const qint64 at = choice.toLongLong(&ok);
+        if (ok && (nearest.isEmpty() || qAbs(at - seconds) < qAbs(nearest.toLongLong() - seconds)))
+            nearest = choice;
+    }
+    return QJsonValue(seconds > 0 && !nearest.isEmpty() ? nearest : choices.first());
+}
+
 Form formOf(const QJsonObject &extra, const QHash<QString, QJsonObject> &manifests) {
     Form form;
     for (const QJsonValue &group : extra.value(QLatin1String("app")).toArray()) {
@@ -107,6 +125,12 @@ Form formOf(const QJsonObject &extra, const QHash<QString, QJsonObject> &manifes
             if (!key.isEmpty())
                 form.app.insert(key, row.contains(QLatin1String("default")) ? row.value(QLatin1String("default"))
                                                                             : QJsonValue());
+            if (!key.isEmpty() && row.value(QLatin1String("nearest")).toBool()) {
+                QStringList values;
+                for (const QJsonValue &option : row.value(QLatin1String("options")).toArray())
+                    values << (option.isArray() ? option.toArray().at(1) : option).toVariant().toString();
+                form.nearest.insert(key, values);
+            }
         }
     }
     const QJsonObject extraModules = extra.value(QLatin1String("modules")).toObject();
@@ -214,8 +238,11 @@ QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject
     const QJsonObject savedApp = config.value(QLatin1String("app")).toObject();
     for (auto it = savedApp.constBegin(); it != savedApp.constEnd(); ++it) {
         const auto row = form.app.constFind(it.key());
-        if (row != form.app.constEnd() && !sameValue(it.value(), row.value()))
-            app.insert(it.key(), it.value());
+        // A value no longer among the row's choices, as Settings shows it.
+        const auto choices = form.nearest.constFind(it.key());
+        const QJsonValue value = choices != form.nearest.constEnd() ? nearestChoice(it.value(), *choices) : it.value();
+        if (row != form.app.constEnd() && !sameValue(value, row.value()))
+            app.insert(it.key(), value);
     }
     QJsonObject modules;
     const QJsonObject savedModules = config.value(QLatin1String("modules")).toObject();

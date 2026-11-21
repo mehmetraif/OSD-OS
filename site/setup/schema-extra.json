@@ -68,7 +68,7 @@
           "help": "The box under a menu with a line about the selected row." },
         { "key": "status_icons", "label": "Status Icons", "type": "toggle", "on": "On", "off": "Off", "default": "On",
           "help": "What is on, at the top right of the title bar: Wi-Fi's signal, Bluetooth, and the Arcade's high scores, trophy, globe and network." },
-        { "key": "screensaver_timeout", "label": "Screen Saver", "type": "choice", "default": "300",
+        { "key": "screensaver_timeout", "label": "Screen Saver", "type": "choice", "default": "300", "nearest": true,
           "options": [["Off", "OFF"], ["1 min", "60"], ["2 min", "120"], ["5 min", "300"], ["10 min", "600"]],
           "help": "A picture moving over the screen after this long without a key, in the menus or on a paused video, against a CRT's burn-in. [OFF] Never." },
         { "key": "mouse_pointer", "label": "Mouse Pointer", "type": "choice", "default": "5",

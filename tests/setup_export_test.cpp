@@ -116,6 +116,34 @@ private slots:
         QVERIFY(all.app.contains(QStringLiteral("color_scheme")));
     }
 
+    // Screen Saver saved as a time it no longer offers (an older OSD/OS's
+    // 30 seconds), sent as Settings shows it: the nearest it offers, 1 min,
+    // which OSD/OS Setup then shows too; a time it offers as it is, the
+    // default left out as ever, and what is no time at all as Off.
+    void screenSaverAsShown() {
+        QFile real(QStringLiteral(SOURCE_DIR "/site/setup/schema-extra.json"));
+        QVERIFY(real.open(QIODevice::ReadOnly));
+        const setupexport::Form form = setupexport::formOf(QJsonDocument::fromJson(real.readAll()).object(), {});
+        const QString key = QStringLiteral("screensaver_timeout");
+        QCOMPARE(form.nearest.value(key), QStringList({ "OFF", "60", "120", "300", "600" }));
+        const auto sent = [&form, &key](const QJsonValue &saved) {
+            const QJsonObject file = setupexport::build(QJsonObject{ { QStringLiteral("app"), QJsonObject{ { key, saved } } } },
+                                                        form, QJsonObject(), setupexport::System());
+            return file.value(QStringLiteral("config")).toObject().value(QStringLiteral("app")).toObject().value(key);
+        };
+        QCOMPARE(sent(QStringLiteral("30")), QJsonValue(QStringLiteral("60")));
+        QCOMPARE(sent(30), QJsonValue(QStringLiteral("60")));
+        QCOMPARE(sent(QStringLiteral("90")), QJsonValue(QStringLiteral("60")));
+        QCOMPARE(sent(QStringLiteral("200")), QJsonValue(QStringLiteral("120")));
+        QCOMPARE(sent(QStringLiteral("1800")), QJsonValue(QStringLiteral("600")));
+        QCOMPARE(sent(QStringLiteral("120")), QJsonValue(QStringLiteral("120")));
+        QCOMPARE(sent(QStringLiteral("OFF")), QJsonValue(QStringLiteral("OFF")));
+        QCOMPARE(sent(QStringLiteral("never")), QJsonValue(QStringLiteral("OFF")));
+        // 300 is the default: not sent.
+        QVERIFY(sent(QStringLiteral("300")).isUndefined());
+        QVERIFY(sent(QStringLiteral("280")).isUndefined());
+    }
+
     // The page's file: OSD/OS's settings on the form that aren't at their
     // defaults, the account, and the system.
     void build() {
