@@ -190,6 +190,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
 | `osdos-system.socket` | Enabled. The time zone, the keyboard and SSH on or off |
+| `osdos-game.socket` | Enabled. An arcade game's CPU governor, and the flag the timers wait on ([The game's socket](#the-games-socket)) |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
@@ -462,8 +463,9 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | 8 | `osdos-name.socket`: System Information renames the device |
 | 9 | Exits 39 and 59: JAMMA 480i at 640 across |
 | 10 | `osdos-system.socket`: Settings → System sets the time zone and the keyboard |
+| 11 | `osdos-game.socket`: an arcade game has the CPU at full speed |
 
-The image's launcher is level 10, as `install.sh`'s is.
+The image's launcher is level 11, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -499,6 +501,19 @@ For SSH it takes `ssh on` or `ssh off` and nothing else. On is `systemctl enable
 journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard or SSH did
 systemctl is-enabled ssh             # enabled, or disabled
 systemctl is-active ssh              # active, or inactive
+```
+
+### The game's socket
+
+While a game of the Arcade module plays in RetroArch or MAME, OSD/OS holds a connection to `osdos-game.socket` (`/run/osdos-game.sock`), behind which `osdos-stop game` runs as root for the length of the game:
+
+- **The CPU at full speed.** Each CPU frequency policy's governor is set to `performance`, and the one it had is kept in `/run/osdos-game/governors`. An emulator's load sits where the default governor moves the clock up and down, and a frame late on one machine is a wait or a rollback for all of them in a network game. The Arcade module's setting `cpu_full_speed`, `"Off"` in `config.json` (`modules.com.osdos.arcade`), turns it off. A Pi already at 75 °C or more, or throttled by its firmware as the game starts, keeps its governor, since the clock at full speed only brings its throttling sooner: the journal and OSD/OS's log say why (`CPU governor for the game kept at …`).
+- **The flag** `/run/osdos-game/playing`, there for the length of the game, which the system's own jobs can wait on.
+- **Everything put back** as the game ends, and also when OSD/OS's connection closes without its end (the app gone), when the request's unit is stopped (a shutdown), and when `osdos.service` stops (its `ExecStopPost`, `osdos-stop`, puts back what a helper killed outright left).
+
+```sh
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor   # performance during a game
+journalctl -u 'osdos-game@*' -b                              # what each game's request did
 ```
 
 ### Exit to Terminal

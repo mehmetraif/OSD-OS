@@ -301,7 +301,9 @@ INSTALL_DIR="/opt/osdos"
 #    off after it on 59), so Display Output offers it.
 # 10: osdos-stop also sets the time zone and the keyboard through
 #    osdos-system.socket, so Settings → System offers Time Zone and Keyboard.
-export OSDOS_LAUNCHER_API=10
+# 11: osdos-stop also sets the CPU's governor for an arcade game and puts it
+#    back after, through osdos-game.socket, so the Arcade module asks for it.
+export OSDOS_LAUNCHER_API=11
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -572,7 +574,8 @@ if [ -n "${SERVICE_USER}" ]; then
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
 # device-name, by osdos-name.socket: Settings → System → System Information's
 # Device Name; with system-setting, by osdos-system.socket: Settings → System's
-# Time Zone, Keyboard and SSH.
+# Time Zone, Keyboard and SSH; with game, by osdos-game.socket: an arcade
+# game's CPU governor, for the length of the game.
 
 # What comes in is read as the C locale reads it, whatever the system's
 # language: under en_GB.UTF-8, Raspberry Pi OS's own, a range such as A-Z
@@ -821,13 +824,136 @@ system_setting() {
     echo ok
 }
 
+# A game in the Arcade module, through osdos-game.socket: the app connects
+# as RetroArch or MAME starts and holds the connection for the whole game.
+# Its first line says what it wants, from fixed words only, never echoed:
+# "start full-speed" (the CPU's governor at performance) or "start as-is"
+# (Settings turned that off), "network" after either for a network game.
+# Answered "ok" and the governor the game plays under, the flag the system's
+# timers look for (GAME_FLAG) is up, and the old governors are kept in
+# GAME_RUN. "end" from the app, its connection closing (the app gone), this
+# unit stopped, or the app's service stopped (osdos-stop's ExecStopPost
+# below) puts everything back and takes the flag down.
+GAME_RUN=/run/osdos-game
+GAME_FLAG=/run/osdos-game/playing
+CPUFREQ=/sys/devices/system/cpu/cpufreq
+# Hotter than this at the start (millidegrees Celsius), a Pi keeps its
+# governor: performance would only bring the firmware's throttling at 80 °C
+# (85 °C on a Pi 5) sooner.
+GAME_HOT=75000
+
+# The governors kept put back, and the flag taken down. Run more than once,
+# by the game's own request and by ExecStopPost, it does no more.
+game_undo() {
+    # Its own IFS: run by the trap below, it may run in the middle of a read
+    # with IFS= set for it.
+    local policy governor IFS=$' \t\n'
+    if [ -f "$GAME_RUN/governors" ]; then
+        while read -r policy governor; do
+            [[ "$policy" =~ ^policy[0-9]+$ && "$governor" =~ ^[a-z0-9_]+$ ]] || continue
+            echo "$governor" > "$CPUFREQ/$policy/scaling_governor" 2> /dev/null \
+                || echo "osdos-stop game: $policy's governor couldn't be put back to $governor" >&2
+        done < "$GAME_RUN/governors"
+    fi
+    rm -rf "${GAME_RUN:?}"
+}
+
+game() {
+    local line want words word network="" policy now kept=""
+    IFS= read -r -t 5 -n 64 line || [ -n "$line" ] || { refuse "nothing asked"; return; }
+    read -r -a words <<< "$line"
+    [ "${words[0]:-}" = start ] || { refuse "nothing this does"; return; }
+    want="${words[1]:-}"
+    [ "$want" = full-speed ] || [ "$want" = as-is ] || { refuse "nothing this does"; return; }
+    for word in "${words[@]:2}"; do
+        [ "$word" = network ] || { refuse "nothing this does"; return; }
+        network=1
+    done
+    # A game before this one that was never put back (its helper killed):
+    # put back first, so that what is kept is the system's own.
+    [ -d "$GAME_RUN" ] && game_undo
+    mkdir -p "$GAME_RUN" && : > "$GAME_FLAG" || { refuse "$GAME_RUN couldn't be written"; return; }
+    trap 'game_undo; exit 0' TERM INT HUP
+    game_look
+    now=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
+    if [ -z "$now" ]; then
+        kept="no CPU frequency scaling"
+    elif [ "$want" = as-is ]; then
+        kept="$now, as Settings asks"
+    elif [ -n "$GAME_TEMP" ] && [ "$GAME_TEMP" -ge "$GAME_HOT" ]; then
+        kept="$now, as the Pi was at $(game_degrees "$GAME_TEMP") at the start"
+    elif [ $((GAME_THROTTLED & 0xe)) -ne 0 ]; then
+        kept="$now, as the Pi was throttled at the start ($(printf '0x%x' "$GAME_THROTTLED"))"
+    else
+        for policy in "$CPUFREQ"/policy*; do
+            [ -w "$policy/scaling_governor" ] || continue
+            echo "${policy##*/} $(cat "$policy/scaling_governor")" >> "$GAME_RUN/governors"
+            echo performance > "$policy/scaling_governor" \
+                || echo "osdos-stop game: ${policy##*/} couldn't be set to performance" >&2
+        done
+    fi
+    GAME_GOVERNOR=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
+    if [ -n "$kept" ]; then
+        echo "osdos-stop game: the governor kept at $kept" >&2
+        echo "ok kept $kept"
+    else
+        echo "ok ${GAME_GOVERNOR:-performance}"
+    fi
+    # Then the game, until "end" or the connection's end (read fails).
+    while :; do
+        if IFS= read -r -t 2 -n 64 line; then
+            [ "$line" = end ] && break
+        elif [ $? -le 128 ]; then
+            break
+        fi
+    done
+    game_undo
+    trap - TERM INT HUP
+    echo "osdos-stop game: the game ended; the system is as it was" >&2
+}
+# What the Pi is at: GAME_TEMP (millidegrees, "" where there is no CPU
+# thermal zone) and GAME_THROTTLED, the firmware's get_throttled bits (0
+# where neither its file nor vcgencmd is there).
+THERMAL=/sys/class/thermal
+FIRMWARE=/sys/devices/platform
+game_look() {
+    local zone value
+    GAME_TEMP=""
+    for zone in "$THERMAL"/thermal_zone*; do
+        [ "$(cat "$zone/type" 2> /dev/null)" = cpu-thermal ] || continue
+        read -r GAME_TEMP < "$zone/temp" 2> /dev/null || GAME_TEMP=""
+        break
+    done
+    [[ "$GAME_TEMP" =~ ^[0-9]+$ ]] || GAME_TEMP=""
+    GAME_THROTTLED=0
+    for value in "$FIRMWARE"/soc*/*firmware/get_throttled; do
+        [ -r "$value" ] || continue
+        read -r value < "$value" 2> /dev/null
+        [[ "$value" =~ ^[0-9a-fA-F]+$ ]] && GAME_THROTTLED=$((16#$value))
+        return
+    done
+    if command -v vcgencmd > /dev/null; then
+        value=$(vcgencmd get_throttled 2> /dev/null)
+        value=${value#throttled=0x}
+        [[ "$value" =~ ^[0-9a-fA-F]+$ ]] && GAME_THROTTLED=$((16#$value))
+    fi
+}
+game_degrees() {
+    printf '%d.%d °C' $(($1 / 1000)) $((($1 % 1000) / 100))
+}
+
 MODE="${1:-}"
 case "$MODE" in
     next-start)     next_start;     exit 0 ;;
     wifi-country)   wifi_country;   exit 0 ;;
     device-name)    device_name;    exit 0 ;;
     system-setting) system_setting; exit 0 ;;
+    game)           game;           exit 0 ;;
 esac
+
+# The app's service stopped, or the app gone, mid-game: what the game's
+# request changed put back, should its own helper not have done it.
+[ -d "$GAME_RUN" ] && game_undo
 
 case "${EXIT_STATUS:-}" in
     0)  systemctl poweroff ;;  # Quit → Power Off, or Ctrl+Q
@@ -850,9 +976,11 @@ STOP_HELPER
     # Display Output's At Next Start (next-start: a preset's name, written for
     # the next start), Settings → Network → Wi-Fi's country (wifi-country: a
     # two-letter code, which raspi-config sets), Settings → System → About →
-    # System Information's Device Name (device-name) and Settings → System's
-    # Time Zone and Keyboard (system-setting: which, and its value). os/build.sh
-    # writes the image's units from these lines too.
+    # System Information's Device Name (device-name), Settings → System's
+    # Time Zone and Keyboard (system-setting: which, and its value) and an
+    # arcade game's CPU governor (game: held for the length of the game,
+    # everything put back as it ends). os/build.sh writes the image's units
+    # from these lines too.
     # ROOT_REQUESTS_BEGIN
     # name|osdos-stop's mode|what it sets|where in Settings
     ROOT_REQUESTS=(
@@ -860,6 +988,7 @@ STOP_HELPER
         "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
         "name|device-name|device name|Settings → System → System Information"
         "system|system-setting|time zone and keyboard|Settings → System"
+        "game|game|CPU governor for a game|Arcade"
     )
     # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is
     # the app's user's group.

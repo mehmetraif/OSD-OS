@@ -244,6 +244,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # osdos-name.socket.
     osdos_cpp_test(system_info SOURCES ../src/system/SystemInfo.cpp LIBRARIES osdos_test_system Qt6::Network)
 
+    # The system around an arcade game (GameSystem) against a stand-in for
+    # osdos-game.socket: what a game's start sends and its end, the
+    # connection held between, and nothing asked without the helper.
+    osdos_cpp_test(game_system SOURCES ../src/modules/arcade/GameSystem.cpp
+        LIBRARIES osdos_test_system osdos_test_core Qt6::Network)
+
     # Settings → System's Time Zone and Keyboard (SystemSettings): what the
     # system has from a stand-in root, the lists it offers, and a new one sent
     # through a stand-in for osdos-system.socket.
@@ -279,6 +285,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/Mame.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
+        ../src/modules/arcade/GameSystem.cpp
         ../src/modules/arcade/ProgramInstaller.cpp
         ../src/modules/arcade/RetroAchievements.cpp
         ../src/modules/arcade/RetroAchievementsAccount.cpp

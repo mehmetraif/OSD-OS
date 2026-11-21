@@ -64,7 +64,7 @@ check "the image's marker without its service: asked" "n||me|" "$(choose 'n\n')"
 
 # The helpers around the service (its "Optional: systemd autostart" block
 # past the service itself), with a stand-in sudo that runs nothing and says
-# what it was asked: the four sockets the app asks root through made for the
+# what it was asked: the five sockets the app asks root through made for the
 # service's user's group, and restarted, since one already listening keeps
 # the group it was made with (an install before, for another user) until it
 # is restarted.
@@ -81,8 +81,8 @@ grep -q 'osdos-system.socket' "$T/helpers.sh" \
     || { echo "FAIL: the service's helpers not found in $INSTALL_SH"; exit 1; }
 : > "$T/sudo"
 bash "$T/helpers.sh" < /dev/null > /dev/null 2>&1
-sockets="osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket"
-check "the request sockets are made for the service user's group" "4" \
+sockets="osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket osdos-game.socket"
+check "the request sockets are made for the service user's group" "5" \
       "$(grep -c "^sed -i s/@OSDOS_GROUP@/$(id -gn)/ /etc/systemd/system/osdos-.*\.socket$" "$T/sudo")"
 check "...and restarted after they are enabled, to take it" "enable $sockets|restart $sockets" \
       "$(grep -E "^systemctl (enable|restart) .*socket" "$T/sudo" | sed 's/^systemctl //' | paste -sd'|')"

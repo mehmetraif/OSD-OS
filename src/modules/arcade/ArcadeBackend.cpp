@@ -12,6 +12,7 @@
 #include "../../system/SystemLocale.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
+#include "GameSystem.h"
 #include "LanRooms.h"
 #include "ProgramInstaller.h"
 #include "Http.h"
@@ -334,6 +335,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
     connect(m_romCheck, &RomCheck::progressChanged, this, &ArcadeBackend::romCheckChanged);
     connect(m_romCheck, &RomCheck::done, this, &ArcadeBackend::romCheckDone);
     m_launcher->setHandoffOwner(QLatin1String(kHandoffOwner));
+    m_gameSystem = new GameSystem(m_appCore, this);
     connect(m_launcher, &ScriptLauncher::runningChanged, this, &ArcadeBackend::runningChanged);
     connect(m_launcher, &ScriptLauncher::finished, this, [this](int exitCode, const QString &launcherReason) {
         // A game may have left a snapshot of its own: read, not looked at,
@@ -392,6 +394,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         m_lan->stopClaims();
         m_lan->releaseClaimed();
         m_playing.clear();
+        m_gameSystem->ended();
         emit finished(exitCode, reason, notice);
         resumeMame();
     });
@@ -2639,6 +2642,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     m_playing = name;
     m_playingEngine = QStringLiteral("mame");
     m_playClock.start();
+    m_gameSystem->started(false);
     if (!m_played) {
         m_played = true;
         emit playedChanged();
@@ -3445,6 +3449,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     m_playingLanSync = launch.lanSync;
     m_playingRelay = launch.relay;
     m_playClock.start();
+    m_gameSystem->started(netplay != libretro::Launch::Netplay::None);
     stopCoins();
     if (launch.coinPort != 0) {
         m_coins = coins;

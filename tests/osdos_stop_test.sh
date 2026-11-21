@@ -30,7 +30,12 @@ awk -v marker=STOP_HELPER '
                       -e "s#^ZONES=/usr/share/zoneinfo\$#ZONES=$T/zoneinfo#" \
                       -e "s#^LAYOUTS=/usr/share/X11/xkb/symbols\$#LAYOUTS=$T/xkb#" \
                       -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
-                      -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/osdos-stop"
+                      -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" \
+                      -e "s#^GAME_RUN=/run/osdos-game\$#GAME_RUN=$T/run/osdos-game#" \
+                      -e "s#^GAME_FLAG=/run/osdos-game/playing\$#GAME_FLAG=$T/run/osdos-game/playing#" \
+                      -e "s#^CPUFREQ=/sys/devices/system/cpu/cpufreq\$#CPUFREQ=$T/cpufreq#" \
+                      -e "s#^THERMAL=/sys/class/thermal\$#THERMAL=$T/thermal#" \
+                      -e "s#^FIRMWARE=/sys/devices/platform\$#FIRMWARE=$T/platform#" > "$T/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/iso3166.tab" "$T/osdos-stop" || { echo "FAIL: osdos-stop's list of countries not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts not found in $INSTALL_SH"; exit 1; }
@@ -39,6 +44,9 @@ grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboa
 grep -q "^SHADOW=$T/etc/shadow\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/shadow not found in $INSTALL_SH"; exit 1; }
 # systemctl names the app's service's user as app-user has it, and fails a
 # command while <command>-fails is there (enable-fails, start-fails, ...).
+for v in GAME_RUN GAME_FLAG CPUFREQ THERMAL FIRMWARE; do
+    grep -q "^$v=$T/" "$T/osdos-stop" || { echo "FAIL: osdos-stop's $v not found in $INSTALL_SH"; exit 1; }
+done
 printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n[ "$1" != show ] || cat "%s/app-user" 2> /dev/null\n[ ! -e "%s/$1-fails" ]\n' \
     "$T" "$T" "$T" > "$T/bin/systemctl"
 # raspi-config says something of its own, which must stay out of the answer,
@@ -469,6 +477,127 @@ touch "$T/stop-fails"
 check "stop failing is a refusal" "it didn't stop" "$(ssh_setting 'ssh off')"
 rm "$T/stop-fails"
 check "after SSH, still no reboot" "" "$(grep -e reboot -e poweroff "$T/systemctl")"
+
+# An arcade game's CPU governor (osdos-stop game, through osdos-game.socket),
+# on a stand-in for the kernel's files: one CPU frequency policy, the CPU's
+# thermal zone and the firmware's throttling bits. The helper runs as the
+# socket runs it, its standard input the app's connection, held open for
+# the game (descriptor 7 here).
+mkdir -p "$T/cpufreq/policy0" "$T/thermal/thermal_zone0" "$T/platform/soc/soc:firmware"
+echo cpu-thermal > "$T/thermal/thermal_zone0/type"
+governor()  { cat "$T/cpufreq/policy0/scaling_governor"; }
+playing()   { [ -e "$T/run/osdos-game/playing" ] && echo up || echo down; }
+pi_is() {  # governor, temperature (millidegrees), get_throttled
+    echo "$1" > "$T/cpufreq/policy0/scaling_governor"
+    echo "$2" > "$T/thermal/thermal_zone0/temp"
+    echo "$3" > "$T/platform/soc/soc:firmware/get_throttled"
+}
+# The game started with the line given: the helper left running, its
+# answer (the first line it writes) printed once it has one.
+game_start() {
+    rm -f "$T/game-in" "$T/game-out"
+    mkfifo "$T/game-in"
+    : > "$T/game-out"
+    PATH="$T/bin:$PATH" "$T/osdos-stop" game < "$T/game-in" > "$T/game-out" 2> "$T/stderr" &
+    GAME_PID=$!
+    exec 7> "$T/game-in"
+    printf '%s\n' "$1" >&7
+    local i
+    for i in $(seq 100); do
+        grep -q . "$T/game-out" && break
+        sleep 0.05
+    done
+    head -n1 "$T/game-out"
+}
+# Its end: "end" sent, or the connection closed (the app gone), and the
+# helper waited for.
+game_end()   { printf 'end\n' >&7; exec 7>&-; wait "$GAME_PID"; }
+game_close() { exec 7>&-; wait "$GAME_PID"; }
+
+pi_is ondemand 52000 0
+game_start 'start full-speed' > "$T/answer"
+check "game: full speed asked, performance" "ok performance" "$(cat "$T/answer")"
+check "game: the governor at performance during it" performance "$(governor)"
+check "game: the flag up during it" up "$(playing)"
+check "game: the governor before it kept" "policy0 ondemand" "$(cat "$T/run/osdos-game/governors")"
+game_end
+check "game: its end answered is no failure" 0 "$?"
+check "game: the governor put back at its end" ondemand "$(governor)"
+check "game: the flag down at its end" down "$(playing)"
+
+game_start 'start full-speed network' > "$T/answer"
+check "game: a network game, performance" "ok performance" "$(cat "$T/answer")"
+game_close
+check "game: the app's connection closed, the governor put back" ondemand "$(governor)"
+check "game: ...and the flag down" down "$(playing)"
+
+game_start 'start as-is' > "$T/answer"
+check "game: full speed turned off in Settings" "ok kept ondemand, as Settings asks" "$(cat "$T/answer")"
+check "game: ...the governor as it was" ondemand "$(governor)"
+check "game: ...the flag up all the same" up "$(playing)"
+game_end
+check "game: ...and down after" down "$(playing)"
+
+pi_is schedutil 78000 0
+game_start 'start full-speed' > "$T/answer"
+check "game: a Pi already hot keeps its governor" "ok kept schedutil, as the Pi was at 78.0 °C at the start" \
+      "$(cat "$T/answer")"
+check "game: ...which stays as it was" schedutil "$(governor)"
+game_end
+check "game: ...and is said in the journal" \
+      "osdos-stop game: the governor kept at schedutil, as the Pi was at 78.0 °C at the start" "$(head -n1 "$T/stderr")"
+pi_is ondemand 50000 50005
+game_start 'start full-speed' > "$T/answer"
+check "game: a Pi throttled now keeps its governor" "ok kept ondemand, as the Pi was throttled at the start (0x50005)" \
+      "$(cat "$T/answer")"
+check "game: ...which stays as it was" ondemand "$(governor)"
+game_end
+pi_is ondemand 50000 50000
+game_start 'start full-speed' > "$T/answer"
+check "game: throttled earlier only, performance" "ok performance" "$(cat "$T/answer")"
+game_end
+check "game: ...put back" ondemand "$(governor)"
+
+# A helper stopped mid-game (the system going down) puts it back too.
+pi_is ondemand 50000 0
+game_start 'start full-speed' > /dev/null
+kill -TERM "$GAME_PID"
+wait "$GAME_PID"
+exec 7>&-
+check "game: its helper stopped, the governor put back" ondemand "$(governor)"
+check "game: ...and the flag down" down "$(playing)"
+# One killed outright leaves it to the app's service: osdos.service's
+# ExecStopPost (osdos-stop with the app's exit) puts it back.
+game_start 'start full-speed' > /dev/null
+kill -KILL "$GAME_PID"
+wait "$GAME_PID" 2> /dev/null
+exec 7>&-
+check "game: its helper killed, performance stays meanwhile" performance "$(governor)"
+on_exit 143
+check "game: the app's service stopped, the governor put back" ondemand "$(governor)"
+check "game: ...and the flag down" down "$(playing)"
+check "game: ...and the Pi left on" "" "$(asked)"
+# And what such a game left is put back before the next is kept.
+mkdir -p "$T/run/osdos-game"
+echo "policy0 schedutil" > "$T/run/osdos-game/governors"
+pi_is performance 50000 0
+game_start 'start full-speed' > "$T/answer"
+check "game: one left from before put back first" "ok performance" "$(cat "$T/answer")"
+check "game: ...the governor from before it kept" "policy0 schedutil" "$(cat "$T/run/osdos-game/governors")"
+game_end
+check "game: ...and put back" schedutil "$(governor)"
+
+# Only its own words: anything else changes nothing.
+pi_is ondemand 50000 0
+for bad in 'start' 'start fast' 'start full-speed wifi' 'start full-speed network;reboot' 'stop' \
+           'start ../governor' 'end' ' '; do
+    game_start "$bad" > "$T/answer"
+    check "game: '$bad' is refused" "nothing this does" "$(cat "$T/answer")"
+    game_close
+    check "game: '$bad': the governor as it was" ondemand "$(governor)"
+    check "game: '$bad': no flag" down "$(playing)"
+done
+check "game: nothing sent" "nothing asked" "$(PATH="$T/bin:$PATH" "$T/osdos-stop" game < /dev/null 2> /dev/null)"
 
 # Neither a stop from outside nor a crash touches anything.
 for code in 143 1 SEGV; do

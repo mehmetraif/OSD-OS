@@ -36,6 +36,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QUdpSocket;
 class ScriptLauncher;
+class GameSystem;
 class QTimer;
 
 // The Arcade module: the arcade games in its folder, played in MAME (the
@@ -1150,6 +1151,8 @@ private:
     mutable std::optional<QSet<QString>> m_fiveButtonSets;   // manyButtons()
     AppCore *m_appCore = nullptr;
     ScriptLauncher *m_launcher = nullptr;
+    // The system around a game: its CPU governor (GameSystem.h).
+    GameSystem *m_gameSystem = nullptr;
 
     // Settings.
     QString m_gamesFolder;

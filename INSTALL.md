@@ -283,13 +283,14 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
 1) If you installed the autostart service, stop and remove it first (stopping it from outside leaves the Pi on):
 
     ```bash
-    sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+    sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket osdos-game.socket
     sudo systemctl unmask getty@tty1.service autovt@.service
     sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
     sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
     sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
     sudo rm -f /etc/systemd/system/osdos-name.socket /etc/systemd/system/osdos-name@.service
     sudo rm -f /etc/systemd/system/osdos-system.socket /etc/systemd/system/osdos-system@.service
+    sudo rm -f /etc/systemd/system/osdos-game.socket /etc/systemd/system/osdos-game@.service
     sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
     sudo systemctl daemon-reload
     ```
