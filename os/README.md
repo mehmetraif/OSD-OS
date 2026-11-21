@@ -24,6 +24,7 @@ Compared with flashing Raspberry Pi OS Lite and running `scripts/install.sh` ([I
 - **A quiet boot.** There is no rainbow splash, no one-second firmware delay (`boot_delay=0`) and no kernel text, logo or cursor on `tty1`.
 - **Less running.** The image has:
   - no apt, man-db, e2scrub or dpkg-backup timers (they wake the SD card at random times, mid-movie included);
+  - no `fstrim.timer`, whose weekly trim of the card, caught up soon after a boot that missed it, can hold its writes for seconds as a game starts. To trim by hand: `sudo fstrim -av`;
   - no cron;
   - no Raspberry Pi Connect agent.
 
@@ -31,7 +32,7 @@ Compared with flashing Raspberry Pi OS Lite and running `scripts/install.sh` ([I
 - **The streaming modules' browser is included.** Chromium with Widevine and the `cage` kiosk compositor, for the Netflix and Prime Video modules, which open each service's own player full screen, and for YouTube's sign-in; `wtype` closes the browser cleanly when BACK is held. They add about 400 MB; build with `OSDOS_STREAMING=0` to leave them out.
 - **YouTube works out of the box.** The image has yt-dlp and Deno, the JavaScript runtime yt-dlp needs to play YouTube's videos ([its EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)).
   - yt-dlp is its latest nightly build, the channel its own README recommends: YouTube changes often, and a yt-dlp a few weeks old soon stops finding videos.
-  - It lives in the app's data directory (`~/.local/share/OSD-OS/bin/yt-dlp`), where the app looks first, and replaces itself with the newest build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`), while the YouTube module is on or a playlist has a YouTube video, and as the YouTube module opens. A check is one small request to GitHub. Without a connection within five minutes, it waits for the next run.
+  - It lives in the app's data directory (`~/.local/share/OSD-OS/bin/yt-dlp`), where the app looks first, and replaces itself with the newest build two minutes after each boot and once a day (`osdos-yt-dlp-update.timer`), while the YouTube module is on or a playlist has a YouTube video, and as the YouTube module opens; a run is skipped while an arcade game plays. A check is one small request to GitHub. Without a connection within five minutes, it waits for the next run.
   - ffmpeg comes with them, for the Playlists module's offline playlists: above 360p YouTube sends a video's picture and sound apart, and ffmpeg puts a download back together.
   - They add about 90 MB; build with `OSDOS_YOUTUBE=0` to leave them out.
 - **MAME for arcade games.** Debian's MAME (0.276) and its data, among which the hiscore plugin that keeps the games' high scores, for the Arcade module, which plays the ROM sets copied into `Games/Arcade` on the card's OSD-OS partition ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade)). They add about 450 MB with what they depend on.

@@ -181,7 +181,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) |
 | `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
 | `osdos-setup-app.service`, `osdos-setup.service` | Run only with an `osdos-setup.json` on the boot partition |
-| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day |
+| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, unless an arcade game plays |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
 | `osdos-media-folders.service` | Makes **Movies** on the film partition as it is mounted |
 | `osdos-netplay-priority.service` | Enabled. Marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](#wi-fi)) |
@@ -195,7 +195,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
 | `udisks2.service` | Masked |
-| `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled |
+| `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `fstrim.timer`, `cron.service` | Disabled. To trim the card by hand: `sudo fstrim -av` |
 | `rpi-connect-lite` | Purged |
 
 ### The service
@@ -508,7 +508,7 @@ systemctl is-active ssh              # active, or inactive
 While a game of the Arcade module plays in RetroArch or MAME, OSD/OS holds a connection to `osdos-game.socket` (`/run/osdos-game.sock`), behind which `osdos-stop game` runs as root for the length of the game:
 
 - **The CPU at full speed.** Each CPU frequency policy's governor is set to `performance`, and the one it had is kept in `/run/osdos-game/governors`. An emulator's load sits where the default governor moves the clock up and down, and a frame late on one machine is a wait or a rollback for all of them in a network game. The Arcade module's setting `cpu_full_speed`, `"Off"` in `config.json` (`modules.com.osdos.arcade`), turns it off. A Pi already at 75 °C or more, or throttled by its firmware as the game starts, keeps its governor, since the clock at full speed only brings its throttling sooner: the journal and OSD/OS's log say why (`CPU governor for the game kept at …`).
-- **The flag** `/run/osdos-game/playing`, there for the length of the game, which the system's own jobs can wait on.
+- **The flag** `/run/osdos-game/playing`, there for the length of the game: the yt-dlp update skips its run while it is there.
 - **What the Pi did during the game**, read every two seconds from the kernel's files (the CPU's temperature, its clock, and the firmware's throttling bits; every ten seconds through `vcgencmd` on a kernel without `get_throttled`), and in a network game on Wi-Fi the radio's scans and roams (`iw event`) with the band and the signal at the start and the end (`iw dev wlan0 link`). At the game's end OSD/OS's log has one line of it:
 
   ```
@@ -549,7 +549,7 @@ Settings → System → **Update** installs a newer release ([Installation → U
 The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt-dlp`. `osdos-yt-dlp-update.timer` replaces it with the newest build two minutes after each boot and once a day.
 
 - A run is skipped unless the YouTube module is on, or a playlist holds a YouTube video.
-- It is also skipped without a connection within five minutes.
+- It is also skipped without a connection within five minutes, and while an arcade game plays (`/run/osdos-game/playing`, [The game's socket](#the-games-socket)).
 - The YouTube module starts the update itself the first time it opens.
 - `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
 

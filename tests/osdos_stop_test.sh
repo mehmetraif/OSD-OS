@@ -711,6 +711,12 @@ check "game: ...the journal has it" \
       "osdos-stop game: the game ended, the system as it was: governor performance, clock 1800 MHz, throttling none, highest 50.0 °C" \
       "$(journal)"
 
+# The yt-dlp update waits on the flag the helper keeps, by its path.
+flag=$(sed -n 's/^GAME_FLAG=//p' "$INSTALL_SH")
+check "game: the yt-dlp update skips its run while the flag is up" \
+      "ExecCondition=/usr/bin/test ! -e $flag" \
+      "$(grep '^ExecCondition=/usr/bin/test' "$PRESETS/../../06-youtube/files/osdos-yt-dlp-update.service")"
+
 # Neither a stop from outside nor a crash touches anything.
 for code in 143 1 SEGV; do
     on_exit "$code"
