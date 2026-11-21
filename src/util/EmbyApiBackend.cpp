@@ -576,20 +576,13 @@ void EmbyApiBackend::load_items(const QString &parentId, const QString &includeT
 void EmbyApiBackend::loadList(void (EmbyApiBackend::*answer)(const QVariant &), const QString &keep,
                               const QUrl &url, const QString &failure,
                               std::function<QVariantList(const QByteArray &)> read) {
-    // Long enough to go into a film's detail screen and back, or play a
-    // trailer, short enough to show what was added on the server meanwhile.
-    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
-    constexpr int kListsKept = 6;
     const int request = ++m_listRequest;
     // Kept per server and user: a list of another's isn't theirs.
     const QString kept = keep.isEmpty() ? QString()
                                         : m_serverUrl + QLatin1Char(' ') + m_userId + QLatin1Char(' ') + keep;
-    const auto found = m_keptLists.constFind(kept);
-    if (!kept.isEmpty() && found != m_keptLists.constEnd()
-        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+    if (const auto found = m_keptLists.find(kept)) {
         // Told as a reply is: once the view that asked has done asking.
-        const QVariantList rows = found->rows;
-        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+        QTimer::singleShot(0, this, [this, request, answer, rows = *found]() {
             if (request == m_listRequest)
                 emit (this->*answer)(rows);
         });
@@ -611,13 +604,7 @@ void EmbyApiBackend::loadList(void (EmbyApiBackend::*answer)(const QVariant &), 
             if (request != m_listRequest)
                 return;
             const QVariantList rows = watcher->result();
-            if (!kept.isEmpty()) {
-                m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
-                m_keptOrder.removeAll(kept);
-                m_keptOrder.append(kept);
-                while (m_keptOrder.size() > kListsKept)
-                    m_keptLists.remove(m_keptOrder.takeFirst());
-            }
+            m_keptLists.keep(kept, rows);
             emit (this->*answer)(rows);
         });
         watcher->setFuture(QtConcurrent::run(read, reply->readAll()));
@@ -1325,7 +1312,6 @@ void EmbyApiBackend::report_playback_stopped(const QString &itemId, const QStrin
     // What was played is played, or partly, now: the lists kept show it as
     // it was.
     m_keptLists.clear();
-    m_keptOrder.clear();
 }
 
 // ---------------------------------------------------------------------------

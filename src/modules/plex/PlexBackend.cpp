@@ -956,20 +956,13 @@ void PlexBackend::sendQueuedGets() {
 void PlexBackend::loadList(void (PlexBackend::*answer)(const QVariant &), const QString &keep,
                            const QUrl &url, const QString &failure, std::function<void()> retry,
                            std::function<QVariantList(const QByteArray &)> read, bool flatten) {
-    // Long enough to go into a film's detail screen and back, or play a
-    // trailer, short enough to show what was added on the server meanwhile.
-    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
-    constexpr int kListsKept = 6;
     const int request = ++m_listRequest;
     // Kept per server and user, whose token it is: a list of another's isn't.
     const QString kept = keep.isEmpty() ? QString() : serverUrl() + QLatin1Char(' ') + serverToken()
                                                        + QLatin1Char(' ') + keep;
-    const auto found = m_keptLists.constFind(kept);
-    if (!kept.isEmpty() && found != m_keptLists.constEnd()
-        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+    if (const auto found = m_keptLists.find(kept)) {
         // Told as a reply is: once the view that asked has done asking.
-        const QVariantList rows = found->rows;
-        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+        QTimer::singleShot(0, this, [this, request, answer, rows = *found]() {
             if (request == m_listRequest)
                 emit (this->*answer)(rows);
         });
@@ -1001,13 +994,7 @@ void PlexBackend::loadList(void (PlexBackend::*answer)(const QVariant &), const 
             auto tell = [this, request, answer, kept](const QVariantList &rows) {
                 if (request != m_listRequest)
                     return;
-                if (!kept.isEmpty()) {
-                    m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
-                    m_keptOrder.removeAll(kept);
-                    m_keptOrder.append(kept);
-                    while (m_keptOrder.size() > kListsKept)
-                        m_keptLists.remove(m_keptOrder.takeFirst());
-                }
+                m_keptLists.keep(kept, rows);
                 emit (this->*answer)(rows);
             };
             if (flatten)
@@ -2849,7 +2836,6 @@ void PlexBackend::update_timeline(const QString &ratingKey, const QString &partK
     // it was.
     if (state == QLatin1String("stopped")) {
         m_keptLists.clear();
-        m_keptOrder.clear();
     }
 }
 

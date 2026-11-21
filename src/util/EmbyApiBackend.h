@@ -13,6 +13,7 @@
 #include <functional>
 
 #include "../modules/playlists/MediaServer.h"
+#include "KeptLists.h"
 
 class AppCore;
 
@@ -189,7 +190,7 @@ protected:
     // last, the user having moved on: a reply to an older one is dropped, not
     // shown in the view after it. read makes the rows of the reply, away from
     // the screen's thread (a whole library is megabytes of JSON). A list given
-    // a keep key is kept a while (kListKeepMs), so going back to it (from a
+    // a keep key is kept a while (KeptLists), so going back to it (from a
     // film's detail screen) shows it without asking the server again; a
     // playback ending forgets them all, its played state having changed.
     void loadList(void (EmbyApiBackend::*answer)(const QVariant &), const QString &keep,
@@ -280,9 +281,7 @@ protected:
     int m_episodesRequest = 0;
     int m_nextUpRequest = 0;
 
-    struct KeptList { QVariantList rows; qint64 at = 0; };
-    QHash<QString, KeptList> m_keptLists;
-    QStringList m_keptOrder;    // oldest first
+    KeptLists m_keptLists;
     int m_listRequest = 0;
 
 private:

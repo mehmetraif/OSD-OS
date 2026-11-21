@@ -10,6 +10,7 @@
 #include <QHash>
 #include <functional>
 #include <openssl/evp.h>
+#include "../../util/KeptLists.h"
 
 class AppCore;
 
@@ -255,16 +256,14 @@ private:
     // shown in the view after it. read makes the rows of the reply, away from
     // the screen's thread (a whole library is megabytes of JSON); flatten
     // expands the seasons among them. retry asks again after a token refresh
-    // (498). A list given a keep key is kept a while (kListKeepMs), so going
+    // (498). A list given a keep key is kept a while (KeptLists), so going
     // back to it (from a film's detail screen) shows it without asking the
     // server again; a playback ending forgets them all, its watched state
     // having changed.
     void loadList(void (PlexBackend::*answer)(const QVariant &), const QString &keep,
                   const QUrl &url, const QString &failure, std::function<void()> retry,
                   std::function<QVariantList(const QByteArray &)> read, bool flatten);
-    struct KeptList { QVariantList rows; qint64 at = 0; };
-    QHash<QString, KeptList> m_keptLists;
-    QStringList m_keptOrder;    // oldest first
+    KeptLists m_keptLists;
     int m_listRequest = 0;
     // The stream asked for last (request_transcode, build_stream_url,
     // tune_channel): one answering after another was asked for, or after

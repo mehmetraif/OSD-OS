@@ -566,6 +566,27 @@ private slots:
         const QJsonObject films{ { "key", "1" }, { "title", "Films" }, { "type", "movie" } };
         librariesSayWhyThereAreNone(backend, network, plexContainer({ { "Directory", QJsonArray{ films } } }));
     }
+    // The lists the three backends keep: a while, the last six, the oldest
+    // going first, and never one without a key.
+    void keptListsKeepTheLastFewAWhile() {
+        KeptLists kept;
+        const QVariantList rows{ QStringLiteral("Film") };
+        kept.keep(QString(), rows, 0);
+        QVERIFY(!kept.find(QString(), 0));
+        kept.keep(QStringLiteral("a"), rows, 0);
+        QCOMPARE(kept.find(QStringLiteral("a"), KeptLists::kKeepMs - 1), rows);
+        QVERIFY(!kept.find(QStringLiteral("a"), KeptLists::kKeepMs));
+        for (int i = 1; i <= KeptLists::kKept; ++i)
+            kept.keep(QString::number(i), rows, 0);
+        QVERIFY(!kept.find(QStringLiteral("a"), 0));
+        QVERIFY(kept.find(QStringLiteral("1"), 0));
+        kept.keep(QStringLiteral("1"), rows, 0);    // kept again: the newest now
+        kept.keep(QStringLiteral("b"), rows, 0);
+        QVERIFY(kept.find(QStringLiteral("1"), 0));
+        QVERIFY(!kept.find(QStringLiteral("2"), 0));
+        kept.clear();
+        QVERIFY(!kept.find(QStringLiteral("1"), 0));
+    }
     // A Plex library's menu asks the server one thing: whether the section
     // has hubs, which is what RECOMMENDED is offered on.
     void plexLibraryMenuAsksForHubsOnly() {
