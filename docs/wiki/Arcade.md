@@ -511,11 +511,11 @@ The High Scores module shows MAME's tables only: a game played in FinalBurn Neo 
 
 FinalBurn Neo comes with OSD/OS on every system, built from one commit of it. RetroArch and MAME are the OSD/OS image's versions ([The same engines on every machine](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#the-same-engines-on-every-machine)).
 
-**Settings → Arcade → FinalBurn Neo** shows RetroArch, the core, and how many games its list has.
+**Settings → Arcade → FinalBurn Neo** opens on the core's download, the cursor on it, then shows RetroArch, the core, and how many games its list has.
 
 - The core reads **With OSD/OS**, **Latest** after an upgrade, or **Installed**. Its line names the commit and date OSD/OS brought, as `77016b4 (261108)`.
 - **Upgrade to Latest** fetches the core libretro builds every night, about 35 MB, into `arcade/retroarch` in the data folder. Machines playing together need the same core, so play with others on OSD/OS's.
-- **Download Latest Again** fetches a newer one. **Back to OSD/OS's Version** deletes it. Core options, remap files, saves and save states stay.
+- **Download Latest Again** fetches a newer one. **Back to OSD/OS's Version**, under it, deletes it once you answer **Go Back** to "Go back to OSD/OS's version? The download is deleted" (**Cancel** is under the cursor). Core options, remap files, saves and save states stay.
 - The BSDs have no such row. A build of OSD/OS from source without the core has **Download** instead.
 - A download that brings nothing for a minute, or grows past 64 MB, is given up.
 

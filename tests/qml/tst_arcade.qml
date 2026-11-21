@@ -245,6 +245,9 @@ StandInRoot {
         }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        // Back to OSD/OS's Version, as many times as it was asked for.
+        property int ownFbneos: 0
+        function useOwnFbneo() { ownFbneos++ }
         function downloadRetroArch() {
             retroarchDownloads++; retroarchDownloading = true; retroarchProgress = 35; fbneoChanged()
         }
@@ -518,6 +521,7 @@ StandInRoot {
             arcadeBackend.fbneoProgress = 0
             arcadeBackend.fbneoMessage = ""
             arcadeBackend.downloads = 0
+            arcadeBackend.ownFbneos = 0
             arcadeBackend.retroarchDownloading = false
             arcadeBackend.retroarchProgress = 0
             arcadeBackend.retroarchMessage = ""
@@ -1238,15 +1242,18 @@ StandInRoot {
         }
 
         // FinalBurn Neo's page: RetroArch there, the core not; Download
-        // starts it and shows how far it has got; once it is in, the core's
-        // date and its games, its licence left to About.
+        // first, the cursor on it, starts it and shows how far it has got;
+        // once it is in, the core's date and its games, its license left to
+        // About.
         function test_fbneoPage() {
             var page = open("Fbneo.qml")
             verify(findText(page, "Not Installed") !== null)
             verify(findText(page, "Download", true) !== null)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
+            compare(page.keys, ["download", "retroarch", "core", "games"])
+            compare(page.currentKey, "download")
+            // One spelling, the labels' (LICENSE), in the help line too.
+            verify(findText(page, "its license (some 35 MB)") !== null)
+            compare(findText(page, "licence"), null)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.downloads, 1)
             tryVerify(function() { return findText(page, "40%") !== null }, 1000)
@@ -1261,8 +1268,41 @@ StandInRoot {
             tryVerify(function() { return findText(page, "Downloaded 2026-10-17") !== null }, 1000)
             verify(findText(page, "9123") !== null)
             verify(findText(page, "Download Again") !== null)
-            compare(page.keys, ["retroarch", "core", "games", "download"])
+            compare(page.keys, ["download", "retroarch", "core", "games"])
             compare(findText(page, "freely use, modify"), null)
+
+            // The latest downloaded over OSD/OS's own: Back to OSD/OS's
+            // Version under Download, which asks first, Cancel under the
+            // cursor; Cancel and back keep the download, Go Back goes back.
+            arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "/data/arcade/retroarch/cores/fbneo_libretro.so",
+                                    coreDate: "2026-10-17", latest: true, hasPackaged: true, version: "1.0.0.03",
+                                    games: 9123, canDownload: true, retroarchDownloadVersion: "1.20.0" }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return JSON.stringify(page.keys)
+                                   === JSON.stringify(["download", "own", "retroarch", "core", "games"]) }, 1000)
+            page.currentIndex = 1
+            var question = findChild(page, "question")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            verify(findText(question, "Go back to OSD/OS's version?") !== null)
+            verify(findText(question, "The download is deleted") !== null)
+            compare(question.choiceIndex, 0)
+            compare(question.choices.map(function(c) { return c.label }), ["Cancel", "Go Back"])
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.ownFbneos, 0)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.ownFbneos, 0)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.ownFbneos, 1)
+            page.currentIndex = 0
 
             // On Windows without RetroArch: Download RetroArch under
             // RetroArch's line, select starting it and the line saying how
@@ -1274,12 +1314,12 @@ StandInRoot {
                                     canDownload: true, canDownloadRetroarch: true, retroarchDownloadVersion: "1.20.0",
                                     retroarchDownloaded: false }
             arcadeBackend.fbneoChanged()
-            tryVerify(function() { return keysAre(["retroarch", "retroarch_download", "core", "games", "download"]) }, 1000)
+            tryVerify(function() { return keysAre(["download", "retroarch", "retroarch_download", "core", "games"]) }, 1000)
             verify(findText(page, "Download RetroArch") !== null)
-            // The cursor stayed on Download: up to the new line.
-            keyClick(Qt.Key_Up)
-            keyClick(Qt.Key_Up)
-            keyClick(Qt.Key_Up)
+            // The cursor stayed on Download: down to the new line.
+            compare(page.currentKey, "download")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.retroarchDownloads, 1)
             tryVerify(function() { return findText(page, "35%") !== null }, 1000)
@@ -1302,7 +1342,7 @@ StandInRoot {
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: true,
                                     retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
             arcadeBackend.fbneoChanged()
-            tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
+            tryVerify(function() { return keysAre(["download", "retroarch", "core", "games"]) }, 1000)
             verify(findText(page, "Installed") !== null)
             // The package's own (the Linux arm64 one's, built with TLS):
             // said so, with what it is for in place of its path.
@@ -1311,6 +1351,7 @@ StandInRoot {
                                     retroarchDownloadVersion: "", retroarchDownloaded: false, retroarchPackaged: true }
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return findText(page, "With OSD/OS") !== null }, 1000)
+            page.currentIndex = page.keys.indexOf("retroarch")
             verify(findText(page, "over https") !== null)
             verify(findText(page, "/opt/osdos/lib/osdos/retroarch") === null)
 
