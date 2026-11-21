@@ -2,7 +2,7 @@ import QtQuick
 import Components
 
 // Something set for a game, from its options, chosen among its settings: a
-// vertical game's Monitor, a MAME game's Difficulty, the Engine that plays
+// vertical game's turn (Vertical Games), a MAME game's Difficulty, the Engine that plays
 // it (Auto, which names the engine it picks, MAME, or FinalBurn Neo for a
 // set it has: ArcadeBackend's engineChoices()). The host says where the
 // settings come from (choicesFor(game): [{ id, label, current }], the
@@ -47,12 +47,16 @@ ChoiceOverlay {
         open()
         choiceIndex = current
     }
+    // Whether the options' line leaves out what a setting's name says in
+    // brackets ("Default (Horizontal)" as Default), for a long name that
+    // would be cut there; the choices still say it.
+    property bool shortLine: false
     // As the options' line names it, the one in force after the name.
     function lineFor(game) {
         var list = choicesFor(game)
         for (var i = 0; i < list.length; i++) {
             if (list[i].current)
-                return name + ": " + list[i].label
+                return name + ": " + (shortLine ? String(list[i].label).replace(/ \(.*\)$/, "") : list[i].label)
         }
         return name
     }

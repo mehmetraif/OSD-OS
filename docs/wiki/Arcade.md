@@ -80,7 +80,7 @@ Right on a game opens its options; on the Arcade screen, hold select.
 | Option | What it does |
 |---|---|
 | **Game Details** | The game's page ([Game Details](#game-details)) |
-| **Monitor** | For a vertical game, while Settings → Screen → Monitor isn't turned: **Turned Right**, **Turned Left** or **Default** ([A monitor on its side](#a-monitor-on-its-side-tate)) |
+| **Vertical Games** | For a vertical game, while Settings → Screen → Monitor isn't turned: **Turned Right**, **Turned Left** or **Default**, as Settings → Arcade → Emulator Video → Vertical Games is ([A monitor on its side](#a-monitor-on-its-side-tate)) |
 | **Difficulty** | For a game MAME plays whose board has a difficulty DIP switch ([Difficulty](#difficulty)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off; 100 at most |
 | **Engine** | For a game both MAME and FinalBurn Neo have: **Auto**, **MAME** or **FinalBurn Neo** ([FinalBurn Neo](#finalburn-neo)) |
@@ -349,7 +349,7 @@ Three settings turn the picture for a monitor on its side. **Turned Right** has 
 |---|---|
 | Stays turned | **Settings → Screen → Monitor** |
 | Is turned for vertical games | **Settings → Arcade → Emulator Video → Vertical Games**: only the vertical games are turned |
-| Is turned for one game | **Monitor** in the game's options, which goes before Vertical Games |
+| Is turned for one game | **Vertical Games** in the game's options, which goes before Settings → Arcade → Emulator Video → Vertical Games |
 
 With Settings → Screen → Monitor turned:
 
@@ -621,7 +621,7 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | `screen_adjustment` | How far each side is moved out (in, below 0), in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }` |
 | `online_name` | The name, `""` for the default |
 | `engines` | Each game's Engine, by set, except Auto: `{ "sf2": "fbneo", "mslug": "mame" }` |
-| `monitors` | Each game's Monitor, by set, except Default: `{ "galaga": "Turned Right" }` |
+| `monitors` | Each game's Vertical Games option, by set, except Default: `{ "galaga": "Turned Right" }` |
 | `difficulties` | Each game's Difficulty, by set, as MAME names the setting: `{ "dkong": "Hard" }` |
 | Any other key | The option's text, as the tables have it: `"3D Curved"`, `"1 Minute"`, `"São Paulo"` |
 

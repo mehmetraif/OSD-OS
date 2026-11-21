@@ -91,7 +91,11 @@ Item {
     GameChoice {
         id: monitor
         anchors.fill: parent
-        name: "Monitor"
+        // Settings → Arcade → Emulator Video's name for the same three
+        // turns, its value this option's Default.
+        name: "Vertical Games"
+        // "Vertical Games: Default" on the options, which fits the line.
+        shortLine: true
         choicesFor: function(game) { return arcadeBackend ? arcadeBackend.monitorChoices(game) : [] }
         keep: function(game, id) { if (arcadeBackend) arcadeBackend.setMonitor(game, id) }
         onChosen: gameOptions.settingKept()

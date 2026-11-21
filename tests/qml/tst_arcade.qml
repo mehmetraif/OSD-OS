@@ -1212,7 +1212,7 @@ StandInRoot {
             tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             compare(screen.currentSet, "sf2")
-            compare(findText(screen, "Monitor:"), null)      // not vertical
+            compare(findText(screen, "Vertical Games:"), null)      // not vertical
             compare(findText(screen, "Difficulty:"), null)   // no switch
             keyClick(Qt.Key_Escape)
             keyClick(Qt.Key_Down)
@@ -1234,7 +1234,11 @@ StandInRoot {
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
             keyRelease(Qt.Key_Return)
-            verify(findText(screen, "Monitor: Default (Horizontal)") !== null)
+            // The game's turn under the name Emulator Video gives the same
+            // three, its line whole.
+            verify(findText(screen, "Vertical Games: Default", true) !== null)
+            verify(!findText(screen, "Vertical Games: Default", true).truncated)
+            compare(findText(screen, "Monitor:"), null)
             // The last of them, round from Play: Difficulty, then Monitor.
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
@@ -1255,7 +1259,7 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.monitors["1942"], "Turned Left")
             keyPress(Qt.Key_Return)
-            tryVerify(function() { return findText(screen, "Monitor: Turned Left") !== null }, 1500)
+            tryVerify(function() { return findText(screen, "Vertical Games: Turned Left") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             keyClick(Qt.Key_Escape)
             compare(root.navigations.length, 0)
@@ -1875,8 +1879,9 @@ StandInRoot {
             keyClick(Qt.Key_Right)  // into it, on Galaga
             keyClick(Qt.Key_Right)  // its options
             verify(findText(games, "Game Details", true) !== null)
-            // A vertical game's monitor among what is set for it.
-            verify(findText(games, "Monitor: Default (Horizontal)", true) !== null)
+            // A vertical game's turn among what is set for it, under the
+            // name Emulator Video gives it, the default whole on its line.
+            verify(findText(games, "Vertical Games: Default", true) !== null)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Details.qml")
