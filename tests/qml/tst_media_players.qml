@@ -531,6 +531,7 @@ StandInRoot {
             root.takeBackNote = ({})
             appCore.settings = {}
             appCore.schema = []
+            TypedFields.clear()
             appCore.lists = {}
             root.hints = root.keyboardHints
             mpvController.loads = 0
@@ -1982,6 +1983,60 @@ StandInRoot {
             compare(auth.focusIndex, 4)
             keyClick(Qt.Key_Return)
             compare(embyBackend.signIns, [["direct", "http://10.0.0.2:8096", "Ann", "p[w]\\\""]])
+        }
+
+        // Emby's and Jellyfin's sign-in forms keep what was typed: back from
+        // the form and in again finds the server's address and the user
+        // name as they were, never the password; the method chosen too.
+        function test_signInFormKeepsWhatWasTyped() {
+            var auth = open("emby", "Auth.qml", {})
+            compare(auth.serverUrl, "")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            typeOn(keyboard, "10.0.0.2:8096")
+            okOn(keyboard)
+            keyClick(Qt.Key_Return)
+            typeOn(keyboard, "Ann")
+            okOn(keyboard)
+            keyClick(Qt.Key_Return)
+            typeOn(keyboard, "pw")
+            okOn(keyboard)
+            compare([auth.serverUrl, auth.username, auth.password], ["http://10.0.0.2:8096", "Ann", "pw"])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            auth = open("emby", "Auth.qml", {})
+            compare([auth.serverUrl, auth.username, auth.password], ["http://10.0.0.2:8096", "Ann", ""])
+            // Emby Connect chosen, kept too.
+            auth.setMethod(1)
+            auth = open("emby", "Auth.qml", {})
+            compare(auth.method, 1)
+
+            var jelly = open("jellyfin", "Auth.qml", {})
+            compare(jelly.serverUrl, "")
+            keyClick(Qt.Key_Return)
+            typeOn(keyboardOf(jelly), "10.0.0.3:8096")
+            okOn(keyboardOf(jelly))
+            jelly = open("jellyfin", "Auth.qml", {})
+            compare(jelly.serverUrl, "http://10.0.0.3:8096")
+        }
+
+        // The two forms' lists go round their ends, as every list does.
+        function test_signInFormWraps() {
+            var auth = open("emby", "Auth.qml", {})
+            keyClick(Qt.Key_Up)
+            compare(auth.focusIndex, auth.idxSubmit)
+            keyClick(Qt.Key_Down)
+            compare(auth.focusIndex, auth.idxMethod)
+            var jelly = open("jellyfin", "Auth.qml", {})
+            compare(jelly.focusIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(jelly.focusIndex, 1)
+            keyClick(Qt.Key_Down)
+            compare(jelly.focusIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(jelly.focusIndex, 0)
         }
 
         // The keyboard's signs: every one a keyboard has, SHIFT changing the

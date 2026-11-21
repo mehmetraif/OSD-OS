@@ -16,9 +16,13 @@ FocusScope {
     signal goBack()
 
     // The address typed before a Quick Connect that failed (back from it
-    // returns here with it), else the one saved.
+    // returns here with it), else the one typed here before while the app
+    // runs (TypedFields), else the one saved.
+    readonly property var kept: TypedFields.get(moduleRoot.moduleId)
     property string serverUrl: (navParams.navListState && navParams.navListState.serverUrl)
-                               || appCore.get_setting(moduleRoot.moduleId, "server_url") || ""
+                               || (kept.server !== undefined ? kept.server
+                                   : (appCore.get_setting(moduleRoot.moduleId, "server_url") || ""))
+    onServerUrlChanged: TypedFields.keep(moduleRoot.moduleId, { server: serverUrl })
     property bool waiting: false
     property string errorMsg: ""
 
@@ -77,11 +81,10 @@ FocusScope {
             event.accepted = true
             return
         }
-        if (event.key === Qt.Key_Up) {
-            if (focusIndex > 0) focusIndex--
-            event.accepted = true
-        } else if (event.key === Qt.Key_Down) {
-            if (focusIndex < 1) focusIndex++
+        // Round the ends, as every list does.
+        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+            focusIndex = 1 - focusIndex
+            refocus()
             event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             // On the address, the on-screen keyboard, for a remote or a pad

@@ -50,6 +50,7 @@ MpvKeys 1.0 MpvKeys.js
 Hints 1.0 Hints.js
 Episodes 1.0 Episodes.js
 EntryFavorites 1.0 EntryFavorites.js
+TypedFields 1.0 TypedFields.js
 ModuleRouter ModuleRouter.qml
 MediaServerLibraries MediaServerLibraries.qml
 MediaServerItems MediaServerItems.qml

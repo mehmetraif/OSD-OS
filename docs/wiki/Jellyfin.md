@@ -21,7 +21,7 @@ The Jellyfin module plays films, series and home videos from a [Jellyfin](https:
 ## Signing in with Quick Connect
 
 1. Open **Jellyfin** from the main menu. **Connect to Server** has a **Server URL** field and a **Quick Connect** button.
-2. Select on the field opens the on-screen keyboard. Enter the server's address with its port, as `http://192.168.1.20:8096`. OK goes on to **Quick Connect**.
+2. ▲ ▼ go between the field and the button, round the ends. Select on the field opens the on-screen keyboard. Enter the server's address with its port, as `http://192.168.1.20:8096`. OK goes on to **Quick Connect**.
 3. Select on **Quick Connect**. The code fills the screen, with **Enter the above code at:** and an address ending `/web/#quickconnect`.
 4. On your other device, open that address, enter the code and authorize it.
 5. The screen reads **Approved** and the libraries open.
@@ -55,7 +55,7 @@ Type the server's address in Settings → TV / Movie → **JELLYFIN** → **Serv
 ```
 
 - Merge it into the `modules` part of the file you have.
-- **Connect to Server** then opens with the address filled in, and select starts Quick Connect.
+- **Connect to Server** then opens with the address filled in, and select starts Quick Connect. An address typed there is kept too, until OSD/OS quits, whether or not it signed in.
 - On the image: `sudo systemctl stop osdos` before editing, `sudo systemctl start osdos` after.
 - Check the file with `python3 -m json.tool ~/.local/share/OSD-OS/config.json`. A file that isn't valid JSON is read as empty.
 

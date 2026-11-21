@@ -1048,6 +1048,10 @@ A video that couldn't be played, as a `PromptScreen` notice: **Playback failed**
 
 The keys a player's view sends on to mpv as its video plays, one table for every player (a `.pragma library` in `qmldir`, so `import Components` brings it): `MpvKeys.name(event.key)` is mpv's name for a key, as `mpvController.sendKey()` takes it (Esc and a remote's Back `ESC`, Backspace `BS`, the arrows, Space, Return and Enter `ENTER`), or `""` for one the view keeps or lets go on to `Main.qml`. `name(event.key, true)` adds the channel keys and the page keys, `CHANNEL_UP` and `CHANNEL_DOWN`, which step a playlist in mpv (`mpv-media-keys.lua`): the Playlists player asks for them and sends them once per press (`isChannel()`); Local Files' player steps through the folder with them itself.
 
+### TypedFields (`views/Components/TypedFields.js`)
+
+What was typed on Jellyfin's and Emby's Connect to Server forms, kept while the app runs (a `.pragma library` in `qmldir`, as `MpvKeys` is): `TypedFields.get(moduleId)` and `TypedFields.keep(moduleId, { server, user, method })`, so that back from the form and in again finds it as it was left. Never a password, and never written to disk: the address signed in at is the module's own `server_url`.
+
 ### Hints (`views/Components/Hints.js`)
 
 The keys as every view takes and names them, a `.pragma library` in `qmldir` as `MpvKeys` is, behind `Main.qml`'s own two (and `StandInRoot`'s, in the tests): `root.isBack(event)`, whether a key is back (Esc, as a pad's back comes too, Backspace, or a remote's Back), and `root.hintLine(parts)`, a hint bar's line from `root.hints`, each part a hint's name and what the key does (`"back:BACK"`), a part `""` left out, the parts a space apart. A binding on `root.hintLine()` follows the hints from the keyboard's to a pad's.

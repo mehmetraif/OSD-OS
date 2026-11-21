@@ -31,6 +31,8 @@ Open **Emby** from the main menu. **Connect to Server** starts with **LOCAL SERV
 - ▲ ▼ (or Tab and Shift+Tab) move from row to row. Esc leaves the screen.
 - Select on a field opens the on-screen keyboard. For the password, **SHOW** shows what was typed and **HIDE** hides it.
 - OK goes on to the next field, then to **Sign In**. Select there signs in.
+- The rows go round: ▲ on the first goes to **Sign In**, ▼ there back to the first.
+- Back from the form and in again finds what you typed (the address, the user name, the method chosen) until OSD/OS quits. The password is typed again.
 
 ### Local Server
 

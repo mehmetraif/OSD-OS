@@ -19,9 +19,16 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
-    property string serverUrl: appCore.get_setting(moduleRoot.moduleId, "server_url") || ""
-    property string username: ""
+    // What was typed here before, while the app runs (TypedFields), else the
+    // address signed in at last. The password is always typed again.
+    readonly property var kept: TypedFields.get(moduleRoot.moduleId)
+    property string serverUrl: kept.server !== undefined ? kept.server
+                               : (appCore.get_setting(moduleRoot.moduleId, "server_url") || "")
+    property string username: kept.user || ""
     property string password: ""
+    onServerUrlChanged: TypedFields.keep(moduleRoot.moduleId, { server: serverUrl })
+    onUsernameChanged: TypedFields.keep(moduleRoot.moduleId, { user: username })
+    onMethodChanged: TypedFields.keep(moduleRoot.moduleId, { method: method })
     property bool waiting: false
     property string errorMsg: ""
 
@@ -31,7 +38,7 @@ FocusScope {
     // server URL at all (connect_authenticate ignores it — the server is
     // resolved from the account). Asking for credentials before the method is
     // known meant the field could only be labelled for one of the two.
-    property int method: 0   // 0 = Direct to Server, 1 = Emby Connect
+    property int method: kept.method === 1 ? 1 : 0   // 0 = Your Server, 1 = Emby Connect
 
     // Focus order, which shifts because Connect drops the server URL row:
     //   Direct : 0 method, 1 server URL, 2 username, 3 password, 4 Sign In
