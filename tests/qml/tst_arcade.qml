@@ -1131,6 +1131,25 @@ StandInRoot {
             compare(findText(screen, "Engine:"), null)
         }
 
+        // A game's options act on the game they were opened for, though the
+        // list moves under them (the folder read again): Play, Game Details
+        // and what is set for it.
+        function test_screenOptionsKeepTheirGame() {
+            arcadeBackend.difficultySettings = { "sf2": ["Normal", "Easy", "Hard"] }
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(screen.currentSet, "sf2")
+            screen.selected = 1
+            compare(screen.currentSet, "1942")
+            verify(findText(screen, "Difficulty: Normal") !== null)
+            keyClick(Qt.Key_Return)     // Play
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.title, "Street Fighter II: The World Warrior (World 910522)")
+        }
+
         // A game's options: Play first, a line the cursor passes over, then
         // what is set for it: a vertical game's monitor, which it is played
         // and hosted with, and a MAME game's difficulty from its DIP switch,

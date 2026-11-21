@@ -207,7 +207,7 @@ FocusScope {
     // What stands in the way of the list comes first.
     HelpLine {
         id: infoLine
-        visible: !tree.rootEmpty && !osk.visible && !options.visible
+        visible: !tree.rootEmpty && !osk.visible && !options.menuUp
         readonly property var entry: tree.currentEntry
         text: gamesRoot.problem !== "" ? gamesRoot.problemLine
               : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message" || entry.kind === "lobby")
@@ -219,7 +219,7 @@ FocusScope {
 
     // Footer
     HintBar {
-        visible: !osk.visible && !options.visible
+        visible: !osk.visible && !options.menuUp
         // Select opens a folder and plays a game, and right on a game offers
         // its options rather than moving.
         readonly property var entry: tree.currentEntry
@@ -249,74 +249,21 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
-    // A game's options, those that start it first (starts: a ▶ before each,
-    // a line under them): with Online Play or LAN Play on, hosting it; then
-    // its Game Details (Details.qml), a vertical game's monitor (while
-    // Settings → Screen → Monitor isn't turned), which it is played and
-    // hosted with, its difficulty where MAME plays it with a DIP switch for
-    // it, and its engine where MAME and FinalBurn Neo both have it.
-    property int engineRevision: 0
-    readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
-                                         ? String(options.entry.path).substring(5) : ""
-    EntryOptions {
+    // A game's options, Game Details first, for the game they were opened
+    // for.
+    GameOptions {
         id: options
         anchors.fill: parent
-        moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Game Details", action: "details" }]
-        moreChoices: (gamesRoot.engineRevision,
-                      (monitor.offered(gamesRoot.optionsSet)
-                       ? [{ label: monitor.lineFor(gamesRoot.optionsSet), action: "monitor" }] : [])
-                      .concat(difficulty.offered(gamesRoot.optionsSet)
-                       ? [{ label: difficulty.lineFor(gamesRoot.optionsSet), action: "difficulty" }] : [])
-                      .concat(engines.offered(gamesRoot.optionsSet)
-                       ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
-                              ? [{ label: "Host Online Game", action: "host", starts: true }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHostLan(gamesRoot.optionsSet)
-                              ? [{ label: "Host LAN Game", action: "hostLan", starts: true }] : []))
         onActivated: function(action) {
             if (action === "details")
-                gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
+                gamesRoot.navigateTo("Details.qml", { game: options.set, title: options.title },
                                      { trail: tree.trailState() })
-            else if (action === "monitor")
-                monitor.offer(gamesRoot.optionsSet, options.entry.name)
-            else if (action === "difficulty")
-                difficulty.offer(gamesRoot.optionsSet, options.entry.name)
-            else if (action === "engine")
-                engines.offer(gamesRoot.optionsSet, options.entry.name)
             else if (action === "host" || action === "hostLan")
-                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(),
+                gamesRoot.play({ game: options.set, name: options.title }, tree.trailState(),
                                { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: tree.refresh("favorites")
-        onClosed: if (!engines.visible && !difficulty.visible && !monitor.visible) tree.forceActiveFocus()
-    }
-    GameChoice {
-        id: monitor
-        anchors.fill: parent
-        name: "Monitor"
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.monitorChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setMonitor(game, id) }
-        onChosen: gamesRoot.engineRevision++
-        onClosed: tree.forceActiveFocus()
-    }
-    GameChoice {
-        id: difficulty
-        anchors.fill: parent
-        name: "Difficulty"
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.difficultyChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setDifficulty(game, id) }
-        onChosen: gamesRoot.engineRevision++
-        onClosed: tree.forceActiveFocus()
-    }
-    GameChoice {
-        id: engines
-        anchors.fill: parent
-        name: "Engine"
-        least: 3
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.engineChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setEngine(game, id) }
-        onChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
 }
