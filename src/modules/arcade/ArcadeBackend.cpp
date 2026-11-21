@@ -2741,7 +2741,7 @@ bool ArcadeBackend::filterPending(const QString &filter) const {
 QVariantList ArcadeBackend::engineChoices(const QString &set) const {
     // One MAME doesn't know plays in FinalBurn Neo alone: MAME, chosen for
     // it before, is Auto, and with nothing to choose its options have no
-    // Engine (EngineChooser's offered()).
+    // Engine (GameChoice's offered(), the engine's with three choices at least).
     const bool only = fbneoOnly(set);
     QString chosen = m_engines.value(set).toString();
     if (only && chosen == QLatin1String("mame"))
