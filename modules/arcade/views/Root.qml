@@ -40,14 +40,24 @@ ModuleRouter {
     // Settings → Arcade's the module was opened on instead (settingsPage).
     readonly property var hintBarShown: arcadeScreen && !settingsPage ? hintBar : undefined
     readonly property var helpLineShown: arcadeScreen && !settingsPage ? helpLine : undefined
-    // Opened from Settings → Arcade on one of its pages (MAME, FinalBurn Neo,
-    // the RetroAchievements account, Game Pictures, Check ROMs, Favorites,
-    // Online Name) rather than on the games: a page of Settings', whose
-    // hints and help are Settings' to show or hide. Screen Adjustment opens
-    // the Arcade screen itself, which keeps its own.
-    readonly property bool settingsPage: !!(navParams.mame || navParams.fbneo || navParams.achievements
-                                            || navParams.pictures || navParams.romCheck || navParams.favorites
-                                            || navParams.onlineName)
+    // Settings → Arcade's pages, by what Settings opens the module with
+    // (navParams): MAME's, FinalBurn Neo's, the RetroAchievements account's,
+    // the game pictures', Check ROMs', the favorites' and the online name's.
+    readonly property var settingsPages: ({ mame: "Mame.qml", fbneo: "Fbneo.qml", achievements: "Account.qml",
+                                            pictures: "Pictures.qml", romCheck: "RomCheck.qml",
+                                            favorites: "Favorites.qml", onlineName: "OnlineName.qml" })
+    // The one opened on, "" for none: the module opened on a page of
+    // Settings' rather than on the games, whose hints and help are Settings'
+    // to show or hide. Screen Adjustment opens the Arcade screen itself,
+    // which keeps its own.
+    readonly property string settingsFile: {
+        for (var key in settingsPages) {
+            if (navParams[key])
+                return settingsPages[key]
+        }
+        return ""
+    }
+    readonly property bool settingsPage: settingsFile !== ""
     // A settings page is in a monitor layout's frame (Settings → Look → Menu
     // Layout), as Settings' own pages are: it says so (inFrame), and Main.qml
     // draws the frame round it. The Arcade screen, a game and a page over the
@@ -320,25 +330,11 @@ ModuleRouter {
             arcadeBackend.refresh()
         // The startup favourite, when the app opens on one (Main.qml); or
         // one of Settings → Arcade's pages: the Arcade screen to adjust
-        // (Screen Adjustment), MAME's, FinalBurn Neo's, the RetroAchievements
-        // account's, the game pictures', Check ROMs', the favorites' or the
-        // online name's.
+        // (Screen Adjustment), or one of settingsPages.
         if (navParams.adjustScreen)
             navigateToView("ArcadeScreen.qml", { adjust: true })
-        else if (navParams.mame)
-            navigateToView("Mame.qml", {})
-        else if (navParams.fbneo)
-            navigateToView("Fbneo.qml", {})
-        else if (navParams.achievements)
-            navigateToView("Account.qml", {})
-        else if (navParams.pictures)
-            navigateToView("Pictures.qml", {})
-        else if (navParams.romCheck)
-            navigateToView("RomCheck.qml", {})
-        else if (navParams.favorites)
-            navigateToView("Favorites.qml", {})
-        else if (navParams.onlineName)
-            navigateToView("OnlineName.qml", {})
+        else if (settingsPage)
+            navigateToView(settingsFile, {})
         else
             navigateToView(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }
