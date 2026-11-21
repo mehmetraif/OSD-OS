@@ -51,9 +51,8 @@ FocusScope {
           kinds: [ drawnGrid ? { draw: "grid", w: gridColumns * 16, h: lines }
                    : tall ? { image: "grid-480.png", w: 640, h: 480 } : { image: "grid-240.png", w: 320, h: 240 } ] },
         { name: "Monoscope",
-          help: "A tube's setup: the center cross for static convergence, the sides for convergence at the edges,"
-                + " the corners for corner convergence, purity and geometry. The red square is square on a screen set right:"
-                + " measure it, and set the height and width until its sides match",
+          help: "A tube's setup: the center cross for static convergence, the sides and corners for convergence"
+                + " at the edges, purity and geometry. Set height and width so the red square is square",
           kinds: [ tall ? { image: "monoscope-480.png", w: 640, h: 480 } : { image: "monoscope-240.png", w: 320, h: 240 } ] },
         { name: "Convergence",
           help: "Red, green and blue land on one another: no colored fringe on the white lines, crosses or dots,"
@@ -275,6 +274,7 @@ FocusScope {
                 elide: Text.ElideRight
             }
             Text {
+                objectName: "patternHelp"
                 width: parent.width
                 text: patternsRoot.pattern.help
                 color: "#ffffff"

@@ -9,6 +9,11 @@ import OSDOS.Testing
 // resting and the screen saver waiting while it is up; back leaving.
 StandInRoot {
     id: root
+    // The app's own font, for what is measured in it (a pattern's help).
+    FontLoader {
+        id: vcrFont
+        source: "../../assets/fonts/VCR_OSD_MONO_1.001.ttf"
+    }
     property int backs: 0
 
     QtObject {
@@ -158,6 +163,37 @@ StandInRoot {
                     .concat(page.patterns[p].kinds.map(function(k) { return k.name || "" })).join(" ")
                 verify(!/colour|centre|grey/i.test(said), page.patterns[p].name + ": " + said)
             }
+        }
+
+        // Every pattern's help, in the app's font at 640x480, in Standard
+        // and in Camcorder: four lines at most, and the name, the help and
+        // the keys all inside the box, the box on the screen.
+        function test_helpFitsItsBox_data() {
+            return [{ tag: "Standard", layout: "Standard" }, { tag: "Camcorder", layout: "Camcorder" }]
+        }
+        function test_helpFitsItsBox(data) {
+            tryVerify(function() { return vcrFont.status === FontLoader.Ready })
+            root.globalFont = vcrFont.name
+            root.menuLayout = data.layout
+            root.sh = 480
+            var page = open()
+            var box = child(page, "patternInfo")
+            var help = child(page, "patternHelp")
+            verify(box !== null && help !== null)
+            var column = help.parent
+            var tooLong = []
+            for (var p = 0; p < page.patterns.length; p++) {
+                page.patternIndex = p
+                page.infoShown = true
+                var top = column.mapToItem(box, 0, 0).y
+                var inside = top >= box.border.width && top + column.height <= box.height - box.border.width
+                var onScreen = box.mapToItem(page, 0, box.height).y <= page.height
+                if (help.lineCount > 4 || !inside || !onScreen)
+                    tooLong.push(page.patterns[p].name + ": " + help.lineCount + " lines")
+            }
+            root.globalFont = "monospace"
+            root.menuLayout = "Standard"
+            compare(tooLong, [])
         }
 
         // What the patterns say reads plainly: an apostrophe only inside a
