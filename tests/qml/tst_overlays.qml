@@ -671,6 +671,102 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(!writer.visible)
         }
+
+        // A line between groups (Add to Playlist's, between the playlists
+        // and the NEW rows) costs no answer: with three playlists all five
+        // answers are in the window, and no ▼; a longer list scrolls with
+        // ▲ ▼, never more than five answers whole in the window and nothing
+        // of another cut at its edges, the cursor's always among them. In
+        // every Menu Layout.
+        function test_dividerCostsNoAnswer_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", framed: false },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false },
+                    { tag: "Flat Panel", layout: "Flat Panel", framed: false }]
+        }
+        function test_dividerCostsNoAnswer(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var listOf = function(names) {
+                return names.map(function(n) { return { label: n, action: "add" } })
+                            .concat([{ divider: true, label: "", action: "" },
+                                     { label: "New Online Playlist", action: "new" },
+                                     { label: "New Offline Playlist", action: "new" }])
+            }
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Add to playlist?", subtitleText: "A Film",
+                               choices: listOf(["Martial Arts Night", "Anime Night", "Sunday Matinee"]) })
+            var overlay = loader.item
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var answers = answersOf(prompt)
+            var window = answers.parent
+            var box = window.parent
+            var marks = null
+            for (var k = 0; k < box.children.length; k++) {
+                if (box.children[k].moreBelow !== undefined)
+                    marks = box.children[k]
+            }
+            verify(marks !== null)
+            // The answers wholly in the window, and whether any line is cut
+            // at its edges.
+            var shown = function() {
+                var whole = []
+                var cut = false
+                for (var i = 0; i < overlay.choices.length; i++) {
+                    var line = answers.itemAtIndex(i)
+                    if (!line || !line.visible)
+                        continue
+                    var y = line.mapToItem(window, 0, 0).y
+                    var inside = y >= -0.5 && y + line.height <= window.height + 0.5
+                    var outside = y + line.height <= 0.5 || y >= window.height - 0.5
+                    if (inside && !overlay.choices[i].divider)
+                        whole.push(overlay.choices[i].label)
+                    else if (!inside && !outside)
+                        cut = true
+                }
+                return { whole: whole, cut: cut }
+            }
+            var three = shown()
+            compare(three.whole, ["Martial Arts Night", "Anime Night", "Sunday Matinee",
+                                  "New Online Playlist", "New Offline Playlist"])
+            verify(!three.cut)
+            verify(!marks.moreBelow && !marks.moreAbove)
+            // The window over the answers' room in the middle.
+            verify(box.mapToItem(root, 0, box.height).y <= root.height - root.helpLineMargin, "above the foot")
+            keyClick(Qt.Key_Escape)
+
+            overlay.choices = listOf(["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"])
+            overlay.open()
+            var first = shown()
+            compare(first.whole, ["One", "Two", "Three", "Four", "Five"])
+            verify(!first.cut)
+            verify(marks.moreBelow && !marks.moreAbove)
+            for (var step = 0; step < 9; step++) {
+                keyClick(Qt.Key_Down)
+                var now = shown()
+                verify(now.whole.length <= 5, now.whole.join(", "))
+                verify(now.whole.length >= 4, now.whole.join(", "))
+                verify(!now.cut, "a line cut at " + overlay.choiceIndex)
+                verify(now.whole.indexOf(overlay.choices[overlay.choiceIndex].label) >= 0,
+                       overlay.choices[overlay.choiceIndex].label + " in " + now.whole.join(", "))
+            }
+            compare(overlay.choiceIndex, 10)
+            compare(shown().whole, ["Six", "Seven", "Eight", "New Online Playlist", "New Offline Playlist"])
+            verify(marks.moreAbove && !marks.moreBelow)
+            // Round the ends, and back.
+            keyClick(Qt.Key_Down)
+            compare(overlay.choiceIndex, 0)
+            compare(shown().whole, first.whole)
+            verify(!shown().cut)
+            keyClick(Qt.Key_Up)
+            compare(overlay.choiceIndex, 10)
+            compare(shown().whole, ["Six", "Seven", "Eight", "New Online Playlist", "New Offline Playlist"])
+            verify(!shown().cut)
+            keyClick(Qt.Key_Escape)
+        }
     }
 
     TestCase {
