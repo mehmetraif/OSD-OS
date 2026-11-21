@@ -1,10 +1,11 @@
 import QtQuick
 import Components
 
-// The module's first page: NEW ONLINE PLAYLIST and NEW OFFLINE PLAYLIST, then
-// every playlist with its kind and how many videos it has (an offline one,
-// how many of them are on the device). Select opens one, or names a new one
-// on the on-screen keyboard and opens it.
+// The module's first page: every playlist with its kind and how many videos
+// it has (an offline one, how many of them are on the device), the cursor on
+// the first, then NEW ONLINE PLAYLIST and NEW OFFLINE PLAYLIST under a
+// heading. Select opens one, or names a new one on the on-screen keyboard and
+// opens it.
 FocusScope {
     id: listRoot
     // In the layout's frame (Main.qml): its tree or list in the pane, beside
@@ -22,23 +23,44 @@ FocusScope {
     property string newKind: ""
 
     function rowsFrom(playlists) {
-        var out = [{ type: "new", kind: "online", label: "New Online Playlist" },
-                   { type: "new", kind: "offline", label: "New Offline Playlist" }]
-        if (playlists.length > 0)
-            out.push({ type: "section", label: "Playlists" })
+        var out = []
         for (var i = 0; i < playlists.length; i++) {
             var p = playlists[i]
             out.push({ type: "playlist", id: p.id, label: p.name, kind: p.kind,
                        value: p.kind === "offline" ? p.ready + "/" + p.count + " Offline"
                                                    : p.count + " Online" })
         }
+        if (playlists.length > 0)
+            out.push({ type: "section", label: "New" })
+        out.push({ type: "new", kind: "online", label: "New Online Playlist" },
+                 { type: "new", kind: "offline", label: "New Offline Playlist" })
         return out
     }
 
+    // The cursor on the same line where it still is (a playlist by its id, a
+    // NEW line by its kind), else at its place; never on the heading.
     function reload() {
         var current = list.currentIndex
+        var was = rows[current]
         rows = rowsFrom(playlistsBackend ? playlistsBackend.playlists() : [])
-        list.currentIndex = Math.max(0, Math.min(current, rows.length - 1))
+        var at = Math.max(0, Math.min(current, rows.length - 1))
+        for (var i = 0; was && i < rows.length; i++) {
+            if (rows[i].type === was.type && (was.type === "playlist" ? rows[i].id === was.id : rows[i].kind === was.kind)) {
+                at = i
+                break
+            }
+        }
+        if (rows[at] && rows[at].type === "section")
+            at++
+        list.currentIndex = at
+    }
+    // The row of a playlist, by its id.
+    function rowOf(id) {
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].type === "playlist" && rows[i].id === id)
+                return i
+        }
+        return -1
     }
 
     function open(id) {
@@ -139,6 +161,9 @@ FocusScope {
             var id = playlistsBackend.createPlaylist(text, listRoot.newKind)
             list.forceActiveFocus()
             listRoot.reload()
+            // Back from its page lands on it.
+            if (listRoot.rowOf(id) >= 0)
+                list.currentIndex = listRoot.rowOf(id)
             listRoot.open(id)
         }
         onCanceled: list.forceActiveFocus()

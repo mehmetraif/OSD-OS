@@ -445,6 +445,18 @@ StandInRoot {
         signal playlistsChanged()
         signal downloadProgress(string key, int percent)
         function playlist(id) { return { id: id, name: "Night", kind: kind, items: items } }
+        // The module's first page (Playlists.qml): the playlists there are,
+        // and one made there.
+        property var lists: []
+        function playlists() { return lists }
+        function createPlaylist(name, kind) {
+            var id = "p" + (lists.length + 1)
+            lists = lists.concat([{ id: id, name: name, kind: kind, count: 0, ready: 0 }])
+            return id
+        }
+        function downloadFolder() { return "/media/Playlists" }
+        function supports(module) { return true }
+        function addEntry(playlistId, module, entry) { return { ok: true, title: entry.title } }
         function indexOfItem(itemId) {
             for (var i = 0; i < items.length; i++) {
                 if (items[i].id === itemId)
@@ -557,6 +569,7 @@ StandInRoot {
             scriptsBackend.none = false
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
+            playlistsBackend.lists = []
             playlistsBackend.resumeIndex = 0
             playlistsBackend.resumeMs = 0
             playlistsBackend.saves = []
@@ -1784,6 +1797,68 @@ StandInRoot {
             verify(lines.length > 0)
             for (var shown of lines)
                 verify(insidePage(shown), shown.text)
+        }
+
+        // Playlists' first page: the playlists first, the cursor on the
+        // first, then the NEW lines under a heading; with none, the NEW
+        // lines alone. A playlist made there opens, and back from it lands
+        // on it. A playlist's page opens on ADD VIDEOS while it is empty,
+        // on PLAY once it has videos.
+        function test_playlistsPage() {
+            var linesOf = function(page) { return page.rows.map(function(r) { return r.label }) }
+            var page = open("playlists", "Playlists.qml", {})
+            compare(linesOf(page), ["New Online Playlist", "New Offline Playlist"])
+            compare(page.rows[0].type, "new")
+            loader.source = ""
+            playlistsBackend.lists = [{ id: "p1", name: "Night", kind: "online", count: 2, ready: 0 },
+                                      { id: "p2", name: "Trip", kind: "offline", count: 3, ready: 1 }]
+            page = open("playlists", "Playlists.qml", {})
+            compare(linesOf(page), ["Night", "Trip", "New", "New Online Playlist", "New Offline Playlist"])
+            compare(page.rows[2].type, "section")
+            var list = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].currentIndex !== undefined && typeof page.children[i].step === "function")
+                    list = page.children[i]
+            }
+            compare(list.currentIndex, 0)
+            // Down from Trip passes over the heading.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(page.rows[list.currentIndex].label, "New Online Playlist")
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(page)
+            verify(keyboard.visible)
+            typeOn(keyboard, "TV")
+            okOn(keyboard)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Playlist.qml")
+            compare(root.navigations[0].params.playlistId, "p3")
+            compare(page.rows[list.currentIndex].id, "p3")
+            compare(root.navigations[0].listState.currentIndex, list.currentIndex)
+
+            // Its page, empty: on ADD VIDEOS.
+            playlistsBackend.items = []
+            var pageOf = open("playlists", "Playlist.qml", { playlistId: "p3" })
+            compare(pageOf.currentRow.type, "add")
+            playlistsBackend.items = [{ id: "v1", title: "A" }]
+            pageOf = open("playlists", "Playlist.qml", { playlistId: "p1" })
+            compare(pageOf.currentRow.type, "play")
+
+            // Add to Playlist reads the same way: the playlists first, the
+            // cursor on the first, a line, then the NEW ones.
+            loader.source = ""
+            loader.setSource(Qt.resolvedUrl("../../views/Components/PlaylistAdder.qml"))
+            var adder = loader.item
+            verify(adder !== null)
+            adder.offer("com.osdos.local_files", { title: "A Film", path: "/films/A.mkv" })
+            compare(adder.choices.map(function(c) { return c.divider ? "—" : c.label }),
+                    ["Night", "Trip (Offline)", "TV", "—", "New Online Playlist", "New Offline Playlist"])
+            compare(adder.choiceIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(adder.choiceIndex, 5)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(adder.choiceIndex, 2)
         }
 
         // Weather's setup screen: with no place, or one it can't use, select

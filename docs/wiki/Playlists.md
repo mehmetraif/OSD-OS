@@ -28,9 +28,9 @@ A playlist is one or the other from the moment you make it.
 
 ## Making a playlist
 
-1. Open **Playlists** from the main menu and select **New Online Playlist** or **New Offline Playlist**.
+1. Open **Playlists** from the main menu. It lists your playlists first, the cursor on the first, then under **New** select **New Online Playlist** or **New Offline Playlist**.
 2. Name it on the on-screen keyboard. Names are in capitals, up to 40 characters.
-3. The new playlist's page opens. Select **Add Videos** to fill it.
+3. The new playlist's page opens with the cursor on **Add Videos**: select it to fill the list. Any empty playlist's page opens there.
 
 A playlist can also be made from the **Add to playlist?** window ([below](#from-another-module)); the video goes straight on it.
 
@@ -45,7 +45,7 @@ Select a playlist to open its page.
 | **Add Videos** | Browse Local Files, YouTube, Jellyfin and Emby for videos to add ([below](#from-the-module-add-videos)) |
 | **Rename** | A new name, on the on-screen keyboard |
 | **Retry Downloads** | Shown while a download has failed: tries the failed downloads again |
-| **Delete Playlist** | Asks **Delete playlist?** On an offline list its downloads go too, unless another offline playlist has them |
+| **Delete Playlist** | Asks **Delete playlist?**, **Cancel** under the cursor, then **Delete**. On an offline list its downloads go too, unless another offline playlist has them |
 | **Videos** | The videos, in the list's order |
 
 Each video's line shows its title and a value:
@@ -106,7 +106,7 @@ Select on a video opens its choices:
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/options.png" width="100%" alt="A Local Files file's options: Add to Favorites, Play at Startup, Add to Playlist" />
 
-- Each opens **Add to playlist?**: every playlist (an offline one marked `(Offline)`), then **New Online Playlist** and **New Offline Playlist**.
+- Each opens **Add to playlist?**: every playlist (an offline one marked `(Offline)`), the cursor on the first, then under a line **New Online Playlist** and **New Offline Playlist**.
 - The window then says **Added to <NAME>** (and **It downloads in the background, once** for an offline list), **Already on <NAME>**, or **Can't go on a playlist**.
 - These choices are offered only while the Playlists module is on.
 
