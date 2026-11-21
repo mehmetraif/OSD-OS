@@ -895,7 +895,11 @@ FocusScope {
     readonly property string helpOff: inIcons() ? "" : (revision, offReason(settingsList.currentIndex))
     // "[ENTER]" in a row's description is select's name on the controller in
     // use, as the hint bar has it.
+    // A theme's part on THEME opens with what the theme has for it
+    // (themeValue: "Theme's: Glow", "Theme's: none").
     readonly property string helpText: (helpOff !== "" ? helpOff + "\n" : "")
+                                       + (helpRow && helpRow.themeValue !== undefined && helpValue === "Theme"
+                                          ? "Theme's: " + helpRow.themeValue + "\n" : "")
                                        + ((helpRow && helpRow.description) || "").split("[ENTER]").join(root.hints.select)
     // The value on the row, as it shows it (the one being changed, in a
     // value's second step): the help line has the row's first part and that

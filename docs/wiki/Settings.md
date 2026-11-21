@@ -74,6 +74,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 
 - **THEME** in a part row (saved as `""`) means the theme's. **Off** (saved as `"Off"`) means none. A choice of its own (saved by its name) replaces the theme's.
 - Choosing a theme sets every part row back to THEME.
+- On THEME, the row's help line opens with what the theme has for it: **Theme's: Glow**, **Theme's: none**, or **its own** for a part the theme draws itself.
 - Without a theme the rows have no THEME, and `""` shows as Video 1, None or Off.
 
 | Setting | Values | Default | What it does | Config key |

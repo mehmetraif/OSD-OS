@@ -35,6 +35,8 @@ StandInRoot {
     property var selectorPresets: ["Sparkles"]
     property var screenPresets: ({ "Scanlines": {} })
     property var transitionPresets: ["Fade"]
+    // The theme in force, as Main.qml reads it (AppCore::theme()).
+    property var theme: ({})
     // The transitions this system can't play (Main.qml: those that are
     // shaders, without a GPU).
     property var unusableTransitions: []
@@ -314,6 +316,7 @@ StandInRoot {
             displayOutput.powerOffAvailable = false
             displayOutput.asked = []
             root.transitionPresets = ["Fade"]
+            root.theme = {}
             root.unusableTransitions = []
             audioOutput.available = false
             audioOutput.row = { options: ["Auto"], values: [""], value: "Auto", note: "" }
@@ -1884,6 +1887,44 @@ StandInRoot {
         // system can't play Fade and an unknown one Off; Menu Music's is the
         // theme's. ◄ ► go on from what is shown. A value among the choices
         // shows as itself.
+        // With a theme, a row on THEME says what the theme has for it: the
+        // help line opens with "Theme's: …" (its scheme's, skin's,
+        // effect's name, its music's file, "its own", or none), one rule
+        // for the eight; on another value it doesn't.
+        function test_themeValues() {
+            root.theme = { id: "glowy", name: "Glowy", colors: "Late Night", skin: { name: "Rounded" },
+                           effects: { text: "Glow", screen: { scanlines: 0.5 } }, music: "/themes/glowy/tune.ogg" }
+            appCore.values = { osd_theme: "glowy" }
+            var page = open({ group: "look" })
+            var help = helpOf(page)
+            moveTo(page, "Color Scheme")
+            verify(help.shownText.indexOf("Theme's: Late Night\n") === 0, help.shownText)
+            keyClick(Qt.Key_Right)
+            verify(help.shownText.indexOf("Theme's") < 0, help.shownText)
+            moveTo(page, "Skin")
+            verify(help.shownText.indexOf("Theme's: Rounded\n") === 0, help.shownText)
+            loader.source = ""
+            page = open({ group: "effects" })
+            help = helpOf(page)
+            var expected = [["Text Effect", "Glow"], ["Background Effect", "none"], ["Selector Effect", "none"],
+                            ["Screen Effect", "its own"], ["Transition", "none"]]
+            for (var i = 0; i < expected.length; i++) {
+                moveTo(page, expected[i][0])
+                verify(help.shownText.indexOf("Theme's: " + expected[i][1] + "\n") === 0, help.shownText)
+            }
+            loader.source = ""
+            page = open({ group: "sound" })
+            moveTo(page, "Menu Music")
+            verify(helpOf(page).shownText.indexOf("Theme's: tune.ogg\n") === 0, helpOf(page).shownText)
+            loader.source = ""
+            // Without a theme there is no THEME to say.
+            root.theme = {}
+            appCore.values = {}
+            page = open({ group: "look" })
+            moveTo(page, "Color Scheme")
+            verify(helpOf(page).shownText.indexOf("Theme's") < 0)
+        }
+
         function test_partRowsInForce() {
             root.transitionPresets = ["Fade", "Cube", "Ripple"]
             root.unusableTransitions = ["Ripple"]

@@ -153,6 +153,8 @@ function lookRows(items) {
     if (!appSettings["osd_theme"]) {
         skinRow.options.shift()
         skinRow.values.shift()
+    } else {
+        skinRow.themeValue = themeOwn("skin")
     }
     items.push(skinRow)
 
@@ -955,7 +957,28 @@ function partRow(key, label, choices, off, description) {
     if (at < 0)
         at = values.indexOf(partInForce(key, saved))
     return { type: "list_single", key: key, label: label, options: options, values: values,
-             value: options[Math.max(0, at)], description: description, moduleId: "" }
+             value: options[Math.max(0, at)], description: description, moduleId: "",
+             themeValue: themed ? themeOwn(key) : undefined }
+}
+// What the theme in force (Main.qml's root.theme, AppCore::theme()) has for
+// one of its parts, as the help line says it while the row is on THEME
+// (Settings.qml's helpText: "Theme's: Glow"): a scheme's, a skin's or an
+// effect's name, the music's file; "its own" for one the theme draws
+// itself; "none" for none, as the theme is then drawn.
+function themeOwn(key) {
+    var theme = root.theme || {}
+    if (key === "color_scheme")
+        return typeof theme.colors === "string" ? theme.colors : theme.colors ? "its own" : "Video 1"
+    if (key === "skin")
+        return theme.skin && theme.skin.name ? theme.skin.name : theme.skin ? "its own" : "none"
+    if (key === "menu_music") {
+        var music = String(theme.music || "")
+        return music !== "" ? music.substring(music.lastIndexOf("/") + 1) : "none"
+    }
+    var kinds = { text_effect: "text", background_effect: "background", selector_effect: "selector",
+                  screen_effect: "screen", transition: "transition" }
+    var effect = (theme.effects || {})[kinds[key]]
+    return typeof effect === "string" ? effect : effect ? "its own" : "none"
 }
 // What Main.qml makes of a part's saved value that names nothing it has:
 // a scheme not there is Video 1 (root.scheme), an effect's unknown name
