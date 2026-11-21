@@ -824,10 +824,7 @@ QVariant YouTubeBackend::entries(const QString &path, bool preview) {
                                 treeFolder(QStringLiteral("Favorites"), QStringLiteral("favorites"))} + list;
     }
     // Shorts are left out with DISPLAY SHORTS off; unset is on.
-    const QVariant shorts = m_appCore
-        ? m_appCore->get_setting(kModuleId, QStringLiteral("display_shorts")) : QVariant();
-    const bool showShorts = !shorts.isValid() || shorts.isNull() || shorts.toBool()
-                            || shorts.toString() == QLatin1String("ON");
+    const bool showShorts = !m_appCore || m_appCore->setting_on(kModuleId, QStringLiteral("display_shorts"), true);
     if (showShorts)
         return list;
     QVariantList kept;

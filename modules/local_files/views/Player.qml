@@ -47,7 +47,7 @@ FocusScope {
 
     // The module's settings the file plays with.
     function readSettings() {
-        loopOn        = !!appCore.get_setting(moduleRoot.moduleId, "loop_playback")
+        loopOn        = root.settingOn(moduleRoot.moduleId, "loop_playback", false)
         // As the backend reads them: one saved as On or Off before it had
         // three choices (true or false) is the choice that form is now.
         shuffleSetting = localFilesBackend.shufflePlaybackChoice(appCore.get_setting(moduleRoot.moduleId, "shuffle_playback"))

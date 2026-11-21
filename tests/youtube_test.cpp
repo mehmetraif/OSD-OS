@@ -189,6 +189,29 @@ private slots:
         QCOMPARE(asked, QStringList({ QStringLiteral("UCtyped"), QStringLiteral("UClinked"), QStringLiteral("UCfile") }));
     }
 
+    // Shorts are left out with DISPLAY SHORTS off, in either form it is
+    // saved in (false, or an older config's "OFF"); unset, or on, they stay.
+    void shortsWithDisplayShortsOff() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        QVERIFY(core.add_to_list(QStringLiteral("com.osdos.youtube"), QStringLiteral("favorites"),
+                                 QVariantMap{ { "name", "A Talk" }, { "path", "video/a" } }, 100));
+        QVERIFY(core.add_to_list(QStringLiteral("com.osdos.youtube"), QStringLiteral("favorites"),
+                                 QVariantMap{ { "name", "A Short" }, { "path", "video/s" }, { "isShort", true } }, 100));
+        const auto count = [&youtube] { return youtube.entries(QStringLiteral("favorites")).toList().size(); };
+        QCOMPARE(count(), 2);
+        for (const QVariant &off : { QVariant(false), QVariant(QStringLiteral("OFF")) }) {
+            QVERIFY(core.save_setting(QStringLiteral("com.osdos.youtube"), QStringLiteral("display_shorts"), off));
+            QCOMPARE(count(), 1);
+        }
+        for (const QVariant &on : { QVariant(true), QVariant(QStringLiteral("ON")) }) {
+            QVERIFY(core.save_setting(QStringLiteral("com.osdos.youtube"), QStringLiteral("display_shorts"), on));
+            QCOMPARE(count(), 2);
+        }
+    }
+
     // A search's matches, against a stand-in yt-dlp that answers each run
     // with another video: kept while the folder is browsed (and MORE loads
     // onto them), and asked for afresh once forgetSearches() has let them go,

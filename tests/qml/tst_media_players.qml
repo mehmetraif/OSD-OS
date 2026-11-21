@@ -157,6 +157,7 @@ StandInRoot {
         // The playlist's video each was started at (-1 its first).
         property var playlistStarts: []
         property var shuffles: []
+        property var loops: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
         signal playlistPosChanged(int pos)
@@ -175,6 +176,7 @@ StandInRoot {
             extraArgs = extraArgs.concat([request.extraArgs || []])
             playlistStarts = playlistStarts.concat([request.playlistStart !== undefined ? request.playlistStart : -1])
             shuffles = shuffles.concat([!!request.shuffle])
+            loops = loops.concat([!!request.loop])
         }
         function noteSession(note) {}
         // The session behind the menus taken back where it is, if there is
@@ -492,6 +494,7 @@ StandInRoot {
             mpvController.extraArgs = []
             mpvController.playlistStarts = []
             mpvController.shuffles = []
+            mpvController.loops = []
             mpvController.position = 0
             mpvController.keys = []
             mpvController.lastError = ""
@@ -2224,6 +2227,23 @@ StandInRoot {
         // only that session had, so it saves none (the one kept for the file
         // stays as it was), and starting again after the menu, or RETRY,
         // shuffles it afresh from the start.
+        // Local Files' and Playlists' Loop Playback as it is saved: true or
+        // false, or an older config's "ON" or "OFF", which is off.
+        function test_loopPlaybackAsSaved_data() {
+            return [{ tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" } }]
+        }
+        function test_loopPlaybackAsSaved(data) {
+            var saved = [true, false, "ON", "OFF", undefined]
+            for (var i = 0; i < saved.length; i++) {
+                appCore.settings = { resume_playback: "no", shuffle_playback: "no", loop_playback: saved[i] }
+                playlistsBackend.resumeIndex = -1
+                playlistsBackend.resumeMs = 0
+                open(data.module, "Player.qml", data.params)
+            }
+            compare(mpvController.loops, [true, false, true, false, false])
+        }
+
         function test_aShuffledPlaylistKeepsNoPlace() {
             appCore.settings = { resume_playback: "ask", shuffle_playback: "yes" }
             localFilesBackend.positions = { "/films/list.m3u": { pos: 90000, plPos: 2 } }
