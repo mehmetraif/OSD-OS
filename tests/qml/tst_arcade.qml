@@ -2998,6 +2998,21 @@ StandInRoot {
             compare(findText(screen, "Lobby Not Reachable"), null)
         }
 
+        // The room under the list for the hint bar and the help line, in the
+        // design's lines, as OSD/OS Setup's preview has it (arcadeLayout()):
+        // with both, the hint bar alone, the help line alone, neither; the
+        // help line on the hint bar.
+        function test_screenFootRoom() {
+            var screen = openScreen()
+            var cases = [[true, true, 93], [true, false, 41], [false, true, 53], [false, false, 1]]
+            for (var i = 0; i < cases.length; ++i) {
+                root.hintBar = cases[i][0]
+                root.helpLine = cases[i][1]
+                compare(screen.areaBottom - screen.listBottom, cases[i][2])
+            }
+            compare(screen.hintBarHeight, 39)
+        }
+
         // Border OFF: no frame round the picture or the box under it, the
         // picture filling its place.
         function test_screenBorder() {

@@ -152,9 +152,18 @@ FocusScope {
     readonly property int areaRight: baseRight + adjustment.right
     readonly property int areaBottom: baseBottom + adjustment.bottom
     readonly property int areaWidth: areaRight - areaLeft
+    // The foot of the area, in the design's lines: the hint bar on its
+    // bottom (hintBarHeight), the help line on the hint bar (helpLineRoom),
+    // a line (footGap) above each bar and above the area's foot. OSD/OS
+    // Setup's preview (site/setup/js/preview/screens.mjs, arcadeLayout())
+    // works the list's foot out with the same numbers.
+    readonly property int hintBarHeight: 39
+    readonly property int helpLineRoom: 52
+    readonly property int footGap: 1
     // Where the list and the column end: above the help line, or above what
     // is in its place.
-    readonly property int listBottom: areaBottom - (root.hintBar ? (root.helpLine ? 93 : 41) : (root.helpLine ? 53 : 1))
+    readonly property int listBottom: areaBottom - footGap - (root.hintBar ? hintBarHeight + footGap : 0)
+                                      - (root.helpLine ? helpLineRoom : 0)
     // Settings → Arcade → List Style (Root.qml's listStyle): the games one
     // under another (Straight) or on an arc (Curved), a page at a time; or
     // on a wheel (3D Curved), where the game chosen goes up and down its
@@ -1211,7 +1220,7 @@ FocusScope {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         // Over the hint bar's place, the area's foot.
-        anchors.bottomMargin: arcadeScreen.height - Math.round((arcadeScreen.areaBottom - (root.hintBar ? 39 : 0))
+        anchors.bottomMargin: arcadeScreen.height - Math.round((arcadeScreen.areaBottom - (root.hintBar ? arcadeScreen.hintBarHeight : 0))
                                                               * arcadeScreen.v)
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
