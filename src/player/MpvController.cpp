@@ -197,6 +197,13 @@ QString lastOption(const QStringList &options, const QLatin1String &name) {
     return value;
 }
 
+// Whether these options leave mpv a hardware decoder to try: the last
+// --hwdec among them, other than "no".
+bool asksHardwareDecode(const QStringList &options) {
+    const QString hwdec = lastOption(options, QLatin1String("hwdec"));
+    return !hwdec.isEmpty() && hwdec != QLatin1String("no");
+}
+
 // The end of the log mpv keeps of a session (--log-file): its last lines
 // since `stamp` (the line loadAndPlay() puts in the file as the session
 // starts, and the one after it), mpv's chatter aside (a script's every key
@@ -1409,56 +1416,13 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         if (out.contains(QLatin1String("VO: [")))
             noteStarted();
     });
-    auto launch = [this, bin, plays](QStringList options) {
-        // The second try of a session that showed nothing: decoded on the
-        // CPU, whatever the device's decoder list or mpv_video_args says
-        // (the last word on the command line).
-        if (m_softwareRetry)
-            options << QStringLiteral("--hwdec=no");
-        const QString hwdec = lastOption(options, QLatin1String("hwdec"));
-        m_hardwareDecode = !hwdec.isEmpty() && hwdec != QLatin1String("no");
-        if (!plays.isEmpty())
-            options << QStringLiteral("--") << plays;
-        qDebug("[MpvController] launch: mpv %s", qPrintable(redactSecrets(options.join(QLatin1Char(' ')))));
-        m_process->start(bin, options);
-        // A start that failed at once (no process to fork: errorOccurred came
-        // synchronously, and the session is over) has no socket to wait for.
-        if (m_process && m_process->state() != QProcess::NotRunning) {
-            m_ipcWanted = true;
-            m_connectTimer->start();
-            watchStart();
-        }
-    };
-
     m_headlessMode = DisplayHandoff::isHeadless();
-    if (m_headlessMode) {
-        {
-            QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-            env.insert("APP_ROOT", m_appRoot);
-#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
-            const QString fcConf = fcoverride::write(m_appRoot + "/assets/fonts");
-            if (!fcConf.isEmpty())
-                env.insert("FONTCONFIG_FILE", fcConf);
-#endif
-            // Settings → Sound → Audio Output's card as ALSA's default.
-            AudioOutput::applyTo(env);
-            m_process->setProcessEnvironment(env);
-        }
-
-        if (m_handoff && m_handoff->isHeldBy(QLatin1String(kHandoffOwner))) {
-            // Already in headless mode (the last session ended for this one
-            // without releasing the screen). The hand-off already holds Qt's
-            // real VT — do NOT acquire again, which would overwrite it with the
-            // free VT we are currently on. The old mpv was terminated already;
-            // just launch the replacement directly.
-            appendVideoArgs(args);
-            args << "--no-input-terminal";
-            launch(args);
-            return;
-        }
-
-        // First entry into headless mode: hand the display to mpv. The VT/DRM
-        // ordering that makes this work lives in DisplayHandoff::acquire().
+    if (m_headlessMode && !(m_handoff && m_handoff->isHeldBy(QLatin1String(kHandoffOwner)))) {
+        // First entry into headless mode: hand the display to mpv. (When the
+        // hand-off is already ours, the last session ended for this one
+        // without releasing the screen: it holds Qt's real VT, and acquiring
+        // again would overwrite that with the free VT we are on now.) The
+        // VT/DRM ordering that makes this work lives in DisplayHandoff::acquire().
         //
         // mpv deliberately does not check savedStateValid() here — playback has
         // always proceeded even when the CRTC state couldn't be captured.
@@ -1479,33 +1443,33 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             endAtOnce(QStringLiteral("failed"));
             return;
         }
+    }
 
-        appendVideoArgs(args);
-        args << "--no-input-terminal";
-        launch(args);
-    } else {
-        // Desktop: X11 or Wayland compositor present.
-        // Prefer X11/Xwayland for mpv — the Wayland VO stalls waiting for
-        // wl_surface frame-done callbacks from labwc (the Pi compositor). But
-        // only strip WAYLAND_DISPLAY when there is a DISPLAY to fall back to:
-        // on a pure-Wayland session with no Xwayland DISPLAY exported to us
-        // (e.g. the Steam Deck's KDE session launched from the file manager),
-        // removing it would leave mpv with no output at all and it exits
-        // instantly. In that case keep Wayland so mpv can open a window.
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("APP_ROOT", m_appRoot);
+    // On a desktop (X11 or a Wayland compositor), prefer X11/Xwayland for
+    // mpv — the Wayland VO stalls waiting for wl_surface frame-done
+    // callbacks from labwc (the Pi compositor). But
+    // only strip WAYLAND_DISPLAY when there is a DISPLAY to fall back to:
+    // on a pure-Wayland session with no Xwayland DISPLAY exported to us
+    // (e.g. the Steam Deck's KDE session launched from the file manager),
+    // removing it would leave mpv with no output at all and it exits
+    // instantly. In that case keep Wayland so mpv can open a window.
+    if (!m_headlessMode && !qEnvironmentVariable("DISPLAY").trimmed().isEmpty())
+        env.remove("WAYLAND_DISPLAY");
+#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
+    // Linux and the BSDs: mpv's OSD in the app's VCR font, through fontconfig.
+    const QString fcConf = fcoverride::write(m_appRoot + "/assets/fonts");
+    if (!fcConf.isEmpty())
+        env.insert("FONTCONFIG_FILE", fcConf);
+#endif
+    // Settings → Sound → Audio Output's card as ALSA's default.
+    AudioOutput::applyTo(env);
+    m_process->setProcessEnvironment(env);
+
+    if (!m_headlessMode) {
         // --no-native-fs avoids macOS Space-transition delays that can
         // prevent early OSD renders from appearing.
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        env.insert("APP_ROOT", m_appRoot);
-        if (!qEnvironmentVariable("DISPLAY").trimmed().isEmpty())
-            env.remove("WAYLAND_DISPLAY");
-#if defined(Q_OS_UNIX) && !defined(Q_OS_DARWIN)
-        // Linux and the BSDs: mpv's OSD in the app's VCR font, through fontconfig.
-        const QString fcConf = fcoverride::write(m_appRoot + "/assets/fonts");
-        if (!fcConf.isEmpty())
-            env.insert("FONTCONFIG_FILE", fcConf);
-#endif
-        AudioOutput::applyTo(env);
-        m_process->setProcessEnvironment(env);
         args << "--fullscreen" << "--no-native-fs";
         // Playback follows the UI's display (app-level "display_index"). Only
         // when a non-default display is configured, so the default command
@@ -1516,7 +1480,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         //  - X11 / native Wayland: --fs-screen-name matched against the RandR
         //    output / wl_output name, which is exactly QScreen::name() there.
         //    (Numeric would mean Xinerama order, not guaranteed to match Qt's.)
-        //  - Qt on Wayland but DISPLAY set: the env block above stripped
+        //  - Qt on Wayland but DISPLAY set: the environment above stripped
         //    WAYLAND_DISPLAY, so mpv runs on Xwayland where RandR outputs are
         //    named "XWAYLAND0..." and can't match QScreen::name(). Fall back
         //    to numeric — Xwayland's screen order follows wl_output
@@ -1535,8 +1499,27 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
                 args << QString("--fs-screen-name=%1").arg(m_displayScreenName);
 #endif
         }
-        appendVideoArgs(args);
-        launch(args);
+    }
+    appendVideoArgs(args);
+    if (m_headlessMode)
+        args << "--no-input-terminal";
+
+    // The second try of a session that showed nothing: decoded on the
+    // CPU, whatever the device's decoder list or mpv_video_args says
+    // (the last word on the command line).
+    if (m_softwareRetry)
+        args << QStringLiteral("--hwdec=no");
+    m_hardwareDecode = asksHardwareDecode(args);
+    if (!plays.isEmpty())
+        args << QStringLiteral("--") << plays;
+    qDebug("[MpvController] launch: mpv %s", qPrintable(redactSecrets(args.join(QLatin1Char(' ')))));
+    m_process->start(bin, args);
+    // A start that failed at once (no process to fork: errorOccurred came
+    // synchronously, and the session is over) has no socket to wait for.
+    if (m_process && m_process->state() != QProcess::NotRunning) {
+        m_ipcWanted = true;
+        m_connectTimer->start();
+        watchStart();
     }
 }
 
@@ -2320,8 +2303,7 @@ void MpvController::startEmbedded(const QStringList &args) {
 #endif
     // The screen stays the app's, even headless: nothing to hand over.
     m_headlessMode = false;
-    const QString hwdec = lastOption(args, QLatin1String("hwdec"));
-    m_hardwareDecode = !hwdec.isEmpty() && hwdec != QLatin1String("no");
+    m_hardwareDecode = asksHardwareDecode(args);
     qDebug("[MpvController] embedded launch: mpv %s", qPrintable(redactSecrets(args.join(QLatin1Char(' ')))));
     if (!embeddedPlayer()->start(args)) {
         qWarning("[MpvController] Cannot start playback: libmpv could not be set up");
