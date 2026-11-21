@@ -297,7 +297,7 @@ def qml_block(source, name):
 
 
 def skin_part(value, folder, served):
-    """One of a skin's pictures as AppCore's skinImage() reads it: { source,
+    """One of a skin's pictures as skinImage() (src/util/Looks.cpp) reads it: { source,
     border: [left, top, right, bottom], tile }, its picture copied where the
     page has it (served: its folder there). As lookFile() takes one: a PNG,
     GIF or BMP in the look's folder, none out of it, through a link either.

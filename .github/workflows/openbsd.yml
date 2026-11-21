@@ -48,11 +48,11 @@ on:
   pull_request:
     paths: *paths
 
-# A newer push cancels the run before it: only the newest commit's result
-# matters.
 permissions:
   contents: read
 
+# A newer push cancels the run before it: only the newest commit's result
+# matters.
 concurrency:
   group: openbsd-${{ github.ref }}
   cancel-in-progress: true

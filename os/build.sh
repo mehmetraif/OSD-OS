@@ -116,8 +116,7 @@ fi
 # the checkout having kept the bits (a ZIP download, a Windows clone).
 chmod +x "${STAGE}/prerun.sh" "${STAGE}"/*/[0-9][0-9]-run.sh
 
-# The launcher, the stop helper, the exit-to-terminal unit, the sockets the app
-# asks root through and the polkit rule
+# The launcher, the stop helper, the exit-to-terminal unit and the polkit rule
 # that lets the app's user use NetworkManager are taken verbatim from
 # scripts/install.sh, so the image and a manual install never drift apart.
 extract() {

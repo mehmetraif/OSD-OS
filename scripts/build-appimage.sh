@@ -121,7 +121,7 @@ install -Dm755 "$MPV_BIN" "$APPDIR/usr/bin/mpv"
 
 # ── 5. Deploy Qt + libraries (no packaging yet) ───────────────────────────────
 # QML_SOURCES_PATHS lets the qt plugin scan our .qml for imports and bundle the
-# right QML modules (QtQuick, Controls, Effects, Svg…). EXTRA_QT_PLUGINS forces
+# right QML modules (QtQuick, QtQuick.Window, QtQuick3D). EXTRA_QT_PLUGINS forces
 # ones not always auto-detected: tls (OpenSSL backend — Plex/Jellyfin HTTPS),
 # svg/imageformats (SVG icons), iconengines.
 export QML_SOURCES_PATHS="$SRC_ROOT"
