@@ -1,4 +1,5 @@
 #include "AppCore.h"
+#include "modules/web_player/TmdbCatalog.h"
 #include "modules/youtube/YouTubeBackend.h"
 
 #include <QDir>
@@ -242,6 +243,75 @@ private slots:
         QCOMPARE(ids(youtube.listing(dogs)), QStringList({ QStringLiteral("run3") }));
         QTest::qWait(1500);
         QCOMPARE(ready.size(), 3);
+    }
+
+    // Where a web player's title opens, against a stand-in for TMDB and
+    // Wikidata: the service's page for the id Wikidata gives, but its
+    // search for the title's name when that id isn't of the plain form a
+    // service's id takes (anyone can edit Wikidata, and the address goes to
+    // the browser).
+    void webTitleIdsOfPlainFormOnly() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QFile key(data.path() + QStringLiteral("/tmdb_api_key.txt"));
+        QVERIFY(key.open(QIODevice::WriteOnly));
+        key.write("fake-key\n");
+        key.close();
+
+        QString wikidataId;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [&wikidataId, socket] {
+                const QByteArray request = socket->property("request").toByteArray() + socket->readAll();
+                socket->setProperty("request", request);
+                if (!request.contains("\r\n\r\n"))
+                    return;
+                const QByteArray body = request.startsWith("GET /sparql")
+                    ? QJsonDocument(QJsonObject{ { QStringLiteral("results"), QJsonObject{
+                          { QStringLiteral("bindings"), QJsonArray{ QJsonObject{
+                              { QStringLiteral("id"), QJsonObject{ { QStringLiteral("value"), wikidataId } } } } } } } } })
+                          .toJson(QJsonDocument::Compact)
+                    : QByteArray(R"({"imdb_id":"tt0000001"})");
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                              + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->disconnectFromHost();
+            });
+        });
+        const QByteArray base = QByteArrayLiteral("http://127.0.0.1:") + QByteArray::number(server.serverPort());
+        qputenv("OSDOS_TMDB_URL", base + "/3");
+        qputenv("OSDOS_WIKIDATA_URL", base + "/sparql");
+        TmdbCatalog::Service service;
+        service.providerName       = QStringLiteral("Stand-in");
+        service.fallbackProviderId = 1;
+        service.homeLabel          = QStringLiteral("Home");
+        service.titleUrl           = QStringLiteral("https://service.invalid/title/%1");
+        service.searchUrl          = QStringLiteral("https://service.invalid/search?q=%1");
+        service.wikidataProperty   = QStringLiteral("P1874");
+        TmdbCatalog catalog(data.path(), nullptr, service);
+        qunsetenv("OSDOS_TMDB_URL");
+        qunsetenv("OSDOS_WIKIDATA_URL");
+        QSignalSpy ready(&catalog, &TmdbCatalog::titleUrlReady);
+        const QVariantMap title{ { QStringLiteral("path"), QStringLiteral("title/movie/7") },
+                                 { QStringLiteral("title"), QStringLiteral("Dune") },
+                                 { QStringLiteral("mediaType"), QStringLiteral("movie") },
+                                 { QStringLiteral("tmdbId"), 7 } };
+        const auto opened = [&](const QString &id) {
+            wikidataId = id;
+            ready.clear();
+            catalog.resolveTitleUrl(title);
+            if (!ready.wait(5000))
+                return QString();
+            return ready.first().at(1).toString();
+        };
+        QCOMPARE(opened(QStringLiteral("80100172")), QStringLiteral("https://service.invalid/title/80100172"));
+        QCOMPARE(opened(QStringLiteral("amzn1.dv-gti_x~y")), QStringLiteral("https://service.invalid/title/amzn1.dv-gti_x~y"));
+        const QString search = QStringLiteral("https://service.invalid/search?q=Dune");
+        QCOMPARE(opened(QStringLiteral("1\" \"--kiosk-printing")), search);
+        QCOMPARE(opened(QStringLiteral("1/../../elsewhere")), search);
+        QCOMPARE(opened(QStringLiteral("1?next=evil")), search);
+        QCOMPARE(opened(QString()), search);
     }
 };
 
