@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'scripts/build-retroarch.sh'
       - 'scripts/engines.env'
       - 'tests/retroarch_tls_test.sh'
@@ -25,14 +25,7 @@ on:
       - '.github/actions/apt-packages/**'
       - '.github/workflows/retroarch.yml'
   pull_request:
-    paths:
-      - 'scripts/build-retroarch.sh'
-      - 'scripts/engines.env'
-      - 'tests/retroarch_tls_test.sh'
-      - 'tests/retroarch_tls/**'
-      - '.github/actions/retroarch/**'
-      - '.github/actions/apt-packages/**'
-      - '.github/workflows/retroarch.yml'
+    paths: *paths
 
 permissions:
   contents: read

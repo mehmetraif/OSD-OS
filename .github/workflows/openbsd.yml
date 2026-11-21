@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'src/**'
       - 'Main.qml'
       - 'views/**'
@@ -44,25 +44,7 @@ on:
       - 'scripts/bsd-ci.sh'
       - '.github/workflows/openbsd.yml'
   pull_request:
-    paths:
-      - 'src/**'
-      - 'Main.qml'
-      - 'views/**'
-      - 'modules/**'
-      - 'assets/**'
-      - 'shaders/**'
-      - 'thirdparty/**'
-      - 'cmake/**'
-      - 'tests/**'
-      - 'CMakeLists.txt'
-      - 'scripts/build-fbneo.sh'
-      - 'scripts/build-fbneo-lan.sh'
-      - 'scripts/fbneo-make.sh'
-      - 'scripts/fbneo-lan.patch'
-      - 'scripts/engines.env'
-      - 'scripts/bsd-package.sh'
-      - 'scripts/bsd-ci.sh'
-      - '.github/workflows/openbsd.yml'
+    paths: *paths
 
 # A newer push cancels the run before it: only the newest commit's result
 # matters.

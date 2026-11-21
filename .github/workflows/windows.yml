@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'src/**'
       - 'shaders/**'
       - 'thirdparty/**'
@@ -31,19 +31,7 @@ on:
       - '.github/actions/fbneo-cores/**'
       - '.github/workflows/windows.yml'
   pull_request:
-    paths:
-      - 'src/**'
-      - 'shaders/**'
-      - 'thirdparty/**'
-      - 'cmake/**'
-      - 'CMakeLists.txt'
-      - 'scripts/build-fbneo.sh'
-      - 'scripts/build-fbneo-lan.sh'
-      - 'scripts/fbneo-make.sh'
-      - 'scripts/fbneo-lan.patch'
-      - 'scripts/engines.env'
-      - '.github/actions/fbneo-cores/**'
-      - '.github/workflows/windows.yml'
+    paths: *paths
 
 permissions:
   contents: read
