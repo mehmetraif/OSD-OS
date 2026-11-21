@@ -438,6 +438,28 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 - Or save the page's `osdos-setup.json` in `%APPDATA%\OSD-OS\`, or in the `osdos` folder beside `osdos.exe`: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a PC.
 
+**LAN games ahead on Wi-Fi**
+
+- The OSD/OS image's Raspberry Pis mark the packets of a game on the local network CS4, the mark Wi-Fi sends ahead of other traffic. Windows doesn't let a program mark its own packets: a QoS policy does, and only an administrator can set one. OSD/OS sets none and never asks for an administrator; set it once yourself, in PowerShell run as administrator (Start, right-click **Terminal**, **Run as administrator**):
+
+  ```powershell
+  New-NetQosPolicy -Name OSDOS-LAN -AppPathNameMatchCondition retroarch.exe -IPProtocolMatchCondition TCP -IPPortMatchCondition 55435 -DSCPAction 32 -NetworkProfile All
+  ```
+
+  It marks RetroArch's TCP packets to and from port 55435, its game's, DSCP 32 (CS4), on every network the PC is on; a game online on that port is marked as well, which most internet providers clear. It stays through restarts. `Get-NetQosPolicy -Name OSDOS-LAN` shows it, and this removes it:
+
+  ```powershell
+  Remove-NetQosPolicy -Name OSDOS-LAN -Confirm:$false
+  ```
+
+- It matters where the PC's packets reach a Pi over Wi-Fi, most when the PC hosts in **Smooth** ([Online and LAN Play → Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)). Some routers clear the mark. To see whether yours keeps it, on a Pi joined to the PC's game (with `tcpdump`: `sudo apt install tcpdump`), with the PC's address:
+
+  ```sh
+  sudo tcpdump -ni wlan0 -v -c 20 'tcp port 55435 and src host 192.168.1.30' | grep -o 'tos 0x[0-9a-f]*'
+  ```
+
+  `tos 0x80` on each line is CS4, as the PC marked it; `tos 0x0` is unmarked.
+
 **The log**
 
 - OSD/OS opens no console window. It writes its log to `%APPDATA%\OSD-OS\osdos.log`, the run before's kept as `osdos-previous.log`; started from a Command Prompt or PowerShell, it writes it there as well.
@@ -454,6 +476,7 @@ Settings → System → Update says when a newer version is out and names its zi
 
 - Delete the `osdos` folder
 - Delete `%APPDATA%\OSD-OS\`: your settings, and the MAME and RetroArch OSD/OS downloaded
+- If you set the QoS policy for LAN games, remove it: `Remove-NetQosPolicy -Name OSDOS-LAN -Confirm:$false`, in PowerShell run as administrator
 
 ## On FreeBSD (amd64)
 
