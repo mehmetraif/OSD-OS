@@ -248,6 +248,10 @@ StandInRoot {
         signal changed()
         function setTimeZone(zone) { asked = asked.concat(["time-zone " + zone]); return true }
         function setKeyboard(code) { asked = asked.concat(["keyboard " + code]); return true }
+        // SSH: on or off, why no one could sign in yet, and asked.
+        property bool ssh: false
+        property string sshNote: ""
+        function setSsh(on) { asked = asked.concat(["ssh " + (on ? "on" : "off")]); return true }
         function clearMessage() { message = "" }
     }
     // SystemInfo as System's row reads it: the device's name.
@@ -317,6 +321,8 @@ StandInRoot {
             systemSettings.busy = false
             systemSettings.message = ""
             systemSettings.asked = []
+            systemSettings.ssh = false
+            systemSettings.sshNote = ""
             bootProgress.available = true
             displayOutput.available = false
             displayOutput.next = ""
@@ -435,7 +441,8 @@ StandInRoot {
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
                 { tag: "startup", lines: ["Start On", "Play at Startup", "Play From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard Layout", "Export to OSD/OS Setup",
+                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard Layout", "SSH",
+                                         "Export to OSD/OS Setup",
                                          "Paste OSD/OS Setup", "About", "# Modules", "Scripts", "Radio"] }
             ]
         }
@@ -1122,14 +1129,14 @@ StandInRoot {
             verify(yesNo.itemAtIndex(1).current)
             keyClick(Qt.Key_Escape)
             compare(root.navigations.length, 0)
-            // A heading (System's Modules) is passed over.
+            // A heading (TV / Movie's Modules) is passed over.
             loader.source = ""
-            page = open({ group: "system" })
+            page = open({ group: "tv" })
             list = listOf(page)
-            hover(middle(list.itemAtIndex(6)))
-            compare(cursor(page), "About")
-            hover(middle(list.itemAtIndex(7)))
-            compare(cursor(page), "About")
+            hover(middle(list.itemAtIndex(2)))
+            compare(cursor(page), "Info Screen")
+            hover(middle(list.itemAtIndex(3)))
+            compare(cursor(page), "Info Screen")
             // Studio Monitor's STATUS, read alone: a line under the mouse
             // takes neither the cursor nor the keys out of the strip, which
             // ▼ still moves along; a row of the next page takes both.
@@ -2047,6 +2054,45 @@ StandInRoot {
                 }
                 loader.source = ""
             }
+        }
+
+        // SSH, after Keyboard Layout: the system's, ON or OFF as it says,
+        // dimmed off the image; ◄ ► ask the system, Setting meanwhile, then
+        // as it is; nothing of the app's saved; while on, why no one could
+        // sign in yet opens the help line; a refusal is said.
+        function test_sshRow() {
+            var page = open({ group: "system" })
+            var all = lines(page)
+            compare(all.indexOf("SSH"), all.indexOf("Keyboard Layout") + 1)
+            compare(page.offReason(all.indexOf("SSH")), "Only on the OSD/OS image")
+            loader.source = ""
+            systemSettings.available = true
+            page = open({ group: "system" })
+            compare(row(page, "SSH").value, "Off")
+            moveTo(page, "SSH")
+            verify(helpOf(page).shownText.indexOf("[OFF] SSH is stopped") > 0, helpOf(page).shownText)
+            keyClick(Qt.Key_Right)
+            compare(systemSettings.asked, ["ssh on"])
+            compare(appCore.values.ssh, undefined)
+            systemSettings.busy = true
+            systemSettings.changed()
+            compare(row(page, "SSH").value, "Setting")
+            keyClick(Qt.Key_Left)
+            compare(systemSettings.asked, ["ssh on"])
+            systemSettings.sshNote = "No password or key is set yet"
+            systemSettings.ssh = true
+            systemSettings.busy = false
+            systemSettings.changed()
+            compare(row(page, "SSH").value, "On")
+            compare(cursor(page), "SSH")
+            verify(helpOf(page).shownText.indexOf("No password or key is set yet\n") === 0, helpOf(page).shownText)
+            verify(helpOf(page).shownText.indexOf("[ON] SSH runs") > 0, helpOf(page).shownText)
+            keyClick(Qt.Key_Left)
+            compare(systemSettings.asked, ["ssh on", "ssh off"])
+            systemSettings.message = "SSH not set: the helper couldn't stop it"
+            verify(named(page, "systemNotice").visible)
+            keyClick(Qt.Key_Return)
+            systemSettings.available = false
         }
 
         function test_partRowsInForce() {

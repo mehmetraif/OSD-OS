@@ -731,6 +731,27 @@ function systemRows(items) {
         unavailable: systemOff,
         moduleId: ""
     })
+    // SSH — the image's SSH server on or off, as the system has it
+    // (systemSettings.ssh), set through its root helper (setSsh(), the
+    // row's toggle in Settings.qml's setChoice()): Setting while on its way,
+    // a refusal said as Time Zone's is. Its note, why no one could sign in
+    // yet (no password or key set), opens the help line while it is on. No
+    // password here: OSD/OS Setup sets it and the keys.
+    var sshOn = !!(system && system.ssh)
+    var sshNote = system && system.sshNote ? String(system.sshNote) : ""
+    items.push({
+        type: "list_single",
+        key: "ssh",
+        systemSetting: true,
+        label: "SSH",
+        options: ["Off", "On"],
+        value: system && system.busy ? "Setting" : sshOn ? "On" : "Off",
+        description: (sshOn && sshNote !== "" ? sshNote + "\n" : "")
+                     + "Lets a computer on your network sign in to this device; its password and keys are set with OSD/OS Setup"
+                     + "\n[ON] SSH runs  [OFF] SSH is stopped",
+        unavailable: systemOff,
+        moduleId: ""
+    })
     // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
     // open OSD/OS Setup's page with them (views/SetupExport.qml).
     items.push({
