@@ -3820,43 +3820,32 @@ void ArcadeBackend::readOwnVersions() {
             });
         }
     }
-    // The core loaded by a copy of the app, not by this one: one that can't
-    // be takes nothing down with it.
-    const QString core = libretro::corePath(m_dataRoot);
-    const QString coreStamp = core.isEmpty() ? QString() : fileStamp(QFileInfo(core));
-    if (coreStamp != m_coreVersionOf && !m_coreInfoRead && !m_coreInfoCommand.isEmpty()) {
+    // A core's, loaded by a copy of the app, not by this one: one that can't
+    // be takes nothing down with it. Into version, with the stamp of the
+    // file it is of in versionOf, while read is the copy asked.
+    const auto readCore = [this, doneWith](const QString &core, QString &version, QString &versionOf,
+                                           QPointer<QProcess> &read) {
+        const QString stamp = core.isEmpty() ? QString() : fileStamp(QFileInfo(core));
+        if (stamp == versionOf || read || m_coreInfoCommand.isEmpty())
+            return;
+        version.clear();
         if (core.isEmpty()) {
-            m_coreVersion.clear();
-            m_coreVersionOf.clear();
-        } else {
-            m_coreVersion.clear();
-            m_coreInfoRead = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << core,
-                                        [this, coreStamp, doneWith](const QByteArray &output, bool timedOut) {
-                m_coreInfoRead = nullptr;
-                m_coreVersion = libretro::readCoreInfo(output).version;
-                if (doneWith(coreStamp, timedOut && m_coreVersion.isEmpty()))
-                    m_coreVersionOf = coreStamp;
-            });
+            versionOf.clear();
+            return;
         }
-    }
-    // As the core, OSD/OS's own for CV1000 games, which LAN Games' rooms of
-    // it are matched against.
-    const QString lanCore = m_lanPlay ? libretro::lanCorePath(m_dataRoot) : QString();
-    const QString lanCoreStamp = lanCore.isEmpty() ? QString() : fileStamp(QFileInfo(lanCore));
-    if (lanCoreStamp != m_lanCoreVersionOf && !m_lanCoreInfoRead && !m_coreInfoCommand.isEmpty()) {
-        m_lanCoreVersion.clear();
-        if (lanCore.isEmpty()) {
-            m_lanCoreVersionOf.clear();
-        } else {
-            m_lanCoreInfoRead = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << lanCore,
-                                           [this, lanCoreStamp, doneWith](const QByteArray &output, bool timedOut) {
-                m_lanCoreInfoRead = nullptr;
-                m_lanCoreVersion = libretro::readCoreInfo(output).version;
-                if (doneWith(lanCoreStamp, timedOut && m_lanCoreVersion.isEmpty()))
-                    m_lanCoreVersionOf = lanCoreStamp;
-            });
-        }
-    }
+        read = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << core,
+                          [stamp, doneWith, &version, &versionOf, &read](const QByteArray &output, bool timedOut) {
+            read = nullptr;
+            version = libretro::readCoreInfo(output).version;
+            if (doneWith(stamp, timedOut && version.isEmpty()))
+                versionOf = stamp;
+        });
+    };
+    readCore(libretro::corePath(m_dataRoot), m_coreVersion, m_coreVersionOf, m_coreInfoRead);
+    // OSD/OS's own core for CV1000 games, which LAN Games' rooms of it are
+    // matched against.
+    readCore(m_lanPlay ? libretro::lanCorePath(m_dataRoot) : QString(), m_lanCoreVersion, m_lanCoreVersionOf,
+             m_lanCoreInfoRead);
 }
 
 QProcess *ArcadeBackend::askVersion(const QString &program, const QStringList &arguments,
