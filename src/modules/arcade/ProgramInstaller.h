@@ -6,6 +6,40 @@
 
 class QNetworkAccessManager;
 
+// What Settings → Arcade's downloads share (FbneoInstaller, ProgramInstaller):
+// one at a time (running()), its progress from 0 to 100, and finished() once
+// it is over. The last of the work, off the GUI thread, gives m_watcher ""
+// once all of it is in place, else why not; one that fails is logged, and
+// what it brought goes (removeParts()). What was installed stays as it was.
+class Installer : public QObject {
+    Q_OBJECT
+public:
+    bool running() const { return m_running; }
+    int  progress() const { return m_progress; }   // 0 to 100
+
+signals:
+    void progressChanged();
+    void finished(bool ok, const QString &message);
+
+protected:
+    explicit Installer(QObject *parent);
+    // Under way, from 0.
+    void begin();
+    void setProgress(int progress);
+    void fail(const QString &message);
+
+    QNetworkAccessManager *const m_nam;
+    QFutureWatcher<QString> *const m_watcher;
+
+private:
+    // What is downloaded, for the log: "FinalBurn Neo", "RetroArch".
+    virtual QString what() const = 0;
+    virtual void removeParts() = 0;
+
+    int  m_progress = 0;
+    bool m_running = false;
+};
+
 // A program for Windows, where no package manager brings it, downloaded as
 // a 7z archive and unpacked into <data>/arcade: RetroArch (Settings → Arcade
 // → FinalBurn Neo), from libretro's build server, and MAME (Settings → Arcade
@@ -16,7 +50,7 @@ class QNetworkAccessManager;
 // archive is downloaded as a .part file and unpacked beside it (SevenZip),
 // and the folder the program came out in is moved into place once it is
 // whole, over one downloaded before. Nothing is in place before all of it is.
-class ProgramInstaller : public QObject {
+class ProgramInstaller : public Installer {
     Q_OBJECT
 public:
     struct Source {
@@ -38,26 +72,17 @@ public:
     // Downloads and unpacks it; finished() follows. A download cut short
     // leaves what was there.
     void start(const Source &source);
-    bool running() const { return m_running; }
-    int  progress() const { return m_progress; }   // 0 to 100
-
-signals:
-    void progressChanged();
-    void finished(bool ok, const QString &message);
 
 private:
     void fetchArchive(const QUrl &url);
     void unpack();
-    void setProgress(int progress);
-    void fail(const QString &message);
+    QString what() const override { return m_source.name; }
+    // Hundreds of megabytes on the disk.
+    void removeParts() override;
     // The archive as it downloads, and the folder it is unpacked in, both
     // beside the folder it ends up as.
     QString archivePart() const;
     QString unpackFolder() const;
 
-    QNetworkAccessManager *m_nam = nullptr;
-    QFutureWatcher<QString> *m_watcher = nullptr;
     Source m_source;
-    int  m_progress = 0;
-    bool m_running = false;
 };

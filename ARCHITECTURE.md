@@ -37,7 +37,7 @@ osd-os/
         Mame.h/.cpp                 # what is asked of MAME and made of its answers: -listxml, the controller file, the credits' script, genres, systems; where MAME and its plugins are
         Libretro.h/.cpp             # what is asked of RetroArch with the FinalBurn Neo core and made of what it says: its config and arguments, its log, FinalBurn Neo's list of games, a sign-in checked
         FbneoInstaller.h/.cpp       # FinalBurn Neo's download: the core, its list of games and its licence
-        ProgramInstaller.h/.cpp     # RetroArch's and MAME's downloads on Windows: libretro's and mamedev's builds, unpacked from their 7z archives (util/SevenZip)
+        ProgramInstaller.h/.cpp     # RetroArch's and MAME's downloads on Windows: libretro's and mamedev's builds, unpacked from their 7z archives (util/SevenZip); and Installer, what both installers share
         RetroAchievements.h/.cpp    # RetroAchievements' Web API and media server, read with the account's key: the key checked, the leaderboards, the games' pictures and achievements, the badges
         RetroAchievementsAccount.h/.cpp # the RetroAchievements account RetroArch plays under: its user, token and Web API key, a sign-in checked, OSD/OS Setup's account taken
         ArcadeDb.h/.cpp             # progetto-SNAPS' pictures of MAME's games through ArcadeDB's scraper service: a screenshot and the title screen by set

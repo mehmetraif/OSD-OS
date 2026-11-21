@@ -115,29 +115,15 @@ FbneoInstaller::Source FbneoInstaller::defaultSource() {
 }
 
 FbneoInstaller::FbneoInstaller(const QString &dataRoot, QObject *parent)
-    : QObject(parent), m_dataRoot(dataRoot), m_nam(new QNetworkAccessManager(this)),
-      m_watcher(new QFutureWatcher<QString>(this))
+    : Installer(parent), m_dataRoot(dataRoot)
 {
-    connect(m_watcher, &QFutureWatcherBase::finished, this, [this] {
-        const QString error = m_watcher->result();
-        if (!error.isEmpty()) {
-            fail(error);
-            return;
-        }
-        m_running = false;
-        m_progress = 100;
-        emit progressChanged();
-        emit finished(true, QString());
-    });
     // What a download stopped by the app closing left: up to tens of
     // megabytes on the card, and nothing downloads yet.
-    for (const QString &path : { libretro::downloadedCore(m_dataRoot) + QStringLiteral(".zip"),
-                                 libretro::downloadedDat(m_dataRoot), libretro::downloadedLicense(m_dataRoot) })
-        QFile::remove(partOf(path));
+    removeParts();
 }
 
 void FbneoInstaller::start(const Source &source) {
-    if (m_running)
+    if (running())
         return;
     if (source.core.isEmpty()) {
         emit finished(false, QStringLiteral("libretro builds no FinalBurn Neo for this machine (%1)")
@@ -145,9 +131,7 @@ void FbneoInstaller::start(const Source &source) {
         return;
     }
     m_source = source;
-    m_running = true;
-    m_progress = 0;
-    emit progressChanged();
+    begin();
     QDir().mkpath(QFileInfo(libretro::downloadedCore(m_dataRoot)).absolutePath());
     fetch(0);
 }
@@ -170,14 +154,10 @@ void FbneoInstaller::fetch(int index) {
         m_nam, urls[index], partOf(targets[index]), kDownloadTimeoutMs, kDownloadMaxBytes,
         QStringLiteral("FinalBurn Neo's files"), this,
         [this, base, index](qint64 received, qint64 total) {
-            const int progress = base + (total > 0 ? int(kShares[index] * received / total) : 0);
-            if (progress != m_progress) {
-                m_progress = progress;
-                emit progressChanged();
-            }
+            setProgress(base + (total > 0 ? int(kShares[index] * received / total) : 0));
         },
         [this, index](const QString &error) {
-            if (!m_running)
+            if (!running())
                 return;
             if (!error.isEmpty()) {
                 fail(error);
@@ -236,13 +216,8 @@ void FbneoInstaller::unpack() {
     }));
 }
 
-void FbneoInstaller::fail(const QString &message) {
-    qWarning("[Arcade] FinalBurn Neo's download failed: %s", qPrintable(message));
-    // What the files before it brought goes too: tens of megabytes on the
-    // card. What was installed stays as it was.
+void FbneoInstaller::removeParts() {
     for (const QString &path : { libretro::downloadedCore(m_dataRoot) + QStringLiteral(".zip"),
                                  libretro::downloadedDat(m_dataRoot), libretro::downloadedLicense(m_dataRoot) })
         QFile::remove(partOf(path));
-    m_running = false;
-    emit finished(false, message);
 }
