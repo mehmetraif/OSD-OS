@@ -31,9 +31,9 @@ FocusScope {
     readonly property bool full: lines.length >= maxLines
 
     function read() {
-        var all = appCore.get_settings()
-        var config = (all.modules && all.modules[moduleId]) ? all.modules[moduleId] : {}
-        var saved = config[settingKey]
+        // Through get_setting(), which reads a key in dot-notation as it
+        // is saved.
+        var saved = appCore.get_setting(moduleId, settingKey)
         var out = []
         if (saved && saved.length !== undefined && typeof saved !== "string") {
             for (var i = 0; i < saved.length; i++) {

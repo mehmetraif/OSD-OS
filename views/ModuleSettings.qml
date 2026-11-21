@@ -69,6 +69,32 @@ FocusScope {
     function valuesOf(item) {
         return item._module ? (alsoValues[item._module] || {}) : currentValues
     }
+    // A row's saved value, and the values with a new one, by its key: one
+    // in dot-notation ("libraries.somekey") is the somekey of libraries, as
+    // AppCore saves and reads it (putSetting(), get_setting()).
+    function savedIn(values, key) {
+        var parts = String(key).split(".")
+        if (parts.length !== 2)
+            return values[key]
+        var sub = values[parts[0]]
+        return sub && typeof sub === "object" ? sub[parts[1]] : undefined
+    }
+    function savedOf(item) {
+        return savedIn(valuesOf(item), item.key)
+    }
+    function withSaved(values, key, value) {
+        var updated = Object.assign({}, values)
+        var parts = String(key).split(".")
+        if (parts.length !== 2) {
+            updated[key] = value
+            return updated
+        }
+        var sub = updated[parts[0]]
+        sub = Object.assign({}, sub && typeof sub === "object" ? sub : {})
+        sub[parts[1]] = value
+        updated[parts[0]] = sub
+        return updated
+    }
 
     // The submenu row with this key, at any depth.
     function findSubmenu(list, key) {
@@ -295,7 +321,7 @@ FocusScope {
     // choice, a slider's 0 to 100, an unset one's default (a dynamic list's
     // first choice).
     function valueOf(item) {
-        var saved = valuesOf(item)[item.key]
+        var saved = savedOf(item)
         if (item.type === "slider") {
             var n = parseInt(saved)
             if (isNaN(n))
@@ -327,7 +353,7 @@ FocusScope {
     // while it has no choices.
     function chosenIndex(item) {
         var opts = dynamicOptions[rowId(item)] || []
-        var saved = valuesOf(item)[item.key]
+        var saved = savedOf(item)
         var toggle = typeof saved === "boolean"
         for (var i = 0; i < opts.length; i++) {
             if (toggle ? opts[i].old === saved : opts[i].id === saved)
@@ -378,11 +404,10 @@ FocusScope {
     // A backend that sends a row's choices again may have put its value back
     // (a profile switch that failed): the saved value is read again.
     function readAgain(mid, own, key) {
-        var saved = ((appCore.get_settings().modules || {})[mid] || {})[key]
+        var saved = savedIn((appCore.get_settings().modules || {})[mid] || {}, key)
         var shown = own === "" ? currentValues : (alsoValues[own] || {})
-        if (saved === undefined || shown[key] === saved) return
-        var values = Object.assign({}, shown)
-        values[key] = saved
+        if (saved === undefined || savedIn(shown, key) === saved) return
+        var values = withSaved(shown, key, saved)
         if (own === "") {
             currentValues = values
         } else {
@@ -420,20 +445,20 @@ FocusScope {
         }
 
         if (type === "directory_browser") {
-            var saved = valuesOf(item)[key] || ""
+            var saved = savedOf(item) || ""
             return saved !== "" ? saved : "Default"
         }
 
         // A line typed on the on-screen keyboard: what was typed, or that
         // something was (a key or a password, "secret", is never shown).
         if (type === "text") {
-            var typed = String(valuesOf(item)[key] || "")
+            var typed = String(savedOf(item) || "")
             return typed === "" ? "Not Set" : item.secret ? "Set" : typed
         }
 
         // A list of typed lines (its own page): how many there are.
         if (type === "text_list") {
-            var lines = valuesOf(item)[key]
+            var lines = savedOf(item)
             var count = lines && lines.length !== undefined && typeof lines !== "string" ? lines.length : 0
             return count === 0 ? "None" : String(count)
         }
@@ -452,8 +477,7 @@ FocusScope {
                          : appCore.save_setting(moduleOf(item), item.key, value)
         if (!saved)
             return false
-        var updated = Object.assign({}, valuesOf(item))
-        updated[item.key] = value
+        var updated = withSaved(valuesOf(item), item.key, value)
         if (item._module) {
             var all = Object.assign({}, alsoValues)
             all[item._module] = updated
@@ -693,13 +717,13 @@ FocusScope {
                 keyboard.title = item.label || ""
                 keyboard.maxLength = item.max_length || 64
                 keyboard.masked = !!item.secret
-                keyboard.open(String(moduleSettingsRoot.valuesOf(item)[item.key] || ""))
+                keyboard.open(String(moduleSettingsRoot.savedOf(item) || ""))
             } else if (item.type === "directory_browser") {
                 // Picked on the file picker's tree; "" is the module's own.
                 moduleSettingsRoot.navigateTo("views/FilePicker.qml", {
                     moduleId: moduleSettingsRoot.moduleOf(item),
                     settingKey: item.key,
-                    currentPath: moduleSettingsRoot.valuesOf(item)[item.key] || "",
+                    currentPath: moduleSettingsRoot.savedOf(item) || "",
                     defaultLabel: "Default Folder",
                     label: item.label
                 }, { currentIndex: settingsList.currentIndex })

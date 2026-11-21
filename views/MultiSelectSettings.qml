@@ -38,9 +38,9 @@ FocusScope {
                               : [{ note: true, label: answered ? "No Choices" : "Loading…" }]
 
     function buildEnabledMap() {
-        var allSettings = appCore.get_settings()
-        var moduleConfig = (allSettings.modules && allSettings.modules[moduleId]) ? allSettings.modules[moduleId] : {}
-        saved = moduleConfig[settingKey] || {}
+        // Through get_setting(), which reads a key in dot-notation as it
+        // is saved.
+        saved = appCore.get_setting(moduleId, settingKey) || {}
         var map = {}
         for (var i = 0; i < options.length; i++) {
             var option = options[i]
