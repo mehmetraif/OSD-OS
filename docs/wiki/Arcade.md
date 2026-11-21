@@ -416,6 +416,8 @@ MAME's own menu is **Tab** on a keyboard, or the controller's guide button: **MO
 
 A game that couldn't start, or that MAME ended with an error, shows what went wrong and MAME's last lines ([Troubleshooting](#troubleshooting)).
 
+A game that ended as it should goes straight back to the list. On a Raspberry Pi that ran short of power or slowed itself down during the game, a screen with the game's name says so first, the first time each happens after OSD/OS starts ([The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)); back goes on to the list.
+
 ## Players and buttons
 
 MAME's players are the ones **Settings → Controls → Players** sets ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players)): player 1's controller is MAME's joystick 1, up to player 6.

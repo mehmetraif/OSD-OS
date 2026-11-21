@@ -237,8 +237,9 @@ ModuleRouter {
             moduleRoot.playing = null
             moduleRoot.focusFront()
             // Back on the list, as after a video; else why it didn't play,
-            // or why it stopped (Play.qml's ended()).
-            if (reason !== "ok")
+            // or why it stopped, or what a game played out has to say (the
+            // Pi short of power or throttled during it): Play.qml's ended().
+            if (reason !== "ok" || notice)
                 moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true, reason: reason,
                                       message: notice, output: arcadeBackend.output() })
         }

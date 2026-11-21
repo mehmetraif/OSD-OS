@@ -707,7 +707,8 @@ signals:
     void mameChanged();
     void mameProgressChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
-    // notice: what to tell the player when it isn't "ok", else "".
+    // notice: what to tell the player, else "": why it isn't "ok", and after
+    // any end the Pi short of power or throttled during it (GameSystem).
     void finished(int exitCode, const QString &reason, const QString &notice);
     void dynamicOptionsReady(const QString &key, const QVariant &options);
 

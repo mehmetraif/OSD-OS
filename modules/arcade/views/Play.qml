@@ -9,10 +9,13 @@ import Components
 // runs, and what the screen showed just before the hand-off stays there
 // while MAME starts. A game that couldn't start, or that MAME ended with an
 // error, says why here, and so does one that was played and stopped (over
-// the network, as its host left the game): with Start Info Screen off a game
-// starts from the list itself (Root.qml's playGame), and this view opens
-// only for that, with navParams.error (it never started) or navParams.failed
-// (it ended any other way than played out: reason, message and output).
+// the network, as its host left the game), and one played out that has
+// something to say (the Pi short of power or throttled during it); one
+// played out with nothing to say goes straight back. With Start Info Screen
+// off a game starts from the list itself (Root.qml's playGame), and this
+// view opens only for that, with navParams.error (it never started) or
+// navParams.failed (it ended any other way than played out, or played out
+// with a notice: reason, message and output).
 // Root.qml starts the game, with the credits bought, and puts it on Recently
 // Played once it has started (startGame()), and keeps the screen saver off
 // while it runs.
@@ -100,11 +103,13 @@ FocusScope {
     // A game that ended any other way than played out, by ArcadeBackend's
     // finished(): its reason, what to tell the player (notice) and what the
     // engine printed. One "stopped" was played, and ended from outside (over
-    // the network, as its host left the game): its name and the notice.
-    // Any other ("failed", "failed_to_start") could not be played, and says
-    // so with the engine's own lines.
+    // the network, as its host left the game): its name and the notice. One
+    // "ok" that has a notice (the Pi ran short of power or slowed itself
+    // down during it, GameSystem) says it the same way. Any other
+    // ("failed", "failed_to_start") could not be played, and says so with
+    // the engine's own lines.
     function ended(reason, notice, printed) {
-        playRoot.phase = reason === "stopped" ? "stopped" : "failed"
+        playRoot.phase = reason === "stopped" || reason === "ok" ? "stopped" : "failed"
         playRoot.message = notice || ""
         playRoot.output = playRoot.phase === "failed" ? printed || "" : ""
     }
@@ -152,8 +157,10 @@ FocusScope {
         function onFinished(exitCode, reason, notice) {
             if (playRoot.phase !== "running")
                 return
-            // Back to the list, as after a video.
-            if (reason === "ok") {
+            // Back to the list, as after a video, unless the game played out
+            // has something to say (the Pi ran short of power or throttled
+            // during it): then it is said here first.
+            if (reason === "ok" && !notice) {
                 playRoot.goBack()
                 return
             }

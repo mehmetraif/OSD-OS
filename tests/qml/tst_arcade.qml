@@ -3830,6 +3830,60 @@ StandInRoot {
             compare(router.playing, null)
         }
 
+        // A game played out whose end has something to say (the Pi ran short
+        // of power or throttled during it, GameSystem's notice) says it
+        // under the game's name before the list, as one stopped does, from
+        // Start Info Screen's page and from the list alike; one with nothing
+        // to say goes straight back, as before.
+        function test_noticeAfterAGame() {
+            var throttled = "The Raspberry Pi slowed itself down during the game: it was too hot"
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "running", 3000)
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", throttled)
+            compare(play.phase, "stopped")
+            compare(root.backs, 0)
+            verify(!findChild(play, "gameLoading").visible)
+            verify(findText(play, "Street Fighter II", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, throttled, true) !== null)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "running", 3000)
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(root.backs, 2)
+            loader.source = ""
+
+            arcadeBackend.started = []
+            var router = openRoot({ screen: "Arcade", start_info: false })
+            var screen = shown(router)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return arcadeBackend.started.length === 1 })
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", throttled)
+            compare(router.playing, null)
+            play = shown(router)
+            verify(play !== screen)
+            compare(play.phase, "stopped")
+            verify(findText(play, "1942 (Revision B)", true) !== null)
+            verify(findText(play, throttled, true) !== null)
+            compare(findText(play, "Could not play"), null)
+            keyClick(Qt.Key_Escape)
+            compare(shown(router), screen)
+            compare(screen.currentSet, "1942")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return arcadeBackend.started.length === 2 })
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(router.playing, null)
+            compare(shown(router), screen)
+            compare(root.backs, 2)
+        }
+
         // A game MAME ended with an error, or one that never started, says
         // why on Play.qml; back from it lands on the game in the list.
         function test_rootWhyNot() {
