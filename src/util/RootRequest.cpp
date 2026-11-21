@@ -33,7 +33,9 @@ void ask(QObject *owner, const QString &stem, const QByteArray &line, int timeou
         const QByteArray answer = reply->left(reply->indexOf('\n')).trimmed();
         socket->deleteLater();
         Answer result;
-        result.ok = answer == "ok";
+        result.ok = answer == "ok" || answer.startsWith("ok ");
+        if (result.ok)
+            result.note = QString::fromUtf8(answer.mid(3)).trimmed();
         result.answered = !answer.isEmpty();
         result.why = result.ok ? QString() : result.answered ? QString::fromUtf8(answer) : failure;
         result.sent = *sent;

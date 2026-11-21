@@ -369,24 +369,33 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 |---|---|---|---|---|
 | Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image, from a launcher at level 10; elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
 | Keyboard | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
+| SSH | ON / OFF | The system's | Turns the SSH service on or off, now and at every start after. On the OSD/OS image only ([below](#ssh)) | None: `systemctl` keeps it |
 | Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
 | Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
 | About | A page | | This device's System Information, then what OSD/OS is made of and its licenses | None: the device's name is the system's hostname |
+
+### SSH
+
+Turns `ssh.service` on and starts it, or turns it off and stops it, through the image's stop helper ([The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-time-zones-the-keyboards-and-sshs-socket)).
+
+- **Only on or off.** `pi`'s password, the keys that log in and whether a password logs in at all stay as [OSD/OS Setup](https://osdos.tv/setup/) set them, and a later card's SSH setting wins over this row, as it did before. Nothing here sets or shows a password or a key.
+- **Set a password or a key with OSD/OS Setup first** shows under the row once it has turned SSH on, when nobody could sign in yet: `pi` has no password (an image built without one) and no key in `~/.ssh/authorized_keys`.
+- Turning SSH off leaves a session that is already open running; new ones are refused.
 
 ### Paste OSD/OS Setup
 
 1. On [OSD/OS Setup](https://osdos.tv/setup/), choose the settings, then **Copy for a computer**.
 2. Select on this row. OSD/OS's own settings and the RetroAchievements account are set at once.
 
-- A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard (the time zone and the keyboard have rows of their own above).
+- A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard (the time zone, the keyboard and whether SSH is on have rows of their own above).
 - The page's file does the same at the next start, put in the data folder or beside the app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).
 
 ### Export to OSD/OS Setup
 
 This device's settings as QR codes. A phone's camera opens [OSD/OS Setup](https://osdos.tv/setup/) from them with its form filled in, to change and make a card's file of.
 
-- **What goes**: every setting on the form that isn't at its default; the Arcade's favorites; the RetroAchievements user name, Web API key and sign-in token. On an OSD/OS card also the device's name, the display output, Wi-Fi with its password, the time zone, the keyboard, and SSH with its keys.
+- **What goes**: every setting on the form that isn't at its default; the Arcade's favorites; the RetroAchievements user name, Web API key and sign-in token. On an OSD/OS card also the device's name, the display output, Wi-Fi with its password, the time zone, the keyboard, and SSH with its keys: on or off as it is now, the SSH row's say included.
 - **What can't go**: pi's password, of which only the hash is kept.
 - **Show the codes?** is asked first: anyone who sees the screen can read them.
 - **Several codes** (**1/3**, **2/3**…) come where one can't hold the settings; ◄ ► go through them. The page takes them in any order.

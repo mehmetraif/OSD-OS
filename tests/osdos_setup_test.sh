@@ -5,7 +5,8 @@
 # the image runs them, the app's (osdos-setup-app.service) and then the
 # system's (osdos-setup.service). The image's own osdos-stop, taken from
 # scripts/install.sh as os/build.sh takes it, names the device, sets the
-# Wi-Fi country and writes the display output, as the app has it do;
+# Wi-Fi country and writes the display output, as the app has it do, and
+# turns SSH off and on as Settings → System does, alongside the card's;
 # hostnamectl, raspi-config, systemctl, chpasswd and timedatectl are
 # stand-ins that only note what they were asked. A whole file: off the boot
 # partition at the first stage, root's alone until the second has applied
@@ -41,6 +42,7 @@ awk -v marker=STOP_HELPER '
                       -e "s#/etc/modprobe.d#$T/etc/modprobe.d#g" \
                       -e "s#/run/osdos-display-boot.txt#$T/run/osdos-display-boot.txt#g" \
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/usr/share/zoneinfo/iso3166.tab#g" \
+                      -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/bin/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 for tool in systemctl raspi-config timedatectl; do
@@ -202,6 +204,26 @@ check "password login: on, ahead of any other drop-in" "PasswordAuthentication y
     "$(grep '^PasswordAuthentication' "$SSHD_CONF")"
 check "password login: said so" "1" "$(logged "SSH: on, password login on")"
 check "password login: content" "0 0" "$status"
+
+# SSH turned off and on again from the device (Settings → System → SSH,
+# through the image's osdos-stop): only whether it runs. Password login and
+# the key as the card left them, and a later card's say still the last.
+device_ssh() { printf 'ssh %s\n' "$1" | PATH="$T/bin:$PATH" "$T/bin/osdos-stop" system-setting 2>> "$T/err"; }
+: > "$T/asked"
+check "from the device: SSH off" "ok" "$(device_ssh off)"
+check "from the device: disabled and stopped" "2" \
+    "$(( $(asked "systemctl disable ssh.service") + $(asked "systemctl stop ssh.service") ))"
+check "from the device: SSH on" "ok" "$(device_ssh on)"
+check "from the device: enabled and started" "2" \
+    "$(( $(asked "systemctl enable ssh.service") + $(asked "systemctl start ssh.service") ))"
+check "from the device: password login as the card set it" "PasswordAuthentication yes" \
+    "$(grep '^PasswordAuthentication' "$SSHD_CONF")"
+check "from the device: the card's key kept" "$KEY" "$(cat "$HOME_PI/.ssh/authorized_keys")"
+check "from the device: nothing else asked" "4" "$(grep -v -c '^systemctl show ' "$T/asked")"
+printf '{ "osdos_setup": 1, "system": { "ssh": { "enabled": false } } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "a later card: SSH off over the device's on" "1" "$(asked "systemctl disable ssh.service")"
+check "a later card: said so" "1" "$(logged "SSH: off")"
 
 # Without a password or a key: SSH left as it was.
 rm -rf "$HOME_PI/.ssh"

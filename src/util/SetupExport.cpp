@@ -93,16 +93,7 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
     }
 }
 
-// Whether a line of authorized_keys is a public key the card's setup takes
-// (public_key() there): a type, then its key.
-bool publicKey(const QString &line) {
-    static const QRegularExpression kKey(
-        QStringLiteral("^(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\\.com)"
-                       "\\s+[A-Za-z0-9+/]+={0,3}(\\s.*)?$"));
-    return kKey.match(line).hasMatch();
-}
-
-// sshd's drop-in and authorized_keys are read no further than this.
+// sshd's drop-in is read no further than this.
 constexpr qint64 kMaxText = 256 * 1024;
 
 } // namespace
@@ -146,25 +137,20 @@ void readSystem(System &system, const QString &root, const QString &home) {
     if (!layout.isEmpty())
         system.keyboard = layout;
 
-    // SSH, where it is there to be turned on: on when systemd starts it,
-    // password login as the card's setup said (its own drop-in), and the
-    // keys that log in.
-    const bool installed = QFileInfo::exists(root + QStringLiteral("/usr/lib/systemd/system/ssh.service"))
-                           || QFileInfo::exists(root + QStringLiteral("/lib/systemd/system/ssh.service"));
-    if (installed) {
-        const QFileInfo wanted(root + QStringLiteral("/etc/systemd/system/multi-user.target.wants/ssh.service"));
-        system.ssh = wanted.exists() || wanted.isSymLink() ? 1 : 0;
+    // SSH, where it is there to be turned on: on when systemd starts it, as
+    // Settings → System shows it, password login as the card's setup said
+    // (its own drop-in), and the keys that log in.
+    const int ssh = systemlocale::ssh(root);
+    if (ssh >= 0) {
+        system.ssh = ssh;
         static const QRegularExpression kPasswords(QStringLiteral("^\\s*PasswordAuthentication\\s+yes\\b"),
                                                    QRegularExpression::MultilineOption
                                                        | QRegularExpression::CaseInsensitiveOption);
         const QByteArray dropIn =
             filetext::readText(root + QStringLiteral("/etc/ssh/sshd_config.d/00-osdos-setup.conf"), kMaxText);
         system.sshPasswordLogin = kPasswords.match(QString::fromUtf8(dropIn)).hasMatch();
-        const QByteArray keys = filetext::readText(home + QStringLiteral("/.ssh/authorized_keys"), kMaxText);
-        const QStringList lines = QString::fromUtf8(keys).split(QLatin1Char('\n'));
-        for (const QString &line : lines) {
-            const QString key = line.trimmed();
-            if (publicKey(key) && !system.sshKeys.contains(key))
+        for (const QString &key : systemlocale::sshKeys(home)) {
+            if (!system.sshKeys.contains(key))
                 system.sshKeys << key;
         }
     }

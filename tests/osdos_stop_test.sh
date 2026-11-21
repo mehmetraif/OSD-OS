@@ -7,8 +7,9 @@
 # database's list of countries, and the device name's (osdos-stop
 # device-name), on a stand-in /etc/hosts, and the time zone's and the
 # keyboard's (osdos-stop system-setting), against stand-ins for the time zone
-# database and XKB's layouts. systemctl, raspi-config, hostnamectl and
-# timedatectl are stand-ins that only note what they were asked.
+# database and XKB's layouts, and SSH's (osdos-stop system-setting ssh), on a
+# stand-in /etc/shadow. systemctl, raspi-config, hostnamectl and timedatectl
+# are stand-ins that only note what they were asked.
 #   osdos_stop_test.sh <scripts/install.sh> <os/stage-osdos/03-boot/files>
 set -u
 
@@ -28,13 +29,18 @@ awk -v marker=STOP_HELPER '
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/iso3166.tab#g" \
                       -e "s#^ZONES=/usr/share/zoneinfo\$#ZONES=$T/zoneinfo#" \
                       -e "s#^LAYOUTS=/usr/share/X11/xkb/symbols\$#LAYOUTS=$T/xkb#" \
+                      -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/iso3166.tab" "$T/osdos-stop" || { echo "FAIL: osdos-stop's list of countries not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts not found in $INSTALL_SH"; exit 1; }
 grep -q "^ZONES=$T/zoneinfo\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's time zones not found in $INSTALL_SH"; exit 1; }
 grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboard layouts not found in $INSTALL_SH"; exit 1; }
-printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n' "$T" > "$T/bin/systemctl"
+grep -q "^SHADOW=$T/etc/shadow\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/shadow not found in $INSTALL_SH"; exit 1; }
+# systemctl names the app's service's user as app-user has it, and fails a
+# command while <command>-fails is there (enable-fails, start-fails, ...).
+printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n[ "$1" != show ] || cat "%s/app-user" 2> /dev/null\n[ ! -e "%s/$1-fails" ]\n' \
+    "$T" "$T" "$T" > "$T/bin/systemctl"
 # raspi-config says something of its own, which must stay out of the answer,
 # and fails while raspi-config-fails is there.
 printf '#!/bin/sh\necho "$*" >> "%s/raspi-config"\necho "raspi-config on its own"\n[ ! -e "%s/raspi-config-fails" ]\n' \
@@ -407,6 +413,62 @@ printf 'keyboard xx\n' | system_request > /dev/null
 check "a setting refused answered is no failure" 0 "$?"
 check "a setting refused goes to the journal" "osdos-stop system-setting: no such keyboard" "$(cat "$T/stderr")"
 check "after them all, still no reboot" "" "$(asked)"
+
+# SSH, while the app runs: on, enabled and started; off, disabled and
+# stopped; nothing else, and nothing of sshd's own settings. Turned on, the
+# answer says when the app's user (osdos.service's, pi here) has no password
+# to log in with, never anything of the password itself.
+ssh_setting() { : > "$T/systemctl"; system_setting "$1"; }
+changed()     { grep -v '^show ' "$T/systemctl"; }
+echo pi > "$T/app-user"
+printf 'root:*:19000:0:99999:7:::\npi:%s:19000:0:99999:7:::\n' '$6$invented$cAfEcAfEcAfE' > "$T/etc/shadow"
+check "ssh on: answers ok" ok "$(ssh_setting 'ssh on')"
+check "ssh on: enabled, then started" $'enable ssh.service\nstart ssh.service' "$(changed)"
+check "ssh on: asks whose the app is" "show --property=User --value osdos.service" "$(grep '^show ' "$T/systemctl")"
+check "ssh off: answers ok" ok "$(ssh_setting 'ssh off')"
+check "ssh off: disabled, then stopped" $'disable ssh.service\nstop ssh.service' "$(changed)"
+check "ssh off: whose the app is not asked" "" "$(grep '^show ' "$T/systemctl")"
+for locked in '!' '!$6$invented$cAfEcAfEcAfE' '*' ''; do
+    printf 'pi:%s:19000:0:99999:7:::\n' "$locked" > "$T/etc/shadow"
+    check "ssh on, pi's password '$locked': no password to log in with" "ok no-password" "$(ssh_setting 'ssh on')"
+    check "ssh on, pi's password '$locked': on all the same" $'enable ssh.service\nstart ssh.service' "$(changed)"
+done
+check "ssh on: nothing of the password in the journal" "" "$(grep -e invented -e cAfE "$T/stderr")"
+check "ssh off, no password: only ok" ok "$(ssh_setting 'ssh off')"
+# Where whose the app is, or its password, can't be told: nothing said.
+: > "$T/app-user"
+check "ssh on, the app's user unknown: ok" ok "$(ssh_setting 'ssh on')"
+echo 'pi;reboot' > "$T/app-user"
+check "ssh on, a user that isn't a name: ok" ok "$(ssh_setting 'ssh on')"
+echo pi > "$T/app-user"
+rm "$T/etc/shadow"
+check "ssh on, no /etc/shadow: ok" ok "$(ssh_setting 'ssh on')"
+printf 'pi:$6$invented$cAfEcAfEcAfE:19000:0:99999:7:::\n' > "$T/etc/shadow"
+# Only on or off: nothing else reaches systemctl.
+for bad in '' 'yes' 'ON' 'on off' 'on;reboot' '$(reboot)' 'restart' 'on ' 'mask'; do
+    check "ssh: '$bad' isn't on or off" "SSH is only on or off" "$(ssh_setting "ssh $bad")"
+    check "ssh: '$bad': systemctl not asked" "" "$(cat "$T/systemctl")"
+done
+check "ssh alone is neither" "SSH is only on or off" "$(ssh_setting 'ssh')"
+check "ssh refused goes to the journal" "osdos-stop system-setting: SSH is only on or off" "$(cat "$T/stderr")"
+# systemctl failing: said, and SSH not left enabled for the next start when
+# it couldn't start now.
+touch "$T/enable-fails"
+check "enable failing is a refusal" "systemctl couldn't enable it" "$(ssh_setting 'ssh on')"
+check "enable failing: not started" "enable ssh.service" "$(changed)"
+rm "$T/enable-fails"
+touch "$T/start-fails"
+check "start failing is a refusal" "it didn't start" "$(ssh_setting 'ssh on')"
+check "start failing: disabled again" $'enable ssh.service\nstart ssh.service\ndisable ssh.service' "$(changed)"
+rm "$T/start-fails"
+touch "$T/disable-fails"
+check "disable failing is a refusal" "systemctl couldn't disable it" "$(ssh_setting 'ssh off')"
+check "disable failing: not stopped" "disable ssh.service" "$(changed)"
+rm "$T/disable-fails"
+touch "$T/stop-fails"
+check "stop failing is a refusal" "it didn't stop" "$(ssh_setting 'ssh off')"
+rm "$T/stop-fails"
+check "after SSH, still no reboot" "" "$(grep -e reboot -e poweroff "$T/systemctl")"
 
 # Neither a stop from outside nor a crash touches anything.
 for code in 143 1 SEGV; do

@@ -77,6 +77,7 @@ The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. 
 | The RetroAchievements account | `~/.local/share/OSD-OS/arcade/retroachievements-setup.json`. RetroArch signs in once the network is up, tried every 30 seconds, ten times at most |
 
 - SSH password login needs `pi`'s password set in the same file. SSH is not turned on without a key or that password.
+- Settings → System → SSH turns the service on or off later on the device, and leaves the card's password login and keys as they are; the next card's SSH setting wins over it.
 - A file that can't be read is deleted, and the log says why.
 - The file can also go on a card that has already started.
 - Until the card takes it, the file holds the Wi-Fi and RetroAchievements passwords as typed.
@@ -188,7 +189,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-display.socket` | Enabled. Display Output's At Next Start |
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
-| `osdos-system.socket` | Enabled. The time zone and the keyboard |
+| `osdos-system.socket` | Enabled. The time zone, the keyboard and SSH on or off |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
@@ -381,9 +382,10 @@ Settings → Network → Bluetooth pairs and connects keyboards, gamepads and re
 
 ## SSH
 
-SSH is off on the image as it comes (`ENABLE_SSH=0`). Three ways to have it:
+SSH is off on the image as it comes (`ENABLE_SSH=0`). Four ways to have it:
 
 - **OSD/OS Setup** turns it on, with password login or keys only.
+- **Settings → System → SSH** turns the service on or off on the device ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)). It changes nothing else: someone signs in with the password or the keys OSD/OS Setup (or the image's build) gave `pi`.
 - **Raspberry Pi Imager's customisation** enables it, with the user it creates.
 - **An image built with `ENABLE_SSH=1`** has it. `PUBKEY_SSH_FIRST_USER` adds a public key for `pi`, and `PUBKEY_ONLY_SSH=1` turns password logins off.
 
@@ -487,12 +489,16 @@ Settings → System → About → System Information renames the device through 
 journalctl -u 'osdos-name@*' -b    # what renaming the device did
 ```
 
-### The time zone's and the keyboard's socket
+### The time zone's, the keyboard's and SSH's socket
 
-Settings → System → **Time Zone** and **Keyboard** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
+Settings → System → **Time Zone**, **Keyboard** and **SSH** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
+
+For SSH it takes `ssh on` or `ssh off` and nothing else. On is `systemctl enable ssh.service`, then `systemctl start ssh.service` (enabled again only for as long as it starts: one that doesn't is disabled again); off is `systemctl disable ssh.service`, then `systemctl stop ssh.service`. It never touches `pi`'s password, `~/.ssh/authorized_keys` or `/etc/ssh/sshd_config.d/00-osdos-setup.conf`: whether a password logs in stays as OSD/OS Setup left it, and the next card's SSH setting wins over the row. Turned on, it answers `ok no-password` where the user OSD/OS runs as (`osdos.service`'s `User=`) has no password in `/etc/shadow` (none, or locked), which the row shows as **Set a password or a key with OSD/OS Setup first** when that user has no key either; nothing else of the password leaves it.
 
 ```sh
-journalctl -u 'osdos-system@*' -b    # what setting the time zone or the keyboard did
+journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard or SSH did
+systemctl is-enabled ssh             # enabled, or disabled
+systemctl is-active ssh              # active, or inactive
 ```
 
 ### Exit to Terminal

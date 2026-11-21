@@ -572,7 +572,7 @@ if [ -n "${SERVICE_USER}" ]; then
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
 # device-name, by osdos-name.socket: Settings → System → About → System Information's
 # Device Name; with system-setting, by osdos-system.socket: Settings → System's
-# Time Zone and Keyboard.
+# Time Zone, Keyboard and SSH.
 
 # What comes in is read as the C locale reads it, whatever the system's
 # language: under en_GB.UTF-8, Raspberry Pi OS's own, a range such as A-Z
@@ -739,7 +739,7 @@ device_name() {
     echo ok
 }
 
-# Settings → System's Time Zone and Keyboard: a line from the app, through the
+# Settings → System's Time Zone, Keyboard and SSH: a line from the app, through the
 # socket, "time-zone Europe/Istanbul" or "keyboard tr", and "ok" back, or why
 # not. A time zone only as the time zone database names one (letters, digits,
 # _ + and -, two slashes at most) and has one, a keyboard only as XKB names a
@@ -747,8 +747,26 @@ device_name() {
 # every start after, and raspi-config the keyboard, the console's, where a
 # name and a password are typed at Exit to Terminal: as OSD/OS Setup's file
 # has them set. What they say goes to the journal, not into the answer.
+# And SSH, "ssh on" or "ssh off" and nothing else: the service enabled and
+# started, or disabled and stopped, now and for every start after. Only
+# whether it runs: the password, the keys and whether a password logs in
+# (/etc/ssh/sshd_config.d/00-osdos-setup.conf) stay as OSD/OS Setup's file
+# left them. Turned on, the answer is "ok no-password" where the app's user
+# (osdos.service's) has no password to log in with, for the app to say that
+# nobody can yet without a key; never the password, nor anything of it.
 ZONES=/usr/share/zoneinfo
 LAYOUTS=/usr/share/X11/xkb/symbols
+SHADOW=/etc/shadow
+# Whether the app's user has a password: its field of /etc/shadow neither
+# empty nor locked (! or *). Taken as yes where the user or the file can't
+# be told, so that nothing is said for want of knowing.
+app_user_has_password() {
+    local user
+    user="$(systemctl show --property=User --value osdos.service < /dev/null 2> /dev/null)"
+    [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] && [ -r "$SHADOW" ] || return 0
+    awk -F: -v user="$user" '$1 == user { found = 1; usable = $2 != "" && $2 !~ /^[!*]/ }
+                             END { exit !(usable || !found) }' "$SHADOW"
+}
 system_setting() {
     local line what value
     IFS= read -r -t 5 -n 96 line || [ -n "$line" ] || { refuse "nothing named"; return; }
@@ -768,6 +786,27 @@ system_setting() {
             raspi-config nonint do_configure_keyboard "$value" < /dev/null >&2 \
                 || { refuse "raspi-config couldn't set it"; return; }
             ;;
+        ssh)
+            case "$value" in
+                on)
+                    systemctl enable ssh.service < /dev/null >&2 || { refuse "systemctl couldn't enable it"; return; }
+                    # Not left enabled for the next start when it can't run now.
+                    if ! systemctl start ssh.service < /dev/null >&2; then
+                        systemctl disable ssh.service < /dev/null >&2
+                        refuse "it didn't start"
+                        return
+                    fi
+                    ;;
+                off)
+                    systemctl disable ssh.service < /dev/null >&2 || { refuse "systemctl couldn't disable it"; return; }
+                    systemctl stop ssh.service < /dev/null >&2 || { refuse "it didn't stop"; return; }
+                    ;;
+                *)
+                    refuse "SSH is only on or off"
+                    return
+                    ;;
+            esac
+            ;;
         *)
             refuse "nothing this sets"
             return
@@ -775,6 +814,10 @@ system_setting() {
     esac
     # On the card before the answer: the root file system only.
     sync -f /etc
+    if [ "$what" = ssh ] && [ "$value" = on ] && ! app_user_has_password; then
+        echo "ok no-password"
+        return
+    fi
     echo ok
 }
 

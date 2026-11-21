@@ -144,6 +144,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 - The file can also go on a card that has already been started.
 - The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is deleted from the card once applied.
 - A display output chosen for another kind of Pi is not applied, and the log says so.
+- SSH stays as the card set it until Settings → System → **SSH** turns it off or on; the password and the keys stay the card's either way, and a later card's SSH setting wins again.
 
 [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied. A computer takes part of the settings too ([below](#osdos-setup-on-a-computer)).
 
@@ -219,7 +220,7 @@ The image's own user is `pi`. You only need to log in for **Exit to Terminal** (
 
 - **The password.** A release image's `pi` has the password of the repository secret `OS_FIRST_USER_PASS`, if the release was built with one. Without one, Exit to Terminal logs `pi` in by itself, without `sudo`.
 - **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`.
-- **SSH** is off on a release image. Turn it on on OSD/OS Setup, or from a shell with `sudo`:
+- **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a password or a key to log in with; then Settings → System → **SSH** turns it off and on again on the device. Or from a shell with `sudo`:
 
   ```sh
   sudo systemctl enable --now ssh

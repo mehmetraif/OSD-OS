@@ -4,6 +4,7 @@
 #include "util/LegacyNames.h"
 #include "util/RootRequest.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -17,7 +18,8 @@
 namespace {
 
 // Launcher API 10: osdos-stop sets the time zone and the keyboard, through
-// osdos-system.socket.
+// osdos-system.socket (and SSH, where its osdos-stop has it: one before
+// answers "nothing this sets").
 constexpr int kSystemApi = 10;
 // timedatectl, or raspi-config writing the console's keyboard.
 constexpr int kTimeoutMs = 30 * 1000;
@@ -38,10 +40,19 @@ SystemSettings::SystemSettings(QObject *parent)
 void SystemSettings::refresh() {
     const QString zone = systemlocale::timeZone(systemRoot());
     const QString layout = systemlocale::keyboard(systemRoot());
-    if (zone == m_timeZone && layout == m_keyboard)
+    // Off the image SSH is nothing of the app's.
+    const bool ssh = m_available && systemlocale::ssh(systemRoot()) == 1;
+    // Nobody to sign in: no password, as the helper said, and no key, as the
+    // app's user's own file has none.
+    const QString note = ssh && m_sshNoPassword && systemlocale::sshKeys(QDir::homePath()).isEmpty()
+                             ? QStringLiteral("Set a password or a key with OSD/OS Setup first")
+                             : QString();
+    if (zone == m_timeZone && layout == m_keyboard && ssh == m_ssh && note == m_sshNote)
         return;
     m_timeZone = zone;
     m_keyboard = layout;
+    m_ssh = ssh;
+    m_sshNote = note;
     emit changed();
 }
 
@@ -118,7 +129,8 @@ bool SystemSettings::setTimeZone(const QString &zone) {
     });
     if (!listed || zone == m_timeZone)
         return false;
-    return send(QStringLiteral("time-zone"), zone, QStringLiteral("Time zone"));
+    return send(QStringLiteral("time-zone"), zone, QStringLiteral("Time zone set"),
+                QStringLiteral("Time zone not set"));
 }
 
 bool SystemSettings::setKeyboard(const QString &code) {
@@ -128,29 +140,42 @@ bool SystemSettings::setKeyboard(const QString &code) {
     });
     if (!listed || code == m_keyboard)
         return false;
-    return send(QStringLiteral("keyboard"), code, QStringLiteral("Keyboard"));
+    return send(QStringLiteral("keyboard"), code, QStringLiteral("Keyboard set"), QStringLiteral("Keyboard not set"));
+}
+
+bool SystemSettings::setSsh(bool on) {
+    if (on == m_ssh)
+        return false;
+    return on ? send(QStringLiteral("ssh"), QStringLiteral("on"), QStringLiteral("SSH on"),
+                     QStringLiteral("SSH not turned on"))
+              : send(QStringLiteral("ssh"), QStringLiteral("off"), QStringLiteral("SSH off"),
+                     QStringLiteral("SSH not turned off"));
 }
 
 // osdos-stop system-setting, as root, behind the socket: which and its value
 // on a line, "ok" or why not back.
-bool SystemSettings::send(const QString &what, const QString &value, const QString &shown) {
+bool SystemSettings::send(const QString &what, const QString &value, const QString &done, const QString &notDone) {
     if (!m_available || m_busy)
         return false;
     clearMessage();
     m_busy = true;
     emit busyChanged();
     rootrequest::ask(this, QStringLiteral("system"), (what + QLatin1Char(' ') + value).toLatin1(), kTimeoutMs,
-                     [this, value, shown](const rootrequest::Answer &answer) {
+                     [this, what, value, done, notDone](const rootrequest::Answer &answer) {
         m_busy = false;
         emit busyChanged();
+        // SSH turned on: whether the app's user has a password to log in
+        // with, as the helper says ("ok no-password"), for sshNote.
+        if (answer.ok && what == QLatin1String("ssh") && value == QLatin1String("on"))
+            m_sshNoPassword = answer.note == QLatin1String("no-password");
         // As the system has it now, whatever the answer.
         refresh();
         if (answer.ok) {
-            setMessage(shown + QStringLiteral(" set"));
+            setMessage(done);
         } else {
-            qWarning("[SystemSettings] %s not set to %s: %s", qPrintable(shown), qPrintable(value),
+            qWarning("[SystemSettings] %s (%s %s): %s", qPrintable(notDone), qPrintable(what), qPrintable(value),
                      qPrintable(answer.why));
-            setMessage(shown + QStringLiteral(" not set: ") + answer.why);
+            setMessage(notDone + QStringLiteral(": ") + answer.why);
         }
     });
     return true;
