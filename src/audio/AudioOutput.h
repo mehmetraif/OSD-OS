@@ -58,11 +58,21 @@ public:
     static QString card();
     // mpv's --audio-device for it ("alsa/default:CARD=<id>"), else "".
     static QString mpvDevice();
-    // The options an mpv about to start takes: a card chosen, none on Auto,
-    // whose card a process has through ALSA_CARD (applyTo()), so that its
-    // mpv.conf's audio-device still applies. inApp, for libmpv, which reads
-    // neither: Auto's card too, and ALSA as the only output to try (--ao)
-    // where plain ALSA plays.
+    // What a player about to start is told of the card, card() worked out
+    // once for both: the options its mpv takes and the card its environment
+    // names.
+    struct Player {
+        // A card chosen, none on Auto, whose card a process has through
+        // ALSA_CARD (applyTo()), so that its mpv.conf's audio-device still
+        // applies. inApp, for libmpv, which reads neither: Auto's card too,
+        // and ALSA as the only output to try (--ao) where plain ALSA plays.
+        QStringList mpvArgs;
+        // card(): ALSA_CARD, "" for none.
+        QString card;
+        void applyTo(QProcessEnvironment &env) const;
+    };
+    static Player forPlayer(bool inApp = false);
+    // Its mpvArgs alone.
     static QStringList mpvArgs(bool inApp = false);
     // "--ao=alsa" where plain ALSA plays (no PipeWire or PulseAudio server),
     // nothing elsewhere: for an mpv that reads no mpv.conf (libmpv, the menu
@@ -70,7 +80,7 @@ public:
     // library says in the journal that it has no config each time.
     static QStringList alsaAlone();
     // For a program about to start: ALSA_CARD names the card.
-    static void applyTo(QProcessEnvironment &env);
+    static void applyTo(QProcessEnvironment &env) { forPlayer().applyTo(env); }
     // Whether there is a card that can play now, as far as ALSA says: false
     // only where ALSA is all there is and it lists none that can (the Pi 5's
     // HDMI counts only while that port shows the picture). A program that

@@ -468,7 +468,7 @@ void raiseLevels(const QString &program, const QString &id) {
 // (the AV jack goes to +4 dB, which can clip) stays so. A control of an
 // input is left as it is, its capture's or its playback's, which plays what
 // comes in (a microphone's, a line in's). Once for the players given it
-// together (an mpv process asks mpvArgs() and applyTo()), and off the GUI
+// within a moment of each other, and off the GUI
 // thread (raiseLevels()): the player starts meanwhile, and plays into the
 // levels as they rise.
 void keepFull(const QString &id) {
@@ -578,8 +578,9 @@ QString AudioOutput::mpvDevice() {
     return id.isEmpty() ? QString() : deviceOf(id);
 }
 
-QStringList AudioOutput::mpvArgs(bool inApp) {
-    QStringList args;
+AudioOutput::Player AudioOutput::forPlayer(bool inApp) {
+    Player player;
+    QStringList &args = player.mpvArgs;
     // Inside the app, where plain ALSA plays (no PipeWire or PulseAudio
     // server): ALSA alone. Left to itself mpv tries PipeWire first, whose
     // library says so in the journal at every video ("pw.conf: can't load
@@ -589,13 +590,17 @@ QStringList AudioOutput::mpvArgs(bool inApp) {
     if (inApp)
         args << alsaAlone();
     const QString id = card();
+    player.card = id;
     // Auto's card reaches a process as ALSA's default (applyTo()), so that an
     // audio-device in its mpv.conf still has the last word: only a card
     // chosen goes on its command line. libmpv reads neither.
-    if (id.isEmpty() || (!inApp && id != g_card))
-        return args;
-    args << QStringLiteral("--audio-device=") + deviceOf(id);
-    return args;
+    if (!id.isEmpty() && (inApp || id == g_card))
+        args << QStringLiteral("--audio-device=") + deviceOf(id);
+    return player;
+}
+
+QStringList AudioOutput::mpvArgs(bool inApp) {
+    return forPlayer(inApp).mpvArgs;
 }
 
 QStringList AudioOutput::alsaAlone() {
@@ -613,9 +618,8 @@ bool AudioOutput::hasPlaybackCard() {
 #endif
 }
 
-void AudioOutput::applyTo(QProcessEnvironment &env) {
+void AudioOutput::Player::applyTo(QProcessEnvironment &env) const {
     // ALSA's default device ("default") is then on that card, as above.
-    const QString id = card();
-    if (!id.isEmpty())
-        env.insert(QStringLiteral("ALSA_CARD"), id);
+    if (!card.isEmpty())
+        env.insert(QStringLiteral("ALSA_CARD"), card);
 }

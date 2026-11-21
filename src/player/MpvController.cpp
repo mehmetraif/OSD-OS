@@ -774,7 +774,7 @@ QStringList MpvController::trackArgs(const PlaybackRequest &request, bool embedd
     // Settings → Sound → Audio Output: the sound card chosen, while it is plugged in;
     // inside the app, Auto's too, which a process has as ALSA's default
     // instead (its environment, startProcess()).
-    args << AudioOutput::mpvArgs(embedded);
+    args << m_sound.mpvArgs;
     // yt-dlp hook intercepts HTTP media URLs and can break Plex/Jellyfin
     // playback with spurious 401/400 errors — disabled unless the caller
     // explicitly opts in via extraArgs (e.g. YouTube passes --ytdl=yes).
@@ -913,6 +913,7 @@ void MpvController::play(const PlaybackRequest &request) {
     // menus can lie over the picture.
     const bool embedded = transparentBackground();
     placeRunFiles();
+    m_sound = AudioOutput::forPlayer(embedded);
     QStringList args = sessionArgs(request, embedded);
     // What plays, after the options and a "--", so that a name beginning
     // with "-" is never taken for an option: mpv builds its playlist from
@@ -1460,7 +1461,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         env.insert("FONTCONFIG_FILE", fcConf);
 #endif
     // Settings → Sound → Audio Output's card as ALSA's default.
-    AudioOutput::applyTo(env);
+    m_sound.applyTo(env);
     m_process->setProcessEnvironment(env);
 
     if (!m_headlessMode) {

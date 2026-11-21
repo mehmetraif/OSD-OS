@@ -44,7 +44,8 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
         args << QStringLiteral("--input-ipc-server=%1").arg(m_socketPath);
     // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
     // ALSA's default (applyTo() below).
-    args << AudioOutput::mpvArgs()
+    const AudioOutput::Player sound = AudioOutput::forPlayer();
+    args << sound.mpvArgs
          // Everything after this is a file, so an entry starting with '-'
          // cannot be mistaken for an option.
          << QStringLiteral("--")
@@ -55,7 +56,7 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
     MenuMusic::hold(m_tag);
     m_process = new QProcess(this);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
+    sound.applyTo(env);
     m_process->setProcessEnvironment(env);
     // mpv ending on its own, or never starting: the menu music has the card
     // back, and no stale process is kept for the next start() to end.

@@ -12,6 +12,7 @@
 #include <QVariantMap>
 #include <functional>
 #include "EmbeddedMpv.h"
+#include "../audio/AudioOutput.h"
 
 class AppCore;
 class DisplayHandoff;
@@ -532,6 +533,10 @@ private:
     QElapsedTimer m_startClock;
     QStringList   m_launchArgs;
     QStringList   m_launchMedia;
+    // Settings → Sound → Audio Output's card for the session, worked out as
+    // it is asked for: on its command line (trackArgs()) and in its process's
+    // environment (startProcess()), a second try's too.
+    AudioOutput::Player m_sound;
     bool          m_started        = false;
     bool          m_hardwareDecode = false;
     bool          m_softwareAsked  = false;

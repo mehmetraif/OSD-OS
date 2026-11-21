@@ -295,16 +295,17 @@ void MenuMusic::play(const QString &file) {
     // ALSA alone where plain ALSA plays: this mpv reads no mpv.conf
     // (--no-config), and left to itself tries PipeWire first, which writes
     // to the journal at every tune that it has no config.
+    const AudioOutput::Player sound = AudioOutput::forPlayer();
     args << AudioOutput::alsaAlone()
          // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
          // ALSA's default (applyTo() below).
-         << AudioOutput::mpvArgs()
+         << sound.mpvArgs
          << QStringLiteral("--")
          << file;
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
+    sound.applyTo(env);
     process->setProcessEnvironment(env);
     QElapsedTimer clock;
     clock.start();

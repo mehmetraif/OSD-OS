@@ -1128,6 +1128,10 @@ private slots:
         QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
         QCOMPARE(AudioOutput::alsaAlone(), QStringList({ "--ao=alsa" }));
         QCOMPARE(AudioOutput::mpvDevice(), QString("alsa/default:CARD=Device"));
+        // A player's options and its environment's card, worked out at once.
+        const AudioOutput::Player player = AudioOutput::forPlayer(true);
+        QCOMPARE(player.mpvArgs, QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
+        QCOMPARE(player.card, QString("Device"));
         QCOMPARE(autoLabel(), QString("Auto (USB Audio Device)"));
         QCOMPARE(audio.settingRow().value("value").toString(), QString("Auto (USB Audio Device)"));
         // The picture on HDMI1: its port, ahead of the USB card.
