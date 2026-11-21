@@ -401,7 +401,7 @@ function screenRows(items) {
         key: "test_patterns",
         page: "views/TestPatterns.qml",
         label: "Test Patterns",
-        description: "Pictures to set up the screen by, with its own knobs or menu: size and position, geometry, convergence, focus, brightness, contrast and colour",
+        description: "Pictures to set up the screen by, with its own knobs or menu: size and position, geometry, convergence, focus, brightness, contrast and color",
         moduleId: ""
     })
 
@@ -630,7 +630,7 @@ function startupRows(items) {
         options: favName !== "" ? ["None", favName] : ["None"],
         values: favName !== "" ? ["", startupFav] : [""],
         value: favName !== "" ? favName : "None",
-        description: "A favourite played straight after the boot screen, instead of opening a module\nChoose one with right on it in its module: OPTIONS, PLAY AT STARTUP",
+        description: "A favorite played straight after the boot screen, instead of opening a module\nChoose one with right on it in its module: OPTIONS, PLAY AT STARTUP",
         moduleId: ""
     })
 
@@ -646,10 +646,10 @@ function startupRows(items) {
         label: "Play From",
         options: ["Resume", "Beginning"],
         value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
-        description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
+        description: "Where the favorite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
         shownWith: { key: "startup_favorite", not: "None" },
         unavailable: favName !== "" && resumes.indexOf(startupFav.module) < 0
-                     ? "Only with a Local Files or YouTube favourite" : "",
+                     ? "Only with a Local Files or YouTube favorite" : "",
         moduleId: ""
     })
 

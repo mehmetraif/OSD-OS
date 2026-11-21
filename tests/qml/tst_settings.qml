@@ -2031,6 +2031,24 @@ StandInRoot {
             compare(appCore.values.screensaver_timeout, "120")
         }
 
+        // One spelling, the labels' (color, favorite, license, center,
+        // gray), in every text Settings shows: each page's rows' help lines
+        // and reasons.
+        function test_spelling() {
+            appCore.values = { osd_theme: "x" }
+            var groups = ["", "tv", "look", "effects", "screen", "sound", "network", "startup", "system", "status"]
+            var british = /colour|favourite|licence|centre|grey/i
+            for (var g = 0; g < groups.length; g++) {
+                var page = open(groups[g] === "" ? {} : { group: groups[g] })
+                for (var i = 0; i < page.settingsItems.length; i++) {
+                    var r = page.settingsItems[i]
+                    var text = [r.label, r.description, page.offReason(i)].concat(r.options || []).join(" ")
+                    verify(!british.test(text), groups[g] + ": " + r.label)
+                }
+                loader.source = ""
+            }
+        }
+
         function test_partRowsInForce() {
             root.transitionPresets = ["Fade", "Cube", "Ripple"]
             root.unusableTransitions = ["Ripple"]
@@ -2159,13 +2177,13 @@ StandInRoot {
                 appCore.values = { startup_favorite: { module: favorites[i].module, path: "p", name: "Favourite" } }
                 page = open({ group: "startup" })
                 compare(row(page, "Play at Startup").value, "Favourite")
-                compare(page.offReason(at), favorites[i].usable ? "" : "Only with a Local Files or YouTube favourite")
+                compare(page.offReason(at), favorites[i].usable ? "" : "Only with a Local Files or YouTube favorite")
                 moveTo(page, "Play From")
                 compare(menuRow(page, at).dimmed, !favorites[i].usable)
                 keyClick(Qt.Key_Right)
                 compare(appCore.values.startup_from, favorites[i].usable ? "Beginning" : undefined)
             }
-            verify(helpOf(page).text.indexOf("Only with a Local Files or YouTube favourite") === 0, helpOf(page).text)
+            verify(helpOf(page).text.indexOf("Only with a Local Files or YouTube favorite") === 0, helpOf(page).text)
         }
 
         // Boot Screen Colors, on Look's page: a row like the others on the
