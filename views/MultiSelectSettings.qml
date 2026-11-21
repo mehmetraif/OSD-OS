@@ -155,8 +155,14 @@ FocusScope {
         text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
     }
 
+    // ◄ ► and select alike flip the choice under the cursor, or a heading's
+    // whole group; Loading… and No Choices offer only the way back.
     HintBar {
         id: footer
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE"])
+        objectName: "hintBar"
+        readonly property var currentRow: multiSelectRoot.options[optionsList.currentIndex]
+        text: !currentRow ? root.hintLine(["back:BACK"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE"]) + " " + root.hints.change + "/"
+                + root.hintLine([currentRow.heading ? "select:CHANGE ALL" : "select:CHANGE"])
     }
 }

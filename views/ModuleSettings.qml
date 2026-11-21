@@ -850,13 +850,31 @@ FocusScope {
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
     }
 
+    // The keys that do something on the row under the cursor, and what:
+    // ◄ ► change a toggle's, a list's or a slider's value (select, in the
+    // two-step layouts, starts that); select or ► opens a line that leads
+    // to a page; select on an action does it, in its own verb. A dimmed
+    // row offers nothing but the way on and the way back.
+    function hintParts(item, editing, twoStep) {
+        if (editing)
+            return ["back:CANCEL", "navigate:CHANGE", "select:CONFIRM"]
+        var parts = ["back:BACK", "navigate:NAVIGATE"]
+        if (!item || item._off || item.type === "section")
+            return parts
+        if (stepped(item))
+            return parts.concat([twoStep ? "select:CHANGE" : "change:CHANGE"])
+        if (opens(item))
+            return parts.concat(["select:OPEN"])
+        if (item.type === "action")
+            return parts.concat(["select:" + verbOf(item).toUpperCase()])
+        return parts
+    }
+
     HintBar {
         id: footer
-        text: moduleSettingsRoot.editIndex >= 0
-              ? root.hintLine(["back:CANCEL", "navigate:CHANGE", "select:CONFIRM"])
-              : root.twoStep
-              ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
-              : root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
+        objectName: "hintBar"
+        property var currentRow: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[settingsList.currentIndex])
+        text: root.hintLine(moduleSettingsRoot.hintParts(currentRow, moduleSettingsRoot.editIndex >= 0, root.twoStep))
     }
 
     // An action row's question (its "confirm"), what it does under it, and

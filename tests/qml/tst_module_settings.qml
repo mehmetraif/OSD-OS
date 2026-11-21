@@ -1399,6 +1399,88 @@ StandInRoot {
             verify(menuRow(page, 0).dimmed)
         }
 
+        // The hint bar names the keys that do something on the row under
+        // the cursor: ◄ ► on a value, select on a line that opens, the
+        // action's own verb on an action, nothing but the way on and back
+        // on a dimmed row; select starts a change in the two-step layouts.
+        // The multi-select and text-list pages word theirs by their line.
+        function test_hintsByRow_data() {
+            return [{ tag: "Standard", layout: "Standard" }, { tag: "Broadcast", layout: "Broadcast" }]
+        }
+        function test_hintsByRow(data) {
+            appCore.schema = [
+                { key: "loop", label: "Loop", type: "toggle", default: "OFF" },
+                { key: "mode", label: "Mode", type: "list_single", options: ["A", "B"], default: "A" },
+                { key: "more", label: "More", type: "submenu", settings: [] },
+                { key: "picks", label: "Picks", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getPicks" },
+                { key: "extra", label: "Extra", type: "toggle", default: "OFF",
+                  shown_with: { key: "loop", value: "ON" } },
+                { key: "wipe", label: "Delete History", type: "action", action_slot: "wipe",
+                  confirm: "Delete History?", verb: "Delete" },
+                { key: "logout", label: "Sign Out", type: "action", action_slot: "logout", confirm: "Sign out?" }
+            ]
+            root.menuLayout = data.layout
+            var page = open()
+            var bar = findChild(page, "hintBar")
+            var two = data.layout === "Broadcast"
+            var change = two ? "[ENTER]:CHANGE" : "[◄►]:CHANGE"
+            var expected = ["[ESC]:BACK [▲▼]:NAVIGATE " + change, "[ESC]:BACK [▲▼]:NAVIGATE " + change,
+                            "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN", "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN",
+                            "[ESC]:BACK [▲▼]:NAVIGATE", "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:DELETE",
+                            "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SIGN OUT"]
+            for (var i = 0; i < expected.length; i++) {
+                compare(bar.text, expected[i], page.schemaItems[i].key)
+                keyClick(Qt.Key_Down)
+            }
+            // Round to Loop. The row usable once Loop is on: its hint
+            // follows in place.
+            compare(cursor(page), "loop")
+            if (two) {
+                keyClick(Qt.Key_Return)
+                compare(bar.text, "[ESC]:CANCEL [▲▼]:CHANGE [ENTER]:CONFIRM")
+                keyClick(Qt.Key_Up)
+                keyClick(Qt.Key_Return)
+            } else {
+                keyClick(Qt.Key_Right)
+            }
+            compare(appCore.values.loop, true)
+            for (i = 0; i < 4; i++)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), "extra")
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE " + change)
+        }
+        function test_hintsOnSubPages() {
+            appCore.schema = [{ key: "picks", label: "Picks", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "getPicks" }]
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "picks", settingLabel: "Picks" } })
+            var page = loader.item
+            page.forceActiveFocus()
+            var bar = findChild(page, "hintBar")
+            compare(bar.text, "[ESC]:BACK", "Loading…")
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { label: "Genres", heading: true }, { id: "a", label: "A" }])
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [◄►]/[ENTER]:CHANGE ALL")
+            keyClick(Qt.Key_Down)
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [◄►]/[ENTER]:CHANGE")
+            loader.source = ""
+
+            appCore.values = { lines: ["one", "two"] }
+            loader.setSource(Qt.resolvedUrl("../../views/TextListSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "lines", settingLabel: "Lines",
+                                            maxLines: 2 } })
+            page = loader.item
+            page.forceActiveFocus()
+            bar = findChild(page, "hintBar")
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:CHANGE")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE", "ADD, the list full")
+            page.maxLines = 3
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:ADD")
+        }
+
         // The file picker (views/FilePicker.qml), as a directory_browser row
         // opens it: a drive's folders, and the picker's tree and its open
         // folders' paths.

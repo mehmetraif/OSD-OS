@@ -143,8 +143,12 @@ FocusScope {
         text: list.onAdd && textListRoot.full ? "The list is full: take a line out first" : textListRoot.help
     }
 
+    // Select (or ►) on a line asks what to do with it, on ADD types a new
+    // one; ADD dimmed, the list full, offers only the way on and back.
     HintBar {
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+        objectName: "hintBar"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             !list.onAdd ? "select:CHANGE" : textListRoot.full ? "" : "select:ADD"])
     }
 
     // What to do with a line.
