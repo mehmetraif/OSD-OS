@@ -25,11 +25,12 @@
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_resume_playback_options",
-      "default": "ask"
+      "default": "ask",
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "playback_resolution",
-      "label": "YouTube Video Resolution",
+      "label": "YouTube Resolution",
       "type": "list_single",
       "options": [
         "480p",

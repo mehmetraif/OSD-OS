@@ -240,7 +240,7 @@ Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.jso
 |---|---|
 | [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Subtitle Language `--slang`; Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua` |
 | [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from its Advanced settings; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*`, `write-auto-subs=` (On + Auto Captions) and, signed in, `cookies-from-browser=…`; `--speed=` for a Playback Speed other than 1x; `ytdl_hook-ytdl_path=` in the script options |
-| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Video Resolution; subtitles as Local Files |
+| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Resolution; subtitles as Local Files |
 | [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `--http-header-fields=X-Plex-Token:<token>`; `--aid`; `--sub-file`; `--tls-verify=no` for a server reached at `*.plex.direct` |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin), [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `--http-header-fields=Authorization:MediaBrowser Token="<token>"`; `--aid` and `--sub-file` for a file played whole. A transcode adds `--script-opts-append=transcode-sub=…`, `sub-cycle=…`, `transcode-audio=…` and `audio-cycle=…` |
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `mpv-osc-ambient.lua`, `--loop-playlist=inf`, `--shuffle`; `--no-audio` when its own music plays, in a second mpv (`--no-video --loop-playlist=inf`) |
@@ -294,7 +294,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume: pick up where you left off, or start from the beginning" />
 
-- A module's Resume Playback is **Ask**, **Always** or, in Local Files and the NFC Reader, **Never**.
+- A module's Resume Playback is **Ask**, **Always** or **Never**.
 - A favourite played at startup never asks: it starts where Settings → Startup → Startup From says.
 - The point reaches mpv as `--start=<seconds>`, for the first video only: a looped video or the next in a playlist starts from the beginning.
 
@@ -400,7 +400,7 @@ A video that can't play ends on a **Playback failed** notice: the reason, mpv's 
 
 - **A Pi 4**: if you set `mpv_video_args`, delete it and try again.
 - **A Pi 3**: keep 1080p Playback **On** for 1080p.
-- **YouTube**: keep Video Codec on **H.264** and Playback Resolution at **480p**, and set Max Frame Rate to **30**. With **Any**, YouTube can send VP9 or AV1.
+- **YouTube**: keep Video Codec on **H.264** and Max Resolution at **480p**, and set Max Frame Rate to **30**. With **Any**, YouTube can send VP9 or AV1.
 - **Transparent Background**: check whether the log says the picture is drawn on the CPU.
 
 ### No hardware decoding

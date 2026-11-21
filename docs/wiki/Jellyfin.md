@@ -123,10 +123,10 @@ The page shows **PLAY ►** (**RSUM ►** with a resume point), the name, year, 
 | Video Quality | What happens |
 |---|---|
 | **Direct Play** (the default) | The file is streamed as it is. A file the server can't send directly, or mpv can't play, comes as a transcode |
-| **480p (NTSC CRT)** | A transcode, at most 480 lines and 4 Mbps |
-| **576p (PAL CRT)** | A transcode, at most 576 lines and 4.5 Mbps |
-| **720p** | A transcode, at most 720 lines and 6 Mbps |
 | **1080p** | A transcode, at most 1080 lines and 10 Mbps |
+| **720p** | A transcode, at most 720 lines and 6 Mbps |
+| **576p** | A transcode, at most 576 lines (a PAL CRT's) and 4.5 Mbps |
+| **480p** | A transcode, at most 480 lines (an NTSC CRT's) and 4 Mbps |
 
 A transcode carries the audio track you chose, with the subtitle you chose burned in.
 
@@ -136,6 +136,7 @@ Resume points are the server's, shared with every Jellyfin app.
 
 - **Resume Playback: Ask** (the default): a video with a resume point asks **Resume playback?** `Resume from 0:30` / `Start from the beginning`.
 - **Resume Playback: Always**: it carries on without asking.
+- **Resume Playback: Never**: it starts from the beginning without asking.
 
 ### Autoplay Next Episode
 
@@ -181,8 +182,8 @@ Settings → TV / Movie → Jellyfin. Until you have signed in, every row but En
 | Enabled | ON, OFF | OFF | Shows Jellyfin on the main menu | `enabled` |
 | Sign In | the user signed in as, or SIGNED OUT | | Opens Jellyfin: its sign-in while signed out, else its libraries | |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
-| Video Quality | Direct Play, 480p (NTSC CRT), 576p (PAL CRT), 720p, 1080p | Direct Play | Direct Play, or a transcode capped at that size | `video_quality` |
-| Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
+| Video Quality | Direct Play, 1080p, 720p, 576p, 480p | Direct Play | Direct Play, or a transcode capped at that size (576p a PAL CRT's, 480p an NTSC CRT's) | `video_quality` |
+| Resume Playback | Ask, Always, Never | Ask | Whether a video with a resume point asks, carries on, or starts from the beginning | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the series' next episode when one ends | `autoplay_next_episode` |
 | Intro Skip | Off, Auto, Button | Off | What happens at an intro segment | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at a credits segment | `outro_skip` |
@@ -222,7 +223,7 @@ Sign-in messages are listed [above](#signing-in-with-quick-connect).
 | The home screen stays on **LOADING...** | The server didn't answer (the log has `LOAD LIBRARIES FAILED`), or no library is ON in Settings → TV / Movie → Jellyfin → Libraries |
 | No Continue Watching or Next Up | They show only when they have something |
 | No Intro Skip or Credit Skip rows | The server has no media segments (install the Intro Skipper plugin), or you aren't signed in |
-| A video stutters | Choose a CRT tier in Video Quality |
+| A video stutters | Choose 576p or 480p in Video Quality |
 | Changing subtitles restarts the video | It is a transcode; Direct Play switches without a restart |
 | Offline playlist says **Not Allowed** | An administrator must allow your Jellyfin user to download media. Then **Retry Downloads** on the playlist's page |
 

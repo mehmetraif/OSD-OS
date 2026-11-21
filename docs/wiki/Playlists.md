@@ -209,7 +209,7 @@ Each source has a folder of its own, and each file carries the video's id in bra
 
 ### YouTube videos
 
-- YouTube videos download with yt-dlp, in the YouTube module's **Advanced** settings: **Playback Resolution**, **Video Codec**, **Max Frame Rate** and **Audio Language** ([YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube)).
+- YouTube videos download with yt-dlp, in the YouTube module's **Advanced** settings: **Max Resolution**, **Video Codec**, **Max Frame Rate** and **Audio Language** ([YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube)).
 - If you are signed in to YouTube, the download uses that sign-in (`--cookies-from-browser`).
 - yt-dlp is looked for in `<data folder>/bin/yt-dlp` first (the image's, updated after each boot and daily), then beside the app, then on the `PATH`.
 - **ffmpeg** joins picture and sound, which YouTube sends separately above 360p. The image has it; elsewhere install it (`sudo apt install ffmpeg`, `brew install ffmpeg`).

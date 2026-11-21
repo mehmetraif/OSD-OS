@@ -128,23 +128,23 @@
     },
     "com.osdos.plex": {
       "options": {
-        "video_quality": [["Direct Play", "auto"], ["8 Mbps (1080p)", "8000"], ["4 Mbps (720p)", "4000"], ["2 Mbps (480p)", "2000"]],
-        "resume_playback": [["Ask", "ask"], ["Always", "yes"]]
+        "video_quality": [["Direct Play", "auto"], ["1080p", "8000"], ["720p", "4000"], ["480p", "2000"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]]
       },
       "defaults": { "video_quality": "auto" },
       "views": { "auto_sign_in": "logins" }
     },
     "com.osdos.jellyfin": {
       "options": {
-        "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
-        "resume_playback": [["Ask", "ask"], ["Always", "always"]]
+        "video_quality": [["Direct Play", "auto"], ["1080p", "1080p"], ["720p", "720p"], ["576p", "576p"], ["480p", "480p"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "always"], ["Never", "never"]]
       },
       "views": { "server_url": "logins" }
     },
     "com.osdos.emby": {
       "options": {
-        "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
-        "resume_playback": [["Ask", "ask"], ["Always", "always"]]
+        "video_quality": [["Direct Play", "auto"], ["1080p", "1080p"], ["720p", "720p"], ["576p", "576p"], ["480p", "480p"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "always"], ["Never", "never"]]
       },
       "views": { "server_url": "logins" }
     },

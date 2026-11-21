@@ -131,7 +131,7 @@ PLAY saves the track choice back to Plex, so every Plex app plays the file the s
 | Video Quality | What happens |
 |---|---|
 | **Direct Play** (the default) | The file is streamed as it is. A file mpv can't play is transcoded by itself |
-| **8 Mbps (1080p)**, **4 Mbps (720p)**, **2 Mbps (480p)** | The server re-encodes the video, capped at that bitrate, with the audio track you chose and the subtitle burned in. For a weak network |
+| **1080p**, **720p**, **480p** | The server re-encodes the video, capped at 8, 4 or 2 Mbps, with the audio track you chose and the subtitle burned in. For a weak network |
 
 ### Resume and Continue Watching
 
@@ -139,6 +139,7 @@ Resume points are Plex's own, shared with every Plex app.
 
 - **Resume Playback: Ask** (the default): a video with a resume point asks **Resume playback?** `Resume from 0:30` / `Start from the beginning`.
 - **Resume Playback: Always**: it carries on without asking.
+- **Resume Playback: Never**: it starts from the beginning without asking.
 
 ### Autoplay Next Episode
 
@@ -197,8 +198,8 @@ Settings → TV / Movie → Plex. Until you have signed in, every row but Enable
 | Auto Sign In | ON, OFF | OFF | ON opens Plex on the libraries as the current profile | `auto_sign_in` |
 | Server | the servers the profile can use | the one chosen at sign-in | The server Plex browses and plays from | `server_machine_id` |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
-| Video Quality | Direct Play, 8 Mbps (1080p), 4 Mbps (720p), 2 Mbps (480p) | Direct Play | Direct Play, or a transcode capped at that bitrate | `video_quality` |
-| Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
+| Video Quality | Direct Play, 1080p, 720p, 480p | Direct Play | Direct Play, or a transcode capped at 8, 4 or 2 Mbps | `video_quality` (`auto`, `8000`, `4000`, `2000`) |
+| Resume Playback | Ask, Always, Never | Ask | Whether a video with a resume point asks, carries on, or starts from the beginning | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the season's next episode when one ends | `autoplay_next_episode` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Plex; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
 | Sign Out | (an action) | | Asks first, then signs out of Plex on this device. Dimmed while signed out | |

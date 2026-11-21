@@ -98,7 +98,7 @@ Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/
 | A relative path: `films/Fireplace.mp4` | That file in OSD/OS's own folder, otherwise in the data folder. |
 | A playlist file: `/media/OSD-OS/Movies/Rambo Marathon.m3u` | The list. Resume remembers which video it was on. |
 | A stream URL: `http://…` or `https://…` | That stream. |
-| A YouTube URL: `https://www.youtube.com/watch?v=Eg8tK1LpLS8` | The video, through yt-dlp, at YouTube Video Resolution. A playlist URL (`https://www.youtube.com/playlist?list=…`) plays the playlist. |
+| A YouTube URL: `https://www.youtube.com/watch?v=Eg8tK1LpLS8` | The video, through yt-dlp, at YouTube Resolution. A playlist URL (`https://www.youtube.com/playlist?list=…`) plays the playlist. |
 | A Plex guid: `plex://movie/…`, `plex://show/…`, `plex://season/…`, `plex://episode/…` | Handed to the Plex module. See [Card hand-off](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#card-hand-off-to-another-module). |
 | A Plex set: `plex://collection/<ratingKey>`, `plex://playlist/<ratingKey>` | Handed to Plex, which plays the collection or playlist as a queue. |
 
@@ -203,7 +203,7 @@ Settings → TV / Movie → **NFC Reader**. The keys sit under `modules.com.osdo
 | Enabled | On, Off | Off | Shows NFC Reader on the main menu and polls the reader. | `enabled` |
 | Tags Directory | A folder, or Default Folder | Default | Where the tag files are. Default is `nfc_tags` in the data folder. | `tags_directory` (`""` for the default) |
 | Resume Playback | Ask, Always, Never | Ask | See [Resume](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#resume). | `resume_playback` (`ask`, `yes`, `no`) |
-| YouTube Video Resolution | 480p, 720p, 1080p | 480p | The most a YouTube card plays at. | `playback_resolution` |
+| YouTube Resolution | 480p, 720p, 1080p | 480p | The most a YouTube card plays at. | `playback_resolution` |
 | Subtitles | Off, Forced Only, On | Forced Only | **Off**: never. **Forced Only**: subtitles only for foreign dialogue. **On**: always. | `auto_subtitles` (`off`, `forced`, `on`) |
 | Subtitle Language | Any, or a language | Any | The subtitle language to prefer. | `sub_lang` (`-` for Any, else an ISO 639-1 code: `en`, `tr` …) |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in this module. Default follows Settings → TV / Movie → Scaling. | `video_scaling` |

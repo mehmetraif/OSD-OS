@@ -91,8 +91,8 @@ These work as in the Jellyfin module, whose page has the detail:
 - [Browsing by letter](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing-by-letter): ► to the letters in the Movies, Shows and Home Videos lists.
 - [Series and seasons](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#series-and-seasons): PLAY opens the next episode to watch.
 - [An item's page](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#an-items-page): **PLAY ►** / **RSUM ►**, **Audio** and **Subtitles**, ► on PLAY for a playlist.
-- [Video Quality](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#direct-play-and-transcoding): Direct Play, or a transcode at 480p (NTSC CRT), 576p (PAL CRT), 720p or 1080p (4, 4.5, 6 or 10 Mbps).
-- [Resume and Continue Watching](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#resume-continue-watching-and-next-up): the server's resume points; **Resume Playback** Ask or Always.
+- [Video Quality](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#direct-play-and-transcoding): Direct Play, or a transcode at 1080p, 720p, 576p (a PAL CRT's) or 480p (an NTSC CRT's) (10, 6, 4.5 or 4 Mbps).
+- [Resume and Continue Watching](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#resume-continue-watching-and-next-up): the server's resume points; **Resume Playback** Ask, Always or Never.
 - [Autoplay Next Episode](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#autoplay-next-episode): the next episode of the series, across seasons.
 - [With Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#with-transparent-background): back returns to the menus with the picture behind them.
 - [Putting a video on a playlist](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#putting-a-video-on-a-playlist): ► on PLAY, online or offline.
@@ -140,8 +140,8 @@ Settings → TV / Movie → Emby. Everything but Enabled and Scaling shows only 
 | Enabled | ON, OFF | OFF | Shows Emby on the main menu | `enabled` |
 | Sign In | the user signed in as, or SIGNED OUT | | Opens Emby: its sign-in while signed out, else its libraries | |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
-| Video Quality | Direct Play, 480p (NTSC CRT), 576p (PAL CRT), 720p, 1080p | Direct Play | Direct Play, or a transcode capped at that size | `video_quality` |
-| Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
+| Video Quality | Direct Play, 1080p, 720p, 576p, 480p | Direct Play | Direct Play, or a transcode capped at that size (576p a PAL CRT's, 480p an NTSC CRT's) | `video_quality` |
+| Resume Playback | Ask, Always, Never | Ask | Whether a video with a resume point asks, carries on, or starts from the beginning | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the series' next episode when one ends | `autoplay_next_episode` |
 | Intro Skip | Off, Auto, Button | Off | What happens at a marked intro | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at marked credits | `outro_skip` |

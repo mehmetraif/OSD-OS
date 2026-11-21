@@ -1368,11 +1368,12 @@ void EmbyApiBackend::getVideoQualities() {
         m["label"] = label;
         options.append(m);
     };
+    // Direct Play, then 1080p down to 480p, as Plex's.
     add("auto",  "Direct Play");
-    add("480p",  "480p (NTSC CRT)");
-    add("576p",  "576p (PAL CRT)");
-    add("720p",  "720p");
     add("1080p", "1080p");
+    add("720p",  "720p");
+    add("576p",  "576p");
+    add("480p",  "480p");
     emit dynamicOptionsReady("video_quality", options);
 }
 
@@ -1386,6 +1387,7 @@ void EmbyApiBackend::get_resume_playback_options() {
     };
     add("ask",    "Ask");      // prompt resume vs. start over when a position exists
     add("always", "Always");   // resume directly, no prompt
+    add("never",  "Never");    // from the beginning, no prompt
     emit dynamicOptionsReady("resume_playback", options);
 }
 

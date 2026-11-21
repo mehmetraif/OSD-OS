@@ -2,6 +2,7 @@
 #include "../../AppCore.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/ServerLog.h"
+#include "../../util/PlaybackOptions.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -3138,22 +3139,21 @@ void PlexBackend::getServers() {
     emit dynamicOptionsReady("server_machine_id", options);
 }
 
+// Video Quality, as the media servers' read: Direct Play, then 1080p down to
+// 480p, each saved as the bitrate it caps a transcode at.
 void PlexBackend::getVideoQualities() {
     QVariantList options = {
         QVariantMap{{"id","auto"}, {"label","Direct Play"}},
-        QVariantMap{{"id","8000"}, {"label","8 Mbps (1080p)"}},
-        QVariantMap{{"id","4000"}, {"label","4 Mbps (720p)"}},
-        QVariantMap{{"id","2000"}, {"label","2 Mbps (480p)"}},
+        QVariantMap{{"id","8000"}, {"label","1080p"}},
+        QVariantMap{{"id","4000"}, {"label","720p"}},
+        QVariantMap{{"id","2000"}, {"label","480p"}},
     };
     emit dynamicOptionsReady("video_quality", options);
 }
 
+// Resume Playback, as every module's: Ask, Always, Never.
 void PlexBackend::get_resume_playback_options() {
-    QVariantList options;
-    QVariantMap ask; ask["id"] = "ask"; ask["label"] = "Ask";
-    QVariantMap yes; yes["id"] = "yes"; yes["label"] = "Always";
-    options << ask << yes;
-    emit dynamicOptionsReady("resume_playback", options);
+    emit dynamicOptionsReady("resume_playback", playbackoptions::resumePlayback());
 }
 
 void PlexBackend::get_account() {

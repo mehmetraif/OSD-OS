@@ -46,7 +46,8 @@
       "options_source": "dynamic",
       "options_slot": "getVideoQualities",
       "default": "auto",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The most a video is sent at\n[DIRECT PLAY] The file as it is, no transcode\n[1080P] [720P] Transcoded where larger\n[576P] Transcoded where larger: a PAL CRT's lines\n[480P] Transcoded where larger: an NTSC CRT's lines"
     },
     {
       "key": "resume_playback",
@@ -55,7 +56,8 @@
       "options_source": "dynamic",
       "options_slot": "get_resume_playback_options",
       "default": "ask",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "autoplay_next_episode",

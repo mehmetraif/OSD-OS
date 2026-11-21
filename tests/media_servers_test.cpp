@@ -801,6 +801,40 @@ private slots:
         QCOMPARE(named(plexOptions), QStringLiteral("Kid"));
     }
 
+    // Resume Playback and Video Quality read the same on the three servers:
+    // Ask, Always, Never; Direct Play, then 1080p down to 480p. Each choice
+    // is saved as it was before.
+    void resumeAndQualityReadTheSame() {
+        const auto choices = [](const QSignalSpy &spy, const QString &key) {
+            QStringList out;
+            for (const QList<QVariant> &sent : spy) {
+                if (sent.at(0).toString() != key)
+                    continue;
+                out.clear();
+                for (const QVariant &v : sent.at(1).toList())
+                    out << v.toMap().value("label").toString() + QLatin1Char('=') + v.toMap().value("id").toString();
+            }
+            return out;
+        };
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        QSignalSpy jf(&jellyfin, &JellyfinBackend::dynamicOptionsReady);
+        jellyfin.get_resume_playback_options();
+        jellyfin.EmbyApiBackend::getVideoQualities();
+        QCOMPARE(choices(jf, "resume_playback"), QStringList({ "Ask=ask", "Always=always", "Never=never" }));
+        QCOMPARE(choices(jf, "video_quality"),
+                 QStringList({ "Direct Play=auto", "1080p=1080p", "720p=720p", "576p=576p", "480p=480p" }));
+
+        QTemporaryDir plexData;
+        PlexBackend plex(plexData.path(), plexData.path());
+        QSignalSpy px(&plex, &PlexBackend::dynamicOptionsReady);
+        plex.get_resume_playback_options();
+        plex.getVideoQualities();
+        QCOMPARE(choices(px, "resume_playback"), QStringList({ "Ask=ask", "Always=yes", "Never=no" }));
+        QCOMPARE(choices(px, "video_quality"),
+                 QStringList({ "Direct Play=auto", "1080p=8000", "720p=4000", "480p=2000" }));
+    }
+
     void plexAFailedSwitchChangesNoProfile() {
         QTemporaryDir tmp;
         QVERIFY(tmp.isValid());

@@ -9,10 +9,11 @@
 #include <QVariantMap>
 
 // The choices of the playback settings Local Files and the NFC Reader both
-// have, for their options_slot (dynamicOptionsReady), the same in each.
+// have, for their options_slot (dynamicOptionsReady), the same in each; Plex
+// offers Resume Playback's too.
 namespace playbackoptions {
 
-// Resume Playback.
+// Resume Playback: Ask, Always, Never.
 inline QVariantList resumePlayback() {
     QVariantList options;
     QVariantMap ask; ask["id"] = "ask"; ask["label"] = "Ask";

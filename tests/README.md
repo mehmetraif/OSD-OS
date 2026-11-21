@@ -125,6 +125,7 @@ A C++ test (`<name>_test.cpp`) is added with `osdos_cpp_test(<name> SOURCES … 
   - Each runs only in a window, visible, with a size and `running`, the noise drawing a frame at once; the selector effect only with an effect and a box to play round, and once it stops what it drew is cleared. `pixel` is never under 1.
   - Their properties are the ones QML sets (`OSDOS.Video`).
 - **media_servers** (`media_servers_test.cpp`): the Jellyfin, Emby and Plex backends against a stand-in network, whose replies the test completes when it chooses; and the lists they keep (`src/util/KeptLists.h`) on their own.
+  - Resume Playback Ask, Always, Never, and Video Quality Direct Play then 1080p down to 480p, on all three servers, each saved as before.
   - SIGN IN's value: no name while no one is signed in, the user signed in as on Jellyfin, Plex's profile in use.
   - Jellyfin's settings page learns what the server can do with the choices it asks for, the server asked once. A Plex profile switch that fails from Settings puts the Current User setting back and sends its choices again; a `config.json` that can't be read is not written over. A managed Plex profile is never sent to a server on the owner's token (a server it has no token for gets none), and a switch to one none of whose servers the device knows is refused.
   - Of two lists asked for in a row, only the second is shown: the first's reply, coming last, is dropped.

@@ -68,8 +68,9 @@
       "key": "resume_playback",
       "label": "Resume Playback",
       "type": "list_single",
-      "options": ["Ask", "Always"],
-      "default": "Ask"
+      "options": ["Ask", "Always", "Never"],
+      "default": "Ask",
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "video_scaling",
@@ -93,7 +94,7 @@
       "settings": [
         {
           "key": "playback_resolution",
-          "label": "Playback Resolution",
+          "label": "Max Resolution",
           "type": "list_single",
           "options": ["240p", "360p", "480p", "720p", "1080p", "1440p", "2160p"],
           "default": "480p",

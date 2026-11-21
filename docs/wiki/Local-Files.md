@@ -282,7 +282,7 @@ Settings → TV / Movie → Local Files.
 |---|---|---|---|---|
 | ENABLED | ON, OFF | ON | Shows Local Files on the main menu | `modules.com.osdos.local_files.enabled` |
 | Media Directory | a folder, or Default | Default | The folder Local Files shows | `modules.com.osdos.local_files.media_directory` |
-| Loop Playback | ON, OFF | OFF | Repeats a file or a playlist until stopped | `modules.com.osdos.local_files.loop_playback` |
+| Loop Playback | ON, OFF | OFF | What happens when the last video of a folder or a playlist ends: ON starts again from the first | `modules.com.osdos.local_files.loop_playback` |
 | Shuffle Playback | Ask, Always, Never | Ask | Plays playlists in random order | `modules.com.osdos.local_files.shuffle_playback` |
 | Resume Playback | Ask, Always, Never | Ask | Whether a video resumes where it was stopped | `modules.com.osdos.local_files.resume_playback` |
 | Subtitles | Off, Forced Only, On | Forced Only | Which subtitles show as a video starts | `modules.com.osdos.local_files.auto_subtitles` |
