@@ -145,9 +145,9 @@ log "Deploying Qt + libraries"
 # ── 6. Stage the Wayland fallback set ─────────────────────────────────────────
 # Debian/Ubuntu build SDL2 and mpv with Wayland support on, so the bundle needs
 # the Wayland-facing libraries even on a machine that will only ever run X11.
-# Step 7 used to delete all of them along with the driver libs, which made the
-# app unlaunchable on X11-only images that ship no Wayland at all (Batocera and
-# other buildroot handhelds). Each is a vendor-neutral shim rather than a driver,
+# Step 7 deletes the driver libs but must not take these with them: without
+# them the app can't start on X11-only images that ship no Wayland at all
+# (Batocera and other buildroot handhelds). Each is a vendor-neutral shim rather than a driver,
 # so a bundled copy is a safe substitute:
 #
 #   libwayland-client/-cursor/-egl  protocol shims (SDL2 and mpv link all three)
@@ -215,10 +215,10 @@ done
 
 # ── 8. Audit the host-library contract ────────────────────────────────────────
 # Every DT_NEEDED soname that is not inside the AppDir has to come from the target
-# machine. That set is a promise about which distros can run this build, and it
-# used to be implicit — which is how the Wayland libs above silently became
-# mandatory and broke X11-only distros with no warning at build time. Make it
-# explicit: anything required but neither bundled nor listed here fails the build.
+# machine. That set is a promise about which distros can run this build: left
+# implicit, a library (the Wayland libs above, say) can become mandatory and
+# break X11-only distros with no warning at build time. Made explicit here:
+# anything required but neither bundled nor listed here fails the build.
 #
 # The list below is the upstream AppImage excludelist — libraries linuxdeploy
 # refuses to bundle because they are tied to the host's kernel/driver/graphics
