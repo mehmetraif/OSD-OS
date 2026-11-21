@@ -252,7 +252,7 @@ Two files in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `
 | `plex_key.pem` | A private key made for this device at sign-in. It renews the sign-in without your password |
 | `plex_auth.json` | The account's token, the profiles, the servers found at sign-in and the profile and server in use |
 
-**Sign out** asks plex.tv to forget the device, then deletes both files. Profile PINs and your Plex password are never stored.
+**Sign Out** asks plex.tv to forget the device, then deletes both files. Profile PINs and your Plex password are never stored.
 
 ## Troubleshooting
 

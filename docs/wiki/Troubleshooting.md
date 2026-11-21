@@ -251,7 +251,7 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | A film's page without its details, a show's without its seasons or a season's without its episodes | The server didn't answer, or answered with an error. The log says which item, from which server and why: `[Jellyfin] the seasons of show … could not be loaded from nas.local: HTTP 404 Not Found` (`[Plex]`, `[Emby]` likewise; `Connection refused` and the like when nothing answered) | Check that the server is on and reachable, go back and open the page again. `the server has nothing of it to play` (Plex) means the file is gone from the server |
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
-Each module's settings has **Sign out**. The sign-ins are in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
+Each module's settings has **Sign Out**. The sign-ins are in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
 
 ## Arcade
 

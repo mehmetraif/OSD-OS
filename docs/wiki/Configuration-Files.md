@@ -150,7 +150,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `local_files_history.json`, `nfc_reader_history.json` | `{ "<path>": { "pos": <ms>, "plPos": <video in a playlist, or -1>, "lastPlayed": <ms since 1970> } }`, the 1000 most recently played |
 | `youtube_history.json` | By video id: `{ "pos", "title", "channelName", "lastPlayed" }` |
 | `playlists/` | Each m3u is owner-only, as it may hold a server's token |
-| `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | Sign-ins and tokens, owner-only. Sign out deletes a module's own |
+| `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | Sign-ins and tokens, owner-only. Sign Out deletes a module's own |
 | `tmdb_api_key.txt` | Its first line that isn't empty or a `#` comment: a TMDB v3 API key, or a v4 read access token |
 | `input.cfg`, `gamecontrollerdb.txt` | Gamepad remapping, read again when it changes; extra SDL mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
 | `display-output.json` | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted afterwards |
@@ -161,7 +161,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `bin/yt-dlp` | Found first, before one beside the `osdos` binary and one on `PATH`. On the image a timer updates it after each boot and once a day |
 | `bin/mame` | Found first, before `mame` on `PATH` and `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
 | `arcade/`, `highscores/` | Listed in [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps) and [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps) |
-| `<service>/browser/` | A Chromium profile per service, with its sign-in. Sign out deletes it |
+| `<service>/browser/` | A Chromium profile per service, with its sign-in. Sign Out deletes it |
 | `updates/` | The downloaded release with `staged.json` and `staged.sha256` (written at Apply), `staged.sha256.failed` (why the launcher couldn't put it in place, told once on the Software Update page), unfinished `*.part` downloads, and on an AppImage or a Mac the helper script and its `apply.log` |
 
 ## config.json

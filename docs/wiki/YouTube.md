@@ -273,7 +273,7 @@ Signed in, YouTube asks for fewer bot checks and age-restricted videos play.
 3. Sign in with the keyboard.
 4. Come back by holding back (Esc, or B on a gamepad) for two seconds, or with `Ctrl+W`.
 
-- The sign-in lives in a browser profile, `youtube/browser` in the data folder. **Sign out** deletes it.
+- The sign-in lives in a browser profile, `youtube/browser` in the data folder. **Sign Out** deletes it.
 - Without `wtype`, close the browser with `Ctrl+W`, or wait half a minute after signing in before holding back. Otherwise the sign-in may not be saved.
 - Linux needs Chromium (`chromium`, `chromium-browser`, `google-chrome-stable` or `google-chrome`), plus `cage` and `wtype` without a desktop: `sudo apt install chromium cage wtype`.
 - A Mac needs **Google Chrome** in `/Applications`; otherwise the screen says **Google Chrome is not installed**.

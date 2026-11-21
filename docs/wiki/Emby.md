@@ -167,7 +167,7 @@ The keys sit under `modules.com.osdos.emby`, nested as in the fragment [above](#
 `emby_auth.json` in the data folder, readable by your user only (mode 600), holds the server's address, its token for this device and the user.
 
 - No password or Emby Connect token is stored.
-- **Sign out** deletes the file.
+- **Sign Out** deletes the file.
 - A self-signed certificate is accepted for the server's own address.
 
 ## Troubleshooting

@@ -209,7 +209,7 @@ The keys sit under `modules.com.osdos.jellyfin`, nested as in the fragment [abov
 `jellyfin_auth.json` in the data folder, readable by your user only (mode 600), holds the server's address, the access token and the user.
 
 - Your password is never asked for.
-- **Sign out** deletes the file.
+- **Sign Out** deletes the file.
 - A self-signed certificate is accepted for the server's own address.
 
 ## Troubleshooting
