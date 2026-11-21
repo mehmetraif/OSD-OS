@@ -10,6 +10,18 @@
 # the core's file extension on this system, and strip, the command that
 # strips the core.
 #
+# On every system the compilers are told not to fuse a multiplication and
+# an addition into one instruction (-ffp-contract=off): GCC does by default
+# on aarch64, where the result is rounded once instead of twice, and not on
+# x86-64 without FMA, so a game whose state holds a float (a sound filter,
+# some drivers) would compute it differently on a Raspberry Pi than on a PC,
+# and a network game between them would fall out of step. Clang, macOS's and
+# the BSDs', fuses within a statement by default. It goes in from the
+# environment, in FBNEO_DEFINES, which the makefile adds its own to
+# (FBNEO_DEFINES +=) and hands to every compile; one on make's command line
+# would replace them. No CPU flags (-mcpu, -march): every machine of a
+# release plays the same cores.
+#
 # On FreeBSD and OpenBSD: the makefile's Unix build with the system's
 # compiler (cc, c++), without -no-undefined, which OpenBSD can't link a
 # library with (its libraries leave libc's symbols to the program that loads
@@ -31,6 +43,7 @@ fbneo_make() {
            || sysctl -n hw.ncpu 2>/dev/null || echo 2)
     args=("$@")
     strip=(strip)
+    export FBNEO_DEFINES="${FBNEO_DEFINES:+$FBNEO_DEFINES }-ffp-contract=off"
     case "$(uname -s)" in
         Darwin)
             ext=dylib
@@ -48,12 +61,10 @@ fbneo_make() {
         *BSD)
             ext=so
             # $(VERSION_SCRIPT) is the makefile's own, for make to expand. The
-            # define goes in from the environment, which the makefile's
-            # FBNEO_DEFINES += adds its own to (one on make's command line would
-            # replace them).
+            # define goes in from the environment, as the flag above.
             # shellcheck disable=SC2016
             args+=(CC=cc CXX=c++ SHARED='-shared -Wl,--version-script=$(VERSION_SCRIPT)')
-            export FBNEO_DEFINES=-DGBAPPU_WORKER_DISABLE ;;
+            FBNEO_DEFINES+=" -DGBAPPU_WORKER_DISABLE" ;;
         *)
             ext=so ;;
     esac

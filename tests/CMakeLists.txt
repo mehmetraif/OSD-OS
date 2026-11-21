@@ -370,7 +370,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/save-logs.sh)
 
     # FinalBurn Neo's source unpacked and both cores built in order
-    # (scripts/build-fbneo-cores.sh), with stand-ins for curl and the builds.
+    # (scripts/build-fbneo-cores.sh), with stand-ins for curl and the builds;
+    # and each system's settings (scripts/fbneo-make.sh), -ffp-contract=off
+    # on all of them, with stand-ins for uname and make.
     add_test(NAME fbneo_cores COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/fbneo_cores_test.sh
                                        ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/build-fbneo-cores.sh)
 
