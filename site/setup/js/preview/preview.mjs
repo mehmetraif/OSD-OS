@@ -18,7 +18,7 @@ import { Renderer } from "./renderer.mjs";
 import { OrbLook } from "./orb.mjs";
 
 const TICK = FRAME * 1000;
-// Main.qml's window changes: how long each takes, and how it eases.
+// The window changes (WindowChange.qml): how long each takes, and how it eases.
 const DURATIONS = { Cube: 650, Wave: 900, Drop: 1000 };
 const EASINGS = {
     Wave: t => t,
@@ -52,7 +52,7 @@ function cubeMatrix(isNew, progress, direction) {
             out[col * 4 + row] = rows[row][col];
     return out;
 }
-// Whether a face is turned towards the eye (Main.qml's facing()).
+// Whether a face is turned towards the eye (WindowChange.qml's facing()).
 const facing = (isNew, progress) => (isNew ? Math.sin : Math.cos)(progress * Math.PI / 2) * (2 * 2.5 + 1) > 1;
 
 export class Preview {
