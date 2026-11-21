@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // A gamepad's page, from Settings → Controls (Controllers.qml): six lines,
 // each one job.
@@ -118,14 +119,14 @@ FocusScope {
     function cycleLabels(step) {
         var i = styles.indexOf(page.labels || "auto")
         if (!inputManager.setControllerLabels(key, styles[((i < 0 ? 0 : i) + step + styles.length) % styles.length]))
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     // The next one shows once it is kept.
     function cyclePins(step) {
         var next = (pinLayout + step + pinLayouts.length) % pinLayouts.length
         if (appCore && !appCore.save_setting("", "jamma_pin_layout", pinLayouts[next])) {
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
             return
         }
         pinLayout = next
@@ -152,7 +153,7 @@ FocusScope {
         if (result.outcome === "away")
             notice = "Connect it first"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
         else if (result.outcome === "already")
             notice = number === 0 ? "Its player is automatic already" : "It is player " + number + " already"
         else if (number === 0)
@@ -276,7 +277,7 @@ FocusScope {
             if (action !== "reset" || !inputManager)
                 return
             if (!inputManager.resetController(pageRoot.key))
-                pageRoot.notice = "Not saved: the settings could not be written"
+                pageRoot.notice = ControlsText.notSaved
             // Away, it had nothing else: its line goes from the list too.
             else if (!pageRoot.present)
                 pageRoot.goBack()

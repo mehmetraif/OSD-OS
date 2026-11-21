@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // Which buttons work the menus: a gamepad's Menu Buttons (from its page,
 // ControllerSettings.qml), and the same rows for a keyboard's or a remote's
@@ -182,7 +183,7 @@ FocusScope {
         else if (result.outcome === "cancel")
             notice = "Nothing changed"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     // Remove one: which, from a list.
@@ -210,7 +211,7 @@ FocusScope {
             notice = pad ? label + " is its only " + result.label + " button: it stays"
                          : label + " is the " + result.label + " in use: it stays"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     function activate(row) {
@@ -328,7 +329,7 @@ FocusScope {
             if (action !== "reset" || !inputManager)
                 return
             if (!inputManager.resetController(pageRoot.key))
-                pageRoot.notice = "Not saved: the settings could not be written"
+                pageRoot.notice = ControlsText.notSaved
             // Away, it had nothing else: its line goes from the list too.
             else if (!pageRoot.present)
                 pageRoot.goBack()

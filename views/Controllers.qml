@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // Settings → Controls: the gamepads connected first, the one used last on
 // top with the cursor on it and a ● on its line, each with the player it is
@@ -160,7 +161,7 @@ FocusScope {
             navigateTo("views/MenuButtons.qml", { key: row.key }, listState(row))
         } else if (row.type === "players") {
             notice = inputManager.resetPlayers() ? "Every player is automatic now"
-                                                 : "Not saved: the settings could not be written"
+                                                 : ControlsText.notSaved
         } else if (row.show === "keyboards"
                    && !controllers.some(function(c) { return c.present && !isPad(c) })) {
             // No keyboard listed apart: straight to every keyboard's keys.

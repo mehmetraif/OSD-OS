@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // A pad's Game Buttons, from its page in Settings → Controls
 // (ControllerSettings.qml): which of its inputs is each of a cabinet's,
@@ -234,7 +235,7 @@ FocusScope {
         else if (result.outcome === "menu")
             notice = result.label + " shows MAME's menu, not a button"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     // "RB is Button 1", "Button 7 is None".
@@ -389,7 +390,7 @@ FocusScope {
         }
         var outcome = inputManager.setArcadeInputs(key, setTokens)
         notice = outcome === "set" ? "Saved: its layout is Custom now"
-               : outcome === "unsaved" ? "Not saved: the settings could not be written" : "Nothing changed"
+               : outcome === "unsaved" ? ControlsText.notSaved : "Nothing changed"
     }
 
     function activate(row) {
@@ -476,7 +477,7 @@ FocusScope {
         subtitleText: "Custom is what was set by hand: it is kept while another is chosen"
         onActivated: function(layout) {
             if (inputManager && !inputManager.setArcadeLayout(pageRoot.key, layout))
-                pageRoot.notice = "Not saved: the settings could not be written"
+                pageRoot.notice = ControlsText.notSaved
         }
         onClosed: list.forceActiveFocus()
     }
