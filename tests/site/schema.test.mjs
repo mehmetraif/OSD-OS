@@ -424,6 +424,11 @@ test("Arcade's emulator and network rows in their groups, with the backend's def
     assert.deepEqual(valuesOf(row("sound_buffer")), ["Auto", "RetroArch's"]);
     for (const key of ["mame_vsync", "frame_buffers", "sound_buffer"])
         assert.equal(row(key).default, "Auto", key);
+    // Online Name's help names where the device's name is seen: System
+    // Information, a row of System's own.
+    const onlineName = rows.find(r => r.key === "online_name").description;
+    assert.match(onlineName, /\(Settings → System → System Information\)/);
+    assert.ok(settingsQml.includes('label: "System Information"'));
     // LAN Sync's help on Smooth says which machine should host, in the part
     // the help line shows with Smooth on the row.
     const lanSync = rows.find(r => r.key === "lan_sync").description;
