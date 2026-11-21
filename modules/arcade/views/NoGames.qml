@@ -1,7 +1,7 @@
 import QtQuick
 
 // The Arcade module's screens with nothing to list: no games, what stands in
-// the way of the list (ArcadeBackend's problem), and where the games go,
+// the way of the list (the module's problem), and where the games go,
 // unless that is the folder that can't be read; while MAME is being asked
 // about them (reading), that it is. Where MAME is what is missing and the
 // system can download it (canDownload: Windows), that select does, how far
@@ -9,14 +9,14 @@ import QtQuick
 Column {
     id: noGames
 
-    property string problem: ""
-    property bool folderReadable: true
-    property string gamesFolder: ""
     property bool reading: false
-    property bool canDownload: false
-    property bool downloading: false
-    property int progress: 0
-    property string failure: ""
+    readonly property string problem: moduleRoot.problem
+    readonly property bool folderReadable: moduleRoot.folderReadable
+    readonly property string gamesFolder: moduleRoot.gamesFolder
+    readonly property bool canDownload: moduleRoot.canDownloadMame
+    readonly property bool downloading: moduleRoot.downloadingMame
+    readonly property int progress: arcadeBackend ? arcadeBackend.mameProgress : 0
+    readonly property string failure: arcadeBackend ? arcadeBackend.mameMessage : ""
 
     anchors.centerIn: parent
     width: root.sw * 0.75 //480
@@ -44,7 +44,7 @@ Column {
     }
     // How to put MAME on, for this system (AppCore::installHint()).
     Text {
-        visible: !noGames.reading && noGames.problem === "MAME is not installed"
+        visible: !noGames.reading && moduleRoot.mameMissing
         width: parent.width
         text: visible ? appCore.installHint("mame") : ""
         color: root.primaryColor
@@ -55,7 +55,7 @@ Column {
     }
     // Or downloaded from here: select starts it, and the line follows it.
     Text {
-        visible: !noGames.reading && noGames.problem === "MAME is not installed" && (noGames.canDownload || noGames.downloading)
+        visible: !noGames.reading && moduleRoot.mameMissing && (noGames.canDownload || noGames.downloading)
         width: parent.width
         text: noGames.downloading ? "Downloading MAME… " + noGames.progress + "%"
               : noGames.failure !== "" ? "The download failed: " + noGames.failure + " • " + root.hints.select + ": TRY AGAIN"

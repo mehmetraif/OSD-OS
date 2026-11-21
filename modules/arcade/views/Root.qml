@@ -68,6 +68,32 @@ ModuleRouter {
     // the loading screen fills, and would show round it.
     viewCovered: !!playLayer.item || !!pageLayer.item || playing !== null
 
+    // What stands in the way of the games (ArcadeBackend's problem), the
+    // folder they go in, whether it can be read and whether they are being
+    // read, for both lists of games and the screens with nothing to list.
+    // The backend says an engine is missing in a sentence of its own (its
+    // problem, a game's lastError()): missingProgram() reads which, the
+    // program AppCore::installHint() says how to put on ("mame",
+    // "retroarch"), "" for anything else.
+    function missingProgram(message) {
+        return message === "MAME is not installed" ? "mame"
+             : message === "RetroArch is not installed" ? "retroarch" : ""
+    }
+    readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
+    readonly property bool mameMissing: missingProgram(problem) === "mame"
+    // For the help line: with how to put MAME on, for this system, where
+    // that is what stands in the way.
+    readonly property string problemLine: mameMissing ? problem + ". " + appCore.installHint("mame") : problem
+    readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
+    readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
+    readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
+    // MAME downloaded from the lists where it is what is missing and the
+    // system can (Windows): read again as a download starts and ends.
+    property int mameRevision: 0
+    readonly property bool canDownloadMame: (mameRevision, mameMissing && !!arcadeBackend
+                                             && arcadeBackend.mameInfo().canDownload)
+    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
+
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in
     // (kMaxCredits), MAME's and FinalBurn Neo's alike. With Settings → Arcade
@@ -203,6 +229,7 @@ ModuleRouter {
     Connections {
         target: arcadeBackend
         ignoreUnknownSignals: true
+        function onMameChanged() { moduleRoot.mameRevision++ }
         function onFinished(exitCode, reason, notice) {
             var ended = moduleRoot.playing
             if (!ended)

@@ -49,6 +49,19 @@ StandInRoot {
         property string attractMode: "Off"
         property int attractAfter: 60
         property var playing: null
+        function missingProgram(message) {
+            return message === "MAME is not installed" ? "mame"
+                 : message === "RetroArch is not installed" ? "retroarch" : ""
+        }
+        readonly property string problem: arcadeBackend.problem
+        readonly property bool mameMissing: missingProgram(problem) === "mame"
+        readonly property string problemLine: mameMissing ? problem + ". " + appCore.installHint("mame") : problem
+        readonly property string gamesFolder: arcadeBackend.gamesFolder()
+        readonly property bool folderReadable: arcadeBackend.folderReadable
+        readonly property bool scanning: arcadeBackend.scanning
+        property int mameRevision: 0
+        readonly property bool canDownloadMame: (mameRevision, mameMissing && arcadeBackend.mameInfo().canDownload)
+        readonly property bool downloadingMame: arcadeBackend.mameDownloading
         readonly property bool away: (!!arcadeBackend && arcadeBackend.running) || root.screenSaverActive
         function addCredit() {
             if (!freePlay)
@@ -432,6 +445,12 @@ StandInRoot {
         function is_module_enabled(id) { return false }
         // How to put a program on, for the system (util/InstallHint.h).
         function installHint(program) { return "On Test OS: install " + program }
+    }
+
+    // The router's own: MAME's state read again as it changes.
+    Connections {
+        target: arcadeBackend
+        function onMameChanged() { moduleRoot.mameRevision++ }
     }
 
     Loader {

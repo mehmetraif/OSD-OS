@@ -318,10 +318,9 @@ FocusScope {
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
         }
         // How to put the engine on, for this system (AppCore::installHint()),
-        // under "MAME is not installed" or "RetroArch is not installed".
+        // under the backend's sentence that it is missing.
         Text {
-            readonly property string program: playRoot.message === "MAME is not installed" ? "mame"
-                                              : playRoot.message === "RetroArch is not installed" ? "retroarch" : ""
+            readonly property string program: moduleRoot.missingProgram(playRoot.message)
             visible: playRoot.phase === "error" && program !== ""
             width: parent.width
             text: program !== "" ? appCore.installHint(program) : ""

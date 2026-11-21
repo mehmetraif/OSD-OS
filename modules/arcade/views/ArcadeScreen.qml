@@ -78,22 +78,12 @@ FocusScope {
 
     focus: true
 
+    // What stands in the way of the games, and whether they are being read
+    // (the module's).
+    readonly property string problem: moduleRoot.problem
+    readonly property bool scanning: moduleRoot.scanning
     // Context properties read null while the module's Loader tears this view
     // down, hence the guards.
-    readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
-    // For the help line: with how to put MAME on, for this system
-    // (AppCore::installHint()), where that is what stands in the way.
-    readonly property string problemLine: problem === "MAME is not installed"
-                                          ? problem + ". " + appCore.installHint("mame") : problem
-    // MAME downloaded from here where it is what is missing and the system
-    // can (Windows): read again as a download starts and ends.
-    property int mameRevision: 0
-    readonly property bool canDownloadMame: (mameRevision, problem === "MAME is not installed" && !!arcadeBackend
-                                             && arcadeBackend.mameInfo().canDownload)
-    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
-    readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
-    readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
-    readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
     // A pad's Coin (its Back unless its Arcade Buttons say) is COIN here, not
     // while the options (or a setting chosen over them) are up or Search's
@@ -632,7 +622,7 @@ FocusScope {
         // Nothing to play: select downloads MAME where it is what is
         // missing and the system can.
         if (filters.length === 0) {
-            if (canDownloadMame && !downloadingMame)
+            if (moduleRoot.canDownloadMame && !moduleRoot.downloadingMame)
                 arcadeBackend.downloadMame()
             return
         }
@@ -854,7 +844,6 @@ FocusScope {
     Connections {
         target: arcadeBackend
         function onGamesChanged() { arcadeScreen.reload() }
-        function onMameChanged() { arcadeScreen.mameRevision++ }
         function onReadingChanged() {
             var entry = arcadeScreen.startupEntry
             if (entry && !arcadeBackend.reading) {
@@ -1157,13 +1146,6 @@ FocusScope {
         visible: arcadeScreen.filters.length === 0
         anchors.verticalCenterOffset: arcadeScreen.portrait ? root.stageY : 0
         reading: arcadeScreen.scanning
-        problem: arcadeScreen.problem
-        folderReadable: arcadeScreen.folderReadable
-        gamesFolder: arcadeScreen.gamesFolder
-        canDownload: arcadeScreen.canDownloadMame
-        downloading: arcadeScreen.downloadingMame
-        progress: arcadeBackend ? arcadeBackend.mameProgress : 0
-        failure: arcadeBackend ? arcadeBackend.mameMessage : ""
     }
 
     // In the list's place: on RetroArch Lobby, that the lobby is being read,
@@ -1222,7 +1204,7 @@ FocusScope {
         opacity: (shown ? 1 : 0) * (1 - arcadeScreen.orbGoing)
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
-              : arcadeScreen.problem !== "" ? arcadeScreen.problemLine
+              : arcadeScreen.problem !== "" ? moduleRoot.problemLine
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
               : arcadeScreen.about

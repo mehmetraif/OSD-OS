@@ -24,22 +24,6 @@ FocusScope {
     id: gamesRoot
 
     property var navParams: ({})
-    // Context properties read null while the module's Loader tears this view
-    // down, hence the guards.
-    readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
-    readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
-    // For the help line: with how to put MAME on, for this system
-    // (AppCore::installHint()), where that is what stands in the way.
-    readonly property string problemLine: problem === "MAME is not installed"
-                                          ? problem + ". " + appCore.installHint("mame") : problem
-    readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
-    readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
-    // MAME downloaded from here where it is what is missing and the system
-    // can (Windows): read again as a download starts and ends.
-    property int mameRevision: 0
-    readonly property bool canDownloadMame: (mameRevision, problem === "MAME is not installed" && !!arcadeBackend
-                                             && arcadeBackend.mameInfo().canDownload)
-    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -52,7 +36,7 @@ FocusScope {
     Keys.onPressed: function(event) {
         if (!tree.rootEmpty || (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter))
             return
-        if (!event.isAutoRepeat && canDownloadMame && !downloadingMame)
+        if (!event.isAutoRepeat && moduleRoot.canDownloadMame && !moduleRoot.downloadingMame)
             arcadeBackend.downloadMame()
         event.accepted = true
     }
@@ -110,13 +94,6 @@ FocusScope {
     // Nothing in the folder: what stands in the way, and where the games go.
     NoGames {
         visible: tree.rootEmpty
-        problem: gamesRoot.problem
-        folderReadable: gamesRoot.folderReadable
-        gamesFolder: gamesRoot.gamesFolder
-        canDownload: gamesRoot.canDownloadMame
-        downloading: gamesRoot.downloadingMame
-        progress: arcadeBackend ? arcadeBackend.mameProgress : 0
-        failure: arcadeBackend ? arcadeBackend.mameMessage : ""
     }
 
     TreeBrowser {
@@ -188,7 +165,6 @@ FocusScope {
         function onEntriesReady(path) { tree.refresh(path, true) }
         // A game played from the tree, now on Recently Played.
         function onFinished() { tree.refresh("recent", true) }
-        function onMameChanged() { gamesRoot.mameRevision++ }
         function onReadingChanged() {
             var entry = gamesRoot.startupEntry
             if (entry && !arcadeBackend.reading) {
@@ -205,12 +181,12 @@ FocusScope {
         id: infoLine
         visible: !tree.rootEmpty && !osk.visible && !options.menuUp
         readonly property var entry: tree.currentEntry
-        text: gamesRoot.problem !== "" ? gamesRoot.problemLine
+        text: moduleRoot.problem !== "" ? moduleRoot.problemLine
               : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message" || entry.kind === "lobby")
                 ? entry.detail
               : entry && entry.kind === "search" ? "Find a game by its name"
-              : gamesRoot.scanning ? "Reading the games…"
-              : "Games folder: " + gamesRoot.gamesFolder
+              : moduleRoot.scanning ? "Reading the games…"
+              : "Games folder: " + moduleRoot.gamesFolder
     }
 
     // Footer
