@@ -323,6 +323,13 @@ SoundTuning soundTuning(board::Family family, const QString &choice);
 // and Japan Chuncheon, the rest of Asia and Oceania Singapore; New York for a
 // zone that says no place (UTC) or none.
 QString relayForTimeZone(const QString &zone);
+// The advice Host LAN Game gives for this machine: under LAN Sync's Smooth
+// (follow), where the host plays the game for everyone and every hitch of
+// its own or of its link reaches every screen, a Raspberry Pi 4 or a machine
+// whose way to the local network is Wi-Fi (overWifi) is told that "The
+// fastest machine on a cable should host"; "" for any other, and under
+// Responsive.
+QString hostAdvice(bool follow, board::Family family, bool overWifi);
 // The display mode a game asks for on a Raspberry Pi's console (KMS) where
 // the one the app runs in is too big or too slow for it: a screen larger
 // than 1920x1080 (a 4K TV, where a Pi 5 would draw every frame at 2160p and

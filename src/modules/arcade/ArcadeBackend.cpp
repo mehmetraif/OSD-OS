@@ -3544,6 +3544,14 @@ bool ArcadeBackend::canHostLan(const QString &set) const {
     return m_lanPlay && netplayRefusal(set, playsOnLanCore(set), true).isEmpty();
 }
 
+QString ArcadeBackend::hostAdvice() const {
+    // The interfaces only where the advice may hang on them.
+    if (!m_lanFollow)
+        return QString();
+    const bool wifi = m_board != board::Family::Pi4 && (m_overWifi ? *m_overWifi : LanRooms::overWifi());
+    return libretro::hostAdvice(m_lanFollow, m_board, wifi);
+}
+
 bool ArcadeBackend::hostLanGame(const QString &set) {
     return playFbneo(set, libretro::Launch::Netplay::LanHost);
 }

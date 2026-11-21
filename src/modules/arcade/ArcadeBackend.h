@@ -464,6 +464,11 @@ public:
     Q_INVOKABLE bool hostLanGame(const QString &set);
     // canHost() for LAN Play.
     Q_INVOKABLE bool canHostLan(const QString &set) const;
+    // The one line of advice Host LAN Game gives on this machine, or "" for
+    // none (libretro::hostAdvice()): read as it is shown, as LAN Sync and the
+    // network may have changed. setOverWifi() for a test's network.
+    Q_INVOKABLE QString hostAdvice() const;
+    void setOverWifi(std::optional<bool> overWifi) { m_overWifi = overWifi; }
     // The controller types set plays with online hosted from here, "panel"
     // (FinalBurn Neo's 6-Button Panel on every port, with an arcade panel's
     // players among this machine's, in a game of up to four players) or
@@ -1178,6 +1183,7 @@ private:
     QString m_mameVsync;
     board::Family m_board = board::family();   // setBoard()
     std::optional<QString> m_timeZone;         // setTimeZone()
+    std::optional<bool> m_overWifi;            // setOverWifi()
     bool    m_lanPlay = false;
     // Settings → Arcade → LAN Sync: a game hosted here has the machines
     // joining follow this one (Smooth), or each play ahead (Responsive).

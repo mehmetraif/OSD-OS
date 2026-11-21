@@ -53,6 +53,25 @@ QList<QHostAddress> broadcastAddresses() {
 
 } // namespace
 
+bool LanRooms::overWifi() {
+    bool cable = false;
+    bool wifi = false;
+    const QList<netif::Interface> interfaces = netif::list();
+    for (const netif::Interface &interface : interfaces) {
+        if (!interface.up || !interface.running
+            || (interface.kind != netif::Kind::Ethernet && interface.kind != netif::Kind::Wifi))
+            continue;
+        for (const netif::Address &entry : interface.addresses) {
+            bool ipv4 = false;
+            const quint32 number = entry.ip.toIPv4Address(&ipv4);
+            if (!ipv4 || !libretro::isLanAddress(number))
+                continue;
+            (interface.kind == netif::Kind::Wifi ? wifi : cable) = true;
+        }
+    }
+    return wifi && !cable;
+}
+
 LanRooms::LanRooms(QObject *parent) : QObject(parent) {
     m_lanListen = new QTimer(this);
     m_lanListen->setSingleShot(true);

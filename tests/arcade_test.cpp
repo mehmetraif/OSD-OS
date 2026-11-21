@@ -6801,6 +6801,29 @@ private slots:
         QCOMPARE(arcade.relayServer(), QStringLiteral("Madrid"));
         arcade.setTimeZone(QStringLiteral("Australia/Sydney"));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
+        // Host LAN Game's advice under Smooth: a Pi 4, or a machine on
+        // Wi-Fi, told the fastest machine on a cable should host; a Pi 5 or
+        // a PC on a cable, and Responsive, nothing.
+        const QString fastest = QStringLiteral("The fastest machine on a cable should host");
+        arcade.setOverWifi(false);
+        arcade.setBoard(board::Family::Pi4);
+        QCOMPARE(arcade.hostAdvice(), fastest);
+        arcade.setBoard(board::Family::Pi5);
+        QCOMPARE(arcade.hostAdvice(), QString());
+        arcade.setOverWifi(true);
+        QCOMPARE(arcade.hostAdvice(), fastest);
+        arcade.setBoard(board::Family::Other);
+        QCOMPARE(arcade.hostAdvice(), fastest);
+        arcade.onSettingChanged(module, QStringLiteral("lan_sync"), QStringLiteral("Responsive"));
+        QCOMPARE(arcade.hostAdvice(), QString());
+        arcade.onSettingChanged(module, QStringLiteral("lan_sync"), QVariant());
+        arcade.setOverWifi(false);
+        QCOMPARE(arcade.hostAdvice(), QString());
+        // This machine's own network read, whatever it is.
+        arcade.setOverWifi(std::nullopt);
+        QVERIFY(arcade.hostAdvice().isEmpty() || arcade.hostAdvice() == fastest);
+        QCOMPARE(libretro::hostAdvice(true, board::Family::Pi4, false), fastest);
+        QCOMPARE(libretro::hostAdvice(false, board::Family::Pi4, true), QString());
         // A Pi 5's console (the test runs without a desktop): two frames
         // queued for the screen, the 48 ms sound buffer, and the ping shown
         // where asked.

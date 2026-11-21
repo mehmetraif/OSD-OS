@@ -1528,6 +1528,12 @@ Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &a
     return Launch::Layout::Classic;
 }
 
+QString hostAdvice(bool follow, board::Family family, bool overWifi) {
+    if (!follow || (family != board::Family::Pi4 && !overWifi))
+        return QString();
+    return QStringLiteral("The fastest machine on a cable should host");
+}
+
 int swapchainImages(board::Family family, bool console, const QString &choice) {
     // RetroArch's DRM context (gfx/drivers_context/drm_ctx.c) flips without
     // waiting from three images on, and waits for each flip with two.

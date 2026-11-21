@@ -57,6 +57,11 @@ public:
     // (Classic, from an older OSD/OS that says none, after a moment), or
     // hasn't (nullopt). False when the host can't be asked at all.
     bool askForPorts(const QString &host, int players);
+    // Whether this machine's way to the local network is Wi-Fi: no cable's
+    // interface up with an address of a private network
+    // (libretro::isLanAddress()), and a Wi-Fi one with one.
+    static bool overWifi();
+
     // The ports a host gave this machine, given back as its game ends
     // (claimedFrom: that host; "" for none); and those of an answer that came
     // too late, or from another host. The release is a datagram sent twice,

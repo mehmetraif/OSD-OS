@@ -119,6 +119,8 @@ On a Pi that hosts over Wi-Fi, `iw dev wlan0 station dump | grep -E 'tx retries|
 
 Online, a game OSD/OS hosts plays ahead with two frames of input latency, which every machine joining takes from it, and a machine that can't keep up takes up to four frames more. Over the internet a press comes some frames late: without that latency every such press has each machine play several frames again, more than a Raspberry Pi 4 has the time for. A room of the lobby another RetroArch hosts plays with its host's latency.
 
+Under **Smooth** the host's machine sets everyone's speed: a hitch of its own, or of its link, reaches every screen. Host on the fastest machine on a cable (the PC, then a Raspberry Pi 5), and let a Raspberry Pi 4 or a machine on Wi-Fi join. **Host LAN Game** says so on a Pi 4, or on a machine whose way to the network is Wi-Fi: `The fastest machine on a cable should host`.
+
 For a smooth game:
 
 - **Screens of 60 Hz.** A screen of 50 Hz (Display Output's 288p and 576i modes, and PAL) is slower than most arcade games. Choose a mode of 60 Hz in **Settings → Screen → Display Output** on every machine.
