@@ -169,9 +169,15 @@
       "views": { "location": "basic" }
     },
     "com.osdos.netflix": {
+      "options": {
+        "region": [["Australia", "AU"], ["Canada", "CA"], ["France", "FR"], ["Germany", "DE"], ["Italy", "IT"], ["Netherlands", "NL"], ["Spain", "ES"], ["Turkey", "TR"], ["UK", "GB"], ["USA", "US"]]
+      },
       "views": { "tmdb_api_key": "logins" }
     },
     "com.osdos.prime_video": {
+      "options": {
+        "region": [["Australia", "AU"], ["Canada", "CA"], ["France", "FR"], ["Germany", "DE"], ["Italy", "IT"], ["Netherlands", "NL"], ["Spain", "ES"], ["Turkey", "TR"], ["UK", "GB"], ["USA", "US"]]
+      },
       "views": { "tmdb_api_key": "logins" }
     }
   },

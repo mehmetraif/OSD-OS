@@ -112,7 +112,7 @@ private:
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;
     Service m_service;
-    QString m_region   = QStringLiteral("TR");
+    QString m_region   = QStringLiteral("US");   // WebPlayerBackend sets the time zone's or the one chosen
     QString m_language = QStringLiteral("en-US");
     QString m_tmdbUrl;
     QString m_wikidataUrl;

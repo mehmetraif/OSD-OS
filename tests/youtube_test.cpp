@@ -1,5 +1,6 @@
 #include "AppCore.h"
 #include "modules/web_player/TmdbCatalog.h"
+#include "modules/web_player/WebPlayerBackend.h"
 #include "modules/youtube/YouTubeBackend.h"
 
 #include <QDir>
@@ -26,6 +27,45 @@ class YouTubeTest : public QObject {
     Q_OBJECT
 
 private slots:
+    // Netflix's and Prime Video's Catalog Region where none was chosen: the
+    // time zone's country when it is one of those offered, else the USA;
+    // offered by name, each saved as its code, the one to start from marked.
+    void catalogRegionFromTheTimeZone() {
+        QCOMPARE(WebPlayerBackend::defaultRegion(QStringLiteral("Europe/Istanbul")), QStringLiteral("TR"));
+        QCOMPARE(WebPlayerBackend::defaultRegion(QStringLiteral("Europe/London")), QStringLiteral("GB"));
+        QCOMPARE(WebPlayerBackend::defaultRegion(QStringLiteral("America/Toronto")), QStringLiteral("CA"));
+        QCOMPARE(WebPlayerBackend::defaultRegion(QStringLiteral("Asia/Tokyo")), QStringLiteral("US"));
+        QCOMPARE(WebPlayerBackend::defaultRegion(QStringLiteral("UTC")), QStringLiteral("US"));
+
+        QTemporaryDir root;
+        QVERIFY(QDir().mkpath(root.path() + QStringLiteral("/etc")));
+        QFile zone(root.path() + QStringLiteral("/etc/timezone"));
+        QVERIFY(zone.open(QIODevice::WriteOnly));
+        zone.write("Europe/Berlin\n");
+        zone.close();
+        qputenv("OSDOS_SYSTEM_ROOT", root.path().toUtf8());
+        QTemporaryDir data;
+        WebPlayerBackend::Service service{};
+        service.id = QStringLiteral("netflix");
+        WebPlayerBackend netflix(service, data.path(), data.path(), nullptr, nullptr);
+        QSignalSpy options(&netflix, &WebPlayerBackend::dynamicOptionsReady);
+        netflix.get_regions();
+        qunsetenv("OSDOS_SYSTEM_ROOT");
+        QCOMPARE(options.count(), 1);
+        QCOMPARE(options.first().at(0).toString(), QStringLiteral("region"));
+        QStringList ids, labels, marked;
+        for (const QVariant &v : options.first().at(1).toList()) {
+            const QVariantMap choice = v.toMap();
+            ids << choice.value("id").toString();
+            labels << choice.value("label").toString();
+            if (choice.value("default").toBool())
+                marked << choice.value("id").toString();
+        }
+        QCOMPARE(ids, QStringList({ "AU", "CA", "FR", "DE", "IT", "NL", "ES", "TR", "GB", "US" }));
+        QCOMPARE(labels.at(8), QStringLiteral("UK"));
+        QCOMPARE(marked, QStringList{ QStringLiteral("DE") });
+    }
+
     // SIGN IN's state: signed in while SIGN IN's browser keeps its profile,
     // signed out once Sign Out has deleted it, which says so.
     void signedInWhileTheProfileIsKept() {

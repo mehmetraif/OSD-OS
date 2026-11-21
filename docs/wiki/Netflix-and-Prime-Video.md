@@ -71,8 +71,8 @@ A new key works at once, without a restart. Without one, Search, Movies and Seri
 
 Each module has its own:
 
-- **Catalogue Region**: the country whose catalogue to list: TR (the default), US, GB, DE, FR, NL, ES, IT, CA or AU.
-- **Catalogue Language**: English or Turkish, for titles, genres and stories. A story without a translation shows in English.
+- **Catalog Region**: the country whose catalog to list: Australia, Canada, France, Germany, Italy, Netherlands, Spain, Turkey, UK or USA. Until one is chosen, the country of Settings → System → Time Zone when it is one of these, else the USA.
+- **Catalog Language**: English or Turkish, for titles, genres and stories. A story without a translation shows in English.
 
 Only titles on the subscription are listed, not ones the service rents or sells.
 
@@ -157,8 +157,8 @@ Settings → TV / Movie → **Netflix**, with keys under `modules.com.osdos.netf
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows the module on the main menu. | `enabled` |
 | Sign In | SIGNED IN or SIGNED OUT | | Opens the service's sign-in page full screen. SIGNED IN while the browser keeps a profile for the service. | |
-| Catalogue Region | TR, US, GB, DE, FR, NL, ES, IT, CA, AU | TR | The country whose catalogue to list. | `region` |
-| Catalogue Language | English, Turkish | English | The language of titles, genres and stories. | `catalog_language` |
+| Catalog Region | Australia (`AU`), Canada (`CA`), France (`FR`), Germany (`DE`), Italy (`IT`), Netherlands (`NL`), Spain (`ES`), Turkey (`TR`), UK (`GB`), USA (`US`) | The time zone's country, else USA | The country whose catalog to list. The code is saved. | `region` |
+| Catalog Language | English, Turkish | English | The language of titles, genres and stories. | `catalog_language` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in the service's player. Default follows Settings → TV / Movie → Scaling. | `video_scaling` |
 | Sign Out | Select | | Asks first, then forgets the sign-in: deletes the profile. Dimmed while signed out. | |
 
@@ -213,7 +213,7 @@ See [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits).
 | **No TMDB API key: type one in Settings, in the module's TMDB Key.** | The row is empty, and the file is missing, empty, or in the wrong folder. See [The TMDB API key](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video#the-tmdb-api-key). |
 | **TMDB turned the API key down: check the TMDB Key in Settings.** | Check that the whole key or token is on one line, with nothing else on it. |
 | **Could not reach TMDB: check the network.** | No answer from `api.themoviedb.org`. |
-| A folder is empty, or titles are missing. | Check Catalogue Region. Only titles on the subscription are listed. |
+| A folder is empty, or titles are missing. | Check Catalog Region. Only titles on the subscription are listed. |
 | **Could not open Netflix: Chromium is not installed** (or **cage is not installed**) | `sudo apt install chromium libwidevinecdm0 cage wtype`. |
 | **web-player.sh is missing from the app** | Reinstall OSD/OS. |
 | **The browser closed with error N**, or **The browser did not start** | The browser's last lines under it say why. Without a desktop, the user running OSD/OS must be in the `video` and `input` groups. |

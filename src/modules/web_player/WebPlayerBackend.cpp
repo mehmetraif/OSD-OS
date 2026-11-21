@@ -2,8 +2,12 @@
 #include "../scripts/ScriptLauncher.h"
 #include "../../AppCore.h"
 #include "../../util/DisplayHandoff.h"
+#include "../../system/SystemLocale.h"
+#include "../../util/LegacyNames.h"
 #include <QDir>
 #include <QFileInfo>
+#include <QLocale>
+#include <QTimeZone>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
@@ -85,11 +89,46 @@ void WebPlayerBackend::onSettingChanged(const QString &moduleId, const QString &
         applySetting(key, value);
 }
 
+namespace {
+// The catalogue's countries, by the names the row shows, in that order.
+const std::pair<const char *, const char *> kRegions[] = {
+    { "AU", "Australia" }, { "CA", "Canada" }, { "FR", "France" }, { "DE", "Germany" },
+    { "IT", "Italy" }, { "NL", "Netherlands" }, { "ES", "Spain" }, { "TR", "Turkey" },
+    { "GB", "UK" }, { "US", "USA" },
+};
+} // namespace
+
+QString WebPlayerBackend::defaultRegion(const QString &zone) {
+    QString name = zone.isEmpty() ? systemlocale::timeZone(legacy::env("SYSTEM_ROOT")) : zone;
+    const QTimeZone tz = name.isEmpty() ? QTimeZone::systemTimeZone() : QTimeZone(name.toUtf8());
+    const QString country = tz.isValid() ? QLocale::territoryToCode(tz.territory()) : QString();
+    for (const auto &[code, label] : kRegions) {
+        if (country == QLatin1String(code))
+            return country;
+    }
+    return QStringLiteral("US");
+}
+
+void WebPlayerBackend::get_regions() {
+    const QString start = defaultRegion();
+    QVariantList options;
+    for (const auto &[code, label] : kRegions) {
+        QVariantMap option{ { QStringLiteral("id"), QLatin1String(code) },
+                            { QStringLiteral("label"), QLatin1String(label) } };
+        if (start == QLatin1String(code))
+            option[QStringLiteral("default")] = true;
+        options << option;
+    }
+    emit dynamicOptionsReady(QStringLiteral("region"), options);
+}
+
 void WebPlayerBackend::applySetting(const QString &key, const QVariant &value) {
     if (!m_catalog)
         return;
     if (key == QLatin1String("region")) {
-        m_catalog->setRegion(value.toString());
+        // Never chosen: the time zone's country, else US.
+        const QString region = value.toString();
+        m_catalog->setRegion(region.isEmpty() ? defaultRegion() : region);
     } else if (key == QLatin1String("catalog_language")) {
         const QString language = value.toString();
         if (!language.isEmpty())

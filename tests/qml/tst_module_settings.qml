@@ -1577,6 +1577,34 @@ StandInRoot {
             compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:ADD")
         }
 
+        // A dynamic list never saved shows the choice its backend marks as
+        // where an install starts (Catalog Region: the time zone's country),
+        // else the row's default by its id, and ◄ ► step from it; one
+        // saved keeps what it saved. The names show, the ids are saved.
+        function test_dynamicDefaultChoice() {
+            appCore.schema = [
+                { key: "region", label: "Catalog Region", type: "list_single", options_source: "dynamic",
+                  options_slot: "get_regions", default: "US" },
+                { key: "lang", label: "Language", type: "list_single", options_source: "dynamic",
+                  options_slot: "get_langs", default: "-" }
+            ]
+            var regions = [{ id: "DE", label: "Germany" }, { id: "TR", label: "Turkey", default: true },
+                           { id: "US", label: "USA" }]
+            var page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "region", regions)
+            appCore.dynamicOptionsReady("com.osdos.test", "lang", [{ id: "en", label: "English" }, { id: "-", label: "Any" }])
+            compare(menuRow(page, 0).value, "Turkey")
+            compare(menuRow(page, 1).value, "Any")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.region, "US")
+            compare(menuRow(page, 0).value, "USA")
+            loader.source = ""
+            appCore.values = { region: "DE" }
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "region", regions)
+            compare(menuRow(page, 0).value, "Germany")
+        }
+
         // A row moved out of a submenu onto the first page (YouTube's
         // Subtitles) reads what was saved while it was in there: a
         // submenu's rows are saved flat under the module, by their keys.
