@@ -56,7 +56,7 @@ FocusScope {
                             + Qt.resolvedUrl("../assets/images/vhs.svg")
                 }
                 // No reader, or a card it doesn't know: the icon is dithered,
-                // the two-colour stand-in for the faded look it used to have.
+                // the two-colour stand-in for a faded one.
                 Dither {
                     anchors.fill: statusIndicatorImage
                     visible: !nfcReaderBackend.readerConnected || nfcReaderBackend.cardState === "unmatched"

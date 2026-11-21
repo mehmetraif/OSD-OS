@@ -1,6 +1,6 @@
 import QtQuick
 
-// A web player module's one view (Netflix, Prime Video): opens the service
+// A web player module's player (Netflix, Prime Video): opens the service
 // full screen and says how to come back. The service runs as its own web
 // player in Chromium (see WebPlayerBackend), which has the screen until it is
 // closed: with Ctrl+W, or by holding BACK here, since this view keeps

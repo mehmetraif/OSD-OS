@@ -162,7 +162,6 @@ FocusScope {
         }
     }
 
-    // Footer
     HintBar {
         id: footer
         visible: !osk.visible && !options.visible
