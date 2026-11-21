@@ -28,12 +28,11 @@ FocusScope {
     readonly property bool powerFailed: bluetoothManager ? bluetoothManager.powerFailed : false
 
     // The lines: { type: "power" | "details" | "search" | "section" | "note" | "device", … }.
+    // The list is given them anew only as lines come, go or change places
+    // (MenuList's take()): one whose name or value changes (a device
+    // connecting, a search) is changed where it is, from rows, so a device's
+    // every property doesn't make every line again.
     property var rows: []
-    // The lines the list is made of, given it anew only as lines come, go or
-    // change places: one whose name or value changes (a device connecting,
-    // a search) is changed where it is, from rows, so a device's every
-    // property doesn't make every line again.
-    property var shownRows: []
     // A device whose options are open.
     property var optionsDevice: null
     // The dots after SEARCHING, one more each half second.
@@ -65,10 +64,6 @@ FocusScope {
     }
 
     function buildRows() {
-        // The cursor stays on its line as lines come and go: a device by its
-        // path (it moves from FOUND to PAIRED once paired), the others by type.
-        var at = list.currentIndex
-        var current = rows[at]
         var items = []
         if (!available) {
             items.push({ type: "note", label: "No Bluetooth",
@@ -106,32 +101,13 @@ FocusScope {
             }
         }
         rows = items
-
-        // The same lines in the same places, a device by its path (two may
-        // share a name): the list and its cursor are left as they are.
-        var same = items.length === shownRows.length
-        for (var s = 0; s < items.length && same; s++)
-            same = lineId(items[s]) === lineId(shownRows[s])
-        if (same)
-            return
-        shownRows = items
-
-        var index = -1
-        if (current) {
-            for (var k = 0; k < items.length && index < 0; k++) {
-                if (current.type === "device" ? (items[k].type === "device" && items[k].device.path === current.device.path)
-                                              : items[k].type === current.type && current.type !== "section" && current.type !== "note")
-                    index = k
-            }
-        }
-        // Its line gone (a device forgotten): the one now in its place.
-        if (index < 0)
-            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
-        list.currentIndex = index
-        list.show(index)
+        list.take(items, lineId)
     }
 
-    // Which line a row is, whatever it says now.
+    // Which line a row is, whatever it says now: the cursor stays on it as
+    // lines come and go, a device by its path (it moves from FOUND to PAIRED
+    // once paired; two may share a name), else the one now in its place (a
+    // device forgotten).
     function lineId(row) { return row.type + ":" + (row.type === "device" ? row.device.path : row.label) }
 
     function activate(row) {
@@ -185,7 +161,6 @@ FocusScope {
 
     MenuList {
         id: list
-        model: bluetoothRoot.shownRows
         focus: true
         onMoved: if (bluetoothManager) bluetoothManager.clearMessage()
 
@@ -211,7 +186,7 @@ FocusScope {
         // Lines read like a camcorder's menu: "KEYBOARD······CONNECTED", and
         // the groups' headings like Settings': "PAIRED ─────".
         delegate: MenuRow {
-            // The line as it is now (rows), which the list's own (shownRows)
+            // The line as it is now (rows), which the list's own (its model)
             // may be behind.
             readonly property var row: bluetoothRoot.rows[index] || modelData
             readonly property string trail: row.busy ? ".".repeat(bluetoothRoot.dots) : ""

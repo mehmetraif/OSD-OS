@@ -100,6 +100,37 @@ Item {
         moved(delta)
     }
 
+    // New rows (model) for a list whose lines are read again and again (a
+    // search's networks, the system's facts): given it only as lines come,
+    // go or change places, idOf(row) being which line a row is, whatever it
+    // says now. The same lines in the same places leave the list and its
+    // cursor as they are, the host's delegate changing a line's value or
+    // help where it is; otherwise the cursor goes back to its line, else to
+    // the row now in its place that it stops on.
+    function take(rows, idOf) {
+        var shown = view.model && view.model.length !== undefined ? view.model : []
+        var same = rows.length === shown.length
+        for (var i = 0; i < rows.length && same; i++)
+            same = idOf(rows[i]) === idOf(shown[i])
+        if (same)
+            return
+        var at = currentIndex
+        var current = shown[at]
+        var id = current && selectable(current) ? idOf(current) : undefined
+        view.model = rows
+        if (rows.length === 0)
+            return
+        var index = -1
+        for (i = 0; i < rows.length && index < 0 && id !== undefined; i++) {
+            if (idOf(rows[i]) === id)
+                index = i
+        }
+        if (index < 0)
+            index = selectableFrom(Math.min(Math.max(at, 0), rows.length - 1), 1)
+        currentIndex = index
+        show(index)
+    }
+
     // Scrolls so that the row is in view. Rows are whole lines, a slider's
     // several (a module's settings), so a scroll can stop with one cut by an
     // edge: it carries on past it, keeping the row, as far as the list goes.

@@ -35,12 +35,11 @@ FocusScope {
     readonly property string message: wifiManager ? wifiManager.message : ""
 
     // The lines: { type: "power" | "country" | "search" | "hidden" | "section" | "note" | "network", … }.
-    property var rows: []
-    // The lines the list is made of, given it anew only as lines come, go or
-    // change places: one whose value, icons or help change (a signal, a
-    // join under way, a search) is changed where it is, from rows, so a
+    // The list is given them anew only as lines come, go or change places
+    // (MenuList's take()): one whose value, icons or help change (a signal,
+    // a join under way, a search) is changed where it is, from rows, so a
     // scan's answers don't make every line again each time.
-    property var shownRows: []
+    property var rows: []
     // The network whose options are open.
     property var optionsNetwork: null
     // What the keyboard is typing: "password" (for typingFor), "hiddenName",
@@ -105,11 +104,6 @@ FocusScope {
     }
 
     function buildRows() {
-        // The cursor stays on its line as lines come and go: a network by its
-        // name (it moves from NETWORKS to SAVED once joined), the others by
-        // type.
-        var at = list.currentIndex
-        var current = rows[at]
         var items = []
         if (!available) {
             items.push({ type: "note", label: "No Wi-Fi",
@@ -152,31 +146,14 @@ FocusScope {
             }
         }
         rows = items
-
-        // The same lines in the same places: the list and its cursor are
-        // left as they are.
-        var same = items.length === shownRows.length
-        for (var s = 0; s < items.length && same; s++)
-            same = items[s].type === shownRows[s].type && items[s].label === shownRows[s].label
-        if (same)
-            return
-        shownRows = items
-
-        var index = -1
-        if (current) {
-            for (var k = 0; k < items.length && index < 0; k++) {
-                if (current.type === "network" ? (items[k].type === "network" && items[k].network.ssid === current.network.ssid)
-                                               : items[k].type === current.type && current.type !== "section" && current.type !== "note")
-                    index = k
-            }
-        }
-        // Its line gone (a network forgotten, Wi-Fi turned off): the one now
-        // in its place.
-        if (index < 0)
-            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
-        list.currentIndex = index
-        list.show(index)
+        list.take(items, lineId)
     }
+
+    // Which line a row is, whatever it says now: the cursor stays on it as
+    // lines come and go, a network by its name (it moves from NETWORKS to
+    // SAVED once joined), else the one now in its place (a network
+    // forgotten, Wi-Fi turned off).
+    function lineId(row) { return row.type + ":" + (row.type === "network" ? row.network.ssid : row.label) }
 
     function askPassword(ssid) {
         typing = "password"
@@ -268,7 +245,6 @@ FocusScope {
     MenuList {
         id: list
         visible: !keyboard.visible
-        model: wifiRoot.shownRows
         focus: true
         onMoved: if (wifiManager) wifiManager.clearMessage()
 
@@ -295,7 +271,7 @@ FocusScope {
         // and signal, and the groups' headings like Settings': "SAVED ─────".
         // A network's name gives way to its value and icons.
         delegate: MenuRow {
-            // The line as it is now (rows), which the list's own (shownRows)
+            // The line as it is now (rows), which the list's own (its model)
             // may be behind.
             readonly property var row: wifiRoot.rows[index] || modelData
             readonly property string trail: row.busy ? ".".repeat(wifiRoot.dots) : ""
