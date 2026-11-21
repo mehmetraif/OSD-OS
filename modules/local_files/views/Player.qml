@@ -58,8 +58,7 @@ FocusScope {
         imageDurationSec = isNaN(imgDur) ? 5 : imgDur
 
         // Leaving this as an array since MPV - like most players - expects a *list* of languages
-        // to progressively fall back to until a sub track is found. If we ever switch back to
-        // selecting a list in Settings, the change to support them all will be considerably simpler.
+        // to progressively fall back to until a sub track is found.
         // "-" is the value we store for "Any" (i.e. no preference) thats also the manifest default and
         // "Any" option's id. If the user never opened this setting, then get_setting returns nothing,
         // so it will fall back to "-" too. With this, "haven't picked one" will behave the same as "Any":
@@ -226,12 +225,11 @@ FocusScope {
     Connections {
         target: mpvController
 
-        // mpv exited for any reason ("eof"/"stopped"/"failed"). Local Files has no
-        // autoplay-next or transcode-retry, so every exit is handled the same way:
-        // save/clear the resume position and return to the menu, a failure
-        // saying why first (RETRY plays it again where it got to). Handling the single
-        // playbackEnded signal here is what keeps the app from freezing on a natural
-        // end-of-file (the original bug was a missing per-reason handler).
+        // mpv exited for any reason ("eof"/"stopped"/"failed"/"menu"). Local Files
+        // has no autoplay-next or transcode-retry, so every exit is handled the same
+        // way: save/clear the resume position, a failure saying why (RETRY plays it
+        // again where it got to), any other end the session's (PlayerSession.end():
+        // its menu, or back to the menus).
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             rememberPosition(lastKnownPositionMs || finalPositionMs,
                              lastKnownDurationMs || finalDurationMs,

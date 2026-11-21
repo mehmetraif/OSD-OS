@@ -341,16 +341,16 @@ FocusScope {
         doStartPlayback(offsetMs)
     }
 
-    // Mirrors PlexBackend's Player.buildSubArgs: text subtitles are handed to mpv
-    // as sidecar --sub-file URLs (so direct play never transcodes to show them),
-    // while image subs (no subUrl) are selected from the embedded stream via --sid.
-    // subtitleIdx is -1 for off, otherwise a 0-based index into subtitleStreams.
     // Friendly track name for a sidecar — mpv would otherwise title it from the
     // opaque sidecar URL. Passed to the OSC alongside the URL (see loadAndPlay).
     function subLabel(s) {
         return (s.displayTitle || s.title || s.language || s.codec || "")
     }
 
+    // As Plex's Player.qml buildSubArgs: text subtitles are handed to mpv
+    // as sidecar --sub-file URLs (so direct play never transcodes to show them),
+    // while image subs (no subUrl) are selected from the embedded stream via --sid.
+    // subtitleIdx is -1 for off, otherwise a 0-based index into subtitleStreams.
     function buildSubArgs() {
         // Only hand mpv the *selected* sidecar — never preload every text track.
         // Each sidecar URL makes the server extract that subtitle on the fly, and
@@ -723,7 +723,6 @@ FocusScope {
         introSkipSetting = appCore.get_setting(moduleRoot.moduleId, "intro_skip") || "Off"
         outroSkipSetting = appCore.get_setting(moduleRoot.moduleId, "outro_skip") || "Off"
 
-        // Fetch segments if either skip mode is enabled
         if (introSkipSetting !== "Off" || outroSkipSetting !== "Off")
             backend.fetchSegments(itemId)
 

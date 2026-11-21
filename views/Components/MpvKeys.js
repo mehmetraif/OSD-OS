@@ -15,7 +15,8 @@
 // Back (Esc, a remote's Back) goes as ESC and Backspace as BS, which
 // MpvController acts on itself. The channel keys, a TV remote's or the page
 // keys, step a playlist in mpv (mpv-media-keys.lua): a player that plays one
-// asks for them (channels), and sends them once per press.
+// asks for them (channels), and sends them once per press (PlayerSession's
+// forwardKey() does both, for every player).
 
 var keys = {}
 keys[Qt.Key_Escape] = "ESC"
