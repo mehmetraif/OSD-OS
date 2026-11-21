@@ -212,19 +212,12 @@ std::vector<std::pair<const char *, const char *>> cheaperScaling(int level) {
     return { { "dscale", "bilinear" }, { "scale", "bilinear" }, { "cscale", "bilinear" }, { "dither", "no" } };
 }
 
-} // namespace
-
-// Draws the pictures, on a thread of its own: the software renderer converts
-// and scales on the CPU, which would hold the menus still on the GUI thread.
-// Only it calls into the render context while it runs (libmpv's rule: one
-// mpv_render_* call at a time, none from inside its callbacks).
-class EmbeddedMpv::Renderer : public QObject {
+// What the two renderers below share: when they draw. Each lives on a thread
+// of its own, and only it calls into its render context while it runs
+// (libmpv's rule: one mpv_render_* call at a time, none from inside its
+// callbacks).
+class ScheduledRenderer : public QObject {
 public:
-    explicit Renderer(EmbeddedMpv *owner) : m_owner(owner) {}
-
-    // Set before the thread starts, and only looked at on it.
-    mpv_render_context *context = nullptr;
-
     // From any thread, mpv's included: draw on the render thread, once however
     // often this is asked before it gets there. redraw draws the last picture
     // again even when mpv has no new one (a new size).
@@ -235,16 +228,45 @@ public:
             QMetaObject::invokeMethod(this, [this] { render(); }, Qt::QueuedConnection);
     }
 
-    static void onUpdate(void *self) { static_cast<Renderer *>(self)->schedule(); }
+    // mpv's update callback, given this renderer as a ScheduledRenderer *.
+    static void onUpdate(void *self) { static_cast<ScheduledRenderer *>(self)->schedule(); }
 
-private:
-    void render() {
+protected:
+    virtual void render() = 0;
+
+    // On the render thread, as render() begins: whether to draw now, mpv
+    // having a new picture for `context`, or a redraw asked of one drawn
+    // before (m_drawn).
+    bool drawsNow(mpv_render_context *context) {
         m_scheduled = false;
         if (!context)
-            return;
+            return false;
         const bool newFrame = api().renderUpdate(context) & MPV_RENDER_UPDATE_FRAME;
         const bool redraw = m_redraw.exchange(false) && m_drawn;
-        if (!newFrame && !redraw)
+        return newFrame || redraw;
+    }
+
+    bool m_drawn = false;
+
+private:
+    std::atomic<bool> m_scheduled { false };
+    std::atomic<bool> m_redraw { false };
+};
+
+} // namespace
+
+// Draws the pictures, on a thread of its own: the software renderer converts
+// and scales on the CPU, which would hold the menus still on the GUI thread.
+class EmbeddedMpv::Renderer : public ScheduledRenderer {
+public:
+    explicit Renderer(EmbeddedMpv *owner) : m_owner(owner) {}
+
+    // Set before the thread starts, and only looked at on it.
+    mpv_render_context *context = nullptr;
+
+private:
+    void render() override {
+        if (!drawsNow(context))
             return;
         QSize size;
         {
@@ -285,9 +307,6 @@ private:
     }
 
     EmbeddedMpv *m_owner;
-    std::atomic<bool> m_scheduled { false };
-    std::atomic<bool> m_redraw { false };
-    bool m_drawn = false;
 };
 
 // Draws the pictures on the GPU, on a thread of its own, where an OpenGL
@@ -297,7 +316,7 @@ private:
 // (glFinish) before it is handed over, so the other context reads it whole.
 // The textures stay from one session to the next, so the scene graph is never
 // left with one that is gone; a free one is made again at a new size.
-class EmbeddedMpv::GpuRenderer : public QObject {
+class EmbeddedMpv::GpuRenderer : public ScheduledRenderer {
 public:
     GpuRenderer(EmbeddedMpv *owner, QOpenGLContext *context, QOffscreenSurface *surface)
         : m_owner(owner), m_context(context), m_surface(surface) {}
@@ -342,7 +361,7 @@ public:
         // This session's pictures measured afresh (noteDrawTime()).
         m_drawMs = -1;
         m_slowPictures = 0;
-        api().renderSetUpdateCallback(m_render, &GpuRenderer::onUpdate, this);
+        api().renderSetUpdateCallback(m_render, &ScheduledRenderer::onUpdate, static_cast<ScheduledRenderer *>(this));
         return true;
     }
 
@@ -365,16 +384,6 @@ public:
         // Back to the GUI thread, which deletes it once this one has ended.
         m_context->moveToThread(QCoreApplication::instance()->thread());
     }
-
-    // As the software renderer's (Renderer above).
-    void schedule(bool redraw = false) {
-        if (redraw)
-            m_redraw = true;
-        if (!m_scheduled.exchange(true))
-            QMetaObject::invokeMethod(this, [this] { render(); }, Qt::QueuedConnection);
-    }
-
-    static void onUpdate(void *self) { static_cast<GpuRenderer *>(self)->schedule(); }
 
     // How many steps the scaling has been turned down (noteDrawTime()), for
     // the sessions after to start that way. From any thread.
@@ -432,13 +441,8 @@ private:
         b = Buffer();
     }
 
-    void render() {
-        m_scheduled = false;
-        if (!m_render)
-            return;
-        const bool newFrame = api().renderUpdate(m_render) & MPV_RENDER_UPDATE_FRAME;
-        const bool redraw = m_redraw.exchange(false) && m_drawn;
-        if (!newFrame && !redraw)
+    void render() override {
+        if (!drawsNow(m_render))
             return;
         QSize size;
         int taken[3];
@@ -526,9 +530,6 @@ private:
     mpv_render_context *m_render = nullptr;
     Buffer m_buffers[kBuffers];
     quint64 m_serial = 0;
-    std::atomic<bool> m_scheduled { false };
-    std::atomic<bool> m_redraw { false };
-    bool m_drawn = false;
     // A picture's draw time, averaged over the last few; how many pictures in
     // a row it has been over kSlowMs; the steps taken.
     double m_drawMs = -1;
@@ -776,7 +777,7 @@ bool EmbeddedMpv::start(const QStringList &args) {
         m_renderer->context = render;
         m_renderer->moveToThread(m_thread);
         m_thread->start();
-        a.renderSetUpdateCallback(render, &Renderer::onUpdate, m_renderer);
+        a.renderSetUpdateCallback(render, &ScheduledRenderer::onUpdate, static_cast<ScheduledRenderer *>(m_renderer));
     }
 
     // Should the GPU not take a hardware decoder's frames, the session's
