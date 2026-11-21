@@ -163,6 +163,8 @@ StandInRoot {
         property var starts: []
         // The subtitles each was started with: -2 none, -1 forced only, 0 any.
         property var subTracks: []
+        // The subtitle languages each was started with, mpv's --slang.
+        property var subLangs: []
         // The subtitle files each was handed, and the arguments added for it.
         property var subFiles: []
         property var extraArgs: []
@@ -184,6 +186,7 @@ StandInRoot {
             urls = urls.concat([request.url])
             starts = starts.concat([request.startSeconds || 0])
             subTracks = subTracks.concat([request.subTrack !== undefined ? request.subTrack : -1])
+            subLangs = subLangs.concat([request.subLangs || []])
             subFiles = subFiles.concat([request.subFiles || []])
             extraArgs = extraArgs.concat([request.extraArgs || []])
             playlistStarts = playlistStarts.concat([request.playlistStart !== undefined ? request.playlistStart : -1])
@@ -326,7 +329,7 @@ StandInRoot {
             }
             return { resolution: setting("playback_resolution", "480p"), codec: setting("video_codec", "H.264"),
                      maxFrameRate: setting("max_frame_rate", "Any"), audioLanguage: setting("audio_language", "original"),
-                     subtitles: setting("subtitles", "Off"), subtitleLanguage: setting("subtitle_language", "en"),
+                     subtitles: setting("subtitles", "Off"), subtitleLanguage: setting("subtitle_language", "-"),
                      speed: setting("playback_speed", "1x") }
         }
         function getSavedPosition(videoId) { return saved }
@@ -538,6 +541,7 @@ StandInRoot {
             mpvController.urls = []
             mpvController.starts = []
             mpvController.subTracks = []
+            mpvController.subLangs = []
             mpvController.subFiles = []
             mpvController.extraArgs = []
             mpvController.playlistStarts = []
@@ -2869,6 +2873,26 @@ StandInRoot {
             player.menuAction("close")
             compare(root.leaves, 2)
             compare(root.backs, 0)
+        }
+
+        // YouTube's player hands mpv the subtitle language of Subtitles In
+        // while Subtitles is on, none on Subtitles In's Any (saved "-", and
+        // where nothing is saved), and none with Subtitles off.
+        function test_youtubeSubtitleLanguages_data() {
+            return [{ tag: "a language", settings: { subtitles: "On", subtitle_language: "tr" }, track: 0, langs: ["tr"] },
+                    { tag: "Any", settings: { subtitles: "On", subtitle_language: "-" }, track: 0, langs: [] },
+                    { tag: "nothing saved", settings: { subtitles: "On" }, track: 0, langs: [] },
+                    { tag: "with automatic captions, Any", settings: { subtitles: "With Auto", subtitle_language: "-" },
+                      track: 0, langs: [] },
+                    { tag: "off", settings: { subtitles: "Off", subtitle_language: "tr" }, track: -2, langs: [] }]
+        }
+        function test_youtubeSubtitleLanguages(data) {
+            appCore.settings = data.settings
+            open("youtube", "Player.qml", { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123",
+                                                    title: "A Talk" } })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks, [data.track])
+            compare(mpvController.subLangs, [data.langs])
         }
 
         // The NFC Reader's player starts a card's video with Auto Show

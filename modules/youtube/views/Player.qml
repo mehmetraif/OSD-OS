@@ -15,7 +15,7 @@ FocusScope {
     property alias  playbackStarted:  session.started
     property int    savedPositionMs:  0
     property var    ytdlArgs:         []
-    // Subtitles, from ADVANCED: -2 none, 0 the Subtitle Language's (subLangs).
+    // Subtitles: -2 none, 0 the one of Subtitles In's language (subLangs).
     property int    subTrack:         -2
     property var    subLangs:         []
     // Where the session is (PlayerSession).
@@ -41,7 +41,9 @@ FocusScope {
         var advanced = youtubeBackend.playbackSettings()
         ytdlArgs = youtubeBackend.playbackArgs(advanced)
         subTrack = advanced.subtitles !== "Off" ? 0 : -2
-        subLangs = advanced.subtitles !== "Off" ? [advanced.subtitleLanguage] : []
+        // Subtitles In's Any ("-") prefers no language: mpv is given none.
+        var language = advanced.subtitleLanguage || "-"
+        subLangs = advanced.subtitles !== "Off" && language !== "-" ? [language] : []
     }
 
     function openMenu() {
