@@ -97,10 +97,18 @@ Cave's CV1000 games (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu, Espgal
 
 **Settings → Arcade → LAN Sync** chooses how a game you host keeps its machines together. Every machine joining takes the host's choice.
 
-| LAN Sync | How it plays | For |
-|---|---|---|
-| **Smooth** (the default) | The host's machine plays the game and the others follow it. A slow machine or a wait on Wi-Fi holds no one else up. A joining player's buttons answer a few frames later than the host's. Over Wi-Fi, a tap shorter than two frames can now and then go unseen | Machines of different speeds, a Raspberry Pi 4 among them; Wi-Fi; three players and more |
-| **Responsive** | Every machine plays ahead on a guess of the others' buttons, with a frame of input latency. A machine that can't keep up takes up to three frames more. Every player's buttons answer alike, but a slow machine is felt on every machine | Two machines of the same speed on cables |
+| LAN Sync | How it plays | For | Who hosts |
+|---|---|---|---|
+| **Smooth** (the default) | The host's machine plays the game and the others follow it. A slow machine joining or a wait on its Wi-Fi holds no one else up. A joining player's buttons answer a few frames later than the host's. Over Wi-Fi, a tap shorter than two frames can now and then go unseen | Machines of different speeds, a Raspberry Pi 4 among them; Wi-Fi; three players and more | The fastest machine, on a cable: the PC, then a Raspberry Pi 5. A Pi 4, or a machine on Wi-Fi, joins |
+| **Responsive** | Every machine plays ahead on a guess of the others' buttons, with a frame of input latency. A machine that can't keep up takes up to three frames more. Every player's buttons answer alike, but a slow machine is felt on every machine | Two machines of the same speed on cables | Either |
+
+**Why the host matters in Smooth.** Every machine joining plays only the frames the host sends it, so the host's speed and its link are everyone's:
+
+- The host plays the game, keeps RetroArch's snapshot of it at every frame, and sends each frame to every machine joining, up to five. A host that can't keep up slows every screen, where a machine joining that can't is slow alone.
+- Every wait on the host's own link, a Wi-Fi radio busy or out of reach for a moment, reaches every machine joining at once.
+- The host's own player answers with no delay at all: host on the machine whose player that suits.
+
+On a Pi that hosts over Wi-Fi, `iw dev wlan0 station dump | grep -E 'tx retries|tx failed|signal'` shows how often what it sends has to go again.
 
 Online, a game plays ahead with no latency, and a machine that can't keep up takes up to four frames.
 
