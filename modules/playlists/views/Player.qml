@@ -119,6 +119,12 @@ FocusScope {
             showError("Could not play", prepared.error, false)
             return
         }
+        // PLAY FROM HERE on a video that can't play yet (prepare() leaves
+        // it out): why, rather than the list from its first video.
+        if (fromItemId !== "" && prepared.startIndex < 0) {
+            showError("Could not play", whyNotPlayable(fromItemId), false)
+            return
+        }
         if (!prepared.file || prepared.count === 0) {
             var items = playlist.items || []
             showError("Nothing to play",
@@ -140,6 +146,19 @@ FocusScope {
         } else {
             play(0, -1)
         }
+    }
+
+    // Why one of the list's videos can't play, from its state on the list's
+    // page.
+    function whyNotPlayable(itemId) {
+        var item = (playlist.items || []).filter(function(i) { return i.id === itemId })[0] || {}
+        if (item.state === "missing")
+            return item.reason === "signed out" ? "Its server is signed out" : "Its file is not there"
+        if (item.state === "queued" || item.state === "downloading")
+            return "It is not on the device yet"
+        if (item.state === "failed")
+            return "Its download failed"
+        return "It can't be reached"
     }
 
     function play(startMs, plPos) {

@@ -414,9 +414,13 @@ StandInRoot {
         // Where the list stopped last time.
         property int resumeIndex: 0
         property int resumeMs: 0
+        // The videos that can't play, left out of the m3u as the backend
+        // does.
+        property var unplayable: []
         function prepare(id, fromItemId) {
+            var from = fromItemId === "" || unplayable.indexOf(fromItemId) >= 0 ? -1 : indexOfItem(fromItemId)
             return { file: "/data/" + id + ".m3u", count: 2, youtube: false, images: false,
-                     startIndex: -1, resumeIndex: resumeIndex, resumeMs: resumeMs }
+                     startIndex: from, resumeIndex: resumeIndex, resumeMs: resumeMs }
         }
         function savedPositionMs(id) { return 0 }
         // The places saved: [plPos, ms].
@@ -491,6 +495,7 @@ StandInRoot {
             playlistsBackend.resumeIndex = 0
             playlistsBackend.resumeMs = 0
             playlistsBackend.saves = []
+            playlistsBackend.unplayable = []
             youtubeBackend.saved = {}
             nfcReaderBackend.saved = {}
             for (var backend of [jellyfinBackend, embyBackend]) {
@@ -2255,6 +2260,37 @@ StandInRoot {
             compare(notice.detail, "On macOS: brew install mpv")
             keyClick(Qt.Key_Return)
             compare(mpvController.loads, 2)
+        }
+
+        // PLAY FROM HERE on a video that can't play yet (not downloaded, its
+        // download failed, its file or server gone) says why, and plays
+        // nothing, not the list from its first video; on one that can, the
+        // list plays from it.
+        function test_playlistsPlayFromHereOnAVideoThatCannotPlay_data() {
+            return [{ tag: "queued", item: { id: "v2", state: "queued" }, why: "It is not on the device yet" },
+                    { tag: "downloading", item: { id: "v2", state: "downloading" }, why: "It is not on the device yet" },
+                    { tag: "failed", item: { id: "v2", state: "failed" }, why: "Its download failed" },
+                    { tag: "file gone", item: { id: "v2", state: "missing" }, why: "Its file is not there" },
+                    { tag: "signed out", item: { id: "v2", state: "missing", reason: "signed out" },
+                      why: "Its server is signed out" }]
+        }
+        function test_playlistsPlayFromHereOnAVideoThatCannotPlay(data) {
+            playlistsBackend.kind = "offline"
+            playlistsBackend.items = [{ id: "v1", state: "ready" }, data.item]
+            playlistsBackend.unplayable = ["v2"]
+            var player = open("playlists", "Player.qml", { playlistId: "p1", fromItemId: "v2" })
+            compare(mpvController.loads, 0)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.title, "Could not play")
+            compare(notice.reason, data.why)
+            keyClick(Qt.Key_Return)
+            compare(root.backs, 1)
+            compare(mpvController.loads, 0)
+
+            open("playlists", "Player.qml", { playlistId: "p1", fromItemId: "v1" })
+            compare(mpvController.loads, 1)
+            compare(mpvController.playlistStarts, [0])
         }
 
         // The players that go back without a word when their video fails

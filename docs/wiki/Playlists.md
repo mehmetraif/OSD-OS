@@ -124,7 +124,7 @@ Select **Play**, or **Play from Here** on a video.
 
 | Situation | What happens |
 |---|---|
-| **Play from Here** | Starts at that video. On a shuffled list that video comes first and the rest follow shuffled |
+| **Play from Here** | Starts at that video. On a shuffled list that video comes first and the rest follow shuffled. A video that can't play yet (not downloaded, its download failed, its file or server gone) plays nothing: the player says why |
 | **Play**, the list **In Order**, and it stopped part-way last time | **Resume playback?** `Resume video 3 at 12:34` / `Start from the beginning` |
 | **Play**, the list **In Order**, nothing to resume | From its first video |
 | **Play**, the list on **Shuffle** | In a new order each time, from the start |
