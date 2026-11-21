@@ -240,6 +240,26 @@ private slots:
         QCOMPARE(options.first().at(1).toList(), expected);
     }
 
+    // Shuffle Playback and Auto Show Subtitles as Local Files' player plays
+    // them: a choice as it is saved, the old On/Off form (true or false) as
+    // the choice it is now, and nothing, or a value that is no choice, as
+    // the first, which Settings shows.
+    void playbackChoices() {
+        QTemporaryDir tmp;
+        LocalFilesBackend backend(tmp.path(), tmp.path(), nullptr);
+        for (const char *choice : { "ask", "yes", "no" })
+            QCOMPARE(backend.shufflePlaybackChoice(QString(choice)), QString(choice));
+        QCOMPARE(backend.shufflePlaybackChoice(true), QStringLiteral("yes"));
+        QCOMPARE(backend.shufflePlaybackChoice(false), QStringLiteral("no"));
+        QCOMPARE(backend.shufflePlaybackChoice(QVariant()), QStringLiteral("ask"));
+        QCOMPARE(backend.shufflePlaybackChoice(QStringLiteral("sometimes")), QStringLiteral("ask"));
+        for (const char *choice : { "forced", "on", "off" })
+            QCOMPARE(backend.autoSubtitlesChoice(QString(choice)), QString(choice));
+        QCOMPARE(backend.autoSubtitlesChoice(true), QStringLiteral("on"));
+        QCOMPARE(backend.autoSubtitlesChoice(false), QStringLiteral("forced"));
+        QCOMPARE(backend.autoSubtitlesChoice(QString()), QStringLiteral("forced"));
+    }
+
     // config.json edited by hand and left unreadable (a stray comma) is not
     // written over: a save would put the defaults in place of every setting
     // in it. The lists the same way. An empty file is as none.

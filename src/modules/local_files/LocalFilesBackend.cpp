@@ -135,13 +135,27 @@ void LocalFilesBackend::get_resume_playback_options() {
     emit dynamicOptionsReady("resume_playback", playbackoptions::resumePlayback());
 }
 
-void LocalFilesBackend::get_shuffle_playback_options() {
+// Shuffle Playback. It was once On or Off, saved as true or false: `old`
+// is the choice each of those is now.
+static QVariantList shufflePlaybackOptions() {
     QVariantList options;
     QVariantMap ask; ask["id"] = "ask"; ask["label"] = "Ask";
     QVariantMap yes; yes["id"] = "yes"; yes["label"] = "Always"; yes["old"] = true;
     QVariantMap no;  no["id"]  = "no";  no["label"]  = "Never";  no["old"]  = false;
     options << ask << yes << no;
-    emit dynamicOptionsReady("shuffle_playback", options);
+    return options;
+}
+
+void LocalFilesBackend::get_shuffle_playback_options() {
+    emit dynamicOptionsReady("shuffle_playback", shufflePlaybackOptions());
+}
+
+QString LocalFilesBackend::shufflePlaybackChoice(const QVariant &saved) const {
+    return playbackoptions::chosen(shufflePlaybackOptions(), saved);
+}
+
+QString LocalFilesBackend::autoSubtitlesChoice(const QVariant &saved) const {
+    return playbackoptions::chosen(playbackoptions::autoSubtitles(), saved);
 }
 
 void LocalFilesBackend::get_image_duration_options() {

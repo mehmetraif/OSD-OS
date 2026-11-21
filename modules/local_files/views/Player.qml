@@ -48,11 +48,10 @@ FocusScope {
     // The module's settings the file plays with.
     function readSettings() {
         loopOn        = !!appCore.get_setting(moduleRoot.moduleId, "loop_playback")
-        // Some fancy logic to honor the old boolean settings until they get updated to the new format
-        var shufRaw   = appCore.get_setting(moduleRoot.moduleId, "shuffle_playback")
-        shuffleSetting = (typeof shufRaw === "boolean") ? (shufRaw ? "yes" : "no") : (shufRaw || "ask")
-        var autoSubs  = appCore.get_setting(moduleRoot.moduleId, "auto_subtitles")
-        subtitleMode  = (typeof autoSubs === "boolean") ? ((autoSubs === true) ? "on" : "forced") : (autoSubs || "forced")
+        // As the backend reads them: one saved as On or Off before it had
+        // three choices (true or false) is the choice that form is now.
+        shuffleSetting = localFilesBackend.shufflePlaybackChoice(appCore.get_setting(moduleRoot.moduleId, "shuffle_playback"))
+        subtitleMode  = localFilesBackend.autoSubtitlesChoice(appCore.get_setting(moduleRoot.moduleId, "auto_subtitles"))
         var resRaw    = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
         resumeSetting = (resRaw === "yes" || resRaw === "no") ? resRaw : "ask"
         var imgDur = parseFloat(appCore.get_setting(moduleRoot.moduleId, "image_duration"))

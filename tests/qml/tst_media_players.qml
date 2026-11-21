@@ -106,6 +106,18 @@ StandInRoot {
             asked = asked.concat([path])
             return pending ? undefined : (path === "/films" ? folder : [])
         }
+        // Shuffle Playback and Auto Show Subtitles as the backend reads them
+        // (storage_search tests the backend's own): the old On/Off form,
+        // true or false, as the choice it is now; a value that is no choice
+        // as the first.
+        function shufflePlaybackChoice(value) {
+            return value === true ? "yes" : value === false ? "no"
+                 : ["ask", "yes", "no"].indexOf(value) >= 0 ? value : "ask"
+        }
+        function autoSubtitlesChoice(value) {
+            return value === true ? "on" : value === false ? "forced"
+                 : ["forced", "on", "off"].indexOf(value) >= 0 ? value : "forced"
+        }
         function isImage(path) { return /\.(jpg|png)$/.test(path) }
         function isPlaylist(path) { return /\.m3u$/.test(path) }
         function playlistContainsImages(path) { return false }
