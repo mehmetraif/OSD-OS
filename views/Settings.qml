@@ -1060,14 +1060,15 @@ FocusScope {
         onClosed: settingsRoot.keysBack()
     }
     // The rows follow the system as it is read again, and as one is on its
-    // way (Setting); one that couldn't be set says why.
+    // way (Setting); one that couldn't be set says why ("Keyboard not set:
+    // …", "SSH not turned on: …", SystemSettings' wordings).
     Connections {
         target: settingsRoot.system
         ignoreUnknownSignals: true
         function onChanged() { settingsRoot.followSystem() }
         function onBusyChanged() { settingsRoot.followSystem() }
         function onMessageChanged() {
-            if (settingsRoot.system.message.indexOf(" not set: ") > 0)
+            if (/ not (set|turned on|turned off): /.test(settingsRoot.system.message))
                 systemNotice.open()
         }
     }

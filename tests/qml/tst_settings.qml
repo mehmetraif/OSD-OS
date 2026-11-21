@@ -2098,7 +2098,7 @@ StandInRoot {
             verify(helpOf(page).shownText.indexOf("[ON] SSH runs") > 0, helpOf(page).shownText)
             keyClick(Qt.Key_Left)
             compare(systemSettings.asked, ["ssh on", "ssh off"])
-            systemSettings.message = "SSH not set: the helper couldn't stop it"
+            systemSettings.message = "SSH not turned off: the helper couldn't stop it"
             verify(named(page, "systemNotice").visible)
             keyClick(Qt.Key_Return)
             systemSettings.available = false
