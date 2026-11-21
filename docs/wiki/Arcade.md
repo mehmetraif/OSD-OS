@@ -540,6 +540,7 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 - **LAN Play**: up to six players across the machines of your network, with no internet.
 - **Online Play**: through RetroArch's lobby and a relay.
 - **LAN Games**, **Online Games** and **RetroArch Lobby** list the games others host. **Host LAN Game** and **Host Online Game** host one.
+- On a room of **LAN Games**, the line under the list (the help line on the Arcade screen) opens with `Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable` where that is how this machine reaches the host. **Host LAN Game** says the same of this machine's link under the options while the cursor is on it, then `The fastest machine on a cable should host` where that applies, and the page shown while it hosts says both again ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)).
 - A game hosted or joined plays in FinalBurn Neo whatever its **Engine** says.
 
 ## The picture and the sound

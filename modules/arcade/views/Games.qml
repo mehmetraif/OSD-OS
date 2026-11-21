@@ -176,14 +176,19 @@ FocusScope {
 
     // What the entry under the cursor is: a game's year, maker, players and
     // file, or why a set isn't one; where the games are, on anything else.
-    // What stands in the way of the list comes first.
+    // A room on the local network, the warning of this machine's link to
+    // its host first, where there is one (2.4 GHz Wi-Fi with Bluetooth
+    // pads, lanLinkWarning()). What stands in the way of the list comes
+    // first.
     HelpLine {
         id: infoLine
         visible: !tree.rootEmpty && !osk.visible && !options.menuUp
         readonly property var entry: tree.currentEntry
         text: moduleRoot.problem !== "" ? moduleRoot.problemLine
               : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message" || entry.kind === "lobby")
-                ? entry.detail
+                ? (entry.lan && arcadeBackend ? [arcadeBackend.lanLinkWarning(entry.room), entry.detail || ""]
+                                                .filter(Boolean).join("\n")
+                                              : entry.detail)
               : entry && entry.kind === "search" ? "Find a game by its name"
               : moduleRoot.scanning ? "Reading the games…"
               : "Games folder: " + moduleRoot.gamesFolder

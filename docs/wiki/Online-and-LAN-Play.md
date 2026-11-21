@@ -119,7 +119,7 @@ On a Pi that hosts over Wi-Fi, `iw dev wlan0 station dump | grep -E 'tx retries|
 
 Online, a game OSD/OS hosts plays ahead with two frames of input latency, which every machine joining takes from it, and a machine that can't keep up takes up to four frames more. Over the internet a press comes some frames late: without that latency every such press has each machine play several frames again, more than a Raspberry Pi 4 has the time for. A room of the lobby another RetroArch hosts plays with its host's latency.
 
-Under **Smooth** the host's machine sets everyone's speed: a hitch of its own, or of its link, reaches every screen. Host on the fastest machine on a cable (the PC, then a Raspberry Pi 5), and let a Raspberry Pi 4 or a machine on Wi-Fi join. **Host LAN Game** says so on a Pi 4, or on a machine whose way to the network is Wi-Fi: `The fastest machine on a cable should host`.
+Under **Smooth** the host's machine sets everyone's speed: a hitch of its own, or of its link, reaches every screen. Host on the fastest machine on a cable (the PC, then a Raspberry Pi 5), and let a Raspberry Pi 4 or a machine on Wi-Fi join. **Host LAN Game** says so on a Pi 4, or on a machine whose way to the network is Wi-Fi: `The fastest machine on a cable should host`, under a game's options while the cursor is on Host LAN Game, and again on the page shown as the game is hosted.
 
 For a smooth game:
 
@@ -129,6 +129,7 @@ For a smooth game:
 - **Bluetooth controllers** on a Raspberry Pi share an aerial with its 2.4 GHz Wi-Fi: use a 5 GHz network or a cable. The Pi's radio serves the two in turn at 2.4 GHz, so the game's packets wait while the pads are served.
   - A router that gives both its bands one name lets the Pi pick either, and a Pi behind a TV may pick 2.4 GHz. Giving the 5 GHz band a name of its own, and joining that one, keeps it there.
   - A Pi whose Wi-Fi country isn't set to where it is may not hear the router's 5 GHz channel at all: **Settings → Network → Wi-Fi → Country**.
+  - OSD/OS says so where you choose: a Pi on 2.4 GHz Wi-Fi with a Bluetooth pad connected has `Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable` first on the line under a room of LAN Games (in the tree and on the Arcade screen), under the options on Host LAN Game, and on the page shown while it hosts, the advice on who should host after it. **Settings → Network → Wi-Fi** shows the band of each network, and of the one joined in the title bar.
   - To see the band a Pi is on: the app's log has `[Wi-Fi] On 2437 MHz (2.4 GHz) through wlan0` each time it changes, and on the Pi, `iw dev wlan0 link` gives `freq` (below 3000 is 2.4 GHz), `iw reg get` the country the radio keeps to, and `bluetoothctl devices Connected` the Bluetooth devices connected.
 - **Each machine's own settings**, in **Settings → Arcade**, left on their defaults unless a game says otherwise:
   - **CPU at Full Speed** (EMULATORS, ON): a Pi's CPU at its full clock for the length of the game. Only on a Raspberry Pi.

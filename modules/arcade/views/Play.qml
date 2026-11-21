@@ -76,6 +76,13 @@ FocusScope {
     // The finer print: in the Arcade screen's look, no smaller than its own
     // letters (the hint bar's).
     readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
+    // Hosting on the local network: the warning of this machine's link to
+    // the network (2.4 GHz Wi-Fi with Bluetooth pads), then the advice on
+    // which machine should host, as Host LAN Game gave them, those there
+    // are; read as the page opens.
+    readonly property var hostingNote: !!online && !!online.hosting && !!online.lan && arcadeBackend
+                                       ? [arcadeBackend.lanLinkWarning(-1), arcadeBackend.hostAdvice()].filter(Boolean)
+                                       : []
 
     // The loading screen first, the game a moment later (start()).
     function launch() {
@@ -271,12 +278,16 @@ FocusScope {
             }
         }
 
-        // Online: whose game it joins, or that it is hosted.
+        // Online: whose game it joins, or that it is hosted; hosting on the
+        // local network, under it the warning of this machine's link to the
+        // network, then the advice on which machine should host, each where
+        // there is one (hostingNote()).
         Text {
             visible: !!playRoot.online && playRoot.before
             width: parent.width
             text: !playRoot.online ? ""
-                  : playRoot.online.hosting ? (playRoot.online.lan ? "Hosting on this network: others join from LAN Games"
+                  : playRoot.online.hosting ? (playRoot.online.lan ? ["Hosting on this network: others join from LAN Games"]
+                                                                     .concat(playRoot.hostingNote).join("\n")
                                                                    : "Hosting online: others join from RetroArch's lobby")
                   : "Joining " + (playRoot.online.host || "a player") + "'s game "
                     + (playRoot.online.lan ? "on this network" : "online")

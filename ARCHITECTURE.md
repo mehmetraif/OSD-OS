@@ -1044,7 +1044,7 @@ In a layout's frame it is asked in the layout ([Menu Layout](#menu-layout-appmen
 | `title` | `string` | The question (`"Resume playback?"`), or what happened (`"Playback failed"`) |
 | `kind` | `string` | `"question"` (the default: `assets/images/question.svg`) or `"notice"` (`notice.svg`) |
 | `message` | `string` | Under the bar: what it is about (the video, the device), or a notice's details. Wraps |
-| `choices` | `var` | The answers: labels, or maps with a `label` (`{ label, action }`). A map with `starts: true` starts what the window is for (a game played or hosted): a ▶ (`PixelIcon` `play`) before its label. `{ divider: true }` is a rule between groups of answers, which `ChoiceOverlay`'s ▲ ▼ step over (`step()`, as `open()` does to the first answer) and the mouse leaves (`hoverRow()`) |
+| `choices` | `var` | The answers: labels, or maps with a `label` (`{ label, action }`). A map with `starts: true` starts what the window is for (a game played or hosted): a ▶ (`PixelIcon` `play`) before its label. A map with `description` has its lines under the answers while the cursor is on it, centred across them (`choiceNote`), the room the longest takes kept while any answer has one so that no answer moves as the cursor does: Arcade's Host LAN Game says there the warning of the machine's link to the network, then which machine should host. `{ divider: true }` is a rule between groups of answers, which `ChoiceOverlay`'s ▲ ▼ step over (`step()`, as `open()` does to the first answer) and the mouse leaves (`hoverRow()`) |
 | `currentIndex` | `int` | The answer under the cursor |
 | `maxChoices` | `int` | More answers than this (5, or 6 with the hint bar off) show a window of them that follows the cursor (a `ListView` with `ScrollMarks`), ▲ / ▼ while some are hidden above or below it (`PlaylistAdder`'s playlists) |
 | `hint` | `string` | The hint line; unless set, back, with navigate and select while there are answers |
@@ -1276,7 +1276,7 @@ Full-screen keyboard-driven chooser: a prompt, the thing being acted on, and a s
 |---|---|---|
 | `promptText` | `string` | The question, e.g. `"What would you like to play?"` |
 | `subtitleText` | `string` | What is being acted on — the show or season name (hidden when empty) |
-| `choices` | `var` | List of `{ label, action }` maps |
+| `choices` | `var` | List of `{ label, action }` maps; one may carry `description`, what it means, which the `PromptScreen` shows under the answers while the cursor is on it (Host LAN Game's advice) |
 | `promptKind` | `string` | The `PromptScreen`'s kind: `"question"` (the default) or `"notice"` |
 | `hintText` | `string` | The hint line; the `PromptScreen`'s own unless set |
 | `closeOnSelect` | `bool` | Whether select closes it before acting (the default), or leaves it to the host to close (`close()`) once it is done, as one that shows what became of the choice does |

@@ -258,6 +258,53 @@ Item {
                 pages: false
             }
         }
+
+        // What the answer under the cursor means, for an answer that says
+        // ({ label, action, description }: Host LAN Game's advice), its
+        // lines one under another. The room the longest of them takes is
+        // kept while any answer has one (each laid out unseen, `sizes`), so
+        // the answers stay where they are as the cursor moves.
+        Item {
+            readonly property var notes: Array.from(prompt.choices || []).map(function(c) {
+                return c !== null && typeof c === "object" && c.description ? String(c.description) : ""
+            })
+            visible: notes.some(function(n) { return n !== "" })
+            width: parent.width
+            height: sizes.childrenRect.height
+
+            Item {
+                id: sizes
+                visible: false
+                width: parent.width
+                Repeater {
+                    model: parent.parent.notes
+                    Text {
+                        required property string modelData
+                        width: sizes.width
+                        textFormat: Text.PlainText
+                        text: modelData
+                        font: note.font
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Text {
+                id: note
+                objectName: "choiceNote"
+                readonly property var choice: prompt.choices[prompt.currentIndex]
+                width: parent.width
+                textFormat: Text.PlainText
+                text: choice !== undefined && choice !== null && typeof choice === "object" && choice.description
+                      ? String(choice.description) : ""
+                color: root.primaryColor
+                font.family: root.globalFont
+                font.capitalization: prompt.mixedCase ? Font.MixedCase : Font.AllUppercase
+                font.pixelSize: root.sh * 0.0375 //18
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
     }
 
     HintBar {

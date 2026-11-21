@@ -1121,7 +1121,9 @@ FocusScope {
     // What the game is, for the help line: its full name as MAME has it,
     // then those of its details the box has no line for, every one on a
     // room, whose box says what is said of the room instead; a room of the
-    // local network's who hosts it and its versions against ours first. A
+    // local network's who hosts it and its versions against ours first,
+    // after the warning of this machine's link to the host where there is
+    // one (2.4 GHz Wi-Fi with Bluetooth pads, lanLinkWarning()). A
     // room of the lobby's, RetroArch Lobby's or Online Games', what the
     // lobby says of it (Rooms.about()); Search's, what to do there; the
     // lobby's why it couldn't be read, and LAN Games' why it has no game.
@@ -1130,7 +1132,8 @@ FocusScope {
                              : "► or select to type what to look for: the games found follow each letter")
         : filterId === "lobby" && count === 0 ? lobbyInfo.problem || ""
         : count === 0 && emptyInfo.detail ? emptyInfo.detail
-        : (current && current.lan && current.detail ? [current.detail] : [])
+        : (current && current.lan ? [arcadeBackend ? arcadeBackend.lanLinkWarning(current.room) : "",
+                                     current.detail || ""].filter(Boolean) : [])
           .concat([details.name || ""]).concat(boxLeaves().map(function(detail) {
               return detail.told
           })).join("\n")

@@ -295,6 +295,15 @@ StandInRoot {
         property int lanReads: 0
         function canHostLan(set) { return lanHostable.indexOf(set) >= 0 }
         function refreshLanRooms() { lanReads++ }
+        // The warning of this machine's link to the network, by the room
+        // asked of (-1 hosting), and Host LAN Game's advice: "" for none.
+        property string linkWarning: ""
+        property var linkAsked: []
+        property string advice: ""
+        function lanLinkWarning(room) { linkAsked = linkAsked.concat([room]); return linkWarning }
+        function hostAdvice() { return advice }
+        // The layout a game hosted plays with: RetroArch's own.
+        function onlineLayout(set, hosting) { return "classic" }
         // What LAN Games says while it has no game, and what any other filter
         // says with nothing on it (filterStatus(): LAN Games as lanStatus()).
         property var lanState: ({})
@@ -572,6 +581,9 @@ StandInRoot {
             arcadeBackend.roomReads = 0
             arcadeBackend.lobbyStore = { data: { state: "loading", problem: "", rooms: [] } }
             arcadeBackend.lanHostable = []
+            arcadeBackend.linkWarning = ""
+            arcadeBackend.linkAsked = []
+            arcadeBackend.advice = ""
             arcadeBackend.lanJoined = []
             arcadeBackend.lanHosted = []
             arcadeBackend.lanReads = 0
@@ -2719,6 +2731,104 @@ StandInRoot {
             compare(arcadeBackend.lanHosted, ["sf2", "sf2"])
             compare(arcadeBackend.hosted, [])
             compare(arcadeBackend.started, [])
+        }
+
+        // Where a player decides on a game over the local network, the
+        // backend's warning of this machine's link (2.4 GHz Wi-Fi with
+        // Bluetooth pads) and its advice on which machine should host: the
+        // original screen's line and the Arcade screen's on a room there,
+        // the warning before what is said of the room; Host LAN Game's line
+        // under the options, and the page shown while hosting, the warning
+        // first, then the advice, each a line of its own. With neither,
+        // each says what it said before.
+        function test_lanAdvice() {
+            var warning = "Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable"
+            var advice = "The fastest machine on a cable should host"
+            var detail = "Hosted by ann at 192.168.1.20 on this network • sf2.zip"
+            arcadeBackend.linkWarning = warning
+            arcadeBackend.advice = advice
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "LAN Games", path: "lan", isFolder: true }].concat(arcadeBackend.entries.top),
+                "lan": [{ name: "Street Fighter II (ann)", path: "lan:1", isFolder: false, kind: "room", game: "sf2",
+                          room: 1, host: "ann", lan: true, detail: detail }]
+            })
+            arcadeBackend.lanHostable = ["pacman"]
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            var line = null
+            tryVerify(function() {
+                line = findText(games, detail)
+                return line !== null
+            }, 1000)
+            compare(line.text, warning + "\n" + detail)
+            verify(arcadeBackend.linkAsked.indexOf(1) >= 0)
+            // Host LAN Game, under the cursor: the warning, then the advice.
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
+            var note = findChild(games, "choiceNote")
+            verify(note !== null && note.visible)
+            compare(note.text, warning + "\n" + advice)
+            verify(arcadeBackend.linkAsked.indexOf(-1) >= 0)
+            // Another choice: nothing to say.
+            keyClick(Qt.Key_Down)
+            compare(note.text, "")
+            verify(note.visible)
+            keyClick(Qt.Key_Escape)
+            loader.source = ""
+
+            // Nothing to say: the room's own line, and no line for the choice.
+            arcadeBackend.linkWarning = ""
+            arcadeBackend.advice = ""
+            games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() {
+                line = findText(games, detail)
+                return line !== null
+            }, 1000)
+            compare(line.text, detail)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
+            verify(!findChild(games, "choiceNote").visible)
+            keyClick(Qt.Key_Escape)
+            loader.source = ""
+
+            // The Arcade screen's line on a room: the warning first.
+            arcadeBackend.linkWarning = warning
+            arcadeBackend.advice = advice
+            arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: ["sf2"],
+                                          rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false, room: 1,
+                                                   host: "ann", lan: true, detail: detail,
+                                                   info: lanRoom(1, "Street Fighter II", "ann", {}) }] }]
+                                        .concat(arcadeBackend.filterList)
+            moduleRoot.startFilter = "lan"
+            var screen = openScreen()
+            compare(screen.about.split("\n").slice(0, 2), [warning, detail])
+            loader.source = ""
+
+            // Hosting: under what is hosted, the warning, then the advice;
+            // hosting online or joining, neither.
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            verify(findText(play, "Hosting on this network: others join from LAN Games\n" + warning + "\n" + advice) !== null)
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true } })
+            compare(findText(play, advice), null)
+            loader.source = ""
+            arcadeBackend.linkWarning = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            verify(findText(play, "Hosting on this network: others join from LAN Games\n" + advice) !== null)
+            arcadeBackend.advice = ""
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            compare(findText(play, "Hosting on this network: others join from LAN Games").text,
+                    "Hosting on this network: others join from LAN Games")
         }
 
         // Select plays the game as it is let go; held, it opens the game's

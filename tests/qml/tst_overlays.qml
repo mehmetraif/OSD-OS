@@ -520,6 +520,62 @@ StandInRoot {
             compare(overlay.choiceIndex, 1)
         }
 
+        // A choice that says what it means ({ description }: Host LAN Game's
+        // advice) has its lines under the answers while the cursor is on it,
+        // in every Menu Layout, in the pane where the layout has one; the
+        // room is kept on the other answers, so none of them moves as the
+        // cursor does, and with no choice that says anything there is none.
+        function test_choiceNote_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", framed: false },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false },
+                    { tag: "Flat Panel", layout: "Flat Panel", framed: false }]
+        }
+        function test_choiceNote(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var note = "Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable\nThe fastest machine on a cable should host"
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Pac-Man", subtitleText: "pacman",
+                               choices: [{ label: "Play", action: "play", starts: true },
+                                         { label: "Host LAN Game", action: "hostLan", starts: true, description: note },
+                                         { divider: true },
+                                         { label: "Add to Favorites", action: "favorite" }] })
+            var overlay = loader.item
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var line = findChild(prompt, "choiceNote")
+            verify(line !== null)
+            var answers = answersOf(prompt)
+            verify(line.visible)
+            compare(line.text, "")
+            var top = answers.mapToItem(root, 0, 0).y
+            var lineTop = line.mapToItem(root, 0, 0).y
+            keyClick(Qt.Key_Down)
+            compare(overlay.choiceIndex, 1)
+            compare(line.text, note)
+            compare(answers.mapToItem(root, 0, 0).y, top)
+            compare(line.mapToItem(root, 0, 0).y, lineTop)
+            // Under the answers, across them, over the foot.
+            verify(lineTop >= top + answers.height)
+            compare(line.mapToItem(root, 0, 0).x, answers.mapToItem(root, 0, 0).x)
+            compare(line.width, answers.width)
+            if (prompt.paned)
+                compare(line.mapToItem(root, 0, 0).x, root.paneX)
+            verify(lineTop + line.height <= root.height - root.helpLineMargin, "above the foot")
+            compare(line.font.capitalization, data.layout === "Flat Panel" ? Font.MixedCase : Font.AllUppercase)
+            keyClick(Qt.Key_Down)
+            compare(overlay.choiceIndex, 3)
+            compare(line.text, "")
+            keyClick(Qt.Key_Escape)
+
+            overlay.choices = [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
+            overlay.open()
+            verify(!line.visible)
+        }
+
         // A question asked over the whole screen whatever the layout
         // (`inLayout` off: a new display output's, before the menus): in
         // Camcorder's frame it draws no column and lies across the window,

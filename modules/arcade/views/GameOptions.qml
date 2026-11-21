@@ -47,6 +47,16 @@ Item {
 
     function offer(item) { options.offer(item) }
 
+    // What Host LAN Game says under the options while the cursor is on it:
+    // the warning of this machine's link to the network (2.4 GHz Wi-Fi with
+    // Bluetooth pads), then the advice on which machine should host, each
+    // a line of its own; "" with neither.
+    function hostingNote() {
+        if (!arcadeBackend)
+            return ""
+        return [arcadeBackend.lanLinkWarning(-1), arcadeBackend.hostAdvice()].filter(Boolean).join("\n")
+    }
+
     // Read again as a setting is kept.
     property int kept: 0
     function settingKept() {
@@ -74,7 +84,8 @@ Item {
                         .concat(arcadeBackend && arcadeBackend.canHost(gameOptions.set)
                                 ? [{ label: "Host Online Game", action: "host", starts: true }] : [])
                         .concat(arcadeBackend && arcadeBackend.canHostLan(gameOptions.set)
-                                ? [{ label: "Host LAN Game", action: "hostLan", starts: true }] : []))
+                                ? [{ label: "Host LAN Game", action: "hostLan", starts: true,
+                                     description: gameOptions.hostingNote() }] : []))
         onActivated: function(action) {
             if (action === "monitor")
                 monitor.offer(gameOptions.set, gameOptions.title)
