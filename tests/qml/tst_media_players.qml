@@ -2227,6 +2227,37 @@ StandInRoot {
             compare(keyboard.text, "")
         }
 
+        // Local Files with nothing in its media folder says so, and its hint
+        // bar offers back alone: nothing to move to or open. With files, the
+        // keys that move and open again.
+        function test_localFilesEmptyOffersBackAlone() {
+            var findText = function(item, text) {
+                if (item.text !== undefined && item.visible && String(item.text).indexOf(text) >= 0)
+                    return item
+                for (var i = 0; i < item.children.length; i++) {
+                    var found = findText(item.children[i], text)
+                    if (found)
+                        return found
+                }
+                return null
+            }
+            moduleRoot.moduleName = "Local Files"
+            localFilesBackend.folder = []
+            localFilesBackend.pending = false
+            var list = open("local_files", "Items.qml", {})
+            var bar = findChild(list, "hintBar")
+            verify(bar !== null)
+            tryVerify(function() { return findText(list, "No items found") !== null }, 1000)
+            compare(bar.text, root.hints.back + ":BACK")
+            loader.source = ""
+            localFilesBackend.folder = [{ name: "More", path: "/films/More", isFolder: true }]
+            list = open("local_files", "Items.qml", {})
+            bar = findChild(list, "hintBar")
+            tryVerify(function() { return bar.text.indexOf(":OPEN") > 0 }, 1000)
+            verify(bar.text.indexOf(":NAVIGATE") > 0)
+            compare(findText(list, "No items found"), null)
+        }
+
         // Local Files: Page Up or Channel + plays the folder's next film,
         // Page Down or Channel − the previous one, round the folder's end,
         // its images, playlists, folders and the tree's own entries passed

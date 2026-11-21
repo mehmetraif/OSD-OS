@@ -161,12 +161,15 @@ FocusScope {
 
     HintBar {
         id: footer
+        objectName: "hintBar"
         visible: !osk.visible && !options.visible
         // Select opens a folder and plays a file, and right on a file offers
-        // its options rather than moving.
+        // its options rather than moving. With nothing in the media folder,
+        // back alone: there is nothing to move to or open.
         readonly property var entry: tree.currentEntry
         readonly property bool onFile: !!entry && !entry.isFolder && !entry.kind
-        text: root.hints.back + ":BACK "
+        text: tree.rootEmpty ? root.hints.back + ":BACK"
+              : root.hints.back + ":BACK "
               + (onFile ? String(root.hints.navigate).replace("]", "◄]") + ":NAVIGATE "
                           + root.hints.browse + ":OPTIONS "
                         : root.hints.arrows + ":NAVIGATE ")

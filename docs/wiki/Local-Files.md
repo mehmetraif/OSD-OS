@@ -116,7 +116,7 @@ journalctl -u 'osdos-usb-mount@*'
 4. The USB drives plugged in, `USB: <label>`, by name
 5. The media folder's folders, then its files
 
-With an empty media folder and no drive, the screen reads **No items found — Add files to the Local Files media folder**.
+With an empty media folder and no drive, the screen reads **No items found — Add files to the Local Files media folder**, and the hint bar has back alone.
 
 ### Recently Watched
 
