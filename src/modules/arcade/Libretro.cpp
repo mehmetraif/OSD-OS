@@ -530,9 +530,9 @@ double viewportAspect(double gameAspect, const QSize &screen, double screenAspec
 }
 
 bool coinDown(qint64 ms, int coins, bool *done) {
-    const qint64 each = kCoinHoldMs + kCoinGapMs;
+    const qint64 each = mame::kCoinHoldMs + mame::kCoinGapMs;
     *done = ms >= qint64(coins) * each;
-    return ms >= 0 && !*done && ms % each < kCoinHoldMs;
+    return ms >= 0 && !*done && ms % each < mame::kCoinHoldMs;
 }
 
 QByteArray remotePadMessage(int button, bool down) {

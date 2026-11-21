@@ -4044,7 +4044,7 @@ void ArcadeBackend::feedCoins() {
             return;
         }
         m_coinLogTail.clear();
-        m_coinsFrom = now + libretro::kCoinDelayMs;
+        m_coinsFrom = now + mame::kCoinDelayMs;
         m_coinFeed->setInterval(kCoinTickMs);
         return;
     }

@@ -204,9 +204,20 @@ QString genreOf(const QString &category);
 // be read.
 QHash<QString, QString> readGenres(const QString &path);
 
+// How the credits bought on the Arcade screen go in, in MAME
+// (coinScript()) and in FinalBurn Neo (libretro::coinDown()) alike: from
+// kCoinDelayMs into the game, past the start-up checks most boards run
+// (Galaga's RAM and ROM test, the Neo-Geo BIOS's); each coin held
+// kCoinHoldMs and let go kCoinGapMs, as a coin mech's switch would be:
+// games read it once a frame, and some count a coin only once it has been
+// there a few frames.
+inline constexpr int kCoinDelayMs = 5000;
+inline constexpr int kCoinHoldMs = 100;
+inline constexpr int kCoinGapMs = 200;
 // The Lua MAME runs as the game starts (-autoboot_script) to put the credits
 // bought on the Arcade screen in: player 1's coin pressed that many times,
-// from a few seconds in, once the game is past its start-up checks.
+// timed by the game's own clock, so a game MAME warns about first waits for
+// it.
 QString coinScript(int coins);
 
 // The controller file MAME is started with (-ctrlr): each player's controller

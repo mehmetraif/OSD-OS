@@ -168,13 +168,10 @@ inline constexpr char kDriverStarted[] = "[FBNeo] Driver successfully started";
 // starts, as MAME's script puts them in (mame::coinScript()): player 1's
 // coin, the RetroPad's Select (kRetroPadSelect, FinalBurn Neo's Coin),
 // pressed through RetroArch's network RetroPad (Launch::coinPort) once the
-// game runs (kDriverStarted in its log) and kCoinDelayMs more, past its
-// start-up checks; each held kCoinHoldMs and let go kCoinGapMs. coinDown():
-// whether it is down ms after the first, false with done once all are in.
+// game runs (kDriverStarted in its log) and mame::kCoinDelayMs more, timed
+// as MAME's are. coinDown(): whether it is down ms after the first, false
+// with done once all are in.
 inline constexpr int kRetroPadSelect = 2;
-inline constexpr int kCoinDelayMs = 5000;
-inline constexpr int kCoinHoldMs = 100;
-inline constexpr int kCoinGapMs = 200;
 bool coinDown(qint64 ms, int coins, bool *done);
 // RetroArch's message to its network RetroPad (struct remote_message in its
 // input/input_driver.h): a RetroPad button down or let go.
