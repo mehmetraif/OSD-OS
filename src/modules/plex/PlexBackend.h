@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QUrlQuery>
 #include <QHash>
 #include <functional>
 #include <openssl/evp.h>
@@ -217,6 +218,15 @@ private:
     QNetworkReply  *plexPost(const QUrl &url, const QString &token);
     QNetworkReply  *plexPut(const QUrl &url, const QString &token);
     QNetworkReply  *plexDelete(const QUrl &url, const QString &token);
+
+    // The universal transcoder's HLS start, a film's (request_transcode) and
+    // a live channel's (tune_channel): transcodeQuery() is what both ask,
+    // seekable adding a film's seeking; the caller adds its own after it, and
+    // startTranscode() sends it. transcodeStreamUrl() is the stream mpv is
+    // handed from the server's answer.
+    QUrlQuery transcodeQuery(const QString &path, const QString &sessionId, bool seekable) const;
+    QNetworkReply *startTranscode(const QUrlQuery &query, const QString &token);
+    static QString transcodeStreamUrl(QNetworkReply *reply);
 
     // Convenience SSL-ignore connect
     void ignoreSslErrors(QNetworkReply *reply);

@@ -29,6 +29,19 @@
 static const QString PLEX_TV = QStringLiteral("https://plex.tv");
 static const QString kModuleId = QStringLiteral("com.osdos.plex");
 
+// plex.tv's list of the account's servers, with every kind of connection each
+// has (HTTPS, relayed, IPv6), as sign-in, a profile switch and a server found
+// again ask for it.
+static QUrl serverResourcesUrl() {
+    QUrl url(PLEX_TV + "/api/v2/resources");
+    QUrlQuery q;
+    q.addQueryItem("includeHttps", "1");
+    q.addQueryItem("includeRelay", "1");
+    q.addQueryItem("includeIPv6", "1");
+    url.setQuery(q);
+    return url;
+}
+
 // Auth logging helpers.  plex.tv issues JWTs while PMS only accepts opaque
 // per-server tokens, so "which kind of token did we end up with" is the single
 // most useful thing to see in a bug report — and it can be logged safely.
@@ -719,13 +732,7 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
                              << "token=" << tokenShape(switchToken)
                              << "differsFromMaster=" << (switchToken != masterToken);
 
-        QUrl resUrl(PLEX_TV + "/api/v2/resources");
-        QUrlQuery q;
-        q.addQueryItem("includeHttps", "1");
-        q.addQueryItem("includeRelay", "1");
-        q.addQueryItem("includeIPv6", "1");
-        resUrl.setQuery(q);
-        auto *resReply = plexGet(resUrl, owner ? masterToken : switchToken);
+        auto *resReply = plexGet(serverResourcesUrl(), owner ? masterToken : switchToken);
         connect(resReply, &QNetworkReply::finished, this,
                 [this, resReply, userId, masterToken, switchToken, owner, sameUser, callback]() {
             resReply->deleteLater();
@@ -1192,13 +1199,7 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
             users.append(homeUserEntry(v.toObject()));
 
         // Step 2: fetch resources (servers)
-        QUrl resUrl(PLEX_TV + "/api/v2/resources");
-        QUrlQuery q;
-        q.addQueryItem("includeHttps", "1");
-        q.addQueryItem("includeRelay", "1");
-        q.addQueryItem("includeIPv6", "1");
-        resUrl.setQuery(q);
-        auto *resReply = plexGet(resUrl, token);
+        auto *resReply = plexGet(serverResourcesUrl(), token);
         connect(resReply, &QNetworkReply::finished, this, [this, users, resReply, token]() {
             resReply->deleteLater();
             if (resReply->error() != QNetworkReply::NoError) {
@@ -1383,13 +1384,7 @@ void PlexBackend::probeActiveServer(std::function<void(bool found)> done) {
     const QString machineId = loadAuth()["active_server_machine_id"].toString();
     if (machineId.isEmpty()) { done(false); return; }
 
-    QUrl resUrl(PLEX_TV + "/api/v2/resources");
-    QUrlQuery q;
-    q.addQueryItem("includeHttps", "1");
-    q.addQueryItem("includeRelay", "1");
-    q.addQueryItem("includeIPv6", "1");
-    resUrl.setQuery(q);
-    auto *resReply = plexGet(resUrl, accountToken());
+    auto *resReply = plexGet(serverResourcesUrl(), accountToken());
     connect(resReply, &QNetworkReply::finished, this, [this, resReply, machineId, done]() {
         resReply->deleteLater();
         QJsonArray connections;
@@ -2720,27 +2715,21 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
     });
 }
 
-void PlexBackend::request_transcode(const QString &ratingKey, const QString &partKey,
-                                    const QString &sessionId,
-                                    const QString &audioId, const QString &subtitleId,
-                                    int offsetMs) {
-    QString uri   = serverUrl();
-    QString token = serverToken();
-    QString quality = videoQuality();
-
-    qDebug() << "[Plex] Playback: TRANSCODE — full re-encode, quality cap:" << quality << "kbps";
-    QUrl url(uri + "/video/:/transcode/universal/start.m3u8");
+QUrlQuery PlexBackend::transcodeQuery(const QString &path, const QString &sessionId, bool seekable) const {
+    const QString quality = videoQuality();
     QUrlQuery q;
     q.addQueryItem("hasMDE",      "1");
-    q.addQueryItem("path",        "/library/metadata/" + ratingKey);
+    q.addQueryItem("path",        path);
     q.addQueryItem("mediaIndex",  "0");
     q.addQueryItem("partIndex",   "0");
     q.addQueryItem("protocol",    "hls");
-    q.addQueryItem("fastSeek",    "1");
-    q.addQueryItem("copyts",      "1");
+    if (seekable) {
+        q.addQueryItem("fastSeek", "1");
+        q.addQueryItem("copyts",   "1");
+    }
     q.addQueryItem("directPlay",  "0");
     q.addQueryItem("directStream","0");
-    // Auto: no cap, the server's own choice (as tune_channel's).
+    // Auto: no cap, the server's own choice.
     if (quality != "auto") q.addQueryItem("maxVideoBitrate", quality);
     q.addQueryItem("subtitleSize","100");
     q.addQueryItem("audioBoost",  "100");
@@ -2750,6 +2739,44 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
     // (which identifies the calling application for auth/logging purposes).
     q.addQueryItem("X-Plex-Platform", "Chrome");
     q.addQueryItem("X-Plex-Client-Identifier", clientId());
+    return q;
+}
+
+QNetworkReply *PlexBackend::startTranscode(const QUrlQuery &query, const QString &token) {
+    QUrl url(serverUrl() + "/video/:/transcode/universal/start.m3u8");
+    url.setQuery(query);
+    // Build the request with Chrome as the platform in the header too, so it
+    // matches the query param. Plex uses the Chrome profile for transcoding.
+    QNetworkRequest req = plexRequest(url, token);
+    req.setRawHeader("X-Plex-Platform", "Chrome");
+    auto *reply = m_nam->get(req);
+    ignoreSslErrors(reply);
+    return reply;
+}
+
+QString PlexBackend::transcodeStreamUrl(QNetworkReply *reply) {
+    // The server returns a master m3u8 with a relative variant URL.
+    // Parse it to find the first non-comment line, then resolve to absolute.
+    QString variantPath;
+    for (const QString &line : QString::fromUtf8(reply->readAll()).split('\n')) {
+        QString t = line.trimmed();
+        if (!t.isEmpty() && !t.startsWith('#')) { variantPath = t; break; }
+    }
+    if (variantPath.isEmpty())
+        return reply->url().toString();
+    QUrl base = reply->url();
+    base.setQuery(QString());
+    return base.resolved(QUrl(variantPath)).toString();
+}
+
+void PlexBackend::request_transcode(const QString &ratingKey, const QString &partKey,
+                                    const QString &sessionId,
+                                    const QString &audioId, const QString &subtitleId,
+                                    int offsetMs) {
+    QString token = serverToken();
+
+    qDebug() << "[Plex] Playback: TRANSCODE — full re-encode, quality cap:" << videoQuality() << "kbps";
+    QUrlQuery q = transcodeQuery("/library/metadata/" + ratingKey, sessionId, true);
     if (offsetMs > 0)
         q.addQueryItem("offset", QString::number(offsetMs / 1000));
     if (!audioId.isEmpty())
@@ -2758,15 +2785,9 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
         q.addQueryItem("subtitleStreamID", subtitleId);
         q.addQueryItem("subtitles", "burn");
     }
-    url.setQuery(q);
 
-    // Build the request with Chrome as the platform in the header too, so it
-    // matches the query param. Plex uses the Chrome profile for transcoding.
-    QNetworkRequest req = plexRequest(url, token);
-    req.setRawHeader("X-Plex-Platform", "Chrome");
     const int request = ++m_streamRequest;
-    auto *reply = m_nam->get(req);
-    ignoreSslErrors(reply);
+    auto *reply = startTranscode(q, token);
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, request, token, ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs]() {
         reply->deleteLater();
@@ -2782,23 +2803,7 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
             }
             emit errorOccurred("TRANSCODE FAILED: " + serverlog::why(reply)); return;
         }
-        // The server returns a master m3u8 with a relative variant URL.
-        // Parse it to find the first non-comment line, then resolve to absolute.
-        QByteArray body = reply->readAll();
-        QString variantPath;
-        for (const QString &line : QString::fromUtf8(body).split('\n')) {
-            QString t = line.trimmed();
-            if (!t.isEmpty() && !t.startsWith('#')) { variantPath = t; break; }
-        }
-        QString streamUrl;
-        if (!variantPath.isEmpty()) {
-            QUrl base = reply->url();
-            base.setQuery(QString());
-            QUrl resolved = base.resolved(QUrl(variantPath));
-            streamUrl = resolved.toString();
-        } else {
-            streamUrl = reply->url().toString();
-        }
+        const QString streamUrl = transcodeStreamUrl(reply);
         qDebug() << "[Plex] Transcode stream URL for mpv:" << streamUrl;
         emit streamUrlReady(streamUrl, token);
     });
@@ -3009,33 +3014,11 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
         m_liveSessionId   = sessionId;
         m_liveStartedMs   = QDateTime::currentMSecsSinceEpoch();
 
-        // Start the HLS transcode against the tuned path. Reuses the universal
-        // transcoder + master-m3u8 parse from request_transcode.
-        QString uri = serverUrl(), token = serverToken();
-        QString quality = videoQuality();
-        QUrl startUrl(uri + "/video/:/transcode/universal/start.m3u8");
-        QUrlQuery sq;
-        sq.addQueryItem("hasMDE",       "1");
-        sq.addQueryItem("path",         livePath);
-        sq.addQueryItem("mediaIndex",   "0");
-        sq.addQueryItem("partIndex",    "0");
-        sq.addQueryItem("protocol",     "hls");
-        sq.addQueryItem("directPlay",   "0");
-        sq.addQueryItem("directStream", "0");
-        // Live always transcodes; cap bitrate when the user picked a fixed quality.
-        if (quality != "auto") sq.addQueryItem("maxVideoBitrate", quality);
-        sq.addQueryItem("subtitleSize", "100");
-        sq.addQueryItem("audioBoost",   "100");
-        sq.addQueryItem("session",      sessionId);
-        sq.addQueryItem("X-Plex-Platform", "Chrome");
-        sq.addQueryItem("X-Plex-Client-Identifier",  clientId());
+        // Start the HLS transcode against the tuned path, as a film's is.
+        const QString token = serverToken();
+        QUrlQuery sq = transcodeQuery(livePath, sessionId, false);
         sq.addQueryItem("X-Plex-Session-Identifier", sessionId);
-        startUrl.setQuery(sq);
-
-        QNetworkRequest req = plexRequest(startUrl, token);
-        req.setRawHeader("X-Plex-Platform", "Chrome");
-        auto *startReply = m_nam->get(req);
-        ignoreSslErrors(startReply);
+        auto *startReply = startTranscode(sq, token);
         connect(startReply, &QNetworkReply::finished, this, [this, startReply, request, token, sessionId]() {
             startReply->deleteLater();
             if (request != m_streamRequest) {
@@ -3050,20 +3033,7 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
             if (startReply->error() != QNetworkReply::NoError) {
                 emit errorOccurred("LIVE STREAM FAILED: " + serverlog::why(startReply)); return;
             }
-            QByteArray sbody = startReply->readAll();
-            QString variantPath;
-            for (const QString &line : QString::fromUtf8(sbody).split('\n')) {
-                QString t = line.trimmed();
-                if (!t.isEmpty() && !t.startsWith('#')) { variantPath = t; break; }
-            }
-            QString streamUrl;
-            if (!variantPath.isEmpty()) {
-                QUrl base = startReply->url();
-                base.setQuery(QString());
-                streamUrl = base.resolved(QUrl(variantPath)).toString();
-            } else {
-                streamUrl = startReply->url().toString();
-            }
+            const QString streamUrl = transcodeStreamUrl(startReply);
             qDebug() << "[Plex] Live stream URL for mpv:" << streamUrl;
             emit streamUrlReady(streamUrl, token);
         });
