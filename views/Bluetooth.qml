@@ -150,7 +150,6 @@ FocusScope {
         onTriggered: bluetoothRoot.dots = bluetoothRoot.dots % 3 + 1
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/bluetooth.svg"
         title: "Bluetooth"

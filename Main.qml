@@ -75,10 +75,10 @@ Window {
     // already fullscreen, so this is a no-op there. Under Window Mode the
     // window is a window, framed, where the desktop puts it (setWindowed()).
     // Hidden until the settings are read (Component.onCompleted, which
-    // shows it: showWindow()). Shown as it was made, it drew its first frame
-    // before them, in Video 1's blue, where the platform draws a window the
-    // moment it is shown (the Pi's EGLFS): a theme's boot screen came up
-    // blue for an instant, then in its own colours.
+    // shows it: showWindow()). Shown as it is made, it would draw its first
+    // frame before them, in Video 1's blue, where the platform draws a window
+    // the moment it is shown (the Pi's EGLFS): a theme's boot screen would
+    // come up blue for an instant, then in its own colours.
     visibility: Window.Hidden
     function showWindow() {
         if (visibility !== Window.Hidden)
@@ -328,9 +328,9 @@ Window {
     // on and not resting, about thirty times a second.
     property real fxTime: 0
     // The background's and the selector's rest under the screen saver too,
-    // which covers them: they were drawn behind it, thirty frames a second,
-    // for as long as the screen stood idle. A screen effect that moves goes
-    // on: the saver's own picture is seen through it.
+    // which covers them: drawn behind it, they would cost thirty frames a
+    // second for as long as the screen stood idle. A screen effect that
+    // moves goes on: the saver's own picture is seen through it.
     readonly property bool fxMoving: !effectsRest && ((backgroundShader !== "" && !screenSaverActive)
         || (screen.shaded && (screenEffect.noise > 0 || screenEffect.animate === true
                               || textEffect.rainbow > 0 || textEffect.shimmer > 0 || textEffect.flicker > 0)))
@@ -1447,7 +1447,7 @@ Window {
                 // Not under a layer that takes the whole screen in the
                 // scheme's colours (the on-screen keyboard, an info screen):
                 // such a layer's ground is the stage's, narrower than the
-                // chrome, whose tab and corners showed round it.
+                // chrome, whose tab and corners would show round it.
                 visible: root.monitorInk
                 screen: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
                 // Studio Monitor's strip: the icons Camcorder's column has.

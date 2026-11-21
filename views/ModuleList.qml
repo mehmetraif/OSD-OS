@@ -369,7 +369,6 @@ FocusScope {
     onGroupIconsChanged: handFrame()
     onIconMenuChanged: handFrame()
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         guide: appRoot.monitor ? appRoot.monitorGuide : []

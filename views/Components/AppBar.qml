@@ -13,7 +13,6 @@ import QtQuick
 Item {
     id: appBar
 
-    // Custom Properties
     property url iconSource: "../../assets/images/logo.svg"
     property string title: "OSD/OS"
     property string subtitle: ""

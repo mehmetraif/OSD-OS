@@ -105,11 +105,9 @@ FocusScope {
         lastState = updState
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/update.svg"
         title: "Update"
-        //subtitle: root.appVersion
     }
 
     Item {
@@ -241,7 +239,6 @@ FocusScope {
             }
         }
 
-        // Footer
         HintBar {
             text: root.hintLine(["back:BACK", updateRoot.releaseNotes !== "" ? "navigate:SCROLL" : "",
                                  updateRoot.actionLabel !== "" ? "select:" + updateRoot.actionLabel : ""])

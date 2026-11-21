@@ -662,7 +662,6 @@ FocusScope {
         requestOptions(true)
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
@@ -845,7 +844,6 @@ FocusScope {
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
     }
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         text: moduleSettingsRoot.editIndex >= 0

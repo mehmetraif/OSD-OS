@@ -568,7 +568,7 @@ FocusScope {
         // A slider's step toward one end (-1 left, 1 right), kept and in
         // force at once, and saved once the steps rest or the page is left
         // (AppCore::save_setting_soon()): saved at every step, the key held
-        // down wrote config.json to the card ten times across the bar.
+        // down would write config.json to the card ten times across the bar.
         // One that is off turns on instead, where its bar waits. A row whose
         // value couldn't be saved (a full card) stays on what is saved, here
         // and in the list ones below; a slider's goes back to it once the
@@ -818,7 +818,6 @@ FocusScope {
         text: settingsRoot.helpText
     }
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
@@ -839,7 +838,6 @@ FocusScope {
         front.forceActiveFocus()
     }
 
-    // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---
     DisplayOutputPrompts {
         id: outputPrompts
         anchors.fill: parent

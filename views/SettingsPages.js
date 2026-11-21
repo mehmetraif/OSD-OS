@@ -3,7 +3,7 @@
 // read (readAll(): appSettings, installedModules) and what the app has
 // (appCore, root, displayOutput, audioOutput and the rest). Not a library:
 // imported into Settings.qml as Pages, it runs in the page's own scope, its
-// properties and ids, as the page's own functions did.
+// properties and ids, as the page's own functions do.
 
 // The first screen: a heading for each page, every row under one of them,
 // then Quit. TV / Movie's page is the videos' (this view again, group
@@ -919,8 +919,9 @@ function partRow(key, label, choices, off, description) {
 // What Main.qml makes of a part's saved value that names nothing it has:
 // a scheme not there is Video 1 (root.scheme), an effect's unknown name
 // none (effectOf(), nameOf()), a transition this system can't play
-// (Ripple, Wave or Drop without a GPU) Fade (windowCaught()) and an
-// unknown one none. Menu Music's is the theme's, the row's first choice.
+// (Ripple, Wave or Drop without a GPU) Fade (WindowChange's caught(), by
+// root.transitionUsable()) and an unknown one none. Menu Music's is the
+// theme's, the row's first choice.
 function partInForce(key, saved) {
     if (key === "color_scheme")
         return "Video 1"
