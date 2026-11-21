@@ -502,22 +502,33 @@ FocusScope {
         return item ? rowId(item) : undefined
     }
 
-    // Rows that show their current value after the dots.
+    // Rows that show their current value after the dots: a module_view row
+    // too where its options_slot sends it (sentValue()).
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
                || item.type === "text" || item.type === "text_list" || item.type === "multiselect_submenu"
-               || !!item.account
+               || !!item.account || sendsValue(item)
+    }
+
+    // A module_view row's value, where its page holds it: the label of the
+    // one choice its options_slot sends (Arcade's Online Name, the name in
+    // force), "" until it has come.
+    function sendsValue(item) {
+        return item.type === "module_view" && item.options_source === "dynamic" && !!item.options_slot
+    }
+    function sentValue(item) {
+        var opts = dynamicOptions[rowId(item)] || []
+        return opts.length > 0 && opts[0].label ? String(opts[0].label) : ""
     }
 
     // SIGN IN's value ("account": true, a module_view row): who is signed
     // in, the name its options_slot sends as its one choice (the backend's
-    // get_account()), else Signed In; Signed Out while the module's sign-in
-    // state says no one is (get_module_auth_state()).
+    // get_account(), sentValue()), else Signed In; Signed Out while the
+    // module's sign-in state says no one is (get_module_auth_state()).
     function accountValue(item) {
         if (signedOut(item._module ? (alsoAuthStates[item._module] || "") : authState))
             return "Signed Out"
-        var opts = dynamicOptions[rowId(item)] || []
-        return opts.length > 0 && opts[0].label ? String(opts[0].label) : "Signed In"
+        return sentValue(item) || "Signed In"
     }
 
     // A multi-select row's value: All, None or "3 of 4", its choices on as
@@ -582,6 +593,8 @@ FocusScope {
 
         if (item.account)
             return accountValue(item)
+        if (sendsValue(item))
+            return sentValue(item)
 
         return ""
     }

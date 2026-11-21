@@ -8896,6 +8896,34 @@ private slots:
     // one name, a country as its region, one the list doesn't name as Others,
     // and none in a title, a maker, a version or a longer word. OSD/OS Setup
     // offers the same choices.
+    // Settings → Arcade → Online Name's value on its row: the name the
+    // others see (nickname()), on the local network while LAN Play is on;
+    // sent again as a name is typed and as LAN Play changes, so the row
+    // follows its page.
+    void onlineNameRow() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        const auto sent = [&options](int at) {
+            QStringList got{ options.at(at).at(0).toString() };
+            for (const QVariant &v : options.at(at).at(1).toList())
+                got << v.toMap().value(QStringLiteral("id")).toString() + QLatin1Char('=')
+                           + v.toMap().value(QStringLiteral("label")).toString();
+            return got;
+        };
+        arcade.onlineNameOptions();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(sent(0), QStringList({ "online_name", "OSD-OS=OSD-OS" }));
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+        QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "garage-cab=garage-cab" }));
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Ann "));
+        QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "Ann=Ann" }));
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QString());
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
+        QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "OSD-OS=OSD-OS" }));
+    }
+
     void regionsOfNames() {
         QStringList ids, names;
         for (const mame::Region &region : mame::regions()) {

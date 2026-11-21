@@ -286,6 +286,8 @@
       "label": "Online Name",
       "type": "module_view",
       "params": { "onlineName": true },
+      "options_source": "dynamic",
+      "options_slot": "onlineNameOptions",
       "shown_with": [{ "key": "online_play", "value": "On" }, { "key": "lan_play", "value": "On" }],
       "description": "The name the others see, online and on the network\n[DEFAULT] Online, the RetroAchievements account's, else OSD-OS; on the network, this device's name (Settings → System → About → System Information)"
     },

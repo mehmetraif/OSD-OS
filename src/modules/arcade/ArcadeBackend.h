@@ -606,6 +606,12 @@ public:
     Q_INVOKABLE void regionOptions();
     // manifest: play_at_startup's: None and the favorites.
     Q_INVOKABLE void startupGameOptions();
+    // manifest: online_name's value on its row (dynamicOptionsReady, its one
+    // choice, as an account module's SIGN IN has it): the name in force,
+    // nickname()'s, on the local network while LAN Play is on: the one
+    // typed, else the default. The default isn't marked so: "(default)"
+    // beside a device's name doesn't fit the row in Camcorder.
+    Q_INVOKABLE void onlineNameOptions();
 
     // The sets played last, newest first: the High Scores module's Recently
     // Played, as main.cpp hands them over.

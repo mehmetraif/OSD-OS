@@ -598,9 +598,12 @@ void ArcadeBackend::onSettingChanged(const QString &moduleId, const QString &key
     applySetting(key, value);
     // Start Filter offers Online Games and RetroArch Lobby while Online Play
     // is on, and LAN Games while LAN Play is: its choices again, for the
-    // Settings page that has them all.
+    // Settings page that has them all. Online Name's row follows the name
+    // typed and the network it is used on.
     if (key == QLatin1String("online_play") || key == QLatin1String("lan_play"))
         startFilterOptions();
+    if (key == QLatin1String("online_name") || key == QLatin1String("lan_play"))
+        onlineNameOptions();
 }
 
 void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
@@ -2256,6 +2259,13 @@ void ArcadeBackend::startupGameOptions() {
     for (const auto &[name, set] : std::as_const(games))
         options << QVariantMap{ { QStringLiteral("id"), set }, { QStringLiteral("label"), name } };
     emit dynamicOptionsReady(QStringLiteral("play_at_startup"), options);
+}
+
+void ArcadeBackend::onlineNameOptions() {
+    const QString name = nickname(m_lanPlay);
+    emit dynamicOptionsReady(QStringLiteral("online_name"),
+                             QVariantList{ QVariantMap{ { QStringLiteral("id"), name },
+                                                        { QStringLiteral("label"), name } } });
 }
 
 // ---------------------------------------------------------------------------

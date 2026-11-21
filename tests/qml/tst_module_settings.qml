@@ -1765,6 +1765,36 @@ StandInRoot {
             compare(root.navigations[0].params, { signIn: true })
         }
 
+        // A module_view row whose page holds a value (Arcade's Online Name)
+        // shows it as SIGN IN shows who is signed in: the one choice its
+        // options_slot sends, nothing until that comes, and each new one
+        // sent as its page changes it. Its page opens as before. One with
+        // no options_slot shows no value.
+        function test_pageRowShowsItsValue() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "online_name", label: "Online Name", type: "module_view", params: { onlineName: true },
+                  options_source: "dynamic", options_slot: "onlineNameOptions" },
+                { key: "pictures", label: "Game Pictures", type: "module_view", params: { pictures: true } }
+            ]
+            var page = open()
+            compare(appCore.actions, ["onlineNameOptions"])
+            compare(menuRow(page, 1).value, "")
+            appCore.dynamicOptionsReady("com.osdos.test", "online_name",
+                                        [{ id: "OSDOS-1234", label: "OSDOS-1234" }])
+            compare(menuRow(page, 1).value, "OSDOS-1234")
+            verify(menuRow(page, 1).opens)
+            appCore.dynamicOptionsReady("com.osdos.test", "online_name", [{ id: "Ann", label: "Ann" }])
+            compare(menuRow(page, 1).value, "Ann")
+            compare(menuRow(page, 2).value, "")
+
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "online_name")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params, { onlineName: true })
+        }
+
         // The file picker (views/FilePicker.qml), as a directory_browser row
         // opens it: a drive's folders, and the picker's tree and its open
         // folders' paths.
