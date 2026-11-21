@@ -25,7 +25,7 @@
       <li>Plex, Jellyfin, Emby and YouTube, the films on the computer, and playlists across them</li>
       <li>Arcade games through MAME and FinalBurn Neo, with high scores, RetroAchievements and online and LAN play</li>
       <li>Colour schemes, skins and screen effects in a television's own pixels</li>
-      <li>Playback through mpv, which must be installed beside it</li>
+      <li>Playback through mpv, which it carries with it</li>
     </ul>
   </description>
   <launchable type="desktop-id">tv.osdos.osdos.desktop</launchable>
