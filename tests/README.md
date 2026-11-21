@@ -237,7 +237,8 @@ A C++ test built with the app's sources links those several tests share, built o
   - A main thread stuck for a while is reported in `stall-report.txt` with where it is and where the other threads are, and again once it answers; the app goes on.
   - Stuck for good, the process ends with the code (70) that has the service start it again.
   - The memory line has the app's memory and the system's.
-- **display_output** (`display_output_test.cpp`, Linux only). Settings → Screen → Display Output on a Pi 4, as **display_output_pi5** on a Pi 5 and as **display_output_pi3** on a Pi 3, whose outputs are a Pi 4's, against the image's own presets copied into a stand-in boot partition.
+- **display_output** (`display_output_test.cpp`, Linux only). Settings → Screen → Display Output on a Pi 4, as **display_output_pi5** on a Pi 5 and as **display_output_pi3** on a Pi 3, whose outputs are a Pi 4's, and as **display_output_pi500** on a Pi 500, a Pi 5 without the TV pads' composite, against the image's own presets copied into a stand-in boot partition.
+  - Every preset is offered by its name on the boards that have its output (`display-presets.json`, built in), and on no other.
   - JAMMA 240p is offered only by a launcher whose stop helper knows its code (`OSDOS_LAUNCHER_API` 4), last in the menu, beside the board's own outputs: a Pi 5's GPIO composite, a Pi 4's 240p SCART.
   - In force, it is known for what it is.
   - Chosen, it leaves its way back (`display-output.json`); with an older launcher it can't be chosen.

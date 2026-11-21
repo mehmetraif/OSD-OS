@@ -15,6 +15,8 @@ fi
 install -m 644 files/config.txt "${BOOT}/config.txt"
 install -m 644 files/osdos-display-*.txt "${BOOT}/"
 install -m 644 "files/osdos-display-${DISPLAY_PRESET}.txt" "${BOOT}/osdos-display.txt"
+# The presets' names and boards, for OSD/OS Setup's display output (osdos-setup).
+install -D -m 644 files/display-presets.json "${ROOTFS_DIR}/usr/lib/osdos/display-presets.json"
 # A Pi 5's composite sync on GPIO 1 for SCART RGB (its presets name the DPI
 # output), as osdos-stop writes it on a change: drm-rp1-dpi reads it as it loads.
 # Not for a JAMMA board, which makes its own and has its I2C there.

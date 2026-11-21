@@ -28,7 +28,7 @@ A resolution is exactly 4:3 when its width is 4/3 of its height: its pixels are 
   | 1856x1392 | 218.250 MHz | 2528x1439 | 86.3 kHz |
   | 1920x1440 | 234.000 MHz | 2600x1500 | 90.0 kHz |
 
-- [ ] **Exit codes for them.** osdos-stop's codes are full: 20-39 write a preset, 40-59 the same and power off. New presets need a new range (60-79, and 80-99 to power off), osdos-stop and `DisplayOutput.cpp` taught it, `SuccessExitStatus` in both units, and launcher API 10.
+- [ ] **Exit codes for them.** osdos-stop's codes are full: 20-39 write a preset, 40-59 the same and power off. New presets need a new range (60-79, and 80-99 to power off), osdos-stop and `display-presets.json` taught it, `SuccessExitStatus` in both units, and launcher API 10.
 
 ## 3. Each game in its own mode
 

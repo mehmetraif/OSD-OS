@@ -13,7 +13,7 @@ modules/arcade/views/orb/, and the skins' pictures), and schema.json, the
 settings the page offers, read from the app as it is: Settings' own rows
 (site/setup/schema-extra.json), the modules' manifests, the presets
 (os/stage-osdos/03-boot/files, with the names Settings → Screen → Display Output gives
-them in src/display/DisplayOutput.cpp), the themes and skins (assets/), the
+them in its display-presets.json), the themes and skins (assets/), the
 looks Main.qml has (its colour schemes and effects), the subtitle languages,
 and the time zone database's countries and zones.
 
@@ -211,26 +211,6 @@ def modules(extra):
     return sorted(out, key=lambda m: (order.index(m["group"]), m["name"].lower()))
 
 
-def preset_models(pid):
-    """The boards a preset is for, as Settings → Screen → Display Output offers it
-    (DisplayOutput.cpp's boardHas()): keep the two in step."""
-    if pid == "hdmi":
-        return ["pi3", "pi4", "pi5"]
-    if pid.startswith("crt-gpio-"):
-        return ["pi5"]
-    if pid.startswith("crt-"):
-        return ["pi3", "pi4", "pi5"]
-    if pid in ("scart-rgb-ntsc", "scart-rgb-pal"):
-        return ["pi3", "pi4", "pi5"]
-    if pid.startswith("scart-rgb-"):
-        return ["pi3", "pi4"]
-    if pid in ("jamma-480i", "jamma-480i-640", "jamma-576i"):
-        return ["pi3", "pi4"]
-    if pid.startswith("jamma-"):
-        return ["pi3", "pi4", "pi5"]
-    return []
-
-
 def preset_about(text):
     """A preset's opening comment, up to where it says how it is chosen."""
     lines = []
@@ -246,24 +226,22 @@ def preset_about(text):
 
 
 def presets():
-    source = (ROOT / "src/display/DisplayOutput.cpp").read_text()
-    # The warnings said as a preset is chosen: a constant of one or more
-    # string literals.
-    warnings = {name: "".join(re.findall(r'"([^"]*)"', literals))
-                for name, literals in re.findall(r'constexpr const char \*(k\w+) =\s*((?:"[^"]*"\s*)+);', source)}
+    """The presets with the names, boards and warnings Settings → Screen →
+    Display Output gives them (display-presets.json, which the app has built
+    in)."""
     out = []
-    for pid, label, warning in re.findall(
-            r'\{\s*"([a-z0-9-]+)",\s*"([^"]+)",\s*\d+,\s*\d+(?:,\s*(k\w+))?\s*\}', source):
+    for preset in json.loads((PRESETS / "display-presets.json").read_text())["presets"]:
+        pid = preset["id"]
         path = PRESETS / f"osdos-display-{pid}.txt"
         if not path.is_file():
             sys.exit(f"build-site: {path} is missing for the preset {pid}")
         text = path.read_text()
-        out.append({"id": pid, "label": label, "models": preset_models(pid),
-                    "about": preset_about(text), "warning": warnings.get(warning, "")})
+        out.append({"id": pid, "label": preset["label"], "models": preset["boards"],
+                    "about": preset_about(text), "warning": preset.get("warning", "")})
     files = {p.name for p in PRESETS.glob("osdos-display-*.txt")}
     named = {f"osdos-display-{p['id']}.txt" for p in out}
     if files != named:
-        sys.exit(f"build-site: presets without a name in DisplayOutput.cpp: {sorted(files - named)}")
+        sys.exit(f"build-site: presets not in display-presets.json: {sorted(files - named)}")
     return out
 
 

@@ -251,6 +251,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
         INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh")
     target_link_libraries(display_output_test PRIVATE osdos_test_system Qt6::Core Qt6::Network Qt6::Test)
+    qt_add_resources(display_output_test "display_presets" PREFIX "/display" BASE "../os/stage-osdos/03-boot/files"
+                     FILES "../os/stage-osdos/03-boot/files/display-presets.json")
     add_test(NAME display_output COMMAND display_output_test)
     # The same as a Pi 5, whose outputs are others.
     add_test(NAME display_output_pi5 COMMAND display_output_test)
@@ -260,6 +262,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME display_output_pi3 COMMAND display_output_test)
     set_tests_properties(display_output_pi3 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 3 Model B Plus Rev 1.3")
+    # And as a Pi 500, a Pi 5 without the TV pads' composite.
+    add_test(NAME display_output_pi500 COMMAND display_output_test)
+    set_tests_properties(display_output_pi500 PROPERTIES
+        ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 500 Rev 1.0")
 
     # The OSD/OS image's boot screen (BootProgress) against a stand-in for
     # systemctl: the services it lists as they start, and OSD/OS Setup's

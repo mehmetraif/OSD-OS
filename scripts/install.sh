@@ -601,7 +601,7 @@ display_output() {
     # hold the answer back.
     sync -f "$boot/osdos-display.txt" /etc/modprobe.d
 }
-# The app's codes for them (src/display/DisplayOutput.cpp): keep the two in step.
+# The app's codes for them (os/stage-osdos/03-boot/files/display-presets.json): keep the two in step.
 DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
                  scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous
                  jamma-240p jamma-240p-native jamma-240p-super jamma-288p jamma-288p-super

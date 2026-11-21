@@ -9,6 +9,7 @@
 
 #include <QCoreApplication>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -16,56 +17,47 @@
 
 namespace {
 
-// A mode with a horizontal frequency above a standard arcade monitor's
-// 15 kHz: said before it is chosen, for a monitor that can't take it may be
-// damaged by it.
-constexpr const char *k25kHz =
-    "For a medium resolution (25 kHz) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.";
-constexpr const char *k31kHz =
-    "For a 31 kHz (VGA) or tri-sync monitor only: too high a scan rate can damage a 15 kHz one.";
-
-// The presets, in the menu's order, with the exit code osdos-stop
-// (scripts/install.sh, STOP_HELPER) writes each on, then reboots: keep the two
-// in step (util/ExitCodes.h: from kDisplayPresetFirst, its place in
-// DISPLAY_PRESETS). kDisplayThenPowerOff more, it writes it and powers off. A
-// preset is offered from the launcher API whose osdos-stop knows its code.
+// The presets, in the menu's order, as the image has them
+// (os/stage-osdos/03-boot/files/display-presets.json, built in: it says what
+// each field is, and where else it is read).
 struct Preset {
-    const char *id;     // osdos-display-<id>.txt
-    const char *label;
-    int exitCode;
-    int launcherApi;
-    const char *warning = nullptr;  // said as it is chosen
+    QString id;     // osdos-display-<id>.txt
+    QString label;
+    int exitCode = 0;
+    int launcherApi = 0;
+    QStringList boards;
+    bool keyboard = true;
+    QString warning;  // said as it is chosen
 };
-const Preset kPresets[] = {
-    { "hdmi",           "HDMI",                20, 3 },
-    { "crt-ntsc",       "Composite NTSC",      21, 3 },
-    { "crt-pal",        "Composite PAL",       22, 3 },
-    { "crt-gpio-ntsc",  "GPIO Composite NTSC", 23, 3 },
-    { "crt-gpio-pal",   "GPIO Composite PAL",  24, 3 },
-    { "scart-rgb-ntsc", "SCART RGB NTSC",      25, 3 },
-    { "scart-rgb-pal",  "SCART RGB PAL",       26, 3 },
-    { "scart-rgb-240p", "SCART RGB 240p",      27, 3 },
-    { "scart-rgb-288p", "SCART RGB 288p",      28, 3 },
-    // A JAMMA mode's name says its scan rate, as an arcade monitor takes 15,
-    // 25 or 31 kHz, or several, and its preset's resolution (dpi_timings'),
-    // which tells apart the modes of the same lines. The font has no ×.
-    { "jamma-240p",     "JAMMA 240p 15 kHz (720x240)", 30, 4 },
-    // The JAMMA board's other modes: 320 across (the games' own pixels),
-    // super resolutions 1920 across, PAL's 288 lines, interlaced 480 and 576
-    // lines (not a Pi 5's), 480 of them 640 across too, square pixels on a
-    // 4:3 tube, and the 25 and 31 kHz monitors'.
-    { "jamma-240p-native", "JAMMA 240p 15 kHz (320x240)",  31, 6 },
-    { "jamma-240p-super",  "JAMMA 240p 15 kHz (1920x240)", 32, 6 },
-    { "jamma-288p",        "JAMMA 288p 15 kHz (720x288)",  33, 6 },
-    { "jamma-288p-super",  "JAMMA 288p 15 kHz (1920x288)", 34, 6 },
-    { "jamma-480i",        "JAMMA 480i 15 kHz (720x480)",  35, 6 },
-    // Its code after the 31 kHz one's, osdos-stop's last: in the menu beside
-    // the other 480i.
-    { "jamma-480i-640",    "JAMMA 480i 15 kHz (640x480)",  39, 9 },
-    { "jamma-576i",        "JAMMA 576i 15 kHz (720x576)",  36, 6 },
-    { "jamma-25k",         "JAMMA 25 kHz (496x384)",       37, 6, k25kHz },
-    { "jamma-31k",         "JAMMA 31 kHz (640x480)",       38, 6, k31kHz },
-};
+
+const QList<Preset> &presets() {
+    static const QList<Preset> list = [] {
+        QList<Preset> out;
+        QFile file(QStringLiteral(":/display/display-presets.json"));
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning("[DisplayOutput] %s: %s", qPrintable(file.fileName()), qPrintable(file.errorString()));
+            return out;
+        }
+        const QJsonArray array =
+            QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("presets")).toArray();
+        for (const QJsonValue &v : array) {
+            const QJsonObject o = v.toObject();
+            Preset p;
+            p.id = o.value(QStringLiteral("id")).toString();
+            p.label = o.value(QStringLiteral("label")).toString();
+            p.exitCode = o.value(QStringLiteral("exitCode")).toInt();
+            p.launcherApi = o.value(QStringLiteral("launcherApi")).toInt();
+            for (const QJsonValue &b : o.value(QStringLiteral("boards")).toArray())
+                p.boards << b.toString();
+            p.keyboard = o.value(QStringLiteral("keyboard")).toBool(true);
+            p.warning = o.value(QStringLiteral("warning")).toString();
+            out << p;
+        }
+        return out;
+    }();
+    return list;
+}
+
 // The launcher whose osdos-stop powers off after a preset, and writes one for
 // the next start through osdos-display.socket.
 constexpr int kNextStartApi = 5;
@@ -73,8 +65,8 @@ constexpr int kNextStartApi = 5;
 constexpr int kNextStartTimeoutMs = 15000;
 
 const Preset *presetById(const QString &id) {
-    for (const Preset &p : kPresets) {
-        if (id == QLatin1String(p.id))
+    for (const Preset &p : presets()) {
+        if (id == p.id)
             return &p;
     }
     return nullptr;
@@ -82,40 +74,17 @@ const Preset *presetById(const QString &id) {
 
 QString labelOf(const QString &id) {
     const Preset *p = presetById(id);
-    return p ? QString::fromLatin1(p->label) : QStringLiteral("Custom");
+    return p ? p->label : QStringLiteral("Custom");
 }
 
 // Whether the board has that output.
-bool boardHas(const QString &id) {
+bool boardHas(const Preset &p) {
     const board::Family family = board::family();
-    const bool pi3 = family == board::Family::Pi3;
-    const bool pi4 = family == board::Family::Pi4;
-    const bool pi5 = family == board::Family::Pi5;
-    if (id == QLatin1String("hdmi"))
-        return pi3 || pi4 || pi5;
-    // A Pi 5's composite on GPIO 4-11 (vec-gpio-pi5).
-    if (id.startsWith(QLatin1String("crt-gpio-")))
-        return pi5;
-    // The AV jack (Pi 3, Pi 4), the TV pads (Pi 5); none on a keyboard model.
-    if (id.startsWith(QLatin1String("crt-")))
-        return (pi3 || pi4 || pi5) && !board::isKeyboard();
-    // RGB on the GPIO pins (DPI): 480i and 576i on all three, and on the Pi 4
-    // and the Pi 3, whose DPI and interlace are the firmware's, alike, 240p
-    // and 288p should it not hold.
-    if (id == QLatin1String("scart-rgb-ntsc") || id == QLatin1String("scart-rgb-pal"))
-        return pi3 || pi4 || pi5;
-    if (id.startsWith(QLatin1String("scart-rgb-")))
-        return pi3 || pi4;
-    // A Raspberry Pi to JAMMA board in RGB-Pi's layout: the Pi 4's and the
-    // Pi 3's firmware DPI, their sound on GPIO 18 and 19; the Pi 5's kernel
-    // DPI, its sound on a USB card, which interlaces only with GPIO 1, the
-    // board's I2C.
-    if (id == QLatin1String("jamma-480i") || id == QLatin1String("jamma-480i-640")
-        || id == QLatin1String("jamma-576i"))
-        return pi3 || pi4;
-    if (id.startsWith(QLatin1String("jamma-")))
-        return pi3 || pi4 || pi5;
-    return false;
+    const QLatin1String name = family == board::Family::Pi3   ? QLatin1String("pi3")
+                               : family == board::Family::Pi4 ? QLatin1String("pi4")
+                               : family == board::Family::Pi5 ? QLatin1String("pi5")
+                                                              : QLatin1String();
+    return !name.isEmpty() && p.boards.contains(name) && (p.keyboard || !board::isKeyboard());
 }
 
 } // namespace
@@ -134,8 +103,8 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
     const QByteArray atBoot = filetext::readText(atBootPath());
     const QByteArray inForce = atBoot.isEmpty() ? written : atBoot;
     const int launcherApi = legacy::envInt("LAUNCHER_API");
-    for (const Preset &p : kPresets) {
-        const QString id = QString::fromLatin1(p.id);
+    for (const Preset &p : presets()) {
+        const QString &id = p.id;
         const QByteArray preset = filetext::readText(presetPath(id));
         if (preset.isEmpty())
             continue;
@@ -143,10 +112,10 @@ DisplayOutput::DisplayOutput(const QString &dataRoot, QObject *parent)
             m_current = id;
         else if (preset == written)
             m_next = id;
-        if (boardHas(id) && launcherApi >= p.launcherApi)
+        if (boardHas(p) && launcherApi >= p.launcherApi)
             m_options.append(QVariantMap{ { QStringLiteral("id"), id },
-                                          { QStringLiteral("label"), labelOf(id) },
-                                          { QStringLiteral("warning"), QString::fromUtf8(p.warning ? p.warning : "") } });
+                                          { QStringLiteral("label"), p.label },
+                                          { QStringLiteral("warning"), p.warning } });
     }
     m_available = legacy::envIsSet("AUTOSTART") && launcherApi >= 3 && m_options.size() > 1;
     m_powerOffAvailable = m_available && launcherApi >= kNextStartApi;
@@ -309,10 +278,9 @@ bool DisplayOutput::offered(const QString &id) const {
 }
 
 QString DisplayOutput::presetMatching(const QByteArray &bytes) const {
-    for (const Preset &p : kPresets) {
-        const QString id = QString::fromLatin1(p.id);
-        if (filetext::readText(presetPath(id)) == bytes)
-            return id;
+    for (const Preset &p : presets()) {
+        if (filetext::readText(presetPath(p.id)) == bytes)
+            return p.id;
     }
     return QString();
 }

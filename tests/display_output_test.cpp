@@ -384,6 +384,51 @@ private slots:
         QVERIFY(!DisplayOutput::isTube(QStringLiteral("jamma-240p"), QSize()));
     }
 
+    // Every preset, by name, on the boards that have its output: composite
+    // from GPIO on a Pi 5 alone, the AV jack's and the TV pads' composite on
+    // none of the keyboard models, SCART RGB's 240p and 288p and JAMMA's
+    // interlaced modes not on a Pi 5.
+    void presetsOnTheirBoards() {
+        qputenv("OSDOS_LAUNCHER_API", "9");
+        inForce(QStringLiteral("hdmi"));
+        const QList<QPair<QString, QString>> all{
+            { "hdmi", "HDMI" },
+            { "crt-ntsc", "Composite NTSC" },
+            { "crt-pal", "Composite PAL" },
+            { "crt-gpio-ntsc", "GPIO Composite NTSC" },
+            { "crt-gpio-pal", "GPIO Composite PAL" },
+            { "scart-rgb-ntsc", "SCART RGB NTSC" },
+            { "scart-rgb-pal", "SCART RGB PAL" },
+            { "scart-rgb-240p", "SCART RGB 240p" },
+            { "scart-rgb-288p", "SCART RGB 288p" },
+            { "jamma-240p", "JAMMA 240p 15 kHz (720x240)" },
+            { "jamma-240p-native", "JAMMA 240p 15 kHz (320x240)" },
+            { "jamma-240p-super", "JAMMA 240p 15 kHz (1920x240)" },
+            { "jamma-288p", "JAMMA 288p 15 kHz (720x288)" },
+            { "jamma-288p-super", "JAMMA 288p 15 kHz (1920x288)" },
+            { "jamma-480i", "JAMMA 480i 15 kHz (720x480)" },
+            { "jamma-480i-640", "JAMMA 480i 15 kHz (640x480)" },
+            { "jamma-576i", "JAMMA 576i 15 kHz (720x576)" },
+            { "jamma-25k", "JAMMA 25 kHz (496x384)" },
+            { "jamma-31k", "JAMMA 31 kHz (640x480)" },
+        };
+        const QStringList notPi5{ "scart-rgb-240p", "scart-rgb-288p", "jamma-480i", "jamma-480i-640", "jamma-576i" };
+        QStringList expected;
+        for (const auto &[id, label] : all) {
+            if (id.startsWith(QLatin1String("crt-gpio-")) ? !pi5() : pi5() && notPi5.contains(id))
+                continue;
+            if (board::isKeyboard() && (id == QLatin1String("crt-ntsc") || id == QLatin1String("crt-pal")))
+                continue;
+            expected << id + QLatin1Char('=') + label;
+        }
+        QStringList offered;
+        for (const QVariant &o : DisplayOutput(m_data.path()).options()) {
+            const QVariantMap m = o.toMap();
+            offered << m.value("id").toString() + QLatin1Char('=') + m.value("label").toString();
+        }
+        QCOMPARE(offered, expected);
+    }
+
     // Each preset offered exits with the code osdos-stop (scripts/install.sh)
     // writes it on: its place in DISPLAY_PRESETS, counted from 20, and 20
     // more to power off after it.
