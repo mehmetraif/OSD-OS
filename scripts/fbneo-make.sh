@@ -25,7 +25,10 @@ fbneo_make() {
     local src=$1 make jobs args
     shift
     make=$(command -v gmake || command -v make)
-    jobs=$(getconf NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
+    # glibc's getconf knows the name with its underscore alone, the BSDs'
+    # without it.
+    jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || getconf NPROCESSORS_ONLN 2>/dev/null \
+           || sysctl -n hw.ncpu 2>/dev/null || echo 2)
     args=("$@")
     strip=(strip)
     case "$(uname -s)" in

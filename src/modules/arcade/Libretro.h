@@ -110,7 +110,7 @@ inline constexpr int kHostStates = 124 + 2;
 // A state's size in bytes, over the network, of a game of the board whose
 // driver is sourceFile ("cave/cv1k.cpp", as FinalBurn Neo's list names it
 // without its "d_"), on FinalBurn Neo's core or, with lanCore, on OSD/OS's
-// own for CV1000 games; 0 for a board whose states are under 8 MiB, under
+// LAN core (lanCorePath()); 0 for a board whose states are under 8 MiB, under
 // 1 GiB in all even hosting. Measured on the arcade sets of FinalBurn Neo's
 // commit 2b0c1c0, each driver started on zero-filled ROMs and what
 // retro_serialize_size() scans in a rollback-netplay context added up:
@@ -168,13 +168,10 @@ inline constexpr char kDriverStarted[] = "[FBNeo] Driver successfully started";
 // starts, as MAME's script puts them in (mame::coinScript()): player 1's
 // coin, the RetroPad's Select (kRetroPadSelect, FinalBurn Neo's Coin),
 // pressed through RetroArch's network RetroPad (Launch::coinPort) once the
-// game runs (kDriverStarted in its log) and kCoinDelayMs more, past its
-// start-up checks; each held kCoinHoldMs and let go kCoinGapMs. coinDown():
-// whether it is down ms after the first, false with done once all are in.
+// game runs (kDriverStarted in its log) and mame::kCoinDelayMs more, timed
+// as MAME's are. coinDown(): whether it is down ms after the first, false
+// with done once all are in.
 inline constexpr int kRetroPadSelect = 2;
-inline constexpr int kCoinDelayMs = 5000;
-inline constexpr int kCoinHoldMs = 100;
-inline constexpr int kCoinGapMs = 200;
 bool coinDown(qint64 ms, int coins, bool *done);
 // RetroArch's message to its network RetroPad (struct remote_message in its
 // input/input_driver.h): a RetroPad button down or let go.
@@ -283,8 +280,7 @@ QString configText(const Launch &launch);
 // RetroArch's arguments: the core, the config, the log and the game.
 QStringList arguments(const Launch &launch);
 // The remap file RetroArch loads with FinalBurn Neo from remapDir: the
-// core's own, by its name (lanCore, OSD/OS's for CV1000 games on the local
-// network: kLanCoreName's).
+// core's own, by its name (lanCore, OSD/OS's LAN core: kLanCoreName's).
 QString coreRemapPath(const QString &remapDir, bool lanCore = false);
 // Its text: off line, each player on an arcade panel, or with Arcade Buttons,
 // on FinalBurn Neo's 6-Button Panel, its controller type for such a panel;
@@ -494,15 +490,18 @@ bool isLanSender(const QHostAddress &address);
 // (Launch::portsFrom): the ports its players drive in order, its player 1
 // the first asked for. Online a host asks for ports 1 to its players' count
 // (localPorts(), one fewer than the game plays at once at most, so that a
-// machine joining has a port). On the local network every machine takes
-// one port, its player 1's, so that the players take the game's ports in
-// the order their machines come in; a machine can't take another once it
-// plays (RetroArch's host drops a machine already playing that asks for
-// more). There the host asks for port 1 and its OSD/OS keeps count of the
-// ports the machines joining take (PortClaims): each OSD/OS joining asks
-// it, at kLanClaimPort, for a port (claimQuery()) and is answered with it
-// (claimAnswer()), none when the game has none left; one leaving gives its
-// port back (claimRelease()). A host that doesn't answer, RetroArch alone
+// machine joining has a port). On the local network, on OSD/OS's LAN core
+// (lanCorePath()), every controller of every machine takes a port, and the
+// core seats a port's player as they first press COIN or START; on
+// FinalBurn Neo's own core every machine takes one port, its player 1's, so
+// that the players take the game's ports in the order their machines come
+// in, as a machine can't take another once it plays (RetroArch's host drops
+// a machine already playing that asks for more). There the host asks for
+// its ports from 1 and its OSD/OS keeps count of the ports the machines
+// joining take (PortClaims): each OSD/OS joining asks it, at kLanClaimPort,
+// for its ports (claimQuery()) and is answered with them (claimAnswer()),
+// none when the game has none left; one leaving gives its ports back
+// (claimRelease()). A host that doesn't answer, RetroArch alone
 // or an older OSD/OS, leaves a joiner to RetroArch's first free port.
 // Before the port, a host says the layout it plays with (claimLayout(),
 // Launch::layout), which an older OSD/OS doesn't: Classic then.
@@ -548,8 +547,9 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most), each joiner's players no
-// more than each (one, as OSD/OS hosts on the local network, whatever an
-// older OSD/OS joining asks for). A joiner is given the first run
+// more than each (on OSD/OS's LAN core as many as the layout takes of a
+// machine, mostPortsOn(); on FinalBurn Neo's own, one, whatever an older
+// OSD/OS joining asks for). A joiner is given the first run
 // of free ports that takes all its players, else the first free port and
 // what follows it; one asking again is given its ports anew, and one leaving
 // gives them up.

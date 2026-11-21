@@ -3,9 +3,9 @@ import Components
 
 // Entry for a Plex Home profile's 4-digit PIN.
 //
-// Reached only when plex.tv refuses the user switch and asks for one — the
-// profile's "protected" flag is not a reliable predictor, so this view is never
-// shown speculatively. Note the name: "PinAuth" is the plex.tv/link code, this is
+// Reached when the profile is PIN-protected (its flag read live from plex.tv
+// before the switch: PlexBackend::activateUser) or when plex.tv refuses the
+// switch for want of one. Note the name: "PinAuth" is the plex.tv/link code, this is
 // the profile PIN, and they are unrelated.
 //
 // Built as a spinner rather than a text field because the app is driven by a

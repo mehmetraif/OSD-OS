@@ -34,10 +34,10 @@ FocusScope {
     // (editIndex), and Cabinet Lock at the first screen's foot as Key
     // Protect; Flat Panel a page of rows at a time.
     readonly property string layout: root.menuLayout
-    readonly property bool camcorder: layout === "Camcorder"
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool camcorder: root.camcorderLayout
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     // In the shell's frame (Main.qml's root.chrome, a MonitorChrome), its
     // rows drawn by MonitorRow, in the layout's own colours.
     readonly property bool monitor: studio || broadcast || flat
@@ -56,7 +56,7 @@ FocusScope {
     // Studio Monitor's first page, before the first screen's.
     readonly property var statusPage: ({ type: "submenu", key: "group_status", label: "Status",
                                          description: "What is set, at a glance: the outputs, the network, the theme and what OSD/OS starts on",
-                                         moduleId: "" })
+                                         moduleId: "", page: "views/Settings.qml", params: { group: "status" } })
     // The page a first-screen row opens in this view, "" for one that is a
     // view of its own.
     function pageGroup(row) {
@@ -568,7 +568,7 @@ FocusScope {
         // A slider's step toward one end (-1 left, 1 right), kept and in
         // force at once, and saved once the steps rest or the page is left
         // (AppCore::save_setting_soon()): saved at every step, the key held
-        // down wrote config.json to the card ten times across the bar.
+        // down would write config.json to the card ten times across the bar.
         // One that is off turns on instead, where its bar waits. A row whose
         // value couldn't be saved (a full card) stays on what is saved, here
         // and in the list ones below; a slider's goes back to it once the
@@ -638,32 +638,14 @@ FocusScope {
 
         function openRow(row) {
             if (row.type === "submenu") {
-                if (row.key === "software_update")
-                    settingsRoot.navigateTo("views/Update.qml", {}, settingsRoot.listState())
-                else if (row.key === "remap_controls")
-                    settingsRoot.navigateTo("views/Controllers.qml", {}, settingsRoot.listState())
-                else if (row.key === "wifi")
-                    settingsRoot.navigateTo("views/Wifi.qml", {}, settingsRoot.listState())
-                else if (row.key === "bluetooth")
-                    settingsRoot.navigateTo("views/Bluetooth.qml", {}, settingsRoot.listState())
-                else if (row.key === "about")
-                    settingsRoot.navigateTo("views/About.qml", {}, settingsRoot.listState())
-                else if (row.key === "export_setup")
-                    settingsRoot.navigateTo("views/SetupExport.qml", {}, settingsRoot.listState())
-                else if (row.key === "test_patterns")
-                    settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
-                else if (row.key === "cabinet_lock")
-                    settingsRoot.navigateTo("views/CabinetLock.qml", {}, settingsRoot.listState())
-                else if (row.key === "time_zone" || row.key === "keyboard")
+                // A row that leads to a page names it (`page`, `params`:
+                // SettingsPages.js); the rest open over this one.
+                if (row.key === "time_zone" || row.key === "keyboard")
                     settingsRoot.openSystemPicker(row.key)
                 else if (row.key === "mpv_video_args")
                     videoArgsKeyboard.open(String(appSettings["mpv_video_args"] || ""))
-                else if (row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade")
-                    settingsRoot.navigateTo("views/Settings.qml", { group: row.key.substring(6) },
-                                            settingsRoot.listState())
                 else
-                    settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
-                                            settingsRoot.listState())
+                    settingsRoot.navigateTo(row.page, Object.assign({}, row.params), settingsRoot.listState())
             } else if (row.type === "display_output") {
                 outputPrompts.open()
             } else if (row.type === "file") {
@@ -836,7 +818,6 @@ FocusScope {
         text: settingsRoot.helpText
     }
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
@@ -844,11 +825,24 @@ FocusScope {
                              "select:SELECT"])
     }
 
-    // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---
+    // The keys back from a question or a notice that closed: to another
+    // still open, the topmost first, else to the rows. A notice opens by
+    // itself (At Next Start's answer, a time zone or keyboard refused), so
+    // over a question that may still be open, and is drawn over it (z).
+    function keysBack() {
+        if (outputPrompts.takeKeys())
+            return
+        var open = [systemNotice, logsNotice, quitPrompt, pastedNotice, videoArgsKeyboard, systemPicker]
+                   .filter(function(overlay) { return overlay.visible })
+        var front = open.length > 0 ? open[0] : settingsList
+        front.forceActiveFocus()
+    }
+
     DisplayOutputPrompts {
         id: outputPrompts
         anchors.fill: parent
-        onClosed: settingsList.forceActiveFocus()
+        z: 1
+        onClosed: settingsRoot.keysBack()
     }
 
     // Window Mode switched from the keyboard (F11) while the page is open:
@@ -924,7 +918,7 @@ FocusScope {
             else
                 settingsRoot.system.setKeyboard(value)
         }
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
     // The rows follow the system as it is read again, and as one is on its
     // way (Setting); one that couldn't be set says why.
@@ -948,13 +942,14 @@ FocusScope {
         id: systemNotice
         objectName: "systemNotice"
         anchors.fill: parent
+        z: 1
         promptKind: "notice"
         readonly property var parts: (settingsRoot.system ? settingsRoot.system.message : "").split(": ")
         promptText: parts[0] || ""
         subtitleText: parts.slice(1).join(": ")
         choices: []
         onClosed: {
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
             if (settingsRoot.system)
                 settingsRoot.system.clearMessage()
         }
@@ -973,7 +968,7 @@ FocusScope {
         maxLength: 120
         onAccepted: function(text) {
             videoArgsKeyboard.close()
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
             if (appCore.save_setting("", "mpv_video_args", text.trim())) {
                 settingsRoot.appSettings = Object.assign({}, settingsRoot.appSettings, { mpv_video_args: text.trim() })
                 settingsRoot.buildModel(settingsList.currentIndex)
@@ -981,7 +976,7 @@ FocusScope {
         }
         onCanceled: {
             videoArgsKeyboard.close()
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
         }
     }
 
@@ -992,7 +987,7 @@ FocusScope {
         promptText: settingsRoot.pasted.title || ""
         subtitleText: settingsRoot.pasted.detail || ""
         choices: []
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 
     // --- QUIT CONFIRMATION OVERLAY ---
@@ -1007,7 +1002,7 @@ FocusScope {
             else if (act === "terminal") appCore.exitToTerminal()
             else if (act === "logs")     settingsRoot.saveLogs()
         }
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 
     // --- SAVE LOGS ---
@@ -1044,6 +1039,6 @@ FocusScope {
                     : saved ? "On the card's OSD-OS drive, in " + detail.replace(/\//g, "\\")
                     : detail
         choices: []
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 }

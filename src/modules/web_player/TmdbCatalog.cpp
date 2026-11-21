@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QNetworkRequest>
 #include <QTimer>
 #include <QUrl>
@@ -427,9 +428,15 @@ void TmdbCatalog::findOnWikidata(const QString &path, const QString &fallback,
         const QJsonArray rows = QJsonDocument::fromJson(reply->readAll()).object()
                                     .value(QStringLiteral("results")).toObject()
                                     .value(QStringLiteral("bindings")).toArray();
-        const QString serviceId = rows.isEmpty() ? QString()
+        QString serviceId = rows.isEmpty() ? QString()
             : rows.first().toObject().value(QStringLiteral("id")).toObject()
                   .value(QStringLiteral("value")).toString();
+        // Anyone can edit Wikidata, and the id goes into the address the
+        // browser opens: only one of the plain form a service's id takes
+        // (letters, digits, . _ ~ -) is used, the search otherwise.
+        static const QRegularExpression plainId(QStringLiteral("^[A-Za-z0-9._~-]+$"));
+        if (!plainId.match(serviceId).hasMatch())
+            serviceId.clear();
         emit titleUrlReady(path, serviceId.isEmpty() ? fallback : m_service.titleUrl.arg(serviceId));
     });
 }

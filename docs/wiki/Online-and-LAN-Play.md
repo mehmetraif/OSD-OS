@@ -72,6 +72,8 @@ The host's button layout holds for every machine:
 | A cabinet, in a game of up to four players | Its 6-Button Panel on every port. A pad joining has Y, X and LB above B, A and RB |
 | A pad; a game of five or six players; a room joined through the lobby; a host that isn't OSD/OS | FinalBurn Neo's usual pad layout: the cabinet's buttons 1 to 6 are the game's first six by number |
 
+A host's pad with Game Buttons chosen by hand counts as a cabinet here. A pad on **Auto**, as a pad SDL knows by its kind starts, counts as a pad: two machines whose pads are all on Auto play FinalBurn Neo's usual pad layout, as on Engine's.
+
 An OSD/OS joining a game another RetroArch hosts brings its player 1 alone.
 
 ### Versions

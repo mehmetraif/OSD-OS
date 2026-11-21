@@ -5,8 +5,7 @@
 #include <QString>
 #include <QStringList>
 
-class QLocalSocket;
-class QTimer;
+class MpvSocket;
 
 // An mpv of a module's own that plays sound alone, beside the module's screen
 // or under its clips: Weather's music and Ambient Mode's audio. Never the
@@ -60,8 +59,7 @@ private:
     const char        *m_what;
     QProcess          *m_process = nullptr;
     QPointer<QProcess> m_ending;            // asked to end, not gone yet
-    QLocalSocket      *m_ipc = nullptr;
-    QTimer            *m_connect = nullptr;
+    MpvSocket         *m_ipc = nullptr;
     QString            m_socketPath;
     bool               m_paused = false;
 };

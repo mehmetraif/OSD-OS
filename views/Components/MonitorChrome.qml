@@ -218,10 +218,9 @@ Item {
     property int page: 0
     property int pages: 1
 
-    readonly property string layout: root.menuLayout
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     readonly property var pal: root.menuPalette || ({ ground: root.surfaceColor, ink: root.primaryColor,
                                                      dim: root.primaryColor, accent: root.primaryColor,
                                                      soft: root.primaryColor, mark: root.primaryColor,
@@ -415,28 +414,13 @@ Item {
                     border.width: cell.lit ? 0 : root.px
                     antialiasing: false
                 }
-                PixelIcon {
-                    visible: cell.logo === ""
-                    name: cell.symbol
-                    color: cell.lit ? chrome.pal.ground : chrome.pal.soft
-                    x: Math.round((parent.width - width) / 2 / root.px) * root.px
-                    y: Math.round((parent.height - height) / 2 / root.px) * root.px
-                }
-                // A module's logo, in a symbol's place: inside a module the
+                // A module's logo in a symbol's place: inside a module the
                 // strip is the modules of its group (Main.qml's frame).
-                Image {
-                    visible: cell.logo !== ""
-                    readonly property real box: Math.round(root.sh * 0.0375 / root.px) * root.px //18
-                    height: box
-                    width: Math.min(implicitWidth, cell.width - 4 * root.px)
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.height: box
-                    x: Math.round((cell.width - width) / 2 / root.px) * root.px
-                    y: Math.round((cell.height - height) / 2 / root.px) * root.px
-                    source: cell.logo !== ""
-                            ? "image://osdicon/" + String(cell.lit ? chrome.pal.ground : chrome.pal.soft).replace("#", "")
-                              + "/" + root.skinIcon(cell.logo)
-                            : ""
+                IconCell {
+                    anchors.fill: parent
+                    symbol: cell.symbol
+                    logo: cell.logo
+                    color: cell.lit ? chrome.pal.ground : chrome.pal.soft
                 }
             }
         }

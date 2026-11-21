@@ -29,10 +29,9 @@ import "Rooms.js" as Rooms
 // as Start Info Screen says); select held opens its options (Play, Game
 // Details, its favourite, Play at Startup, its engine, hosting it) and back
 // leaves the module. Game Details (Details.qml) says what the game is and
-// lists its achievements on RetroAchievements. Coming back from it or from a
-// game restores the filter, the game and its row on the wheel from the
-// listState handed to navigateTo; a game played from the screen itself
-// (Start Info Screen off) leaves it as it was. Opened with the startup
+// lists its achievements on RetroAchievements. It and a game's screen open
+// over this one (Root.qml's pageLayer, playLayer), which coming back from
+// either finds as it was left. Opened with the startup
 // favourite (navParams.startupPlay), it plays that as soon as the folder has
 // been read, the screen on it in Favorites.
 //
@@ -73,34 +72,23 @@ FocusScope {
     id: arcadeScreen
 
     property var navParams: ({})
-    property var navListState: navParams.navListState || ({})
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
     focus: true
 
+    // What stands in the way of the games, and whether they are being read
+    // (the module's).
+    readonly property string problem: moduleRoot.problem
+    readonly property bool scanning: moduleRoot.scanning
     // Context properties read null while the module's Loader tears this view
     // down, hence the guards.
-    readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
-    // For the help line: with how to put MAME on, for this system
-    // (AppCore::installHint()), where that is what stands in the way.
-    readonly property string problemLine: problem === "MAME is not installed"
-                                          ? problem + ". " + appCore.installHint("mame") : problem
-    // MAME downloaded from here where it is what is missing and the system
-    // can (Windows): read again as a download starts and ends.
-    property int mameRevision: 0
-    readonly property bool canDownloadMame: (mameRevision, problem === "MAME is not installed" && !!arcadeBackend
-                                             && arcadeBackend.mameInfo().canDownload)
-    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
-    readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
-    readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
-    readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
     readonly property var scoresBackend: typeof highScoresBackend !== "undefined" ? highScoresBackend : null
     // A pad's Coin (its Back unless its Arcade Buttons say) is COIN here, not
-    // while the options or the engine chooser are up or Search's keys have
-    // the keys, nor while the screen is adjusted (InputManager).
-    readonly property bool takesCoin: !options.visible && !engines.visible && !difficulty.visible && !monitor.visible && !typing && !adjusting
+    // while the options (or a setting chosen over them) are up or Search's
+    // keys have the keys, nor while the screen is adjusted (InputManager).
+    readonly property bool takesCoin: !options.up && !typing && !adjusting
 
     // On a screen taller than it is wide (a monitor turned on its side for
     // vertical games: Settings → Screen → Monitor), the whole of it, not the
@@ -139,8 +127,8 @@ FocusScope {
     function orbX(x) { return orbLeft + (x - 120) * orbScale }
     function orbY(y) { return areaTop + (y - 90) * orbScale }
     readonly property real orbFootY: areaBottom - hintLine.height / (2 * v)
-    // A dialog over the screen, the options or the engines.
-    readonly property bool covered: options.visible || engines.visible || difficulty.visible || monitor.visible
+    // A dialog over the screen: the options, or a setting chosen over them.
+    readonly property bool covered: options.up
 
     // The letters, in the design's lines: the hint bar's and the help
     // line's, 18 of 480 lines, and the games' names larger.
@@ -164,9 +152,18 @@ FocusScope {
     readonly property int areaRight: baseRight + adjustment.right
     readonly property int areaBottom: baseBottom + adjustment.bottom
     readonly property int areaWidth: areaRight - areaLeft
+    // The foot of the area, in the design's lines: the hint bar on its
+    // bottom (hintBarHeight), the help line on the hint bar (helpLineRoom),
+    // a line (footGap) above each bar and above the area's foot. OSD/OS
+    // Setup's preview (site/setup/js/preview/screens.mjs, arcadeLayout())
+    // works the list's foot out with the same numbers.
+    readonly property int hintBarHeight: 39
+    readonly property int helpLineRoom: 52
+    readonly property int footGap: 1
     // Where the list and the column end: above the help line, or above what
     // is in its place.
-    readonly property int listBottom: areaBottom - (root.hintBar ? (root.helpLine ? 93 : 41) : (root.helpLine ? 53 : 1))
+    readonly property int listBottom: areaBottom - footGap - (root.hintBar ? hintBarHeight + footGap : 0)
+                                      - (root.helpLine ? helpLineRoom : 0)
     // Settings → Arcade → List Style (Root.qml's listStyle): the games one
     // under another (Straight) or on an arc (Curved), a page at a time; or
     // on a wheel (3D Curved), where the game chosen goes up and down its
@@ -297,7 +294,7 @@ FocusScope {
     // has games (while MAME is asked, only the lists have).
     property var filters: []
     property int filterIndex: 0
-    property string wanted: navListState.filter || moduleRoot.startFilter || "all"
+    property string wanted: moduleRoot.startFilter || "all"
     readonly property var filter: filters.length > 0 ? filters[Math.min(filterIndex, filters.length - 1)] : null
     readonly property string filterId: filter ? filter.id : ""
     readonly property int count: filter ? filter.count : 0
@@ -410,8 +407,7 @@ FocusScope {
         repeat: true
         // Not behind a game's screen nor under the screen saver: each turn
         // read a picture from the card for no one.
-        running: arcadeScreen.pictures.length > 1 && !!arcadeBackend && !arcadeBackend.running
-                 && arcadeScreen.visible && !root.screenSaverActive
+        running: arcadeScreen.pictures.length > 1 && arcadeScreen.visible && !moduleRoot.away
         onTriggered: arcadeScreen.pictureIndex = (arcadeScreen.pictureIndex + 1) % arcadeScreen.pictures.length
     }
     // Its achievements on RetroAchievements, counted, with a Web API key
@@ -522,19 +518,19 @@ FocusScope {
     // game kept where it is in it, or landOn. A filter shown in the wanted
     // one's place while that one has no games yet (the folder read, MAME
     // asked) hands its game on only once ▲ ▼ have moved in it (browsed):
-    // else the wanted one opens as the screen would have, on the game it was
-    // left on or its first, at the top of the list.
+    // else the wanted one opens as the screen would have, on its first game,
+    // at the top of the list.
     property bool browsed: false
     function reload(landOn) {
         if (!arcadeBackend)
             return
         var standIn = filterId !== "" && filterId !== wanted && !browsed
-        // The row kept: the one the cursor is on, else landOn's game or the
-        // one come back to. A game by its set; a room by its id too, as its
-        // game may be hosted twice, or be none of the folder's (RetroArch
-        // Lobby's); Search's own row by its place.
+        // The row kept: the one the cursor is on, else landOn's game. A game
+        // by its set; a room by its id too, as its game may be hosted twice,
+        // or be none of the folder's (RetroArch Lobby's); Search's own row by
+        // its place.
         var fromCurrent = !landOn && !!current && !standIn
-        var from = landOn ? { set: landOn } : fromCurrent ? current : navListState
+        var from = landOn ? { set: landOn } : fromCurrent ? current : {}
         var keep = from.set || ""
         var keepRoom = from.room !== undefined ? from.room : -1
         // Where it is: its filter, and its row on the wheel.
@@ -550,15 +546,19 @@ FocusScope {
             wanted = filterId
         var place = filterId !== "" && (keep !== "" || keepRoom >= 0)
                     ? arcadeBackend.filterIndex(filterId, keep, keepRoom) : -1
-        selected = place >= 0 ? place : (standIn ? 0 : Math.max(0, Math.min(selected, count - 1)))
+        // In another filter than the one it was in (the wanted one's games
+        // come at last, the one shown gone), the cursor's old place is some
+        // other game's: a filter that hasn't the game kept opens on its
+        // first. In its own, the cursor stays where the game was.
+        var moved = filterId !== keptFilter
+        selected = place >= 0 ? place : (standIn || moved ? 0 : Math.max(0, Math.min(selected, count - 1)))
         // On the wheel, the game kept keeps its row while its filter is the
-        // one shown still, and the game come back to after playing it the
-        // row it was played from; a game landed on, or one kept as its
-        // filter went, comes to the middle row, and the screen opened afresh
-        // has the first game in the top row, as a filter ◄ ► came to does.
-        var row = fromCurrent ? (filterId === keptFilter ? keptRow : middleRow)
-                : landOn ? middleRow
-                : navListState.row !== undefined ? navListState.row : 0
+        // one shown still; a game landed on, or one kept as its filter went,
+        // comes to the middle row, and the screen opened afresh has the first
+        // game in the top row, as a filter ◄ ► came to does, and one shown
+        // without the game kept.
+        var row = fromCurrent ? (!moved ? keptRow : place >= 0 ? middleRow : 0)
+                : landOn ? middleRow : 0
         placeWheel(Math.min(row, perPage - 1))
         revision++
     }
@@ -580,13 +580,14 @@ FocusScope {
 
     // The row under the mouse becomes the game chosen (Main.qml's
     // followPointer(); x, y in the screen's coordinates), while the list has
-    // the keys: not under the options or the engines, on Search's keys or
-    // while the screen is adjusted. On the wheel the game comes to that row,
+    // the keys: not under the options or a setting chosen over them, on
+    // Search's keys or while the screen is adjusted. On the wheel the game
+    // comes to that row,
     // the wheel still, as ▲ ▼ bring one; its rows move a little as the game
     // chosen changes (wheelLayout()), so only the middle half of a row
     // counts there, where the pointer stays in the row it chose.
     function hoverAt(x, y) {
-        if (typing || adjusting || options.visible || engines.visible || difficulty.visible || monitor.visible || launching)
+        if (typing || adjusting || options.up || launching)
             return
         noteActivity()
         // The look's row there (rowAt()): the Orb look's bars, where the
@@ -612,19 +613,15 @@ FocusScope {
             orbLook.item.nudge(delta, 0)
     }
 
-    // Plays a game; coming back lands on it in listFilter.
     // A game played, or with online, a room of the lobby joined ({ room,
     // host }) or one hosted ({ hosting: true }), of the local network with
     // lan: true too. In the Orb look once the camera has gone into the orb,
     // but at once at startup.
-    function play(set, name, listFilter, online, atOnce) {
+    function play(set, name, online, atOnce) {
         var params = { game: set, title: name }
-        var state = { filter: listFilter, set: set, row: selectedRow }
         if (online)
             params.online = online
-        if (online && online.room !== undefined)
-            state.room = online.room
-        var go = function() { arcadeScreen.navigateTo("Play.qml", params, state) }
+        var go = function() { arcadeScreen.navigateTo("Play.qml", params, {}) }
         if (orb && !atOnce)
             orbLook.item.launch(go)
         else
@@ -634,7 +631,7 @@ FocusScope {
         // Nothing to play: select downloads MAME where it is what is
         // missing and the system can.
         if (filters.length === 0) {
-            if (canDownloadMame && !downloadingMame)
+            if (moduleRoot.canDownloadMame && !moduleRoot.downloadingMame)
                 arcadeBackend.downloadMame()
             return
         }
@@ -643,9 +640,9 @@ FocusScope {
         else if (lobbyRoom && !lobbyRoom.joinable)
             openRoom()
         else if (current && current.room !== undefined)
-            play(currentSet, current.name, filterId, { room: current.room, host: current.host, lan: !!current.lan })
+            play(currentSet, current.name, { room: current.room, host: current.host, lan: !!current.lan })
         else if (isGame)
-            play(currentSet, details.name || current.name, filterId)
+            play(currentSet, details.name || current.name)
     }
 
     // Select held: a game's options; on a room of the lobby, its page; on
@@ -658,11 +655,9 @@ FocusScope {
         else if (isGame && current.room === undefined)
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
     }
-    // A room of the lobby's page, everything the lobby says of it; coming
-    // back lands on it.
+    // A room of the lobby's page, everything the lobby says of it.
     function openRoom() {
-        navigateTo("Lobby.qml", { room: current.room },
-                   { filter: filterId, set: currentSet, room: current.room, row: selectedRow })
+        navigateTo("Lobby.qml", { room: current.room }, {})
     }
 
     // Search's keys, in the picture's frame while Search is shown: as each
@@ -710,18 +705,15 @@ FocusScope {
     }
     // Leaving Search any other way, its keys hand the screen its keys back.
     onFilterIdChanged: if (filterId !== "search" && typing) leaveKeys(false)
-    // Its Game Details; coming back lands on it, as from playing it.
-    function openDetails() {
-        navigateTo("Details.qml", { game: currentSet, title: details.name || current.name },
-                   { filter: filterId, set: currentSet, row: selectedRow })
+    function openDetails(set, title) {
+        navigateTo("Details.qml", { game: set, title: title }, {})
     }
 
     // Whether the rooms are worth asking for again: the screen is shown, no
     // game is playing over it, and the screen saver isn't up (a cabinet left
     // on this screen asked the network every five seconds for as long as it
     // stood there, and the lobby every twenty on its filters).
-    readonly property bool roomsShown: arcadeScreen.visible && !!arcadeBackend && !arcadeBackend.running
-                                       && !root.screenSaverActive
+    readonly property bool roomsShown: arcadeScreen.visible && !!arcadeBackend && !moduleRoot.away
 
     // The lobby read as its rooms become the filter shown, those of the
     // folder's games or all of them, and again while they are: not up to
@@ -751,12 +743,23 @@ FocusScope {
     // with the keys, on a filter of games, the screen goes through them on
     // its own, the next or one at random every few seconds. The first key
     // ends it and does nothing else, but for a coin; a game moved to stays.
-    // It holds the screen saver off while it goes on.
+    // It holds the screen saver off from the moment it can begin
+    // (attractable), not only while it goes on: the saver takes the keys,
+    // which this wants here, so with a time shorter than Attract After it
+    // came up first, and the wait began again from nothing as it woke.
     property bool attracting: false
     readonly property bool attractable: moduleRoot.attractMode !== "Off" && activeFocus && !covered && !typing
                                         && !adjusting && !launching && !roomFilter && filterId !== "search"
                                         && count > 1 && !moduleRoot.playing
     onAttractableChanged: if (!attractable) attracting = false
+    Timer {
+        objectName: "attractHold"
+        interval: 10000
+        repeat: true
+        triggeredOnStart: true
+        running: arcadeScreen.attractable
+        onTriggered: if (idleTracker) idleTracker.resetActivity()
+    }
     Timer {
         id: attractIdle
         objectName: "attractIdle"
@@ -774,8 +777,6 @@ FocusScope {
     }
     // The next game, round from the last to the first, or one at random.
     function attractNext() {
-        if (idleTracker)
-            idleTracker.resetActivity()
         if (count < 2)
             return
         if (moduleRoot.attractMode !== "Random") {
@@ -813,11 +814,9 @@ FocusScope {
         onTriggered: arcadeScreen.adjusting ? arcadeScreen.resetAdjustment() : arcadeScreen.holdCurrent()
     }
 
-    // The startup favourite, played as if chosen in Favorites. Only as the
-    // view first opens: coming back from the game brings navListState
-    // instead.
-    // Waits here while the folder is read (ArcadeBackend reads it as the
-    // module opens).
+    // The startup favourite, played as if chosen in Favorites, as the view
+    // opens. Waits here while the folder is read (ArcadeBackend reads it as
+    // the module opens).
     property var startupEntry: null
     function playAtStartup(entry) {
         if (arcadeBackend.reading) {
@@ -834,26 +833,25 @@ FocusScope {
         // There as it plays, for a game played from the screen itself.
         wanted = "favorites"
         reload(set)
-        play(set, game.name, "favorites", undefined, true)
+        play(set, game.name, undefined, true)
     }
 
     Component.onCompleted: {
         // The high scores kept, read before the first game's are asked for.
         if (scoresBackend)
             scoresBackend.refresh()
-        // Search looks for nothing yet, but coming back from a game found.
-        if (arcadeBackend && !navParams.navListState)
+        // Search looks for nothing yet.
+        if (arcadeBackend)
             arcadeBackend.setSearch("")
         searchKeys.text = arcadeBackend ? arcadeBackend.search() : ""
         reload()
-        if (!navParams.navListState && navParams.startupPlay)
+        if (navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
     }
 
     Connections {
         target: arcadeBackend
         function onGamesChanged() { arcadeScreen.reload() }
-        function onMameChanged() { arcadeScreen.mameRevision++ }
         function onReadingChanged() {
             var entry = arcadeScreen.startupEntry
             if (entry && !arcadeBackend.reading) {
@@ -909,7 +907,7 @@ FocusScope {
             return
         }
         // Keys the options leave go no further.
-        if (options.visible)
+        if (options.menuUp)
             return
         // A held select is select alone.
         if (!event.isAutoRepeat && event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter)
@@ -1156,13 +1154,6 @@ FocusScope {
         visible: arcadeScreen.filters.length === 0
         anchors.verticalCenterOffset: arcadeScreen.portrait ? root.stageY : 0
         reading: arcadeScreen.scanning
-        problem: arcadeScreen.problem
-        folderReadable: arcadeScreen.folderReadable
-        gamesFolder: arcadeScreen.gamesFolder
-        canDownload: arcadeScreen.canDownloadMame
-        downloading: arcadeScreen.downloadingMame
-        progress: arcadeBackend ? arcadeBackend.mameProgress : 0
-        failure: arcadeBackend ? arcadeBackend.mameMessage : ""
     }
 
     // In the list's place: on RetroArch Lobby, that the lobby is being read,
@@ -1217,18 +1208,18 @@ FocusScope {
     // the list comes first. It makes room at its right for the status icons.
     HelpLine {
         id: helpBox
-        visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.visible
+        visible: (arcadeScreen.adjusting || arcadeScreen.filters.length > 0) && !options.menuUp
         opacity: (shown ? 1 : 0) * (1 - arcadeScreen.orbGoing)
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u) - (root.helpLine ? arcadeScreen.statusRoom : 0)
         text: arcadeScreen.adjusting ? "The frame's sides go to the screen's edges: ▲ ▼ ◄ ► move each, and the list holds as many games as fit"
-              : arcadeScreen.problem !== "" ? arcadeScreen.problemLine
+              : arcadeScreen.problem !== "" ? moduleRoot.problemLine
               : arcadeScreen.scanning ? "Reading the games…"
               : arcadeScreen.details.unknown ? arcadeScreen.details.detail
               : arcadeScreen.about
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         // Over the hint bar's place, the area's foot.
-        anchors.bottomMargin: arcadeScreen.height - Math.round((arcadeScreen.areaBottom - (root.hintBar ? 39 : 0))
+        anchors.bottomMargin: arcadeScreen.height - Math.round((arcadeScreen.areaBottom - (root.hintBar ? arcadeScreen.hintBarHeight : 0))
                                                               * arcadeScreen.v)
         anchors.leftMargin: Math.round(arcadeScreen.areaLeft * arcadeScreen.u)
     }
@@ -1247,23 +1238,26 @@ FocusScope {
                     select(shrinking ? "EXPAND" : "SHRINK"), { key: "HOLD", word: "RESET" }]
         if (typing)
             return [back("DONE"), { key: h.arrows, word: "MOVE" }, select("TYPE")]
+        // No BACK where it goes nowhere: the start module under Cabinet
+        // Lock (Main.qml's leavingBarred).
+        var leave = root.leavingBarred ? [] : [back("BACK")]
         if (filters.length === 0 || !current)
-            return [back("BACK")]
+            return leave
         if (onSearch)
-            return [back("BACK"), select("SEARCH")]
+            return leave.concat([select("SEARCH")])
         if (lobbyRoom)
-            return [back("BACK")].concat(lobbyRoom.joinable ? [select("JOIN"), { key: "HOLD", word: "DETAILS" }]
-                                                            : [select("DETAILS")])
+            return leave.concat(lobbyRoom.joinable ? [select("JOIN"), { key: "HOLD", word: "DETAILS" }]
+                                                   : [select("DETAILS")])
         if (current.room !== undefined)
-            return [back("BACK"), select("JOIN")]
+            return leave.concat([select("JOIN")])
         if (current.unknown)
-            return [back("BACK")]
-        return [back("BACK")].concat(buysCredits ? [{ key: h.coin, word: "COIN" }] : [])
-                             .concat([select("PLAY"), { key: "HOLD", word: "OPTIONS" }])
+            return leave
+        return leave.concat(buysCredits ? [{ key: h.coin, word: "COIN" }] : [])
+                    .concat([select("PLAY"), { key: "HOLD", word: "OPTIONS" }])
     }
     HintBar {
         id: hintLine
-        visible: !options.visible && !arcadeScreen.orb
+        visible: !options.menuUp && !arcadeScreen.orb
         width: Math.round(arcadeScreen.areaWidth * arcadeScreen.u)
         rightPadding: root.sw * 0.0125 + (root.helpLine ? 0 : arcadeScreen.statusRoom) //8
         text: arcadeScreen.hintPairs.map(function(pair) { return pair.key + ":" + pair.word }).join(" ")
@@ -1294,7 +1288,7 @@ FocusScope {
                                       && (root.helpLine || (root.hintBar && (arcadeScreen.orb
                                           || hintProbe.advanceWidth <= hintLine.width - hintLine.leftPadding
                                              - root.sw * 0.0125 - width - Math.round(12 * arcadeScreen.u))))
-        visible: shown && (beside.visible || (beside === hintLine && arcadeScreen.orb && !options.visible))
+        visible: shown && (beside.visible || (beside === hintLine && arcadeScreen.orb && !options.menuUp))
         opacity: 1 - arcadeScreen.orbGoing
         color: root.helpLine || arcadeScreen.orb ? root.primaryColor : root.surfaceColor
         x: Math.round(arcadeScreen.areaRight * arcadeScreen.u) - width - (root.helpLine ? 0 : Math.round(root.sw * 0.0125))
@@ -1362,80 +1356,26 @@ FocusScope {
         wholeArea: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
     }
 
-    // A game's options: Play, Game Details, its favourite, Play at Startup,
-    // its engine where MAME and FinalBurn Neo both have it, with Online Play
-    // on, hosting it, and with LAN Play on, hosting it on the local network.
-    // RetroArch's whole lobby is a filter of its own.
-    EntryOptions {
+    // A game's options, Play and Game Details first, for the game they were
+    // opened for, whatever reload() does to the list under them.
+    GameOptions {
         id: options
         // On the stage, which a tall screen's design is moved up from.
         y: arcadeScreen.portrait ? root.stageY : 0
         width: parent.width
         height: parent.height
-        moduleId: moduleRoot.moduleId
-        // Those that start the game first (starts, a line under them): Play,
-        // and hosting it; then what is set for it, a vertical game's monitor
-        // among them, which it is played and hosted with.
         firstChoices: [{ label: "Play", action: "play", starts: true }, { label: "Game Details", action: "details" }]
-        // Made as the options open, not for every game the cursor passes.
-        moreChoices: !options.visible ? []
-                     : (arcadeScreen.revision,
-                        (monitor.offered(arcadeScreen.currentSet)
-                         ? [{ label: monitor.lineFor(arcadeScreen.currentSet), action: "monitor" }] : [])
-                        .concat(difficulty.offered(arcadeScreen.currentSet)
-                         ? [{ label: difficulty.lineFor(arcadeScreen.currentSet), action: "difficulty" }] : [])
-                        .concat(engines.offered(arcadeScreen.currentSet)
-                         ? [{ label: engines.lineFor(arcadeScreen.currentSet), action: "engine" }] : [])
-                        .concat(arcadeBackend && arcadeBackend.canHost(arcadeScreen.currentSet)
-                                ? [{ label: "Host Online Game", action: "host", starts: true }] : [])
-                        .concat(arcadeBackend && arcadeBackend.canHostLan(arcadeScreen.currentSet)
-                                ? [{ label: "Host LAN Game", action: "hostLan", starts: true }] : []))
+        revision: arcadeScreen.revision
         onActivated: function(action) {
             if (action === "play")
-                arcadeScreen.playCurrent()
+                arcadeScreen.play(options.set, options.title)
             else if (action === "details")
-                arcadeScreen.openDetails()
-            else if (action === "monitor")
-                monitor.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
-            else if (action === "difficulty")
-                difficulty.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
-            else if (action === "engine")
-                engines.offer(arcadeScreen.currentSet, arcadeScreen.details.name)
+                arcadeScreen.openDetails(options.set, options.title)
             else if (action === "host" || action === "hostLan")
-                arcadeScreen.play(arcadeScreen.currentSet, arcadeScreen.details.name || arcadeScreen.current.name,
-                                  arcadeScreen.filterId, { hosting: true, lan: action === "hostLan" })
+                arcadeScreen.play(options.set, options.title, { hosting: true, lan: action === "hostLan" })
         }
+        onChosen: arcadeScreen.revision++
         onFavoritesEdited: arcadeScreen.reload()
-        onClosed: if (!engines.visible && !difficulty.visible && !monitor.visible) arcadeScreen.forceActiveFocus()
-    }
-    GameChoice {
-        id: monitor
-        y: arcadeScreen.portrait ? root.stageY : 0
-        width: parent.width
-        height: parent.height
-        name: "Monitor"
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.monitorChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setMonitor(game, id) }
-        onChosen: arcadeScreen.revision++
-        onClosed: arcadeScreen.forceActiveFocus()
-    }
-    GameChoice {
-        id: difficulty
-        y: arcadeScreen.portrait ? root.stageY : 0
-        width: parent.width
-        height: parent.height
-        name: "Difficulty"
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.difficultyChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setDifficulty(game, id) }
-        onChosen: arcadeScreen.revision++
-        onClosed: arcadeScreen.forceActiveFocus()
-    }
-    EngineChooser {
-        id: engines
-        y: arcadeScreen.portrait ? root.stageY : 0
-        width: parent.width
-        height: parent.height
-        onEngineChosen: arcadeScreen.revision++
         onClosed: arcadeScreen.forceActiveFocus()
     }
 }

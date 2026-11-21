@@ -131,8 +131,9 @@ bool WebPlayerBackend::launch(const QString &url) {
     // The browser is a family of processes; the screen comes back once all
     // of them have gone.
     entry.meta.wait   = QStringLiteral("pgroup");
-    entry.meta.args   = QStringLiteral("\"%1\" \"%2\" \"%3\"")
-                            .arg(m_service, url.isEmpty() ? m_url : url, scaling());
+    // As a list, not a line of quoted words split again: a quote in an
+    // address would end its word, and what followed would be words of its own.
+    entry.argv        = { m_service, url.isEmpty() ? m_url : url, scaling() };
 
     QString error;
     if (!m_launcher->start(entry, &error)) {

@@ -48,9 +48,9 @@ public:
     bool    downgraded() const      { return m_downgraded; }
 
     // Validates before spawning and returns false with *errorOut set if anything
-    // is wrong, having started nothing. Callers must surface that error: from
-    // Phase 4 a failed start after the display was handed over would strand the
-    // user on a black screen, so nothing may be handed over before this passes.
+    // is wrong, having started nothing. Callers must surface that error: a
+    // failed start after the display was handed over would strand the user on
+    // a black screen, so nothing may be handed over before this passes.
     bool start(const ScriptEntry &entry, QString *errorOut);
 
     // SIGTERM the process group, then SIGKILL if it hasn't gone after a grace period.

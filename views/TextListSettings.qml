@@ -31,9 +31,9 @@ FocusScope {
     readonly property bool full: lines.length >= maxLines
 
     function read() {
-        var all = appCore.get_settings()
-        var config = (all.modules && all.modules[moduleId]) ? all.modules[moduleId] : {}
-        var saved = config[settingKey]
+        // Through get_setting(), which reads a key in dot-notation as it
+        // is saved.
+        var saved = appCore.get_setting(moduleId, settingKey)
         var out = []
         if (saved && saved.length !== undefined && typeof saved !== "string") {
             for (var i = 0; i < saved.length; i++) {
@@ -96,11 +96,14 @@ FocusScope {
         subtitle: moduleName + " / " + settingLabel
     }
 
-    // The lines, then ADD: dimmed once the list is full.
+    // The lines, then ADD: dimmed once the list is full. The cursor stops on
+    // every row: ADD's is an empty line, which MenuList's own rule would
+    // take for no row and step over.
     MenuList {
         id: list
         objectName: "lines"
         model: textListRoot.lines.concat([""])
+        rule: function(row) { return true }
         focus: true
         readonly property bool onAdd: currentIndex === count - 1
 

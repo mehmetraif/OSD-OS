@@ -29,7 +29,7 @@ class QTimer;
 // - its achievements, and which of them the account has earned, kept five
 //   minutes (achievements(): its Game Details');
 // - where its pictures are on the media server (findPictures(): the Arcade
-//   screen's, which ArcadeBackend downloads with media()).
+//   screen's, which ArcadePictures downloads with media()).
 // One request is under way at a time, achievements first, and of each only
 // the game last asked for is read, a moment after it was: a list scrolled
 // through asks for none of the games passed. A game's pictures asked for by
@@ -185,8 +185,7 @@ private:
     // request, which is asked again after each, kMostTries at most.
     void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer,
              int tried = 0);
-    // A pause the server asked for (429, 503) is still on.
-    bool pausing() const;
+
     // A game's board read (or not): kept, and the next game asked for read.
     void done(const QString &fileName, const Board &board);
     void doneAchievements(const QString &fileName, const Progress &progress);

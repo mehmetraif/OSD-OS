@@ -116,10 +116,6 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
         return;
     }
 
-    // Set the server URL up front so ignoreSslErrors() can match the host of the
-    // in-flight reply against it (self-signed LAN certs).
-    m_serverUrl = normalized;
-
     QUrl url(normalized + "/Users/AuthenticateByName");
     QJsonObject body;
     body["Username"] = username;
@@ -132,9 +128,11 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
     authorize(req, QString());
 
     auto *reply = m_nam->post(req, payload);
-    ignoreSslErrors(reply);
+    // The server's host for a self-signed LAN cert: it becomes the server
+    // signed in to only once the sign-in has succeeded.
+    ignoreSslErrors(reply, url.host());
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, normalized]() {
         reply->deleteLater();
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray respBody = reply->readAll();
@@ -158,6 +156,7 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
             return;
         }
 
+        m_serverUrl   = normalized;
         m_accessToken = token;
         m_userId      = user["Id"].toString();
         m_userName    = user["Name"].toString();
@@ -313,10 +312,6 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
 
 void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &accessKey,
                                      const QString &fallbackUrl) {
-    // Set the server URL up front so ignoreSslErrors() matches the exchange
-    // reply's host (self-signed LAN servers).
-    m_serverUrl = serverUrl;
-
     QUrl url(serverUrl + "/Connect/Exchange");
     { QUrlQuery q; q.addQueryItem("format", "json"); q.addQueryItem("ConnectUserId", m_connectUserId); url.setQuery(q); }
 
@@ -328,8 +323,9 @@ void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &ac
     req.setRawHeader("X-Emby-Authorization", authorization(QString()).toLatin1());
 
     auto *reply = m_nam->get(req);
-    ignoreSslErrors(reply);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, accessKey, fallbackUrl]() {
+    // The server's host for a self-signed LAN cert, as in authenticate().
+    ignoreSslErrors(reply, url.host());
+    connect(reply, &QNetworkReply::finished, this, [this, reply, serverUrl, accessKey, fallbackUrl]() {
         reply->deleteLater();
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         // No exchange at this address (nothing there, or something else that
@@ -342,7 +338,10 @@ void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &ac
                 exchangeConnectKey(fallbackUrl, accessKey, QString());
         };
         if (reply->error() != QNetworkReply::NoError) {
-            failed("SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")");
+            // Nothing answering has no status to say: the network's own
+            // word for it then, as the other sign-ins say it.
+            failed(status > 0 ? "SERVER EXCHANGE FAILED (HTTP " + QString::number(status) + ")"
+                              : "SERVER EXCHANGE FAILED: " + serverlog::why(reply));
             return;
         }
 
@@ -354,6 +353,7 @@ void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &ac
             return;
         }
 
+        m_serverUrl   = serverUrl;
         m_userId      = localUserId;
         m_accessToken = token;
         m_serverName  = m_serverUrl; // real name fetched in persistConnectAuthAndFinish
@@ -434,17 +434,13 @@ bool EmbyBackend::transcodeInstead(const QJsonObject &source, const QString &ite
 
     qInfo("[Emby] Dolby Vision source (range=%s) — forcing SDR transcode; mpv can't render the DV enhancement layer",
           qPrintable(videoRange));
-    // Keep the selected subtitle if it can survive the transcode.
-    // This used to drop every subtitle, because the transcode path
-    // burnt the selected sub in (SubtitleMethod=Encode) and this
-    // server 500s on burn-in, so a burned sub meant no playback at
-    // all. Text subs are now delivered as a sidecar (Method=External
-    // in the transcode profile) and never touch the video, so there
-    // is nothing left to work around for them.
+    // Keep the selected subtitle if it can survive the transcode. Text
+    // subs are delivered as a sidecar (Method=External in the transcode
+    // profile) and never touch the video.
     //
-    // Image subs (PGS/VOBSUB) have no sidecar and are still burnt in,
-    // which is exactly the case that takes the whole transcode down,
-    // so those are still dropped rather than losing playback.
+    // Image subs (PGS/VOBSUB) have no sidecar and are burnt in
+    // (SubtitleMethod=Encode), which this server 500s on, taking the
+    // whole transcode down: those are dropped rather than losing playback.
     int keptSubtitle = subtitleStreamIndex;
     if (keptSubtitle >= 0) {
         bool isTextSub = false;
@@ -480,7 +476,7 @@ QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
         // falls back to a full transcode (SubtitleMethod=Encode / burn-in).
         //
         //   Text subs (subrip/ass/vtt/…): the client fetches them as a sidecar
-        //   file (see subUrl in extract_item_detail) and hands them to mpv as
+        //   file (see subUrl in formatItem) and hands them to mpv as
         //   --sub-file. That is External delivery, so advertise Method=External.
         //   Advertising only Embed (as the Jellyfin port did) is why Emby
         //   transcoded on every subtitle-on: it couldn't embed the selected sub
@@ -510,8 +506,8 @@ QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
         // Transcode: text subs are delivered as a sidecar, exactly as they are
         // for direct play — only image subs are burnt in.
         //
-        // Burning text subs in (Method=Encode) is what the Plex module does and
-        // what this module used to do, but it makes the server re-encode the
+        // Burning text subs in (Method=Encode) is what the Plex module does,
+        // but it makes the server re-encode the
         // video with the subtitle painted on, and Emby 500s on that for every
         // subrip tested here, SDR sources included. A burnt-in sub therefore
         // meant no playback at all on the transcode path.
@@ -519,7 +515,7 @@ QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
         // External is safe because it is NOT the soft HLS subtitle rendition
         // that mpv renders unreliably after a seek: the sidecar is a separate
         // /Videos/.../Subtitles/{i}/Stream.srt fetch, independent of the HLS
-        // video, and Player.qml hands the selected one to mpv as --sub-file on
+        // video, and MediaServerPlayer.qml hands the selected one to mpv as --sub-file on
         // the transcode path too (see doStartPlayback). Verified
         // against Emby 4.9.5.0: with Method=External the returned
         // TranscodingUrl carries no SubtitleMethod and no SubtitleStreamIndex,

@@ -1028,6 +1028,52 @@ StandInRoot {
             compare(promptShown(page), null)
         }
 
+        // A notice that opens by itself over a question still open (At Next
+        // Start's answer over the outputs; a time zone refused over Paste
+        // OSD/OS Setup's notice) is drawn over it, and closed, hands the
+        // keys back to that question, not to the rows under both.
+        function test_noticeOverAQuestion() {
+            displayOutput.available = true
+            var page = open({ group: "screen" })
+            moveTo(page, "Display Output")
+            keyClick(Qt.Key_Return)
+            var outputs = promptShown(page)
+            compare(outputs.promptText, "Display Output")
+            displayOutput.nextStartFinished(false, "the card can't be written")
+            var failed = null
+            for (var i = 0; i < outputs.parent.children.length; i++) {
+                if (outputs.parent.children[i].promptText === "Not written for the next start")
+                    failed = outputs.parent.children[i]
+            }
+            verify(failed.visible && failed.activeFocus)
+            keyClick(Qt.Key_Escape)
+            verify(!failed.visible)
+            verify(outputs.visible)
+            verify(outputs.activeFocus, "the outputs have the keys again")
+            keyClick(Qt.Key_Down)
+            compare(outputs.choiceIndex, 1)
+            keyClick(Qt.Key_Escape)
+            verify(!outputs.visible)
+            compare(cursor(page), "Display Output")
+            loader.source = ""
+
+            systemSettings.available = true
+            page = open({ group: "system" })
+            page.pasteSetup()
+            var pasted = promptShown(page)
+            compare(pasted.promptText, "OSD/OS Setup pasted")
+            var notice = named(page, "systemNotice")
+            systemSettings.message = "Time zone not set: timedatectl couldn't set it"
+            verify(notice.visible && notice.activeFocus)
+            verify(notice.z > pasted.z, "drawn over the notice it opened on")
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible)
+            verify(pasted.visible && pasted.activeFocus, "the pasted notice has the keys again")
+            keyClick(Qt.Key_Escape)
+            verify(!pasted.visible)
+            verify(listOf(page).activeFocus)
+        }
+
         // Menu Layout, on Look's page: one of the five layouts, saved as it
         // changes; Standard while unset.
         function test_menuLayoutRow() {
@@ -1813,6 +1859,121 @@ StandInRoot {
             loader.source = ""
             tryVerify(function() { return !idleTracker.viewActive })
             compare(idleTracker.resets, 2)
+        }
+    }
+
+    // Settings' pages that show words from outside the app, each with a
+    // stand-in of its own for what it reads: Update's (a release's tag, why
+    // the check failed) and Bluetooth's details (what the system says, its
+    // devices' names among it).
+    Component {
+        id: updatePage
+        Item {
+            property alias page: updateLoader.item
+            anchors.fill: parent
+            QtObject {
+                id: updateManager
+                property string state: "error"
+                property string latestVersion: "<b>v9.9.9</b>"
+                property string releaseNotes: ""
+                property string errorMessage: "<b>The server</b> could not be reached"
+                property string applyHint: ""
+                property bool canApply: false
+                property real downloadProgress: 0
+                function checkForUpdates() {}
+            }
+            Loader {
+                id: updateLoader
+                anchors.fill: parent
+                source: Qt.resolvedUrl("../../views/Update.qml")
+            }
+        }
+    }
+    Component {
+        id: bluetoothPage
+        Item {
+            property alias page: bluetoothLoader.item
+            anchors.fill: parent
+            QtObject {
+                id: bluetoothManager
+                property bool supported: true
+                property bool available: true
+                property bool powered: true
+                property bool searching: false
+                property var devices: []
+                property var prompt: ({})
+                property string message: ""
+                property bool powerFailed: false
+                property string adapterName: "den-tv"
+                property string details: "Device 00:11:22:33:44:55 <b>Pad</b>\n\tPaired: yes"
+                function stopSearch() {}
+                function cancelPairing() {}
+                function collectDetails() {}
+                function clearMessage() {}
+            }
+            Loader {
+                id: bluetoothLoader
+                anchors.fill: parent
+                source: Qt.resolvedUrl("../../views/Bluetooth.qml")
+            }
+        }
+    }
+
+    // What a release, a network or a device says is shown as it is written
+    // on Settings' pages: a name that looks like markup is its letters, never
+    // read as markup (a picture's tag in one would fetch its address).
+    TestCase {
+        name: "WordsAsWritten"
+        when: windowShown
+
+        function cleanup() {
+            loader.source = ""
+            setupExport.links = ["https://osdos.tv/setup/#1"]
+            setupExport.missing = []
+        }
+
+        // Every Text an item holds whose words have "<b>" in them, all the
+        // way down.
+        function marked(item) {
+            var found = []
+            if (item.text !== undefined && item.textFormat !== undefined && String(item.text).indexOf("<b>") >= 0)
+                found.push(item)
+            for (var i = 0; i < item.children.length; i++)
+                found = found.concat(marked(item.children[i]))
+            return found
+        }
+        // At least so many of them, each as it is written.
+        function asWritten(item, atLeast) {
+            var texts = marked(item)
+            verify(texts.length >= atLeast, texts.length + " of " + atLeast + " lines found")
+            for (var i = 0; i < texts.length; i++)
+                compare(texts[i].textFormat, Text.PlainText, String(texts[i].text))
+        }
+
+        // The latest release's tag, and why the check failed.
+        function test_update() {
+            var held = createTemporaryObject(updatePage, root)
+            verify(held !== null && held.page !== null, "loaded Update.qml")
+            compare(held.page.statusText, "<b>The server</b> could not be reached")
+            asWritten(held.page, 2)
+        }
+
+        // Bluetooth's details.
+        function test_bluetoothDetails() {
+            var held = createTemporaryObject(bluetoothPage, root)
+            verify(held !== null && held.page !== null, "loaded Bluetooth.qml")
+            asWritten(held.page, 1)
+        }
+
+        // Why Export to OSD/OS Setup has no code, a Wi-Fi network's name in
+        // it: in the question and in the code's place.
+        function test_exportWithoutACode() {
+            setupExport.links = []
+            setupExport.missing = ["Wi-Fi: <b>Attic</b>'s password couldn't be read"]
+            loader.setSource(Qt.resolvedUrl("../../views/SetupExport.qml"), { navParams: {} })
+            var page = loader.item
+            verify(page !== null, "loaded SetupExport.qml")
+            asWritten(page, 2)
         }
     }
 

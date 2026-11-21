@@ -48,10 +48,10 @@ FocusScope {
     // Settings opens without a Back button too; Flat Panel's goes a page at a
     // time.
     readonly property string layout: root.menuLayout
-    readonly property bool camcorder: layout === "Camcorder"
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool camcorder: root.camcorderLayout
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     readonly property bool monitor: studio || broadcast || flat
     readonly property bool iconMenu: camcorder || studio
     property var groups: []
@@ -185,6 +185,10 @@ FocusScope {
             return
         if (index < 0)
             index = keep && keep.currentIndex !== undefined ? Math.min(keep.currentIndex, rows.length - 1) : 0
+        // Never on the gap before Settings' row, which a place kept from
+        // before a module was turned off may now be, and the first row is
+        // with no module on: on the next row the cursor stops on.
+        index = menuList.selectableFrom(index, 1)
         menuList.currentIndex = index
         menuList.show(index)
     }
@@ -365,7 +369,6 @@ FocusScope {
     onGroupIconsChanged: handFrame()
     onIconMenuChanged: handFrame()
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         guide: appRoot.monitor ? appRoot.monitorGuide : []

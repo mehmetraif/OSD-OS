@@ -3,7 +3,7 @@
 // read (readAll(): appSettings, installedModules) and what the app has
 // (appCore, root, displayOutput, audioOutput and the rest). Not a library:
 // imported into Settings.qml as Pages, it runs in the page's own scope, its
-// properties and ids, as the page's own functions did.
+// properties and ids, as the page's own functions do.
 
 // The first screen: a heading for each page, every row under one of them,
 // then Quit. TV / Movie's page is the videos' (this view again, group
@@ -15,13 +15,16 @@ function firstRows(items) {
     items.push(groupRow("tv", "The videos' settings: how a picture fills the screen, Transparent Background, the loading screen, the channel logo, the info screen, and each video module's own"))
     var arcade = groupModules("arcade")
     if (arcade.length > 0) {
+        var also = arcade.slice(1).map(function(m) { return m.id })
         items.push({
             type: "submenu",
             key: "group_arcade",
             label: "Arcade",
             description: "The games' settings on one page: " + arcade.map(function(m) { return m.name }).join(", "),
             moduleId: arcade[0].id,
-            alsoModules: arcade.slice(1).map(function(m) { return m.id })
+            alsoModules: also,
+            page: "views/ModuleSettings.qml",
+            params: { moduleId: arcade[0].id, alsoModules: also }
         })
     }
     items.push(groupRow("look", "The whole look: the theme, the color scheme, the skin, the effects, what the menus are drawn on and the bars around them"))
@@ -30,6 +33,7 @@ function firstRows(items) {
     items.push({
         type: "submenu",
         key: "remap_controls",
+        page: "views/Controllers.qml",
         label: "Controls",
         description: "Every controller connected, each with its own buttons (and a pad's button labels), and extra keys for every keyboard and remote",
         moduleId: ""
@@ -85,7 +89,7 @@ function statusRows(items) {
 // title unless given.
 function groupRow(group, description, label) {
     return { type: "submenu", key: "group_" + group, label: label || groupTitles[group],
-             description: description, moduleId: "" }
+             description: description, moduleId: "", page: "views/Settings.qml", params: { group: group } }
 }
 
 // THEME's row, Look's first, whose value STATUS shows too: the themes as
@@ -155,7 +159,7 @@ function lookRows(items) {
         type: "list_single",
         key: "menu_layout",
         label: "Menu Layout",
-        options: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"],
+        options: root.menuLayouts,
         value: root.menuLayoutOf(appSettings["menu_layout"]),
         description: "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time  [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column that stays in place, the rows of the one chosen beside it  [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first  [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select  [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps",
         moduleId: ""
@@ -347,6 +351,7 @@ function screenRows(items) {
     items.push({
         type: "submenu",
         key: "test_patterns",
+        page: "views/TestPatterns.qml",
         label: "Test Patterns",
         description: "Pictures to set up the screen by, with its own knobs or menu: size and position, geometry, convergence, focus, brightness, contrast and colour",
         moduleId: ""
@@ -485,6 +490,7 @@ function networkRows(items) {
     items.push({
         type: "submenu",
         key: "wifi",
+        page: "views/Wifi.qml",
         label: "Wi-Fi",
         description: "The networks within reach: join one with its password, or one that doesn't say its name, and the country Wi-Fi keeps to the rules of",
         unavailable: wifi ? "" : oldLauncher ? "Needs a newer launcher: run install.sh again, or put a newer OSD/OS image on the card"
@@ -495,6 +501,7 @@ function networkRows(items) {
     items.push({
         type: "submenu",
         key: "bluetooth",
+        page: "views/Bluetooth.qml",
         label: "Bluetooth",
         description: "Pairing a keyboard, gamepad or remote, and the devices paired",
         unavailable: bluetooth ? "" : "Only where BlueZ runs, as on the OSD/OS image",
@@ -583,6 +590,7 @@ function cabinetLockRow() {
     return {
         type: "submenu",
         key: "cabinet_lock",
+        page: "views/CabinetLock.qml",
         label: "Cabinet Lock",
         value: !on ? "Off" : idle ? "On (No Module)" : "On",
         description: (idle ? "Locks nothing now: there is no Start on Module to stay on\n" : "")
@@ -641,6 +649,7 @@ function systemRows(items) {
     items.push({
         type: "submenu",
         key: "export_setup",
+        page: "views/SetupExport.qml",
         label: "Export to OSD/OS Setup",
         description: "This device's settings as QR codes: a phone opens OSD/OS Setup's page (osdos.tv/setup) from"
                      + " them, filled in, passwords too, to change what you need and make a card's file of",
@@ -649,6 +658,7 @@ function systemRows(items) {
     items.push({
         type: "submenu",
         key: "software_update",
+        page: "views/Update.qml",
         label: "Update",
         description: "A newer OSD/OS, downloaded and installed",
         moduleId: ""
@@ -659,6 +669,7 @@ function systemRows(items) {
     items.push({
         type: "submenu",
         key: "about",
+        page: "views/About.qml",
         label: "About",
         description: "This device's System Information, its name on the network first; what OSD/OS is, who makes it,"
                      + " what it is made of and under which license",
@@ -862,7 +873,8 @@ function moduleRows(items, modules) {
         return
     items.push({ type: "section", label: "Modules" })
     for (var i = 0; i < modules.length; i++)
-        items.push({ type: "submenu", label: modules[i].name, moduleId: modules[i].id })
+        items.push({ type: "submenu", label: modules[i].name, moduleId: modules[i].id,
+                     page: "views/ModuleSettings.qml", params: { moduleId: modules[i].id, alsoModules: [] } })
 }
 
 // A row choosing one of the themes or the skins there are (AppCore's
@@ -907,8 +919,9 @@ function partRow(key, label, choices, off, description) {
 // What Main.qml makes of a part's saved value that names nothing it has:
 // a scheme not there is Video 1 (root.scheme), an effect's unknown name
 // none (effectOf(), nameOf()), a transition this system can't play
-// (Ripple, Wave or Drop without a GPU) Fade (windowCaught()) and an
-// unknown one none. Menu Music's is the theme's, the row's first choice.
+// (Ripple, Wave or Drop without a GPU) Fade (WindowChange's caught(), by
+// root.transitionUsable()) and an unknown one none. Menu Music's is the
+// theme's, the row's first choice.
 function partInForce(key, saved) {
     if (key === "color_scheme")
         return "Video 1"

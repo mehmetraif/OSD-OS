@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'src/**'
       - 'Main.qml'
       - 'views/**'
@@ -32,6 +32,8 @@ on:
       - 'cmake/**'
       - 'tests/**'
       - 'CMakeLists.txt'
+      - 'os/stage-osdos/03-boot/files/display-presets.json'
+      - 'scripts/build-fbneo-cores.sh'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-make.sh'
@@ -41,31 +43,13 @@ on:
       - 'scripts/bsd-ci.sh'
       - '.github/workflows/freebsd.yml'
   pull_request:
-    paths:
-      - 'src/**'
-      - 'Main.qml'
-      - 'views/**'
-      - 'modules/**'
-      - 'assets/**'
-      - 'shaders/**'
-      - 'thirdparty/**'
-      - 'cmake/**'
-      - 'tests/**'
-      - 'CMakeLists.txt'
-      - 'scripts/build-fbneo.sh'
-      - 'scripts/build-fbneo-lan.sh'
-      - 'scripts/fbneo-make.sh'
-      - 'scripts/fbneo-lan.patch'
-      - 'scripts/engines.env'
-      - 'scripts/bsd-package.sh'
-      - 'scripts/bsd-ci.sh'
-      - '.github/workflows/freebsd.yml'
+    paths: *paths
 
-# A newer push cancels the run before it: only the newest commit's result
-# matters.
 permissions:
   contents: read
 
+# A newer push cancels the run before it: only the newest commit's result
+# matters.
 concurrency:
   group: freebsd-${{ github.ref }}
   cancel-in-progress: true
@@ -103,14 +87,12 @@ jobs:
         uses: actions/cache/restore@v6.1.0
         with:
           path: fbneo
-          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
+          key: fbneo-freebsd-${{ env.FREEBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo-cores.sh', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
 
       # The commit scripts/engines.env names, both cores' source.
       - name: Download FinalBurn Neo's source
         if: steps.fbneo.outputs.cache-hit != 'true'
-        run: |
-          . scripts/engines.env
-          curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
+        run: bash scripts/build-fbneo-cores.sh download
 
       # The packages: Qt 6 with its QML, SVG and shader tools, SDL2
       # (gamepads), minizip (High Scores' tables, FinalBurn Neo's download),

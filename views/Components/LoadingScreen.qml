@@ -13,7 +13,7 @@ import OSDOS.Video
 // the lot, eating into the letters; Settings' Loading Effect turns all of
 // that off, leaving the display on the plain ground. It runs while it is
 // visible, and rests, still on its last frame, while another process has the
-// screen.
+// screen, or a video played inside the window has its picture over it.
 //
 //     LoadingScreen {
 //         anchors.fill: parent
@@ -49,10 +49,24 @@ Item {
     // The display's jump sideways now and then, in art pixels.
     property int jitter: 0
     // Running. Not while mpv has the Pi's screen (the hand-off before its
-    // picture shows), nor while a video played inside the window has its
+    // picture shows), nor once a video played inside the window has its
     // picture over this (Transparent Background, until its first position
     // takes the screen down): nothing drawn here would reach the screen.
-    readonly property bool live: visible && !root.screenHandedOff && !root.videoActive
+    // Until that picture comes, the window's video draws nothing over it,
+    // and it goes on moving.
+    readonly property bool live: visible && !root.screenHandedOff && !(root.videoActive && pictured)
+    // A video inside the window has drawn a picture over this since it was
+    // shown: told once, by the first (MpvController's videoFrameReady).
+    property bool pictured: false
+    Connections {
+        target: typeof mpvController !== "undefined" ? mpvController : null
+        enabled: tape.visible && root.videoActive && !tape.pictured
+        ignoreUnknownSignals: true
+        function onVideoFrameReady() { tape.pictured = true }
+    }
+    // Its session gone, the picture with it.
+    readonly property bool videoActive: root.videoActive
+    onVideoActiveChanged: if (!videoActive) pictured = false
     // The tape's effects: its noise and bands, the display's jumps and its
     // colour bleeding (Settings → TV / Movie → Loading Effect).
     property bool effect: root.loadingEffect
@@ -68,6 +82,7 @@ Item {
         if (visible) {
             elapsed = 0
             blink = true
+            pictured = false
         }
     }
 

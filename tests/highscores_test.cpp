@@ -449,6 +449,57 @@ private slots:
         QCOMPARE(names(scores.requestEntries(QStringLiteral("game:gng"))).first(), QStringLiteral(" 1  17,200  *&?"));
     }
 
+    // Without links (Windows, where QFile::link() makes a shortcut that
+    // openhi2txt can't follow): the Arcade module's own folder read, MAME's
+    // hiscore.dat copied into it with its time, copied again once it has
+    // changed and gone once MAME's is.
+    void withoutLinks() {
+        caughtUp();
+        const QString copy = m_arcade + QStringLiteral("/plugins/hiscore/hiscore.dat");
+        const auto restore = qScopeGuard([this] {
+            QDir(m_arcade + QStringLiteral("/plugins")).removeRecursively();
+            if (QFileInfo::exists(m_dat + QStringLiteral(".away")))
+                QFile::rename(m_dat + QStringLiteral(".away"), m_dat);
+        });
+        HighScoresBackend scores(QStringLiteral(APP_DIR), m_data.path(), played());
+        scores.m_links = false;
+        QCOMPARE(scores.readRoot(), m_arcade);
+        refreshed(scores);
+        QVERIFY(QFileInfo(copy).isFile());
+        QVERIFY(!QFileInfo(copy).isSymLink());
+        const auto contents = [](const QString &path) {
+            QFile f(path);
+            return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        };
+        QCOMPARE(contents(copy), contents(m_dat));
+        QCOMPARE(QFileInfo(copy).lastModified(), QFileInfo(m_dat).lastModified());
+        // Read as with links: the files by their names in MAME's folders,
+        // Ghosts'n Goblins' layout picked by hiscore.dat's block.
+        const QVariant all = scores.requestEntries(QStringLiteral("all"));
+        QCOMPARE(names(all), allGames());
+        QCOMPARE(entry(all, QStringLiteral("Final Fight (World, set 1)")).value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("1 116,370 ACD\nffight.hi"));
+        QCOMPARE(entry(all, QStringLiteral("Tetris the Absolute The Grand Master 2")).value(QStringLiteral("detail")).toString(),
+                 QStringLiteral("1 T.A 9 01:30:00\nnvram/tgm2/eeprom"));
+        QCOMPARE(names(scores.requestEntries(QStringLiteral("game:gng"))).first(), QStringLiteral(" 1  17,200  *&?"));
+
+        // MAME's changed (updated): copied again.
+        const QByteArray before = contents(m_dat);
+        const auto putBack = qScopeGuard([this, before] { writeFile(m_dat, before); });
+        writeFile(m_dat, before + "zzznew:\n@:maincpu,program,4c00,10,00,00\n\n");
+        setTime(m_dat, m_time.addSecs(60));
+        refreshed(scores);
+        QCOMPARE(contents(copy), contents(m_dat));
+        QCOMPARE(QFileInfo(copy).lastModified(), QFileInfo(m_dat).lastModified());
+
+        // MAME's gone: the copy too, and the games read without it.
+        QVERIFY(QFile::rename(m_dat, m_dat + QStringLiteral(".away")));
+        refreshed(scores);
+        QVERIFY(!QFileInfo::exists(copy));
+        QCOMPARE(names(scores.requestEntries(QStringLiteral("game:gng"))).first(), QStringLiteral(" 1  10,000  Yuk"));
+        QVERIFY(QFile::rename(m_dat + QStringLiteral(".away"), m_dat));
+    }
+
     // The names follow the Arcade module's games.json.
     void gameNames() {
         caughtUp();

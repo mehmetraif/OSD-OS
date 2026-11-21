@@ -9,7 +9,7 @@ on:
   workflow_call:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'src/**'
       - 'scripts/**'
       - 'Main.qml'
@@ -29,25 +29,7 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/regression-tests.yml'
   pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'Main.qml'
-      - 'views/**'
-      - 'modules/**'
-      - 'assets/**'
-      - 'shaders/**'
-      - 'tests/**'
-      - 'site/setup/schema-extra.json'
-      - 'os/stage-osdos/00-packages/**'
-      - 'os/stage-osdos/02-system/**'
-      - 'os/stage-osdos/03-boot/files/**'
-      - 'thirdparty/**'
-      - 'cmake/**'
-      - 'CMakeLists.txt'
-      - '.github/actions/apt-packages/**'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/regression-tests.yml'
+    paths: *paths
 
 permissions:
   contents: read

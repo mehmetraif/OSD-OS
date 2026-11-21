@@ -253,12 +253,8 @@ int main(int argc, char *argv[]) {
     QObject::connect(&termPoll, &QTimer::timeout, &app, [&app]() {
         if (g_termSignal) {
             qInfo("[main] Termination signal received — shutting down cleanly");
-            // 128 + signal number, the shell convention for "ended by a signal".
-            // It lets the autostart service's stop helper (osdos-stop) tell a
-            // `systemctl stop`/`restart` apart from the user choosing Quit
-            // (exit 0), the only exit that powers the Pi off, and the service
-            // count it as no failure (SuccessExitStatus=), not one to start
-            // the app again after (util/ExitCodes.h).
+            // Ended by a signal, not by Quit: what osdos-stop and the service
+            // make of that is util/ExitCodes.h's.
             app.exit(exitcode::bySignal(g_termSignal));
         }
     });
@@ -326,8 +322,8 @@ int main(int argc, char *argv[]) {
     appCore.setSetupNotice(setupfile::noticeTitle(setup, setupfile::Taken::AtStart), setup.lines.join(QLatin1Char('\n')));
 
     // Which physical display the UI launches on. App-level "display_index"
-    // (0 = primary screen, the previous hardcoded behaviour). Lets the UI open
-    // on a secondary display without making it the OS primary. Applied on
+    // (0 = primary screen). Lets the UI open on a secondary display without
+    // making it the OS primary. Applied on
     // macOS and desktop Linux (xcb/wayland); on single-display platforms
     // (Pi EGLFS, Steam Deck gaming mode under gamescope) the clamp below
     // resolves to 0 and everything stays a no-op.

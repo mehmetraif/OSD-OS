@@ -207,5 +207,43 @@ StandInRoot {
             compare(list.currentIndex, 10)
             fuzzyCompare(list.contentY, list.originY + 11 * root.menuRowHeight - list.height, 0.5)
         }
+
+        // Lines read again (take(), Wi-Fi's networks): the same lines in the
+        // same places leave the list as it is, whatever they say now; new
+        // ones take the cursor back to its line, else to the row now in its
+        // place that it stops on.
+        function test_take() {
+            var page = open({})
+            var list = page.list
+            var given = 0
+            list.modelChanged.connect(function() { given++ })
+            var idOf = function(row) { return row.type + ":" + row.label }
+            var labels = function() {
+                var out = []
+                for (var i = 0; i < list.count; i++)
+                    out.push(list.model[i].label)
+                return out
+            }
+            var power = { type: "power", label: "Wi-Fi" }, home = { type: "network", label: "Home" }
+            var cafe = { type: "network", label: "Cafe" }
+            list.take([power, home, cafe], idOf)
+            compare(given, 1)
+            compare(labels(), ["Wi-Fi", "Home", "Cafe"])
+            list.currentIndex = 2
+            list.take([{ type: "power", label: "Wi-Fi", value: "On" }, home, cafe], idOf)
+            compare(given, 1)
+            compare(list.currentIndex, 2)
+            // A line before the cursor's: the cursor goes with its line.
+            list.take([power, { type: "section", label: "Saved" }, home, cafe], idOf)
+            compare(given, 2)
+            compare(list.currentIndex, 3)
+            // Its line gone: the row now in its place, over a heading.
+            list.currentIndex = 2
+            list.take([power, cafe, { type: "section", label: "Networks" }, { type: "network", label: "Far" }], idOf)
+            compare(labels(), ["Wi-Fi", "Cafe", "Networks", "Far"])
+            compare(list.currentIndex, 3)
+            list.take([], idOf)
+            compare(list.count, 0)
+        }
     }
 }

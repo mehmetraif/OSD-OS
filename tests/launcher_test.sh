@@ -41,10 +41,11 @@ APP="$T/opt/osdos"
 UPDATES="$T/data/updates"
 # A release's tree, as its tarball unpacks (strip 3: ./usr/local/...): an app
 # that says its release, the release of the share it finds ("2/2"; "2/1" is
-# the new app on the old share) and the output the launcher gave it.
+# the new app on the old share), the output the launcher gave it and the KMS
+# configuration it gave Qt.
 release_tree() {  # dir, version
     mkdir -p "$1/bin" "$1/share/osdos"
-    printf '#!/bin/sh\necho "%s/$(cat "%s/share/osdos/version") ${OSDOS_DRM_CONNECTOR:-}"\n' "$2" "$APP" > "$1/bin/osdos"
+    printf '#!/bin/sh\necho "%s/$(cat "%s/share/osdos/version") ${OSDOS_DRM_CONNECTOR:-} ${QT_QPA_EGLFS_KMS_CONFIG:-}"\n' "$2" "$APP" > "$1/bin/osdos"
     chmod +x "$1/bin/osdos"
     echo "$2" > "$1/share/osdos/version"
 }
@@ -70,6 +71,39 @@ stage_release 2
 check "a stage applied runs the new release" "2/2" "$(run | cut -d' ' -f1)"
 check "a stage applied leaves no stage" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
 check "a stage applied leaves no swap folders" "0" "$(leftovers)"
+
+# A stage that can't be put in place: the release there runs, the stage goes,
+# and staged.sha256.failed says why, for the app to tell.
+install_release 1
+stage_release 2
+echo damaged >> "$UPDATES/OSD-OS-2.tar.gz"
+check "a stage that doesn't match its checksum isn't applied" "1/1" "$(run | cut -d' ' -f1)"
+check "...and says why" "the download didn't match its checksum" "$(cat "$UPDATES/staged.sha256.failed" 2>&1)"
+check "...leaving no stage" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
+install_release 1
+stage_release 2
+echo "not a tarball" > "$UPDATES/OSD-OS-2.tar.gz"
+( cd "$UPDATES" && sha256sum "OSD-OS-2.tar.gz" > staged.sha256 )
+check "a stage that doesn't unpack isn't applied" "1/1" "$(run | cut -d' ' -f1)"
+check "...and says why" "its release didn't unpack in full" "$(cat "$UPDATES/staged.sha256.failed" 2>&1)"
+check "...leaving no stage or swap folders" "no 0" \
+      "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no) $(leftovers)"
+
+# A swap folder this user can't clear (an installer of old cut short as it
+# unpacked as root; here an rm that leaves it): said, and the stage not tried
+# over it, which would fail each time and be offered again for ever.
+install_release 1
+stage_release 2
+mkdir -p "$APP/.new/bin" "$T/stuck"
+printf '#!/bin/sh\nfor a; do case "$a" in */.new) ;; *) %q -rf "$a" ;; esac; done\n' "$(command -v rm)" > "$T/stuck/rm"
+chmod +x "$T/stuck/rm"
+check "a swap folder that can't be cleared: the release there runs" "1/1" "$(PATH="$T/stuck:$PATH" run | cut -d' ' -f1)"
+check "...the stage not tried, and why told for the app" \
+      "$APP/.new, left by an install cut short, can't be cleared; run the installer again" \
+      "$(cat "$UPDATES/staged.sha256.failed" 2>&1)"
+check "...and in the journal" "1" "$(grep -c "can't be cleared; run the installer again" "$T/stderr")"
+check "...leaving no stage" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
+rm -rf "$APP/.new" "$T/stuck"
 
 # A swap cut short with bin out of the way and the new one not yet in, or
 # with bin swapped and share not: never the new app on the old share. The
@@ -107,9 +141,15 @@ awk '/^# ── Put the release in place/ { on = 1; next }
      on                               { print }' "$INSTALL_SH" > "$T/put.sh"
 grep -q -- '--strip-components=3' "$T/put.sh" \
     || { echo "FAIL: the installer's swap not found in $INSTALL_SH"; exit 1; }
+# With the installer's own trap, which clears what it unpacked should it end
+# before the swap.
+awk "/^trap '/ { on = 1 } on { print } on && /' EXIT\$/ { exit }" "$INSTALL_SH" > "$T/trap.sh"
+grep -q '^trap ' "$T/trap.sh" && grep -q 'EXIT$' "$T/trap.sh" \
+    || { echo "FAIL: the installer's trap not found in $INSTALL_SH"; exit 1; }
 touch "$T/osdos.service"
 # The release put in place, the script ended (a power cut) as it would move
-# the path given: how it exited.
+# the path given, or as tar unpacks with TAR_CUT set: how it exited. Every
+# sudo it ran is in $T/sudo.
 put_release() {  # version [path]
     local src="$T/src-$1"
     rm -rf "$src" "$T/download"
@@ -117,13 +157,17 @@ put_release() {  # version [path]
     mkdir -p "$T/download"
     tar -czf "$T/download/OSD-OS-$1.tar.gz" -C "$src" .
     : > "$T/systemctl"
+    : > "$T/sudo"
     {
         echo 'set -euo pipefail'
-        printf 'INSTALL_DIR=%q TMP_DIR=%q TARBALL=%q SYSTEMD_SERVICE=%q OWNER_USER=%q CUT=%q APP_WAS_RUNNING=\n' \
-            "$APP" "$T/download" "OSD-OS-$1.tar.gz" "$T/osdos.service" "$(id -un)" "${2:-}"
+        printf 'INSTALL_DIR=%q TMP_DIR=%q TARBALL=%q SYSTEMD_SERVICE=%q OWNER_USER=%q CUT=%q TAR_CUT=%q APP_WAS_RUNNING= UNPACKED=\n' \
+            "$APP" "$T/download" "OSD-OS-$1.tar.gz" "$T/osdos.service" "$(id -un)" "${2:-}" "${TAR_CUT:-}"
         printf 'systemctl() { echo "$*" >> %q; }\n' "$T/systemctl"
-        echo 'sudo() { if [ "$1" = -u ]; then shift 2; fi; "$@"; }'
+        printf 'getent() { echo "owner:x:1000:1000::%s:/bin/sh"; }\n' "$T/home"
+        printf 'sudo() { echo "$*" >> %q; if [ "$1" = -u ]; then shift 2; fi; "$@"; }\n' "$T/sudo"
         echo 'mv() { if [ "$1" = "$CUT" ]; then exit 3; fi; command mv "$@"; }'
+        echo 'tar() { command tar "$@"; if [ -n "$TAR_CUT" ]; then exit 3; fi; }'
+        cat "$T/trap.sh"
         cat "$T/put.sh"
     } > "$T/put-run.sh"
     bash "$T/put-run.sh" > /dev/null 2>&1
@@ -141,6 +185,29 @@ for cut in bin .new/bin share .new/share .old; do
     check "the installer's swap cut short as it moves $cut runs the release before whole" "1/1" "$(run | cut -d' ' -f1)"
     check "...leaving no swap folders" "0" "$(leftovers)"
 done
+# Cut short as it unpacks: what it unpacked goes, and the release before
+# runs. The release is unpacked as the user the app runs as, into folders
+# that are that user's from the start, so that even a power cut, which no
+# trap outlives, leaves the launcher nothing it can't clear.
+install_release 1
+check "the installer cut short as it unpacks" "3" "$(TAR_CUT=1 put_release 2)"
+check "...leaves no swap folders" "0" "$(leftovers)"
+check "...and the release before runs" "1/1" "$(run | cut -d' ' -f1)"
+check "the installer unpacks the release as the app's user" "1" \
+      "$(grep -c "^-u $(id -un) tar -xzf - " "$T/sudo")"
+check "...into folders that are that user's from the start" "1" \
+      "$(grep -c "^install -d -o $(id -un) -g $(id -gn) .*/\.new .*/\.old$" "$T/sudo")"
+# A stage the app had armed (the user's data folder is the launcher's here)
+# goes as the installer puts a release in place: the launcher would otherwise
+# put it in place over that one at the next start.
+install_release 1
+stage_release 1a
+mkdir -p "$T/home/.local/share"
+ln -sfn "$T/data" "$T/home/.local/share/OSD-OS"
+check "the installer over an armed stage puts its release in place" "0" "$(put_release 2)"
+check "...the stage gone" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
+check "...and its release, not the stage's, runs" "2/2" "$(run | cut -d' ' -f1)"
+rm -rf "$T/home" "$UPDATES"
 install_release 1
 put_release 2 "$APP/.new/share" > /dev/null
 check "the installer over a swap cut short puts the new release in place" "0" "$(put_release 3)"
@@ -169,6 +236,27 @@ wait
 rm -rf "$T/sys/class/drm/card2-DPI-1"
 check "a Pi 5 whose preset's output never comes takes the display connected" "" "$(run | cut -d' ' -f2)"
 check "...and says why" "1" "$(grep -c "DPI output never appeared" "$T/stderr")"
+
+# Qt's KMS configuration (the display connected, card1): in the service's
+# run-time folder (RuntimeDirectory=), or the session's; with neither, in a
+# file of its own in the temp folder, never at a name there someone else could
+# have made first; and not given to Qt when it can't be written.
+rm -f "$T/boot/osdos-display.txt"
+mkdir -p "$T/service-run" "$T/tmp"
+kms() { env -u XDG_RUNTIME_DIR -u RUNTIME_DIRECTORY DATA_ROOT="$T/data" WAYLAND_DISPLAY= DISPLAY= "$@" "$T/osdos" 2> "$T/stderr" | cut -d' ' -f3; }
+check "Qt's KMS configuration in the service's run-time folder" "$T/service-run/osdos-kms.json" \
+      "$(kms RUNTIME_DIRECTORY="$T/service-run" XDG_RUNTIME_DIR="$T")"
+check "...written" '{ "device": "'"$T"'/dev/dri/card1" }' "$(cat "$T/service-run/osdos-kms.json")"
+check "...or in the session's" "$T/osdos-kms.json" "$(kms XDG_RUNTIME_DIR="$T")"
+echo '{ "device": "/dev/dri/someone-elses" }' > "$T/tmp/osdos-kms.json"
+conf=$(kms TMPDIR="$T/tmp")
+check "...with neither, in a file of its own in the temp folder" "yes" \
+      "$(case "$conf" in "$T"/tmp/osdos-kms.??????) echo yes ;; *) echo "no: $conf" ;; esac)"
+check "...written" '{ "device": "'"$T"'/dev/dri/card1" }' "$(cat "$conf" 2>&1)"
+check "...the name someone else made left alone" '{ "device": "/dev/dri/someone-elses" }' "$(cat "$T/tmp/osdos-kms.json")"
+check "...and not given to Qt when it can't be written" "" "$(kms TMPDIR="$T/no-such-folder")"
+check "...saying so" "1" "$(grep -c "KMS configuration couldn't be written" "$T/stderr")"
+rm -rf "$T/service-run" "$T/tmp" "$T/osdos-kms.json"
 
 # scripts/rpi-run-local.sh runs a build of your own with the launcher's
 # display part, from the same install.sh: on a display server (DISPLAY set)

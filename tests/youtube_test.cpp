@@ -1,6 +1,8 @@
 #include "AppCore.h"
+#include "modules/web_player/TmdbCatalog.h"
 #include "modules/youtube/YouTubeBackend.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -185,6 +187,270 @@ private slots:
         youtube.listing(QStringLiteral("subscriptions"));
         QTRY_COMPARE_WITH_TIMEOUT(asked.size(), 3, 5000);
         QCOMPARE(asked, QStringList({ QStringLiteral("UCtyped"), QStringLiteral("UClinked"), QStringLiteral("UCfile") }));
+    }
+
+    // Shorts are left out with DISPLAY SHORTS off, in either form it is
+    // saved in (false, or an older config's "OFF"); unset, or on, they stay.
+    void shortsWithDisplayShortsOff() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        QVERIFY(core.add_to_list(QStringLiteral("com.osdos.youtube"), QStringLiteral("favorites"),
+                                 QVariantMap{ { "name", "A Talk" }, { "path", "video/a" } }, 100));
+        QVERIFY(core.add_to_list(QStringLiteral("com.osdos.youtube"), QStringLiteral("favorites"),
+                                 QVariantMap{ { "name", "A Short" }, { "path", "video/s" }, { "isShort", true } }, 100));
+        const auto count = [&youtube] { return youtube.entries(QStringLiteral("favorites")).toList().size(); };
+        QCOMPARE(count(), 2);
+        for (const QVariant &off : { QVariant(false), QVariant(QStringLiteral("OFF")) }) {
+            QVERIFY(core.save_setting(QStringLiteral("com.osdos.youtube"), QStringLiteral("display_shorts"), off));
+            QCOMPARE(count(), 1);
+        }
+        for (const QVariant &on : { QVariant(true), QVariant(QStringLiteral("ON")) }) {
+            QVERIFY(core.save_setting(QStringLiteral("com.osdos.youtube"), QStringLiteral("display_shorts"), on));
+            QCOMPARE(count(), 2);
+        }
+    }
+
+    // A search's matches, against a stand-in yt-dlp that answers each run
+    // with another video: kept while the folder is browsed (and MORE loads
+    // onto them), and asked for afresh once forgetSearches() has let them go,
+    // as it does before a search typed in is opened. A search on its way
+    // isn't dropped, and lands where it was asked for.
+    void searchesAskedAfresh() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir(data.path()).mkpath(QStringLiteral("bin")));
+        const QString bin = data.path() + QStringLiteral("/bin/yt-dlp");
+        QFile script(bin);
+        QVERIFY(script.open(QIODevice::WriteOnly));
+        script.write("#!/bin/sh\n"
+                     "here=$(dirname \"$0\")\n"
+                     "n=$(cat \"$here/runs\" 2>/dev/null || echo 0)\n"
+                     "n=$((n + 1))\n"
+                     "echo $n > \"$here/runs\"\n"
+                     "[ -f \"$here/slow\" ] && sleep 1\n"
+                     "printf '{\"id\":\"run%s\",\"title\":\"Run %s\"}\\n' $n $n\n");
+        script.close();
+        QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+
+        const auto ids = [](const QVariant &listing) {
+            QStringList out;
+            for (const QVariant &entry : listing.toList())
+                out << entry.toMap().value(QStringLiteral("videoId")).toString();
+            return out;
+        };
+        const QString cats = QStringLiteral("search/cats");
+        YouTubeBackend youtube(data.path(), data.path(), nullptr, nullptr);
+        QSignalSpy ready(&youtube, &YouTubeBackend::listingReady);
+        QVERIFY(!youtube.listing(cats).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 5000);
+        QCOMPARE(ids(youtube.listing(cats)), QStringList({ QStringLiteral("run1") }));
+        QCOMPARE(ids(youtube.listing(cats)), QStringList({ QStringLiteral("run1") }));
+
+        // The same words typed in again: YouTube asked once more.
+        youtube.forgetSearches();
+        QVERIFY(!youtube.listing(cats).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 2, 5000);
+        QCOMPARE(ids(youtube.listing(cats)), QStringList({ QStringLiteral("run2") }));
+
+        // Let go while on its way: it lands all the same, and only once.
+        QFile slow(data.path() + QStringLiteral("/bin/slow"));
+        QVERIFY(slow.open(QIODevice::WriteOnly));
+        slow.close();
+        const QString dogs = QStringLiteral("search/dogs");
+        QVERIFY(!youtube.listing(dogs).isValid());
+        youtube.forgetSearches();
+        QVERIFY(!youtube.listing(dogs).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 3, 5000);
+        QCOMPARE(ids(youtube.listing(dogs)), QStringList({ QStringLiteral("run3") }));
+        QTest::qWait(1500);
+        QCOMPARE(ready.size(), 3);
+    }
+
+    // Where a web player's title opens, against a stand-in for TMDB and
+    // Wikidata: the service's page for the id Wikidata gives, but its
+    // search for the title's name when that id isn't of the plain form a
+    // service's id takes (anyone can edit Wikidata, and the address goes to
+    // the browser).
+    void webTitleIdsOfPlainFormOnly() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QFile key(data.path() + QStringLiteral("/tmdb_api_key.txt"));
+        QVERIFY(key.open(QIODevice::WriteOnly));
+        key.write("fake-key\n");
+        key.close();
+
+        QString wikidataId;
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&] {
+            QTcpSocket *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [&wikidataId, socket] {
+                const QByteArray request = socket->property("request").toByteArray() + socket->readAll();
+                socket->setProperty("request", request);
+                if (!request.contains("\r\n\r\n"))
+                    return;
+                const QByteArray body = request.startsWith("GET /sparql")
+                    ? QJsonDocument(QJsonObject{ { QStringLiteral("results"), QJsonObject{
+                          { QStringLiteral("bindings"), QJsonArray{ QJsonObject{
+                              { QStringLiteral("id"), QJsonObject{ { QStringLiteral("value"), wikidataId } } } } } } } } })
+                          .toJson(QJsonDocument::Compact)
+                    : QByteArray(R"({"imdb_id":"tt0000001"})");
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                              + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                socket->disconnectFromHost();
+            });
+        });
+        const QByteArray base = QByteArrayLiteral("http://127.0.0.1:") + QByteArray::number(server.serverPort());
+        qputenv("OSDOS_TMDB_URL", base + "/3");
+        qputenv("OSDOS_WIKIDATA_URL", base + "/sparql");
+        TmdbCatalog::Service service;
+        service.providerName       = QStringLiteral("Stand-in");
+        service.fallbackProviderId = 1;
+        service.homeLabel          = QStringLiteral("Home");
+        service.titleUrl           = QStringLiteral("https://service.invalid/title/%1");
+        service.searchUrl          = QStringLiteral("https://service.invalid/search?q=%1");
+        service.wikidataProperty   = QStringLiteral("P1874");
+        TmdbCatalog catalog(data.path(), nullptr, service);
+        qunsetenv("OSDOS_TMDB_URL");
+        qunsetenv("OSDOS_WIKIDATA_URL");
+        QSignalSpy ready(&catalog, &TmdbCatalog::titleUrlReady);
+        const QVariantMap title{ { QStringLiteral("path"), QStringLiteral("title/movie/7") },
+                                 { QStringLiteral("title"), QStringLiteral("Dune") },
+                                 { QStringLiteral("mediaType"), QStringLiteral("movie") },
+                                 { QStringLiteral("tmdbId"), 7 } };
+        const auto opened = [&](const QString &id) {
+            wikidataId = id;
+            ready.clear();
+            catalog.resolveTitleUrl(title);
+            if (!ready.wait(5000))
+                return QString();
+            return ready.first().at(1).toString();
+        };
+        QCOMPARE(opened(QStringLiteral("80100172")), QStringLiteral("https://service.invalid/title/80100172"));
+        QCOMPARE(opened(QStringLiteral("amzn1.dv-gti_x~y")), QStringLiteral("https://service.invalid/title/amzn1.dv-gti_x~y"));
+        const QString search = QStringLiteral("https://service.invalid/search?q=Dune");
+        QCOMPARE(opened(QStringLiteral("1\" \"--kiosk-printing")), search);
+        QCOMPARE(opened(QStringLiteral("1/../../elsewhere")), search);
+        QCOMPARE(opened(QStringLiteral("1?next=evil")), search);
+        QCOMPARE(opened(QString()), search);
+    }
+
+    // The playlists' videos from a stand-in yt-dlp (the data folder's
+    // bin/yt-dlp, which writes down the playlists it is asked for): fetched
+    // as one is opened, every listed playlist at once, a removed video's
+    // tombstone left out, the name yt-dlp reports given to the folder the
+    // file doesn't name, and kept: opened again, nothing is asked for again.
+    void playlistsFromYtDlp() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const auto write = [&data](const QString &name, const QByteArray &text) {
+            QFile file(data.path() + QLatin1Char('/') + name);
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write(text);
+        };
+        const auto names = [](const QVariant &listing) {
+            QStringList out;
+            for (const QVariant &entry : listing.toList())
+                out << entry.toMap().value(QStringLiteral("name")).toString();
+            return out;
+        };
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        write(QStringLiteral("bin/yt-dlp"),
+              "#!/bin/sh\n"
+              "for last; do :; done\n"
+              "echo \"$last\" >> \"$(dirname \"$0\")/asked\"\n"
+              "case \"$last\" in *PLbroken) exit 1 ;; esac\n"
+              "id=${last##*=}\n"
+              "printf '{\"id\":\"one-%s\",\"title\":\"First of %s\",\"channel\":\"Chan\",\"playlist_title\":\"Title %s\"}\\n' \"$id\" \"$id\" \"$id\"\n"
+              "printf '{\"id\":\"gone\",\"title\":\"[Deleted video]\"}\\n'\n"
+              "printf '{\"id\":\"two-%s\",\"title\":\"Second of %s\",\"uploader\":\"Up\"}\\n' \"$id\" \"$id\"\n");
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/yt-dlp"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        write(QStringLiteral("config.json"), "{}");
+        write(QStringLiteral("youtube_playlists.txt"), "PLfirst\nMine | PLsecond\nPLbroken\n");
+        const auto asked = [&data]() {
+            QFile file(data.path() + QStringLiteral("/bin/asked"));
+            return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts)
+                                                  : QStringList();
+        };
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        QSignalSpy ready(&youtube, &YouTubeBackend::listingReady);
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlists"))),
+                 QStringList({ QStringLiteral("PLfirst"), QStringLiteral("Mine"), QStringLiteral("PLbroken") }));
+        // Only a branch's preview: not fetched.
+        QVERIFY(!youtube.listing(QStringLiteral("playlist/PLfirst"), true).isValid());
+        QTest::qWait(200);
+        QVERIFY(asked().isEmpty());
+
+        QVERIFY(!youtube.listing(QStringLiteral("playlist/PLsecond")).isValid());
+        QTRY_VERIFY_WITH_TIMEOUT(ready.count() >= 2, 10000);
+        QStringList answered;
+        for (const QList<QVariant> &signal : ready)
+            answered << signal.value(0).toString();
+        QCOMPARE(answered, QStringList({ QStringLiteral("playlist/PLsecond"), QStringLiteral("playlists") }));
+        QStringList all = asked();
+        all.sort();
+        QCOMPARE(all, QStringList({ QStringLiteral("https://www.youtube.com/playlist?list=PLbroken"),
+                                    QStringLiteral("https://www.youtube.com/playlist?list=PLfirst"),
+                                    QStringLiteral("https://www.youtube.com/playlist?list=PLsecond") }));
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlist/PLsecond"))),
+                 QStringList({ QStringLiteral("First of PLsecond"), QStringLiteral("Second of PLsecond") }));
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlist/PLfirst"))),
+                 QStringList({ QStringLiteral("First of PLfirst"), QStringLiteral("Second of PLfirst") }));
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlist/PLbroken"))), QStringList());
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlists"))),
+                 QStringList({ QStringLiteral("Title PLfirst"), QStringLiteral("Mine"), QStringLiteral("PLbroken") }));
+        QCOMPARE(youtube.problem(), QString());
+        QTest::qWait(200);
+        QCOMPARE(asked().size(), 3);
+    }
+
+    // The format each ADVANCED choice hands yt-dlp, character for character:
+    // H.264 ahead of any codec, a dub's language ahead of the codec, and the
+    // original track and plain best last.
+    void formats() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QFile config(data.path() + QStringLiteral("/config.json"));
+        QVERIFY(config.open(QIODevice::WriteOnly));
+        config.write("{}");
+        config.close();
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        const QString plain480 = QStringLiteral(
+            "bestvideo[height<=?480][vcodec^=avc1]+bestaudio/bestvideo[height<=?480]+bestaudio/"
+            "best[height<=?480]/best");
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("480p"), QStringLiteral("H.264"), QStringLiteral("Any"),
+                                    QStringLiteral("original")), plain480);
+        // A resolution it doesn't know is 480p; "Original" in any case is no language.
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("576i"), QStringLiteral("H.264"), QStringLiteral("Any"),
+                                    QStringLiteral("ORIGINAL")), plain480);
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("1080p"), QStringLiteral("Any"), QStringLiteral("30"),
+                                    QStringLiteral("pt-BR")),
+                 QStringLiteral("bestvideo[height<=?1080][fps<=?30]+bestaudio[language^=pt-br]/"
+                                "bestvideo[height<=?1080][fps<=?30]+bestaudio/"
+                                "best[height<=?1080][fps<=?30]/best"));
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("2160p"), QStringLiteral("H.264"), QStringLiteral("60"),
+                                    QStringLiteral(" ES ")),
+                 QStringLiteral("bestvideo[height<=?2160][vcodec^=avc1]+bestaudio[language^=es]/"
+                                "bestvideo[height<=?2160]+bestaudio[language^=es]/"
+                                "bestvideo[height<=?2160][vcodec^=avc1]+bestaudio/"
+                                "bestvideo[height<=?2160]+bestaudio/best[height<=?2160]/best"));
+        QCOMPARE(youtube.ytdlFormat(QStringLiteral("240p"), QStringLiteral("H.264"), QStringLiteral("Any"), QString()),
+                 QStringLiteral("bestvideo[height<=?240][vcodec^=avc1]+bestaudio/bestvideo[height<=?240]+bestaudio/"
+                                "best[height<=?240]/best"));
+        // What mpv and a download are given, from the settings' defaults.
+        QCOMPARE(youtube.playbackArgs(youtube.playbackSettings()),
+                 QStringList({ QStringLiteral("--ytdl=yes"), QStringLiteral("--ytdl-format=") + plain480 }));
+        QCOMPARE(youtube.downloadArgs(true),
+                 QStringList({ QStringLiteral("-f"), plain480, QStringLiteral("--merge-output-format"),
+                               QStringLiteral("mp4") }));
+        QCOMPARE(youtube.downloadArgs(false),
+                 QStringList({ QStringLiteral("-f"),
+                               QStringLiteral("best[height<=?480][vcodec^=avc1]/best[height<=?480]/best") }));
     }
 };
 

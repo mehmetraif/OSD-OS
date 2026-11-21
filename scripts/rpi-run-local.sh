@@ -20,7 +20,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Repo root = parent of this script's dir, so APP_ROOT resolves assets/modules.
+# Repo root = parent of this script's dir, so APP_ROOT resolves assets/ and modules/.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BIN="${OSDOS_BIN:-${MP240_BIN:-${REPO_ROOT}/build/osdos}}"

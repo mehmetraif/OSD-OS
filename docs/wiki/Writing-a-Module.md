@@ -490,9 +490,10 @@ FocusScope {
         playbackStarted = false
         startMs = fromMs
         var loop = !!appCore.get_setting(moduleRoot.moduleId, "loop_playback")
-        // url, start (s), audio track (0: mpv's choice), subtitles (-2: off),
-        // subtitle files, subtitle languages, loop.
-        mpvController.loadAndPlay(filePath, fromMs / 1000.0, 0, -2, [], [], loop)
+        // What plays, from where (s), subtitles off (-2), and loop; every
+        // field left out has its default.
+        mpvController.loadAndPlay({ url: filePath, startSeconds: fromMs / 1000.0,
+                                    subTrack: -2, loop: loop })
         // With Transparent Background, how the main menu's first row takes
         // the video back once it plays behind the menus.
         mpvController.noteSession({ module: moduleRoot.moduleId, title: itemTitle,
@@ -560,7 +561,7 @@ sequenceDiagram
     participant P as Player.qml
     participant C as mpvController
     participant M as mpv
-    P->>C: loadAndPlay(file, start, 0, -2, [], [], loop)
+    P->>C: loadAndPlay({ url, startSeconds, subTrack, loop })
     P->>C: noteSession({ module, title, params })
     C->>M: starts it (an mpv process, or libmpv in the window)
     M-->>C: time-pos, duration
@@ -573,22 +574,22 @@ sequenceDiagram
 
 ### loadAndPlay
 
-`mpvController.loadAndPlay()` takes the video and how to play it. Everything after the first four arguments has a default:
+`mpvController.loadAndPlay()` takes one request: the video and how to play it, as named fields. Every field but `url` has a default, and one left out has it (a name it doesn't know is a warning in the log):
 
-| # | Argument | Hello Channel passes | What it is |
-|---|---|---|---|
-| 1 | `url` | the file's path | A file, a playlist (`.m3u`) or a stream's URL |
-| 2 | `startSeconds` | the saved position | Where to start; under half a second, from the beginning |
-| 3 | `audioTrack` | `0` | `0` for mpv's choice, else a track's number |
-| 4 | `subTrack` | `-2` | `-2` subtitles off, `0` on, `-1` forced only (needs mpv 0.38 or newer), above 0 a track's number |
-| 5, 6 | `subFiles`, `subLangs` | `[]`, `[]` | Subtitle files to load; preferred subtitle languages |
-| 7 | `loop` | Loop Playback | Over and over (`--loop-playlist=inf`) |
-| 8 | `playlistStart` | | Where in a playlist to start, `-1` for its start |
-| 12 | `oscMode` | | `"ambient"` for Ambient:Mode's own on-screen controls |
-| 13 | `shuffle` | | A playlist in random order |
-| 15, 16 | `imageDurationSec`, `imageContent` | | For pictures: how long each shows |
-| 17 | `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
-| 19 | `extraUrls` | | More files after the first, one playlist |
+| Field | Hello Channel passes | What it is |
+|---|---|---|
+| `url` | the file's path | A file, a playlist (`.m3u`) or a stream's URL |
+| `startSeconds` | the saved position | Where to start; under half a second, from the beginning |
+| `audioTrack` | | `0` or less (the default) for mpv's choice, else a track's number |
+| `subTrack` | `-2` | `-2` subtitles off, `0` on, `-1` forced only (the default; needs mpv 0.38 or newer), above 0 a track's number |
+| `subFiles`, `subLangs` | | Subtitle files to load; preferred subtitle languages |
+| `loop` | Loop Playback | Over and over (`--loop-playlist=inf`) |
+| `playlistStart` | | Where in a playlist to start, `-1` (the default) for its start |
+| `oscMode` | | `"ambient"` for Ambient:Mode's own on-screen controls |
+| `shuffle` | | A playlist in random order |
+| `imageDurationSec`, `imageContent` | | For pictures: how long each shows |
+| `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
+| `extraUrls` | | More files after the first, one playlist |
 
 The app adds the rest: the board's decoder and output, Scaling, Video Levels, Audio Output, the channel logo and the IPC socket ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
@@ -1013,19 +1014,12 @@ QTEST_GUILESS_MAIN(HelloChannelTest)
 #include "hello_channel_test.moc"
 ```
 
-Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and what it needs:
+Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and what it needs (`osdos_test_core`):
 
 ```cmake
 # Hello Channel's backend, and registerModule's wiring of it (AppCore).
-add_executable(hello_channel_test
-    hello_channel_test.cpp
-    ../src/AppCore.cpp
-    ../src/util/SetupFile.cpp
-    ../src/util/LegacyNames.cpp
-    ../src/modules/hello_channel/HelloChannelBackend.cpp)
-target_include_directories(hello_channel_test PRIVATE ../src)
-target_link_libraries(hello_channel_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
-add_test(NAME hello_channel COMMAND hello_channel_test)
+osdos_cpp_test(hello_channel SOURCES ../src/modules/hello_channel/HelloChannelBackend.cpp
+    LIBRARIES osdos_test_core Qt6::Network Qt6::Qml)
 ```
 
 and run it:
@@ -1088,10 +1082,12 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |
 | `LoadingScreen`, `PlayerMenu`, `PlaybackNotice` | The tape loading while a video starts, a video's own menu, the notice for a video that couldn't be played |
+| `PlayerSession` | What OSD/OS's own players share as a video plays: where it is, the keys sent on to mpv, the way into and out of a player's menu |
 | `MpvKeys` | mpv's names for the keys a player sends on as its video plays (`MpvKeys.name(event.key)`) |
 | `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |
+| `CatalogBrowser` | A catalogue in a `TreeBrowser` with search, MORE, an info screen and options on what plays (YouTube's list and `WebPlayerBrowse` are one), given what it browses |
 | `WebPlayerBrowse`, `WebPlayerLaunch` | A streaming service's catalogue and its web player |
 | `MediaServerLibraries`, `MediaServerItems`, `MediaServerItem`, `MediaServerPlayer`… | A Jellyfin-style server's libraries, lists, item pages and player (Jellyfin's and Emby's), given the module's backend |
 

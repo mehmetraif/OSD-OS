@@ -33,7 +33,7 @@ class YouTubeBackend;
 //   { "playlists": [ { id, name, kind: "online"|"offline", order: "inorder"|
 //                      "shuffle", items: [ { id, module, key, title, source } ],
 //                      resume: { itemId, positionMs } } ],
-//     "downloads": { key: { path, state: "done"|"failed", reason, bytes } } }
+//     "downloads": { key: { path, state: "done"|"failed", reason, folder } } }
 // An item's key names the video whatever list it is on: "local:<path>",
 // "youtube:<videoId>", "jellyfin:<itemId>", "emby:<itemId>".
 class PlaylistsBackend : public QObject {
@@ -119,6 +119,9 @@ private:
         QPointer<ServerDownload> download;
         QString finalPath;
         QString reason;
+        // The download folder it was started in: what it leaves is there,
+        // whatever Download Folder says by the time it ends.
+        QString folder;
         int percent = 0;
         // The finished file is on its way to the card (finish()).
         bool flushing = false;
@@ -136,6 +139,10 @@ private:
     QString itemState(const QJsonObject &item, const QString &kind, int *percent,
                       QString *reason) const;
     QString playableUrl(const QJsonObject &item, const QString &kind) const;
+    // A download's file, once it is done and the file is there; "" otherwise.
+    QString downloadedPath(const QString &key) const;
+    // Every item of every offline list, in the lists' order.
+    QList<QJsonObject> offlineItems() const;
     bool referencedOffline(const QString &key) const;
     // Downloads no offline list wants any more: stopped, their files deleted.
     void dropUnreferenced();
@@ -143,9 +150,8 @@ private:
     void queueOfflineItems();
     // Queues again the downloads that failed in a way that may pass (no
     // network yet after a power cut, a server still starting), a while after
-    // they did: the app's next start is no longer what it takes. Not those
-    // that fail whatever the network does (refused, signed out, no yt-dlp,
-    // a folder or a card that can't be written).
+    // they did. Not those that fail whatever the network does (refused,
+    // signed out, no yt-dlp, a folder or a card that can't be written).
     void retryFailed();
     // Whether it is to be downloaded (not when on the device already).
     bool enqueue(const QString &key);
@@ -167,7 +173,12 @@ private:
     QString sourceFolder(const QString &name) const;
     // Whether a download can go in the folder; if not, it fails, saying so.
     bool writable(const QString &folder);
-    void removePartials(const QString &key) const;
+    // What a YouTube download cut short left in the download folder it ran
+    // in (Active's folder, a failed one's record's).
+    void removePartials(const QString &key, const QString &folder) const;
+    // The download folder a failed download ran in, as its record has it;
+    // the one now chosen for a record from before it was kept.
+    QString failedFolder(const QString &key) const;
     // The temporary files that servers' downloads cut short by the power
     // going left in their folders: deleted as the lists are queued (15 s
     // after the start, the module turned on, Retry Downloads), unless a

@@ -8,6 +8,7 @@
 #include "audio/MenuMusic.h"
 #include "modules/ambient_mode/AmbientModeBackend.h"
 #include "modules/weather/WeatherBackend.h"
+#include "util/MpvSocket.h"
 #include "util/RuntimeFiles.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -518,6 +519,38 @@ private slots:
         mpv.end(true);
         QVERIFY(!lastAlive());
         QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+    }
+
+    // The control connection all the app's mpvs are reached by
+    // (util/MpvSocket): tried until mpv has made its socket, then a command
+    // a line of mpv's JSON; none written while it isn't connected, and none
+    // tried once it is told to stop.
+    void mpvSocket() {
+        const QString path = runtimefiles::path(QStringLiteral("osdos-test-socket.sock"));
+        QLocalServer::removeServer(path);
+        MpvSocket socket(nullptr, 20);
+        QVERIFY(!socket.command({ QStringLiteral("quit") }));
+        socket.connectTo(path);
+        QTest::qWait(100);
+        QCOMPARE(socket.state(), QLocalSocket::UnconnectedState);
+
+        // mpv's socket, made a moment after it started.
+        QLocalServer control;
+        QVERIFY(control.listen(path));
+        QTRY_COMPARE_WITH_TIMEOUT(socket.state(), QLocalSocket::ConnectedState, 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 3000);
+        QLocalSocket *mpv = control.nextPendingConnection();
+        QVERIFY(socket.command({ QStringLiteral("set_property"), QStringLiteral("volume"), 40 }));
+        QTRY_VERIFY_WITH_TIMEOUT(mpv->bytesAvailable() > 0, 3000);
+        QCOMPARE(mpv->readAll(), QByteArray("{\"command\":[\"set_property\",\"volume\",40]}\n"));
+
+        // Gone, and not asked for again: left unconnected.
+        socket.abort();
+        socket.connectTo(path);
+        socket.stopConnecting();
+        QTest::qWait(100);
+        QCOMPARE(socket.state(), QLocalSocket::UnconnectedState);
+        QVERIFY(!control.hasPendingConnections());
     }
 };
 

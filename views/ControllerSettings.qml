@@ -1,5 +1,7 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
+import "JammaPinLayouts.js" as JammaPinLayouts
 
 // A gamepad's page, from Settings → Controls (Controllers.qml): six lines,
 // each one job.
@@ -12,7 +14,7 @@ import Components
 //     RESET ►                            all of it back to the defaults, asked first
 //
 // One of the JAMMA board's sticks has a seventh, PIN NAMES: the layout its
-// test names the board's pins by (JammaPinGrid.layouts), kept in config.json
+// test names the board's pins by (JammaPinLayouts.js), kept in config.json
 // as app.jamma_pin_layout. A pad away has NOT CONNECTED for its title, and
 // what needs it connected says so when chosen.
 FocusScope {
@@ -35,11 +37,8 @@ FocusScope {
     // Its name as last seen: kept once a reset leaves nothing of one away.
     property string name: ""
 
-    readonly property var styles: ["auto", "a_below", "a_right", "shapes", "numbers"]
-    readonly property var styleTitles: ({ auto: "Auto", a_below: "A below", a_right: "A right",
-                                          shapes: "Shapes", numbers: "Numbers" })
-    // The layouts a JAMMA stick's test names the board's pins by.
-    readonly property var pinLayouts: ["OSD/OS", "Crown, CHAMMA", "JammaPi"]
+    // The layouts a JAMMA stick's test names the board's pins by, by name.
+    readonly property var pinLayouts: JammaPinLayouts.layouts.map(function(l) { return l.name })
     property int pinLayout: 0
 
     property var rows: []
@@ -62,10 +61,20 @@ FocusScope {
         function onPlayersChanged() { pageRoot.refresh() }
     }
 
+    // The label styles, in the order ◄ ► steps through them.
+    function styles() {
+        return (page.labelStyles || []).map(function(s) { return s.style })
+    }
+
     function labelsValue() {
         if (page.labels === "auto" || !page.labels)
             return page.labelsInUse ? "Auto (" + page.labelsInUse + ")" : "Auto"
-        return styleTitles[page.labels] || page.labels
+        var all = page.labelStyles || []
+        for (var i = 0; i < all.length; i++) {
+            if (all[i].style === page.labels)
+                return all[i].title
+        }
+        return page.labels
     }
 
     // "AUTO (1)", "AUTO" for one that plays as no one, "2" chosen by hand.
@@ -116,14 +125,22 @@ FocusScope {
     }
 
     function cycleLabels(step) {
-        var i = styles.indexOf(page.labels || "auto")
-        inputManager.setControllerLabels(key, styles[((i < 0 ? 0 : i) + step + styles.length) % styles.length])
+        var all = styles()
+        if (all.length === 0)
+            return
+        var i = all.indexOf(page.labels || "auto")
+        if (!inputManager.setControllerLabels(key, all[((i < 0 ? 0 : i) + step + all.length) % all.length]))
+            notice = ControlsText.notSaved
     }
 
+    // The next one shows once it is kept.
     function cyclePins(step) {
-        pinLayout = (pinLayout + step + pinLayouts.length) % pinLayouts.length
-        if (appCore)
-            appCore.save_setting("", "jamma_pin_layout", pinLayouts[pinLayout])
+        var next = (pinLayout + step + pinLayouts.length) % pinLayouts.length
+        if (appCore && !appCore.save_setting("", "jamma_pin_layout", pinLayouts[next])) {
+            notice = ControlsText.notSaved
+            return
+        }
+        pinLayout = next
         refresh()
     }
 
@@ -146,6 +163,8 @@ FocusScope {
         var result = inputManager.setPadPlayer(key, number)
         if (result.outcome === "away")
             notice = "Connect it first"
+        else if (result.outcome === "unsaved")
+            notice = ControlsText.notSaved
         else if (result.outcome === "already")
             notice = number === 0 ? "Its player is automatic already" : "It is player " + number + " already"
         else if (number === 0)
@@ -268,9 +287,10 @@ FocusScope {
         onActivated: function(action) {
             if (action !== "reset" || !inputManager)
                 return
-            inputManager.resetController(pageRoot.key)
+            if (!inputManager.resetController(pageRoot.key))
+                pageRoot.notice = ControlsText.notSaved
             // Away, it had nothing else: its line goes from the list too.
-            if (!pageRoot.present)
+            else if (!pageRoot.present)
                 pageRoot.goBack()
             else
                 pageRoot.notice = "Back to the defaults"

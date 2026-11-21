@@ -4,6 +4,7 @@
 #include "../../util/AtomicFile.h"
 #include "../../util/FileNames.h"
 #include "../../util/PlaybackOptions.h"
+#include "../../util/YtDlpFormat.h"
 #include "NfcDriver.h"
 #include "PcscDriver.h"
 #include "Pn532SerialDriver.h"
@@ -419,7 +420,7 @@ void NfcReaderBackend::scanTagsDir() {
                      qPrintable(uid), qPrintable(fi.fileName()));
             continue;
         }
-        m_mapping.insert(uid, MappingEntry{path, fi.completeBaseName(), mode});
+        m_mapping.insert(uid, MappingEntry{path, fi.completeBaseName(), mode, fi.fileName()});
         fileCount++;
     }
     qDebug("[NfcReader] Scanned %d tag files from %s", fileCount, qPrintable(tagsDirPath()));
@@ -443,7 +444,7 @@ void NfcReaderBackend::writeStubFile(const QString &normalizedUid) {
     file.write((normalizedUid + "\n").toUtf8());
     qDebug("[NfcReader] Created stub tag file: %s", qPrintable(path));
     // Register as known-unmapped so a lift-and-retap doesn't re-scan/re-write.
-    m_mapping.insert(normalizedUid, MappingEntry{QString(), name, QString()});
+    m_mapping.insert(normalizedUid, MappingEntry{QString(), name, QString(), name + ".txt"});
 }
 
 void NfcReaderBackend::reloadMapping() {
@@ -500,6 +501,7 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     // this write is allowed to replace.
     const auto prev = m_mapping.constFind(normalizedUid);
     const QString prevName = (prev != m_mapping.constEnd()) ? prev->title : QString();
+    const QString prevFile = (prev != m_mapping.constEnd()) ? prev->file : QString();
 
     // Two cards must never land on one filename: the second write would replace
     // the first card's file and silently break that card. Titles alone are not
@@ -512,7 +514,10 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     for (int n = 2; name != prevName && QFile::exists(tagsDirPath() + "/" + name + ".txt"); ++n)
         name = base + " (" + QString::number(n) + ")";
 
-    const QString path = tagsDirPath() + "/" + name + ".txt";
+    // The same title: the card's own file is written over, under the name it
+    // has (Dune.TXT stays Dune.TXT, rather than a Dune.txt beside it).
+    const QString path = tagsDirPath() + "/"
+                         + (name == prevName && !prevFile.isEmpty() ? prevFile : name + ".txt");
 
     QString body = normalizedUid + "\n" + ref + "\n";
     if (!mode.isEmpty()) body += mode + "\n";
@@ -525,8 +530,8 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     // card, and scanTagsDir resolves that by keeping the alphabetically
     // earlier one — which might be the stale one — so one that can't be
     // removed takes the new file back, and the card stays as it was.
-    if (!prevName.isEmpty()) {
-        const QString prevPath = tagsDirPath() + "/" + prevName + ".txt";
+    if (!prevFile.isEmpty()) {
+        const QString prevPath = tagsDirPath() + "/" + prevFile;
         if (prevPath != path && QFile::exists(prevPath)) {
             if (!QFile::remove(prevPath)) {
                 qWarning("[NfcReader] Could not remove previous tag file: %s", qPrintable(prevPath));
@@ -576,20 +581,16 @@ void NfcReaderBackend::clearPosition(const QString &videoPath) {
     m_history.clear(videoPath);
 }
 
-// Same format cascade as the YouTube module; only applies to mapping entries
-// that resolve through yt-dlp (YouTube page URLs) — local files and direct
-// media URLs never reach the ytdl hook.
+// The YouTube module's format at its defaults but the height; only applies to
+// mapping entries that resolve through yt-dlp (YouTube page URLs) — local
+// files and direct media URLs never reach the ytdl hook.
 QString NfcReaderBackend::ytdlFormatForResolution(const QString &resolution) const {
     int height = 480;
     if (resolution == QLatin1String("720p"))
         height = 720;
     else if (resolution == QLatin1String("1080p"))
         height = 1080;
-    // H.264 first (RPi hardware decode), then any codec at the cap, then best
-    return QStringLiteral("bestvideo[height<=?%1][vcodec^=avc1]+bestaudio/"
-                          "bestvideo[height<=?%1]+bestaudio/"
-                          "best[height<=?%1]/best")
-        .arg(height);
+    return ytdlp::format(height, true, false, QString());
 }
 
 void NfcReaderBackend::get_resume_playback_options() {

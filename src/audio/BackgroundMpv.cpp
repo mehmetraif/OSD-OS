@@ -3,15 +3,11 @@
 #include "MenuMusic.h"
 #include "../util/EndProcess.h"
 #include "../util/MpvLocator.h"
+#include "../util/MpvSocket.h"
 #include "../util/RuntimeFiles.h"
 
 #include <QDebug>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QLocalSocket>
 #include <QProcessEnvironment>
-#include <QTimer>
 #include <utility>
 
 BackgroundMpv::BackgroundMpv(const QString &tag, const char *what, QObject *parent)
@@ -32,10 +28,8 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
 
     // Its own socket name: MpvController uses osdos-mpv.sock for the player,
     // and two mpvs sharing one path would hand the wrong process our commands.
-    // In a folder of the user's own rather than the temp folder every account
-    // writes in (util/RuntimeFiles.h), asked for at each start: the folder may
-    // have been taken away and made again since. Where there is none, it
-    // plays without one, and can't be paused.
+    // Asked for at each start: the run-time folder may have been taken away
+    // and made again since.
     m_socketPath = socketName.isEmpty() ? QString() : runtimefiles::path(socketName);
 
     QStringList args;
@@ -48,7 +42,8 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
         args << QStringLiteral("--input-ipc-server=%1").arg(m_socketPath);
     // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
     // ALSA's default (applyTo() below).
-    args << AudioOutput::mpvArgs()
+    const AudioOutput::Player sound = AudioOutput::forPlayer();
+    args << sound.mpvArgs
          // Everything after this is a file, so an entry starting with '-'
          // cannot be mistaken for an option.
          << QStringLiteral("--")
@@ -59,7 +54,7 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
     MenuMusic::hold(m_tag);
     m_process = new QProcess(this);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
+    sound.applyTo(env);
     m_process->setProcessEnvironment(env);
     // mpv ending on its own, or never starting: the menu music has the card
     // back, and no stale process is kept for the next start() to end.
@@ -75,33 +70,22 @@ bool BackgroundMpv::start(const QStringList &files, const QStringList &options, 
     });
     m_process->start(bin, args);
 
-    // mpv creates the socket a beat after launch, so a single connect attempt
-    // loses the race. Same retry shape as MpvController. Not for one that
-    // couldn't be started, and has been ended already.
+    // Its socket, once mpv has made it. Not for one that couldn't be
+    // started, and has been ended already.
     if (m_process && !m_socketPath.isEmpty()) {
-        if (!m_ipc) {
-            m_ipc = new QLocalSocket(this);
-            connect(m_ipc, &QLocalSocket::connected, this, [this]() { m_connect->stop(); });
-        }
-        if (!m_connect) {
-            m_connect = new QTimer(this);
-            m_connect->setInterval(100);
-            connect(m_connect, &QTimer::timeout, this, [this]() {
-                if (m_ipc->state() == QLocalSocket::ConnectedState
-                    || m_ipc->state() == QLocalSocket::ConnectingState)
-                    return;
-                m_ipc->connectToServer(m_socketPath);
-            });
-        }
-        m_connect->start();
+        if (!m_ipc)
+            m_ipc = new MpvSocket(this);
+        m_ipc->connectTo(m_socketPath);
     }
     emit stateChanged();
     return true;
 }
 
 void BackgroundMpv::end(bool wait) {
-    if (m_connect) m_connect->stop();
-    if (m_ipc)     m_ipc->abort();
+    if (m_ipc) {
+        m_ipc->stopConnecting();
+        m_ipc->abort();
+    }
     // One asked to end a moment ago still has the sound card.
     if (wait && m_ending && m_ending->state() != QProcess::NotRunning)
         m_ending->waitForFinished(1000);
@@ -133,16 +117,12 @@ void BackgroundMpv::end(bool wait) {
 }
 
 bool BackgroundMpv::setPaused(bool paused) {
-    if (!running() || !m_ipc || m_ipc->state() != QLocalSocket::ConnectedState)
-        return false;
-    m_paused = paused;
     // set_property, not "cycle pause": our idea of the state and mpv's can then
     // never drift apart.
-    const QJsonObject cmd{
-        { QStringLiteral("command"),
-          QJsonArray{ QStringLiteral("set_property"), QStringLiteral("pause"), m_paused } }
-    };
-    m_ipc->write(QJsonDocument(cmd).toJson(QJsonDocument::Compact) + "\n");
+    if (!running() || !m_ipc
+            || !m_ipc->command({ QStringLiteral("set_property"), QStringLiteral("pause"), paused }))
+        return false;
+    m_paused = paused;
     emit stateChanged();
     return true;
 }

@@ -1,16 +1,21 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // A pad's Game Buttons, from its page in Settings → Controls
 // (ControllerSettings.qml): which of its inputs is each of a cabinet's,
 // Button 1 to 8, Coin and Start, the same in every game, MAME's and FinalBurn
 // Neo's alike.
 //
-// LAYOUT is chosen from a list (back leaves it as it was): a preset (Fighting
+// LAYOUT is chosen from a list (back leaves it as it was): Auto, OSD/OS's own
+// by the game (a game of up to four buttons on Neo Geo 4's rows, the ones
+// shown, and one of five or more on Fighting 6's), where a pad SDL knows by
+// its kind starts; a preset (Fighting
 // 6: a fighter's punches over its kicks, as a six-button cabinet's two rows;
 // Neo Geo 4: A B C D on the four face buttons; NES, Mega Drive, SNES, Saturn
-// and N64: a console pad's own), the emulators' own (Default: what OSD/OS
-// always did, a JAMMA stick's pins' buttons in their order), or Custom, the
+// and N64: a console pad's own), the emulators' own (Engine's: what OSD/OS
+// always did, where any other pad starts, a JAMMA stick's pins' buttons in
+// their order), or Custom, the
 // inputs set by hand, which InputManager keeps while another layout is
 // chosen, so Custom brings them back.
 //
@@ -70,6 +75,8 @@ FocusScope {
     // 1 to 6, Coin, Start, then 7 and 8.
     readonly property var allOrder: [0, 1, 2, 3, 4, 5, 8, 9, 6, 7]
     readonly property bool optionalStep: settingAll && optionalAt(step)
+    // How long a wait lasts, a line's own and a step of Set One by One.
+    readonly property int pressSeconds: 10
     readonly property int stepSeconds: 20
 
     // What the control panel lights: the line's input, blinking, so that it
@@ -80,40 +87,15 @@ FocusScope {
     // On whose side of it (playerSide()): 2 the right, 1 the left.
     property int player: 1
 
-    // InputManager as the page opened, for its end: the context property may
-    // read null while the view Loader tears down.
-    property var manager: null
-
     Component.onCompleted: {
-        manager = inputManager
         refresh()
         list.currentIndex = list.selectableFrom(0, 1)
         list.forceActiveFocus()
     }
-    // Leaving the page while it waits for a press: the controller acts again.
-    Component.onDestruction: {
-        if (manager)
-            manager.captureController("")
-    }
-
     Connections {
         target: inputManager
         function onControllersChanged() { pageRoot.refresh() }
         function onPlayersChanged() { pageRoot.player = pageRoot.playerSide() }
-        // A tap: the answer.
-        function onControllerInputCaptured(key, input, label) {
-            if (key !== pageRoot.key || !pageRoot.capturing)
-                return
-            if (pageRoot.settingAll)
-                pageRoot.stepPress(input, label)
-            else
-                pageRoot.setPress(input, label)
-        }
-        // Held: the way out.
-        function onCaptureHeld(key) {
-            if (key === pageRoot.key && pageRoot.capturing)
-                pageRoot.endCapture("Nothing changed")
-        }
     }
 
     Timer {
@@ -167,6 +149,7 @@ FocusScope {
     // The layout's own words, short enough to be read at once.
     function layoutDescription() {
         var words = {
+            auto: "Games of five buttons or more: Fighting 6's",
             fighting6: "Punches 1 2 3 over kicks 4 5 6",
             neogeo4: "A B C D on the four face buttons",
             nes: "B is button 1, A button 2",
@@ -252,7 +235,7 @@ FocusScope {
         else if (result.outcome === "menu")
             notice = result.label + " shows MAME's menu, not a button"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     // "RB is Button 1", "Button 7 is None".
@@ -276,20 +259,14 @@ FocusScope {
         notice = ""
         stepNotice = ""
         captureInput = input
-        inputManager.captureController(key)
-        prompt.visible = true
-        prompt.start(settingAll ? stepSeconds : 10)
-        prompt.forceActiveFocus()
+        prompt.begin()
     }
 
     // The wait over, with what to say of it.
     function endCapture(said) {
-        var hadKeys = prompt.activeFocus
+        var hadKeys = prompt.end()
         captureInput = ""
         settingAll = false
-        prompt.visible = false
-        if (inputManager)
-            inputManager.captureController("")
         notice = said
         if (hadKeys)
             list.forceActiveFocus()
@@ -325,8 +302,7 @@ FocusScope {
     // The step it is at, asked for (again).
     function askStep() {
         captureInput = page.rows[allOrder[step]].input
-        prompt.start(stepSeconds)
-        inputManager.captureController(key)
+        prompt.again()
     }
 
     function take(token, label) {
@@ -346,11 +322,9 @@ FocusScope {
             askStep()
             return
         }
-        var hadKeys = prompt.activeFocus
+        var hadKeys = prompt.end()
         captureInput = ""
         settingAll = false
-        prompt.visible = false
-        inputManager.captureController("")
         summing = true
         sumIndex = 0
         if (hadKeys)
@@ -416,7 +390,7 @@ FocusScope {
         }
         var outcome = inputManager.setArcadeInputs(key, setTokens)
         notice = outcome === "set" ? "Saved: its layout is Custom now"
-               : outcome === "unsaved" ? "Not saved: the settings could not be written" : "Nothing changed"
+               : outcome === "unsaved" ? ControlsText.notSaved : "Nothing changed"
     }
 
     function activate(row) {
@@ -502,8 +476,8 @@ FocusScope {
         promptText: "Layout"
         subtitleText: "Custom is what was set by hand: it is kept while another is chosen"
         onActivated: function(layout) {
-            if (inputManager)
-                inputManager.setArcadeLayout(pageRoot.key, layout)
+            if (inputManager && !inputManager.setArcadeLayout(pageRoot.key, layout))
+                pageRoot.notice = ControlsText.notSaved
         }
         onClosed: list.forceActiveFocus()
     }
@@ -528,12 +502,23 @@ FocusScope {
     PressPrompt {
         id: prompt
         objectName: "capturePrompt"
+        visible: pageRoot.capturing
+        controllerKeys: [pageRoot.key]
+        seconds: pageRoot.settingAll ? pageRoot.stepSeconds : pageRoot.pressSeconds
         title: pageRoot.settingAll ? "Set One by One (" + (pageRoot.step + 1) + "/" + pageRoot.allOrder.length + ")"
                                    : pageRoot.inputLabel(pageRoot.captureInput)
         message: (pageRoot.stepNotice !== "" ? pageRoot.stepNotice + "\n" : "")
                  + "Press the button on " + pageRoot.name + " for [" + pageRoot.inputLabel(pageRoot.captureInput) + "]"
         extra: !pageRoot.settingAll ? ""
                : "Joystick ◄ back" + (pageRoot.optionalStep ? ", ► no button" : "")
+        // A tap: the answer. Held: the way out.
+        onTapped: function(key, input, label) {
+            if (pageRoot.settingAll)
+                pageRoot.stepPress(input, label)
+            else
+                pageRoot.setPress(input, label)
+        }
+        onHeld: pageRoot.endCapture("Nothing changed")
         onBackPressed: pageRoot.endCapture("Nothing changed")
         onTimedOut: pageRoot.endCapture("No press: nothing changed")
 

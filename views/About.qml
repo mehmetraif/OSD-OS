@@ -253,8 +253,7 @@ FocusScope {
             height: root.sh * 0.075 //36
             width: implicitWidth
             sourceSize.height: height
-            source: "image://osdicon/" + root.primaryColor.toString().replace("#", "")
-                    + "/" + Qt.resolvedUrl("../assets/images/logo-wordmark.svg")
+            source: root.iconUrl(root.primaryColor, Qt.resolvedUrl("../assets/images/logo-wordmark.svg"))
         }
         // The slash over the letters' own, in its colours: the same frame.
         Image {

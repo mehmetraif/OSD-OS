@@ -3,9 +3,10 @@
 # openbsd.yml) run in their virtual machine, once the system's packages are
 # installed: the app built and installed into stage/, the regression tests
 # built and run, FinalBurn Neo's two cores built into fbneo/ from
-# fbneo-src.tar.gz (unless a run before kept them there), the system's
-# package made (scripts/bsd-package.sh), then installed as a user installs
-# it, the cores loaded and the app started from it, and removed again.
+# fbneo-src.tar.gz (scripts/build-fbneo-cores.sh, unless a run before kept
+# them there), the system's package made (scripts/bsd-package.sh), then
+# installed as a user installs it, the cores loaded and the app started from
+# it, and removed again.
 #
 #   scripts/bsd-ci.sh <version>
 #
@@ -43,26 +44,9 @@ QT_QPA_PLATFORM=offscreen ctest --test-dir build-tests --output-on-failure --tim
 grep -n "invalid context\|delayed function evaluation" build-tests/Testing/Temporary/LastTest.log || true
 [ "$status" -eq 0 ]
 
-# FinalBurn Neo's source unpacked into the folder $1 without the archive's
-# own top folder: OpenBSD's tar has no --strip-components, but rewrites
-# each name (-s).
-unpack_fbneo() {
-    mkdir -p "$1"
-    if [ "$system" = OpenBSD ]; then
-        tar -xzf fbneo-src.tar.gz -C "$1" -s '|^[^/]*/||'
-    else
-        tar -xzf fbneo-src.tar.gz -C "$1" --strip-components 1
-    fi
-}
-
-# The list of games is the last thing the scripts write. Both
-# cores from the commit scripts/engines.env names, each from a
-# copy of its own: the LAN core's patch goes in its copy.
+# The list of games is written once both cores are built.
 if [ ! -f fbneo/share/osdos/fbneo/fbneo-arcade.dat ]; then
-    unpack_fbneo fbneo-src
-    unpack_fbneo fbneo-lan-src
-    bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo/lib/osdos fbneo/share/osdos/fbneo/license.txt
-    bash scripts/build-fbneo.sh fbneo-src fbneo/lib/osdos fbneo/share/osdos/fbneo/fbneo-arcade.dat \
+    bash scripts/build-fbneo-cores.sh build fbneo/lib/osdos fbneo/share/osdos/fbneo/fbneo-arcade.dat \
       fbneo/share/osdos/fbneo/license.txt
 fi
 tar -C fbneo -cf - . | tar -C stage/usr/local -xf -

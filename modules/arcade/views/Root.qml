@@ -40,20 +40,59 @@ ModuleRouter {
     // Settings → Arcade's the module was opened on instead (settingsPage).
     readonly property var hintBarShown: arcadeScreen && !settingsPage ? hintBar : undefined
     readonly property var helpLineShown: arcadeScreen && !settingsPage ? helpLine : undefined
-    // Opened from Settings → Arcade on one of its pages (MAME, FinalBurn Neo,
-    // the RetroAchievements account, Game Pictures, Check ROMs, Favorites,
-    // Online Name) rather than on the games: a page of Settings', whose
-    // hints and help are Settings' to show or hide. Screen Adjustment opens
-    // the Arcade screen itself, which keeps its own.
-    readonly property bool settingsPage: !!(navParams.mame || navParams.fbneo || navParams.achievements
-                                            || navParams.pictures || navParams.romCheck || navParams.favorites
-                                            || navParams.onlineName)
+    // Settings → Arcade's pages, by what Settings opens the module with
+    // (navParams): MAME's, FinalBurn Neo's, the RetroAchievements account's,
+    // the game pictures', Check ROMs', the favorites' and the online name's.
+    readonly property var settingsPages: ({ mame: "Mame.qml", fbneo: "Fbneo.qml", achievements: "Account.qml",
+                                            pictures: "Pictures.qml", romCheck: "RomCheck.qml",
+                                            favorites: "Favorites.qml", onlineName: "OnlineName.qml" })
+    // The one opened on, "" for none: the module opened on a page of
+    // Settings' rather than on the games, whose hints and help are Settings'
+    // to show or hide. Screen Adjustment opens the Arcade screen itself,
+    // which keeps its own.
+    readonly property string settingsFile: {
+        for (var key in settingsPages) {
+            if (navParams[key])
+                return settingsPages[key]
+        }
+        return ""
+    }
+    readonly property bool settingsPage: settingsFile !== ""
     // A settings page is in a monitor layout's frame (Settings → Look → Menu
     // Layout), as Settings' own pages are: it says so (inFrame), and Main.qml
     // draws the frame round it. The Arcade screen, a game and a page over the
-    // list (Game Details, a room's) are not: Play.qml or a page over the list
-    // covers it (viewCovered), which is then neither drawn nor in the frame.
-    viewCovered: !!playLayer.item || !!pageLayer.item
+    // list (Game Details, a room's) are not: Play.qml, a page over the list
+    // or the loading screen of a game played from it (playing) covers it
+    // (viewCovered), which is then neither drawn nor in the frame. On a
+    // monitor turned on its side the Arcade screen is taller than the stage
+    // the loading screen fills, and would show round it.
+    viewCovered: !!playLayer.item || !!pageLayer.item || playing !== null
+
+    // What stands in the way of the games (ArcadeBackend's problem), the
+    // folder they go in, whether it can be read and whether they are being
+    // read, for both lists of games and the screens with nothing to list.
+    // The backend says an engine is missing in a sentence of its own (its
+    // problem, a game's lastError()): missingProgram() reads which, the
+    // program AppCore::installHint() says how to put on ("mame",
+    // "retroarch"), "" for anything else.
+    function missingProgram(message) {
+        return message === "MAME is not installed" ? "mame"
+             : message === "RetroArch is not installed" ? "retroarch" : ""
+    }
+    readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
+    readonly property bool mameMissing: missingProgram(problem) === "mame"
+    // For the help line: with how to put MAME on, for this system, where
+    // that is what stands in the way.
+    readonly property string problemLine: mameMissing ? problem + ". " + appCore.installHint("mame") : problem
+    readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
+    readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
+    readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
+    // MAME downloaded from the lists where it is what is missing and the
+    // system can (Windows): read again as a download starts and ends.
+    property int mameRevision: 0
+    readonly property bool canDownloadMame: (mameRevision, mameMissing && !!arcadeBackend
+                                             && arcadeBackend.mameInfo().canDownload)
+    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
 
     // The credits bought on the Arcade screen with COIN: they go in the next
     // game started (startGame()), as many as ArcadeBackend puts in
@@ -108,15 +147,15 @@ ModuleRouter {
     // starts it. With it off the game starts from the list itself, under the
     // loading screen (GameLoading.qml), which stays on the screen while MAME
     // starts; the list has every key kept from it till the game ends
-    // (keyCatcher), and Play.qml only says why a game didn't play. Either
-    // way the list stays loaded under the game, as it was, and is on the
-    // screen again the moment the game ends.
-    function playGame(params, listState) {
+    // (keyCatcher), and Play.qml only says why a game didn't play, or why
+    // it stopped. Either way the list stays loaded under the game, as it
+    // was, and is on the screen again the moment the game ends.
+    function playGame(params) {
         if (startInfo) {
             openPlay(params)
             return
         }
-        playing = { game: params.game, title: params.title, online: params.online, listState: listState || {} }
+        playing = { game: params.game, title: params.title, online: params.online }
         keyCatcher.forceActiveFocus()
         listLaunch.restart()
     }
@@ -127,13 +166,11 @@ ModuleRouter {
         root.changeWindow(playLayer, Qt.resolvedUrl("Play.qml"), { "navParams": params || {} })
     }
     function closePlay() {
-        if (!playLayer.item)
-            return
-        root.changeWindow(playLayer, "", {})
-        focusFront()
+        if (playLayer.item)
+            root.changeWindow(playLayer, "", {})
     }
     // Game Details and a room's page over the list too (pageLayer): back
-    // from one is the list as it was left, at once, where it used to be
+    // from one is the list as it was left, at once, rather than
     // made again from nothing, its rows, its dialogs and, in the Orb look,
     // its 3D scene. The list rests under a page as it does under a game's
     // screen: it is not drawn, and the keys are the page's.
@@ -144,12 +181,13 @@ ModuleRouter {
         root.changeWindow(pageLayer, Qt.resolvedUrl(path), { "navParams": params || {} })
     }
     function closePage() {
-        if (!pageLayer.item)
-            return
-        root.changeWindow(pageLayer, "", {})
-        focusFront()
+        if (pageLayer.item)
+            root.changeWindow(pageLayer, "", {})
     }
-    // The keys to what is in front: a page over the list, else the list.
+    // The keys to what is in front: a page over the list, else the list. As
+    // a layer's view goes (its onItemChanged), not as it is asked to: with a
+    // window transition on, root.changeWindow() makes the change a moment
+    // later, and the keys given back before it would be the view's that goes.
     function focusFront() {
         var front = pageLayer.item || currentView
         if (front)
@@ -175,10 +213,10 @@ ModuleRouter {
         }
     }
     // The game playGame() starts from the list, from the moment it is
-    // chosen until it ends: { game, title, online, listState }; null for
-    // none. The loading screen covers the list meanwhile, and nothing of the
-    // menus moves behind it: their effects rest, as for a game's own screen
-    // (Play.qml).
+    // chosen until it ends: { game, title, online }; null for
+    // none. The loading screen covers the list meanwhile, which is not drawn
+    // under it (viewCovered), and nothing of the menus moves behind it:
+    // their effects rest, as for a game's own screen (Play.qml).
     property var playing: null
     onPlayingChanged: root.restFor(moduleRoot, playing !== null)
     Component.onDestruction: root.restFor(moduleRoot, false)
@@ -191,18 +229,25 @@ ModuleRouter {
     Connections {
         target: arcadeBackend
         ignoreUnknownSignals: true
+        function onMameChanged() { moduleRoot.mameRevision++ }
         function onFinished(exitCode, reason, notice) {
             var ended = moduleRoot.playing
             if (!ended)
                 return
             moduleRoot.playing = null
             moduleRoot.focusFront()
-            // Back on the list, as after a video; else why it didn't play.
+            // Back on the list, as after a video; else why it didn't play,
+            // or why it stopped (Play.qml's ended()).
             if (reason !== "ok")
-                moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true,
+                moduleRoot.openPlay({ game: ended.game, title: ended.title, failed: true, reason: reason,
                                       message: notice, output: arcadeBackend.output() })
         }
     }
+
+    // No one looks at the menus: a game has the screen, or the screen saver
+    // is up. What the views do only to be seen (the pictures' turn, the rooms
+    // asked for again, the Orb look's frames) rests meanwhile.
+    readonly property bool away: (!!arcadeBackend && arcadeBackend.running) || root.screenSaverActive
 
     // A toggle of the module's, ON unless it is turned off.
     function isOn(value) {
@@ -212,9 +257,9 @@ ModuleRouter {
     // A view's navigateTo: a game asked for, played as Start Info Screen
     // says; Game Details and a room's page, over the list; any other view
     // on the stack, as the router has it.
-    opensOwn: function(path, params, listState) {
+    opensOwn: function(path, params) {
         if (path === "Play.qml" && params && params.game)
-            moduleRoot.playGame(params, listState)
+            moduleRoot.playGame(params)
         else if (moduleRoot.overList(path))
             moduleRoot.openPage(path, params)
         else
@@ -248,13 +293,14 @@ ModuleRouter {
         anchors.fill: parent
         visible: !playLayer.item
         onLoaded: { if (item) item.forceActiveFocus() }
+        onItemChanged: if (!item) moduleRoot.focusFront()
 
         Connections {
             target: pageLayer.item
             ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) {
+            function onNavigateTo(path, params) {
                 if (path === "Play.qml" && params && params.game)
-                    moduleRoot.playGame(params, listState)
+                    moduleRoot.playGame(params)
             }
             function onGoBack() { moduleRoot.closePage() }
         }
@@ -268,6 +314,7 @@ ModuleRouter {
         objectName: "playLayer"
         anchors.fill: parent
         onLoaded: { if (item) item.forceActiveFocus() }
+        onItemChanged: if (!item) moduleRoot.focusFront()
 
         Connections {
             target: playLayer.item
@@ -310,25 +357,11 @@ ModuleRouter {
             arcadeBackend.refresh()
         // The startup favourite, when the app opens on one (Main.qml); or
         // one of Settings → Arcade's pages: the Arcade screen to adjust
-        // (Screen Adjustment), MAME's, FinalBurn Neo's, the RetroAchievements
-        // account's, the game pictures', Check ROMs', the favorites' or the
-        // online name's.
+        // (Screen Adjustment), or one of settingsPages.
         if (navParams.adjustScreen)
             navigateToView("ArcadeScreen.qml", { adjust: true })
-        else if (navParams.mame)
-            navigateToView("Mame.qml", {})
-        else if (navParams.fbneo)
-            navigateToView("Fbneo.qml", {})
-        else if (navParams.achievements)
-            navigateToView("Account.qml", {})
-        else if (navParams.pictures)
-            navigateToView("Pictures.qml", {})
-        else if (navParams.romCheck)
-            navigateToView("RomCheck.qml", {})
-        else if (navParams.favorites)
-            navigateToView("Favorites.qml", {})
-        else if (navParams.onlineName)
-            navigateToView("OnlineName.qml", {})
+        else if (settingsPage)
+            navigateToView(settingsFile, {})
         else
             navigateToView(arcadeScreen ? "ArcadeScreen.qml" : "Games.qml", { startupPlay: navParams.startupPlay })
     }

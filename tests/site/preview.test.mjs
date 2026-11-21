@@ -27,8 +27,8 @@ after(() => rmSync(out, { recursive: true, force: true }));
 execFileSync("python3", ["-I", join(root, "scripts/build-site.py"), out], { stdio: "ignore" });
 const looks = JSON.parse(readFileSync(join(out, "setup/schema.json"), "utf8")).looks;
 
-// What preview.mjs sets each kind of the app's shaders, by the names Main.qml
-// sets them by: a shader taking anything else would go without it.
+// What preview.mjs sets each kind of the app's shaders, by the names the app's
+// ShaderEffects set them by: a shader taking anything else would go without it.
 const SET = {
     background: ["size", "origin", "time", "ink", "paper"],
     transition: ["progress", "resolution", "px", "corner", "ink", "from", "to"],

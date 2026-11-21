@@ -127,6 +127,13 @@ void EmbyApiBackend::clearAuthState() {
     m_userName.clear();
     m_serverName.clear();
     m_currentPlaySessionId.clear();
+    // The audio and subtitle languages chosen last were this user's: the
+    // next one signed in gets the ones the server keeps for them
+    // (load_server_preferences()), which these would stand in front of.
+    m_lastAudioLang.clear();
+    m_lastSubLang.clear();
+    m_lastAudioLangIdx = -1;
+    m_lastSubLangIdx = -1;
     // Sign out will wipe the auth file as the device is removed from access
     // on the server end as well. This will generate a fresh deviceId so any
     // in-session re-login / QuickConnect creates one that will be synced with the
@@ -379,6 +386,9 @@ QVariantMap EmbyApiBackend::formatItem(const QJsonObject &item, const QString &s
             ss["codec"]       = codec;
             ss["selected"]    = s["IsDefault"].toBool();
             ss["forced"]      = s["IsForced"].toBool();
+            // In a file beside the video, not in the file itself: not in a
+            // Direct Play stream for mpv's --sid to count (MediaServerPlayer.qml).
+            ss["external"]    = s["IsExternal"].toBool();
             ss["displayTitle"]= s["DisplayTitle"].toString();
             ss["title"]       = s["Title"].toString();
             // Image subs (PGS/VOBSUB) have no text sidecar — mpv renders them
@@ -539,7 +549,7 @@ void EmbyApiBackend::load_items(const QString &parentId, const QString &includeT
     q.addQueryItem("parentId", parentId);
     q.addQueryItem("recursive", "true");
     // Browse rows only need title/year/overview/played state. Skip the heavy
-    // per-item MediaSources/MediaStreams here (now that the list is unbounded) —
+    // per-item MediaSources/MediaStreams here (the list is unbounded) —
     // Item.qml re-fetches full detail via load_item_detail when an item is opened.
     q.addQueryItem("fields", "Overview,Genres,UserData,SortName");
     if (!includeTypes.isEmpty())
@@ -566,20 +576,13 @@ void EmbyApiBackend::load_items(const QString &parentId, const QString &includeT
 void EmbyApiBackend::loadList(void (EmbyApiBackend::*answer)(const QVariant &), const QString &keep,
                               const QUrl &url, const QString &failure,
                               std::function<QVariantList(const QByteArray &)> read) {
-    // Long enough to go into a film's detail screen and back, or play a
-    // trailer, short enough to show what was added on the server meanwhile.
-    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
-    constexpr int kListsKept = 6;
     const int request = ++m_listRequest;
     // Kept per server and user: a list of another's isn't theirs.
     const QString kept = keep.isEmpty() ? QString()
                                         : m_serverUrl + QLatin1Char(' ') + m_userId + QLatin1Char(' ') + keep;
-    const auto found = m_keptLists.constFind(kept);
-    if (!kept.isEmpty() && found != m_keptLists.constEnd()
-        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+    if (const auto found = m_keptLists.find(kept)) {
         // Told as a reply is: once the view that asked has done asking.
-        const QVariantList rows = found->rows;
-        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+        QTimer::singleShot(0, this, [this, request, answer, rows = *found]() {
             if (request == m_listRequest)
                 emit (this->*answer)(rows);
         });
@@ -601,13 +604,7 @@ void EmbyApiBackend::loadList(void (EmbyApiBackend::*answer)(const QVariant &), 
             if (request != m_listRequest)
                 return;
             const QVariantList rows = watcher->result();
-            if (!kept.isEmpty()) {
-                m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
-                m_keptOrder.removeAll(kept);
-                m_keptOrder.append(kept);
-                while (m_keptOrder.size() > kListsKept)
-                    m_keptLists.remove(m_keptOrder.takeFirst());
-            }
+            m_keptLists.keep(kept, rows);
             emit (this->*answer)(rows);
         });
         watcher->setFuture(QtConcurrent::run(read, reply->readAll()));
@@ -912,7 +909,7 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
     // "auto" (Direct Play) lets the server serve the original file untouched
     // when the source is compatible; any other value forces a quality-capped
     // HLS transcode. forceTranscode overrides "auto" for a fallback retry after
-    // a direct-play failure (see Player.qml onPlaybackEnded). The setting is
+    // a direct-play failure (see MediaServerPlayer.qml onPlaybackEnded). The setting is
     // read once: the reply holds the transcode to the quality's height.
     const QString quality = videoQuality();
     const bool directPlay = !forceTranscode && quality == QLatin1String("auto");
@@ -980,7 +977,7 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
 
         // Direct play when requested AND the server confirms the source is
         // compatible. Serves the original file via /Videos/{id}/stream?static=true;
-        // mpv handles embedded audio/subtitle tracks (Player.qml direct-play branch).
+        // mpv handles embedded audio/subtitle tracks (MediaServerPlayer.qml's direct-play branch).
         // PlaySessionId from the PlaybackInfo response is reused for the stream
         // URL and every /Sessions report so the server correlates the dashboard
         // session with this stream — and tears the transcode down on Stopped.
@@ -995,12 +992,17 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
             report_playback_start(itemId, mediaSourceId,
                                   audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
                                   subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-            emit streamUrlReady(directUrl);
+            emit streamUrlReady(directUrl, m_currentPlayMethod, subtitlesBeside(true));
             return;
         }
 
         // Transcode path — used for the bitrate tiers, and as a graceful
         // fallback when the server reports the source can't be direct-played.
+        // That fallback is asked for again as a transcode: the TranscodingUrl
+        // here was built on the Direct Play profile, whose subtitles are
+        // External or Embed, so the server would burn none in, where the
+        // player takes a transcode's subtitle as burnt in (Jellyfin) or an
+        // image one as burnt in (Emby): the chosen subtitle never showed.
         if (directPlay) {
             // TranscodeReasons is an array of strings on older servers, a
             // comma-joined flags string on 10.9+.
@@ -1016,6 +1018,8 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
                      source["SupportsDirectPlay"].toBool(),
                      source["SupportsDirectStream"].toBool(),
                      reasons.isEmpty() ? "no TranscodeReasons given" : qPrintable(reasons));
+            requestPlayback(itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, true, sdrCap);
+            return;
         }
         QString transcodeUrl = source["TranscodingUrl"].toString();
         if (transcodeUrl.isEmpty()) {
@@ -1030,7 +1034,16 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
         report_playback_start(itemId, mediaSourceId,
                               audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
                               subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-        emit streamUrlReady(fullUrl);
+        emit streamUrlReady(fullUrl, m_currentPlayMethod, subtitlesBeside(false));
+    });
+}
+
+bool EmbyApiBackend::subtitlesBeside(bool directPlay) const {
+    const QJsonArray profiles = subtitleProfiles(directPlay);
+    return std::any_of(profiles.cbegin(), profiles.cend(), [](const QJsonValue &profile) {
+        const QJsonObject p = profile.toObject();
+        return p[QLatin1String("Format")].toString() == QLatin1String("subrip")
+            && p[QLatin1String("Method")].toString() == QLatin1String("External");
     });
 }
 
@@ -1057,7 +1070,7 @@ QJsonObject EmbyApiBackend::deviceProfile(bool directPlay, int maxBitrate) const
         // 4.9.5.0: mkv/mp4/avi with h264/hevc/vc1/mpeg2 all direct-play through
         // this wildcard). A codec whitelist here silently forced
         // transcodes on exact-name misses (pcm_s16le vs pcm, webvtt vs vtt, …).
-        // If mpv truly can't play a file, the transcode retry in Player.qml
+        // If mpv truly can't play a file, the transcode retry in MediaServerPlayer.qml
         // onPlaybackEnded is the safety net. An empty array (transcode mode)
         // tells the server nothing can be direct-played.
         QJsonObject dp;
@@ -1219,8 +1232,7 @@ void EmbyApiBackend::fetchNextEpisode(const QString &seriesId, const QString &it
 }
 
 void EmbyApiBackend::report_playback_start(const QString &itemId, const QString &mediaSourceId,
-                                           const QString &audioStreamId, const QString &subtitleStreamId,
-                                           qint64 startPositionTicks) {
+                                           const QString &audioStreamId, const QString &subtitleStreamId) {
     if (!has_auth()) return;
 
     // Called from get_playback_url() once PlaybackInfo resolves, so the session
@@ -1235,8 +1247,6 @@ void EmbyApiBackend::report_playback_start(const QString &itemId, const QString 
                                                              : m_currentPlayMethod;
     body["IsPaused"]          = false;
     body["CanSeek"]           = true;
-    if (startPositionTicks > 0)
-        body["StartPositionTicks"] = startPositionTicks;
     if (!audioStreamId.isEmpty())
         body["AudioStreamIndex"] = audioStreamId.toInt();
     if (!subtitleStreamId.isEmpty())
@@ -1255,14 +1265,14 @@ void EmbyApiBackend::report_playback_start(const QString &itemId, const QString 
 }
 
 void EmbyApiBackend::update_playback_progress(const QString &itemId, const QString &mediaSourceId,
-                                              qint64 positionTicks, bool isPaused) {
+                                              qint64 positionTicks) {
     if (!has_auth()) return;
 
     QJsonObject body;
     body["ItemId"]         = itemId;
     body["MediaSourceId"]  = mediaSourceId;
     body["PositionTicks"]  = positionTicks;
-    body["IsPaused"]       = isPaused;
+    body["IsPaused"]       = false;
     body["PlayMethod"]     = m_currentPlayMethod.isEmpty() ? QStringLiteral("Transcode")
                                                            : m_currentPlayMethod;
     body["CanSeek"]        = true;
@@ -1295,7 +1305,7 @@ void EmbyApiBackend::report_playback_stopped(const QString &itemId, const QStrin
     QUrl url(m_serverUrl + "/Sessions/Playing/Stopped");
     auto *reply = serverPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     // Only clear the session id if it's still the one we reported on — the
-    // transcode retry in Player.qml starts a new session right after reporting
+    // transcode retry in MediaServerPlayer.qml starts a new session right after reporting
     // the failed one stopped, and this reply may land after that.
     const QString reportedSessionId = m_currentPlaySessionId;
     connect(reply, &QNetworkReply::finished, this, [this, reply, reportedSessionId]() {
@@ -1308,7 +1318,6 @@ void EmbyApiBackend::report_playback_stopped(const QString &itemId, const QStrin
     // What was played is played, or partly, now: the lists kept show it as
     // it was.
     m_keptLists.clear();
-    m_keptOrder.clear();
 }
 
 // ---------------------------------------------------------------------------

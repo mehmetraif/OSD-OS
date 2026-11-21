@@ -14,7 +14,7 @@
 struct ScriptMeta {
     QString name;                                 // row label; defaults to the filename
     QString mode     = QStringLiteral("console"); // "console" | "takeover"
-    bool    favorite = false;                     // adds a main-menu row (Phase 5)
+    bool    favorite = false;                     // adds a main-menu row
     bool    confirm  = false;                     // yes/no prompt before running
     QString args;                                 // appended after the script path
     // takeover: "pgroup" (the screen comes back once everything the script

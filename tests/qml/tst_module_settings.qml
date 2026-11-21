@@ -43,6 +43,11 @@ StandInRoot {
         signal dynamicOptionsReady(string mid, string key, var items)
         signal moduleAuthStateChanged(string mid)
         function get_settings() { return { modules: { "com.osdos.test": values, "com.osdos.other": otherValues } } }
+        function get_setting(module, key) {
+            var saved = module === "com.osdos.other" ? otherValues : values
+            var parts = key.split(".")
+            return parts.length === 2 ? (saved[parts[0]] || {})[parts[1]] : saved[key]
+        }
         function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }, { id: "com.osdos.other", name: "Other" }] }
         // Who is signed in, and how often the page asked for that and for a
         // schema (counted in place: no binding follows them).
@@ -69,12 +74,21 @@ StandInRoot {
         property int writes: 0
         property var held: []
         signal settingsNotSaved()
+        // A key in dot-notation ("libraries.somekey") is saved, and read,
+        // as the somekey of libraries, as AppCore's putSetting() has it.
         function put(module, key, value) {
             var v = Object.assign({}, module === "com.osdos.other" ? otherValues : values)
+            var parts = key.split(".")
+            var at = v
+            if (parts.length === 2) {
+                at = Object.assign({}, typeof v[parts[0]] === "object" && v[parts[0]] ? v[parts[0]] : {})
+                v[parts[0]] = at
+                key = parts[1]
+            }
             if (value === undefined)
-                delete v[key]
+                delete at[key]
             else
-                v[key] = value
+                at[key] = value
             if (module === "com.osdos.other")
                 otherValues = v
             else
@@ -90,8 +104,7 @@ StandInRoot {
         }
         function save_setting_soon(module, key, value) {
             if (!held.some(function(h) { return h.module === module && h.key === key })) {
-                var saved = module === "com.osdos.other" ? otherValues : values
-                held = held.concat([{ module: module, key: key, before: saved[key] }])
+                held = held.concat([{ module: module, key: key, before: get_setting(module, key) }])
             }
             put(module, key, value)
             return true
@@ -189,6 +202,7 @@ StandInRoot {
 
         function init() {
             root.menuLayout = "Standard"
+            root.framed = false
             root.chrome.basePath = []
             appCore.values = {}
             appCore.actions = []
@@ -531,6 +545,94 @@ StandInRoot {
             compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
         }
 
+        // A dynamic list that was a toggle once and is still saved as true
+        // or false (Local Files' Shuffle Playback): the row is on the choice
+        // that form is now (the choice's `old`), as the player takes it. It
+        // shows that choice, ◄ ► step from it, the rows that go with its
+        // value follow it, and a value changed in two steps (Broadcast) is
+        // counted from it too.
+        function test_savedAsAToggleOnce_data() {
+            return [{ tag: "false", saved: false, label: "Never", id: "no", next: "ask", nextLabel: "Ask", before: "yes" },
+                    { tag: "true", saved: true, label: "Always", id: "yes", next: "no", nextLabel: "Never", before: "ask" }]
+        }
+        function test_savedAsAToggleOnce(data) {
+            appCore.schema = [
+                { key: "shuffle", label: "Shuffle Playback", type: "list_single", options_source: "dynamic",
+                  options_slot: "shuffleOptions", default: "ask" },
+                { key: "order", label: "Order", type: "toggle", default: "ON",
+                  shown_with: { key: "shuffle", value: "no" } }
+            ]
+            var choices = [{ id: "ask", label: "Ask" }, { id: "yes", label: "Always", old: true },
+                           { id: "no", label: "Never", old: false }]
+            // The page with the row saved in its old form, its choices in.
+            var opened = function() {
+                loader.source = ""
+                appCore.values = { shuffle: data.saved }
+                var page = open()
+                appCore.dynamicOptionsReady("com.osdos.test", "shuffle", choices)
+                return page
+            }
+            var page = opened()
+            compare(page.currentDisplayValue(page.schemaItems[0]), data.label)
+            compare(menuRow(page, 0).value, data.label)
+            compare(page.valueOf(page.schemaItems[0]), data.id)
+            compare(usable(page), data.id === "no" ? ["shuffle", "order"] : ["shuffle"])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.shuffle, data.next)
+            compare(page.currentDisplayValue(page.schemaItems[0]), data.nextLabel)
+
+            page = opened()
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.shuffle, data.before)
+
+            // In Camcorder's pane as in Standard.
+            root.menuLayout = "Camcorder"
+            root.framed = true
+            page = opened()
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.shuffle, data.next)
+            root.framed = false
+
+            // In two steps: ▲ a choice on from the one it is on.
+            root.menuLayout = "Broadcast"
+            page = opened()
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, 0)
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 0).value, data.nextLabel)
+            compare(appCore.values.shuffle, data.saved)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.shuffle, data.next)
+        }
+
+        // A dynamic list on a choice its backend no longer offers (a server
+        // gone), or on none: the row is on its first choice, shown, stepped
+        // from and handed to the rows that go with it alike.
+        function test_dynamicChoiceNotOffered() {
+            appCore.schema = [
+                { key: "server", label: "Server", type: "list_single", options_source: "dynamic",
+                  options_slot: "serverOptions" },
+                { key: "sync", label: "Sync", type: "toggle", default: "ON",
+                  shown_with: { key: "server", value: "attic" } }
+            ]
+            appCore.values = { server: "cellar" }
+            var page = open()
+            // Before its choices are in, the row is what is saved.
+            compare(page.valueOf(page.schemaItems[0]), "cellar")
+            compare(page.currentDisplayValue(page.schemaItems[0]), "---")
+            appCore.dynamicOptionsReady("com.osdos.test", "server",
+                                        [{ id: "attic", label: "Attic" }, { id: "barn", label: "Barn" }])
+            compare(page.currentDisplayValue(page.schemaItems[0]), "Attic")
+            compare(page.valueOf(page.schemaItems[0]), "attic")
+            compare(usable(page), ["server", "sync"])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.server, "barn")
+            compare(usable(page), ["server"])
+        }
+
         // A "text" row is typed on the on-screen keyboard: select or ► opens
         // it on what is saved, OK keeps what was typed (without the spaces
         // at its ends) and calls the row's apply slot, back leaves it; a
@@ -582,6 +684,37 @@ StandInRoot {
             compare(page.currentDisplayValue(page.schemaItems[2]), "Not Set")
         }
 
+        // A manifest key in dot-notation is saved nested, as AppCore saves
+        // it, and the page reads it back from there: the value saved shows,
+        // a change is saved beside what else is under the same name and
+        // shows at once, and a list of typed lines' page reads its lines.
+        function test_dottedKey() {
+            appCore.schema = [
+                { key: "player.autoplay", label: "Autoplay", type: "toggle", default: "OFF" },
+                { key: "player.name", label: "Name", type: "text", default: "" },
+                { key: "lists.channels", label: "Channels", type: "text_list", max_length: 30 }
+            ]
+            appCore.values = { player: { autoplay: true, other: 1 }, lists: { channels: ["UCone", "UCtwo"] } }
+            var page = open()
+            compare(page.currentDisplayValue(page.schemaItems[0]), "ON")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Not Set")
+            compare(page.currentDisplayValue(page.schemaItems[2]), "2")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.player, { autoplay: false, other: 1 })
+            compare(page.currentDisplayValue(page.schemaItems[0]), "OFF")
+            appCore.put("com.osdos.test", "player.name", "Ada")
+            loader.source = ""
+            page = open()
+            compare(page.currentDisplayValue(page.schemaItems[0]), "OFF")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Ada")
+            loader.source = ""
+            loader.setSource(Qt.resolvedUrl("../../views/TextListSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "lists.channels",
+                                            settingLabel: "Channels", maxLength: 30 } })
+            verify(loader.item !== null, "loaded TextListSettings.qml")
+            compare(loader.item.lines, ["UCone", "UCtwo"])
+        }
+
         // A list of typed lines (text_list): its count on the row, its own
         // page from it, there a line added on the keyboard, changed, not
         // listed twice, taken out, and no more than the row takes.
@@ -625,9 +758,17 @@ StandInRoot {
             verify(keyboard && options && lines)
             compare(list.lines, ["UCone", "UCtwo"])
             compare(lines.count, 3)
-            // ADD, the last row: a line typed, kept at the foot, the cursor
-            // left on ADD.
-            lines.currentIndex = 2
+            // ADD, the last row, which ▼ comes to past the lines and ▲ round
+            // from the first: a line typed, kept at the foot, the cursor left
+            // on ADD.
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 2)
+            verify(lines.onAdd)
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Up)
             verify(lines.onAdd)
             keyClick(Qt.Key_Return)
             verify(keyboard.visible)
@@ -644,7 +785,8 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(!keyboard.visible)
             // A line: change it, or take it out.
-            lines.currentIndex = 0
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 0)
             keyClick(Qt.Key_Return)
             verify(options.visible)
             compare(options.subtitleText, "UCone")
@@ -1460,6 +1602,23 @@ StandInRoot {
             compare(appCore.values.loud, undefined)
             keyClick(Qt.Key_Return)
             compare(appCore.values.loud, 70)
+            // No further than an end: the steps past it aren't counted, so
+            // the first step back moves the value.
+            keyClick(Qt.Key_Return)
+            for (var i = 0; i < 5; i++)
+                keyClick(Qt.Key_Up)
+            compare(menuRow(page, 1).value, "100%")
+            keyClick(Qt.Key_Down)
+            compare(menuRow(page, 1).value, "90%")
+            for (i = 0; i < 12; i++)
+                keyClick(Qt.Key_Down)
+            compare(menuRow(page, 1).value, "0%")
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 1).value, "10%")
+            compare(appCore.values.loud, 70)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.loud, 10)
+            compare(menuRow(page, 1).value, "10%")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Up)

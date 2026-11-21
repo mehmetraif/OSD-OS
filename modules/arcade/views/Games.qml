@@ -15,32 +15,15 @@ import Components
 // shown: select joins one. Its last line, RetroArch Lobby, opens the whole
 // lobby (Lobby.qml). With LAN Play on, LAN Games lists those hosted on the
 // local network (ArcadeBackend::lanRooms()), asked for as they come to be
-// shown and again every 5 s while they are. Coming back from a game
-// restores the tree from the listState handed to navigateTo; a game played
-// from the tree itself (Start Info Screen off) leaves it as it was. Opened
-// with the startup favourite (navParams.startupPlay), it plays that at once,
-// the tree open on it in Favorites.
+// shown and again every 5 s while they are. A game's screen, Game Details
+// and the lobby open over the tree (Root.qml's playLayer, pageLayer), which
+// coming back finds as it was left. Opened with the startup favourite
+// (navParams.startupPlay), it plays that at once, the tree open on it in
+// Favorites.
 FocusScope {
     id: gamesRoot
 
     property var navParams: ({})
-    property var navListState: navParams.navListState || ({})
-    // Context properties read null while the module's Loader tears this view
-    // down, hence the guards.
-    readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
-    readonly property string problem: arcadeBackend ? arcadeBackend.problem : ""
-    // For the help line: with how to put MAME on, for this system
-    // (AppCore::installHint()), where that is what stands in the way.
-    readonly property string problemLine: problem === "MAME is not installed"
-                                          ? problem + ". " + appCore.installHint("mame") : problem
-    readonly property bool folderReadable: arcadeBackend ? arcadeBackend.folderReadable : true
-    readonly property bool scanning: arcadeBackend ? arcadeBackend.scanning : false
-    // MAME downloaded from here where it is what is missing and the system
-    // can (Windows): read again as a download starts and ends.
-    property int mameRevision: 0
-    readonly property bool canDownloadMame: (mameRevision, problem === "MAME is not installed" && !!arcadeBackend
-                                             && arcadeBackend.mameInfo().canDownload)
-    readonly property bool downloadingMame: arcadeBackend ? arcadeBackend.mameDownloading : false
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -53,30 +36,29 @@ FocusScope {
     Keys.onPressed: function(event) {
         if (!tree.rootEmpty || (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter))
             return
-        if (!event.isAutoRepeat && canDownloadMame && !downloadingMame)
+        if (!event.isAutoRepeat && moduleRoot.canDownloadMame && !moduleRoot.downloadingMame)
             arcadeBackend.downloadMame()
         event.accepted = true
     }
 
     // Plays a game, or joins a room of the lobby or the local network
     // (item.room, item.lan), or with online ({ hosting: true, lan }) hosts
-    // it; trail is where coming back lands.
-    function play(item, trail, online) {
+    // it.
+    function play(item, online) {
         var params = { game: item.game, title: item.name }
         if (item.room !== undefined)
             params.online = { room: item.room, host: item.host, lan: !!item.lan }
         else if (online)
             params.online = online
-        gamesRoot.navigateTo("Play.qml", params, { trail: trail })
+        gamesRoot.navigateTo("Play.qml", params, {})
     }
 
     // The startup favourite, played as if chosen in Favorites, so coming back
-    // from it lands there. Only as the view first opens: coming back from the
-    // game brings navListState instead. Once the folder has been read
+    // from it lands there, as the view opens. Once the folder has been read
     // (ArcadeBackend reads it as the module opens): till then it waits here.
     property var startupEntry: null
     Component.onCompleted: {
-        if (!navParams.navListState && navParams.startupPlay)
+        if (navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
     }
     function playAtStartup(entry) {
@@ -84,14 +66,20 @@ FocusScope {
             startupEntry = entry
             return
         }
+        // Favorites' row in the tree's first folder: where the backend lists
+        // it, after Online Games and LAN Games while those are on.
+        var top = arcadeBackend.requestEntries("top") || []
+        var row = 0
+        while (row < top.length && top[row].path !== "favorites")
+            ++row
         var favorites = arcadeBackend.requestEntries("favorites")
         for (var i = 0; i < favorites.length; ++i) {
             if (favorites[i].path === entry.path) {
-                var trail = [{ path: "top", sel: 1, name: "", pushed: false },
+                var trail = [{ path: "top", sel: row, name: "", pushed: false },
                              { path: "favorites", sel: i, name: "Favorites", pushed: false }]
                 // There as it plays, for a game played from the tree itself.
                 tree.reopen(trail)
-                play(favorites[i], trail)
+                play(favorites[i])
                 return
             }
         }
@@ -106,13 +94,6 @@ FocusScope {
     // Nothing in the folder: what stands in the way, and where the games go.
     NoGames {
         visible: tree.rootEmpty
-        problem: gamesRoot.problem
-        folderReadable: gamesRoot.folderReadable
-        gamesFolder: gamesRoot.gamesFolder
-        canDownload: gamesRoot.canDownloadMame
-        downloading: gamesRoot.downloadingMame
-        progress: arcadeBackend ? arcadeBackend.mameProgress : 0
-        failure: arcadeBackend ? arcadeBackend.mameMessage : ""
     }
 
     TreeBrowser {
@@ -123,7 +104,6 @@ FocusScope {
         rootPath: "top"
         // The info line's room, while it shows (Help Line on).
         reservedBottom: infoLine.visible && infoLine.shown ? areaBottom - infoLine.y : 0
-        savedTrail: gamesRoot.navListState.trail || []
         fetch: function(path, preview) {
             if (!arcadeBackend)
                 return []
@@ -139,9 +119,9 @@ FocusScope {
             if (item.kind === "search")
                 osk.open("")
             else if (item.kind === "lobby")
-                gamesRoot.navigateTo("Lobby.qml", {}, { trail: tree.trailState() })
+                gamesRoot.navigateTo("Lobby.qml", {}, {})
             else if (item.game)
-                gamesRoot.play(item, tree.trailState())
+                gamesRoot.play(item)
         }
         onOptionsRequested: function(item) {
             if (item.game && item.room === undefined)
@@ -154,8 +134,7 @@ FocusScope {
     // screen, no game is playing over it, and the screen saver isn't up. A
     // cabinet left on a list of rooms asked the network every few seconds
     // for as long as it stood there, and the lobby with it.
-    readonly property bool roomsShown: gamesRoot.visible && !!arcadeBackend && !arcadeBackend.running
-                                       && !root.screenSaverActive
+    readonly property bool roomsShown: gamesRoot.visible && !!arcadeBackend && !moduleRoot.away
 
     // The lobby read as its rooms come to be shown, and again while they
     // are: they last a minute there, and hosts say they are still there
@@ -186,7 +165,6 @@ FocusScope {
         function onEntriesReady(path) { tree.refresh(path, true) }
         // A game played from the tree, now on Recently Played.
         function onFinished() { tree.refresh("recent", true) }
-        function onMameChanged() { gamesRoot.mameRevision++ }
         function onReadingChanged() {
             var entry = gamesRoot.startupEntry
             if (entry && !arcadeBackend.reading) {
@@ -201,25 +179,26 @@ FocusScope {
     // What stands in the way of the list comes first.
     HelpLine {
         id: infoLine
-        visible: !tree.rootEmpty && !osk.visible && !options.visible
+        visible: !tree.rootEmpty && !osk.visible && !options.menuUp
         readonly property var entry: tree.currentEntry
-        text: gamesRoot.problem !== "" ? gamesRoot.problemLine
+        text: moduleRoot.problem !== "" ? moduleRoot.problemLine
               : entry && (entry.game || entry.kind === "unknown" || entry.kind === "message" || entry.kind === "lobby")
                 ? entry.detail
               : entry && entry.kind === "search" ? "Find a game by its name"
-              : gamesRoot.scanning ? "Reading the games…"
-              : "Games folder: " + gamesRoot.gamesFolder
+              : moduleRoot.scanning ? "Reading the games…"
+              : "Games folder: " + moduleRoot.gamesFolder
     }
 
-    // Footer
     HintBar {
-        visible: !osk.visible && !options.visible
+        visible: !osk.visible && !options.menuUp
         // Select opens a folder and plays a game, and right on a game offers
         // its options rather than moving.
         readonly property var entry: tree.currentEntry
         readonly property bool onRoom: !!entry && entry.room !== undefined
         readonly property bool onGame: !!entry && !!entry.game && !onRoom
-        text: root.hints.back + ":BACK "
+        // BACK at the top goes nowhere under Cabinet Lock (Main.qml's
+        // leavingBarred), and isn't offered there.
+        text: (tree.active > 0 || !root.leavingBarred ? root.hints.back + ":BACK " : "")
               + (onGame ? String(root.hints.navigate).replace("]", "◄]") + ":NAVIGATE "
                           + root.hints.browse + ":OPTIONS "
                         : root.hints.arrows + ":NAVIGATE ")
@@ -241,70 +220,19 @@ FocusScope {
         onCanceled: tree.forceActiveFocus()
     }
 
-    // A game's options, those that start it first (starts: a ▶ before each,
-    // a line under them): with Online Play or LAN Play on, hosting it; then
-    // its Game Details (Details.qml), a vertical game's monitor (while
-    // Settings → Screen → Monitor isn't turned), which it is played and
-    // hosted with, its difficulty where MAME plays it with a DIP switch for
-    // it, and its engine where MAME and FinalBurn Neo both have it.
-    property int engineRevision: 0
-    readonly property string optionsSet: options.entry && String(options.entry.path).indexOf("game:") === 0
-                                         ? String(options.entry.path).substring(5) : ""
-    EntryOptions {
+    // A game's options, Game Details first, for the game they were opened
+    // for.
+    GameOptions {
         id: options
         anchors.fill: parent
-        moduleId: moduleRoot.moduleId
         firstChoices: [{ label: "Game Details", action: "details" }]
-        moreChoices: (gamesRoot.engineRevision,
-                      (monitor.offered(gamesRoot.optionsSet)
-                       ? [{ label: monitor.lineFor(gamesRoot.optionsSet), action: "monitor" }] : [])
-                      .concat(difficulty.offered(gamesRoot.optionsSet)
-                       ? [{ label: difficulty.lineFor(gamesRoot.optionsSet), action: "difficulty" }] : [])
-                      .concat(engines.offered(gamesRoot.optionsSet)
-                       ? [{ label: engines.lineFor(gamesRoot.optionsSet), action: "engine" }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHost(gamesRoot.optionsSet)
-                              ? [{ label: "Host Online Game", action: "host", starts: true }] : [])
-                      .concat(arcadeBackend && arcadeBackend.canHostLan(gamesRoot.optionsSet)
-                              ? [{ label: "Host LAN Game", action: "hostLan", starts: true }] : []))
         onActivated: function(action) {
             if (action === "details")
-                gamesRoot.navigateTo("Details.qml", { game: gamesRoot.optionsSet, title: options.entry.name },
-                                     { trail: tree.trailState() })
-            else if (action === "monitor")
-                monitor.offer(gamesRoot.optionsSet, options.entry.name)
-            else if (action === "difficulty")
-                difficulty.offer(gamesRoot.optionsSet, options.entry.name)
-            else if (action === "engine")
-                engines.offer(gamesRoot.optionsSet, options.entry.name)
+                gamesRoot.navigateTo("Details.qml", { game: options.set, title: options.title }, {})
             else if (action === "host" || action === "hostLan")
-                gamesRoot.play({ game: gamesRoot.optionsSet, name: options.entry.name }, tree.trailState(),
-                               { hosting: true, lan: action === "hostLan" })
+                gamesRoot.play({ game: options.set, name: options.title }, { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: tree.refresh("favorites")
-        onClosed: if (!engines.visible && !difficulty.visible && !monitor.visible) tree.forceActiveFocus()
-    }
-    GameChoice {
-        id: monitor
-        anchors.fill: parent
-        name: "Monitor"
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.monitorChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setMonitor(game, id) }
-        onChosen: gamesRoot.engineRevision++
-        onClosed: tree.forceActiveFocus()
-    }
-    GameChoice {
-        id: difficulty
-        anchors.fill: parent
-        name: "Difficulty"
-        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.difficultyChoices(game) : [] }
-        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setDifficulty(game, id) }
-        onChosen: gamesRoot.engineRevision++
-        onClosed: tree.forceActiveFocus()
-    }
-    EngineChooser {
-        id: engines
-        anchors.fill: parent
-        onEngineChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
 }

@@ -17,7 +17,7 @@
       "type": "text",
       "default": "",
       "placeholder": "http://192.168.1.10:8096",
-      "max_length": 64,
+      "max_length": 200,
       "description": "Your Emby server, as http://192.168.1.10:8096\nThe sign-in screen fills it in too"
     },
     {

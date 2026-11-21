@@ -108,7 +108,7 @@ FocusScope {
             }
         }
 
-        function onStreamUrlReady(url) {
+        function onStreamUrlReady(url, playMethod, subtitlesBeside) {
             // Only the stream this screen asked for, not one asked for
             // elsewhere that answers while it is open.
             if (!detailRoot.isLaunching || !detailRoot.detail) return
@@ -116,6 +116,8 @@ FocusScope {
 
             detailRoot.navigateTo("Player.qml", {
                 streamUrl: url,
+                playMethod: playMethod,
+                subtitlesBeside: subtitlesBeside,
                 itemId: d.itemId,
                 mediaSourceId: d.mediaSourceId || d.itemId,
                 title: d.title,
@@ -329,10 +331,6 @@ FocusScope {
 
     function applyLanguagePreferences(d) {
         if (!d) return
-        // [dev] console.log("[Item] applyPrefs serverAudio=" + serverAudioLang + " serverSub=" + serverSubLang +
-        // [dev]             " mode=" + serverSubMode +
-        // [dev]             " nAudio=" + (d.audioStreams ? d.audioStreams.length : 0) +
-        // [dev]             " nSub=" + (d.subtitleStreams ? d.subtitleStreams.length : 0))
 
         var savedAudioLangIdx = backend.get_last_audio_lang_idx()
         var savedSubLangIdx   = backend.get_last_sub_lang_idx()
@@ -645,9 +643,9 @@ FocusScope {
     }
 
     // Launch overlay — covers the detail screen while the stream URL is prepared.
-    Rectangle {
+    // The loading screen draws its own ground.
+    Item {
         anchors.fill: parent
-        color: root.surfaceColor
         visible: isLaunching
         z: 100
 

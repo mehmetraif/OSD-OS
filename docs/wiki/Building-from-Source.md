@@ -87,8 +87,7 @@ sudo apt-get update
 sudo apt-get install -y \
   build-essential cmake pkgconf \
   qt6-base-dev qt6-declarative-dev \
-  qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-window \
+  qml6-module-qtquick qml6-module-qtquick-window \
   libqt6svg6 qt6-svg-dev qt6-svg-plugins qt6-wayland \
   qt6-shadertools-dev \
   libdrm-dev libxkbcommon-dev libssl-dev \
@@ -320,7 +319,7 @@ Ten workflows in [`.github/workflows`](https://github.com/mehmetraif/OSD-OS/tree
 | Workflow | Runs on | What it does |
 |---|---|---|
 | [`regression-tests.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/regression-tests.yml) | Changes to the app, its scripts or its tests; every release | Builds the app (Release) and runs the tests on Ubuntu 24.04 (x64 and arm64, apt's Qt 6.4) and in a `debian:trixie` container with Raspberry Pi's archive (arm64, Qt 6.8, mpv 0.40) |
-| [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand; pull requests that touch `os/`, the boot screen or `scripts/install.sh`; every release | Builds an arm64 tarball, then the OSD/OS image from it. By hand or for a pull request it is a `dev` build and the image is the run's `osdos-image` artifact, kept 30 days; a release calls it with its tag (`workflow_call`) for the release's own tarball and image |
+| [`os-image.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/os-image.yml) | By hand; pull requests that touch `os/`, the boot screen or `scripts/install.sh`; every release | Builds an arm64 tarball, then the OSD/OS image from it. By hand on a branch or for a pull request it is a `dev` build and the image is the run's `osdos-image` artifact, kept 30 days; a release calls it for its tag (`workflow_call`), the release's own tarball and image |
 | [`windows.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/windows.yml) | Changes to the sources; every release; by hand | Builds the app on `windows-2022` with MSVC, Qt 6.8 and vcpkg, and uploads the folder as `osdos-windows-x64` ([above](#windows-x64)) |
 | [`freebsd.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/freebsd.yml) and [`openbsd.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/openbsd.yml) | Changes to the sources, the tests or the packaging scripts; every release; by hand | Build the app in a FreeBSD 15.1 or OpenBSD 8.0 virtual machine ([vmactions](https://github.com/vmactions)), run the tests, make and install the package, and upload it as `osdos-freebsd-amd64` or `osdos-openbsd-amd64` ([above](#freebsd-and-openbsd-amd64)) |
 | [`fbneo.yml`](https://github.com/mehmetraif/OSD-OS/blob/main/.github/workflows/fbneo.yml) | Changes to FinalBurn Neo's build scripts or `scripts/engines.env`; by hand | Builds the two FinalBurn Neo cores for Linux x86_64 and arm64, macOS arm64 and Windows x64, each uploaded as `fbneo-<system>` |

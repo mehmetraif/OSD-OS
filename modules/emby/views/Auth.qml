@@ -222,9 +222,8 @@ FocusScope {
 
     Column {
         anchors.top: parent.top
-        // Tightened from the pre-method-row values (134 / 36): the extra
-        // method row made the form tall enough that the Sign In button ran
-        // into the footer hints.
+        // Close enough to the title bar, with the method row, for the Sign
+        // In button to stay clear of the footer hints.
         anchors.topMargin: authRoot.paned ? root.paneTop : root.sh * 0.25 //120
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.horizontalCenterOffset: authRoot.paned ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
@@ -389,7 +388,7 @@ FocusScope {
             }
         }
 
-        // Group 2 — actions (status line + Sign In / Emby Connect buttons)
+        // Group 2 — actions (status line + the Sign In button)
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: root.sh * 0.025 //16
@@ -413,7 +412,7 @@ FocusScope {
             }
 
             // Single submit — the method row above already decided which flow
-            // this runs, so two competing action buttons are no longer needed.
+            // this runs.
             Rectangle {
                 width: root.sw * 0.1875 //120
                 height: root.sh * 0.0583333 //28

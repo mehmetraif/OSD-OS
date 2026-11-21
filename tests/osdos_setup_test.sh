@@ -53,6 +53,8 @@ printf '#!/bin/sh\necho "hostnamectl $*" >> "%s/asked"\necho "$2" > "%s/etc/host
 chmod +x "$T"/bin/*
 cp "$PRESETS"/osdos-display-*.txt "$BOOT/"
 cp "$BOOT/osdos-display-hdmi.txt" "$BOOT/osdos-display.txt"
+mkdir -p "$T/usr/lib/osdos"
+cp "$PRESETS/display-presets.json" "$T/usr/lib/osdos/"
 printf '%s\n' '#code	name' $'DE\tGermany' $'TR\tTurkey' > "$T/usr/share/zoneinfo/iso3166.tab"
 : > "$T/usr/share/zoneinfo/Europe/Istanbul"
 : > "$T/usr/share/X11/xkb/symbols/tr"
@@ -224,6 +226,14 @@ apply
 check "another Pi's output not written" "$(cat "$T/gpio")" "$(cat "$BOOT/osdos-display.txt")"
 check "and said why" "1" "$(logged "Display output: not changed: crt-gpio-ntsc isn't an output of this Raspberry Pi 4")"
 check "another Pi's: the system stage fails" "0 1" "$status"
+
+# The AV jack's composite on a Pi 400, which hasn't one: left alone too.
+printf 'Raspberry Pi 400 Rev 1.0\0' > "$T/proc/device-tree/model"
+printf '{ "osdos_setup": 1, "device": { "model": "pi4" }, "display": { "preset": "crt-pal" } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "a keyboard model's missing output not written" "$(cat "$T/gpio")" "$(cat "$BOOT/osdos-display.txt")"
+check "and said why" "1" "$(logged "Display output: not changed: crt-pal isn't an output of this Raspberry Pi 4")"
+printf 'Raspberry Pi 4 Model B Rev 1.5\0' > "$T/proc/device-tree/model"
 
 # What can't be taken is said, and the rest goes ahead.
 printf 'not json' > "$DATA/config.json"

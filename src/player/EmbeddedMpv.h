@@ -6,6 +6,7 @@
 #include <QSize>
 #include <QStringList>
 #include <atomic>
+#include <memory>
 
 class QOffscreenSurface;
 class QOpenGLContext;
@@ -171,6 +172,15 @@ private:
     // This session is drawn on the GPU; none are (declined, or it failed).
     bool m_gpu = false;
     bool m_gpuOff = false;
+    // Whether the GPU's thread has freed the render context of the core
+    // retired last from it (retire()); and the same of one given up on
+    // before it had (abandonRetirement()): freeing it waits on that core's
+    // playloop, so the thread may never come back from it, and a call
+    // waiting on the thread would hold the GUI thread for good. Sessions
+    // are drawn on the CPU while it is so (gpuHeld()).
+    std::shared_ptr<std::atomic<bool>> m_gpuDetached;
+    std::shared_ptr<std::atomic<bool>> m_gpuHeldBy;
+    bool gpuHeld() const { return m_gpuHeldBy && !m_gpuHeldBy->load(); }
     // The GPU didn't take a hardware decoder's frames, so sessions decode
     // with the copy-back modes in their --hwdec; this session's, to turn to
     // should it not.

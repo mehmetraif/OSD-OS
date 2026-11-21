@@ -338,6 +338,12 @@ QJsonObject PlaylistsBackend::itemFor(const QString &moduleId, const QVariantMap
         if (entry.value(QStringLiteral("isFolder")).toBool())
             return {};
         id = entry.value(QStringLiteral("path")).toString();
+        // Not a playlist of Local Files' own (.m3u, .m3u8): mpv plays one in
+        // the list's place as all the videos in it, so every place after it
+        // would name another video than the one playing (savePosition).
+        const QString suffix = QFileInfo(id).suffix().toLower();
+        if (suffix == QLatin1String("m3u") || suffix == QLatin1String("m3u8"))
+            return {};
         source.insert(QStringLiteral("path"), id);
         if (title.isEmpty())
             title = QFileInfo(id).completeBaseName();
@@ -469,11 +475,10 @@ QString PlaylistsBackend::itemState(const QJsonObject &item, const QString &kind
         *percent = m_active.percent;
         return QStringLiteral("downloading");
     }
-    const QJsonObject download = m_downloads.value(key);
-    const QString state = download.value(QStringLiteral("state")).toString();
-    if (state == QLatin1String("done") && QFileInfo::exists(download.value(QStringLiteral("path")).toString()))
+    if (!downloadedPath(key).isEmpty())
         return QStringLiteral("ready");
-    if (state == QLatin1String("failed")) {
+    const QJsonObject download = m_downloads.value(key);
+    if (download.value(QStringLiteral("state")).toString() == QLatin1String("failed")) {
         *reason = download.value(QStringLiteral("reason")).toString();
         return QStringLiteral("failed");
     }
@@ -487,12 +492,8 @@ QString PlaylistsBackend::playableUrl(const QJsonObject &item, const QString &ki
         const QString path = source.value(QStringLiteral("path")).toString();
         return QFileInfo::exists(path) ? path : QString();
     }
-    if (kind == QLatin1String("offline")) {
-        const QJsonObject download = m_downloads.value(item.value(QStringLiteral("key")).toString());
-        const QString path = download.value(QStringLiteral("path")).toString();
-        return download.value(QStringLiteral("state")).toString() == QLatin1String("done") && QFileInfo::exists(path)
-                   ? path : QString();
-    }
+    if (kind == QLatin1String("offline"))
+        return downloadedPath(item.value(QStringLiteral("key")).toString());
     if (module == kYouTube)
         return QStringLiteral("https://www.youtube.com/watch?v=") + source.value(QStringLiteral("videoId")).toString();
     const MediaServer *server = m_servers.value(module);
@@ -671,15 +672,29 @@ void PlaylistsBackend::forgetListings() {
 // Downloads
 // ---------------------------------------------------------------------------
 
-bool PlaylistsBackend::referencedOffline(const QString &key) const {
+QString PlaylistsBackend::downloadedPath(const QString &key) const {
+    const QJsonObject download = m_downloads.value(key);
+    const QString path = download.value(QStringLiteral("path")).toString();
+    return download.value(QStringLiteral("state")).toString() == QLatin1String("done") && QFileInfo::exists(path)
+               ? path : QString();
+}
+
+QList<QJsonObject> PlaylistsBackend::offlineItems() const {
+    QList<QJsonObject> items;
     for (const QJsonObject &p : m_playlists) {
         if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
             continue;
         for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray())
-            if (v.toObject().value(QStringLiteral("key")).toString() == key)
-                return true;
+            items << v.toObject();
     }
-    return false;
+    return items;
+}
+
+bool PlaylistsBackend::referencedOffline(const QString &key) const {
+    const QList<QJsonObject> items = offlineItems();
+    return std::any_of(items.cbegin(), items.cend(), [&key](const QJsonObject &item) {
+        return item.value(QStringLiteral("key")).toString() == key;
+    });
 }
 
 void PlaylistsBackend::dropUnreferenced() {
@@ -693,7 +708,7 @@ void PlaylistsBackend::dropUnreferenced() {
             continue;
         cancel(key);
         // What a failed download left for a retry too: no list wants it now.
-        removePartials(key);
+        removePartials(key, failedFolder(key));
         const QJsonObject download = m_downloads.take(key);
         const QString path = download.value(QStringLiteral("path")).toString();
         if (!path.isEmpty() && QFile::remove(path))
@@ -713,22 +728,17 @@ void PlaylistsBackend::dropUnreferenced() {
 
 void PlaylistsBackend::queueOfflineItems() {
     removeStaleTemporaries();
-    for (const QJsonObject &p : m_playlists) {
-        if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
+    for (const QJsonObject &item : offlineItems()) {
+        if (item.value(QStringLiteral("module")).toString() == kLocalFiles)
             continue;
-        for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray()) {
-            const QJsonObject item = v.toObject();
-            if (item.value(QStringLiteral("module")).toString() == kLocalFiles)
-                continue;
-            const QString key = item.value(QStringLiteral("key")).toString();
-            const QJsonObject download = m_downloads.value(key);
-            const QString state = download.value(QStringLiteral("state")).toString();
-            // One the server refused stays refused until asked again.
-            if (state == QLatin1String("failed")
-                && download.value(QStringLiteral("reason")).toString() == QLatin1String("not allowed"))
-                continue;
-            enqueue(key);
-        }
+        const QString key = item.value(QStringLiteral("key")).toString();
+        const QJsonObject download = m_downloads.value(key);
+        const QString state = download.value(QStringLiteral("state")).toString();
+        // One the server refused stays refused until asked again.
+        if (state == QLatin1String("failed")
+            && download.value(QStringLiteral("reason")).toString() == QLatin1String("not allowed"))
+            continue;
+        enqueue(key);
     }
 }
 
@@ -742,15 +752,11 @@ void PlaylistsBackend::retryFailed() {
         return;
     // In the lists' order, as queueOfflineItems() has them; not one tried
     // again, taken off its lists or downloaded meanwhile.
-    for (const QJsonObject &p : m_playlists) {
-        if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
-            continue;
-        for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray()) {
-            const QString key = v.toObject().value(QStringLiteral("key")).toString();
-            if (keys.contains(key)
-                && m_downloads.value(key).value(QStringLiteral("state")).toString() == QLatin1String("failed"))
-                enqueue(key);
-        }
+    for (const QJsonObject &item : offlineItems()) {
+        const QString key = item.value(QStringLiteral("key")).toString();
+        if (keys.contains(key)
+            && m_downloads.value(key).value(QStringLiteral("state")).toString() == QLatin1String("failed"))
+            enqueue(key);
     }
 }
 
@@ -758,9 +764,7 @@ bool PlaylistsBackend::enqueue(const QString &key) {
     if (m_active.key == key || m_queue.contains(key))
         return true;
     // On the device already, for another list: never fetched twice.
-    const QJsonObject download = m_downloads.value(key);
-    if (download.value(QStringLiteral("state")).toString() == QLatin1String("done")
-        && QFileInfo::exists(download.value(QStringLiteral("path")).toString()))
+    if (!downloadedPath(key).isEmpty())
         return false;
     m_queue << key;
     QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
@@ -780,6 +784,12 @@ void PlaylistsBackend::startNext() {
             continue;
         m_active = Active();
         m_active.key = key;
+        m_active.folder = downloadFolder();
+        // Tried before in a download folder since changed: what it left
+        // there is nothing to carry on from now.
+        const QString before = failedFolder(key);
+        if (QDir(before) != QDir(m_active.folder))
+            removePartials(key, before);
         if (module == kYouTube)
             startYouTube(key, item);
         else
@@ -947,8 +957,7 @@ void PlaylistsBackend::record(bool ok) {
     const QString key = m_active.key;
     if (ok) {
         m_downloads.insert(key, QJsonObject{{QStringLiteral("path"), m_active.finalPath},
-                                            {QStringLiteral("state"), QStringLiteral("done")},
-                                            {QStringLiteral("bytes"), double(QFileInfo(m_active.finalPath).size())}});
+                                            {QStringLiteral("state"), QStringLiteral("done")}});
         qDebug("[Playlists] downloaded %s: %s", qPrintable(key), qPrintable(m_active.finalPath));
         // The network is there: the next failure is waited on from the start.
         m_retryMs = kRetryFirstMs;
@@ -957,10 +966,11 @@ void PlaylistsBackend::record(bool ok) {
         // only a download no list wants loses it (cancel).
         const QString reason = m_active.reason.isEmpty() ? QStringLiteral("error") : m_active.reason;
         m_downloads.insert(key, QJsonObject{{QStringLiteral("state"), QStringLiteral("failed")},
-                                            {QStringLiteral("reason"), reason}});
+                                            {QStringLiteral("reason"), reason},
+                                            {QStringLiteral("folder"), m_active.folder}});
         qWarning("[Playlists] download of %s failed: %s", qPrintable(key), qPrintable(reason));
         // One that may pass is tried again after a while (retryFailed), with
-        // the others that fail meanwhile: until now only the next start did.
+        // the others that fail meanwhile.
         if (m_active.mayPass) {
             m_retryKeys.insert(key);
             if (!m_retryTimer->isActive())
@@ -1000,10 +1010,11 @@ void PlaylistsBackend::cancel(const QString &key) {
     // A finished file still on its way to the card, or what a download got
     // through: no list wants it now.
     const QString finalPath = m_active.finalPath;
+    const QString folder = m_active.folder;
     stopActive();
     if (!finalPath.isEmpty())
         QFile::remove(finalPath);
-    removePartials(key);
+    removePartials(key, folder);
     QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
 }
 
@@ -1041,13 +1052,20 @@ void PlaylistsBackend::setHeld(bool held) {
     }
 }
 
-void PlaylistsBackend::removePartials(const QString &key) const {
+QString PlaylistsBackend::failedFolder(const QString &key) const {
+    const QJsonObject download = m_downloads.value(key);
+    const QString folder = download.value(QStringLiteral("folder")).toString();
+    return download.value(QStringLiteral("state")).toString() == QLatin1String("failed") && !folder.isEmpty()
+               ? folder : downloadFolder();
+}
+
+void PlaylistsBackend::removePartials(const QString &key, const QString &folder) const {
     // What yt-dlp leaves of a video it didn't finish: its .part files and the
     // streams it was to merge (".f137.mp4"), all named with "[<id>]".
-    if (!key.startsWith(QLatin1String("youtube:")))
+    if (!key.startsWith(QLatin1String("youtube:")) || folder.isEmpty())
         return;
     const QString tag = QLatin1Char('[') + key.mid(8) + QLatin1Char(']');
-    QDir dir(QDir(downloadFolder()).filePath(sourceFolderName(kYouTube)));
+    QDir dir(QDir(folder).filePath(sourceFolderName(kYouTube)));
     for (const QFileInfo &f : dir.entryInfoList(QDir::Files))
         if (f.fileName().contains(tag))
             QFile::remove(f.absoluteFilePath());

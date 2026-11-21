@@ -13,18 +13,9 @@ import Components
 // RetroArch's line while there is none, or the one downloaded is the one
 // found. Its licence, which comes with it, is in Settings → System → About, with the
 // rest of the arcade's.
-FocusScope {
+KeyedPage {
     id: fbneoRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "FinalBurn Neo"
 
     readonly property bool downloading: arcadeBackend ? arcadeBackend.fbneoDownloading : false
     readonly property int progress: arcadeBackend ? arcadeBackend.fbneoProgress : 0
@@ -37,9 +28,7 @@ FocusScope {
     readonly property var info: (revision, downloading, retroarchDownloading,
                                  arcadeBackend ? arcadeBackend.fbneoInfo() : ({}))
 
-    // The page's lines, by key: the list is made again only when a line
-    // comes or goes, so the cursor stays where it is as a download goes on.
-    property var keys: []
+    // The page's lines, by key.
     function updateKeys() {
         var made = ["retroarch"]
         if (info.canDownloadRetroarch && (!info.retroarch || info.retroarchDownloaded))
@@ -49,13 +38,7 @@ FocusScope {
             made.push("download")
         if (info.latest)
             made.push("own")
-        if (JSON.stringify(made) === JSON.stringify(keys))
-            return
-        var at = keys[list.currentIndex]
-        keys = made
-        // The list made again, on the line it was on, or the first (a line
-        // gone: signed in).
-        list.currentIndex = Math.max(0, made.indexOf(at))
+        setKeys(made)
     }
     onInfoChanged: updateKeys()
     Component.onCompleted: updateKeys()
@@ -126,55 +109,18 @@ FocusScope {
         function onScanningChanged() { fbneoRoot.revision++ }
     }
 
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "FinalBurn Neo"
+    function selectWord(key) {
+        return (key === "download" && !downloading) || (key === "retroarch_download" && !retroarchDownloading) ? "DOWNLOAD"
+             : key === "own" && !downloading ? "SELECT" : ""
     }
-
-    MenuList {
-        id: list
-        model: fbneoRoot.keys
-        focus: true
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: fbneoRoot.labelOf(modelData)
-            value: fbneoRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-            keepValue: true
-        }
-
-        Keys.onReturnPressed: {
-            var key = fbneoRoot.keys[currentIndex]
-            if (!arcadeBackend)
-                return
-            if (key === "download" && !fbneoRoot.downloading)
-                arcadeBackend.downloadFbneo()
-            else if (key === "own" && !fbneoRoot.downloading)
-                arcadeBackend.useOwnFbneo()
-            else if (key === "retroarch_download" && !fbneoRoot.retroarchDownloading)
-                arcadeBackend.downloadRetroArch()
-        }
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                fbneoRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        text: fbneoRoot.descriptionOf(fbneoRoot.keys[list.currentIndex])
-    }
-
-    HintBar {
-        readonly property string key: fbneoRoot.keys[list.currentIndex] || ""
-        readonly property bool downloads: (key === "download" && !fbneoRoot.downloading)
-                                          || (key === "retroarch_download" && !fbneoRoot.retroarchDownloading)
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             downloads ? "select:DOWNLOAD" : key === "own" && !fbneoRoot.downloading ? "select:SELECT" : ""])
+    function choose(key) {
+        if (!arcadeBackend)
+            return
+        if (key === "download" && !downloading)
+            arcadeBackend.downloadFbneo()
+        else if (key === "own" && !downloading)
+            arcadeBackend.useOwnFbneo()
+        else if (key === "retroarch_download" && !retroarchDownloading)
+            arcadeBackend.downloadRetroArch()
     }
 }

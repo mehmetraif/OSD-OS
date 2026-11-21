@@ -10,9 +10,6 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QUrl>
@@ -44,14 +41,7 @@ MenuMusic::MenuMusic(const QString &dataRoot, QObject *parent) : QObject(parent)
     m_startDelay.setSingleShot(true);
     m_startDelay.setInterval(kStartDelayMs);
     connect(&m_startDelay, &QTimer::timeout, this, &MenuMusic::start);
-    // mpv makes its socket a moment after it starts.
-    m_connect.setInterval(100);
-    connect(&m_connect, &QTimer::timeout, this, [this]() {
-        if (m_ipc.state() == QLocalSocket::UnconnectedState)
-            m_ipc.connectToServer(m_socketPath);
-    });
     connect(&m_ipc, &QLocalSocket::connected, this, [this]() {
-        m_connect.stop();
         // Set while the socket was still being made (the slider, as the
         // music came back after a video): told now, or mpv would keep the
         // volume it started with.
@@ -71,10 +61,7 @@ MenuMusic::MenuMusic(const QString &dataRoot, QObject *parent) : QObject(parent)
 }
 
 void MenuMusic::sendVolume() {
-    if (m_ipc.state() != QLocalSocket::ConnectedState)
-        return;
-    const QJsonObject command{ { "command", QJsonArray{ "set_property", "volume", m_volume } } };
-    m_ipc.write(QJsonDocument(command).toJson(QJsonDocument::Compact) + '\n');
+    m_ipc.command({ "set_property", "volume", m_volume });
 }
 
 // Whether the music should be playing as things now are.
@@ -308,16 +295,17 @@ void MenuMusic::play(const QString &file) {
     // ALSA alone where plain ALSA plays: this mpv reads no mpv.conf
     // (--no-config), and left to itself tries PipeWire first, which writes
     // to the journal at every tune that it has no config.
+    const AudioOutput::Player sound = AudioOutput::forPlayer();
     args << AudioOutput::alsaAlone()
          // Settings → Sound → Audio Output's card, while it is plugged in; Auto's as
          // ALSA's default (applyTo() below).
-         << AudioOutput::mpvArgs()
+         << sound.mpvArgs
          << QStringLiteral("--")
          << file;
     auto *process = new QProcess(this);
     process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    AudioOutput::applyTo(env);
+    sound.applyTo(env);
     process->setProcessEnvironment(env);
     QElapsedTimer clock;
     clock.start();
@@ -331,7 +319,7 @@ void MenuMusic::play(const QString &file) {
             return;
         // Over on its own: its socket isn't waited for any more.
         m_process = nullptr;
-        m_connect.stop();
+        m_ipc.stopConnecting();
         m_ipc.abort();
         emit playingChanged();
         if (clock.elapsed() >= kFailedWithinMs)
@@ -363,7 +351,7 @@ void MenuMusic::play(const QString &file) {
     // Unless it couldn't even be started, and is over already.
     if (m_process == process) {
         if (!m_socketPath.isEmpty())
-            m_connect.start();
+            m_ipc.connectTo(m_socketPath);
         emit playingChanged();
     }
 }
@@ -376,7 +364,7 @@ void MenuMusic::stopNow() {
         render->waitForFinished(300);
     }
     m_cardWait.stop();
-    m_connect.stop();
+    m_ipc.stopConnecting();
     m_ipc.abort();
     QProcess *process = m_process;
     if (!process)

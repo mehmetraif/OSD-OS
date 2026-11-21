@@ -56,7 +56,6 @@ sudo apt-get install -y \
     qt6-svg-plugins \
     qt6-wayland \
     qml6-module-qtquick \
-    qml6-module-qtquick-controls \
     qml6-module-qtquick-window \
     libsdl2-2.0-0 \
     libpcsclite1 \
@@ -152,9 +151,15 @@ fi
 # The app, stopped below for the release's swap, starts again as the script
 # ends, however it ends: on the new release, or on the one before.
 echo "Downloading ${TARBALL}..."
+# The release's folders unpacked for the swap go too, should the script end
+# before the swap begins: the launcher, which runs as the app's user, finds
+# none left in its way.
 TMP_DIR=$(mktemp -d)
 APP_WAS_RUNNING=""
-trap 'rm -rf "$TMP_DIR"; if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
+UNPACKED=""
+trap 'rm -rf "$TMP_DIR"
+      if [ -n "$UNPACKED" ]; then sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" || true; fi
+      if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
 
 curl -fsSL -o "${TMP_DIR}/${TARBALL}" "${DOWNLOAD_URL}"
 # Checked against the SHA-256 GitHub keeps for it before anything changes; a
@@ -178,6 +183,15 @@ esac
 # from .old, never on half of each; and a file a release dropped (a module's
 # folder) doesn't live on under the new one. The app, if it runs, stops for the
 # swap rather than run on as half of each.
+# It is a copy of the launcher's, apart from it where root is needed: the
+# leftovers of a swap cut short are cleared whoever owns them (the launcher
+# can only say it can't); the folders are made, and the whole of
+# $INSTALL_DIR given, to the app's user, who may not own it yet; a tarball
+# without bin/osdos ends the script rather than being noted in
+# staged.sha256.failed; the tarball is the download checked against GitHub's
+# digest, not a stage; and the service is stopped and started around it.
+# The launcher is written after the release is in place, so it isn't there
+# to be called for it.
 echo "Extracting to ${INSTALL_DIR}..."
 if [ -f "${SYSTEMD_SERVICE}" ]; then
     if systemctl is-active --quiet osdos.service; then
@@ -197,18 +211,27 @@ if [ -d "${INSTALL_DIR}/.old" ]; then
     done
 fi
 sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
-sudo mkdir "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
-sudo tar -xzf "${TMP_DIR}/${TARBALL}" --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new"
+# The swap's folders the user's the app runs as from the start, and the
+# release unpacked into them as that user: an install cut short as it
+# unpacks (a power cut) leaves nothing the launcher, which applies in-app
+# updates as that user, can't clear. The tarball is read by this script, in
+# a folder of its own.
+UNPACKED=1
+sudo install -d -o "${OWNER_USER}" -g "$(id -gn "${OWNER_USER}")" "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
+sudo -u "${OWNER_USER}" tar -xzf - --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new" \
+    < "${TMP_DIR}/${TARBALL}"
 if [ ! -x "${INSTALL_DIR}/.new/bin/osdos" ]; then
-    sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
     echo "Error: ${TARBALL} has no bin/osdos; nothing was installed." >&2
     exit 1
 fi
-# All of it the user's the app runs as, the release there and the swap's
-# folders too: the launcher swaps in staged in-app updates without root, and
-# puts the release before back should the swap below be cut short.
+# All of it the user's the app runs as, the release there too: the launcher
+# swaps in staged in-app updates without root, and puts the release before
+# back should the swap below be cut short.
 sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
 sync -f "${INSTALL_DIR}" 2> /dev/null || sync
+# From here .old holds the release before, which the launcher puts back
+# should the swap be cut short: kept.
+UNPACKED=""
 for d in "${INSTALL_DIR}"/.new/*; do
     name=$(basename "$d")
     if [ -e "${INSTALL_DIR}/${name}" ]; then
@@ -219,6 +242,12 @@ done
 sudo mv "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
 sync -f "${INSTALL_DIR}" 2> /dev/null || sync
 sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.discard"
+# An in-app update the app had staged and armed goes, with what the launcher
+# said of one before: the launcher would otherwise put it in place over this
+# release at the next start. The app sweeps its download.
+OWNER_UPDATES="$(getent passwd "${OWNER_USER}" | cut -d: -f6)/.local/share/OSD-OS/updates"
+sudo -u "${OWNER_USER}" rm -f "${OWNER_UPDATES}/staged.sha256" "${OWNER_UPDATES}/staged.json" \
+    "${OWNER_UPDATES}/staged.sha256.failed"
 if ! sudo -u "${OWNER_USER}" test -w "${INSTALL_DIR}"; then
     echo "Warning: ${OWNER_USER} can't write ${INSTALL_DIR}, so in-app updates won't apply." >&2
 fi
@@ -299,8 +328,23 @@ fi
 if [ -w "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
 fi
+# One this user can't clear (left by an installer of old, cut short as it
+# unpacked as root): said, and no stage tried over it, which would fail
+# each time and be offered again for ever. The installer, run again,
+# clears it.
+STUCK=""
+for d in "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"; do
+    if [ -e "$d" ] && [ -w "$INSTALL_DIR" ]; then
+        STUCK="$d"
+        echo "osdos: $d, left by an install cut short, can't be cleared; run the installer again" >&2
+    fi
+done
 
-if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
+if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -n "$STUCK" ]; then
+    echo "$STUCK, left by an install cut short, can't be cleared; run the installer again" \
+        > "$UPDATES_DIR/staged.sha256.failed"
+    rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
+elif [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
     if ( cd "$UPDATES_DIR" && sha256sum -c --status staged.sha256 ); then
         STAGED_TARBALL=$(awk '{print $2}' "$UPDATES_DIR/staged.sha256")
         rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
@@ -330,13 +374,16 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
             # staged.json: with that left, the app would offer an Install
             # that applies nothing, until the next boot discarded the stage
             # (above). The app offers the update again, downloaded afresh;
-            # .failed says what became of this one.
+            # .failed says why this one wasn't put in place, which the app
+            # tells on its Software Update page.
             rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
-            mv -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.sha256.failed" 2>/dev/null
-            rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
+            echo "its release didn't unpack in full" > "$UPDATES_DIR/staged.sha256.failed"
+            rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
         fi
     else
-        # Corrupt/partial stage — discard; the app re-offers the update.
+        # Corrupt/partial stage — discard, saying why; the app re-offers the
+        # update.
+        echo "the download didn't match its checksum" > "$UPDATES_DIR/staged.sha256.failed"
         rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
     fi
 fi
@@ -409,19 +456,33 @@ else
         done
     fi
     if [ -n "$KMS_CARD" ] && [ -e "/dev/dri/$KMS_CARD" ]; then
-        KMS_CONF="${XDG_RUNTIME_DIR:-/tmp}/osdos-kms.json"
         if [ -n "$KMS_OUTPUT" ]; then
             # Qt names an output by its type and number: HDMI-A-1 is HDMI1.
             qt_name="${KMS_OUTPUT%-*}"
             qt_name="${qt_name%-[AB]}${KMS_OUTPUT##*-}"
-            printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }\n' \
-                "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}" > "$KMS_CONF"
+            kms_json=$(printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }' \
+                "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}")
             export OSDOS_DRM_DEVICE="/dev/dri/$KMS_CARD" OSDOS_DRM_CONNECTOR="$KMS_OUTPUT" \
                 OSDOS_DRM_MODE="$KMS_MODE"
         else
-            printf '{ "device": "/dev/dri/%s" }\n' "$KMS_CARD" > "$KMS_CONF"
+            kms_json=$(printf '{ "device": "/dev/dri/%s" }' "$KMS_CARD")
         fi
-        export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
+        # Qt's KMS configuration in a folder of this user's alone, the
+        # service's run-time folder (RuntimeDirectory=) or the session's,
+        # else in a file of its own made in the temp folder, never a name
+        # there anyone could have made first; and given to Qt only once it is
+        # written.
+        kms_dir="${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-}}"
+        if [ -n "$kms_dir" ] && [ -d "$kms_dir" ] && [ -w "$kms_dir" ] && [ -O "$kms_dir" ]; then
+            KMS_CONF="$kms_dir/osdos-kms.json"
+        else
+            KMS_CONF=$(mktemp "${TMPDIR:-/tmp}/osdos-kms.XXXXXX" 2> /dev/null) || KMS_CONF=""
+        fi
+        if [ -n "$KMS_CONF" ] && printf '%s\n' "$kms_json" > "$KMS_CONF"; then
+            export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
+        else
+            echo "osdos: Qt's KMS configuration couldn't be written; Qt picks the display itself" >&2
+        fi
     fi
 fi
 
@@ -459,6 +520,9 @@ Environment=QT_QPA_EGLFS_ALWAYS_SET_MODE=1
 Environment=QT_QPA_EGLFS_KMS_ATOMIC=1
 Environment=QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml
 Environment=OSDOS_AUTOSTART=1
+# The app's user's own folder for what the launcher writes for a run (Qt's KMS
+# configuration): /run/osdos.
+RuntimeDirectory=osdos
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStart=${LAUNCHER}
 Restart=on-failure
@@ -545,7 +609,7 @@ display_output() {
     # hold the answer back.
     sync -f "$boot/osdos-display.txt" /etc/modprobe.d
 }
-# The app's codes for them (src/display/DisplayOutput.cpp): keep the two in step.
+# The app's codes for them (os/stage-osdos/03-boot/files/display-presets.json): keep the two in step.
 DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
                  scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous
                  jamma-240p jamma-240p-native jamma-240p-super jamma-288p jamma-288p-super
@@ -738,15 +802,33 @@ esac
 STOP_HELPER
     sudo chmod +x /usr/local/bin/osdos-stop
 
-    # Display Output's At Next Start, while the app runs: it writes a preset's
-    # name to this socket, which only its user may, and osdos-stop next-start,
-    # as root, writes that preset for the next start and answers.
-    sudo tee /etc/systemd/system/osdos-display.socket > /dev/null << 'DISPLAY_SOCKET'
+    # The app's requests of root while it runs, each through a socket only its
+    # user may write to, behind which osdos-stop, as root, does it and answers:
+    # Display Output's At Next Start (next-start: a preset's name, written for
+    # the next start), Settings → Network → Wi-Fi's country (wifi-country: a
+    # two-letter code, which raspi-config sets), Settings → System → About →
+    # System Information's Device Name (device-name) and Settings → System's
+    # Time Zone and Keyboard (system-setting: which, and its value). os/build.sh
+    # writes the image's units from these lines too.
+    # ROOT_REQUESTS_BEGIN
+    # name|osdos-stop's mode|what it sets|where in Settings
+    ROOT_REQUESTS=(
+        "display|next-start|display output for the next start|Settings → Screen → Display Output"
+        "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
+        "name|device-name|device name|Settings → System → About → System Information"
+        "system|system-setting|time zone and keyboard|Settings → System"
+    )
+    # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is
+    # the app's user's group.
+    root_request_socket() {
+        local name mode what where
+        IFS='|' read -r name mode what where <<< "$1"
+        cat << SOCKET
 [Unit]
-Description=OSD/OS display output for the next start (Settings → Screen → Display Output)
+Description=OSD/OS ${what} (${where})
 
 [Socket]
-ListenStream=/run/osdos-display.sock
+ListenStream=/run/osdos-${name}.sock
 SocketUser=root
 SocketGroup=@OSDOS_GROUP@
 SocketMode=0660
@@ -755,138 +837,54 @@ MaxConnections=1
 
 [Install]
 WantedBy=sockets.target
-DISPLAY_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-display.socket
-    sudo tee /etc/systemd/system/osdos-display@.service > /dev/null << 'DISPLAY_SERVICE'
+SOCKET
+    }
+    # The unit a request behind it runs, osdos-<name>@.service.
+    root_request_service() {
+        local name mode what where
+        IFS='|' read -r name mode what where <<< "$1"
+        cat << SERVICE
 [Unit]
-Description=OSD/OS display output for the next start, one request
+Description=OSD/OS ${what}, one request
 # One unit a request: gone once it has run, however it ended.
 CollectMode=inactive-or-failed
 
 [Service]
-ExecStart=/usr/local/bin/osdos-stop next-start
+ExecStart=/usr/local/bin/osdos-stop ${mode}
 StandardInput=socket
 StandardOutput=socket
 StandardError=journal
 NoNewPrivileges=yes
-PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-DISPLAY_SERVICE
-
-    # Settings → Network → Wi-Fi's country, while the app runs: it writes a two-letter
-    # code to this socket, which only its user may, and osdos-stop
-    # wifi-country, as root, has raspi-config set it and answers.
-    sudo tee /etc/systemd/system/osdos-wifi.socket > /dev/null << 'WIFI_SOCKET'
-[Unit]
-Description=OSD/OS Wi-Fi country (Settings → Network → Wi-Fi)
-
-[Socket]
-ListenStream=/run/osdos-wifi.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-WIFI_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-wifi.socket
-    sudo tee /etc/systemd/system/osdos-wifi@.service > /dev/null << 'WIFI_SERVICE'
-[Unit]
-Description=OSD/OS Wi-Fi country, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop wifi-country
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+SERVICE
+        case "${name}" in
+            wifi) cat << 'NETWORK' ;;
 # No PrivateNetwork=, unlike the display output's: raspi-config sets the Wi-Fi's
 # regulatory domain over the kernel's nl80211 (iw reg set), and the Wi-Fi
 # device is in the host's network namespace, not one of the unit's own.
-PrivateTmp=yes
-ProtectHome=yes
-WIFI_SERVICE
-
-    # Settings → System → About → System Information's Device Name, while the app
-    # runs: it writes a name to this socket, which only its user may, and
-    # osdos-stop device-name, as root, sets it and answers.
-    sudo tee /etc/systemd/system/osdos-name.socket > /dev/null << 'NAME_SOCKET'
-[Unit]
-Description=OSD/OS device name (Settings → System → About → System Information)
-
-[Socket]
-ListenStream=/run/osdos-name.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-NAME_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-name.socket
-    sudo tee /etc/systemd/system/osdos-name@.service > /dev/null << 'NAME_SERVICE'
-[Unit]
-Description=OSD/OS device name, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop device-name
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+NETWORK
+            name) cat << 'NETWORK' ;;
 # hostnamectl and systemctl talk to their daemons over D-Bus, whose socket is
 # a file's: the unit itself has no network of its own.
 PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-NAME_SERVICE
-
-    # Settings → System's Time Zone and Keyboard, while the app runs: it writes
-    # which and its value to this socket, which only its user may, and
-    # osdos-stop system-setting, as root, sets it and answers.
-    sudo tee /etc/systemd/system/osdos-system.socket > /dev/null << 'SYSTEM_SOCKET'
-[Unit]
-Description=OSD/OS time zone and keyboard (Settings → System)
-
-[Socket]
-ListenStream=/run/osdos-system.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-SYSTEM_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-system.socket
-    sudo tee /etc/systemd/system/osdos-system@.service > /dev/null << 'SYSTEM_SERVICE'
-[Unit]
-Description=OSD/OS time zone and keyboard, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop system-setting
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+NETWORK
+            system) cat << 'NETWORK' ;;
 # timedatectl talks to its daemon over D-Bus, whose socket is a file's: the
 # unit itself has no network of its own.
 PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-SYSTEM_SERVICE
+NETWORK
+            *) echo "PrivateNetwork=yes" ;;
+        esac
+        printf 'PrivateTmp=yes\nProtectHome=yes\n'
+    }
+    # ROOT_REQUESTS_END
+    ROOT_SOCKETS=()
+    for request in "${ROOT_REQUESTS[@]}"; do
+        ROOT_SOCKETS+=("osdos-${request%%|*}.socket")
+        root_request_socket "${request}" | sudo tee "/etc/systemd/system/osdos-${request%%|*}.socket" > /dev/null
+        sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" "/etc/systemd/system/osdos-${request%%|*}.socket"
+        root_request_service "${request}" \
+            | sudo tee "/etc/systemd/system/osdos-${request%%|*}@.service" > /dev/null
+    done
 
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
@@ -909,7 +907,10 @@ Restart=no
 TERMINAL_UNIT
 
     sudo systemctl daemon-reload
-    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+    # Restarted, not only started: one already listening keeps the group it
+    # was made with until then, and the service's user may be another now.
+    sudo systemctl enable "${ROOT_SOCKETS[@]}"
+    sudo systemctl restart "${ROOT_SOCKETS[@]}"
     # A service kept as it was stays enabled or not, as it was left, and the
     # login on tty1 with it.
     if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then

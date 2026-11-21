@@ -412,7 +412,7 @@ On the OSD/OS image it asks neither, and keeps the image's own service. The inst
 
 | Step | What |
 |---|---|
-| Packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd`, and `qml6-module-qtquick3d qml6-module-qtquick3d-helpers` where the system has them |
+| Packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd`, and `qml6-module-qtquick3d qml6-module-qtquick3d-helpers` where the system has them |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0` |
 | The `bluetooth` group | Adds the user OSD/OS runs as |
 | A polkit rule | With a service: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, for Settings → Network → Wi-Fi |

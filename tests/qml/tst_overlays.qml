@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Components
 import OSDOS.Testing
+import "../../views/Components/Hover.js" as Hover
 
 // What comes over a view, each on its own: the on-screen keyboard
 // (views/Components/OnScreenKeyboard.qml), whose keys stay the keys they are
@@ -72,6 +73,16 @@ StandInRoot {
         keysTo: [noticeLoader.item, viewLoader]
         onWoken: root.saverUp = false
         onQuitAsked: root.quits++
+    }
+
+    // A question on its own, as a host that keeps its keys draws it.
+    Component {
+        id: question
+        PromptScreen {
+            title: "Keep this display output?"
+            message: "HDMI 720p"
+            choices: ["Keep", "Switch Back"]
+        }
     }
 
     SignalSpy {
@@ -322,6 +333,9 @@ StandInRoot {
 
         function cleanup() {
             loader.source = ""
+            root.framed = false
+            root.setFrame([], 0, false, false)
+            root.menuLayout = "Standard"
         }
 
         // The list of answers a PromptScreen draws.
@@ -398,6 +412,168 @@ StandInRoot {
             compare(closedSpy.count, 2)
             compare(canceledSpy.count, 1)
             compare(activatedSpy.count, 1)
+        }
+
+        // The frame's column of icons a PromptScreen draws again in
+        // Camcorder's frame (an IconColumn), or null.
+        function columnOf(prompt) {
+            var column = null
+            var find = function(item) {
+                if (typeof item.active === "boolean" && item.count !== undefined && item.model !== undefined)
+                    column = item
+                for (var i = 0; i < item.children.length && !column; i++)
+                    find(item.children[i])
+            }
+            find(prompt)
+            return column
+        }
+        // The mouse on an item, at its middle unless told where, as
+        // Main.qml's followPointer() has it.
+        function hover(item, x, y) {
+            var p = item.mapToItem(root, x === undefined ? item.width / 2 : x, y === undefined ? item.height / 2 : y)
+            Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+        }
+
+        // The mouse moves the cursor to the answer it is over, and nowhere
+        // from anything else: in Camcorder's frame the window draws the
+        // frame's column again beside its answers, and the mouse over an
+        // icon there leaves the cursor on its answer (the first may be Power
+        // Off, and a click is select). In Standard there is no column.
+        function test_mouseOverTheFramesColumn_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_mouseOverTheFramesColumn(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }, { icon: "eject" }], 2, false, false)
+            root.framed = data.framed
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Quit OSD/OS?",
+                               choices: [{ label: "Power Off", action: "poweroff" }, { label: "Restart", action: "restart" },
+                                         { label: "Cancel", action: "cancel" }] })
+            var overlay = loader.item
+            verify(overlay !== null, "loaded ChoiceOverlay.qml")
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var answers = answersOf(prompt)
+            keyClick(Qt.Key_Up)
+            compare(overlay.choiceIndex, 2)
+            var column = columnOf(prompt)
+            compare(column !== null, data.framed)
+            if (column) {
+                compare(column.count, 3)
+                // Each icon in turn, the first first.
+                for (var i = 0; i < 3; i++) {
+                    hover(column, column.width / 2, (i + 0.5) * root.menuRowHeight)
+                    compare(overlay.choiceIndex, 2, "the cursor left on its answer, the mouse on icon " + i)
+                }
+                // The answers beside the column, in the pane.
+                verify(answers.mapToItem(root, 0, 0).x >= column.mapToItem(root, column.width, 0).x)
+            }
+            // An answer: the cursor's.
+            hover(answers.itemAtIndex(0))
+            compare(overlay.choiceIndex, 0)
+            hover(answers.itemAtIndex(1))
+            compare(overlay.choiceIndex, 1)
+            // The title bar, and the room under the answers: nowhere.
+            hover(prompt, prompt.width / 2, root.sh * 0.15)
+            hover(prompt, prompt.width / 2, root.sh * 0.8)
+            compare(overlay.choiceIndex, 1)
+        }
+
+        // A question asked over the whole screen whatever the layout
+        // (`inLayout` off: a new display output's, before the menus): in
+        // Camcorder's frame it draws no column and lies across the window,
+        // not in the pane, as in Standard and in a monitor layout. One
+        // asked in the layout has Camcorder's column beside it, and lies in
+        // the pane.
+        function test_askedOverTheWholeScreen_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false }]
+        }
+        function test_askedOverTheWholeScreen(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var whole = createTemporaryObject(question, root, { inLayout: false })
+            verify(whole !== null)
+            verify(!whole.paned)
+            compare(columnOf(whole), null)
+            var answers = answersOf(whole)
+            compare(answers.mapToItem(root, 0, 0).x, root.contentBox.x)
+            compare(answers.width, root.contentBox.width)
+            whole.visible = false
+
+            var inIt = createTemporaryObject(question, root)
+            verify(inIt !== null)
+            compare(inIt.paned, data.layout !== "Standard")
+            compare(columnOf(inIt) !== null, data.framed)
+            answers = answersOf(inIt)
+            compare(answers.mapToItem(root, 0, 0).x, root.paneX)
+            compare(answers.width, root.paneWidth)
+            if (data.layout !== "Standard")
+                verify(root.paneX > root.contentBox.x)
+        }
+
+        // The card writer (views/Components/NfcCardWriter.qml) asks in the
+        // window every question has, in the layout: each phase's words in
+        // its title bar, the title the card is for under it, the answers
+        // while there is one to choose, the keys in its hint bar; beside
+        // Camcorder's column, in the pane. The mouse moves its cursor.
+        function test_cardWriterWindow_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_cardWriterWindow(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var held = createTemporaryObject(cardWriter, root)
+            verify(held !== null)
+            var writer = held.writer
+            writer.offerShuffle = true
+            writer.open()
+            var prompt = root.promptIn(writer)
+            verify(prompt !== null)
+            compare(prompt.title, "Tap a card for...")
+            compare(prompt.kind, "notice")
+            compare(prompt.message, "<b>The Film</b>")
+            compare(prompt.choices.length, 0)
+            compare(prompt.hint, "[ESC]:CANCEL")
+            compare(columnOf(prompt) !== null, data.framed)
+            compare(prompt.paned, data.framed)
+            // Nothing to choose until a card comes.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "armed")
+
+            held.reader.cardCaptured("04AABBCC", "An Older Film")
+            compare(writer.phase, "choose")
+            compare(prompt.title, "Write card for...")
+            compare(prompt.kind, "question")
+            compare(prompt.choices.map(function(c) { return c.label }),
+                    ["Write card (Sequential Episodes)", "Write card (Shuffle Episodes)", "Cancel"])
+            compare(prompt.hint, "[ESC]:CANCEL [▲▼]:NAVIGATE [ENTER]:SELECT")
+            var answers = answersOf(prompt)
+            compare(answers.mapToItem(root, 0, 0).x, data.framed ? root.paneX : root.contentBox.x)
+            keyClick(Qt.Key_Up)
+            compare(prompt.currentIndex, 2)
+            hover(answers.itemAtIndex(1))
+            compare(writer.choiceIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "replace")
+            compare(prompt.title, "This card plays \"An Older Film\". Change to...")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Change this card", "Cancel"])
+            compare(prompt.currentIndex, 0)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "done")
+            compare(prompt.title, "Card written for...")
+            compare(prompt.kind, "notice")
+            compare(prompt.choices.length, 0)
+            compare(prompt.hint, "[ENTER]:DONE")
+            keyClick(Qt.Key_Return)
+            verify(!writer.visible)
         }
     }
 
@@ -530,10 +706,152 @@ StandInRoot {
         }
     }
 
+    // The card writer and a web player's launch page, each with what it reads
+    // of the app and of its module beside it.
+    Component {
+        id: cardWriter
+        Item {
+            property alias writer: writer
+            property alias reader: nfcReaderBackend
+            anchors.fill: parent
+            QtObject {
+                id: nfcReaderBackend
+                property bool available: true
+                property bool readerConnected: true
+                signal cardCaptured(string uid, string existing)
+                function setCardCapture(on) {}
+                function writeCardFile(uid, title, ref, mode) { return true }
+            }
+            QtObject {
+                id: appCore
+                function is_module_enabled(id) { return true }
+            }
+            NfcCardWriter {
+                id: writer
+                anchors.fill: parent
+                cardRef: "plex://movie/1"
+                cardTitle: "<b>The Film</b>"
+            }
+        }
+    }
+    Component {
+        id: launchPage
+        Item {
+            property alias page: page
+            anchors.fill: parent
+            QtObject {
+                id: moduleRoot
+                property string moduleIcon: ""
+                property string moduleName: "Netflix"
+            }
+            QtObject {
+                id: idleTracker
+                function resetActivity() {}
+            }
+            QtObject {
+                id: appCore
+                function installHint(what) { return "" }
+            }
+            // A browser that can't be started, and says why.
+            QtObject {
+                id: browser
+                property bool running: false
+                property bool opened: true
+                property var catalog: null
+                signal finished(int exitCode, string reason)
+                function launch(url) { return false }
+                function lastError() { return "<b>/opt/osdos/web-player.sh</b> could not be started" }
+            }
+            WebPlayerLaunch {
+                id: page
+                anchors.fill: parent
+                backend: browser
+                serviceName: "Netflix"
+                navParams: ({ name: "<b>The Film</b>" })
+            }
+        }
+    }
+
+    // What a server, a catalogue, a card or a file's name says is shown as
+    // it is written: a title that looks like markup is its letters, never
+    // read as markup (a picture's tag in one would fetch its address). On the
+    // info screen (views/Components/InfoPanel.qml), the card writer
+    // (views/Components/NfcCardWriter.qml) and a web player's launch page
+    // (views/Components/WebPlayerLaunch.qml).
+    TestCase {
+        name: "WordsAsWritten"
+        when: windowShown
+
+        function cleanup() {
+            loader.source = ""
+        }
+
+        // Every Text an item holds whose words have "<b>" in them, all the
+        // way down.
+        function marked(item) {
+            var found = []
+            if (item.text !== undefined && item.textFormat !== undefined && String(item.text).indexOf("<b>") >= 0)
+                found.push(item)
+            for (var i = 0; i < item.children.length; i++)
+                found = found.concat(marked(item.children[i]))
+            return found
+        }
+        // At least so many of them, each as it is written.
+        function asWritten(item, atLeast) {
+            var texts = marked(item)
+            verify(texts.length >= atLeast, texts.length + " of " + atLeast + " lines found")
+            for (var i = 0; i < texts.length; i++)
+                compare(texts[i].textFormat, Text.PlainText, String(texts[i].text))
+        }
+
+        // The entry's own name, then its title, its facts, its story and a
+        // line of its details as they come in.
+        function test_infoScreen() {
+            loader.setSource(Qt.resolvedUrl("../../views/Components/InfoPanel.qml"))
+            var info = loader.item
+            verify(info !== null, "loaded InfoPanel.qml")
+            info.show({ title: "<b>The Film</b>" })
+            asWritten(info, 1)
+            info.details = { title: "<b>The Film</b>", facts: "<b>1999</b> • 2H 10M", summary: "<b>A story.</b>",
+                             rows: [{ label: "Genre", value: "<b>Drama</b>" }] }
+            asWritten(info, 4)
+        }
+
+        // The title a card is written for, and the one a card already plays.
+        function test_cardWriter() {
+            var held = createTemporaryObject(cardWriter, root)
+            verify(held !== null)
+            held.writer.open()
+            compare(held.writer.phase, "armed")
+            asWritten(held.writer, 1)
+            held.reader.cardCaptured("04AABBCC", "<b>An Older Film</b>")
+            compare(held.writer.phase, "choose")
+            keyClick(Qt.Key_Return)
+            compare(held.writer.phase, "replace")
+            asWritten(held.writer, 2)
+        }
+
+        // The title being opened, then why it didn't open.
+        function test_webPlayerLaunch() {
+            var held = createTemporaryObject(launchPage, root)
+            verify(held !== null)
+            compare(held.page.phase, "opening")
+            asWritten(held.page, 1)
+            tryCompare(held.page, "phase", "error", 1000)
+            asWritten(held.page, 1)
+        }
+    }
+
+    // MpvController, as the loading screen hears it: a video inside the
+    // window has drawn a picture.
+    QtObject {
+        id: mpvController
+        signal videoFrameReady()
+    }
     // The loading screen a player shows while its video starts: its letters
     // in the loading ink, each bleeding to the right in the colours' second
     // ink (root.loadingBleed), Video 1's with Default; no bleed with the
-    // Loading Effect off.
+    // Loading Effect off. And when it moves.
     Component {
         id: tapeLayer
         LoadingScreen {
@@ -569,6 +887,32 @@ StandInRoot {
             tape.effect = false
             verify(!bleed[0].visible)
             root.loadingThemed = true
+        }
+
+        // With Transparent Background it goes on moving while the window's
+        // video has no picture yet (nothing is drawn over it), and rests
+        // once one is over it; its session gone, and shown again, it moves.
+        // While another process has the screen it rests.
+        function test_restsUnderAPicture() {
+            var tape = createTemporaryObject(tapeLayer, root)
+            verify(tape.live)
+            root.videoActive = true
+            verify(tape.live)
+            mpvController.videoFrameReady()
+            verify(!tape.live)
+            root.videoActive = false
+            verify(tape.live)
+            root.videoActive = true
+            verify(tape.live)
+            mpvController.videoFrameReady()
+            verify(!tape.live)
+            tape.visible = false
+            tape.visible = true
+            verify(tape.live)
+            root.videoActive = false
+            root.screenHandedOff = true
+            verify(!tape.live)
+            root.screenHandedOff = false
         }
     }
 }

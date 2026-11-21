@@ -21,7 +21,7 @@ FocusScope {
     // How long it is, from the server, and where the last start began: the
     // loading screen's counters.
     property int    itemDurationMs: navParams.duration   || 0
-    property int    lastStartMs:  0
+    property alias  lastStartMs:  session.startMs
     property string itemTitle:    navParams.title        || ""
     property var    audioStreams:     navParams.audioStreams     || []
     property var    subtitleStreams:  navParams.subtitleStreams  || []
@@ -39,7 +39,8 @@ FocusScope {
     // Progress reporting is entirely client-side (the two update_timeline calls
     // below are the only ones), so suppressing them is sufficient — nothing
     // server-side marks an item watched. It also gates the per-part audio and
-    // subtitle selections persisted on autoplay (see advanceToEpisode).
+    // subtitle selections persisted on autoplay, which no card's playback
+    // writes (see advanceToEpisode).
     property bool   trackProgress:      navParams.trackProgress !== false
     // Show/season ratingKey a shuffle card draws its episodes from; empty for
     // every other kind of playback, which advances sequentially.
@@ -53,7 +54,7 @@ FocusScope {
     property int    queueIndex:         navParams.queueIndex || 0
 
     property bool stoppedReported:    false
-    property bool playbackStarted:    false
+    property alias playbackStarted:   session.started
     property string resumeSetting:    "ask"
     property bool pendingRetryTranscode: false
 
@@ -89,8 +90,9 @@ FocusScope {
         goBack()
     }
 
-    property int lastKnownPositionMs: 0
-    property int lastKnownDurationMs: 0
+    // Where it is, as mpv says (PlayerSession).
+    property alias lastKnownPositionMs: session.positionMs
+    property alias lastKnownDurationMs: session.durationMs
 
     // The video that failed, again where it got to (the notice's RETRY), as
     // it was played: direct, or the transcode a failed direct play fell back
@@ -114,27 +116,16 @@ FocusScope {
                 leaveWaiting()
             event.accepted = true
         } else {
-            // The keys mpv takes (MpvKeys.js). A key's repeats go as
-            // repeats: mpv holds the key down for them, and lets it go as
-            // the key is (Keys.onReleased).
-            var key = MpvKeys.name(event.key)
-            if (key !== "") {
-                mpvController.sendKey(key, event.isAutoRepeat)
-                event.accepted = true
-            }
+            session.forwardKey(event)
         }
     }
-    // A key let go: the one mpv holds down for its repeats, if any, with it.
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
-    }
+    Keys.onReleased: function(event) { session.releaseKey(event) }
 
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
+    // First position update means mpv is up and playing: the loading
+    // indicator goes (mpv's own window now covers the screen).
+    PlayerSession {
+        id: session
+        player: playerRoot
     }
 
     // Report the final "stopped" timeline for the current episode exactly once.
@@ -201,11 +192,22 @@ FocusScope {
         }
         var subTrack
         if (subtitleIdx === 0)
-            subTrack = -1
+            // OFF: none shown (--sid=no). The sidecars are loaded all the same,
+            // for mpv's own subtitle cycle to reach.
+            subTrack = -2
         else if (selectedSubUrl)
             subTrack = 0
-        else
-            subTrack = subtitleIdx
+        else {
+            // A subtitle in the file itself (no key, so no sidecar). mpv numbers
+            // the file's own subtitles first, 1 up, and the --sub-file sidecars
+            // after them, so its --sid counts only the streams before it that
+            // are in the file, not the sidecars Plex lists among them.
+            subTrack = 0
+            for (var k = 1; k <= subtitleIdx; k++) {
+                if (!(subtitleStreams[k] && subtitleStreams[k].subUrl))
+                    subTrack++
+            }
+        }
         return { urls: allSubUrls, track: subTrack }
     }
 
@@ -216,12 +218,15 @@ FocusScope {
         if (isTranscoding) {
             // Transcode covers the full timeline (requested at offset 0), so seek mpv
             // to the resume point. This keeps everything before offsetMs seekable, so
-            // the user can rewind past the resume point.
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0, 0, -1, [], [], false, -1, 0.0, plexToken)
+            // the user can rewind past the resume point. Its subtitle, if any, is
+            // burnt into the picture: no track for mpv to show (-2, --sid=no).
+            mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0, subTrack: -2,
+                                        plexToken: plexToken })
         } else {
             var sub = buildSubArgs()
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
-                                       audioIdx + 1, sub.track, sub.urls, [], false, -1, 0.0, plexToken)
+            mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0,
+                                        audioTrack: audioIdx + 1, subTrack: sub.track, subFiles: sub.urls,
+                                        plexToken: plexToken })
         }
     }
 
@@ -322,7 +327,7 @@ FocusScope {
         playbackStarted      = false
         lastKnownPositionMs  = 0
         lastKnownDurationMs  = 0
-        sessionId            = newSessionId()
+        sessionId            = plexBackend.new_session_id()
 
         // Repoint the BACK target so exiting returns to THIS episode's detail
         // screen, not the one we auto-advanced from. Item.qml reloads from
@@ -351,39 +356,25 @@ FocusScope {
 
         // Persist the chosen tracks to Plex, so the next play of this episode
         // anywhere remembers them (mirrors Item.qml's behavior before playback).
-        // Skipped when this session doesn't write back to Plex: CardPlay.qml
-        // skips the same call for a card's first episode, and the languages
-        // carried onto a shuffled episode are a match, not a user choice — the
-        // transcode gets its stream IDs from request_transcode's query either way.
-        if (trackProgress && partId) {
+        // Skipped when this session doesn't write back to Plex, and for every
+        // card (moduleRoot.forCard), shuffled or not: CardPlay.qml skips the
+        // same call for a card's first item, since a card tap must not rewrite
+        // the server's stored tracks, and the languages carried onto the items
+        // after it are a match, not a user choice — the transcode gets its
+        // stream IDs from request_transcode's query either way.
+        if (trackProgress && moduleRoot.forCard !== true && partId) {
             if (audioId) plexBackend.set_audio_stream(audioId, partId)
             plexBackend.set_subtitle_stream(subId, partId)
         }
 
         // Both paths resolve through onStreamUrlReady, which checks this flag.
-        // build_stream_url emits synchronously, so the flag must be set first.
+        // Direct play answers at once, so the flag must be set first.
         pendingNextEpisode = true
-        if (isTranscoding) {
-            plexBackend.request_transcode(ratingKey, partKey, sessionId, audioId, subId, 0)
-        } else {
-            plexBackend.build_stream_url(ratingKey, partKey, sessionId)
-        }
+        plexBackend.start_stream(detail, sessionId, audioId, subId)
     }
 
     Connections {
         target: mpvController
-
-        function onPositionChanged(ms) {
-            if (ms > 0) {
-                playerRoot.lastKnownPositionMs = ms
-                // First position update means mpv is up and playing — drop the
-                // loading indicator (mpv's own window now covers the screen).
-                playerRoot.playbackStarted = true
-            }
-        }
-        function onDurationChanged(ms) {
-            if (ms > 0) playerRoot.lastKnownDurationMs = ms
-        }
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             if (reason === "failed") {
@@ -460,10 +451,7 @@ FocusScope {
             return
         }
         resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
-        // Match ModuleSettings.qml's reading of a toggle: stored as a real bool
-        // once the user touches it, but accept the legacy "ON" string too.
-        var autoplayRaw = appCore.get_setting(moduleRoot.moduleId, "autoplay_next_episode")
-        autoplayNext  = allowAutoplay && (autoplayRaw === true || autoplayRaw === "ON")
+        autoplayNext  = allowAutoplay && root.settingOn(moduleRoot.moduleId, "autoplay_next_episode", false)
 
         if (resumeSetting === "ask" && viewOffset > 0) {
             resumePrompt.open()

@@ -61,6 +61,7 @@ FocusScope {
 
         function onBoxsetChildrenLoaded(children) {
             boxsetRoot.isLoading = false
+            boxsetRoot.errorMessage = ""
 
             // Bucket children by content type. Each bucket is re-sorted by
             // release date (oldest first) via sortCollectionItems before handoff.
@@ -97,10 +98,14 @@ FocusScope {
             }
         }
 
+        // Its own only while it waits for the box set, as a list's is
+        // (MediaServerItems): never drawn over the rows once they are shown.
         function onErrorOccurred(msg) {
+            console.log("[" + moduleRoot.moduleName + " Boxset] Error: " + msg)
+            if (!boxsetRoot.isLoading)
+                return
             boxsetRoot.isLoading = false
             boxsetRoot.errorMessage = msg
-            console.log("[" + moduleRoot.moduleName + " Boxset] Error: " + msg)
         }
     }
 
@@ -142,34 +147,17 @@ FocusScope {
     }
 
     // Loading / empty / error states
-    Text {
+    PaneMessage {
         visible: isLoading
         text: "LOADING..."
-        color: root.primaryColor
-        font.family: root.globalFont
-        anchors.centerIn: parent
-        font.pixelSize: root.sh * 0.05 //24
     }
-    Text {
+    PaneMessage {
         visible: !isLoading && errorMessage !== ""
         text: errorMessage
-        color: root.primaryColor
-        font.family: root.globalFont
-        anchors.centerIn: parent
-        // As wide as the list: a server's long error wraps instead of
-        // running off the screen.
-        width: root.paneWidth
-        wrapMode: Text.WordWrap
-        horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: root.sh * 0.05 //24
     }
-    Text {
+    PaneMessage {
         visible: !isLoading && errorMessage === "" && categories.length === 0
         text: "NO ITEMS FOUND"
-        color: root.primaryColor
-        font.family: root.globalFont
-        anchors.centerIn: parent
-        font.pixelSize: root.sh * 0.05 //24
     }
 
     // Body

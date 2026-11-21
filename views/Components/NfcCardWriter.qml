@@ -149,93 +149,23 @@ FocusScope {
             activate()
     }
 
-    Item {
-        anchors.fill: parent
-
-        OsdGround {
-            anchors.fill: parent
-        }
-
-        Column {
-            anchors.centerIn: parent
-            width: root.contentBox.width
-            spacing: root.sh * 0.05 //24
-
-            Column {
-                width: parent.width
-                spacing: root.sh * 0.0166667 //8
-                Text {
-                    text: writerRoot.phase === "armed"    ? "TAP A CARD FOR..."
-                        : writerRoot.phase === "replace"  ? "THIS CARD PLAYS \"" + writerRoot.existingTitle + "\". CHANGE TO..."
-                        : writerRoot.phase === "done"     ? "CARD WRITTEN FOR..."
-                        : writerRoot.phase === "failed"   ? "COULD NOT WRITE CARD"
-                        :                                   "WRITE CARD FOR..."
-                    color: root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    font.pixelSize: root.sh * 0.0333333 //16
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    horizontalAlignment: Text.AlignHCenter
-                }
-
-                Text {
-                    text: writerRoot.cardTitle
-                    color: root.primaryColor
-                    font.family: root.globalFont
-                    font.capitalization: Font.AllUppercase
-                    font.pixelSize: root.sh * 0.0416667 //20
-                    width: parent.width
-                    wrapMode: Text.WordWrap
-                    horizontalAlignment: Text.AlignHCenter
-                }
-            }
-
-            Column {
-                width: parent.width
-                visible: writerRoot.phase === "choose" || writerRoot.phase === "replace"
-
-                Repeater {
-                    model: writerRoot.choices()
-                    delegate: Item {
-                        width: parent.width
-                        height: root.menuRowHeight
-
-                        Rectangle {
-                            anchors.fill: choiceText
-                            color: root.cursorColor
-                            visible: index === writerRoot.choiceIndex
-                        }
-
-                        Text {
-                            id: choiceText
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.label
-                            color: index === writerRoot.choiceIndex ? root.cursorInk : root.primaryColor
-                            font.family: root.globalFont
-                            font.capitalization: Font.AllUppercase
-                            topPadding: root.sh * 0.0041667
-                            leftPadding: root.sw * 0.009375
-                            rightPadding: root.sw * 0.009375
-                            bottomPadding: root.sh * 0.00625
-                            font.pixelSize: root.sh * 0.0416667
-                        }
-                    }
-                }
-            }
-
-            Text {
-                text: writerRoot.phase === "armed"
-                        ? root.hints.back + ":CANCEL"
-                        : (writerRoot.phase === "done" || writerRoot.phase === "failed")
-                          ? root.hints.select + ":DONE"
-                          : root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
-                color: root.primaryColor
-                font.family: root.globalFont
-                font.pixelSize: root.sh * 0.0333333
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
-        }
+    // In the window every question has (PromptScreen): what to do or what
+    // happened in its title bar, the title the card is for under it, and
+    // the answers while there are some to choose.
+    PromptScreen {
+        readonly property bool asking: writerRoot.phase === "choose" || writerRoot.phase === "replace"
+        kind: asking ? "question" : "notice"
+        title: writerRoot.phase === "armed"    ? "Tap a card for..."
+             : writerRoot.phase === "replace"  ? "This card plays \"" + writerRoot.existingTitle + "\". Change to..."
+             : writerRoot.phase === "done"     ? "Card written for..."
+             : writerRoot.phase === "failed"   ? "Could not write card"
+             :                                   "Write card for..."
+        message: writerRoot.cardTitle
+        choices: asking ? writerRoot.choices() : []
+        currentIndex: writerRoot.choiceIndex
+        onHovered: function(index) { writerRoot.choiceIndex = index }
+        hint: writerRoot.phase === "armed" ? root.hintLine(["back:CANCEL"])
+            : asking ? root.hintLine(["back:CANCEL", "navigate:NAVIGATE", "select:SELECT"])
+            : root.hintLine(["select:DONE"])
     }
 }

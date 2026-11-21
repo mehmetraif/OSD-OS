@@ -27,10 +27,6 @@ FocusScope {
             pinAuthRoot.errorMsg = ""
         }
 
-        function onAuthSuccess() {
-            // After PIN claimed: users + servers fetched, move to user selection
-        }
-
         function onUsersLoaded(users) {
             if (users.length === 1) {
                 // Only one user — auto-select and go straight to server select

@@ -1,5 +1,4 @@
 #include "AppCore.h"
-#include "util/AtomicFile.h"
 #include "util/AsyncDirectoryCache.h"
 #include "util/ExitCodes.h"
 #include "util/FileText.h"
@@ -25,7 +24,8 @@
 #include <algorithm>
 
 AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *parent)
-    : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot)
+    : QObject(parent), m_appRoot(appRoot), m_dataRoot(dataRoot),
+      m_config(dataRoot + QStringLiteral("/config.json")), m_lists(dataRoot + QStringLiteral("/lists.json"))
 {
     // What save_setting_soon() holds back is written once its steps rest,
     // and as the app quits, though the last step was a moment before.
@@ -94,33 +94,11 @@ QJsonObject AppCore::loadConfig(bool *broken) const {
 }
 
 QJsonObject AppCore::storedConfig(bool *broken) const {
-    const QString path = m_dataRoot + "/config.json";
-    // As last read, while the file is as it was then (its time and size):
-    // the settings are asked for by the dozen as a video starts, and the
-    // file is a few dozen kilobytes to parse each time. A save of OSD/OS's
-    // own (saveConfig()) or an edit by hand reads it anew.
-    const QFileInfo info(path);
-    if (m_configCacheValid && info.exists() && info.lastModified() == m_configCacheModified
-            && info.size() == m_configCacheSize) {
-        if (broken)
-            *broken = false;
-        return m_configCache;
-    }
-    QJsonObject config;
-    QString why;
-    const bool ok = filetext::readJsonObject(path, &config, &why);
     // One that is there but can't be read (a stray comma from editing it by
     // hand) must not be written over: these defaults would then replace every
     // setting in it. Readers get the defaults meanwhile; save_setting refuses.
-    if (broken)
-        *broken = !ok && !why.isEmpty();
-    m_configCacheValid = ok && info.exists();
-    if (m_configCacheValid) {
-        m_configCache = config;
-        m_configCacheModified = info.lastModified();
-        m_configCacheSize = info.size();
-    }
-    if (ok)
+    QJsonObject config;
+    if (m_config.read(&config, broken))
         return config;
     return QJsonObject{
         {"app", QJsonObject{{"color_scheme","Video 1"}}},
@@ -129,22 +107,11 @@ QJsonObject AppCore::storedConfig(bool *broken) const {
 }
 
 bool AppCore::saveConfig(const QJsonObject &config) {
-    const QString path = m_dataRoot + "/config.json";
-    m_configCacheValid = false;
-    if (!writeFileAtomically(path, QJsonDocument(config).toJson(QJsonDocument::Indented)))
+    if (!m_config.write(config, QJsonDocument::Indented))
         return false;
     // What was held back was in it.
     m_held.clear();
     m_settle->stop();
-    // What was written is what the next read would find: kept, so that the
-    // file isn't read and parsed again after each save.
-    const QFileInfo info(path);
-    if (info.exists()) {
-        m_configCache = config;
-        m_configCacheModified = info.lastModified();
-        m_configCacheSize = info.size();
-        m_configCacheValid = true;
-    }
     return true;
 }
 
@@ -175,7 +142,6 @@ void AppCore::scan_for_modules() {
 
     QVariantList displayData;
     for (const auto &m : m_modules) {
-        // Respect "enabled" setting; fall back to manifest default, then true
         if (!isModuleEnabled(m, modulesConfig)) {
             qDebug("[AppCore] Module disabled: %s", qPrintable(m.name));
             continue;
@@ -259,12 +225,37 @@ QVariant AppCore::get_setting(const QString &moduleId, const QString &key) {
     else
         target = config["modules"].toObject()[moduleId].toObject();
 
-    // Mirror save_setting's dot-notation handling: "libraries.somekey" reads
-    // target["libraries"]["somekey"], not a literal "libraries.somekey" key.
-    QStringList parts = key.split('.', Qt::KeepEmptyParts);
-    if (parts.size() == 2)
-        return target[parts[0]].toObject()[parts[1]].toVariant();
+    const QStringList path = settingPath(key);
+    if (path.size() == 2)
+        return target[path[0]].toObject()[path[1]].toVariant();
     return target[key].toVariant();
+}
+
+bool AppCore::setting_on(const QString &moduleId, const QString &key, bool fallback) {
+    const QVariant value = get_setting(moduleId, key);
+    if (value.typeId() == QMetaType::Bool)
+        return value.toBool();
+    const QString text = value.toString();
+    if (text.compare(QLatin1String("ON"), Qt::CaseInsensitive) == 0)
+        return true;
+    if (text.compare(QLatin1String("OFF"), Qt::CaseInsensitive) == 0)
+        return false;
+    return fallback;
+}
+
+QStringList AppCore::settingPath(const QString &key) {
+    const QStringList parts = key.split('.', Qt::KeepEmptyParts);
+    return parts.size() == 2 ? parts : QStringList{ key };
+}
+
+bool AppCore::configWritable(const QString &moduleId, const QString &key) const {
+    bool broken = false;
+    storedConfig(&broken);
+    if (broken)
+        qWarning("[AppCore] Setting not saved: config.json is there but isn't valid JSON, "
+                 "and saving %s.%s would write the defaults over it",
+                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+    return !broken;
 }
 
 // A JS object or array from QML arrives wrapped as a QJSValue, which
@@ -288,14 +279,9 @@ bool AppCore::save_settings(const QString &moduleId, const QVariantMap &values) 
 // the card, tens of milliseconds and more each on an SD card (AtomicFile.h),
 // and a theme chosen saved nine settings one after another.
 bool AppCore::saveSettings(const QString &moduleId, const QList<std::pair<QString, QVariant>> &values) {
-    bool broken = false;
-    QJsonObject config = loadConfig(&broken);
-    if (broken) {
-        qWarning("[AppCore] Setting not saved: config.json is there but isn't valid JSON, "
-                 "and saving %s.%s would write the defaults over it",
-                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(values.value(0).first));
+    if (!configWritable(moduleId, values.value(0).first))
         return false;
-    }
+    QJsonObject config = loadConfig();
 
     for (const auto &[key, value] : values)
         putSetting(&config, moduleId, key, value);
@@ -318,15 +304,13 @@ bool AppCore::saveSettings(const QString &moduleId, const QList<std::pair<QStrin
 }
 
 void AppCore::putSetting(QJsonObject *config, const QString &moduleId, const QString &key, const QVariant &value) {
-    // The target section
     QJsonObject target = moduleId.isEmpty() ? config->value("app").toObject()
                                             : config->value("modules").toObject()[moduleId].toObject();
-    // Dot-notation: "libraries.somekey" -> target["libraries"]["somekey"]
-    const QStringList parts = key.split('.', Qt::KeepEmptyParts);
-    if (parts.size() == 2) {
-        QJsonObject sub = target[parts[0]].toObject();
-        sub[parts[1]] = QJsonValue::fromVariant(value);
-        target[parts[0]] = sub;
+    const QStringList path = settingPath(key);
+    if (path.size() == 2) {
+        QJsonObject sub = target[path[0]].toObject();
+        sub[path[1]] = QJsonValue::fromVariant(value);
+        target[path[0]] = sub;
     } else {
         target[key] = QJsonValue::fromVariant(value);
     }
@@ -354,14 +338,8 @@ void AppCore::tellSetting(const QString &moduleId, const QString &key, const QVa
 // each on an SD card, on the app's thread with the key held. The value is
 // told at each step and the file written once.
 bool AppCore::save_setting_soon(const QString &moduleId, const QString &key, const QVariant &rawValue) {
-    bool broken = false;
-    storedConfig(&broken);
-    if (broken) {
-        qWarning("[AppCore] Setting not saved: config.json is there but isn't valid JSON, "
-                 "and saving %s.%s would write the defaults over it",
-                 qPrintable(moduleId.isEmpty() ? "app" : moduleId), qPrintable(key));
+    if (!configWritable(moduleId, key))
         return false;
-    }
     const QVariant value = plainValue(rawValue);
     const auto held = std::find_if(m_held.begin(), m_held.end(), [&](const HeldSetting &h) {
         return h.moduleId == moduleId && h.key == key;
@@ -493,7 +471,7 @@ void AppCore::tellChanges(const QJsonObject &before, const QJsonObject &after) {
                 const QJsonObject values = it.value().toObject();
                 for (auto value = values.begin(); value != values.end(); ++value) {
                     if (wasValues.value(value.key()) != value.value())
-                        emit moduleSettingChanged(module.key(), it.key() + QLatin1Char('.') + value.key(),
+                        emit moduleSettingChanged(module.key(), settingKey(it.key(), value.key()),
                                                   value.value().toVariant());
                 }
             } else {
@@ -844,29 +822,9 @@ QString AppCore::moduleIdForSource(const QString &source) const {
 // ---------------------------------------------------------------------------
 
 QJsonObject AppCore::loadLists(bool *broken) const {
-    const QString path = m_dataRoot + QStringLiteral("/lists.json");
-    // As last read, while the file is as it was then (its time and size), as
-    // config.json is: a list is asked for at every page of the Arcade
-    // screen's games, and the file was read and parsed whole each time.
-    const QFileInfo info(path);
-    if (m_listsCacheValid && info.exists() && info.lastModified() == m_listsCacheModified
-            && info.size() == m_listsCacheSize) {
-        if (broken)
-            *broken = false;
-        return m_listsCache;
-    }
-    QJsonObject lists;
-    QString why;
-    const bool ok = filetext::readJsonObject(path, &lists, &why);
     // As config.json: one there but unreadable is not written over.
-    if (broken)
-        *broken = !ok && !why.isEmpty();
-    m_listsCacheValid = ok && info.exists();
-    if (m_listsCacheValid) {
-        m_listsCache = lists;
-        m_listsCacheModified = info.lastModified();
-        m_listsCacheSize = info.size();
-    }
+    QJsonObject lists;
+    m_lists.read(&lists, broken);
     return lists;
 }
 
@@ -883,10 +841,8 @@ bool AppCore::listsToChange(QJsonObject *lists) const {
 // False, with a line in the log, when the file couldn't be written (a full
 // card): the lists are then as the file has them, as a setting is after a
 // save_setting() that failed.
-bool AppCore::saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name) const {
-    m_listsCacheValid = false;
-    if (!writeFileAtomically(m_dataRoot + QStringLiteral("/lists.json"),
-                             QJsonDocument(lists).toJson(QJsonDocument::Compact))) {
+bool AppCore::saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name) {
+    if (!m_lists.write(lists, QJsonDocument::Compact)) {
         qWarning("[AppCore] List not saved: %s.%s", qPrintable(moduleId), qPrintable(name));
         return false;
     }

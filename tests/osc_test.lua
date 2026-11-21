@@ -57,4 +57,19 @@ for _, size in ipairs({{640,480}, {1280,720}, {1280,536}, {1920,1080}, {853,481}
     end
 end
 assert(rendered >= 40)
-print('OSC: menu, seek and repeated files passed at five output sizes, with/without subtitles')
+
+-- The helpers the scripts share (osdos-osd.lua, beside the OSC): CROP steps
+-- through the four Scalings from the one mpv is in, round to the first.
+local osd = dofile(script:match("^(.*[/\\])") .. "osdos-osd.lua")
+local props = { keepaspect = true, panscan = 0 }
+mp.get_property_bool = function(name) return props[name] end
+mp.get_property_number = function(name) return props[name] end
+mp.set_property_bool = function(name, value) props[name] = value end
+mp.set_property_number = function(name, value) props[name] = value end
+for _, want in ipairs({ "14:9", "PAN & SCAN", "ANAMORPHIC", "LETTERBOX", "14:9" }) do
+    osd.next_scaling()
+    assert(osd.SCALINGS[osd.current_scaling()].name == want, 'CROP went to ' .. want)
+end
+local m = osd.metrics(640, 480)
+assert(m.fs == 15 and m.lm == 76 and m.rm == 563 and m.bar_w == 487, 'the menus\' measures at 640x480')
+print('OSC: menu, seek and repeated files passed at five output sizes, with/without subtitles; CROP round the Scalings')

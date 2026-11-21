@@ -124,7 +124,7 @@ Select **Play**, or **Play from Here** on a video.
 
 | Situation | What happens |
 |---|---|
-| **Play from Here** | Starts at that video. On a shuffled list that video comes first and the rest follow shuffled |
+| **Play from Here** | Starts at that video. On a shuffled list that video comes first and the rest follow shuffled. A video that can't play yet (not downloaded, its download failed, its file or server gone) plays nothing: the player says why |
 | **Play**, the list **In Order**, and it stopped part-way last time | **Resume playback?** `Resume video 3 at 12:34` / `Start from the beginning` |
 | **Play**, the list **In Order**, nothing to resume | From its first video |
 | **Play**, the list on **Shuffle** | In a new order each time, from the start |
@@ -204,7 +204,7 @@ Each source has a folder of its own, and each file carries the video's id in bra
 
 - Characters exFAT forbids (`\ / : * ? " < > |`) are replaced, and the title is cut at 80 characters (YouTube: 80 bytes).
 - The default folder is inside Local Files' media folder, so Local Files lists it too. A video copied into it by hand isn't on any list.
-- Changing the Download Folder affects what downloads next; files already downloaded stay where they are.
+- Changing the Download Folder affects what downloads next; files already downloaded stay where they are. What a download cut short left in the old folder is deleted there once it starts again in the new one, or once no list has the video.
 - The folder must be writable. On the OSD/OS image USB drives are mounted read-only, so they can't take downloads.
 
 ### YouTube videos
@@ -328,7 +328,7 @@ Written whole each time anything changes.
 | `playlists[].order` | `"inorder"` or `"shuffle"` |
 | `playlists[].items` | Its videos, in order: each an `id` (a UUID of its own), the `module` it comes from, its `key`, its `title` and its `source` (`path` for Local Files, `videoId` and `channel` for YouTube, `itemId` for Jellyfin and Emby) |
 | `playlists[].resume` | Where it stopped: the item's `id` (`itemId`) and `positionMs`. Absent once it has played out |
-| `downloads` | By key: `{ "path", "state": "done", "bytes" }` for a finished download, `{ "state": "failed", "reason" }` for a failed one. A video not downloaded yet has no entry |
+| `downloads` | By key: `{ "path", "state": "done" }` for a finished download (one an older version wrote has its `bytes` too, which is ignored), `{ "state": "failed", "reason", "folder" }` for a failed one, `folder` being the download folder it ran in, where what it left is cleared. A video not downloaded yet has no entry |
 
 A video's **key** names it whatever list it is on, and so names its download: `local:<path>`, `youtube:<videoId>`, `jellyfin:<itemId>` or `emby:<itemId>`.
 
@@ -342,7 +342,6 @@ An offline playlist of two videos, as OSD/OS writes it:
             "state": "failed"
         },
         "jellyfin:5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b": {
-            "bytes": 734003200,
             "path": "/media/OSD-OS/Movies/Playlists/Jellyfin/Kickboxer (1989) [5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b].mkv",
             "state": "done"
         }

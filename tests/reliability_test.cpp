@@ -4,6 +4,7 @@
 #include "modules/weather/WeatherBackend.h"
 #include "update/UpdateManager.h"
 #include "util/AtomicFile.h"
+#include "util/CachedJsonFile.h"
 #include "util/DurableFile.h"
 #include "util/EndProcess.h"
 #include "util/AsyncDirectoryCache.h"
@@ -298,6 +299,146 @@ private slots:
         QVERIFY(backend.m_otherObs.isEmpty());
     }
 
+    // Weather asks again every ten minutes while it is open, and only then:
+    // a Location or an Other Place changed in Settings, the module closed,
+    // is looked up and fetched once and starts no refresh, and neither does
+    // a place whose lookup answers after the module was left.
+    void weatherRefreshesOnlyWhileOpen() {
+        QTemporaryDir tmp;
+        // The settings saved as Settings saves them, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const char *key, const QVariant &value) {
+            QVERIFY(core.save_setting("com.osdos.weather", key, value));
+        };
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
+        delete backend.m_nam;
+        auto *network = new Network(&backend); backend.m_nam = network;
+        const QByteArray found = R"({"results":[{"name":"Paris","latitude":48.85,"longitude":2.35}]})";
+
+        // Closed, and its place set in Settings: by coordinates, then by a
+        // name that is looked up.
+        config("location", "41.01, 28.98, Istanbul");
+        backend.onSettingChanged("com.osdos.weather", "location", "41.01, 28.98, Istanbul");
+        QVERIFY(backend.m_resolved);
+        QVERIFY(!backend.m_refresh->isActive());
+        config("other_places", QStringList({ "60.0, 10.0, Oslo" }));
+        backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
+        QVERIFY(!backend.m_refresh->isActive());
+        config("location", "Paris, France");
+        backend.onSettingChanged("com.osdos.weather", "location", "Paris, France");
+        network->replies.last()->complete(found);
+        QCOMPARE(backend.m_locationName, QString("PARIS"));
+        QVERIFY(!backend.m_refresh->isActive());
+
+        // Opened, it refreshes; left, it stops.
+        backend.start();
+        QVERIFY(backend.m_refresh->isActive());
+        backend.stop();
+        QVERIFY(!backend.m_refresh->isActive());
+
+        // Opened on a place still to look up, and left before the answer.
+        backend.m_resolved = false;
+        backend.start();
+        QVERIFY(backend.m_refresh->isActive());
+        Reply *lookup = network->replies.last();
+        QVERIFY(lookup->url().toString().contains("geocoding-api"));
+        backend.stop();
+        lookup->complete(found);
+        QVERIFY(backend.m_resolved);
+        QVERIFY(!backend.m_refresh->isActive());
+    }
+
+    // The forecast Weather holds is its place's: a Location changed to
+    // another place takes the place before's forecast away with it, so the
+    // new place's name is never over it, and a forecast that then can't be
+    // fetched is told as one that never came. The same place under another
+    // name, or its Other Places changed, keeps the forecast it has.
+    void weatherForecastGoesWithItsPlace() {
+        QTemporaryDir tmp;
+        // The setting saved as Settings saves it, through AppCore.
+        AppCore core(tmp.path(), tmp.path());
+        const auto config = [&core](const char *key, const QVariant &value) {
+            QVERIFY(core.save_setting("com.osdos.weather", key, value));
+        };
+        WeatherBackend backend(tmp.path(), tmp.path(), &core);
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        // The newest request for the place's forecast (one place's, where the
+        // Other Places' asks for several at once).
+        const auto request = [network](const QString &latitude) -> Reply * {
+            for (qsizetype i = network->replies.size() - 1; i >= 0; --i) {
+                if (network->replies.at(i)->url().toString().contains("latitude=" + latitude + "&"))
+                    return network->replies.at(i);
+            }
+            return nullptr;
+        };
+        const QByteArray forecast = QJsonDocument(QJsonObject{
+            { "utc_offset_seconds", 0 },
+            { "current", QJsonObject{ { "temperature_2m", 10 }, { "weather_code", 0 }, { "is_day", 1 } } },
+            { "daily", QJsonObject{ { "time", QJsonArray{ "2026-01-01" } },
+                                    { "temperature_2m_min", QJsonArray{ 1 } },
+                                    { "temperature_2m_max", QJsonArray{ 9 } },
+                                    { "weather_code", QJsonArray{ 0 } } } } }).toJson();
+        QSignalSpy errors(&backend, &WeatherBackend::locationError);
+        QSignalSpy changes(&backend, &WeatherBackend::dataChanged);
+
+        // Chicago and its forecast.
+        config("location", "41.88, -87.63, Chicago");
+        backend.resolveLocation();
+        QVERIFY(request("41.8800"));
+        request("41.8800")->complete(forecast);
+        QVERIFY(backend.hasData());
+        QCOMPARE(backend.current().value("temperature").toString(), QString("10°"));
+        QCOMPARE(backend.forecast().size(), 1);
+
+        // The same place under another name, and its Other Places changed:
+        // the forecast is still its own.
+        config("location", "41.88, -87.63, Home");
+        backend.onSettingChanged("com.osdos.weather", "location", "41.88, -87.63, Home");
+        QCOMPARE(backend.locationName(), QString("HOME"));
+        QVERIFY(backend.hasData());
+        config("other_places", QStringList({ "60.0, 10.0, Oslo" }));
+        backend.onSettingChanged("com.osdos.weather", "other_places", QVariant());
+        QVERIFY(backend.hasData());
+        QCOMPARE(backend.forecast().size(), 1);
+
+        // Denver: Chicago's forecast goes as the place does.
+        changes.clear();
+        config("location", "39.74, -104.99, Denver");
+        backend.onSettingChanged("com.osdos.weather", "location", "39.74, -104.99, Denver");
+        QCOMPARE(backend.locationName(), QString("DENVER"));
+        QVERIFY(!backend.hasData());
+        QVERIFY(backend.current().isEmpty());
+        QVERIFY(backend.forecast().isEmpty());
+        QVERIFY(backend.almanac().isEmpty());
+        QVERIFY(changes.size() >= 1);
+        // Denver's can't be fetched: said, as with nothing to show.
+        Reply *failing = request("39.7400");
+        QVERIFY(failing);
+        failing->complete("{}");
+        QTRY_COMPARE(errors.size(), 1);
+        QCOMPARE(errors.first().first().toString(), QString("network"));
+        QVERIFY(!backend.hasData());
+        // And once it comes, it is Denver's.
+        backend.fetchWeather();
+        request("39.7400")->complete(forecast);
+        QVERIFY(backend.hasData());
+        QCOMPARE(backend.locationName(), QString("DENVER"));
+
+        // A place by name: the forecast before stays under its own name
+        // until the lookup says where the new one is.
+        config("location", "Paris, France");
+        backend.onSettingChanged("com.osdos.weather", "location", "Paris, France");
+        QCOMPARE(backend.locationName(), QString("DENVER"));
+        QVERIFY(backend.hasData());
+        Reply *lookup = network->replies.last();
+        QVERIFY(lookup->url().toString().contains("geocoding-api"));
+        lookup->complete(R"({"results":[{"name":"Paris","latitude":48.85,"longitude":2.35}]})");
+        QCOMPARE(backend.locationName(), QString("PARIS"));
+        QVERIFY(!backend.hasData());
+    }
+
     void markerFailureDoesNotArmUpdate() {
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());
@@ -310,6 +451,31 @@ private slots:
         QDir().mkpath(tmp.path() + "/updates/staged.sha256");
         manager.applyLinux();
         QCOMPARE(manager.state(), QString("error"));
+    }
+
+    // A stage the launcher couldn't put in place (scripts/install.sh writes
+    // staged.sha256.failed with why): told as the app starts, once, with
+    // the stage's files gone.
+    void failedStageIsReported() {
+        QTemporaryDir tmp;
+        const QString updates = tmp.path() + "/updates";
+        QVERIFY(QDir().mkpath(updates));
+        const auto write = [](const QString &path, const QByteArray &bytes) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+        };
+        QVERIFY(write(updates + "/staged.sha256.failed", "the download didn't match its checksum\n"));
+        QVERIFY(write(updates + "/OSD-OS-v9.9.9-linux-arm64.tar.gz", "payload"));
+        {
+            UpdateManager manager(tmp.path(), tmp.path());
+            QCOMPARE(manager.state(), QString("error"));
+            QCOMPARE(manager.errorMessage(),
+                     QString("The update could not be put in place: the download didn't match its checksum."));
+        }
+        QVERIFY(!QFile::exists(updates + "/staged.sha256.failed"));
+        QVERIFY(!QFile::exists(updates + "/OSD-OS-v9.9.9-linux-arm64.tar.gz"));
+        UpdateManager again(tmp.path(), tmp.path());
+        QCOMPARE(again.state(), QString("idle"));
     }
 
     // Only a newer release is offered: not the release before a prerelease
@@ -331,6 +497,14 @@ private slots:
         QVERIFY(!UpdateManager::isNewer("v0.0.9", "v0.0.9"));
         QVERIFY(!UpdateManager::isNewer("nightly", "v0.0.9"));
         QVERIFY(UpdateManager::isNewer("v0.0.9", "dev"));
+        // A build of commits after a tag, as git describe names it (a
+        // locally built AppImage's): after that release, before the next.
+        QVERIFY(!UpdateManager::isNewer("v0.0.43", "v0.0.43-12-g1a2b3c4"));
+        QVERIFY(!UpdateManager::isNewer("v0.0.42", "v0.0.43-12-g1a2b3c4"));
+        QVERIFY(UpdateManager::isNewer("v0.0.44", "v0.0.43-12-g1a2b3c4"));
+        QVERIFY(!UpdateManager::isNewer("v0.1.0-rc.1", "v0.1.0-rc.1-3-gabcdef0"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0-rc.2", "v0.1.0-rc.1-3-gabcdef0"));
+        QVERIFY(UpdateManager::isNewer("v0.1.0", "v0.1.0-rc.1-3-gabcdef0"));
         QTemporaryDir tmp;
         UpdateManager manager(tmp.path(), tmp.path());
         const QString running = QCoreApplication::applicationVersion();
@@ -954,6 +1128,10 @@ private slots:
         QCOMPARE(AudioOutput::mpvArgs(true), QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
         QCOMPARE(AudioOutput::alsaAlone(), QStringList({ "--ao=alsa" }));
         QCOMPARE(AudioOutput::mpvDevice(), QString("alsa/default:CARD=Device"));
+        // A player's options and its environment's card, worked out at once.
+        const AudioOutput::Player player = AudioOutput::forPlayer(true);
+        QCOMPARE(player.mpvArgs, QStringList({ "--ao=alsa", "--audio-device=alsa/default:CARD=Device" }));
+        QCOMPARE(player.card, QString("Device"));
         QCOMPARE(autoLabel(), QString("Auto (USB Audio Device)"));
         QCOMPARE(audio.settingRow().value("value").toString(), QString("Auto (USB Audio Device)"));
         // The picture on HDMI1: its port, ahead of the USB card.
@@ -1336,6 +1514,71 @@ private slots:
         QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString());
     }
 
+    // A JSON file as last read or written (CachedJsonFile, config.json's and
+    // lists.json's): none, or one empty, is no object and nothing broken; one
+    // that isn't JSON is broken and leaves the object as it was; a write is
+    // kept as read, and the file read anew once its time or size changes.
+    void cachedJsonFile() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString path = dir.path() + "/file.json";
+        CachedJsonFile file(path);
+        QJsonObject read{ { "kept", true } };
+        bool broken = true;
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(!broken);
+        QVERIFY(QFile(path).open(QIODevice::WriteOnly));
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(!broken);
+        {
+            QFile garbled(path);
+            QVERIFY(garbled.open(QIODevice::WriteOnly));
+            garbled.write("{ \"a\": 1, }");
+        }
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(broken);
+        QCOMPARE(read, QJsonObject({ { "kept", true } }));
+
+        // Written: the file whole, and the object kept as read.
+        QVERIFY(file.write(QJsonObject{ { "a", "one" } }, QJsonDocument::Compact));
+        QCOMPARE(contents(path), QByteArray("{\"a\":\"one\"}"));
+        const QDateTime modified = QFileInfo(path).lastModified();
+        const auto writeFile = [&path](const QByteArray &data, const QDateTime &time) {
+            QFile edited(path);
+            if (!edited.open(QIODevice::WriteOnly) || edited.write(data) != data.size())
+                return false;
+            edited.close();
+            return edited.open(QIODevice::ReadWrite) && edited.setFileTime(time, QFileDevice::FileModificationTime);
+        };
+        QVERIFY(writeFile("{\"a\":\"two\"}", modified));
+        QVERIFY(file.read(&read, &broken));
+        QVERIFY(!broken);
+        QCOMPARE(read.value("a").toString(), QString("one"));
+        // Its time changed, or its size: read anew.
+        QVERIFY(writeFile("{\"a\":\"two\"}", modified.addSecs(2)));
+        QVERIFY(file.read(&read));
+        QCOMPARE(read.value("a").toString(), QString("two"));
+        QVERIFY(writeFile("{\"a\":\"three\"}", modified.addSecs(2)));
+        QVERIFY(file.read(&read));
+        QCOMPARE(read.value("a").toString(), QString("three"));
+        // Made broken by hand after a good read: broken, not the old object.
+        QVERIFY(writeFile("{\"a\":", modified.addSecs(4)));
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(broken);
+        // Gone: nothing, not what was read.
+        QVERIFY(file.write(QJsonObject{ { "a", "four" } }, QJsonDocument::Indented));
+        QVERIFY(QFile::remove(path));
+        read = QJsonObject();
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(!broken);
+        QVERIFY(read.isEmpty());
+
+        // One that can't be written: false, and nothing kept of it.
+        CachedJsonFile nowhere(dir.path() + "/no/such/folder/file.json");
+        QVERIFY(!nowhere.write(QJsonObject{ { "a", 1 } }, QJsonDocument::Compact));
+        QVERIFY(!nowhere.read(&read));
+    }
+
     // What of a text OSD/OS Setup's file is (setupfile::parse()), checked as
     // the card's applier checks it, and its settings merged key by key.
     void setupFileChecked() {
@@ -1453,6 +1696,13 @@ private slots:
         QVERIFY2(refused.lines.first().endsWith("deleted, not applied: not OSD/OS Setup's settings"),
                  qPrintable(refused.lines.first()));
         QCOMPARE(setupfile::noticeTitle(refused, setupfile::Taken::AtStart), QString("OSD/OS Setup not applied"));
+        // A config.json that holds nothing, as the app takes it: none.
+        QVERIFY(write(data + "/config.json", " \n"));
+        QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}}})"));
+        const setupfile::Result onEmpty = setupfile::applyAtStart(data);
+        QVERIFY2(onEmpty.ok, qPrintable(onEmpty.lines.join('\n')));
+        QCOMPARE(QJsonDocument::fromJson(contents(data + "/config.json")).object()["app"].toObject()["osd_theme"]
+                     .toString(), QString("VHS"));
         QVERIFY(write(data + "/config.json", "{\"app\": {"));
         QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}},
                                      "retroachievements": {"key": "K1"}})"));

@@ -5,7 +5,9 @@ import QtQuick
 // group to group (the time zones' regions, the names' first letters), select
 // picks it and back leaves it as it was. The host binds entries to
 // [{ label, value, group }], opens it on the value in force (open(value)) and
-// acts on picked(value); either way it closes first (closed()).
+// acts on picked(value); either way it closes first (closed()). Its window,
+// a line for every entry, is made as it first opens (`made`), and the host
+// can leave its entries [] until then.
 FocusScope {
     id: picker
 
@@ -15,6 +17,7 @@ FocusScope {
     // What ◄ ► step by, as the hint bar names it.
     property string groupName: "GROUP"
     property int index: 0
+    property bool made: false
 
     signal picked(var value)
     signal closed()
@@ -25,6 +28,7 @@ FocusScope {
     enabled: visible
 
     function open(current) {
+        made = true
         index = 0
         for (var i = 0; i < entries.length; i++) {
             if (entries[i].value === current)
@@ -83,12 +87,16 @@ FocusScope {
         }
     }
 
-    PromptScreen {
-        title: picker.title
-        message: picker.message
-        choices: picker.entries.map(function(e) { return { label: e.label, action: e.value } })
-        currentIndex: picker.index
-        onHovered: function(index) { picker.index = index }
-        hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:" + picker.groupName, "select:SELECT"])
+    Loader {
+        anchors.fill: parent
+        active: picker.made
+        sourceComponent: PromptScreen {
+            title: picker.title
+            message: picker.message
+            choices: picker.entries.map(function(e) { return { label: e.label, action: e.value } })
+            currentIndex: picker.index
+            onHovered: function(index) { picker.index = index }
+            hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:" + picker.groupName, "select:SELECT"])
+        }
     }
 }

@@ -36,9 +36,9 @@ Rectangle {
     readonly property alias accentColor: root.primaryColor
     // A selected cell's box and what is written in it.
     property string cursorColor: !monitorInk ? primaryColor
-                                 : menuLayout === "Flat Panel" ? menuPalette.bar : menuPalette.mark
+                                 : flatLayout ? menuPalette.bar : menuPalette.mark
     property string cursorInk: !monitorInk ? surfaceColor
-                               : menuLayout === "Flat Panel" ? menuPalette.ink : menuPalette.ground
+                               : flatLayout ? menuPalette.ink : menuPalette.ground
     // The loading screen's, the theme's like every screen's, or OSD/OS's
     // own (Video 1's).
     readonly property var schemes: ({ "Video 1": { primary: "#FFFFFF", secondary: "#C2BFE4", tertiary: "#8480C9",
@@ -59,6 +59,11 @@ Rectangle {
         var module = path.match(/\/modules\/([^\/]+)\//)
         var name = module ? module[1] : path.replace(/^.*\//, "").replace(/\.[^.]*$/, "")
         return icons[name.toLowerCase()] || url
+    }
+    // An icon drawn in one colour by OsdIconProvider: what `url` draws, in
+    // `colour`.
+    function iconUrl(colour, url) {
+        return "image://osdicon/" + String(colour).replace("#", "") + "/" + url
     }
 
     // --- THE BARS AND THE OSD BACKGROUND ---
@@ -116,6 +121,18 @@ Rectangle {
     // Main.qml has them.
     function isBack(event) { return Hints.isBack(event) }
     function hintLine(parts) { return Hints.line(hints, parts) }
+    // A toggle's setting as Main.qml reads it (AppCore::setting_on()), from
+    // the test's appCore: true or false, "ON" or "OFF" in any case, else
+    // the fallback.
+    function settingOn(moduleId, key, fallback) {
+        var value = appCore.get_setting(moduleId, key)
+        if (value === true || value === false)
+            return value
+        var text = typeof value === "string" ? value.toUpperCase() : ""
+        return text === "ON" ? true : text === "OFF" ? false : !!fallback
+    }
+    // No Cabinet Lock: back leaves the start module (a test sets it).
+    property bool leavingBarred: false
 
     // --- A VIDEO ---
     // None playing, none behind the menus, the screen the app's own.
@@ -137,6 +154,11 @@ Rectangle {
 
     // --- THE LAYOUT'S FRAME (Settings → Look → Menu Layout) ---
     property string menuLayout: "Standard"
+    readonly property var menuLayouts: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"]
+    readonly property bool camcorderLayout: menuLayout === "Camcorder"
+    readonly property bool studioLayout: menuLayout === "Studio Monitor"
+    readonly property bool broadcastLayout: menuLayout === "Broadcast"
+    readonly property bool flatLayout: menuLayout === "Flat Panel"
     readonly property var menuPalette: ({
         "Studio Monitor": { ground: "#050608", ink: "#FFFFFF", dim: "#6E7891", accent: "#2350C8",
                             soft: "#CFDDFF", mark: "#F4D21C", bar: "#050608" },
@@ -167,7 +189,7 @@ Rectangle {
     // A monitor layout's frame is up, the view's rows in its pane; a value
     // changed there in two steps (Broadcast, Flat Panel).
     readonly property bool monitorFramed: menuPalette !== null && viewInFrame
-    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
+    readonly property bool twoStep: monitorFramed && (broadcastLayout || flatLayout)
     // A layer over the whole screen in the scheme's colours puts the frame's
     // colours away, as a layer that rests the effects does, and the screens
     // before the menus (neither here: no boot screen, no notice at startup).
@@ -182,7 +204,7 @@ Rectangle {
         anchors.fill: parent
         visible: root.monitorInk
         // Studio Monitor's strip: Camcorder's icons, by their names.
-        icons: root.menuLayout === "Studio Monitor" ? root.frameIcons.map(function(entry) { return entry.icon }) : []
+        icons: root.studioLayout ? root.frameIcons.map(function(entry) { return entry.icon }) : []
         iconIndex: root.frameIndex
         iconsActive: root.frameActive
     }
@@ -215,8 +237,20 @@ Rectangle {
 
     // --- THE SHELL ---
     // Main.qml's changeWindow(): here the new view at once, without its
-    // transition.
-    function changeWindow(loader, source, properties, base) { loader.setSource(source, properties) }
+    // transition; or, for a test that sets changesDeferred, a moment later,
+    // as a transition has it (WindowChange catches the old window first),
+    // but for a loader's first view and into or out of a video's view.
+    property bool changesDeferred: false
+    readonly property var playbackView: /(Player|Play|Takeover|SignIn|Launch|Console)\.qml$/
+    function changeWindow(loader, source, properties, base) {
+        var from = String(loader.source)
+        if (!changesDeferred || from === "" || playbackView.test(from) || playbackView.test(String(source)))
+            loader.setSource(source, properties)
+        else
+            Qt.callLater(function() { if (loader) loader.setSource(source, properties) })
+    }
+    // No old window caught: a view changes at once.
+    readonly property bool windowCatching: false
     // Where the menus can be a window on a desktop (Window Mode).
     property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
                              || Qt.platform.pluginName === "wayland"

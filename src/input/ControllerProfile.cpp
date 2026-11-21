@@ -124,6 +124,8 @@ struct Layout {
     const char *inputs[kArcadeInputs];   // none for default and custom
 };
 const Layout kLayouts[] = {
+    // Auto's two rows are Neo Geo 4's and Fighting 6's (arcadeAutoInputs()).
+    { "auto",      "Auto",     {} },
     { "default",   "Engine's", {} },
     { "fighting6", "Fighting 6", { "x", "y", "rightshoulder", "a", "b", "righttrigger+",
                                    "leftshoulder", "lefttrigger+", "back", "start" } },
@@ -233,7 +235,7 @@ QString arcadeLayoutTitle(const QString &layout) {
         if (layout == QLatin1String(l.name))
             return QLatin1String(l.title);
     }
-    return QLatin1String(kLayouts[0].title);
+    return QStringLiteral("Engine's");
 }
 
 QStringList arcadeLayoutInputs(const QString &layout, bool numbered) {
@@ -252,6 +254,10 @@ QStringList arcadeLayoutInputs(const QString &layout, bool numbered) {
 
 QStringList arcadeDefaultInputs() {
     return arcadeLayoutInputs(QStringLiteral("neogeo4"));
+}
+
+QStringList arcadeAutoInputs(bool manyButtons, bool numbered) {
+    return arcadeLayoutInputs(manyButtons ? QStringLiteral("fighting6") : QStringLiteral("neogeo4"), numbered);
 }
 
 QStringList arcadeActing(QStringList inputs, const PadShape &shape) {
@@ -332,11 +338,12 @@ QString labelStyleTitle(LabelStyle style) {
     return QLatin1String(kStyles[int(style)].title);
 }
 
-QStringList labelStyleNames() {
-    QStringList names;
+QVariantList labelStyles() {
+    QVariantList styles;
     for (const Style &s : kStyles)
-        names << QLatin1String(s.name);
-    return names;
+        styles << QVariantMap{ { QStringLiteral("style"), QLatin1String(s.name) },
+                               { QStringLiteral("title"), QLatin1String(s.title) } };
+    return styles;
 }
 
 QString inputLabel(LabelStyle style, const QString &token) {
@@ -509,6 +516,7 @@ Profile Profile::fromVariant(const QVariant &value) {
     const QVariantMap map = value.toMap();
     p.name = map.value(QStringLiteral("name")).toString();
     p.kind = map.value(QStringLiteral("kind")).toString();
+    p.sdlType = map.value(QStringLiteral("sdl_type")).toInt();
     p.labels = labelStyleFromName(map.value(QStringLiteral("labels")).toString());
     const QVariantMap bindings = map.value(QStringLiteral("bindings")).toMap();
     for (auto it = bindings.cbegin(); it != bindings.cend(); ++it) {
@@ -531,7 +539,10 @@ Profile Profile::fromVariant(const QVariant &value) {
             list.clear();
         return list;
     };
-    if (layout != QLatin1String("default") && arcadeLayouts().contains(layout)) {
+    // Auto and Engine's chosen have no inputs of their own.
+    if (layout == QLatin1String("auto") || layout == QLatin1String("default")) {
+        p.arcadeLayout = layout;
+    } else if (arcadeLayouts().contains(layout)) {
         const QVariantMap inputs = arcade.value(QStringLiteral("inputs")).toMap();
         p.arcade = inputs.isEmpty() ? arcadeLayoutInputs(layout) : read(inputs);
         if (p.arcade.value(kArcadeCoin).isEmpty() || p.arcade.value(kArcadeStart).isEmpty())
@@ -555,18 +566,21 @@ QVariantMap Profile::toVariant() const {
                      { QStringLiteral("kind"), kind },
                      { QStringLiteral("labels"), labelStyleName(labels) },
                      { QStringLiteral("bindings"), bindingsMap } };
+    if (sdlType != 0)
+        map.insert(QStringLiteral("sdl_type"), sdlType);
     const auto written = [](const QStringList &tokens) {
         QVariantMap inputs;
         for (int i = 0; i < kArcadeInputs; ++i)
             inputs.insert(arcadeInputName(i), tokens.value(i));
         return inputs;
     };
-    // Default isn't written, unless it has Custom's inputs to keep.
+    // None chosen isn't written, unless it has Custom's inputs to keep.
     const bool keeps = !arcadeCustom.isEmpty() && arcadeLayout != QLatin1String("custom");
     if (!arcadeLayout.isEmpty() || keeps) {
-        QVariantMap arcadeMap{ { QStringLiteral("layout"),
-                                 arcadeLayout.isEmpty() ? QStringLiteral("default") : arcadeLayout } };
+        QVariantMap arcadeMap;
         if (!arcadeLayout.isEmpty())
+            arcadeMap.insert(QStringLiteral("layout"), arcadeLayout);
+        if (!arcade.isEmpty())
             arcadeMap.insert(QStringLiteral("inputs"), written(arcade));
         if (keeps)
             arcadeMap.insert(QStringLiteral("custom"), written(arcadeCustom));

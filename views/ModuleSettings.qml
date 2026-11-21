@@ -69,6 +69,32 @@ FocusScope {
     function valuesOf(item) {
         return item._module ? (alsoValues[item._module] || {}) : currentValues
     }
+    // A row's saved value, and the values with a new one, by its key: one
+    // in dot-notation ("libraries.somekey") is the somekey of libraries, as
+    // AppCore saves and reads it (putSetting(), get_setting()).
+    function savedIn(values, key) {
+        var parts = String(key).split(".")
+        if (parts.length !== 2)
+            return values[key]
+        var sub = values[parts[0]]
+        return sub && typeof sub === "object" ? sub[parts[1]] : undefined
+    }
+    function savedOf(item) {
+        return savedIn(valuesOf(item), item.key)
+    }
+    function withSaved(values, key, value) {
+        var updated = Object.assign({}, values)
+        var parts = String(key).split(".")
+        if (parts.length !== 2) {
+            updated[key] = value
+            return updated
+        }
+        var sub = updated[parts[0]]
+        sub = Object.assign({}, sub && typeof sub === "object" ? sub : {})
+        sub[parts[1]] = value
+        updated[parts[0]] = sub
+        return updated
+    }
 
     // The submenu row with this key, at any depth.
     function findSubmenu(list, key) {
@@ -295,7 +321,7 @@ FocusScope {
     // choice, a slider's 0 to 100, an unset one's default (a dynamic list's
     // first choice).
     function valueOf(item) {
-        var saved = valuesOf(item)[item.key]
+        var saved = savedOf(item)
         if (item.type === "slider") {
             var n = parseInt(saved)
             if (isNaN(n))
@@ -306,13 +332,34 @@ FocusScope {
             if (saved === undefined || saved === null) saved = (item.default === "ON")
             return (saved === true || saved === "ON") ? "ON" : "OFF"
         }
+        // A dynamic list's choice, once its choices are in (chosenIndex());
+        // until then, what is saved.
+        if (item.options_source === "dynamic") {
+            var at = chosenIndex(item)
+            if (at >= 0)
+                return dynamicOptions[rowId(item)][at].id
+        }
         if (saved !== undefined && saved !== null && saved !== "")
             return saved
-        if (item.options_source === "dynamic") {
-            var opts = dynamicOptions[rowId(item)] || []
-            return opts.length > 0 ? opts[0].id : ""
+        return item.options_source === "dynamic" ? "" : item.default || ""
+    }
+
+    // Which of its choices a dynamic list is on, the one rule for what the
+    // row shows, what ◄ ► step from and what the rows that go with it follow:
+    // the choice saved, by its id; for a row that was a toggle once and is
+    // still saved as true or false, the choice that form is now (its `old`),
+    // as the module's player takes it (util/PlaybackOptions.h's chosen());
+    // else the first, with nothing saved or a choice no longer offered. -1
+    // while it has no choices.
+    function chosenIndex(item) {
+        var opts = dynamicOptions[rowId(item)] || []
+        var saved = savedOf(item)
+        var toggle = typeof saved === "boolean"
+        for (var i = 0; i < opts.length; i++) {
+            if (toggle ? opts[i].old === saved : opts[i].id === saved)
+                return i
         }
-        return item.default || ""
+        return opts.length > 0 ? 0 : -1
     }
 
     // The row with this key, at any depth.
@@ -357,11 +404,10 @@ FocusScope {
     // A backend that sends a row's choices again may have put its value back
     // (a profile switch that failed): the saved value is read again.
     function readAgain(mid, own, key) {
-        var saved = ((appCore.get_settings().modules || {})[mid] || {})[key]
+        var saved = appCore.get_setting(mid, key)
         var shown = own === "" ? currentValues : (alsoValues[own] || {})
-        if (saved === undefined || shown[key] === saved) return
-        var values = Object.assign({}, shown)
-        values[key] = saved
+        if (saved === undefined || savedIn(shown, key) === saved) return
+        var values = withSaved(shown, key, saved)
         if (own === "") {
             currentValues = values
         } else {
@@ -392,31 +438,27 @@ FocusScope {
 
         if (type === "list_single") {
             if (item.options_source === "dynamic") {
-                var opts = dynamicOptions[rowId(item)] || []
-                var storedId = valuesOf(item)[key] || null
-                for (var i = 0; i < opts.length; i++) {
-                    if (opts[i].id === storedId || (storedId !== null && opts[i].old === storedId)) return opts[i].label
-                }
-                return opts.length > 0 ? opts[0].label : "---"
+                var at = chosenIndex(item)
+                return at >= 0 ? dynamicOptions[rowId(item)][at].label : "---"
             }
             return valueOf(item) || "---"
         }
 
         if (type === "directory_browser") {
-            var saved = valuesOf(item)[key] || ""
+            var saved = savedOf(item) || ""
             return saved !== "" ? saved : "Default"
         }
 
         // A line typed on the on-screen keyboard: what was typed, or that
         // something was (a key or a password, "secret", is never shown).
         if (type === "text") {
-            var typed = String(valuesOf(item)[key] || "")
+            var typed = String(savedOf(item) || "")
             return typed === "" ? "Not Set" : item.secret ? "Set" : typed
         }
 
         // A list of typed lines (its own page): how many there are.
         if (type === "text_list") {
-            var lines = valuesOf(item)[key]
+            var lines = savedOf(item)
             var count = lines && lines.length !== undefined && typeof lines !== "string" ? lines.length : 0
             return count === 0 ? "None" : String(count)
         }
@@ -435,8 +477,7 @@ FocusScope {
                          : appCore.save_setting(moduleOf(item), item.key, value)
         if (!saved)
             return false
-        var updated = Object.assign({}, valuesOf(item))
-        updated[item.key] = value
+        var updated = withSaved(valuesOf(item), item.key, value)
         if (item._module) {
             var all = Object.assign({}, alsoValues)
             all[item._module] = updated
@@ -450,8 +491,8 @@ FocusScope {
     // Broadcast and Flat Panel (Settings → Look → Menu Layout, Main.qml's
     // twoStep) change a value in two steps, as Settings does there: select
     // on a toggle, a list or a slider starts it (editIndex), ▲ ▼ step it
-    // with nothing saved (editSteps, the value it would take shown:
-    // steppedValue()), select saves it through cycleValue(), and back, or
+    // with nothing saved (stepEdit(): editSteps, the value it would take
+    // shown, steppedValue()), select saves it through cycleValue(), and back, or
     // the cursor moved by the mouse, leaves it as it was. ◄ ► change nothing
     // there.
     property int editIndex: -1
@@ -468,17 +509,19 @@ FocusScope {
         var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : (item.options || [])
         if (opts.length === 0)
             return currentDisplayValue(item)
-        var at = 0
-        if (dynamic) {
-            var storedId = valuesOf(item)[item.key] || null
-            for (var i = 0; i < opts.length; i++) {
-                if (opts[i].id === storedId) { at = i; break }
-            }
-        } else {
-            at = Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
-        }
+        var at = dynamic ? chosenIndex(item) : Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
         var next = opts[((at + steps) % opts.length + opts.length) % opts.length]
         return dynamic ? next.label : next
+    }
+    // ▲ (1) or ▼ (-1) on the value being changed. A slider's step past an
+    // end, which leaves it where it is, isn't counted: the first step back
+    // then moves it, as in Settings.
+    function stepEdit(direction) {
+        var item = schemaItems[editIndex]
+        if (item && item.type === "slider"
+                && steppedValue(item, editSteps + direction) === steppedValue(item, editSteps))
+            return
+        editSteps += direction
     }
     function confirmEdit() {
         var index = editIndex, steps = editSteps
@@ -503,11 +546,7 @@ FocusScope {
             if (item.options_source === "dynamic") {
                 opts = dynamicOptions[rowId(item)] || []
                 if (opts.length === 0) return
-                var storedId = valuesOf(item)[item.key] || null
-                var curIdx = 0
-                for (var i = 0; i < opts.length; i++) {
-                    if (opts[i].id === storedId) { curIdx = i; break }
-                }
+                var curIdx = chosenIndex(item)
                 var newIdx = ((curIdx + direction) % opts.length + opts.length) % opts.length
                 if (store(item, opts[newIdx].id) && item.apply_slot) {
                     appCore.invoke_module_action(moduleOf(item), item.apply_slot)
@@ -623,7 +662,6 @@ FocusScope {
         requestOptions(true)
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
@@ -678,13 +716,13 @@ FocusScope {
                 keyboard.title = item.label || ""
                 keyboard.maxLength = item.max_length || 64
                 keyboard.masked = !!item.secret
-                keyboard.open(String(moduleSettingsRoot.valuesOf(item)[item.key] || ""))
+                keyboard.open(String(moduleSettingsRoot.savedOf(item) || ""))
             } else if (item.type === "directory_browser") {
                 // Picked on the file picker's tree; "" is the module's own.
                 moduleSettingsRoot.navigateTo("views/FilePicker.qml", {
                     moduleId: moduleSettingsRoot.moduleOf(item),
                     settingKey: item.key,
-                    currentPath: moduleSettingsRoot.valuesOf(item)[item.key] || "",
+                    currentPath: moduleSettingsRoot.savedOf(item) || "",
                     defaultLabel: "Default Folder",
                     label: item.label
                 }, { currentIndex: settingsList.currentIndex })
@@ -694,12 +732,12 @@ FocusScope {
         // A value being changed in two steps: the cursor stays, ▲ ▼ step
         // the value (▲ on, ▼ back, as in Settings).
         held: moduleSettingsRoot.editIndex >= 0
-        onHeldStep: function(delta) { moduleSettingsRoot.editSteps -= delta }
+        onHeldStep: function(delta) { moduleSettingsRoot.stepEdit(-delta) }
 
         Keys.onLeftPressed: {
             if (root.twoStep) {
                 // Flat Panel: ◄ is back, and leaves a value being changed.
-                if (root.menuLayout === "Flat Panel") {
+                if (root.flatLayout) {
                     if (moduleSettingsRoot.editIndex >= 0)
                         moduleSettingsRoot.editIndex = -1
                     else
@@ -806,7 +844,6 @@ FocusScope {
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
     }
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         text: moduleSettingsRoot.editIndex >= 0

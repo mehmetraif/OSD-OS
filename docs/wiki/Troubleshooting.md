@@ -475,7 +475,7 @@ A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Too
 | What the log says | Cause | Fix |
 |---|---|---|
 | `…/Main.qml: No such file or directory`, then `[main] QML engine failed to load Main.qml` | OSD/OS's own files aren't where it looks: `APP_ROOT`, the binary's folder, or `share/osdos` beside it | From source, start it with `APP_ROOT=$(pwd)` in the repository's folder. On Windows, keep `osdos.exe` in its folder with `Main.qml` beside it |
-| `module "…" is not installed` | A QML module is missing | `sudo apt install qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window`, or run `install.sh` |
+| `module "…" is not installed` | A QML module is missing | `sudo apt install qml6-module-qtquick qml6-module-qtquick-window`, or run `install.sh` |
 | `This application failed to start because no Qt platform plugin could be initialized.` | Qt's platform plugin is missing, or the wrong one is asked for | Without a desktop use `QT_QPA_PLATFORM=eglfs`, which the launcher sets; on a desktop, `xcb` or `wayland`. The AppImage needs X11, or Wayland with XWayland |
 | EGLFS errors about the DRM device, such as `drmModeGetResources failed` | On a Pi 5 Qt can take the GPU's render node for the display's card | Start it through the launcher (`/usr/local/bin/osdos`), or `scripts/rpi-run-local.sh` for a build of your own |
 | Nothing on screen when started over SSH | The service holds the screen | `sudo systemctl stop osdos` first |

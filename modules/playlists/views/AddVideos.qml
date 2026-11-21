@@ -170,6 +170,7 @@ FocusScope {
         function onDrivesChanged(gone) {
             for (var i = 0; i < gone.length; ++i)
                 tree.leave("local:" + gone[i])
+            tree.refreshPending()
             tree.refresh("local:" + localFilesBackend.mediaRoot(), true)
         }
     }
@@ -208,10 +209,14 @@ FocusScope {
         onAccepted: function(text) {
             tree.forceActiveFocus()
             var path = "search/" + text
-            // Afresh: the folder may have changed since the same words last ran.
+            // Afresh: the folder, or YouTube's matches, may have changed since
+            // the same words last ran.
             if (addRoot.searchIn === "local:") {
                 localFilesBackend.search(path, text, true)
                 tree.refresh("local:" + path)
+            } else if (addRoot.searchIn === "yt:") {
+                youtubeBackend.forgetSearches()
+                tree.refresh(addRoot.searchIn + path)
             }
             tree.openItem({ name: "Search: " + text, path: addRoot.searchIn + path })
         }

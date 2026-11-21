@@ -7,9 +7,10 @@
 //     one: Fade, the Cube's turn (its matrices), or Ripple, Wave and Drop
 //     (shaders/ripple.frag, wave.frag, drop.frag);
 //   the screen's and the text's effects over all of it (shaders/effects.frag).
-// Each pass sets its shader's uniforms by the names Main.qml sets them by. The
-// Orb look's scene (orb.mjs) is drawn with it too, its own programs linked by
-// link3D() into a multisampled target with a depth buffer (msaaTarget()).
+// Each pass sets its shader's uniforms by the names the app's ShaderEffects
+// set them by. The Orb look's scene (orb.mjs) is drawn with it too, its own
+// programs linked by link3D() into a multisampled target with a depth buffer
+// (msaaTarget()).
 import { fromQt, ATTRIBUTES } from "./glsl.mjs";
 
 const VERTEX = `#version 300 es

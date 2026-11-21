@@ -63,7 +63,7 @@ FocusScope {
             event.accepted = true
         } else if (event.key === Qt.Key_Right) {
             // Right, not Space: a USB remote reliably has a d-pad but often no
-            // space key. Matches the YouTube module's watch-later save/remove.
+            // space key.
             toggleFavorite()
             event.accepted = true
         }

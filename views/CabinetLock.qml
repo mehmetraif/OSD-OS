@@ -45,7 +45,8 @@ FocusScope {
         { key: "buttons", label: "Unlock Buttons", value: buttons !== "" ? buttons : "None",
           description: "One to four buttons or keys held together, a direction among them if you like:"
                        + " select, then hold them for two seconds. Each but a direction waits a moment for the"
-                       + " rest before it acts, so a START among them never starts a game" }
+                       + " rest before it acts, so a START among them never starts a game; one alone acts as"
+                       + " it is let go" }
     ]
 
     function refresh() {
@@ -65,7 +66,8 @@ FocusScope {
     // to stay on, or without buttons, those first.
     function wantLock(on) {
         if (!on) {
-            appCore.save_setting("", "cabinet_lock", "Off")
+            if (!appCore.save_setting("", "cabinet_lock", "Off"))
+                notSaved()
             refresh()
             return
         }
@@ -85,12 +87,20 @@ FocusScope {
         confirm.open()
     }
 
+    // A choice that couldn't be kept: said, as the page shows what was there
+    // before and would otherwise say nothing.
+    function notSaved() {
+        notice.promptText = "Not saved"
+        notice.subtitleText = "The settings could not be written: nothing has changed"
+        notice.open()
+    }
+
     function startCapture() {
         if (!inputManager)
             return
         heldNames = ""
         tooMany = false
-        secondsLeft = 10
+        secondsLeft = inputManager.unlockCaptureSeconds
         capturing = true
         overlay.forceActiveFocus()
         inputManager.captureUnlockButtons(true)
@@ -111,22 +121,25 @@ FocusScope {
         function onUnlockButtonsHeld(names, many) {
             lockRoot.heldNames = names
             lockRoot.tooMany = many
-            lockRoot.secondsLeft = 10
+            lockRoot.secondsLeft = inputManager.unlockCaptureSeconds
         }
-        function onUnlockCaptureEnded(saved) {
+        function onUnlockCaptureEnded(saved, unsaved) {
             if (!lockRoot.capturing)
                 return
             lockRoot.capturing = false
             list.forceActiveFocus()
             var lock = lockRoot.lockAfter && saved
             lockRoot.lockAfter = false
-            if (lock)
+            // Held long enough, but not kept: the old ones stay.
+            if (unsaved)
+                lockRoot.notSaved()
+            else if (lock)
                 lockRoot.wantLock(true)
         }
     }
 
     // The seconds left of the wait with nothing held: InputManager ends it
-    // at ten, this only counts them down.
+    // as they run out (unlockCaptureSeconds), this only counts them down.
     Timer {
         interval: 1000
         repeat: true
@@ -234,8 +247,8 @@ FocusScope {
         choices: [{ label: "Lock", action: "lock" }, { label: "Cancel", action: "cancel" }]
         onActivated: function(action) {
             // Main.qml opens the Start on Module at once.
-            if (action === "lock")
-                appCore.save_setting("", "cabinet_lock", "On")
+            if (action === "lock" && !appCore.save_setting("", "cabinet_lock", "On"))
+                lockRoot.notSaved()
         }
         onClosed: list.forceActiveFocus()
     }

@@ -56,7 +56,7 @@ The username and password go to the server only. The password is never stored. U
 | **EMBY CONNECT SIGN IN FAILED (HTTP …)**, **INVALID EMBY CONNECT RESPONSE** | emby.media refused or answered oddly |
 | **FAILED TO LOAD SERVERS: …** | The account's server list couldn't be fetched |
 | **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or use Local Server |
-| **SERVER EXCHANGE FAILED (HTTP …)**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account, or answered at neither of its addresses (HTTP 0). Pick another, or use Local Server |
+| **SERVER EXCHANGE FAILED (HTTP …)**, **SERVER EXCHANGE FAILED: …**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account (its status), or answered at neither of its addresses (the network's word for it, such as `Connection refused`). Pick another, or use Local Server |
 | **INVALID SERVER SELECTION** | Emby Connect listed the server without an access key |
 
 ### Fill in the address beforehand

@@ -237,7 +237,7 @@ The genres come from **catver.ini**, progettosnaps.net's category list for MAME'
 A game's pictures are, in this order:
 
 1. `titles/<set>.png` in the games folder, its title screen.
-2. `snap/<set>_1.png`, `snap/<set>_2.jpg`… in the games folder: your own and those downloaded from RetroAchievements.
+2. `snap/<set>_1.png`, `snap/<set>_2.jpg`… in the games folder: your own and those downloaded from RetroAchievements. They count up from 1; one after more than three numbers in a row are missing is taken for another machine's (a picture pack's `tmnt_104.png` is a pinball's, not Konami's TMNT's).
 3. `snap/<set>.png` (or `.jpg`).
 4. The first snapshot taken of it in MAME (F12 in the game), kept in `arcade/snap/<set>/`.
 
@@ -289,6 +289,7 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. The credits 
 - **Attract After** sets how long the screen is left alone first: 30 Seconds, 1 Minute (the default), 2 Minutes or 5 Minutes.
 - The first button or key ends it and does nothing else. COIN also puts in a credit.
 - It waits on Search, Online Games, LAN Games and RetroArch Lobby, and on a filter of fewer than two games.
+- Where it can begin, the screen saver (Settings → Screen → Screen Saver) waits, whichever of the two times is shorter.
 
 ### The Orb look
 
@@ -385,7 +386,7 @@ Names, years, makers, players and systems come from MAME. Those of a set only Fi
 
 ## Check ROMs
 
-**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs** on that page: nothing starts it by itself. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`).
+**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs** on that page: nothing starts it by itself. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`). Started while the games are still being read, it waits for that too, and then checks them all.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: Last Check Never, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row">
 
@@ -433,6 +434,7 @@ MAME's players are the ones **Settings → Controls → Players** sets ([Control
 **Game Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Game Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#game-buttons)).
 
 - A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line.
+- A pad SDL knows by its kind starts on **Auto**: a game of five buttons or more (Street Fighter II, Mortal Kombat, Killer Instinct) on **Fighting 6**'s buttons, any other on **Neo Geo 4**'s. Which is which comes from MAME's own list of the games, which OSD/OS carries. Online, Auto plays as Engine's.
 - What is changed in MAME's menu comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
 - In a game played with others, the host's layout holds for every player ([Players](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#players)).
 

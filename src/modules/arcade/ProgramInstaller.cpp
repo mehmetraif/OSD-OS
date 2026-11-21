@@ -72,10 +72,9 @@ ProgramInstaller::Source ProgramInstaller::mame(const QString &dataRoot) {
     return source;
 }
 
-ProgramInstaller::ProgramInstaller(QObject *parent)
+Installer::Installer(QObject *parent)
     : QObject(parent), m_nam(new QNetworkAccessManager(this)), m_watcher(new QFutureWatcher<QString>(this))
 {
-    connect(m_watcher, &QFutureWatcherBase::progressValueChanged, this, &ProgramInstaller::setProgress);
     connect(m_watcher, &QFutureWatcherBase::finished, this, [this] {
         const QString error = m_watcher->future().resultCount() > 0 ? m_watcher->result() : QString();
         if (!error.isEmpty()) {
@@ -88,6 +87,32 @@ ProgramInstaller::ProgramInstaller(QObject *parent)
     });
 }
 
+void Installer::begin() {
+    m_running = true;
+    m_progress = 0;
+    emit progressChanged();
+}
+
+void Installer::setProgress(int progress) {
+    if (progress == m_progress)
+        return;
+    m_progress = progress;
+    emit progressChanged();
+}
+
+void Installer::fail(const QString &message) {
+    qWarning("[Arcade] %s's download failed: %s", qPrintable(what()), qPrintable(message));
+    removeParts();
+    m_running = false;
+    emit finished(false, message);
+}
+
+ProgramInstaller::ProgramInstaller(QObject *parent)
+    : Installer(parent)
+{
+    connect(m_watcher, &QFutureWatcherBase::progressValueChanged, this, &ProgramInstaller::setProgress);
+}
+
 QString ProgramInstaller::archivePart() const {
     return m_source.target + QStringLiteral(".7z.part");
 }
@@ -97,7 +122,7 @@ QString ProgramInstaller::unpackFolder() const {
 }
 
 void ProgramInstaller::start(const Source &source) {
-    if (m_running)
+    if (running())
         return;
     if (!source.available) {
         emit finished(false, QStringLiteral("There is no %1 build for this machine (%2)")
@@ -105,9 +130,7 @@ void ProgramInstaller::start(const Source &source) {
         return;
     }
     m_source = source;
-    m_running = true;
-    m_progress = 0;
-    emit progressChanged();
+    begin();
     QDir().mkpath(QFileInfo(archivePart()).absolutePath());
     fetchArchive(m_source.archive);
 }
@@ -125,7 +148,7 @@ void ProgramInstaller::fetchArchive(const QUrl &url) {
                 setProgress(int(kDownloadDone * qMin(received, total) / total));
         },
         [this](const QString &error) {
-            if (!m_running)
+            if (!running())
                 return;
             if (!error.isEmpty()) {
                 fail(error);
@@ -211,19 +234,7 @@ void ProgramInstaller::unpack() {
     }));
 }
 
-void ProgramInstaller::setProgress(int progress) {
-    if (progress == m_progress)
-        return;
-    m_progress = progress;
-    emit progressChanged();
-}
-
-void ProgramInstaller::fail(const QString &message) {
-    qWarning("[Arcade] %s's download failed: %s", qPrintable(m_source.name), qPrintable(message));
-    // What came goes: hundreds of megabytes on the disk. What was installed
-    // stays as it was.
+void ProgramInstaller::removeParts() {
     QFile::remove(archivePart());
     QDir(unpackFolder()).removeRecursively();
-    m_running = false;
-    emit finished(false, message);
 }

@@ -51,6 +51,11 @@ public:
     Q_INVOKABLE void        get_resume_playback_options();
     Q_INVOKABLE void        get_shuffle_playback_options();
     Q_INVOKABLE void        get_auto_subtitles_options();
+    // The choice Shuffle Playback, and Auto Show Subtitles, saved as `saved`
+    // is, as Settings shows it (playbackoptions::chosen()): one saved in its
+    // old On/Off form, true or false, is the choice that form is now.
+    Q_INVOKABLE QString     shufflePlaybackChoice(const QVariant &saved) const;
+    Q_INVOKABLE QString     autoSubtitlesChoice(const QVariant &saved) const;
     Q_INVOKABLE void        get_subtitle_languages();
     Q_INVOKABLE void        get_image_duration_options();
 

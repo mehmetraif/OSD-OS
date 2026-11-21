@@ -721,6 +721,33 @@ private slots:
         QTRY_COMPARE(lines(wifi->networks()), QStringList{ "Home 2 wpa secured known heard active" });
     }
 
+    // A saved network not heard (one that doesn't say its name, WPA3 alone)
+    // given a new password: added with the security and the hidden flag it
+    // was saved with, not as a WPA2 network that says its name.
+    void newPasswordForSavedNotHeard() {
+        m_nm->addAccessPoint(QStringLiteral("Attic"), 65, Security::Sae, QStringLiteral("new-attic-pass"), Hidden::Empty);
+        const QVariantMap connection{ { QStringLiteral("id"), QStringLiteral("Attic") },
+                                      { QStringLiteral("type"), QStringLiteral("802-11-wireless") } };
+        const QVariantMap wireless{ { QStringLiteral("ssid"), QByteArray("Attic") }, { QStringLiteral("hidden"), true } };
+        const QVariantMap security{ { QStringLiteral("key-mgmt"), QStringLiteral("sae") },
+                                    { QStringLiteral("psk"), QStringLiteral("old-attic-pass") } };
+        m_nm->addConnection({ { QStringLiteral("connection"), connection },
+                              { QStringLiteral("802-11-wireless"), wireless },
+                              { QStringLiteral("802-11-wireless-security"), security } });
+        QVERIFY(m_nm->start(m_fakeBus));
+        auto wifi = makeWifi();
+        QVERIFY(loaded(*wifi));
+        QCOMPARE(lines(wifi->networks()), QStringList{ "Attic 0 - known" });
+        m_nm->clearCalls();
+        wifi->connectTo(QStringLiteral("Attic"), QStringLiteral("new-attic-pass"));
+        QTRY_COMPARE(m_nm->calls(QStringLiteral("AddAndActivateConnection")).size(), 1);
+        const QVariantMap settings = m_nm->calls(QStringLiteral("AddAndActivateConnection")).first().args.at(0).toMap();
+        QCOMPARE(settings.value(QStringLiteral("802-11-wireless")).toMap().value(QStringLiteral("hidden")).toBool(), true);
+        const QVariantMap added = settings.value(QStringLiteral("802-11-wireless-security")).toMap();
+        QCOMPARE(added.value(QStringLiteral("key-mgmt")).toString(), QStringLiteral("sae"));
+        QCOMPARE(added.value(QStringLiteral("psk")).toString(), QStringLiteral("new-attic-pass"));
+    }
+
     // A network that doesn't say its name, joined by it: saved as hidden,
     // with no access point named, and listed once joined.
     void joinHidden() {

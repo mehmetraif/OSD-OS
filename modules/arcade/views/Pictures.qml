@@ -6,18 +6,9 @@ import Components
 // with its Web API key, progetto-SNAPS through ArcadeDB), the folders they
 // go in, and Download Pictures, the look through every game for them
 // (ArcadeBackend::downloadPictures()), with how far it has got.
-FocusScope {
+KeyedPage {
     id: picturesRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "Game Pictures"
 
     readonly property var progress: (arcadeBackend && arcadeBackend.picturesProgress) || ({})
     readonly property bool active: !!progress.active
@@ -34,7 +25,7 @@ FocusScope {
         onTriggered: picturesRoot.revision++
     }
 
-    readonly property var keys: ["games", "achievements", "snaps", "download"]
+    keys: ["games", "achievements", "snaps", "download"]
 
     function labelOf(key) {
         switch (key) {
@@ -91,49 +82,11 @@ FocusScope {
         function onGamesChanged() { picturesRoot.revision++ }
     }
 
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "Game Pictures"
+    function selectWord(key) {
+        return key === "download" && !active ? "DOWNLOAD" : ""
     }
-
-    MenuList {
-        id: list
-        model: picturesRoot.keys
-        focus: true
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: picturesRoot.labelOf(modelData)
-            value: picturesRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-            keepValue: true
-        }
-
-        Keys.onReturnPressed: {
-            var key = picturesRoot.keys[currentIndex]
-            if (!arcadeBackend)
-                return
-            if (key === "download" && !picturesRoot.active)
-                arcadeBackend.downloadPictures()
-        }
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                picturesRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        text: picturesRoot.descriptionOf(picturesRoot.keys[list.currentIndex])
-    }
-
-    HintBar {
-        readonly property string key: picturesRoot.keys[list.currentIndex] || ""
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             key === "download" && !picturesRoot.active ? "select:DOWNLOAD" : ""])
+    function choose(key) {
+        if (arcadeBackend && key === "download" && !active)
+            arcadeBackend.downloadPictures()
     }
 }

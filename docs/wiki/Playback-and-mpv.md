@@ -246,7 +246,7 @@ Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.jso
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `mpv-osc-ambient.lua`, `--loop-playlist=inf`, `--shuffle`; `--no-audio` when its own music plays, in a second mpv (`--no-video --loop-playlist=inf`) |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | An m3u in the data folder's `playlists/`; its Subtitles and Loop Playback; a YouTube video's flags as the YouTube module makes them |
 
-OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`.
+OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`. The tokens never reach mpv's command line, which any account on the machine can read: the headers, and Emby's addresses that hold its `api_key`, are handed to mpv in two files of the user's own in the run-time folder (`osdos-mpv-private.conf` through `--include`, `osdos-mpv-private.m3u` through `--playlist`), removed once the video ends.
 
 ## Scaling
 
@@ -278,7 +278,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 | Subtitles in files beside the stream | `--sub-file=<url>` for each: a Plex, Jellyfin or Emby server's |
 
 - **Module settings**: Auto Show Subtitles and Subtitle Language (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitle Language and Audio Language (YouTube). Each module's page has the values.
-- The forced-only flags need mpv 0.38 or later.
+- `--subs-with-matching-audio=forced` came with mpv 0.38, and an older mpv refuses to start with it. OSD/OS asks each mpv once (`mpv --list-options`) and gives one older than 0.38 `--subs-fallback-forced=always` alone, its nearest: a forced track in the audio's language, and nothing else.
 - A server's sidecar subtitles show their real names in the deck menu (`osdos-mpv-subinfo.json` in the run-time folder).
 - **How subtitles look** is mpv's: `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.
 
@@ -353,7 +353,7 @@ audio-device=alsa/default:CARD=Headphones
 
 ## Installing a modern mpv
 
-OSD/OS needs **mpv 0.38 or later**: an older mpv refuses to start with Forced Only subtitles' `--subs-with-matching-audio=forced`. Check with `mpv --version`.
+OSD/OS is made for **mpv 0.38 or later**. An older one plays, with Forced Only subtitles by `--subs-fallback-forced=always` alone (it has no `forced` choice for `--subs-with-matching-audio`, which OSD/OS then leaves out). Check with `mpv --version`.
 
 | System | mpv |
 |---|---|

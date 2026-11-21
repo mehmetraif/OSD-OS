@@ -240,6 +240,46 @@ private slots:
         QCOMPARE(options.first().at(1).toList(), expected);
     }
 
+    // Shuffle Playback and Auto Show Subtitles as Local Files' player plays
+    // them: a choice as it is saved, the old On/Off form (true or false) as
+    // the choice it is now, and nothing, or a value that is no choice, as
+    // the first, which Settings shows.
+    void playbackChoices() {
+        QTemporaryDir tmp;
+        LocalFilesBackend backend(tmp.path(), tmp.path(), nullptr);
+        for (const char *choice : { "ask", "yes", "no" })
+            QCOMPARE(backend.shufflePlaybackChoice(QString(choice)), QString(choice));
+        QCOMPARE(backend.shufflePlaybackChoice(true), QStringLiteral("yes"));
+        QCOMPARE(backend.shufflePlaybackChoice(false), QStringLiteral("no"));
+        QCOMPARE(backend.shufflePlaybackChoice(QVariant()), QStringLiteral("ask"));
+        QCOMPARE(backend.shufflePlaybackChoice(QStringLiteral("sometimes")), QStringLiteral("ask"));
+        for (const char *choice : { "forced", "on", "off" })
+            QCOMPARE(backend.autoSubtitlesChoice(QString(choice)), QString(choice));
+        QCOMPARE(backend.autoSubtitlesChoice(true), QStringLiteral("on"));
+        QCOMPARE(backend.autoSubtitlesChoice(false), QStringLiteral("forced"));
+        QCOMPARE(backend.autoSubtitlesChoice(QString()), QStringLiteral("forced"));
+    }
+
+    // A toggle's setting as every reader of one reads it (setting_on()): true
+    // or false as saved, an older config's "ON" or "OFF" in any case as on
+    // and off, and the fallback for nothing saved or anything else.
+    void toggleSettings() {
+        QTemporaryDir tmp;
+        AppCore core(tmp.path(), tmp.path());
+        const QVariantList saved{ true, false, QStringLiteral("ON"), QStringLiteral("OFF"), QStringLiteral("on"),
+                                  QStringLiteral("Off"), QString(), QStringLiteral("sometimes") };
+        const QList<int> asSaved{ 1, 0, 1, 0, 1, 0, -1, -1 };  // -1: the fallback
+        for (int i = 0; i < saved.size(); ++i) {
+            QVERIFY(core.save_setting("m", QStringLiteral("t%1").arg(i), saved[i]));
+            for (bool fallback : { false, true })
+                QCOMPARE(core.setting_on("m", QStringLiteral("t%1").arg(i), fallback),
+                         asSaved[i] < 0 ? fallback : asSaved[i] == 1);
+        }
+        QCOMPARE(core.setting_on("m", "never_saved", true), true);
+        QCOMPARE(core.setting_on("m", "never_saved", false), false);
+        QCOMPARE(core.setting_on("", "t0", false), false);
+    }
+
     // config.json edited by hand and left unreadable (a stray comma) is not
     // written over: a save would put the defaults in place of every setting
     // in it. The lists the same way. An empty file is as none.

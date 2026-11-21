@@ -144,6 +144,27 @@ StandInRoot {
             verify(browser.openFolder())
             compare(browser.selectedItem().path, "/projects/tests")
         }
+        // A folder whose read its source dropped (Local Files' as a drive
+        // comes or goes) is asked for again by refreshPending(), and is in
+        // once it answers; folders already in are left as they are.
+        function test_foldersOnTheirWayAskedAgain() {
+            var films = root.entries["/films"]
+            root.entries["/films"] = null
+            browser.refresh("/films")
+            browser.move(1)
+            verify(browser.openFolder())
+            compare(browser.trailState()[1].path, "/films")
+            verify(browser.listings["/films"].pending)
+            var projects = browser.listings["/projects"]
+            verify(projects && !projects.pending)
+            // The source has the folder now, but never says so.
+            root.entries["/films"] = films
+            browser.refreshPending()
+            verify(!browser.listings["/films"].pending)
+            compare(browser.listings["/films"].items.length, 4)
+            compare(browser.selectedItem().path, "/films/one")
+            verify(browser.listings["/projects"] === projects)
+        }
         function test_hintBarRoom() {
             // With the hint bar off, the area reaches the content box's foot:
             // more of a long folder shows under the spine, which stays put.

@@ -137,8 +137,7 @@ sudo apt-get update
 sudo apt-get install -y \
   build-essential cmake pkgconf \
   qt6-base-dev qt6-declarative-dev \
-  qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-window \
+  qml6-module-qtquick qml6-module-qtquick-window \
   libqt6svg6 qt6-svg-dev qt6-svg-plugins qt6-wayland \
   qt6-shadertools-dev \
   libdrm-dev libxkbcommon-dev libssl-dev \
@@ -270,7 +269,7 @@ sudo apt-get install -y build-essential cmake pkgconf \
 
 Qt 6 can come from your distro (`qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-shadertools-dev qml6-module-qtquick*`) or from the [Qt online installer](https://www.qt.io/download-qt-installer) with Qt Shader Tools (set `CMAKE_PREFIX_PATH` to it, matching CI's Qt 6.7). For the Orb look, add Qt Quick 3D, and **Qt Quick Timeline with it**: `linuxdeploy-plugin-qt` bundles every module of Qt Quick 3D, and AssetUtils' library links against Timeline's, so without Timeline that library is left out and the [audit](#host-library-audit) stops the build. CI's Qt has `qtshadertools qtquick3d qtquicktimeline`.
 
-> **The bundled `mpv` must be modern (≥ 0.38)** — the app's "forced subtitles only" option (`--subs-with-matching-audio=forced`) was added in mpv 0.38, and distro packages are often older (Ubuntu 24.04 ships 0.37, 22.04 ships 0.34.1). If your distro's mpv is too old, build one first and point `MPV_BIN` at it:
+> **The bundled `mpv` should be modern (≥ 0.38)** — the app's "forced subtitles only" option (`--subs-with-matching-audio=forced`) was added in mpv 0.38, and distro packages are often older (Ubuntu 24.04 ships 0.37, 22.04 ships 0.34.1). An older mpv still plays (the app asks it its options once and gives it `--subs-fallback-forced=always` alone for Forced Only), but picks forced subtitles less finely. If your distro's mpv is too old, build one first and point `MPV_BIN` at it:
 >
 > ```bash
 > MPV_BIN=$(scripts/build-mpv.sh) scripts/build-appimage.sh --configure
@@ -420,7 +419,7 @@ QT_QPA_PLATFORM=offscreen ctest --test-dir build-tests --output-on-failure
 
 A release's packages are made as the workflows make them, in two scripts that run on either system:
 
-- [scripts/build-fbneo.sh](scripts/build-fbneo.sh) and [scripts/build-fbneo-lan.sh](scripts/build-fbneo-lan.sh) build FinalBurn Neo's two cores from the commit [scripts/engines.env](scripts/engines.env) names, as on every system ([FinalBurn Neo's cores](#finalburn-neos-cores)), into `lib/osdos/` and `share/osdos/fbneo/` under the prefix, apart from any core of the system's. On the BSDs it is the makefile's own Unix build with the system's compiler, without `-no-undefined`, which OpenBSD can't link a library with, and with `GBAPPU_WORKER_DISABLE`, a switch of FinalBurn Neo's own that draws the Game Boy Advance's picture without a thread of its own: that thread is named with macOS's `pthread_setname_np` on every BSD, which compiles on neither FreeBSD nor OpenBSD, and no arcade game uses it.
+- [scripts/build-fbneo.sh](scripts/build-fbneo.sh) and [scripts/build-fbneo-lan.sh](scripts/build-fbneo-lan.sh), called by [scripts/build-fbneo-cores.sh](scripts/build-fbneo-cores.sh), build FinalBurn Neo's two cores from the commit [scripts/engines.env](scripts/engines.env) names, as on every system ([FinalBurn Neo's cores](#finalburn-neos-cores)), into `lib/osdos/` and `share/osdos/fbneo/` under the prefix, apart from any core of the system's. On the BSDs it is the makefile's own Unix build with the system's compiler, without `-no-undefined`, which OpenBSD can't link a library with, and with `GBAPPU_WORKER_DISABLE`, a switch of FinalBurn Neo's own that draws the Game Boy Advance's picture without a thread of its own: that thread is named with macOS's `pthread_setname_np` on every BSD, which compiles on neither FreeBSD nor OpenBSD, and no arcade game uses it.
 - [scripts/bsd-package.sh](scripts/bsd-package.sh) makes the package from an install staged as it lies under `/usr/local`, with `pkg create` on FreeBSD or `pkg_create` on OpenBSD, in the folder it is given, named as the release names it: `OSD-OS-<tag>-freebsd-amd64.pkg`, or `OSD-OS-<number>-openbsd-amd64.tgz` with the tag's number alone (`OSD-OS-0.0.24-openbsd-amd64.tgz`), as OpenBSD's `pkg_add` takes a package's name from its file's and refuses one whose name inside differs. The packages it depends on are those the program's libraries come from, at the versions it was built with, and mpv and Qt's SVG module, which it uses without linking them.
 
 ```sh
@@ -430,12 +429,8 @@ cmake --build build --parallel
 DESTDIR="$PWD/stage" cmake --install build
 . scripts/engines.env
 fetch -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"   # ftp on OpenBSD
-mkdir fbneo-src fbneo-lan-src   # tar's -s '|^[^/]*/||' on OpenBSD in place of --strip-components 1
-tar -xzf fbneo-src.tar.gz -C fbneo-src --strip-components 1
-tar -xzf fbneo-src.tar.gz -C fbneo-lan-src --strip-components 1
-bash scripts/build-fbneo.sh fbneo-src stage/usr/local/lib/osdos stage/usr/local/share/osdos/fbneo/fbneo-arcade.dat \
+bash scripts/build-fbneo-cores.sh build stage/usr/local/lib/osdos stage/usr/local/share/osdos/fbneo/fbneo-arcade.dat \
   stage/usr/local/share/osdos/fbneo/license.txt
-bash scripts/build-fbneo-lan.sh fbneo-lan-src stage/usr/local/lib/osdos stage/usr/local/share/osdos/fbneo/license.txt
 bash scripts/bsd-package.sh stage v0.0.24 .
 ```
 
@@ -459,16 +454,11 @@ Every package brings FinalBurn Neo's cores, built by OSD/OS from the one commit 
 - **The whole core**, `fbneo_libretro`, with FinalBurn Neo's list of arcade games (`fbneo-arcade.dat`), built by [scripts/build-fbneo.sh](scripts/build-fbneo.sh). Nothing of FinalBurn Neo's code is changed, and the core reports the version libretro's own build of the same commit reports.
 - **The LAN core**, `osdos_lan_libretro`, for every game on the local network, built by [scripts/build-fbneo-lan.sh](scripts/build-fbneo-lan.sh): the whole core with [scripts/fbneo-lan.patch](scripts/fbneo-lan.patch), which names it `OSD-OS LAN Core` (RetroArch lets no machine with another core join) and seats the game's players in the order they first press COIN or START, the host's player 1 first, whichever machine and port they are on, so that every controller of every machine can take a port of netplay's and one no one plays holds no player; the seats go in the core's states, so every machine seats alike. For the games of Cave's CV1000 board (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu...) it also leaves the board's 128 MiB of video memory out of the states RetroArch's netplay keeps a ring of, too many of them for a Raspberry Pi's memory with the whole core, and has the game wait from power on until player 2 presses something, so that it starts on every machine at the same frame. Online play keeps the whole core, as every RetroArch in the lobby has it.
 
-Both build with `make` (GNU make), a C and C++ compiler, `perl` and `patch`, each system's settings in [scripts/fbneo-make.sh](scripts/fbneo-make.sh), which both scripts source; on Windows in MSYS2's UCRT64 shell (`pacman -S mingw-w64-ucrt-x86_64-gcc make perl patch`), MinGW-w64 on Windows' Universal C Runtime, which every Windows 10 and later has, where the DLLs are linked statically, so that they need no DLL of MinGW's beside them. Each from a copy of its own of the source, since the LAN core's patch goes in its copy:
+Both build with `make` (GNU make), a C and C++ compiler, `perl` and `patch`, each system's settings in [scripts/fbneo-make.sh](scripts/fbneo-make.sh), which both scripts source; on Windows in MSYS2's UCRT64 shell (`pacman -S mingw-w64-ucrt-x86_64-gcc make perl patch`), MinGW-w64 on Windows' Universal C Runtime, which every Windows 10 and later has, where the DLLs are linked statically, so that they need no DLL of MinGW's beside them. [scripts/build-fbneo-cores.sh](scripts/build-fbneo-cores.sh) downloads the commit's source and builds each from a copy of its own of it, since the LAN core's patch goes in its copy:
 
 ```sh
-. scripts/engines.env
-curl -fsSL -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
-mkdir fbneo-src fbneo-lan-src
-tar -xzf fbneo-src.tar.gz -C fbneo-src --strip-components 1 --exclude='*/projectfiles'
-tar -xzf fbneo-src.tar.gz -C fbneo-lan-src --strip-components 1 --exclude='*/projectfiles'
-bash scripts/build-fbneo.sh fbneo-src out out/fbneo-arcade.dat out/fbneo-license.txt
-bash scripts/build-fbneo-lan.sh fbneo-lan-src out out/fbneo-license.txt
+bash scripts/build-fbneo-cores.sh download
+bash scripts/build-fbneo-cores.sh build out out/fbneo-arcade.dat out/fbneo-license.txt
 ```
 
 `out/` then has `fbneo_libretro.so` and `osdos_lan_libretro.so` (`.dylib` on a Mac, `.dll` on Windows), the list of games, and FinalBurn Neo's licence, which goes with every copy. A package has them where the app looks beside its own files (`libretro::packagedCore()`, `packagedDat()`, `lanCorePath()`): the Mac's bundle in `Contents/Frameworks`, signed with the app, with the list and the licence in `Contents/Resources` (`fbneo-arcade.dat`, `fbneo-license.txt`); the Windows folder beside `osdos.exe`, with `fbneo-arcade.dat` and `fbneo-license.txt`; the Linux tarball, the AppImage and the BSDs' packages in `lib/osdos/` under their prefix (`/opt/osdos/lib/osdos/` on the OSD/OS image), with `share/osdos/fbneo/fbneo-arcade.dat` and `license.txt`. A build of the app from source without them finds a core in the data folder (each system's **Configuration** above), as Settings → Arcade → FinalBurn Neo downloads it: `arcade/retroarch/cores/`. In the workflows the [fbneo-cores](.github/actions/fbneo-cores/action.yml) action builds both on the runner (`scripts/build-appimage.sh` takes them as `FBNEO_PREFIX`), keeps them in the cache for the same commit, patch and scripts, loads each once to see that it names itself as RetroArch matches the machines' cores, and puts them in place; the BSDs' workflows build them in their machines and load them from the installed package with `osdos --core-info`. Both machines of a LAN game of a CV1000 game play on the LAN core: an OSD/OS without it says so rather than playing the game on another.

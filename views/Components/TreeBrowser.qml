@@ -108,6 +108,20 @@ FocusScope {
             layoutBranches(true)
     }
 
+    // Every folder still on its way asked for again: for a host whose source
+    // dropped the reads under way (Local Files' as a drive comes or goes),
+    // whose answers would never come. Folders that have come in stay as
+    // they are.
+    function refreshPending() {
+        var waiting = []
+        for (var p in listings) {
+            if (listings[p].pending)
+                waiting.push(p)
+        }
+        for (var i = 0; i < waiting.length; ++i)
+            refresh(waiting[i])
+    }
+
     // The cursor of an open folder put on its entry at entryPath: for a host
     // that opened the tree down a trail on trust (savedTrail, its folders
     // still on their way), as each folder comes in. False when the folder
@@ -168,8 +182,8 @@ FocusScope {
     // layout's (SelectionBox), which in Studio Monitor and Broadcast is a
     // mark before the row and wants its room there.
     readonly property bool monitor: root.monitorFramed === true
-    readonly property bool windowed: monitor && root.menuLayout === "Studio Monitor"
-    readonly property real cursorRoom: monitor && root.menuLayout !== "Flat Panel" ? root.chrome.gutter : pad
+    readonly property bool windowed: monitor && root.studioLayout
+    readonly property real cursorRoom: monitor && !root.flatLayout ? root.chrome.gutter : pad
     // The tree's sides: the pane's (Main.qml's), beside a layout's column
     // where the view is in its frame, else where every view's content is.
     readonly property real leftEdge: root.paneX + cursorRoom //80
@@ -282,8 +296,8 @@ FocusScope {
             var leaf = true
             // No wider than the tree's own room is ever asked of it (width
             // and placeColumns()'s use of fullWidth both stop there), so the
-            // names are measured only until one fills it: a list of
-            // thousands was measured name by name at every first look.
+            // names are measured only until one fills it, not a list of
+            // thousands name by name at every first look.
             var most = Math.max(maxColumnWidth, rightEdge - leftEdge)
             for (var i = 0; i < items.length; ++i) {
                 if (w < most)
@@ -734,13 +748,10 @@ FocusScope {
                 return
             if (!openFolder()) activate()
             break
-        case Qt.Key_Escape:
-        case Qt.Key_Backspace:
-        case Qt.Key_Back:
-            if (!closeFolder()) leaveRequested()
-            break
         default:
-            return
+            if (!root.isBack(event))
+                return
+            if (!closeFolder()) leaveRequested()
         }
         event.accepted = true
     }

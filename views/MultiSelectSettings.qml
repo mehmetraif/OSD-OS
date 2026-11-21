@@ -38,9 +38,9 @@ FocusScope {
                               : [{ note: true, label: answered ? "No Choices" : "Loading…" }]
 
     function buildEnabledMap() {
-        var allSettings = appCore.get_settings()
-        var moduleConfig = (allSettings.modules && allSettings.modules[moduleId]) ? allSettings.modules[moduleId] : {}
-        saved = moduleConfig[settingKey] || {}
+        // Through get_setting(), which reads a key in dot-notation as it
+        // is saved.
+        saved = appCore.get_setting(moduleId, settingKey) || {}
         var map = {}
         for (var i = 0; i < options.length; i++) {
             var option = options[i]
@@ -77,7 +77,6 @@ FocusScope {
         saved = kept
     }
 
-    // Receive dynamic options from backend via appCore
     Connections {
         target: appCore
         function onDynamicOptionsReady(mid, key, items) {
@@ -92,8 +91,6 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        // Request the options list from the backend
-        // Find the options_slot for this setting key
         // The setting may sit in a submenu ("type": "submenu").
         var find = function(list) {
             for (var i = 0; i < list.length; i++) {
@@ -108,7 +105,6 @@ FocusScope {
             appCore.invoke_module_action(moduleId, setting.options_slot)
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
@@ -159,7 +155,6 @@ FocusScope {
         text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
     }
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE"])

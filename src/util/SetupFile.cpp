@@ -92,11 +92,18 @@ QStringList cardOnly(const QJsonObject &setup) {
     return parts;
 }
 
-// config.json as it is, an empty one when there is none; false when it is
-// there but can't be read, and must not be written over.
+// config.json as it is, an empty one when there is none or it holds nothing
+// (0 bytes, or blanks only), as the app takes it; false when it is there but
+// can't be read, and must not be written over.
 bool readConfig(const QString &path, QJsonObject *config) {
     *config = QJsonObject();
-    return !QFileInfo::exists(path) || filetext::readJsonObject(path, config);
+    if (!QFileInfo::exists(path))
+        return true;
+    QString why;
+    if (filetext::readJsonObject(path, config, &why))
+        return true;
+    QFile file(path);
+    return why.isEmpty() && file.open(QIODevice::ReadOnly) && file.readAll().trimmed().isEmpty();
 }
 
 } // namespace

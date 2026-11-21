@@ -4,7 +4,8 @@
 # against a stand-in service file and image marker, its questions answered on
 # standard input: no service yet (run as the user, or under sudo), one
 # installed before (its user offered, and kept when it isn't installed again),
-# and the OSD/OS image's own, which asks nothing.
+# and the OSD/OS image's own, which asks nothing. Then the helpers it writes
+# around the service: the request sockets for the service user's group.
 #   installer_test.sh <scripts/install.sh>
 set -u
 
@@ -60,6 +61,31 @@ touch "$T/boot-units"
 check "the image's own service: nothing asked, its user kept" "y|arcade|arcade|1" "$(choose '')"
 rm -f "$T/osdos.service"
 check "the image's marker without its service: asked" "n||me|" "$(choose 'n\n')"
+
+# The helpers around the service (its "Optional: systemd autostart" block
+# past the service itself), with a stand-in sudo that runs nothing and says
+# what it was asked: the four sockets the app asks root through made for the
+# service's user's group, and restarted, since one already listening keeps
+# the group it was made with (an install before, for another user) until it
+# is restarted.
+{
+    echo 'set -euo pipefail'
+    printf 'SERVICE_USER=%q AUTOSTART_REPLY=n IMAGE_SERVICE= APP_WAS_RUNNING=1\n' "$(id -un)"
+    printf 'sudo() { echo "$*" >> %q; cat > /dev/null; }\n' "$T/sudo"
+    awk '/^# ── Optional: systemd autostart/ { on = 1 }
+         on && /^if \[ -n "\$\{SERVICE_USER\}" \]; then$/ { body = 1 }
+         body                                             { print }
+         body && /^fi$/                                   { exit }' "$INSTALL_SH"
+} > "$T/helpers.sh"
+grep -q 'osdos-system.socket' "$T/helpers.sh" \
+    || { echo "FAIL: the service's helpers not found in $INSTALL_SH"; exit 1; }
+: > "$T/sudo"
+bash "$T/helpers.sh" < /dev/null > /dev/null 2>&1
+sockets="osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket"
+check "the request sockets are made for the service user's group" "4" \
+      "$(grep -c "^sed -i s/@OSDOS_GROUP@/$(id -gn)/ /etc/systemd/system/osdos-.*\.socket$" "$T/sudo")"
+check "...and restarted after they are enabled, to take it" "enable $sockets|restart $sockets" \
+      "$(grep -E "^systemctl (enable|restart) .*socket" "$T/sudo" | sed 's/^systemctl //' | paste -sd'|')"
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures check(s) failed"

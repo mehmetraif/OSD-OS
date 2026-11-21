@@ -5,10 +5,12 @@ import QtQuick
 // In the middle of the pane (Main.qml's paneX and paneWidth: beside a
 // layout's column, in a monitor layout's frame, or where every view has its
 // list), down the middle of the view, and as wide as the pane: a long
-// message wraps there rather than running off the screen.
+// message wraps there rather than running off the screen. A server's words
+// are shown as they are written, never read as markup.
 //
 //     PaneMessage { visible: isLoading; text: "LOADING..." }
 Text {
+    textFormat: Text.PlainText
     x: root.paneX
     anchors.verticalCenter: parent.verticalCenter
     width: root.paneWidth

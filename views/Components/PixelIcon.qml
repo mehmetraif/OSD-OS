@@ -6,9 +6,9 @@ import QtQuick
 //
 // It is a picture OsdPixelProvider (src/util/OsdIconProvider) makes of the
 // cells at this size, in this colour: one for every PixelIcon that shows the
-// symbol so, kept by Qt Quick under its address, and one texture. Each used
-// to be a Canvas of its own, painted by a script as it was made and again at
-// every change of colour, a dozen and more of them on a settings page.
+// symbol so, kept by Qt Quick under its address, and one texture: not a
+// Canvas each, painted by a script as it is made and again at every change of
+// colour, a dozen and more of them on a settings page.
 Image {
     id: icon
 

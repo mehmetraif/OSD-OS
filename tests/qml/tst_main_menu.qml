@@ -26,13 +26,16 @@ StandInRoot {
         id: appCore
         // The first row's name, which a test makes too long for the row.
         property string firstName: "Arcade"
+        // The modules turned off, by their names: they have no row.
+        property var turnedOff: []
         signal modulesLoaded(var modules)
         function scan_for_modules() {
             modulesLoaded([{ name: firstName, entry_point: "modules/arcade/views/Root.qml", group: "arcade" },
                            { name: "High Scores", entry_point: "modules/highscores/views/Root.qml", group: "arcade" },
                            { name: "Local Files", entry_point: "modules/local_files/views/Root.qml", group: "tv" },
                            { name: "Plex", entry_point: "modules/plex/views/Root.qml", group: "tv" },
-                           { name: "Scripts", entry_point: "modules/scripts/views/Root.qml", group: "" }])
+                           { name: "Scripts", entry_point: "modules/scripts/views/Root.qml", group: "" }]
+                          .filter(function(row) { return turnedOff.indexOf(row.name) < 0 }))
         }
         function moduleEntryPoint(id) { return "" }
     }
@@ -67,6 +70,7 @@ StandInRoot {
             root.setFrame([], 0, false)
             root.width = 640
             appCore.firstName = "Arcade"
+            appCore.turnedOff = []
         }
         function cleanup() {
             loader.source = ""
@@ -123,6 +127,65 @@ StandInRoot {
             compare(root.navigations[2].path, "views/Settings.qml")
             keyClick(Qt.Key_Down)
             compare(cursor(menu), "Arcade")
+        }
+
+        // The cursor never rests on the gap before Settings' row, where
+        // select does nothing: back from Settings with the module it was on
+        // turned off there (its place is now the gap's), and with no module
+        // on at all, it is on Settings' row, which select opens. Standard
+        // and Broadcast have the gap; Camcorder and Flat Panel have none,
+        // and the cursor is on a row there too.
+        function test_neverOnTheGap_data() {
+            return [{ tag: "Standard", layout: "Standard", after: "Settings", none: "Settings" },
+                    { tag: "Broadcast", layout: "Broadcast", after: "Settings", none: "Settings" },
+                    { tag: "Camcorder", layout: "Camcorder", after: "Local Files", none: "Settings" },
+                    { tag: "Flat Panel", layout: "Flat Panel", after: "Plex", none: "" }]
+        }
+        function test_neverOnTheGap(data) {
+            root.menuLayout = data.layout
+            var gapped = data.layout === "Standard" || data.layout === "Broadcast"
+            var menu = open()
+            if (data.layout === "Camcorder") {
+                // To the last group but Settings', More: Scripts' own.
+                keyClick(Qt.Key_Left)
+                keyClick(Qt.Key_Down)
+                keyClick(Qt.Key_Down)
+                keyClick(Qt.Key_Right)
+            } else {
+                for (var i = 0; i < 4; i++)
+                    keyClick(Qt.Key_Down)
+            }
+            compare(cursor(menu), "Scripts")
+            keyClick(Qt.Key_Escape)
+            compare(root.navigations[0].path, "views/Settings.qml")
+            var left = root.navigations[0].listState
+
+            // Scripts turned off in Settings, and back.
+            loader.source = ""
+            appCore.turnedOff = ["Scripts"]
+            menu = open({ navListState: left })
+            if (gapped)
+                compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "", "Settings"])
+            compare(cursor(menu), data.after)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            compare(root.navigations[1].path, gapped ? "views/Settings.qml"
+                                                     : data.layout === "Camcorder" ? "modules/local_files/views/Root.qml"
+                                                                                   : "modules/plex/views/Root.qml")
+
+            // No module on.
+            loader.source = ""
+            appCore.turnedOff = ["Arcade", "High Scores", "Local Files", "Plex", "Scripts"]
+            menu = open()
+            if (data.none === "") {
+                compare(names(menu), [])
+                return
+            }
+            compare(names(menu), gapped ? ["", "Settings"] : ["Settings"])
+            compare(cursor(menu), data.none)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 3)
+            compare(root.navigations[2].path, "views/Settings.qml")
         }
 
         // Camcorder: the groups' icons, the rows of the one the cursor is

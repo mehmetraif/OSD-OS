@@ -7,9 +7,11 @@
 #include <QDateTime>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QUrlQuery>
 #include <QHash>
 #include <functional>
 #include <openssl/evp.h>
+#include "../../util/KeptLists.h"
 
 class AppCore;
 
@@ -17,7 +19,8 @@ class PlexBackend : public QObject {
     Q_OBJECT
 public:
     // The module's settings are read and saved through appCore; without one
-    // (the tests) there are none, and none are saved.
+    // (the tests) there are none, and none are saved. appRoot is taken as the
+    // other modules' backends take it; Plex reads nothing from it.
     explicit PlexBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore = nullptr,
                          QObject *parent = nullptr);
 
@@ -29,11 +32,27 @@ public:
     Q_INVOKABLE void     build_stream_url(const QString &ratingKey,
                                           const QString &partKey,
                                           const QString &sessionId);
+    // A playback session's identifier, new for each play (the views'
+    // sessionId): reusing one lets Plex hand back a stale transcode built
+    // with the tracks chosen before. Twelve of A-Z and 0-9.
+    Q_INVOKABLE QString  new_session_id() const;
+    // An item's stream, as its detail says to play it: a transcode where it
+    // must be transcoded (forceTranscode), from 0 so that its whole
+    // timeline can be sought (the Player seeks to the resume point itself),
+    // with these tracks; else direct play (build_stream_url). Answers with
+    // streamUrlReady, at once for direct play, so the view keeps sessionId
+    // before it asks.
+    Q_INVOKABLE void     start_stream(const QVariantMap &detail, const QString &sessionId,
+                                      const QString &audioId, const QString &subtitleId);
 
     // Auth flow
     // Asks plex.tv for a sign-in code and polls for it: the request's number,
     // for cancel_pin_auth.
     Q_INVOKABLE int  start_pin_auth();
+    // The account's users, as kept since the sign-in (usersLoaded). Signed in
+    // with none kept (the account didn't come once the code was claimed),
+    // they and their servers are asked of plex.tv again: usersLoaded once
+    // both are kept, else errorOccurred.
     Q_INVOKABLE void load_users_from_cache();
     // pin is only supplied on a retry, after plex.tv has told us the profile
     // needs one (see userPinRequired). It is never stored.
@@ -120,7 +139,8 @@ public:
     // given up with back): streamUrlReady answers only the last one asked for,
     // so a transcode that answers late can't start in a view that didn't ask.
     // The next item looked for (load_next_episode, load_queue_item,
-    // load_random_episode) is forgotten with it.
+    // load_random_episode) is forgotten with it, and so is a card looked for
+    // (resolve_card, resolve_card_queue).
     Q_INVOKABLE void cancel_stream();
     Q_INVOKABLE void update_timeline(const QString &ratingKey, const QString &partKey,
                                      const QString &state, int timeMs, int durationMs);
@@ -211,6 +231,15 @@ private:
     QNetworkReply  *plexPut(const QUrl &url, const QString &token);
     QNetworkReply  *plexDelete(const QUrl &url, const QString &token);
 
+    // The universal transcoder's HLS start, a film's (request_transcode) and
+    // a live channel's (tune_channel): transcodeQuery() is what both ask,
+    // seekable adding a film's seeking; the caller adds its own after it, and
+    // startTranscode() sends it. transcodeStreamUrl() is the stream mpv is
+    // handed from the server's answer.
+    QUrlQuery transcodeQuery(const QString &path, const QString &sessionId, bool seekable) const;
+    QNetworkReply *startTranscode(const QUrlQuery &query, const QString &token);
+    static QString transcodeStreamUrl(QNetworkReply *reply);
+
     // Convenience SSL-ignore connect
     void ignoreSslErrors(QNetworkReply *reply);
 
@@ -218,7 +247,6 @@ private:
     QString serverUrl() const;
     QString serverToken() const;
     QString accountToken() const;
-    QString userToken() const;
     QString videoQuality() const;
     QString clientId() const;   // UUID, stored in plex_auth.json
 
@@ -250,16 +278,14 @@ private:
     // shown in the view after it. read makes the rows of the reply, away from
     // the screen's thread (a whole library is megabytes of JSON); flatten
     // expands the seasons among them. retry asks again after a token refresh
-    // (498). A list given a keep key is kept a while (kListKeepMs), so going
+    // (498). A list given a keep key is kept a while (KeptLists), so going
     // back to it (from a film's detail screen) shows it without asking the
     // server again; a playback ending forgets them all, its watched state
     // having changed.
     void loadList(void (PlexBackend::*answer)(const QVariant &), const QString &keep,
                   const QUrl &url, const QString &failure, std::function<void()> retry,
                   std::function<QVariantList(const QByteArray &)> read, bool flatten);
-    struct KeptList { QVariantList rows; qint64 at = 0; };
-    QHash<QString, KeptList> m_keptLists;
-    QStringList m_keptOrder;    // oldest first
+    KeptLists m_keptLists;
     int m_listRequest = 0;
     // The stream asked for last (request_transcode, build_stream_url,
     // tune_channel): one answering after another was asked for, or after
@@ -275,9 +301,22 @@ private:
     // so that the item left for another never shows up in its place.
     int m_detailRequest = 0;
     int m_childrenRequest = 0;
+    // An item's extras, a library's menu and a show's episode in progress
+    // (load_extras, check_section_capabilities, load_on_deck_for), the same
+    // way: a show's extras never show on the season opened from it, nor one
+    // library's menu, or one show's episode, in another's place.
+    int m_extrasRequest = 0;
+    int m_capabilitiesRequest = 0;
+    int m_onDeckRequest = 0;
     // The queue expanded last (expand_queue), the same way, forgotten with
     // cancel_stream: a set given up on never plays in place of the next.
     int m_queueRequest = 0;
+    // The NFC card looked for last (resolve_card, resolve_card_queue), the
+    // same way, forgotten with cancel_stream: a card given up, or left for
+    // another, answers at none of its steps (cardItemReady, cardQueueReady,
+    // cardError), so its item never plays, nor its failure shows, in the
+    // next card's place.
+    int m_cardRequest = 0;
 
     // GETs a few at a time, in order: a collection of shows played as a
     // queue, a shuffle's pool or a hub of seasons asks for every season's
@@ -301,7 +340,7 @@ private:
     // Draws the next ratingKey from the shuffle bag for this scope, rebuilding
     // and reshuffling when the scope changes or the bag runs out.
     QString takeFromShuffleBag(const QString &scopeRatingKey, const QVariantList &pool);
-    void emitCardDetail(const QString &ratingKey, bool trackProgress,
+    void emitCardDetail(int request, const QString &ratingKey, bool trackProgress,
                         const QString &scopeRatingKey);
     void emitNextEpisode(int request, const QString &ratingKey);
 
@@ -374,13 +413,12 @@ private:
     // and the server every request goes to
     QJsonValue plexSetting(const QString &key) const;
     void savePlexSetting(const QString &key, const QJsonValue &value);
-    void profileNotSwitched();
+    void profileNotSwitched(const QString &why = QStringLiteral("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER"));
     void setActiveServer(const QString &uri, const QString &machineId);
 
     // HTTP helper — POST with JSON body
     QNetworkReply* plexPostJson(const QUrl &url, const QString &token, const QByteArray &body);
 
-    QString m_appRoot;
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;
     QNetworkAccessManager *m_nam;

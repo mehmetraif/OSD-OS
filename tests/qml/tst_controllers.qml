@@ -67,9 +67,27 @@ StandInRoot {
         function copyOf(map) { return JSON.parse(JSON.stringify(map || {})) }
         function note(call) { calls = calls.concat([call]) }
         function last() { return calls[calls.length - 1] }
-        function controllerPage(key) { return copyOf(pages[key]) }
-        function captureController(key) { capturing = key }
-        function captureControllers(keys) { capturing = keys.join(",") }
+        // A pad's label styles, in InputManager's order.
+        readonly property var labelStyles: [{ style: "auto", title: "Auto" }, { style: "a_below", title: "A below" },
+                                            { style: "a_right", title: "A right" }, { style: "shapes", title: "Shapes" },
+                                            { style: "numbers", title: "Numbers" }]
+        function controllerPage(key) {
+            var page = copyOf(pages[key])
+            if (key.indexOf("pad-") === 0)
+                page.labelStyles = copyOf(labelStyles)
+            return page
+        }
+        // A wait, and how long its page said it lasts (0 once it is over):
+        // InputManager listens for that long.
+        property int captureSeconds: 0
+        function captureController(key, seconds) {
+            capturing = key
+            captureSeconds = key !== "" ? seconds : 0
+        }
+        function captureControllers(keys, seconds) {
+            capturing = keys.join(",")
+            captureSeconds = keys.length > 0 ? seconds : 0
+        }
         function watchJammaPins(on) { watchingPins = on }
         function bindControllerInput(key, input, action) {
             note(["bind", key, input, action])
@@ -87,21 +105,35 @@ StandInRoot {
             return outcomes[key + " " + id] || { outcome: "set", action: "none", label: "none" }
         }
         function inputRoles(key, input) { return roles[key + " " + input] || { action: "", game: "" } }
+        // The settings can't be written (a full card): every setter says so,
+        // as InputManager's do, and changes nothing.
+        property bool unsaved: false
         function setControllerLabels(key, style) {
             note(["labels", key, style])
+            if (unsaved)
+                return false
             var p = pages
             p[key].labels = style
             pages = p
             controllersChanged()
+            return true
         }
-        function resetController(key) { note(["reset", key]) }
+        function resetController(key) {
+            note(["reset", key])
+            return !unsaved
+        }
         function setPadPlayer(key, player) {
             note(["padPlayer", key, player])
+            if (unsaved)
+                return { outcome: "unsaved", other: "", otherPlayer: 0 }
             return outcomes["player " + player] || { outcome: "set", other: "", otherPlayer: 0 }
         }
         function resetPlayers() {
             note(["resetPlayers"])
+            if (unsaved)
+                return false
             players = root.withAuto([])
+            return true
         }
         // A pad's Game Buttons: its page, a layout chosen (taken at once),
         // and what a press or a choice makes of one of them, as InputManager
@@ -111,11 +143,14 @@ StandInRoot {
         function arcadePage(key) { return copyOf(arcadePages[key]) }
         function setArcadeLayout(key, layout) {
             note(["arcadeLayout", key, layout])
+            if (unsaved)
+                return false
             var p = arcadePages
             p[key].layout = layout
             p[key].layoutTitle = p[key].layouts.filter(function(l) { return l.layout === layout })[0].title
             arcadePages = p
             controllersChanged()
+            return true
         }
         function setArcadeInput(key, input, token) {
             note(["arcadeInput", key, input, token])
@@ -130,12 +165,13 @@ StandInRoot {
         }
         // Cabinet Lock's unlock buttons, and the wait for new ones.
         property string unlockButtons: ""
+        readonly property int unlockCaptureSeconds: 10
         signal unlockButtonsHeld(string names, bool tooMany)
-        signal unlockCaptureEnded(bool saved)
+        signal unlockCaptureEnded(bool saved, bool unsaved)
         function captureUnlockButtons(on) {
             note(["captureUnlock", on])
             if (!on)
-                unlockCaptureEnded(false)
+                unlockCaptureEnded(false, false)
         }
     }
 
@@ -153,7 +189,11 @@ StandInRoot {
         property var modules: [{ id: "com.osdos.arcade", name: "Arcade", enabled: true }]
         function get_installed_modules() { return modules }
         function get_setting(module, key) { return settings[key] }
+        // The settings can't be written: false, and nothing kept.
+        property bool unsaved: false
         function save_setting(module, key, value) {
+            if (unsaved)
+                return false
             var s = settings
             s[key] = value
             settings = s
@@ -181,7 +221,7 @@ StandInRoot {
         var choices = [["a", "A"], ["b", "B"], ["x", "X"], ["y", "Y"], ["leftshoulder", "LB"], ["rightshoulder", "RB"],
                        ["lefttrigger+", "LT"], ["righttrigger+", "RT"], ["back", "BACK"], ["start", "START"],
                        ["leftstick", "LS"], ["rightstick", "RS"]]
-        var titles = { "default": "Engine's", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }
+        var titles = { auto: "Auto", "default": "Engine's", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }
         return { key: root.padKey, name: "8BitDo Pro 2", present: present !== false, jamma: 0, layout: layout,
                  layoutTitle: titles[layout],
                  layouts: [{ layout: "default", title: "Engine's" }, { layout: "fighting6", title: "Fighting 6" },
@@ -293,6 +333,8 @@ StandInRoot {
                     ["X", "Y", "RB", "A", "B", "RT", "LB", "LT", "BACK", "START"])
             }
             inputManager.arcadeOutcomes = {}
+            inputManager.unsaved = false
+            appCore.unsaved = false
             appCore.settings = {}
             root.navigations = []
             root.backs = 0
@@ -348,10 +390,14 @@ StandInRoot {
             compare(menuRow(page, 1).icons, [])
             verify(menuRow(page, 0).opens && menuRow(page, 3).opens && !menuRow(page, 2).opens)
             verify(findText(page, ":OPEN") !== null)
-            // Another pad pressed: the ● moves, the lines stay where they are.
+            // Another pad pressed: the ● moves, the lines stay where they are,
+            // the same lines.
+            var lines = page.rows
             inputManager.activeController = root.padKey
             compare(page.rows[0].key, root.jammaKey)
-            verify(page.rows[1].last && !page.rows[0].last)
+            verify(page.rows === lines)
+            compare(menuRow(page, 1).icons, ["rec"])
+            compare(menuRow(page, 0).icons, [])
 
             keyClick(Qt.Key_Left)
             compare(inputManager.calls.length, 0)
@@ -578,6 +624,8 @@ StandInRoot {
             compare(inputManager.capturing, root.padKey)
             verify(findText(page, "Press the new button on 8BitDo Pro 2 for [Back]") !== null)
             verify(findText(page, "Hold any button to stop\nStops by itself in 10") !== null)
+            // InputManager listens for as long as the prompt counts.
+            compare(inputManager.captureSeconds, 10)
             // A press only shown, another pad's tap: still waiting. Its own
             // tap: the answer, here a swap.
             inputManager.outcomes = { "pad-0300aaaa a": { outcome: "swapped", action: "back", label: "Back", other: "B",
@@ -775,6 +823,7 @@ StandInRoot {
             verify(prompt.visible)
             compare(inputManager.capturing, root.padKey)
             compare(prompt.secondsLeft, 10)
+            compare(inputManager.captureSeconds, 10)
             verify(findText(page, "Press the buttons on 8BitDo Pro 2\nHold any button to stop\nStops by itself in 10") !== null)
             inputManager.controllerInputDown(root.padKey, "a", "A")
             verify(findText(page, "A → Select / OK → Button 4") !== null)
@@ -832,11 +881,16 @@ StandInRoot {
             compare(inputManager.capturing, root.jammaKey + "," + root.jamma2Key)
             verify(inputManager.watchingPins)
             compare(prompt.secondsLeft, 30)
+            // InputManager listens for the thirty seconds too, from each
+            // press anew: a press late in them is still the test's.
+            compare(inputManager.captureSeconds, 30)
             verify(findText(page, "Pin names: Crown, CHAMMA") !== null)
             verify(findChild(page, "pinGrid").visible && !findChild(page, "testGrid").visible)
             // A pin and its press, the one a moment after the other: one line.
+            inputManager.captureSeconds = 0
             inputManager.jammaPinChanged(1, "0x20", "B1", true, "y")
             inputManager.controllerInputDown(root.jammaKey, "y", "4")
+            compare(inputManager.captureSeconds, 30)
             compare(page.presses.length, 1)
             verify(findText(page, "P1 B1 → 4 → Button 4") !== null)
             inputManager.jammaPinChanged(1, "0x20", "B1", false, "y")
@@ -926,6 +980,7 @@ StandInRoot {
             verify(page.capturing && prompt.visible)
             compare(inputManager.capturing, root.padKey)
             compare(prompt.secondsLeft, 10)
+            compare(inputManager.captureSeconds, 10)
             verify(findText(page, "Press the button on 8BitDo Pro 2 for [Button 1]\nHold any button to stop") !== null)
             verify(findChild(prompt, "gridCell-1").on && !findChild(prompt, "gridCell-2").on)
             compare(findChild(prompt, "gridCell-2").name, "Y")
@@ -973,6 +1028,45 @@ StandInRoot {
             return null
         }
 
+        // A well-known pad's Game Buttons on Auto: the lines a game of up to
+        // four buttons', the layout's own line saying in words that one of
+        // five or more plays on Fighting 6's; listed first; a line set by
+        // hand as on any layout.
+        function test_gameButtonsAuto() {
+            var auto = root.arcadePage("auto", root.padInputs,
+                                       ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START"])
+            auto.layouts = [{ layout: "auto", title: "Auto" }].concat(auto.layouts)
+            auto.manyRows = root.arcadePage("fighting6", ["x", "y", "rightshoulder", "a", "b", "righttrigger+",
+                                                          "leftshoulder", "lefttrigger+", "back", "start"],
+                                            ["X", "Y", "RB", "A", "B", "RT", "LB", "LT", "BACK", "START"]).rows
+            inputManager.arcadePages = { "pad-0300aaaa": auto }
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            compare(page.rows[2].label, "Auto")
+            var values = page.rows.slice(3).map(function(r) { return r.value })
+            compare(values, ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START"])
+            compare(page.rows[3].token, "a")
+            compare(page.rows[0].description, "Games of five buttons or more: Fighting 6's")
+            verify(findText(page, "Games of five buttons or more: Fighting 6's") !== null)
+            keyClick(Qt.Key_Return)
+            var layouts = findChild(page, "layoutChooser")
+            verify(layouts.visible)
+            compare(labels(layouts.choices), ["Auto", "Engine's", "Fighting 6", "Neo Geo 4", "Custom"])
+            compare(layouts.choiceIndex, 0)
+            keyClick(Qt.Key_Escape)
+            // Button 1 from its list: InputManager makes the layout Custom.
+            keys(Qt.Key_Down, 2)
+            compare(page.rows[list(page).currentIndex].label, "Button 1")
+            verify(findText(page, "Games of five buttons or more: Fighting 6's") === null)
+            keyClick(Qt.Key_Return)
+            var inputs = findChild(page, "inputChooser")
+            verify(findText(page, "Now: A") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["arcadeInput", root.padKey, "1", "leftstick"])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
         // Set One by One: a press a step, twenty seconds each; the joystick
         // a step back and no button for this one, but for Coin and Start;
         // what can't be one asked again; then all ten, to save, do again or
@@ -986,6 +1080,9 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(page.settingAll && page.capturing && prompt.visible)
             compare(prompt.secondsLeft, 20)
+            // InputManager listens for a step's twenty seconds, not for a
+            // line's ten: a press late in them is still the step's answer.
+            compare(inputManager.captureSeconds, 20)
             verify(findText(page, "Set One by One (1/10)") !== null)
             verify(findText(page, "[Button 1]\nJoystick ◄ back\nHold any button to stop") !== null)
             // Button 1 needs one.
@@ -1006,9 +1103,11 @@ StandInRoot {
             verify(findText(page, "GUIDE shows MAME's menu: press another") !== null)
             compare(page.step, 1)
             prompt.secondsLeft = 2
+            inputManager.captureSeconds = 0
             tap("y", "Y")
             compare(page.step, 2)
             compare(prompt.secondsLeft, 20)
+            compare(inputManager.captureSeconds, 20)
             // A step back: Button 2 again, what it had gone.
             tap("leftx-", "L STICK ◄")
             compare(page.step, 1)
@@ -1141,7 +1240,7 @@ StandInRoot {
             verify(findText(page, "At most four") !== null)
             inputManager.unlockButtonsHeld("P1 START + P2 START", false)
             inputManager.unlockButtons = "P1 START + P2 START"
-            inputManager.unlockCaptureEnded(true)
+            inputManager.unlockCaptureEnded(true, false)
             verify(!page.capturing)
             tryVerify(function() { return findText(page, "Lock the cabinet?") !== null })
             verify(findText(page, "Hold P1 START + P2 START together for three seconds") !== null)
@@ -1176,6 +1275,116 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            inputManager.unlockButtons = ""
+        }
+
+        // A choice the settings couldn't be written for (a full card): each
+        // page says so in place of what it says of a change made, and goes
+        // on showing what it had.
+        function test_notSaved() {
+            var said = "Not saved: the settings could not be written"
+            inputManager.unsaved = true
+            // Controls: every player back to Auto.
+            var page = open("Controllers.qml")
+            keys(Qt.Key_Down, 2)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["resetPlayers"])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "Every player is automatic now") === null)
+            compare(types(page), ["controller", "controller", "players", "list", "list"])
+
+            // A pad's page: its player, its button names, Reset.
+            loader.source = ""
+            page = open("ControllerSettings.qml", { key: root.padKey })
+            keys(Qt.Key_Down, 3)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["padPlayer", root.padKey, 1])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "It is player 1 now") === null)
+            keyClick(Qt.Key_Down)
+            verify(findText(page, said) === null)
+            keyClick(Qt.Key_Right)
+            compare(inputManager.last(), ["labels", root.padKey, "a_below"])
+            compare(page.rows[4].value, "Auto (A below)")
+            verify(findText(page, said) !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["reset", root.padKey])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "Back to the defaults") === null)
+            // A pad away: its page stays, as its settings do.
+            loader.source = ""
+            page = open("ControllerSettings.qml", { key: root.awayKey })
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["reset", root.awayKey])
+            compare(root.backs, 0)
+            verify(findText(page, said) !== null)
+            // A JAMMA stick's Pin Names: the ones it had.
+            loader.source = ""
+            appCore.settings = { jamma_pin_layout: "Crown, CHAMMA" }
+            appCore.unsaved = true
+            page = open("ControllerSettings.qml", { key: root.jammaKey })
+            keys(Qt.Key_Down, 5)
+            keyClick(Qt.Key_Right)
+            compare(page.rows[5].value, "Crown, CHAMMA")
+            verify(findText(page, said) !== null)
+
+            // A keyboard's extra keys, all removed.
+            loader.source = ""
+            page = open("MenuButtons.qml", { key: root.keyboardKey })
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["reset", root.keyboardKey])
+            verify(findText(page, said) !== null)
+            verify(findText(page, "No extra keys now") === null)
+
+            // Game Buttons' layout: the one it had heads its buttons still.
+            loader.source = ""
+            page = open("ArcadeButtons.qml", { key: root.padKey })
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["arcadeLayout", root.padKey, "neogeo4"])
+            compare(page.rows[2].label, "Fighting 6")
+            verify(findText(page, said) !== null)
+
+            // Cabinet Lock: unlock buttons held long enough and not kept are
+            // said so, the old ones staying; a wait left says nothing.
+            loader.source = ""
+            appCore.unsaved = false
+            appCore.settings = { startup_module: "com.osdos.arcade", cabinet_lock: "On" }
+            inputManager.unlockButtons = "P1 START"
+            page = open("CabinetLock.qml")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            inputManager.unlockButtonsHeld("P2 START", false)
+            inputManager.unlockCaptureEnded(false, true)
+            verify(!page.capturing)
+            tryVerify(function() { return findText(page, "The settings could not be written") !== null })
+            keyClick(Qt.Key_Return)
+            verify(findText(page, "The settings could not be written") === null)
+            verify(findText(page, "P1 START") !== null)
+            keyClick(Qt.Key_Return)
+            verify(page.capturing)
+            keyClick(Qt.Key_Escape)
+            verify(!page.capturing)
+            verify(findText(page, "The settings could not be written") === null)
+            // The lock turned off and not kept: on still, and said.
+            appCore.unsaved = true
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Left)
+            verify(page.lockOn)
+            tryVerify(function() { return findText(page, "The settings could not be written") !== null })
             inputManager.unlockButtons = ""
         }
 

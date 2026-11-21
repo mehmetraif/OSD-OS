@@ -53,7 +53,7 @@ FocusScope {
     Component.onCompleted: {
         videoFiles = ambientModeBackend.getVideoFiles()
         audioFiles = ambientModeBackend.getAudioFiles()
-        autoLaunch = !!appCore.get_setting(moduleRoot.moduleId, "auto_launch")
+        autoLaunch = root.settingOn(moduleRoot.moduleId, "auto_launch", false)
         // Back from the player: the picker where it was left, within the
         // files there are now.
         if (navListState.videoIndex !== undefined)

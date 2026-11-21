@@ -1,40 +1,28 @@
 import QtQuick
+import "JammaPinLayouts.js" as JammaPinLayouts
 
 // The JAMMA board's controls on a JAMMA stick's Test Buttons page
-// (ControllerSettings.qml): the edge connector's control pins, player 1's
+// (ControllerTest.qml): the edge connector's control pins, player 1's
 // on the parts side (16 to 27) and player 2's on the solder side (T to e), a
 // column each for Coin, Start, the joystick and buttons 1 to 6. A pin is lit
 // while its switch is held and stays marked once it has been, so a control
 // whose signal never reaches the board stays dim however it is pressed.
 //
-// Which of the board's expander pins is which control is a layout: OSD/OS's
-// own (what osdos-jamma's mapping makes of each pin, its mapping file
-// included), the Crown board's (mk_arcade_joystick_rpi's order, button 6 on
-// pin 27, a Chinese harness's), and JammaPi's. The page's N goes round them.
-// A pin the layout places on no control (a system switch, another
-// expander's) is listed under the grid.
+// Which of the board's expander pins is which control is a layout
+// (JammaPinLayouts.js). A pin the layout places on no control (a system
+// switch, another expander's) is listed under the grid.
 Item {
     id: grid
 
     // The pins seen this test, by "<address> <pin>": { player, address, pin,
     // input, held }, as osdos-jamma reports them.
     property var pins: ({})
-    // Which of layouts names the pins.
+    // Which of the layouts names the pins.
     property int layout: 0
     // Shown, taking room (not on a pad's or a keyboard's test).
     property bool shown: true
 
-    // By the expander pin, the same on both players' expanders, or by the
-    // input the mapping makes of it (byInput).
-    readonly property var layouts: [
-        { name: "OSD/OS", byInput: true },
-        { name: "Crown, CHAMMA",
-          pins: { A0: "up", A1: "down", A2: "left", A3: "right", A4: "start", A5: "coin",
-                  A6: "b1", A7: "b2", B0: "b3", B1: "b4", B2: "b5", B3: "b6" } },
-        { name: "JammaPi",
-          pins: { A0: "up", A1: "down", A2: "left", A3: "right", A5: "start", A6: "coin",
-                  B7: "b1", B6: "b2", B5: "b3", B4: "b4", B3: "b5", B2: "b6" } }
-    ]
+    readonly property var layouts: JammaPinLayouts.layouts
     readonly property string layoutName: layouts[layout % layouts.length].name
     // osdos-jamma's inputs as controls: its buttons 1 to 6 are a to tr.
     readonly property var inputControls: ({ coin: "coin", start: "start", up: "up", down: "down",
