@@ -86,17 +86,27 @@ FocusScope {
         return icons
     }
 
+    // A network's band opens its line where the Wi-Fi manager knows it
+    // ("2.4 GHz", "5 GHz", "6 GHz"): a game over the network plays better on
+    // 5 GHz, and nothing else on the page tells the two apart.
     function networkDescription(n) {
         if (n.active)
-            return (current.address ? "Connected, its address " + current.address + ". " : "")
+            return (current.address ? "Connected, its address " + current.address
+                                      + (current.band ? ", on " + current.band : "") + ". " : "")
                    + "Select to disconnect or forget it"
+        var band = n.band ? "On " + n.band + ". " : ""
         if (n.known)
-            return n.heard ? "Saved: select to connect, give it a new password or forget it"
-                           : "Saved, but not heard here: select to connect, give it a new password or forget it"
+            return band + (n.heard ? "Saved: select to connect, give it a new password or forget it"
+                                   : "Saved, but not heard here: select to connect, give it a new password or forget it")
         if (n.security === "enterprise")
-            return "It wants a user name too (WPA Enterprise), which can't be typed here"
-        return n.secured ? "Select to type its password and join it" : "Open: select to join it, no password wanted"
+            return band + "It wants a user name too (WPA Enterprise), which can't be typed here"
+        return band + (n.secured ? "Select to type its password and join it"
+                                 : "Open: select to join it, no password wanted")
     }
+
+    // The title bar's note: the address on the network joined, and its band.
+    readonly property string headerNote: current.address
+        ? current.address + (current.band ? " • " + current.band : "") : ""
 
     function networkRow(n) {
         return { type: "network", label: n.ssid, value: networkValue(n), icons: networkIcons(n), network: n,
@@ -257,11 +267,11 @@ FocusScope {
         onTriggered: wifiRoot.dots = wifiRoot.dots % 3 + 1
     }
 
-    // Header: the address the Pi has on the network joined.
+    // Header: the address the Pi has on the network joined, and its band.
     AppBar {
         iconSource: "../../assets/images/wifi.svg"
         title: "Wi-Fi"
-        subtitle: wifiRoot.current.address || ""
+        subtitle: wifiRoot.headerNote
         // The address is no step of the way here.
         path: ["Wi-Fi"]
     }

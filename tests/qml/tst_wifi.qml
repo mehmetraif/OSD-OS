@@ -270,6 +270,28 @@ StandInRoot {
             compare(cursor(page), "Wi-Fi")
         }
 
+        // The band, where the Wi-Fi manager knows it: beside the address in
+        // the title bar and in the connected network's line, and opening
+        // every other network's. Without one nothing is said of it.
+        function test_band() {
+            var page = open()
+            compare(page.headerNote, "192.168.1.20")
+            verify(row(page, "Home").description.indexOf("GHz") < 0)
+            verify(row(page, "Neighbour").description.indexOf("GHz") < 0)
+            wifiManager.current = { ssid: "Home", bars: 4, address: "192.168.1.20", band: "2.4 GHz" }
+            wifiManager.networks = [
+                root.network("Home", { bars: 4, known: true, active: true, band: "2.4 GHz" }),
+                root.network("Cafe", { bars: 2, security: "open", secured: false, known: true, band: "5 GHz" }),
+                root.network("Neighbour", { band: "2.4/5 GHz" }),
+                root.network("Free", { bars: 1, security: "open", secured: false })
+            ]
+            tryCompare(page, "headerNote", "192.168.1.20 • 2.4 GHz")
+            tryVerify(function() { return row(page, "Home").description.indexOf("192.168.1.20, on 2.4 GHz. ") >= 0 })
+            compare(row(page, "Cafe").description.indexOf("On 5 GHz. Saved"), 0)
+            compare(row(page, "Neighbour").description.indexOf("On 2.4/5 GHz. Select"), 0)
+            compare(row(page, "Free").description.indexOf("Open"), 0)
+        }
+
         // Off: no search and no networks; on again with a select or ◄ ►.
         function test_power() {
             wifiManager.enabled = false

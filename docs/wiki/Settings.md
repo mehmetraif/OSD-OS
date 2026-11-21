@@ -290,6 +290,7 @@ Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 | **Networks** | The others, the strongest first. Select one and type its password; an open one is joined at once |
 
 - A network joined is saved and joined by itself from then on.
+- A network's help line opens with its band where NetworkManager gives it (**On 5 GHz**), and the title bar shows the band of the one joined beside its address. A game over the network plays better on 5 GHz than on 2.4 GHz, most of all with Bluetooth pads, which share the 2.4 GHz radio.
 - The hint bar says what select does on the line under the cursor (**TURN ON**, **CHOOSE**, **SEARCH**, **JOIN**, **OPTIONS**), and only back on **No Wi-Fi**.
 - A network that wants a user name too (WPA Enterprise) can't be joined here.
 - A character the on-screen keyboard hasn't (`/`, `:`, a bracket) can be typed on a real keyboard.
