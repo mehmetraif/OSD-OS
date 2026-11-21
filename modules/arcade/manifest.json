@@ -372,7 +372,7 @@
           "type": "list_single",
           "options": ["Horizontal", "Turned Right", "Turned Left"],
           "default": "Horizontal",
-          "description": "A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it, filling it with their own lines, the menus and the horizontal games as they are; a monitor that stays turned is set in Settings > Screen instead, which goes first\n[HORIZONTAL] Every game as it is  [TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left"
+          "description": "A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it, filling it with their own lines, the menus and the horizontal games as they are; a monitor that stays turned is set in Settings > Screen > Rotation instead, which goes first\n[HORIZONTAL] Every game as it is  [TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left"
         },
         {
           "key": "video",

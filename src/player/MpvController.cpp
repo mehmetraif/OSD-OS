@@ -827,7 +827,7 @@ QStringList MpvController::presentationArgs(bool embedded) const {
             && !userSetsScreenShape(m_appCore ? m_appCore->get_setting(QString(), "mpv_video_args").toString()
                                               : QString()))
         args << QStringLiteral("--monitoraspect=4:3");
-    // Settings → Screen → Monitor turned on its side (TATE): the picture
+    // Settings → Screen → Rotation turned on its side (TATE): the picture
     // turned to stand upright on it, against the way the monitor went (its
     // top to the right, the picture a quarter turn the other way). The
     // window's own session is drawn on the screen as one sees it and turned

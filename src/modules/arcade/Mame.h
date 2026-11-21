@@ -131,13 +131,13 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
 // spread over them, as MAME would otherwise draw it once and cut it. fill
 // (Game Picture on Fit to Screen): the picture stretched over the whole
 // screen, whatever its shape, and none of the rest. monitor: Settings →
-// Screen → Monitor, a monitor turned on its side ("Turned Right", "Turned
+// Screen → Rotation, a monitor turned on its side ("Turned Right", "Turned
 // Left"), against which the picture is turned to stand upright on it (-rol,
 // -ror): a vertical game's lines then lie along the screen's, a horizontal
 // game's width across them.
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer,
                             bool fill = false, const QString &monitor = QString());
-// A monitor turned on its side, as Settings → Screen → Monitor, Vertical
+// A monitor turned on its side, as Settings → Screen → Rotation, Vertical
 // Games and a game's own options name it; isTurned(): whether a value is
 // either (else Horizontal, or a game's Default).
 inline constexpr QLatin1String kTurnedRight("Turned Right");

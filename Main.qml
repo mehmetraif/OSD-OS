@@ -532,7 +532,7 @@ Window {
     // than twice as tall as wide), anything else square. Video drawn in the
     // window takes its picture's shape from it (VideoSurface).
     readonly property real framePixelAspect: tube && width > 0 ? Math.round(height * 4 / 3) / width : 1
-    // Settings → Screen → Monitor (app.monitor, Horizontal): a monitor turned
+    // Settings → Screen → Rotation (app.monitor, Horizontal): a monitor turned
     // on its side for vertical games (TATE), which the system doesn't know
     // of, as a cabinet's or a Pi's: Turned Right has the monitor's top on
     // the right as one faces it, Turned Left on the left. Everything OSD/OS

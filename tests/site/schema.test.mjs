@@ -429,6 +429,10 @@ test("Arcade's emulator and network rows in their groups, with the backend's def
     const onlineName = rows.find(r => r.key === "online_name").description;
     assert.match(onlineName, /\(Settings → System → System Information\)/);
     assert.ok(settingsQml.includes('label: "System Information"'));
+    // Vertical Games' help names Screen's row by the name it has, Rotation.
+    const vertical = rows.flatMap(r => [r, ...(r.settings || [])]).find(r => r.key === "vertical_monitor");
+    assert.match(vertical.description, /Settings > Screen > Rotation/);
+    assert.ok(settingsQml.includes('label: "Rotation"'));
     // LAN Sync's help on Smooth says which machine should host, in the part
     // the help line shows with Smooth on the row.
     const lanSync = rows.find(r => r.key === "lan_sync").description;

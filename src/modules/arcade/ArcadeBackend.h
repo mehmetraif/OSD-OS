@@ -955,11 +955,11 @@ private:
     QString networkGameLine(const libretro::NetplaySummary &summary) const;
     // The monitor a game is played on, "Turned Right" or "Turned Left" for
     // one on its side, which its picture is turned against: Settings →
-    // Screen → Monitor, a monitor that stays turned; else the game's own,
+    // Screen → Rotation, a monitor that stays turned; else the game's own,
     // from its options (monitorChoices()); else, for a vertical game,
     // Emulator Video → Vertical Games, a monitor turned for it.
     QString monitorFor(const QString &set) const;
-    // Settings → Screen → Monitor turned ("Turned Right", "Turned Left"), a
+    // Settings → Screen → Rotation turned ("Turned Right", "Turned Left"), a
     // monitor that stays turned; "" for Horizontal.
     QString screenMonitor() const;
     // A game's shape on the glass, its width over its height: FinalBurn

@@ -197,7 +197,7 @@ struct Launch {
     // core's on square ones; and its lines drawn whole where they fit.
     double  aspect = 0;
     bool    integerScale = false;
-    // Settings → Screen → Monitor on its side: the picture turned by so many
+    // Settings → Screen → Rotation on its side: the picture turned by so many
     // quarter turns anticlockwise (video_rotation) to stand upright on it,
     // 1 for a monitor turned right, 3 for one turned left; aspect is then
     // the turned picture's.

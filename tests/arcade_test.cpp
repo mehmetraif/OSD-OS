@@ -1203,7 +1203,7 @@ private slots:
     // cfg file for the game as it starts, the rest of the file kept, and kept
     // in games.json; and a vertical game's monitor (its options' Monitor),
     // which it plays with, Emulator Video → Vertical Games named as its
-    // default, Settings → Screen → Monitor turned going before it.
+    // default, Settings → Screen → Rotation turned going before it.
     void difficultyAndMonitor() {
         const QString module = QStringLiteral("com.osdos.arcade");
         const QString cfg = m_data.path() + QStringLiteral("/arcade/cfg/pacman.cfg");
@@ -1547,7 +1547,7 @@ private slots:
         const QVariantList fatal = played(arcade, QStringLiteral("sf2"));
         QCOMPARE(fatal.at(0).toInt(), 3);
         QCOMPARE(fatal.at(2).toString(), QStringLiteral("MAME stopped: Fatal error: Could not create OpenGL context\n"
-                                                        "Try another Video in the Arcade module's settings"));
+                                                        "Try another MAME Video in Settings → Arcade → Emulator Video"));
 
         // MAME killed by a signal says nothing of why.
         writeFile(m_games + QStringLiteral("/crash.zip"));
@@ -1556,7 +1556,7 @@ private slots:
         QCOMPARE(played(arcade, QStringLiteral("crash")),
                  QVariantList({ 11, QStringLiteral("failed"),
                                 QStringLiteral("MAME closed unexpectedly (signal 11)\n"
-                                               "Try another Video in the Arcade module's settings") }));
+                                               "Try another MAME Video in Settings → Arcade → Emulator Video") }));
         QFile::remove(m_games + QStringLiteral("/crash.zip"));
 
         QVERIFY(!arcade.play(QStringLiteral("gone")));

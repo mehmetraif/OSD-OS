@@ -287,7 +287,7 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `startup_from` | Play From | string: `"Resume"` or `"Beginning"` |
 | `cabinet_lock` | Cabinet Lock | string: `"On"` or `"Off"` |
 | `unlock_buttons` | Cabinet Lock → Unlock Buttons | array of one to four `{ "input", "name" }`. `input`: a pad's button by its player (`"p1/start"`, `"p2/dpup"`), or a key by its Qt key code (`"key/49"` for 1). `name`: what the page shows (`"P1 START"`) |
-| `monitor` | Monitor | string: `"Horizontal"`, `"Turned Right"`, `"Turned Left"` |
+| `monitor` | Rotation | string: `"Horizontal"`, `"Turned Right"`, `"Turned Left"` |
 | `smooth_playback` | 1080p Playback (Pi 3) | string: `"On"` or `"Off"` |
 | `video_scaling` | Scaling | string: `"Letterbox"`, `"14:9"`, `"Pan & Scan"`, `"Anamorphic"` |
 | `transparent_background` | Transparent Background | number, 0 to 100, or the string `"Off"`. `"On"` and `"Dim"` read as 0 and 60 |

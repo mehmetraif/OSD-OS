@@ -5,7 +5,7 @@ import Components
 // game they were opened for (offer()), whatever the list under them does
 // meanwhile: the host's own first (firstChoices: Play, Game Details), then
 // what is set for it, each chosen over the options (GameChoice): a vertical
-// game's monitor (while Settings → Screen → Monitor isn't turned), which it
+// game's monitor (while Settings → Screen → Rotation isn't turned), which it
 // is played and hosted with, its difficulty where MAME plays it with a DIP
 // switch for it, and its engine where MAME and FinalBurn Neo both have it;
 // with Online Play on, hosting it, and with LAN Play on, hosting it on the

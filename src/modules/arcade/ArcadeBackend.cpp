@@ -3303,7 +3303,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // Emulator Video: the picture over the whole screen (Fit to Screen), or
     // in its shape on the screen, its lines whole.
     launch.fill = m_fitScreen;
-    // A monitor on its side (Settings → Screen → Monitor, or for a vertical
+    // A monitor on its side (Settings → Screen → Rotation, or for a vertical
     // game Emulator Video → Vertical Games): the picture a quarter turn
     // against it, its shape on the screen the other way round.
     const QString turn = monitorFor(name);
@@ -4585,7 +4585,7 @@ QString ArcadeBackend::noticeFor(int exitCode, const QString &reason) const {
     if (m_launcher->lastRunCrashed()) {
         // Nothing MAME printed says why: it didn't get to.
         return QStringLiteral("MAME closed unexpectedly (signal %1)\n"
-                              "Try another Video in the Arcade module's settings").arg(exitCode);
+                              "Try another MAME Video in Settings → Arcade → Emulator Video").arg(exitCode);
     }
     switch (exitCode) {
     case kMissingFiles: {
@@ -4615,11 +4615,11 @@ QString ArcadeBackend::noticeFor(int exitCode, const QString &reason) const {
         if (line.isEmpty())
             return QStringLiteral("MAME closed with error %1").arg(exitCode);
         QString notice = QStringLiteral("MAME stopped: ") + line;
-        // MAME's picture: the module's Video setting may draw it another way.
+        // MAME's picture: Emulator Video's MAME Video may draw it another way.
         static const QRegularExpression video(QStringLiteral("opengl|bgfx|video|render|window|display|egl|drm"),
                                               QRegularExpression::CaseInsensitiveOption);
         if (video.match(line).hasMatch())
-            notice += QStringLiteral("\nTry another Video in the Arcade module's settings");
+            notice += QStringLiteral("\nTry another MAME Video in Settings → Arcade → Emulator Video");
         return notice;
     }
     }

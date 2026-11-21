@@ -91,7 +91,7 @@ FocusScope {
     readonly property bool takesCoin: !options.up && !typing && !adjusting
 
     // On a screen taller than it is wide (a monitor turned on its side for
-    // vertical games: Settings → Screen → Monitor), the whole of it, not the
+    // vertical games: Settings → Screen → Rotation), the whole of it, not the
     // stage's 4:3 band across its middle (Main.qml's root.portrait): the
     // screen is moved up by the band's place (transform below), and its own
     // design is 720 by 960, the picture and the box side by side above the
