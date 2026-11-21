@@ -286,6 +286,8 @@ A problem with the list shows under the tree, or on the screen itself when there
 
 A game that stutters on a Raspberry Pi: after each game the log has a line of what the Pi did during it, its CPU governor, its clock, its throttling, its highest temperature and, in a network game over Wi-Fi, the band, the signal and the radio's scans (`journalctl -u osdos -b | grep 'arcade: system during the game'`; [The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). Throttling there with a temperature near 80 °C asks for a heatsink or a fan; `under-voltage`, for a power supply made for the Pi. The screen after such a game says so once.
 
+A USB stick or pad that drops out, repeats or stops answering on the OSD/OS image, though it works on a computer: the image polls USB joysticks every millisecond (`usbhid.jspoll=1` in `cmdline.txt`), which a rare device doesn't take. Take ` usbhid.jspoll=1` out of `cmdline.txt` on the boot partition (**bootfs**, from any computer, keeping the rest on its one line) and restart the Pi.
+
 The module's and MAME's lines: `journalctl -u osdos -b | grep -E 'Arcade|Scripts|DisplayHandoff'`. RetroArch's log of the last FinalBurn Neo game is `~/.local/share/OSD-OS/arcade/retroarch/last.log`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
 
 ## High Scores

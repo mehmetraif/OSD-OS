@@ -99,7 +99,7 @@ OSD/OS starts as soon as systemd reaches `basic.target`. Wi-Fi, Bluetooth, the l
 ### Step by step
 
 1. **Firmware**: no splash (`disable_splash=1`), no pause (`boot_delay=0`).
-2. **Kernel**: quiet, logging to `tty3`: `console=tty3 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0` in `cmdline.txt`.
+2. **Kernel**: quiet, logging to `tty3`: `console=tty3 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0` in `cmdline.txt`, and `usbhid.jspoll=1`, which polls USB joysticks and pads the HID driver reads (an arcade stick's encoder) every millisecond rather than at the 8 or 10 ms many ask for. `cat /sys/module/usbhid/parameters/jspoll` says `1`.
 3. **`basic.target`**: `osdos.service` starts. `wait-for-display` holds it, five seconds at most, until the display driver has a connector.
 4. **The launcher** (`/usr/local/bin/osdos`) applies a staged update, picks the display, and starts the app.
 5. **The first frame**: the app writes `/run/osdos/ready`, after five seconds at the latest.

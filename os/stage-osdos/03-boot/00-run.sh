@@ -42,3 +42,12 @@ if ! grep -q 'vt.global_cursor_default=0' "${BOOT}/cmdline.txt"; then
 		-e 's/$/ quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0/' \
 		"${BOOT}/cmdline.txt"
 fi
+# USB joysticks and pads the kernel's HID driver reads (an arcade stick's
+# encoder among them) polled every millisecond instead of at the interval
+# they ask for, often 8 or 10 ms: up to that much less input delay on every
+# machine with one. Pads of xpad's are already at 1 to 4 ms. Added once, as
+# the line's other arguments are, and kept by whoever edits the line after
+# (raspi-config's Wi-Fi country adds its own beside it).
+if ! grep -q 'usbhid.jspoll=' "${BOOT}/cmdline.txt"; then
+	sed -i -e 's/$/ usbhid.jspoll=1/' "${BOOT}/cmdline.txt"
+fi
