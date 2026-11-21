@@ -1057,63 +1057,25 @@ Item {
     }
 
     // The orb's screen, 4:3, drawn at twice the design's size for the orb's
-    // picture (screen.frag): the game's pictures one after another, as the
-    // Arcade screen's frame shows them, each cut to the next once it is in; a
-    // screenshot fills the screen (a vertical game's 3:4, upright in the
-    // middle), one of another shape keeps its own. Without one, which file
-    // it would be, or that a set isn't a game; on a room, its game's name.
+    // picture (screen.frag): the game's pictures as the Arcade screen's frame
+    // shows them (GamePictures). Without one, which file it would be, or that
+    // a set isn't a game; on a room, its game's name.
     // A focus scope from the start, as Drawn is (a Texture's sourceItem).
     readonly property Item screen: FocusScope {
         id: screen
         width: 760
         height: 570
-        readonly property string wanted: arcadeScreen.pictures.length > 0
-                                         ? arcadeScreen.pictures[arcadeScreen.pictureIndex % arcadeScreen.pictures.length]
-                                         : ""
-        property Image shown: pictureA
-        readonly property Image behind: shown === pictureA ? pictureB : pictureA
-        onWantedChanged: showWanted()
-        Component.onCompleted: showWanted()
-        function showWanted() {
-            if (wanted === "") {
-                pictureA.source = ""
-                pictureB.source = ""
-            } else if (shown.source.toString() !== wanted) {
-                behind.source = wanted
-                takeOver(behind)
-            }
-        }
-        function takeOver(picture) {
-            if (picture === behind && picture.source.toString() === wanted
-                && (picture.status === Image.Ready || picture.status === Image.Error))
-                shown = picture
-        }
         Rectangle {
             anchors.fill: parent
             color: "#000000"
         }
-        readonly property real screenHeight: height
-        readonly property real screenWidth: arcadeScreen.details.vertical ? Math.round(screenHeight * 3 / 4) : width
-        component Picture: Image {
-            id: picture
-            readonly property real shape: implicitHeight > 0 ? implicitWidth / implicitHeight : 0
-            readonly property bool screenLike: shape === 0 || (arcadeScreen.details.vertical ? shape >= 0.55 && shape <= 1
-                                                                                             : shape >= 1 && shape <= 2)
-            visible: screen.shown === picture && status === Image.Ready
-            width: screenLike ? screen.screenWidth : Math.min(screen.screenWidth, Math.round(screen.screenHeight * shape))
-            height: screenLike ? screen.screenHeight : Math.min(screen.screenHeight, Math.round(screen.screenWidth / shape))
-            x: Math.round((screen.width - width) / 2)
-            y: Math.round((screen.height - height) / 2)
-            sourceSize.width: screen.screenWidth
-            sourceSize.height: screen.screenHeight
-            asynchronous: true
-            onStatusChanged: screen.takeOver(picture)
+        GamePictures {
+            id: pictures
+            anchors.fill: parent
+            screenWidth: arcadeScreen.details.vertical ? Math.round(height * 3 / 4) : width
         }
-        Picture { id: pictureA }
-        Picture { id: pictureB }
         Column {
-            visible: (screen.wanted === "" || screen.shown.status === Image.Error) && arcadeScreen.current !== null
-                     && arcadeScreen.filterId !== "search"
+            visible: pictures.noteShown
             anchors.centerIn: parent
             width: parent.width * 0.7
             spacing: 24
