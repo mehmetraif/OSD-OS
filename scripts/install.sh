@@ -152,9 +152,15 @@ fi
 # The app, stopped below for the release's swap, starts again as the script
 # ends, however it ends: on the new release, or on the one before.
 echo "Downloading ${TARBALL}..."
+# The release's folders unpacked for the swap go too, should the script end
+# before the swap begins: the launcher, which runs as the app's user, finds
+# none left in its way.
 TMP_DIR=$(mktemp -d)
 APP_WAS_RUNNING=""
-trap 'rm -rf "$TMP_DIR"; if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
+UNPACKED=""
+trap 'rm -rf "$TMP_DIR"
+      if [ -n "$UNPACKED" ]; then sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" || true; fi
+      if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
 
 curl -fsSL -o "${TMP_DIR}/${TARBALL}" "${DOWNLOAD_URL}"
 # Checked against the SHA-256 GitHub keeps for it before anything changes; a
@@ -197,18 +203,27 @@ if [ -d "${INSTALL_DIR}/.old" ]; then
     done
 fi
 sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
-sudo mkdir "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
-sudo tar -xzf "${TMP_DIR}/${TARBALL}" --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new"
+# The swap's folders the user's the app runs as from the start, and the
+# release unpacked into them as that user: an install cut short as it
+# unpacks (a power cut) leaves nothing the launcher, which applies in-app
+# updates as that user, can't clear. The tarball is read by this script, in
+# a folder of its own.
+UNPACKED=1
+sudo install -d -o "${OWNER_USER}" -g "$(id -gn "${OWNER_USER}")" "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
+sudo -u "${OWNER_USER}" tar -xzf - --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new" \
+    < "${TMP_DIR}/${TARBALL}"
 if [ ! -x "${INSTALL_DIR}/.new/bin/osdos" ]; then
-    sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
     echo "Error: ${TARBALL} has no bin/osdos; nothing was installed." >&2
     exit 1
 fi
-# All of it the user's the app runs as, the release there and the swap's
-# folders too: the launcher swaps in staged in-app updates without root, and
-# puts the release before back should the swap below be cut short.
+# All of it the user's the app runs as, the release there too: the launcher
+# swaps in staged in-app updates without root, and puts the release before
+# back should the swap below be cut short.
 sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
 sync -f "${INSTALL_DIR}" 2> /dev/null || sync
+# From here .old holds the release before, which the launcher puts back
+# should the swap be cut short: kept.
+UNPACKED=""
 for d in "${INSTALL_DIR}"/.new/*; do
     name=$(basename "$d")
     if [ -e "${INSTALL_DIR}/${name}" ]; then
@@ -299,8 +314,23 @@ fi
 if [ -w "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
 fi
+# One this user can't clear (left by an installer of old, cut short as it
+# unpacked as root): said, and no stage tried over it, which would fail
+# each time and be offered again for ever. The installer, run again,
+# clears it.
+STUCK=""
+for d in "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"; do
+    if [ -e "$d" ] && [ -w "$INSTALL_DIR" ]; then
+        STUCK="$d"
+        echo "osdos: $d, left by an install cut short, can't be cleared; run the installer again" >&2
+    fi
+done
 
-if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
+if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -n "$STUCK" ]; then
+    echo "$STUCK, left by an install cut short, can't be cleared; run the installer again" \
+        > "$UPDATES_DIR/staged.sha256.failed"
+    rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
+elif [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
     if ( cd "$UPDATES_DIR" && sha256sum -c --status staged.sha256 ); then
         STAGED_TARBALL=$(awk '{print $2}' "$UPDATES_DIR/staged.sha256")
         rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
