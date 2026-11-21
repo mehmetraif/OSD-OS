@@ -183,6 +183,15 @@ esac
 # from .old, never on half of each; and a file a release dropped (a module's
 # folder) doesn't live on under the new one. The app, if it runs, stops for the
 # swap rather than run on as half of each.
+# It is a copy of the launcher's, apart from it where root is needed: the
+# leftovers of a swap cut short are cleared whoever owns them (the launcher
+# can only say it can't); the folders are made, and the whole of
+# $INSTALL_DIR given, to the app's user, who may not own it yet; a tarball
+# without bin/osdos ends the script rather than being noted in
+# staged.sha256.failed; the tarball is the download checked against GitHub's
+# digest, not a stage; and the service is stopped and started around it.
+# The launcher is written after the release is in place, so it isn't there
+# to be called for it.
 echo "Extracting to ${INSTALL_DIR}..."
 if [ -f "${SYSTEMD_SERVICE}" ]; then
     if systemctl is-active --quiet osdos.service; then
