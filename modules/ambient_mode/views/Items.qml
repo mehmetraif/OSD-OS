@@ -210,7 +210,10 @@ FocusScope {
                 ScrolledText {
                     id: videoValueClip
                     width: Math.min(implicitWidth, root.sw * 0.35)
-                    height: parent.height
+                    // The track row's height, not the Row's: with one choice
+                    // and no arrows the Row is only this line, and its height
+                    // would come to nothing.
+                    height: videoTrackRow.height
                     on: focusRow === 0
                     elides: false
                     // The body is hidden with no videos, but still bound.
@@ -270,7 +273,7 @@ FocusScope {
                 ScrolledText {
                     id: audioValueClip
                     width: Math.min(implicitWidth, root.sw * 0.35)
-                    height: parent.height
+                    height: audioTrackRow.height
                     on: focusRow === 1
                     elides: false
                     text: audioShuffleSelected ? "SHUFFLE"

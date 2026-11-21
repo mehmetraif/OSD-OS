@@ -2996,6 +2996,45 @@ StandInRoot {
             root.hints = root.keyboardHints
         }
 
+        // A row with one choice shows that choice, without ◄ ►: one video
+        // and no music, VIDEO shows the video's name and AUDIO VIDEO AUDIO,
+        // each line as tall as its row; a second video brings the arrows.
+        function test_ambientPickerOneChoiceShown_data() {
+            return [{ tag: "one video", videos: 1, arrows: false },
+                    { tag: "two videos", videos: 2, arrows: true }]
+        }
+        function test_ambientPickerOneChoiceShown(data) {
+            ambientModeBackend.videos = [{ name: "Fireplace", path: "/ambient/Fireplace.mp4" },
+                                         { name: "Rain", path: "/ambient/Rain.mp4" }].slice(0, data.videos)
+            ambientModeBackend.audios = []
+            var view = open("ambient_mode", "Items.qml", {})
+            var line = function(item, text) {
+                if (item.textItem !== undefined && item.text === text)
+                    return item
+                for (var i = 0; i < item.children.length; i++) {
+                    var found = line(item.children[i], text)
+                    if (found)
+                        return found
+                }
+                return null
+            }
+            var arrows = function(item) {
+                var n = item.text === "►" && item.visible ? 1 : 0
+                for (var i = 0; i < item.children.length; i++)
+                    n += arrows(item.children[i])
+                return n
+            }
+            for (var name of ["Fireplace", "VIDEO AUDIO"]) {
+                var value = line(view, name)
+                verify(value !== null, name)
+                verify(value.visible, name)
+                compare(value.height, root.menuRowHeight, name)
+                verify(value.textItem.height > 0 && value.textItem.y >= 0
+                       && value.textItem.y + value.textItem.height <= value.height, name)
+            }
+            compare(arrows(view), data.arrows ? 1 : 0)
+        }
+
         // An empty media folder says so, naming the setting that picks it as
         // the module's settings page does: Media Folder.
         function test_emptyMediaFolderNamesItsSetting_data() {
