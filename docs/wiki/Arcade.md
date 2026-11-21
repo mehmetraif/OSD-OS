@@ -390,7 +390,7 @@ Names, years, makers, players and systems come from MAME. Those of a set only Fi
 
 **Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs**, the page's first row, the cursor on it, which shows how far it has got: nothing starts it by itself. What the last check found is under it. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`). Started while the games are still being read, it waits for that too, and then checks them all.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: Last Check Never, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row">
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: the Check ROMs row first with the cursor on it, then Last Check Never and the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games">
 
 The page counts the games: **Complete** (whole for every engine that knows them), **FinalBurn Neo Only** and **MAME Only** (whole for one engine), **Incomplete** (whole for neither) and **Not Checked**. What the check found is used at once:
 

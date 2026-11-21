@@ -182,7 +182,7 @@ Settings → Arcade → **LAN Play** and **Online Play**: up to six players acro
 
 <table>
 <tr><th width="50%">Check ROMs</th><th width="50%">Cabinet Lock</th></tr>
-<tr><td><img src="screenshots/check-roms.png" width="100%" alt="Settings → Arcade → Check ROMs: Last Check, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row" /></td><td><img src="screenshots/cabinet-lock.png" width="100%" alt="Settings → Startup → Cabinet Lock: the lock and the buttons that open it" /></td></tr>
+<tr><td><img src="screenshots/check-roms.png" width="100%" alt="Settings → Arcade → Check ROMs: the Check ROMs row first with the cursor on it, then Last Check and the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games" /></td><td><img src="screenshots/cabinet-lock.png" width="100%" alt="Settings → Startup → Cabinet Lock: the lock and the buttons that open it" /></td></tr>
 <tr><td>Started only from here: whether every game's files are whole, for MAME and for FinalBurn Neo. Each game then plays in the engine that has its files.</td><td>Settings → Startup → Cabinet Lock keeps a cabinet on the Arcade screen for the players; the menus open only with up to four buttons of your choosing held together.</td></tr>
 </table>
 
