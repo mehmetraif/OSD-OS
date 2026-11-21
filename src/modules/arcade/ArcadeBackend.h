@@ -1070,6 +1070,11 @@ private:
     // game, is running (mameMayRun()); one that waited for MAME's answers
     // starts.
     void resumeRomCheck();
+    // MAME let run again after a game, MAME's download or a game that didn't
+    // start: the sets it was still to be asked about, held meanwhile, then a
+    // check's. Neither while MAME may not run (mameMayRun()), which goes on
+    // with both once that ends.
+    void resumeMame();
     void romCheckDone(const romcheck::Results &results);
     // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
     // once the games have been read, then gone (takeSetupFavorites()); kept

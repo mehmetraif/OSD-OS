@@ -386,12 +386,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         m_lan->releaseClaimed();
         m_playing.clear();
         emit finished(exitCode, reason, notice);
-        // The sets MAME was still to be asked about, held while it played;
-        // then a check's. Not while MAME downloads (mameMayRun()), which
-        // goes on with both once it ends.
-        if (!m_scan && !m_toAsk.isEmpty())
-            scanNext();
-        resumeRomCheck();
+        resumeMame();
     });
     m_netplayWatch = new QTimer(this);
     m_netplayWatch->setInterval(kNetplayWatchMs);
@@ -450,9 +445,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                 m_toAsk.clear();
             refresh();
         }
-        else if (!m_scan && !m_toAsk.isEmpty())
-            scanNext();
-        resumeRomCheck();
+        resumeMame();
         emit mameChanged();
     });
 
@@ -1972,6 +1965,12 @@ void ArcadeBackend::resumeRomCheck() {
         m_romCheck->resume();
 }
 
+void ArcadeBackend::resumeMame() {
+    if (!m_scan && !m_toAsk.isEmpty())
+        scanNext();
+    resumeRomCheck();
+}
+
 void ArcadeBackend::romCheckDone(const romcheck::Results &results) {
     m_roms = results;
     int complete = 0;
@@ -2605,9 +2604,7 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     QString error;
     if (!m_launcher->start(entry, &error)) {
         m_lastError = error;
-        if (!m_scan && !m_toAsk.isEmpty())
-            scanNext();
-        resumeRomCheck();
+        resumeMame();
         return false;
     }
     m_playing = name;
@@ -3333,9 +3330,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
         if (m_account->takeBack())
             QFile::remove(launch.config);
         m_lan->stopClaims();
-        if (!m_scan && !m_toAsk.isEmpty())
-            scanNext();
-        resumeRomCheck();
+        resumeMame();
         return false;
     }
     m_playing = name;
@@ -3492,9 +3487,7 @@ void ArcadeBackend::startPendingJoin(const std::optional<libretro::PortRange> &p
     emit finished(1, QStringLiteral("failed_to_start"), m_lastError);
     // What MAME was held back from while it waited (mameMayRun()), as after
     // a game.
-    if (!m_scan && !m_toAsk.isEmpty())
-        scanNext();
-    resumeRomCheck();
+    resumeMame();
 }
 
 void ArcadeBackend::setLanDiscovery(const QString &address, quint16 port) {
