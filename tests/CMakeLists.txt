@@ -59,6 +59,11 @@ osdos_cpp_test(install_hint)
 # The small files the app reads whole, and its JSON told apart from a file
 # that isn't there and one that is broken (util/FileText.h).
 osdos_cpp_test(file_text)
+# The signals that end the app (SIGTERM, SIGINT, SIGHUP), handled from the
+# event loop with nothing polling for them (util/TermSignals).
+if(NOT WIN32)
+    osdos_cpp_test(term_signals SOURCES ../src/util/TermSignals.cpp)
+endif()
 
 # The 7z extractor (the LZMA SDK's decoder, built in as in the app) on
 # archives made with py7zr (data/arcade/*.7z): what is in them, taken out
@@ -504,6 +509,7 @@ osdos_qml_test(media_players_views tst_media_players.qml)
 find_package(SDL2 CONFIG REQUIRED)
 osdos_cpp_test(controllers
     SOURCES ../src/input/InputManager.cpp ../src/input/ControllerProfile.cpp ../src/input/JammaPins.cpp
+            ../src/input/IdleTracker.cpp
     LIBRARIES osdos_test_core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network SDL2::SDL2
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)
 

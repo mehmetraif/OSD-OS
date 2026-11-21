@@ -142,6 +142,7 @@ add_executable(osdos
     src/util/FontconfigOverride.cpp
     src/util/Diagnostics.cpp
     src/util/LogFile.cpp
+    src/util/TermSignals.cpp
     src/util/SetupFile.cpp
     src/util/SetupExport.cpp
     src/util/SetupExporter.cpp

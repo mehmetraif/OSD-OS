@@ -116,6 +116,11 @@ public:
 public:
     static QString allKeys();
 
+    // How often the pads are polled now (0 while they are let go of for a
+    // game): at a pad's rate with one connected, else only often enough to
+    // notice one plugged in (pollInterval()).
+    int pollIntervalMs() const { return m_pollTimer.isActive() ? m_pollTimer.interval() : 0; }
+
     // One controller's page: { key, name, kind, present, count, labels,
     // labelsInUse, labelStyles, jamma, arcade, players, player, rows }; labels
     // the style chosen ("auto"...), labelsInUse the one shown (a pad's, by its
@@ -588,6 +593,10 @@ private:
     void settleAfterHandoff(SDL_JoystickID which);
 
     QTimer m_pollTimer;
+    // The poll's interval for the pads connected now, and the poll set to it
+    // while it runs.
+    int pollInterval() const;
+    void followPadsInPoll();
     QTimer m_repeatDelayTimer;
     QTimer m_repeatTimer;
     QFileSystemWatcher m_watcher;

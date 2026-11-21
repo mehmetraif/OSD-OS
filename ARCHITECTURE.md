@@ -62,6 +62,7 @@ osd-os/
       MpvSocket.h                   # the control connection to each of the app's mpvs: tried until mpv makes its socket, a command a line of its JSON
       Diagnostics.h/.cpp            # crash and stall reports, memory in the log, malloc kept from hoarding
       LogFile.h/.cpp                # Windows: the log in osdos.log in the data folder, the app being a windowed program
+      TermSignals.h/.cpp            # SIGTERM, SIGINT and SIGHUP handled from the event loop, so destructors run: a pipe the loop watches (a 100 ms poll on Windows)
       FileNames.h                   # safeFileName(): a name every filesystem takes (exFAT's rules)
       PositionHistory.h             # where a module's videos were stopped (Local Files', the NFC Reader's, YouTube's)
       PlaybackOptions.h             # the playback settings' choices Local Files and the NFC Reader share
@@ -646,7 +647,7 @@ All input arrives in QML as **ordinary key events** — views bind `Keys.onPress
 
 ### How it works
 
-1. **SDL2 GameController** — `SDL_Init(SDL_INIT_GAMECONTROLLER)` only (no video subsystem, so it works headless under EGLFS). A 16 ms `QTimer` on the main thread polls SDL events: hotplug (`CONTROLLERDEVICEADDED/REMOVED`), buttons, and axes. SDL's built-in controller database normalizes most pads to a standard layout, so defaults "should" work out of the box. The `SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS` hint keeps controller input flowing while mpv's window holds OS focus during playback. When an arcade game takes the screen, the open pads are closed for the game's SDL and reopened when the display returns ([Input survives a display hand-off](#input-survives-a-display-hand-off)).
+1. **SDL2 GameController** — `SDL_Init(SDL_INIT_GAMECONTROLLER)` only (no video subsystem, so it works headless under EGLFS). A `QTimer` on the main thread polls SDL events: hotplug (`CONTROLLERDEVICEADDED/REMOVED`), buttons, and axes, every 16 ms while a pad is connected and every 250 ms while none is, which is as often as it takes to notice one plugged in (`pollInterval()`; `pollIntervalMs()` says which, 0 while the pads are let go of for a game). SDL's built-in controller database normalizes most pads to a standard layout, so defaults "should" work out of the box. The `SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS` hint keeps controller input flowing while mpv's window holds OS focus during playback. When an arcade game takes the screen, the open pads are closed for the game's SDL and reopened when the display returns ([Input survives a display hand-off](#input-survives-a-display-hand-off)).
 2. **Buttons → actions → key events** — each SDL input maps to one of seven named actions below, and each action synthesizes one Qt key. Button identities are **positional** (`SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS` is forced off so pads that print A on the right behave the same): `a` is always the south face button and input.cfg accepts `south`/`east`/`west`/`north` aliases to try to make it easier to wrap my head around =)
 
    | Action | Qt key | Default binding |
@@ -1244,7 +1245,7 @@ What it draws (the line, the keys, the hint bar) is made as it first shows, by `
 
 ### ScreenSaver (`views/Components/ScreenSaver.qml`)
 
-The screen saver: black over everything, the logo bouncing round it. `Main.qml` shows it (`shown: root.screenSaverActive`) once `idleTracker` says nothing was pressed for Settings → Screen → Screen Saver's seconds, and puts it away (`dismissScreenSaver()`) at the next key, which is spent on that alone (`woken()`), as the mouse moves, or when a video or a script takes the screen.
+The screen saver: black over everything, the logo bouncing round it. `Main.qml` shows it (`shown: root.screenSaverActive`) once `idleTracker` says nothing was pressed for Settings → Screen → Screen Saver's seconds (its second's tick runs only while it counts: the saver on, nothing holding it off, not up already), and puts it away (`dismissScreenSaver()`) at the next key, which is spent on that alone (`woken()`), as the mouse moves, or when a video or a script takes the screen.
 
 The keys are its own while it is up, whatever opens under it. A view's question asked meanwhile (the update's install question, as its download ends) or a notice loaded meanwhile takes the keys as it opens (`forceActiveFocus()` gives them to every scope above it, the views' loader too); the saver takes them straight back (`onFocusChanged`), or the next key would answer a question nobody can see, and the saver would stay up with no key left to wake it. As it goes it hands the keys to whoever has them under it, the first of `keysTo` there is: in `Main.qml` the window asking to keep a display output, OSD/OS Setup's notice, the boot screen, then the views' loader, and through it the question open in a view. A notice shown at startup can so be answered after the saver has come and gone; the keys used to go to the view under it. Ctrl+Q that comes as one key is its host's (`quitAsked()`).
 

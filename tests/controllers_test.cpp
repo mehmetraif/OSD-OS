@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "input/ControllerProfile.h"
 #include "input/InputManager.h"
+#include "input/IdleTracker.h"
 #include "input/JammaPins.h"
 
 #include <QElapsedTimer>
@@ -2625,6 +2626,74 @@ private slots:
         QCOMPARE(player(im, 2).value("key").toString(), twins);
         QCOMPARE(SDL_JoystickGetPlayerIndex(twin1.joystick), 0);
         QCOMPARE(SDL_JoystickGetPlayerIndex(twin2.joystick), 1);
+    }
+
+    // With no pad connected the pads are polled four times a second, only to
+    // notice one plugged in, and at a pad's rate (every 16 ms) from then on,
+    // back to four times a second once it goes. Let go of for a game, they
+    // aren't polled; opened again, at the rate for the pads there.
+    void padPollFollowsThePads() {
+        AppCore core(m_app.path(), m_data.path());
+        InputManager im(m_data.path(), &core);
+        QCOMPARE(im.pollIntervalMs(), 250);
+        QSignalSpy changed(&im, &InputManager::controllersChanged);
+        VirtualPad pad;
+        QVERIFY(pad.attach("OSD/OS Poll Pad", 0x1209, 0x00ac));
+        // Noticed within the idle poll's while.
+        QTRY_VERIFY_WITH_TIMEOUT(entry(im, "OSD/OS Poll Pad").value("present").toBool(), 400);
+        QCOMPARE(im.pollIntervalMs(), 16);
+
+        im.releaseJoysticksForHandoff();
+        QCOMPARE(im.pollIntervalMs(), 0);
+        im.reclaimJoysticksAfterHandoff();
+        QTRY_VERIFY(entry(im, "OSD/OS Poll Pad").value("present").toBool());
+        QCOMPARE(im.pollIntervalMs(), 16);
+
+        pad.detach();
+        QTRY_VERIFY(!entry(im, "OSD/OS Poll Pad").value("present").toBool());
+        QCOMPARE(im.pollIntervalMs(), 250);
+
+        // None there as the pads are opened again: polled as there are none.
+        im.releaseJoysticksForHandoff();
+        im.reclaimJoysticksAfterHandoff();
+        QTRY_COMPARE(im.pollIntervalMs(), 250);
+        // And a pad plugged in then is noticed as at the start.
+        VirtualPad again;
+        QVERIFY(again.attach("OSD/OS Poll Pad", 0x1209, 0x00ac));
+        QTRY_VERIFY_WITH_TIMEOUT(entry(im, "OSD/OS Poll Pad").value("present").toBool(), 400);
+        QCOMPARE(im.pollIntervalMs(), 16);
+        again.detach();
+        QTRY_COMPARE(im.pollIntervalMs(), 250);
+    }
+
+    // The screen saver's idle count (IdleTracker) ticks only while it counts:
+    // the saver on, nothing holding it off (a video, a script, a view of its
+    // own), and not up yet. It comes up after its seconds as before.
+    void idleTrackerTicksOnlyWhileItCounts() {
+        IdleTracker idle(2);
+        QVERIFY(!idle.counting());          // off until the setting is applied
+        idle.setEnabled(true);
+        QVERIFY(idle.counting());
+        idle.setMpvActive(true);
+        QVERIFY(!idle.counting());
+        idle.setMpvActive(false);
+        QVERIFY(idle.counting());
+        idle.setViewActive(true);
+        idle.setScriptActive(true);
+        idle.setViewActive(false);
+        QVERIFY(!idle.counting());
+        idle.setScriptActive(false);
+        QVERIFY(idle.counting());
+        QSignalSpy up(&idle, &IdleTracker::activeChanged);
+        QTRY_VERIFY_WITH_TIMEOUT(idle.isActive(), 3500);
+        QVERIFY(!idle.counting());          // up: nothing more to count
+        idle.resetActivity();
+        QVERIFY(!idle.isActive());
+        QVERIFY(idle.counting());
+        idle.setEnabled(false);
+        QVERIFY(!idle.counting());
+        QTest::qWait(2500);
+        QVERIFY(!idle.isActive());
     }
 
     // A display hand-off closes every SDL pad so RetroArch/MAME can open

@@ -58,6 +58,12 @@ constexpr int kCaptureHoldMs = 1500;
 // (captureControllers()): the page ends it first, unless it has gone without.
 constexpr int kCaptureSlackMs = 2000;
 
+// The pads are read this often while one is connected (about 60 times a
+// second, as a frame), and with none only as often as it takes to notice one
+// plugged in: SDL finds it as the poll pumps its events.
+constexpr int kPadPollMs  = 16;
+constexpr int kIdlePollMs = 250;
+
 // Held-direction auto-repeat, tuned to feel like keyboard repeat in lists.
 constexpr int kRepeatDelayMs    = 400;
 constexpr int kRepeatIntervalMs = 100;
@@ -357,7 +363,7 @@ void InputManager::initSdl() {
 
     // SDL emits CONTROLLERDEVICEADDED for already-connected pads on init,
     // so the poll loop handles initial enumeration and hotplug identically.
-    m_pollTimer.start(16);
+    m_pollTimer.start(pollInterval());
     qInfo("[input] SDL game-controller subsystem ready");
 }
 
@@ -384,6 +390,17 @@ void InputManager::pollSdl() {
     }
 }
 
+int InputManager::pollInterval() const {
+    return m_controllers.isEmpty() ? kIdlePollMs : kPadPollMs;
+}
+
+// A pad connected, or the last one gone: the poll at its rate from now on.
+// Not started by it while the pads are let go of for a game.
+void InputManager::followPadsInPoll() {
+    if (m_pollTimer.isActive() && m_pollTimer.interval() != pollInterval())
+        m_pollTimer.start(pollInterval());
+}
+
 void InputManager::openController(int deviceIndex) {
     SDL_GameController *gc = SDL_GameControllerOpen(deviceIndex);
     if (!gc) {
@@ -407,6 +424,7 @@ void InputManager::openController(int deviceIndex) {
     m_padKeys.insert(id, controllers::sharedPadKey(own, name, m_profiles));
     rebuildPad(id);
     logPadAdded(id, guid, own);
+    followPadsInPoll();
     recomputeSuppressedDevices();
     updatePlayers();
     emit controllersChanged();
@@ -422,6 +440,7 @@ void InputManager::closeController(SDL_JoystickID instanceId) {
     m_pads.remove(instanceId);
     m_padKeys.remove(instanceId);
     m_lateAfterHandoff.remove(instanceId);
+    followPadsInPoll();
 
     letGoOfPad(instanceId);
     recomputeSuppressedDevices();   // built-in may have unplugged → unsuppress
@@ -511,7 +530,7 @@ void InputManager::finishReclaimJoysticks() {
         if (m_padsReportLate || reportsLate(SDL_GameControllerGetJoystick(it.value())))
             m_lateAfterHandoff.insert(it.key(), now + kHandoffReportMs);
     }
-    m_pollTimer.start(16);
+    m_pollTimer.start(pollInterval());
     qInfo("[input] joysticks reclaimed after display hand-off: %d opened in %lld ms, %d reporting late",
           int(m_controllers.size()), qint64(opening.elapsed()), int(m_lateAfterHandoff.size()));
 }
