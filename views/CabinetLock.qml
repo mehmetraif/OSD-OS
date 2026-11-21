@@ -39,7 +39,7 @@ FocusScope {
     readonly property var rows: [
         // On with no module to stay on, it locks nothing, and says so.
         { key: "lock", label: "Cabinet Lock", value: !lockOn ? "Off" : homeName !== "" ? "On" : "On (No Module)",
-          description: "Keeps OSD/OS on its Start on Module" + (homeName !== "" ? ", " + homeName : "")
+          description: "Keeps OSD/OS on its Start On module" + (homeName !== "" ? ", " + homeName : "")
                        + ": back there goes nowhere, and the main menu, Settings and Quit open only with the unlock"
                        + " buttons held together for three seconds, until OSD/OS starts again or they are held again" },
         { key: "buttons", label: "Unlock Buttons", value: buttons !== "" ? buttons : "None",
@@ -72,8 +72,8 @@ FocusScope {
             return
         }
         if (homeName === "") {
-            notice.promptText = "No Start on Module"
-            notice.subtitleText = "Choose the module the cabinet stays on in Settings → Startup → Start on Module first"
+            notice.promptText = "No Start On module"
+            notice.subtitleText = "Choose the module the cabinet stays on in Settings → Startup → Start On first"
             notice.open()
             return
         }

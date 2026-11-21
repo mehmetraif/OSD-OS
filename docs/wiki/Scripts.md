@@ -111,7 +111,7 @@ A script with `favorite = yes` (or marked with ► in the list) gets its own row
 
 - At start, OSD/OS opens Scripts and runs the script without asking, even with `confirm = yes`.
 - If the script no longer exists, the Scripts list opens instead.
-- A favourite chosen with **Play at Startup** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)) comes before Start on Module.
+- A favourite chosen with **Play at Startup** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)) comes before Start On.
 - The setting stores the script's file name, not its path.
 
 ## What a script receives

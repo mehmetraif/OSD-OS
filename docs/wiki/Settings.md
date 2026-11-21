@@ -37,7 +37,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 | Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if they look grey | `app.video_output_levels` |
 | 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: smooth 1080p; 14:9 and Pan & Scan show the whole picture, and the deck menu has no CROP. **Off**: cropping works, 1080p stutters | `app.smooth_playback` |
 | Loading Effect | On, Off | On | A tape's noise and tracking bands on the loading screen | `app.loading_effect` |
-| Loading Screen Colors | Theme, Default | Theme | The loading screen in the theme's or colour scheme's colours, or white on blue | `app.loading_colors` |
+| Loading Colors | Theme, Default | Theme | The loading screen in the theme's or colour scheme's colours, or white on blue | `app.loading_colors` |
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | A logo in a corner of the picture while a video plays | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
 | Logo Image | OSD/OS Logo, or a PNG, JPG, JPEG, SVG, GIF, BMP or WebP picked on the file browser | OSD/OS | Your own picture as the channel logo, as tall as OSD/OS's. A PNG with a clear background works best. Only while Channel Logo isn't Off | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
 | Video Arguments | Default, or a line typed on the on-screen keyboard | Default | For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)). From the next video | `app.mpv_video_args` |
@@ -56,7 +56,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 
 **The file browser** that Music File and Logo Image open is Local Files' tree. At its top is the default (**No File**, **OSD/OS Logo**), then **Home**, **Media** (`/media`), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`); on Windows, in Root's place, each drive by its letter (**C:**, **D:**).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: 1080p Playback dimmed, Loading Effect, Loading Screen Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: 1080p Playback dimmed, Loading Effect, Loading Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
 
 ### The video modules
 
@@ -70,7 +70,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 
 `SETTINGS | LOOK`. A theme sets the part rows: Color Scheme, Skin, the effects and Menu Music.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, WINDOW FRAME dimmed, BOOT SCREEN COLORS THEME" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, WINDOW FRAME dimmed, BOOT COLORS THEME" />
 
 - **THEME** in a part row (saved as `""`) means the theme's. **Off** (saved as `"Off"`) means none. A choice of its own (saved by its name) replaces the theme's.
 - Choosing a theme sets every part row back to THEME.
@@ -87,7 +87,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How the menus are laid out: Settings, the main menu and the pages and modules opened from them ([below](#menu-layout)) | `app.menu_layout` |
 | OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Window**: a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
 | Window Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Window | `app.osd_frame` |
-| Boot Screen Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors` |
+| Boot Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors` |
 | Hint Bar | On, Off | On | The key hints at the foot of every screen. Off gives every menu a row more; the keys work as before | `app.hint_bar` |
 | Help Line | On, Off | On | The line about the selected row under a menu. Off hides it everywhere but About | `app.help_line` |
 | Status Icons | On, Off | On | What is on, at the right end of every title bar ([below](#status-icons)) | `app.status_icons` |
@@ -330,20 +330,20 @@ Problems are in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Trou
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Start on Module | None, then each module that is turned on, by name | None | Opens that module straight after start. A module turned off later is never opened | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
-| Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start on Module. Choose it in its module (► on the entry, then **Play at Startup**); here you can only turn it off | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
+| Start On | None, then each module that is turned on, by name | None | Opens that module straight after start. A module turned off later is never opened | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
+| Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start On. Choose it in its module (► on the entry, then **Play at Startup**); here you can only turn it off | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
 | Startup From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite of Local Files' or YouTube's, whose players resume | `app.startup_from` |
-| Cabinet Lock | A page: On, Off | Off | Keeps OSD/OS on Start on Module's module ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
+| Cabinet Lock | A page: On, Off | Off | Keeps OSD/OS on Start On's module ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
 
-The Scripts module's **Auto-Run On Startup** needs Start on Module set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
+The Scripts module's **Auto-Run On Startup** needs Start On set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
 
 ### Cabinet Lock
 
-Cabinet Lock keeps OSD/OS on Start on Module's module, such as a cabinet's Arcade screen. The main menu, Settings and Quit open only with the unlock buttons.
+Cabinet Lock keeps OSD/OS on Start On's module, such as a cabinet's Arcade screen. The main menu, Settings and Quit open only with the unlock buttons.
 
 | Row | What it does |
 |---|---|
-| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**. It needs a Start on Module and unlock buttons. On with no module to stay on any more (Start on Module set to None since, or its module turned off) it locks nothing, and the row reads **On (No Module)** |
+| Cabinet Lock | ◄ ► or select turn it on or off. On asks first, **Lock the cabinet?**. It needs a Start On and unlock buttons. On with no module to stay on any more (Start On set to None since, or its module turned off) it locks nothing, and the row reads **On (No Module)** |
 | Unlock Buttons | Select, then hold one to four buttons together for two seconds, of any pads and keyboards. The window names them as they are held (`P1 START + P2 START`). Letting go of everything cancels: after ten seconds with nothing held the old ones are kept, and the window says so and counts the seconds (`STOPS BY ITSELF IN 9`) |
 
 <table>
@@ -483,7 +483,7 @@ All fourteen modules have settings, defined in their `manifest.json` ([Writing a
 
 Every module's first row is **Enabled**, saved as `modules.<module id>.enabled`, `true` or `false`. A module's row under **MODULES** on TV / Movie's and System's pages shows it too (`PLEX ····· OFF ►`): ◄ ► turn the module on and off there, and select opens its settings. In Broadcast and Flat Panel, which change a value in two steps, ► and select open its settings, where Enabled is.
 
-- A module turned off is left off the main menu, can't be chosen in Start on Module, and an NFC card can't hand off to it.
+- A module turned off is left off the main menu, can't be chosen in Start On, and an NFC card can't hand off to it.
 - By default only **Local Files** and **Playlists** are on.
 - The main menu picks up a change the next time you go back to it.
 

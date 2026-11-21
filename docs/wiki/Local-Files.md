@@ -177,7 +177,7 @@ With **Hide File Extensions** on (the default), the tree shows `Terminator 2 (19
 | Option | What it does |
 |---|---|
 | **Add to Favorites** / **Remove from Favorites** | Puts the file on Favorites, or takes it off. Taking off the file that plays at startup turns Play at Startup off too |
-| **Play at Startup** / **Don't Play at Startup** | Makes the file the one OSD/OS plays as it starts, ahead of Start on Module. It goes on Favorites too. There is one for the whole app |
+| **Play at Startup** / **Don't Play at Startup** | Makes the file the one OSD/OS plays as it starts, ahead of Start On. It goes on Favorites too. There is one for the whole app |
 | **Add to Playlist** | Puts the file on a [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) list, or on a new one. Offered while the Playlists module is on |
 
 [Using OSD/OS → Play at startup](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#play-at-startup) has the Startup settings.

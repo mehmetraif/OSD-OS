@@ -43,7 +43,7 @@ function firstRows(items) {
     var network = groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes")
     network.unavailable = networkOff()
     items.push(network)
-    items.push(groupRow("startup", "What OSD/OS opens on: Start on Module, Play at Startup and Cabinet Lock"))
+    items.push(groupRow("startup", "What OSD/OS opens on: Start On, Play at Startup and Cabinet Lock"))
     items.push(groupRow("system", "OSD/OS Setup's settings pasted, Update, About, and the settings of the modules of no group"))
     // On the OSD/OS image (autostart) a power menu, and named so.
     items.push({ type: "quit", label: settingsRoot.autostartSession ? "Power" : "Quit",
@@ -206,7 +206,7 @@ function lookRows(items) {
     items.push({
         type: "list_single",
         key: "boot_colors",
-        label: "Boot Screen Colors",
+        label: "Boot Colors",
         options: ["Theme", "Default"],
         value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
         description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
@@ -262,7 +262,7 @@ function effectRows(items) {
     text.unavailable = noGpu
     items.push(text)
     var background = partRow("background_effect", "Background Effect", Object.keys(root.backgroundPresets), true,
-        "What goes on behind the menus, in the window, on the GPU\n[THEME] The theme's  [MATRIX] A rain of glyphs  [FIRE] Pixel flames burning up from under the window  [STARS] A starfield drifting by  [SNOW] Snow falling  [CHECKERED FLAG] A racing flag waving in the window  [PLASMA] An old demo's plasma drifting, dithered in pixels")
+        "What goes on behind the menus, in the window, on the GPU\n[THEME] The theme's  [MATRIX] A rain of glyphs  [FIRE] Pixel flames burning up from under the window  [STARS] A starfield drifting by  [SNOW] Snow falling  [FLAG] A racing flag waving in the window  [PLASMA] An old demo's plasma drifting, dithered in pixels")
     background.unavailable = noGpu
     items.push(background)
     items.push(partRow("selector_effect", "Selector Effect", root.selectorPresets, true,
@@ -553,7 +553,7 @@ function startupRows(items) {
     items.push({
         type: "list_single",
         key: "startup_module",
-        label: "Start on Module",
+        label: "Start On",
         options: moduleOpts,
         values: moduleVals,
         value: startModuleName(),
@@ -613,8 +613,8 @@ function cabinetLockRow() {
         page: "views/CabinetLock.qml",
         label: "Cabinet Lock",
         value: !on ? "Off" : idle ? "On (No Module)" : "On",
-        description: (idle ? "Locks nothing now: there is no Start on Module to stay on\n" : "")
-                     + "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
+        description: (idle ? "Locks nothing now: there is no Start On module to stay on\n" : "")
+                     + "Keeps OSD/OS on its Start On module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
         moduleId: ""
     }
 }
@@ -816,7 +816,7 @@ function videoRows(items) {
     items.push({
         type: "list_single",
         key: "loading_colors",
-        label: "Loading Screen Colors",
+        label: "Loading Colors",
         options: ["Theme", "Default"],
         value: appSettings["loading_colors"] === "Default" ? "Default" : "Theme",
         description: "The colours of the screen a video loads behind\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
@@ -948,9 +948,14 @@ function lookRow(key, label, none, looks, description, saved) {
 // is then. A saved value that isn't among the choices (a custom scheme
 // removed since, an effect this system can't draw) shows as what is
 // drawn in its place (partInForce()), not as the row's first choice.
+// A choice shown by a shorter name than it is saved by, so that its row
+// shows it whole beside its label in Camcorder's narrower lines.
+function shortName(name) {
+    return ({ "Checkered Flag": "Flag", "SMPTE ECR 1-1978": "SMPTE ECR" })[name] || name
+}
 function partRow(key, label, choices, off, description) {
     var themed = !!appSettings["osd_theme"]
-    var options = (themed ? ["Theme"] : []).concat(off ? ["Off"] : [], choices)
+    var options = (themed ? ["Theme"] : []).concat(off ? ["Off"] : [], choices.map(shortName))
     var values = (themed ? [""] : []).concat(off ? ["Off"] : [], choices)
     var saved = appSettings[key] === undefined ? "" : String(appSettings[key])
     var at = values.indexOf(saved)

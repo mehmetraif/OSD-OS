@@ -282,7 +282,7 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `menu_music_volume` | Music Volume | number, 0 to 100 |
 | `osd_background`, `osd_frame` | OSD Background, Window Frame | string |
 | `menu_layout` | Menu Layout | string: `"Standard"`, `"Camcorder"`, `"Studio Monitor"`, `"Broadcast"`, `"Flat Panel"` |
-| `startup_module` | Start on Module | string: a module id, or `"None"` |
+| `startup_module` | Start On | string: a module id, or `"None"` |
 | `startup_favorite` | Play at Startup | object `{ "module", "path", "name" }`, or `""` |
 | `startup_from` | Startup From | string: `"Resume"` or `"Beginning"` |
 | `cabinet_lock` | Cabinet Lock | string: `"On"` or `"Off"` |
@@ -293,7 +293,7 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `transparent_background` | Transparent Background | number, 0 to 100, or the string `"Off"`. `"On"` and `"Dim"` read as 0 and 60 |
 | `video_output_levels` | Video Levels | string: `"Auto"`, `"Limited"`, `"Full"` |
 | `loading_effect`, `hint_bar`, `help_line`, `status_icons` | Loading Effect, Hint Bar, Help Line, Status Icons | string: `"On"` or `"Off"` |
-| `loading_colors`, `boot_colors` | Loading Screen Colors, Boot Screen Colors | string: `"Theme"` (when unset) or `"Default"` |
+| `loading_colors`, `boot_colors` | Loading Colors, Boot Colors | string: `"Theme"` (when unset) or `"Default"` |
 | `video_logo` | Channel Logo | string: `"off"`, `"tl"`, `"tr"`, `"bl"`, `"br"`, `"all"` |
 | `video_logo_image` | Logo Image | string: a full path, `""` for OSD/OS's logo |
 | `screensaver_timeout` | Screen Saver | string: `"OFF"`, `"30"`, `"60"`, `"120"` |
@@ -350,7 +350,7 @@ When each part is read:
 | What | When it is read |
 |---|---|
 | The look, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver, Audio Output, Controls, Cabinet Lock, the modules' folders | At start, then at each change made in Settings |
-| `display_index`, Start on Module, Play at Startup, Startup From | At start |
+| `display_index`, Start On, Play at Startup, Startup From | At start |
 | Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts; Scaling and Video Levels also at once on a video playing behind the menus |
 | A module's other settings | When the module needs them: most as a video starts or a list opens |
 

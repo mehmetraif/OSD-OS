@@ -417,7 +417,7 @@ StandInRoot {
         function test_pages_data() {
             return [
                 { tag: "look", lines: ["Theme", "Orb Fog", "Color Scheme", "Skin", "Effects", "Menu Layout",
-                                       "OSD Background", "Window Frame", "Boot Screen Colors", "Hint Bar", "Help Line",
+                                       "OSD Background", "Window Frame", "Boot Colors", "Hint Bar", "Help Line",
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
@@ -425,7 +425,7 @@ StandInRoot {
                                          "Mouse Pointer", "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
-                { tag: "startup", lines: ["Start on Module", "Play at Startup", "Startup From", "Cabinet Lock"] },
+                { tag: "startup", lines: ["Start On", "Play at Startup", "Startup From", "Cabinet Lock"] },
                 { tag: "system", lines: ["Time Zone", "Keyboard", "Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update",
                                          "About", "# Modules", "Scripts", "Radio"] }
             ]
@@ -911,12 +911,12 @@ StandInRoot {
             var page = open({ group: "tv" })
             var all = lines(page)
             compare(all, ["Scaling", "Transparent Background", "Info Screen", "# Modules", "Local Files", "Plex",
-                          "# Video", "Video Levels", "1080p Playback", "Loading Effect", "Loading Screen Colors",
+                          "# Video", "Video Levels", "1080p Playback", "Loading Effect", "Loading Colors",
                           "Channel Logo", "Logo Image", "Video Arguments"])
             verify(page.offReason(all.indexOf("1080p Playback")) !== "")
             compare(page.offReason(all.indexOf("Transparent Background")), "")
             verify(all.indexOf("Theme") < 0)
-            verify(all.indexOf("Boot Screen Colors") < 0)
+            verify(all.indexOf("Boot Colors") < 0)
             verify(all.indexOf("Quit") < 0)
             verify(all.indexOf("Bare") < 0)
             // Its rows change as on any page.
@@ -1484,7 +1484,7 @@ StandInRoot {
                 verify(root.frameIcons === icons, "the icons as they were handed")
             // Every page's rows as its own page has them: each page's first.
             var firstRows = ["Scaling", "Arcade", "Theme", "Display Output", "Audio Output", "Controls", "Wi-Fi",
-                             "Start on Module", "Time Zone", "Quit"]
+                             "Start On", "Time Zone", "Quit"]
             if (data.first === 1)
                 firstRows.unshift("Output")
             var expected = []
@@ -1742,8 +1742,8 @@ StandInRoot {
             loader.source = ""
             page = open({ group: "look" })
             compare(chromeOf(page).title, "Look")
-            moveTo(page, "Boot Screen Colors")
-            var before = row(page, "Boot Screen Colors").value
+            moveTo(page, "Boot Colors")
+            var before = row(page, "Boot Colors").value
             keyClick(Qt.Key_Right)
             keyClick(Qt.Key_Left)
             compare(appCore.values.boot_colors, undefined)
@@ -1755,14 +1755,14 @@ StandInRoot {
             compare(appCore.values.boot_colors, undefined)
             keyClick(Qt.Key_Escape)
             compare(page.editIndex, -1)
-            compare(row(page, "Boot Screen Colors").value, before)
+            compare(row(page, "Boot Colors").value, before)
             compare(root.backs, 0)
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(page.editIndex, -1)
             verify(appCore.values.boot_colors !== undefined)
-            verify(row(page, "Boot Screen Colors").value !== before)
+            verify(row(page, "Boot Colors").value !== before)
             // A slider, Off below its first step: Transparent Background.
             loader.source = ""
             page = open({ group: "tv" })
@@ -1925,6 +1925,33 @@ StandInRoot {
             verify(helpOf(page).shownText.indexOf("Theme's") < 0)
         }
 
+        // Every row's label with its longest value fits Camcorder's line:
+        // Loading Colors, Boot Colors, Start On; a scheme's and an effect's
+        // long names shown shorter (SMPTE ECR, Flag), saved as they were.
+        function test_labelsFitCamcorder() {
+            var page = open({ group: "startup" })
+            compare(lines(page)[0], "Start On")
+            loader.source = ""
+            var schemes = root.allSchemes
+            var backgrounds = root.backgroundPresets
+            root.allSchemes = { "Video 1": {}, "SMPTE ECR 1-1978": {} }
+            root.backgroundPresets = { "Matrix": {}, "Checkered Flag": {} }
+            appCore.values = { color_scheme: "SMPTE ECR 1-1978", background_effect: "Checkered Flag" }
+            page = open({ group: "look" })
+            compare(row(page, "Color Scheme").value, "SMPTE ECR")
+            compare(row(page, "Color Scheme").values.indexOf("SMPTE ECR 1-1978"), row(page, "Color Scheme").options.indexOf("SMPTE ECR"))
+            loader.source = ""
+            page = open({ group: "effects" })
+            compare(row(page, "Background Effect").value, "Flag")
+            moveTo(page, "Background Effect")
+            verify(helpOf(page).shownText.indexOf("[FLAG] A racing flag") > 0, helpOf(page).shownText)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.background_effect, "Checkered Flag")
+            root.allSchemes = schemes
+            root.backgroundPresets = backgrounds
+        }
+
         function test_partRowsInForce() {
             root.transitionPresets = ["Fade", "Cube", "Ripple"]
             root.unusableTransitions = ["Ripple"]
@@ -2033,9 +2060,9 @@ StandInRoot {
         // help line saying where it is for, ◄ ► leaving it as it is.
         function test_bootScreenColorsRow() {
             var page = open({ group: "look" })
-            var at = lines(page).indexOf("Boot Screen Colors")
+            var at = lines(page).indexOf("Boot Colors")
             compare(page.offReason(at), "")
-            moveTo(page, "Boot Screen Colors")
+            moveTo(page, "Boot Colors")
             keyClick(Qt.Key_Right)
             compare(appCore.values.boot_colors, "Default")
             loader.source = ""
@@ -2043,7 +2070,7 @@ StandInRoot {
             bootProgress.available = false
             page = open({ group: "look" })
             compare(page.offReason(at), "Only on the OSD/OS image, which has a boot screen")
-            moveTo(page, "Boot Screen Colors")
+            moveTo(page, "Boot Colors")
             verify(menuRow(page, at).dimmed)
             verify(helpOf(page).text.indexOf("Only on the OSD/OS image") === 0, helpOf(page).text)
             keyClick(Qt.Key_Right)
@@ -2060,11 +2087,11 @@ StandInRoot {
             appCore.values = { cabinet_lock: "On", startup_module: "com.osdos.local_files" }
             var page = open({ group: "startup" })
             compare(row(page, "Cabinet Lock").value, "On")
-            compare(cursor(page), "Start on Module")
+            compare(cursor(page), "Start On")
             keyClick(Qt.Key_Left)
             compare(appCore.values.startup_module, "None")
             compare(row(page, "Cabinet Lock").value, "On (No Module)")
-            compare(cursor(page), "Start on Module")
+            compare(cursor(page), "Start On")
             moveTo(page, "Cabinet Lock")
             verify(helpOf(page).text.indexOf("Locks nothing now") === 0, helpOf(page).text)
             compare(page.offReason(lines(page).indexOf("Cabinet Lock")), "")
@@ -2073,7 +2100,7 @@ StandInRoot {
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Up)
-            compare(cursor(page), "Start on Module")
+            compare(cursor(page), "Start On")
             keyClick(Qt.Key_Right)
             compare(appCore.values.startup_module, "com.osdos.local_files")
             compare(row(page, "Cabinet Lock").value, "On")

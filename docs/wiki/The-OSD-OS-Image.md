@@ -10,7 +10,7 @@ On a Raspberry Pi, OSD/OS can be the whole system: one image, flashed to an SD c
 
 ## An operating system, not an app
 
-Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)), OSD/OS runs on a system that is already set up. The image is the system itself: it boots into OSD/OS, with no splash, boot text, login prompt or desktop. The boot screen is in the theme's colours, or white on blue with Settings → Look → Boot Screen Colors → Default.
+Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)), OSD/OS runs on a system that is already set up. The image is the system itself: it boots into OSD/OS, with no splash, boot text, login prompt or desktop. The boot screen is in the theme's colours, or white on blue with Settings → Look → Boot Colors → Default.
 
 ### What it is built on
 

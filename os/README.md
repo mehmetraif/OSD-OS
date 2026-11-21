@@ -65,7 +65,7 @@ Everything else (the launcher, in-app updates, Exit to Terminal, the data direct
    - `osdos-setup-app.service`, before the app starts, takes the file off the boot partition at once (root's alone from then on, in `/var/lib/osdos-setup`) and sets what the app reads as it starts: its settings and the RetroAchievements account.
    - `osdos-setup.service`, once the app is on screen, sets the rest while the boot screen shows **SETTINGS** (`[ OK ]` when all of it was set, `[FAIL]` when anything wasn't), then writes `osdos-setup.log` on the boot partition: what was done, and why anything wasn't. A display output that changes restarts the Pi once.
 
-A cabinet's file (**Arcade Cabinet** on the page) starts on the Arcade screen: its Start on Module is the Arcade, which is turned on with it. The page also puts the TV / Movie settings out of sight (a switch shows them) and lists the JAMMA outputs first.
+A cabinet's file (**Arcade Cabinet** on the page) starts on the Arcade screen: its Start On is the Arcade, which is turned on with it. The page also puts the TV / Movie settings out of sight (a switch shows them) and lists the JAMMA outputs first.
 
 Each part is applied on its own, and one that can't be leaves the rest to go ahead:
 

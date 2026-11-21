@@ -127,7 +127,7 @@ A view never loads another itself. It emits `navigateTo(path, params, listState)
 - **Back from a module's first view** returns to the main menu. Back on the main menu opens Settings.
 - **`replaceWith(path, params)`** loads a view in place of every one before it, so back from it leaves the module (a sign-in done); **`replaceCurrent(path, params)`** in place of the one shown, back skipping it.
 - **`root.changeWindow(loader, source, properties)`** changes every view and plays the Transition. None plays into or out of a video's views, or while the effects rest.
-- **At start**, `openStartupModule()` opens Start on Module's module with `navParams.fromAppStartup`, or Play at Startup's favourite with `navParams.startupPlay`.
+- **At start**, `openStartupModule()` opens Start On's module with `navParams.fromAppStartup`, or Play at Startup's favourite with `navParams.startupPlay`.
 
 [ARCHITECTURE.md → QML View Patterns](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#qml-view-patterns) has the router and view templates.
 

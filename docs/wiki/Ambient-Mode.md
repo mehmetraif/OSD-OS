@@ -90,7 +90,7 @@ The `music` folder itself isn't listed, but the playlist reaches into it.
 
 - It always shuffles: the videos when there is more than one, and the music when there is more than one audio file or playlist. With one or none, the clip's own sound plays.
 - It doesn't happen when the module is opened from the main menu. Back from playback lands on the Ambient:Mode screen.
-- A favourite chosen with **Play at Startup** comes before Start on Module ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
+- A favourite chosen with **Play at Startup** comes before Start On ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 
 ## An example
 
@@ -132,7 +132,7 @@ What you chose on the module's screen isn't remembered between visits.
 | **No items found** | No video of a listed type sits directly in the media folder. Check Media Folder and the files' extensions |
 | No music | The music needs mpv on the `PATH` or beside the app: otherwise the log says `[AmbientMode] mpv not found in PATH — audio will not play`. In a playlist, check the paths: names are case-sensitive on Linux. Check Settings → Sound → Audio Output too |
 | Black bars round the clip | Set Scaling (Pan & Scan fills a 4:3 screen with a 16:9 clip), or use CROP in the playback menu |
-| It doesn't start by itself | Start on Module must be Ambient:Mode, Auto-Launch Playback On, and the folder must hold a video. A Play at Startup favourite comes first |
+| It doesn't start by itself | Start On must be Ambient:Mode, Auto-Launch Playback On, and the folder must hold a video. A Play at Startup favourite comes first |
 | The clip stutters on a Pi | A Pi decodes H.264 in hardware, and a Pi 4 or 5 HEVC too. VP9 and AV1 are decoded by the CPU ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)). Use a 1080p or 720p H.264 copy |
 
 ## See also

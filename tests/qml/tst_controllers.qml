@@ -1270,7 +1270,7 @@ StandInRoot {
             page.refresh()
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return findText(page, "No Start on Module") !== null })
+            tryVerify(function() { return findText(page, "No Start On module") !== null })
             compare(appCore.settings.cabinet_lock, undefined)
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Escape)

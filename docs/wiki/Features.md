@@ -13,7 +13,7 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **Options** on an entry, with ►: **Favorites**, **Play at Startup** and **Add to Playlist**.
 - **Playlists** across modules, in order or shuffled, **online** (streamed) or **offline** (downloaded) ([Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists)).
 - **Transparent Background**: the menus over a video that plays on, from TRANSPARENT to SOLID. It needs libmpv ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
-- **A tape loading** while a video starts, with Loading Effect and Loading Screen Colors in Settings → TV / Movie ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
+- **A tape loading** while a video starts, with Loading Effect and Loading Colors in Settings → TV / Movie ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 - **The logo** in a corner of the picture: Channel Logo and Logo Image in Settings → TV / Movie ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 - **Scaling** for 16:9 pictures on a 4:3 screen: Letterbox, 14:9, Pan & Scan or Anamorphic ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 - **Netflix and Prime Video** catalogues from TMDB, played in the service's own player ([Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video)).

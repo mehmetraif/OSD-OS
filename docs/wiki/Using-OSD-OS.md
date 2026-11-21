@@ -23,7 +23,7 @@ How you move between the screens:
 
 ```mermaid
 flowchart TD
-    boot["Boot screen (the OSD/OS image)"] --> startup{"Play at Startup or<br/>Start on Module set?"}
+    boot["Boot screen (the OSD/OS image)"] --> startup{"Play at Startup or<br/>Start On set?"}
     startup -- no --> menu["Main menu"]
     startup -- yes --> module
     menu -- back --> settings["Settings"]
@@ -183,7 +183,7 @@ Favorites and Recently Watched are each module's own lists, kept in `lists.json`
 |---|---|---|---|---|
 | Play at Startup | None, or the favourite's name | None | Shows the favourite; here it can only be turned off | `app.startup_favorite` (`{ "module", "path", "name" }`, or `""`) |
 | Startup From | Resume, Beginning | Resume | Where it begins. Dimmed without a favourite | `app.startup_from` |
-| Start on Module | None, or a module that is on | None | Opens that module instead of the main menu. The favourite goes first | `app.startup_module` (a module id, such as `com.osdos.youtube`) |
+| Start On | None, or a module that is on | None | Opens that module instead of the main menu. The favourite goes first | `app.startup_module` (a module id, such as `com.osdos.youtube`) |
 
 ## Playing a video
 
@@ -213,7 +213,7 @@ While a video starts, a tape loads, until the picture comes:
 | Setting (Settings → TV / Movie) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Loading Effect | On, Off | On | **Off**: the deck's display alone, without the noise and the bands | `app.loading_effect` |
-| Loading Screen Colors | Theme, Default | Theme | **Default**: white on blue, whatever the theme | `app.loading_colors` |
+| Loading Colors | Theme, Default | Theme | **Default**: white on blue, whatever the theme | `app.loading_colors` |
 
 ### The deck's menu
 

@@ -521,7 +521,7 @@ function moduleBlock(module) {
         el("summary", { text: `${module.name} ${enabled ? "· ON" : "· OFF"}` }),
         line("Enabled", toggle(enabled, on => setValue(scope, "enabled", on), { id: idFor(...scope, "enabled") }),
              { id: idFor(...scope, "enabled"), changed: enabledSet !== undefined, onReset: () => unset(scope, "enabled"),
-               help: startsOn && enabledSet === undefined ? "On: OSD/OS starts on it (Start on Module)." : "On the main menu, or not." }),
+               help: startsOn && enabledSet === undefined ? "On: OSD/OS starts on it (Start On)." : "On the main menu, or not." }),
         settingLines(scope, module.settings),
         favoritesLine(module),
         module.retroachievements && shows("logins") ? retroAchievements() : null);
@@ -649,7 +649,7 @@ function problems() {
     const startup = startupModule();
     if (startup && startup !== "None" && core.getPath(state.config, ["modules", startup, "enabled"]) === false) {
         const module = schema.modules.find(m => m.id === startup);
-        add(`Start on Module: ${module ? module.name : startup} is turned off`, "basic");
+        add(`Start On: ${module ? module.name : startup} is turned off`, "basic");
     }
     return out;
 }

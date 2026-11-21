@@ -85,7 +85,7 @@ Right on a game opens its options; on the Arcade screen, hold select.
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off; 100 at most |
 | **Engine** | For a game both MAME and FinalBurn Neo have: **Auto**, **MAME** or **FinalBurn Neo** ([FinalBurn Neo](#finalburn-neo)) |
 | **Host Online Game**, **Host LAN Game** | With **Online Play** or **LAN Play** on, for a game FinalBurn Neo has ([Playing together](#playing-together)) |
-| **Play at Startup** / **Don't Play at Startup** | Starts the game every time OSD/OS starts, ahead of Settings → Startup → Start on Module. There is one for the whole app: choosing another replaces it |
+| **Play at Startup** / **Don't Play at Startup** | Starts the game every time OSD/OS starts, ahead of Settings → Startup → Start On. There is one for the whole app: choosing another replaces it |
 
 ## The Arcade screen
 
