@@ -156,6 +156,7 @@ StandInRoot {
         }
         // Cabinet Lock's unlock buttons, and the wait for new ones.
         property string unlockButtons: ""
+        readonly property int unlockCaptureSeconds: 10
         signal unlockButtonsHeld(string names, bool tooMany)
         signal unlockCaptureEnded(bool saved, bool unsaved)
         function captureUnlockButtons(on) {

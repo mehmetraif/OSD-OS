@@ -100,7 +100,7 @@ FocusScope {
             return
         heldNames = ""
         tooMany = false
-        secondsLeft = 10
+        secondsLeft = inputManager.unlockCaptureSeconds
         capturing = true
         overlay.forceActiveFocus()
         inputManager.captureUnlockButtons(true)
@@ -121,7 +121,7 @@ FocusScope {
         function onUnlockButtonsHeld(names, many) {
             lockRoot.heldNames = names
             lockRoot.tooMany = many
-            lockRoot.secondsLeft = 10
+            lockRoot.secondsLeft = inputManager.unlockCaptureSeconds
         }
         function onUnlockCaptureEnded(saved, unsaved) {
             if (!lockRoot.capturing)
@@ -139,7 +139,7 @@ FocusScope {
     }
 
     // The seconds left of the wait with nothing held: InputManager ends it
-    // at ten, this only counts them down.
+    // as they run out (unlockCaptureSeconds), this only counts them down.
     Timer {
         interval: 1000
         repeat: true

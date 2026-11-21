@@ -82,6 +82,9 @@ class InputManager : public QObject {
     // Cabinet Lock's unlock buttons by name, joined ("P1 START + P2 START"),
     // "" for none.
     Q_PROPERTY(QString unlockButtons READ unlockButtons NOTIFY unlockButtonsChanged)
+    // How long a wait for new unlock buttons (captureUnlockButtons()) lasts
+    // with nothing held, for the page to count down.
+    Q_PROPERTY(int unlockCaptureSeconds READ unlockCaptureSeconds CONSTANT)
 
 public:
     explicit InputManager(const QString &dataRoot, AppCore *appCore, QObject *parent = nullptr);
@@ -102,6 +105,8 @@ public:
     QString activeController() const { return m_activeController; }
     QVariantList players() const;
     QString unlockButtons() const { return m_unlockNames.join(QStringLiteral(" + ")); }
+    static constexpr int kUnlockCaptureSeconds = 10;
+    static int unlockCaptureSeconds() { return kUnlockCaptureSeconds; }
 
     // The key that stands for every keyboard and remote at once (All
     // Keyboards & Remotes): its page's extra keys are config.json's

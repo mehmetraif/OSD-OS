@@ -83,7 +83,7 @@ constexpr int kUnlockMax = 4;
 constexpr int kUnlockHoldMs = 3000;
 constexpr int kUnlockWaitMs = 300;
 constexpr int kUnlockCaptureHoldMs = 2000;
-constexpr int kUnlockCaptureIdleMs = 10000;
+constexpr int kUnlockCaptureIdleMs = InputManager::kUnlockCaptureSeconds * 1000;
 // Planted in nativeVirtualKey of a key replayed after one held back for them
 // (replayKey()), which eventFilter() lets go on then as the real key it was.
 constexpr quint32 kReplayVirtualKey = 0x240F00E;
