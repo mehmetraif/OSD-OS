@@ -46,8 +46,7 @@ Item {
         // broken-image box.
         visible: source != ""
         source: screen.wx.iconName
-            ? "image://osdicon/" + root.primaryColor.toString().replace("#", "") + "/"
-              + Qt.resolvedUrl("../../assets/images/wx/" + screen.wx.iconName + ".svg")
+            ? root.iconUrl(root.primaryColor, Qt.resolvedUrl("../../assets/images/wx/" + screen.wx.iconName + ".svg"))
             : ""
     }
 
