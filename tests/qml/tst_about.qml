@@ -19,9 +19,11 @@ StandInRoot {
     QtObject {
         id: appCore
         property var asked: []
+        // OSD/OS's own, LICENSE's.
+        property string gpl: "GNU GENERAL PUBLIC LICENSE Version 3"
         function licenseText(file) {
             asked = asked.concat([file])
-            return file === "" ? "GNU GENERAL PUBLIC LICENSE Version 3"
+            return file === "" ? gpl
                  : file === "assets/licenses/GPL-2.0.txt" ? "GNU GENERAL PUBLIC LICENSE Version 2"
                  : file === "assets/licenses/zlib.txt" ? "zlib text" : ""
         }
@@ -60,6 +62,7 @@ StandInRoot {
             root.backs = 0
             root.navigations = []
             appCore.asked = []
+            appCore.gpl = "GNU GENERAL PUBLIC LICENSE Version 3"
             arcadeBackend.license = "You may freely use, modify, and distribute FB Neo."
             systemInfo.deviceName = "den-tv"
             systemInfo.refreshes = 0
@@ -196,6 +199,57 @@ StandInRoot {
             compare(cursor(page), "MAME")
             keyClick(Qt.Key_Up)
             compare(cursor(page), "Data")
+        }
+
+        // A licence's page longer than its box: its ▲ ▼ inside the box, over
+        // the strips the text leaves them, clear of the hint bar under it,
+        // in every Menu Layout.
+        function test_licenseMarksInTheBox_data() {
+            return root.menuLayouts.map(function(layout) { return { tag: layout, layout: layout } })
+        }
+        function test_licenseMarksInTheBox(data) {
+            root.menuLayout = data.layout
+            appCore.gpl = "GNU GENERAL PUBLIC LICENSE Version 3" + new Array(60).join("\nA line of the license's text")
+            var page = open()
+            downTo(page, "License")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "This program is free software") !== null }, 1000)
+            var find = function(item, test) {
+                if (test(item))
+                    return item
+                for (var i = 0; i < item.children.length; i++) {
+                    var found = find(item.children[i], test)
+                    if (found)
+                        return found
+                }
+                return null
+            }
+            // The page's marks: those of the text in its bordered box.
+            var marks = find(page, function(i) { return i.moreBelow !== undefined && !!i.list && !!i.list.parent
+                                                       && i.list.parent.border !== undefined })
+            verify(marks !== null)
+            var flick = marks.list
+            var box = flick.parent
+            var rectOf = function(item) {
+                var p = item.mapToItem(root, 0, 0)
+                return { top: p.y, bottom: p.y + item.height }
+            }
+            var check = function(name) {
+                var mark = find(marks, function(i) { return i.name === name })
+                verify(mark !== null && mark.visible, name)
+                var m = rectOf(mark)
+                var b = rectOf(box)
+                verify(m.top >= b.top + root.px && m.bottom <= b.bottom - root.px,
+                       name + " in the box: " + JSON.stringify(m) + " " + JSON.stringify(b))
+                var t = rectOf(flick)
+                verify(m.bottom <= t.top || m.top >= t.bottom, name + " clear of the text")
+            }
+            tryVerify(function() { return marks.moreBelow }, 1000, "longer than its box")
+            check("down")
+            flick.contentY = flick.contentHeight - flick.height
+            verify(marks.moreAbove)
+            check("up")
+            root.menuLayout = "Standard"
         }
 
         // OSD/OS's licence under the GPL's notice; MAME's, the GPL v2's text

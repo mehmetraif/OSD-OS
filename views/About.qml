@@ -398,8 +398,14 @@ FocusScope {
 
             Flickable {
                 id: flick
+                // Room inside the box above and below the text for the ▲ and
+                // the ▼ (ScrollMarks, three pixels off the text, four tall),
+                // so they stay in the box, clear of the hint bar under it.
+                readonly property real markRoom: root.px * 8
                 anchors.fill: parent
                 anchors.margins: root.sw * 0.009375 //6
+                anchors.topMargin: root.sw * 0.009375 + markRoom
+                anchors.bottomMargin: root.sw * 0.009375 + markRoom
                 contentHeight: column.height
                 clip: true
 
@@ -437,8 +443,11 @@ FocusScope {
             }
         }
 
+        // In the box, over the strips the text leaves them.
         ScrollMarks {
             anchors.fill: page
+            anchors.topMargin: flick.anchors.topMargin
+            anchors.bottomMargin: flick.anchors.bottomMargin
             list: flick
         }
 
