@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "PlexPlay.js" as PlexPlay
 
 // NFC card deep-link target. Resolves the card's Plex ref, then replaces itself
 // with the view that plays it: a single item's guid is resolved and streamed
@@ -40,13 +41,6 @@ FocusScope {
     property var    pendingDetail: null
 
     focus: true
-
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
 
     function fail(msg) {
         launching = false
@@ -97,19 +91,12 @@ FocusScope {
         function onCardItemReady(detail) {
             if (!cardRoot.launching) return
             cardRoot.pendingDetail = detail
-            cardRoot.sessionId = cardRoot.newSessionId()
+            cardRoot.sessionId = plexBackend.new_session_id()
             // Unlike Item.qml, no set_audio_stream / set_subtitle_stream call: a
             // card tap must not rewrite the server's stored per-part track
             // defaults. Whatever the server already prefers is what plays.
-            if (detail.forceTranscode) {
-                // Always from 0 so the whole timeline stays seekable; Player.qml
-                // seeks to the resume point itself.
-                plexBackend.request_transcode(detail.ratingKey, detail.partKey, cardRoot.sessionId,
-                                              detail.selectedAudioId || "",
-                                              detail.selectedSubtitleId || "0", 0)
-            } else {
-                plexBackend.build_stream_url(detail.ratingKey, detail.partKey, cardRoot.sessionId)
-            }
+            plexBackend.start_stream(detail, cardRoot.sessionId,
+                                     detail.selectedAudioId || "", detail.selectedSubtitleId || "0")
         }
 
         // A set card never streams anything here: QueuePlay expands the rows,
@@ -138,23 +125,10 @@ FocusScope {
             if (!cardRoot.launching || !cardRoot.pendingDetail) return
             var d = cardRoot.pendingDetail
             cardRoot.launching = false
-            cardRoot.replaceCurrent("Player.qml", {
-                streamUrl:          url,
-                plexToken:          plexToken,
-                ratingKey:          d.ratingKey,
-                partKey:            d.partKey,
-                partId:             d.partId,
-                sessionId:          cardRoot.sessionId,
+            cardRoot.replaceCurrent("Player.qml", PlexPlay.playerParams(d, url, plexToken, cardRoot.sessionId, {
                 // A shuffle card starts each video at its beginning, as the
                 // menu's shuffle does: no resume question that needs the remote.
                 viewOffset:         d.cardScope ? 0 : (d.viewOffset || 0),
-                duration:           d.duration || 0,
-                title:              d.title,
-                audioStreams:       d.audioStreams,
-                subtitleStreams:    d.subtitleStreams,
-                isTranscoding:      d.forceTranscode || false,
-                selectedAudioId:    d.selectedAudioId,
-                selectedSubtitleId: d.selectedSubtitleId,
                 // A shuffle card is a jukebox: report no timeline, so it leaves the
                 // show's watched state and Continue Watching untouched.
                 trackProgress:      d.trackProgress !== false,
@@ -163,7 +137,7 @@ FocusScope {
                 // sequential next one — a shuffle card keeps rolling, it just
                 // rolls randomly. Autoplay itself is left to the user's setting.
                 shuffleScope:       d.cardScope || ""
-            })
+            }))
         }
 
         function onErrorOccurred(message) {

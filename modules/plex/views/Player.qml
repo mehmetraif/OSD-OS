@@ -128,13 +128,6 @@ FocusScope {
         player: playerRoot
     }
 
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
-
     // Report the final "stopped" timeline for the current episode exactly once.
     // The fallback position/duration are used only when no live value is known,
     // and the item's own resume point when neither is (a failure before the
@@ -334,7 +327,7 @@ FocusScope {
         playbackStarted      = false
         lastKnownPositionMs  = 0
         lastKnownDurationMs  = 0
-        sessionId            = newSessionId()
+        sessionId            = plexBackend.new_session_id()
 
         // Repoint the BACK target so exiting returns to THIS episode's detail
         // screen, not the one we auto-advanced from. Item.qml reloads from
@@ -375,13 +368,9 @@ FocusScope {
         }
 
         // Both paths resolve through onStreamUrlReady, which checks this flag.
-        // build_stream_url emits synchronously, so the flag must be set first.
+        // Direct play answers at once, so the flag must be set first.
         pendingNextEpisode = true
-        if (isTranscoding) {
-            plexBackend.request_transcode(ratingKey, partKey, sessionId, audioId, subId, 0)
-        } else {
-            plexBackend.build_stream_url(ratingKey, partKey, sessionId)
-        }
+        plexBackend.start_stream(detail, sessionId, audioId, subId)
     }
 
     Connections {

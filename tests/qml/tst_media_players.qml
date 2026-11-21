@@ -231,6 +231,16 @@ StandInRoot {
         function expand_queue(items) { queueAsks++ }
         function request_transcode() { transcodes++ }
         function build_stream_url(ratingKey, partKey, sessionId) { streamUrlReady("http://plex/" + ratingKey, "token") }
+        // The backend's: a transcode where the detail must be transcoded,
+        // else direct play.
+        function start_stream(detail, sessionId, audioId, subtitleId) {
+            if (detail.forceTranscode)
+                request_transcode(detail.ratingKey, detail.partKey, sessionId, audioId, subtitleId, 0)
+            else
+                build_stream_url(detail.ratingKey, detail.partKey, sessionId)
+        }
+        property int sessions: 0
+        function new_session_id() { return "SESSION" + (++sessions) }
         // The timelines reported: [ratingKey, state, time].
         property var timelines: []
         function update_timeline(ratingKey, partKey, state, timeMs, durationMs) {

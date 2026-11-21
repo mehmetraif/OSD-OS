@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "PlexPlay.js" as PlexPlay
 
 FocusScope {
     id: extrasRoot
@@ -26,13 +27,6 @@ FocusScope {
     // instead of reusing the prior one (mirrors Item.qml).
     property string sessionId: ""
 
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
-
     Connections {
         target: plexBackend
 
@@ -53,23 +47,9 @@ FocusScope {
 
             // The server's selections, as CardPlay and QueuePlay pass them:
             // the Player finds their tracks (initStreamIndices).
-            extrasRoot.navigateTo("Player.qml", {
-                streamUrl: url,
-                plexToken: plexToken,
-                ratingKey: d.ratingKey,
-                partKey: d.partKey,
-                partId: d.partId,
-                title: d.title,
-                viewOffset: d.viewOffset || 0,
-                duration: d.duration || 0,
-                audioStreams: d.audioStreams || [],
-                subtitleStreams: d.subtitleStreams || [],
-                selectedAudioId: d.selectedAudioId || "",
-                selectedSubtitleId: d.selectedSubtitleId || "0",
-                sessionId: extrasRoot.sessionId,
-                isTranscoding: d.forceTranscode || false,
-                allowAutoplay: false
-            }, { currentIndex: itemList.currentIndex })
+            extrasRoot.navigateTo("Player.qml",
+                                  PlexPlay.playerParams(d, url, plexToken, extrasRoot.sessionId, { allowAutoplay: false }),
+                                  { currentIndex: itemList.currentIndex })
         }
 
         function onErrorOccurred(msg) {
@@ -113,18 +93,10 @@ FocusScope {
         var d = extras[itemList.currentIndex]
         if (!d) return
         launchingExtra = d
-        sessionId = newSessionId()
+        sessionId = plexBackend.new_session_id()
         // No track persistence here: extras play with the server's default
         // audio/subtitle selection (there is no track UI on this screen).
-        if (d.forceTranscode) {
-            // Always transcode from the start so the full timeline is seekable;
-            // the Player resumes by seeking mpv to viewOffset (see Item.qml).
-            plexBackend.request_transcode(d.ratingKey, d.partKey, sessionId,
-                                          d.selectedAudioId || "",
-                                          d.selectedSubtitleId || "0", 0)
-        } else {
-            plexBackend.build_stream_url(d.ratingKey, d.partKey, sessionId)
-        }
+        plexBackend.start_stream(d, sessionId, d.selectedAudioId || "", d.selectedSubtitleId || "0")
     }
     Keys.onPressed: function(event) {
         if (root.isBack(event)) {

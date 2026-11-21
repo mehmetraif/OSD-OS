@@ -1078,6 +1078,24 @@ void PlexBackend::build_stream_url(const QString &ratingKey,
     emit streamUrlReady(url, token);
 }
 
+QString PlexBackend::new_session_id() const {
+    static const char kChars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    QString id;
+    for (int i = 0; i < 12; ++i)
+        id += QLatin1Char(kChars[QRandomGenerator::global()->bounded(int(sizeof(kChars) - 1))]);
+    return id;
+}
+
+void PlexBackend::start_stream(const QVariantMap &detail, const QString &sessionId,
+                               const QString &audioId, const QString &subtitleId) {
+    const QString ratingKey = detail.value(QStringLiteral("ratingKey")).toString();
+    const QString partKey = detail.value(QStringLiteral("partKey")).toString();
+    if (detail.value(QStringLiteral("forceTranscode")).toBool())
+        request_transcode(ratingKey, partKey, sessionId, audioId, subtitleId, 0);
+    else
+        build_stream_url(ratingKey, partKey, sessionId);
+}
+
 void PlexBackend::cancel_stream() {
     ++m_streamRequest;
     ++m_nextRequest;

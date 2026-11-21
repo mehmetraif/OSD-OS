@@ -28,20 +28,13 @@ FocusScope {
 
     focus: true
 
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
-
     // Tune the channel. tune_channel resolves asynchronously through
     // onStreamUrlReady, which loads the resulting HLS stream into mpv.
     function tune() {
         if (!channel.channelId) { goBack(); return }
         playbackStarted = false
         streamUrl = ""
-        sessionId = newSessionId()
+        sessionId = plexBackend.new_session_id()
         tuning = true
         plexBackend.tune_channel(channel.channelId, sessionId)
     }

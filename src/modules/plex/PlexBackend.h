@@ -32,6 +32,18 @@ public:
     Q_INVOKABLE void     build_stream_url(const QString &ratingKey,
                                           const QString &partKey,
                                           const QString &sessionId);
+    // A playback session's identifier, new for each play (the views'
+    // sessionId): reusing one lets Plex hand back a stale transcode built
+    // with the tracks chosen before. Twelve of A-Z and 0-9.
+    Q_INVOKABLE QString  new_session_id() const;
+    // An item's stream, as its detail says to play it: a transcode where it
+    // must be transcoded (forceTranscode), from 0 so that its whole
+    // timeline can be sought (the Player seeks to the resume point itself),
+    // with these tracks; else direct play (build_stream_url). Answers with
+    // streamUrlReady, at once for direct play, so the view keeps sessionId
+    // before it asks.
+    Q_INVOKABLE void     start_stream(const QVariantMap &detail, const QString &sessionId,
+                                      const QString &audioId, const QString &subtitleId);
 
     // Auth flow
     // Asks plex.tv for a sign-in code and polls for it: the request's number,

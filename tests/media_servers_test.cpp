@@ -606,6 +606,38 @@ private slots:
         QCOMPARE(caps.count(), 2);
         QVERIFY(!caps.last().at(0).toMap().value(QStringLiteral("recommended")).toBool());
     }
+    // A Plex item's stream as its detail says to play it (start_stream()):
+    // direct play answered at once, the session's identifier in its
+    // address; an item to transcode asks the server for a transcode from 0
+    // with that session and its tracks. Each play's session is new.
+    void plexStreamAsItsDetailSays() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        const QString session = backend.new_session_id();
+        static const QRegularExpression form(QStringLiteral("^[A-Z0-9]{12}$"));
+        QVERIFY2(form.match(session).hasMatch(), qPrintable(session));
+        QVERIFY(backend.new_session_id() != session);
+
+        QSignalSpy ready(&backend, &PlexBackend::streamUrlReady);
+        const int asked = network->replies.size();
+        backend.start_stream({ { "ratingKey", "10" }, { "partKey", "/library/parts/10/file.mkv" } },
+                             session, QStringLiteral("1"), QStringLiteral("0"));
+        QCOMPARE(ready.count(), 1);
+        QVERIFY(ready.first().at(0).toString().contains(QStringLiteral("/library/parts/10/file.mkv?")));
+        QVERIFY(ready.first().at(0).toString().contains(QStringLiteral("X-Plex-Session-Identifier=") + session));
+        QCOMPARE(network->replies.size(), asked);
+
+        backend.start_stream({ { "ratingKey", "10" }, { "partKey", "/library/parts/10/file.mkv" },
+                               { "forceTranscode", true } },
+                             session, QStringLiteral("1"), QStringLiteral("0"));
+        QCOMPARE(network->replies.size(), asked + 1);
+        const QUrlQuery query(network->last()->url());
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/transcode/universal/start.m3u8")));
+        QCOMPARE(query.queryItemValue(QStringLiteral("session")), session);
+        QCOMPARE(query.queryItemValue(QStringLiteral("path")), QStringLiteral("/library/metadata/10"));
+    }
     void jellyfinFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<JellyfinBackend>("Jellyfin"); }
     void embyFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<EmbyBackend>("Emby"); }
     // Plex's: an item, what is under it (a show's seasons, a season's

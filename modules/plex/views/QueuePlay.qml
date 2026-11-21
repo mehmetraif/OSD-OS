@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "PlexPlay.js" as PlexPlay
 
 // Launcher for playing a whole set. Two modes, one loading frame:
 //
@@ -48,13 +49,6 @@ FocusScope {
     property var    pendingDetail: null
 
     focus: true
-
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
 
     function fail(msg) {
         launching = false
@@ -144,41 +138,22 @@ FocusScope {
                 return
             }
             queueRoot.pendingDetail = detail
-            queueRoot.sessionId = queueRoot.newSessionId()
+            queueRoot.sessionId = plexBackend.new_session_id()
             // Like CardPlay.qml, no set_audio_stream / set_subtitle_stream call:
             // the first item plays the server's stored defaults, and Player.qml
             // carries that selection forward by language from there.
-            if (detail.forceTranscode) {
-                // Always from 0 — a queue launch starts the item at its beginning.
-                plexBackend.request_transcode(detail.ratingKey, detail.partKey, queueRoot.sessionId,
-                                              detail.selectedAudioId || "",
-                                              detail.selectedSubtitleId || "0", 0)
-            } else {
-                plexBackend.build_stream_url(detail.ratingKey, detail.partKey, queueRoot.sessionId)
-            }
+            plexBackend.start_stream(detail, queueRoot.sessionId,
+                                     detail.selectedAudioId || "", detail.selectedSubtitleId || "0")
         }
 
         function onStreamUrlReady(url, plexToken) {
             if (!queueRoot.launching || !queueRoot.pendingDetail) return
             var d = queueRoot.pendingDetail
             queueRoot.launching = false
-            queueRoot.replaceCurrent("Player.qml", {
-                streamUrl:          url,
-                plexToken:          plexToken,
-                ratingKey:          d.ratingKey,
-                partKey:            d.partKey,
-                partId:             d.partId,
-                sessionId:          queueRoot.sessionId,
+            queueRoot.replaceCurrent("Player.qml", PlexPlay.playerParams(d, url, plexToken, queueRoot.sessionId, {
                 // A queue always starts its items from the beginning, so no resume
                 // prompt on the first one either — every later item starts at 0 too.
                 viewOffset:         0,
-                duration:           d.duration || 0,
-                title:              d.title,
-                audioStreams:       d.audioStreams,
-                subtitleStreams:    d.subtitleStreams,
-                isTranscoding:      d.forceTranscode || false,
-                selectedAudioId:    d.selectedAudioId,
-                selectedSubtitleId: d.selectedSubtitleId,
                 // The queue owns advancing: the season-based autoplay chain must
                 // not also fire at the end of an episode inside a playlist. A
                 // jukebox is the other way round — it rides on that same chain,
@@ -193,7 +168,7 @@ FocusScope {
                 shuffleScope:       queueRoot.shuffleScope,
                 queue:              queueRoot.queue,
                 queueIndex:         queueRoot.queueIndex
-            })
+            }))
         }
 
         function onErrorOccurred(message) {
