@@ -419,7 +419,7 @@ int main(int argc, char *argv[]) {
           displayOutput.current().isEmpty() ? "none" : qPrintable(displayOutput.current()),
           tube ? "a TV's tube, drawn 4:3" : "square pixels");
     mpvController.setScreen(tube, screenPixels);
-    arcadeBackend.setScreen(tube, screenPixels);
+    arcadeBackend.setScreen(tube, screenPixels, targetScreen ? targetScreen->refreshRate() : 0);
 
     // When the Qt window is inactive (fullscreen mpv has OS focus on macOS),
     // gamepad actions bypass QML and drive mpv directly over IPC; the media

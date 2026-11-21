@@ -157,8 +157,14 @@ public:
     // (DisplayOutput::isTube()), and its size in pixels. Emulator Video's
     // Auto goes by it: on a tube MAME and RetroArch are told it is 4:3,
     // whatever its pixels are, and draw a game's lines whole where they fit
-    // (mame::screenArguments(), libretro::viewportAspect()).
-    void setScreen(bool tube, const QSize &size);
+    // (mame::screenArguments(), libretro::viewportAspect()). Its refresh in
+    // Hz (0 where not known): on a Raspberry Pi's console a screen too big
+    // or too slow for a game has it ask for 1920x1080 at 60 Hz
+    // (libretro::gameMode(), gameMode()).
+    void setScreen(bool tube, const QSize &size, double refresh = 0);
+    // Where the display connectors' modes are read (<dir>/cardN-<name>/modes,
+    // /sys/class/drm), or a test's folder.
+    void setDrmFolder(const QString &dir) { m_drmFolder = dir; }
 
     // Where the games are: the module's Games Folder, else Games/Arcade in
     // the media folder, beside Local Files' Movies (on the image, the card's
@@ -411,6 +417,17 @@ public:
     // Games and LAN Games leave out the others, the lobby says why of a room
     // of one, and starting one says why.
     void setMemory(qint64 bytes);
+    // The Raspberry Pi this is (board::family()), which Emulator Video's
+    // Frame Buffers and MAME Vsync and Sound Buffer go by on Auto; a test's.
+    void setBoard(board::Family family) { m_board = family; }
+    // The system's time zone, as Settings → System has it
+    // (systemlocale::timeZone(), else Qt's), which Relay Server goes by while
+    // it has nothing saved; a test's ("" for none).
+    void setTimeZone(const QString &zone) { m_timeZone = zone; }
+    // Settings → Arcade → Relay Server as it is in force: the one saved, else
+    // the nearest to the system's time zone (libretro::relayForTimeZone()), by
+    // the row's name ("Madrid"), for the row to show while nothing is saved.
+    Q_INVOKABLE QString relayServer() const;
 
     // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
     // the local network, found by a query broadcast there that each host
@@ -890,6 +907,20 @@ private:
     // On, Off, Auto on a tube.
     QString screenShape() const;
     bool integerScale() const;
+    // Whether this machine's games draw through KMS, on a Linux console
+    // rather than a desktop; and whether MAME is given -waitvsync (MAME
+    // Vsync: Auto on a Raspberry Pi 4 or 5 on the console).
+    static bool onConsole();
+    // The mode a game asks for on a Raspberry Pi's console (libretro::
+    // gameMode(), by the connector the launcher found for the display preset,
+    // OSDOS_DRM_DEVICE and OSDOS_DRM_CONNECTOR, else the first with a screen
+    // plugged in), said in the log as it is asked for; nothing elsewhere.
+    std::optional<libretro::GameMode> gameMode() const;
+    QStringList connectorModes() const;
+    bool mameVsync() const;
+    // The relay a game hosted online goes through, by RetroArch's name: the
+    // one saved, else relayForTimeZone()'s.
+    QString relay() const;
     // The monitor a game is played on, "Turned Right" or "Turned Left" for
     // one on its side, which its picture is turned against: Settings →
     // Screen → Monitor, a monitor that stays turned; else the game's own,
@@ -1122,6 +1153,8 @@ private:
     QString m_verticalMonitor;    // Vertical Games: "Turned Right", "Turned Left"; "" for Horizontal
     bool    m_tube = false;       // setScreen()'s
     QSize   m_screenSize;
+    double  m_screenRefresh = 0;
+    QString m_drmFolder = QStringLiteral("/sys/class/drm");
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
     bool    m_achievements = false;   // Online High Scores: RetroAchievements
     bool    m_onlinePlay = false;
@@ -1129,7 +1162,16 @@ private:
     QVariantMap m_difficulties;   // set → its difficulty's setting, as its options chose
     QVariantMap m_monitors;       // set → "Turned Right" or "Turned Left", as its options chose
     QString m_onlineName;         // the name the others see ("" for nickname()'s own)
-    QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
+    QString m_relay;              // the relay a hosted game goes through, as saved ("" for relay()'s own)
+    // Emulator Video → Frame Buffers ("Auto", "Two", "Three"), Sound Buffer
+    // ("Auto", "RetroArch's"), Show Ping, and MAME Vsync ("Auto", "On",
+    // "Off"); "" for nothing saved, Auto.
+    QString m_frameBuffers;
+    QString m_soundBuffer;
+    bool    m_showPing = false;
+    QString m_mameVsync;
+    board::Family m_board = board::family();   // setBoard()
+    std::optional<QString> m_timeZone;         // setTimeZone()
     bool    m_lanPlay = false;
     // Settings → Arcade → LAN Sync: a game hosted here has the machines
     // joining follow this one (Smooth), or each play ahead (Responsive).

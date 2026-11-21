@@ -116,7 +116,7 @@ On a Pi that hosts over Wi-Fi, `iw dev wlan0 station dump | grep -E 'tx retries|
 - **Not every frame comes in time even so.** In OSD/OS's own measurement, six machines of mixed speeds following their host for 18 seconds had 57 frames come late, against 1440 with every machine playing ahead with no input latency and 252 with a frame of it.
 - **A Raspberry Pi 4 on composite is slower** as a whole than on HDMI: Raspberry Pi's documentation has composite on a Pi 4 hold a clock others depend on, which slows the whole system a little, and the image's raised graphics clock (`gpu_freq`) may not hold there. Let such a Pi join rather than host. `vcgencmd measure_clock core` and `vcgencmd measure_clock v3d` on composite and on HDMI show the clocks it runs at ([Display Output → Composite](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#composite-the-av-jack-or-a-pi-5s-tv-pads)).
 
-Online, a game plays ahead with no latency, and a machine that can't keep up takes up to four frames.
+Online, a game OSD/OS hosts plays ahead with two frames of input latency, which every machine joining takes from it, and a machine that can't keep up takes up to four frames more. Over the internet a press comes some frames late: without that latency every such press has each machine play several frames again, more than a Raspberry Pi 4 has the time for. A room of the lobby another RetroArch hosts plays with its host's latency.
 
 For a smooth game:
 
@@ -184,7 +184,7 @@ A room's page says why it can't be joined: another core's, a host whose connecti
 | Setting | What it is |
 |---|---|
 | **Online Name** | The name the others see. Unset: the RetroAchievements account's, else OSD-OS; never the device's name |
-| **Relay Server** | Where a game you host goes through: New York (the default), Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest |
+| **Relay Server** | Where a game you host goes through: New York, Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest. Unset, the nearest to the time zone of **Settings → System → Time Zone**: Madrid for Europe and Africa, São Paulo for South America, New York for the rest of the Americas, Chuncheon for Korea and Japan, Singapore for the rest of Asia and Oceania. A relay chosen is kept |
 
 ### A game too big for the machine's memory
 

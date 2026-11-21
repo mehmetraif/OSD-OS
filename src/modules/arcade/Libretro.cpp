@@ -600,6 +600,19 @@ QString configText(const Launch &launch) {
         // play sound through (Debian's defaults are a desktop's).
         set("video_driver", QStringLiteral("gl"));
         set("video_context_driver", QStringLiteral("kms"));
+        // Emulator Video → Frame Buffers (swapchainImages()): two, so that
+        // each frame is flipped onto the screen at the next refresh rather
+        // than queued behind the one before; RetroArch's own three otherwise.
+        if (launch.swapchainImages > 0)
+            set("video_max_swapchain_images", QString::number(launch.swapchainImages));
+        // A screen too big or too slow for a game (gameMode()): the mode of
+        // this size whose refresh is nearest, as RetroArch's KMS context
+        // picks one (drm_ctx.c's gfx_ctx_drm_set_video_mode()).
+        if (!launch.modeSize.isEmpty()) {
+            set("video_fullscreen_x", QString::number(launch.modeSize.width()));
+            set("video_fullscreen_y", QString::number(launch.modeSize.height()));
+            set("video_refresh_rate", QString::number(launch.modeRefresh, 'f', 6));
+        }
         set("input_driver", QStringLiteral("udev"));
         // Without a card that can play (a USB sound adapter showing only its
         // volume buttons until a cable is in its jack), ALSA fails to start
@@ -628,6 +641,13 @@ QString configText(const Launch &launch) {
     set("libretro_info_path", launch.infoDir);
     set("core_info_cache_enable", on(false));
     set("audio_enable", on(launch.sound));
+    // Sound Buffer (soundTuning()): a shorter buffer, so that the sound
+    // trails the picture by fewer frames, and a cheaper resampler where the
+    // machine has little time to spare; RetroArch's own where none is given.
+    if (launch.audioLatency > 0)
+        set("audio_latency", QString::number(launch.audioLatency));
+    if (launch.resamplerQuality >= 0)
+        set("audio_resampler_quality", QString::number(launch.resamplerQuality));
     // Fit to Screen: the whole screen, whatever the game's shape
     // (aspect_ratio_index 24, Full). Otherwise the picture in its shape on a
     // screen whose pixels aren't square (20, Config: the ratio as it is).
@@ -791,15 +811,25 @@ QString configText(const Launch &launch) {
         //    (RetroArch measures that itself, netplay_frontend.c's
         //    input_latency_frames).
         //  - Online, where any RetroArch joins over a link of many frames'
-        //    delay, as RetroArch has it: no latency to start with, and up to
-        //    four frames for a machine that can't keep up.
+        //    delay: two frames of latency to start with where OSD/OS hosts,
+        //    so that a remote press of up to two frames' delay is there before
+        //    its frame is played rather than played again over three to nine
+        //    frames, which a Pi 4 can't; and up to four more for a machine
+        //    that can't keep up. A room of the lobby joined plays with its
+        //    host's, as RetroArch hands them on.
         // A host's are the game's: RetroArch hands them to every machine
         // that joins.
         const bool lan = launch.netplay == Launch::Netplay::LanHost || launch.netplay == Launch::Netplay::LanJoin;
         const bool follow = lan && launch.lanSync == Launch::LanSync::Follow;
         set("netplay_allow_slaves", on(true));
         set("netplay_require_slaves", on(follow));
-        set("netplay_input_latency_frames_min", QString::number(lan && !follow ? kLanInputLatencyFrames : 0));
+        // Show Ping: each peer's ping on the screen, to tell how the link
+        // plays.
+        set("netplay_ping_show", on(launch.pingShown));
+        set("netplay_input_latency_frames_min",
+            QString::number(lan && !follow                       ? kLanInputLatencyFrames
+                            : launch.netplay == Launch::Netplay::Host ? kOnlineHostInputLatencyFrames
+                                                                      : 0));
         set("netplay_input_latency_frames_range",
             QString::number(follow ? 0 : lan ? kLanInputLatencyRange : kOnlineInputLatencyRange));
     }
@@ -1417,6 +1447,80 @@ Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &a
             return Launch::Layout::Panel;
     }
     return Launch::Layout::Classic;
+}
+
+int swapchainImages(board::Family family, bool console, const QString &choice) {
+    // RetroArch's DRM context (gfx/drivers_context/drm_ctx.c) flips without
+    // waiting from three images on, and waits for each flip with two.
+    if (!console || choice == QLatin1String("Three"))
+        return 0;
+    if (choice == QLatin1String("Two"))
+        return 2;
+    return family == board::Family::Pi5 ? 2 : 0;
+}
+
+SoundTuning soundTuning(board::Family family, const QString &choice) {
+    if (choice == QLatin1String("RetroArch's"))
+        return {};
+    // RetroArch's resampler qualities (audio_resampler.h): 1 lowest, 2
+    // lower, 3 normal, its default where it isn't built for NEON, as no
+    // aarch64 build is (its sinc resampler's NEON code is arm32's).
+    if (family == board::Family::Pi4)
+        return { 0, 2 };
+    return { 48, -1 };
+}
+
+QString relayForTimeZone(const QString &zone) {
+    const QString area = zone.section(QLatin1Char('/'), 0, 0);
+    const QString place = zone.section(QLatin1Char('/'), 1);
+    // South America's zones (zone.tab's for its countries, and the older
+    // names that link to them).
+    static const QStringList southAmerica = {
+        QStringLiteral("Argentina"), QStringLiteral("Buenos_Aires"), QStringLiteral("Catamarca"),
+        QStringLiteral("Cordoba"), QStringLiteral("Jujuy"), QStringLiteral("Mendoza"), QStringLiteral("Rosario"),
+        QStringLiteral("Sao_Paulo"), QStringLiteral("Araguaina"), QStringLiteral("Bahia"), QStringLiteral("Belem"),
+        QStringLiteral("Boa_Vista"), QStringLiteral("Campo_Grande"), QStringLiteral("Cuiaba"),
+        QStringLiteral("Eirunepe"), QStringLiteral("Fortaleza"), QStringLiteral("Maceio"), QStringLiteral("Manaus"),
+        QStringLiteral("Noronha"), QStringLiteral("Porto_Velho"), QStringLiteral("Recife"),
+        QStringLiteral("Rio_Branco"), QStringLiteral("Santarem"), QStringLiteral("Porto_Acre"),
+        QStringLiteral("Santiago"), QStringLiteral("Punta_Arenas"), QStringLiteral("Lima"), QStringLiteral("Bogota"),
+        QStringLiteral("Caracas"), QStringLiteral("La_Paz"), QStringLiteral("Asuncion"),
+        QStringLiteral("Montevideo"), QStringLiteral("Guayaquil"), QStringLiteral("Cayenne"),
+        QStringLiteral("Paramaribo"), QStringLiteral("Guyana") };
+    if (area == QLatin1String("America"))
+        return southAmerica.contains(place.section(QLatin1Char('/'), 0, 0)) ? QStringLiteral("saopaulo")
+                                                                            : QStringLiteral("nyc");
+    if (area == QLatin1String("Brazil") || area == QLatin1String("Chile")
+        || zone == QLatin1String("Atlantic/Stanley") || zone == QLatin1String("Atlantic/South_Georgia")
+        || zone == QLatin1String("Pacific/Easter") || zone == QLatin1String("Pacific/Galapagos"))
+        return QStringLiteral("saopaulo");
+    if (area == QLatin1String("US") || area == QLatin1String("Canada") || area == QLatin1String("Mexico")
+        || zone == QLatin1String("Atlantic/Bermuda") || zone == QLatin1String("Pacific/Honolulu"))
+        return QStringLiteral("nyc");
+    if (area == QLatin1String("Europe") || area == QLatin1String("Africa") || area == QLatin1String("Atlantic")
+        || area == QLatin1String("Arctic"))
+        return QStringLiteral("madrid");
+    if (zone == QLatin1String("Asia/Seoul") || zone == QLatin1String("Asia/Pyongyang")
+        || zone == QLatin1String("Asia/Tokyo") || zone == QLatin1String("Japan") || zone == QLatin1String("ROK"))
+        return QStringLiteral("chuncheon");
+    if (area == QLatin1String("Asia") || area == QLatin1String("Australia") || area == QLatin1String("Pacific")
+        || area == QLatin1String("Indian"))
+        return QStringLiteral("singapore");
+    return QStringLiteral("nyc");
+}
+
+std::optional<GameMode> gameMode(const QSize &screen, double refresh, bool tube, const QStringList &connectorModes) {
+    static const QSize hd(1920, 1080);
+    if (tube || screen.isEmpty())
+        return std::nullopt;
+    const bool bigger = screen.width() > hd.width() || screen.height() > hd.height();
+    const bool slow = refresh > 0 && refresh < 49.0 && screen.height() >= 720;
+    if (!bigger && !slow)
+        return std::nullopt;
+    // sysfs lists a mode as its size, an interlaced one with an "i" after.
+    if (!connectorModes.contains(QStringLiteral("1920x1080")))
+        return std::nullopt;
+    return GameMode{ hd, 60 };
 }
 
 void PortClaims::reset(int own, int most, int each) {

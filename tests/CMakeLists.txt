@@ -283,7 +283,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_compile_definitions(arcade_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     osdos_engine_definitions(arcade_test)
-    target_link_libraries(arcade_test PRIVATE osdos_test_launch
+    target_link_libraries(arcade_test PRIVATE osdos_test_launch osdos_test_system
         Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES} osdos_lzma)
     # FinalBurn Neo's download unpacks its core with minizip, where there is one.
     if(OPENHI2TXT_FOUND)

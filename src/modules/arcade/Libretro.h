@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <optional>
 
+#include "../../util/Board.h"
+
 class QHostAddress;
 namespace mame { struct Machine; }
 
@@ -251,6 +253,25 @@ struct Launch {
     // (ports 0) leaves RetroArch to its own: one port, the first free.
     int     portsFrom = 0;
     int     ports = 0;
+    // Settings → Arcade → Emulator Video → Frame Buffers: how many frames
+    // RetroArch's console video (KMS) keeps queued for the screen
+    // (video_max_swapchain_images), 0 for RetroArch's own (3):
+    // swapchainImages().
+    int     swapchainImages = 0;
+    // Settings → Arcade → Sound Buffer: the sound's buffer in milliseconds
+    // (audio_latency) and its resampler's quality (audio_resampler_quality),
+    // 0 and -1 for RetroArch's own: soundTuning().
+    int     audioLatency = 0;
+    int     resamplerQuality = -1;
+    // On the console, the display mode the game asks for (gameMode()):
+    // video_fullscreen_x and _y, and the refresh its KMS context picks the
+    // closest mode of that size by (video_refresh_rate); none (an empty
+    // size) for the mode RetroArch takes by itself.
+    QSize   modeSize;
+    int     modeRefresh = 0;
+    // Settings → Arcade → Show Ping: over the network, each peer's ping on
+    // the screen (netplay_ping_show).
+    bool    pingShown = false;
     // Online, the controller types every port plays with. RetroArch gives
     // every machine the host's, port by port, and a machine's players find
     // their pads only among ports of one kind (its pad n drives the n-th of
@@ -274,6 +295,47 @@ constexpr bool hosts(Launch::Netplay netplay) {
 // known), where one machine may bring more than the Panel layout's ports
 // (kPanelPorts): Classic then, as without a panel.
 Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade, int players);
+// Emulator Video → Frame Buffers (choice: "Auto", "Two", "Three"; "" is
+// Auto) for Launch::swapchainImages, on a console (KMS, Launch::console)
+// alone: RetroArch's own three queue a frame without waiting for the screen
+// to take the one before, so a frame is shown a refresh later than with
+// two. Auto is two on a Raspberry Pi 5, and RetroArch's own on a Pi 4 (whose
+// late frame would become a missed refresh with two) and on any other
+// machine; Two is two on any console; Three, and every desktop, RetroArch's
+// own (0).
+int swapchainImages(board::Family family, bool console, const QString &choice);
+// Sound Buffer (choice: "Auto", "RetroArch's"; "" is Auto) for
+// Launch::audioLatency and Launch::resamplerQuality: Auto is a 48 ms buffer
+// on a Raspberry Pi 5 and every other machine, 64 ms (RetroArch's own) and
+// the resampler's Lower quality (2, one below RetroArch's Normal on an
+// aarch64 build) on a Pi 4; RetroArch's leaves both to RetroArch, for a
+// machine whose sound crackles with Auto.
+struct SoundTuning {
+    int latency = 0;          // 0: RetroArch's own (64 ms)
+    int resamplerQuality = -1; // -1: RetroArch's own
+};
+SoundTuning soundTuning(board::Family family, const QString &choice);
+// The relay a game hosted online goes through when Relay Server has nothing
+// saved: the nearest of those RetroArch offers (Launch::relay's names) to the
+// IANA time zone the system is set to ("Europe/Madrid"): Europe and Africa
+// Madrid, South America São Paulo, the rest of the Americas New York, Korea
+// and Japan Chuncheon, the rest of Asia and Oceania Singapore; New York for a
+// zone that says no place (UTC) or none.
+QString relayForTimeZone(const QString &zone);
+// The display mode a game asks for on a Raspberry Pi's console (KMS) where
+// the one the app runs in is too big or too slow for it: a screen larger
+// than 1920x1080 (a 4K TV, where a Pi 5 would draw every frame at 2160p and
+// a Pi 4 may run at 30 Hz), or one of 1280x720 or more slower than 50 Hz,
+// whose connector lists 1920x1080 (connectorModes: its sysfs "modes" file's
+// lines, "1920x1080", "1920x1080i", "3840x2160"): 1920x1080 at 60 Hz.
+// Nothing for a tube's mode (a CRT's 240p, 480i or 576i, JAMMA, SCART),
+// a 1080p screen of 50 Hz or more, a size not known, or a connector without
+// that mode: the game takes the mode it takes today.
+struct GameMode {
+    QSize size;
+    int refresh = 0;
+};
+std::optional<GameMode> gameMode(const QSize &screen, double refresh, bool tube, const QStringList &connectorModes);
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
 QString configText(const Launch &launch);
@@ -461,10 +523,12 @@ QList<Room> readLobby(const QByteArray &json);
 // The frames of input latency a game over the network plays with where its
 // machines play ahead on a guess (configText(), where why): on the local
 // network (Launch::LanSync::Predict) one for every machine and up to
-// kLanInputLatencyRange more for one that can't keep up otherwise; online
-// none, and up to kOnlineInputLatencyRange for such a machine.
+// kLanInputLatencyRange more for one that can't keep up otherwise; online,
+// hosted here (Launch::Netplay::Host), two, which the machines joining take
+// from the host, and up to kOnlineInputLatencyRange more for such a machine.
 inline constexpr int kLanInputLatencyFrames = 1;
 inline constexpr int kLanInputLatencyRange = 3;
+inline constexpr int kOnlineHostInputLatencyFrames = 2;
 inline constexpr int kOnlineInputLatencyRange = 4;
 
 // LAN Play, RetroArch's netplay on the local network: a host that isn't

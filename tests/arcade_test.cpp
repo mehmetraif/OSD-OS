@@ -1082,6 +1082,55 @@ private slots:
         // No players: no controller of theirs, still a way out.
         QVERIFY(!logLines().join(QLatin1Char('\n')).contains(QStringLiteral("mapdevice")));
         QVERIFY(logLines().join(QLatin1Char('\n')).contains(QStringLiteral("UI_CANCEL")));
+        // MAME Vsync on Auto: each frame waits for the screen on a Pi 4 or 5
+        // drawing through KMS (the test runs without a desktop), never
+        // -syncrefresh; elsewhere as before, unless turned on; off where
+        // turned off.
+        const auto vsync = [&](board::Family family, const QVariant &choice) {
+            arcade.setBoard(family);
+            arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("mame_vsync"), choice);
+            QFile::remove(m_log);
+            played(arcade, QStringLiteral("galaga"));
+            const QString line = logLines(QStringLiteral("play")).value(0);
+            return !line.contains(QStringLiteral("-syncrefresh"))
+                   && line.endsWith(QStringLiteral(" -video soft -waitvsync"));
+        };
+        QVERIFY(vsync(board::Family::Pi4, QVariant()));
+        QVERIFY(vsync(board::Family::Pi5, QStringLiteral("Auto")));
+        QVERIFY(!vsync(board::Family::Pi5, QStringLiteral("Off")));
+        QVERIFY(!vsync(board::Family::Other, QStringLiteral("Auto")));
+        QVERIFY(vsync(board::Family::Other, QStringLiteral("On")));
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("mame_vsync"), QStringLiteral("Off"));
+        // A Pi on a 4K TV at 30 Hz whose HDMI lists 1920x1080: MAME asks for
+        // it at 60 Hz, and says so in the log; on a 1080p60 screen, or off
+        // the Pis, nothing.
+        QTemporaryDir drm;
+        QDir().mkpath(drm.path() + QStringLiteral("/card0-Composite-1"));
+        QDir().mkpath(drm.path() + QStringLiteral("/card1-HDMI-A-1"));
+        writeFile(drm.path() + QStringLiteral("/card0-Composite-1/status"), "disconnected\n");
+        writeFile(drm.path() + QStringLiteral("/card0-Composite-1/modes"), "720x480i\n");
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/status"), "connected\n");
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/modes"), "3840x2160\n1920x1080\n1920x1080i\n");
+        arcade.setDrmFolder(drm.path());
+        const auto resolution = [&](board::Family family, const QSize &size, double hz) {
+            arcade.setBoard(family);
+            arcade.setScreen(false, size, hz);
+            QFile::remove(m_log);
+            played(arcade, QStringLiteral("galaga"));
+            const QString line = logLines(QStringLiteral("play")).value(0);
+            return line.section(QStringLiteral(" -resolution "), 1).section(QLatin1Char(' '), 0, 0);
+        };
+        {
+            QTest::ignoreMessage(QtInfoMsg, "arcade: the screen is 3840x2160 at 30 Hz: the game asks for 1920x1080 at 60 Hz");
+            QCOMPARE(resolution(board::Family::Pi4, QSize(3840, 2160), 30), QStringLiteral("1920x1080@60"));
+        }
+        QCOMPARE(resolution(board::Family::Pi5, QSize(1920, 1080), 60), QString());
+        QCOMPARE(resolution(board::Family::Other, QSize(3840, 2160), 30), QString());
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/modes"), "3840x2160\n");
+        QCOMPARE(resolution(board::Family::Pi5, QSize(3840, 2160), 30), QString());
+        arcade.setScreen(false, QSize());
+        arcade.setBoard(board::Family::Other);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("mame_vsync"), QVariant());
     }
 
     // Settings → Arcade → Emulator Video and the screen OSD/OS is on: on a
@@ -1908,6 +1957,102 @@ private slots:
             QVERIFY(!quiet.contains(QStringLiteral("audio_driver = \"alsa\"")));
         }
         launch.sound = true;
+        // RetroArch's own display queue and sound buffer unless a machine's
+        // are given: two frames queued on the console of a Pi 5 (Frame
+        // Buffers on Auto), RetroArch's three on a Pi 4 and everywhere else,
+        // two on any console asked for Two, and none of it on a desktop.
+        QVERIFY(!config.contains(QStringLiteral("video_max_swapchain_images")));
+        QVERIFY(!config.contains(QStringLiteral("audio_latency")));
+        QVERIFY(!config.contains(QStringLiteral("audio_resampler_quality")));
+        using board::Family;
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, true, QString()), 2);
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, true, QStringLiteral("Auto")), 2);
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, true, QStringLiteral("Three")), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Pi4, true, QStringLiteral("Auto")), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Pi4, true, QStringLiteral("Two")), 2);
+        QCOMPARE(libretro::swapchainImages(Family::Other, true, QString()), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, false, QStringLiteral("Two")), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Other, false, QStringLiteral("Two")), 0);
+        launch.swapchainImages = 2;
+        QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
+                    .contains(QStringLiteral("video_max_swapchain_images = \"2\"")));
+        launch.console = false;
+        QVERIFY(!libretro::configText(launch).contains(QStringLiteral("video_max_swapchain_images")));
+        launch.console = true;
+        launch.swapchainImages = 0;
+        // Sound Buffer on Auto: 48 ms on a Pi 5 and any other machine; on a
+        // Pi 4 RetroArch's 64 ms and a cheaper resampler; RetroArch's own
+        // for both where asked.
+        const auto sound = [](Family family, const char *choice) {
+            const libretro::SoundTuning t = libretro::soundTuning(family, QLatin1String(choice));
+            return QStringLiteral("%1/%2").arg(t.latency).arg(t.resamplerQuality);
+        };
+        QCOMPARE(sound(Family::Pi5, ""), QStringLiteral("48/-1"));
+        QCOMPARE(sound(Family::Other, "Auto"), QStringLiteral("48/-1"));
+        QCOMPARE(sound(Family::Pi4, "Auto"), QStringLiteral("0/2"));
+        QCOMPARE(sound(Family::Pi4, "RetroArch's"), QStringLiteral("0/-1"));
+        QCOMPARE(sound(Family::Pi5, "RetroArch's"), QStringLiteral("0/-1"));
+        launch.audioLatency = 48;
+        launch.resamplerQuality = 2;
+        for (bool console : { true, false }) {
+            launch.console = console;
+            const QStringList lines = libretro::configText(launch).split(QLatin1Char('\n'));
+            QVERIFY(lines.contains(QStringLiteral("audio_latency = \"48\"")));
+            QVERIFY(lines.contains(QStringLiteral("audio_resampler_quality = \"2\"")));
+        }
+        launch.console = true;
+        launch.audioLatency = 0;
+        launch.resamplerQuality = -1;
+        // The relay nearest the time zone, of those RetroArch offers.
+        for (const auto &[zone, relay] : std::initializer_list<std::pair<const char *, const char *>>{
+                 { "Europe/Istanbul", "madrid" }, { "Africa/Lagos", "madrid" }, { "Atlantic/Canary", "madrid" },
+                 { "America/Sao_Paulo", "saopaulo" }, { "America/Argentina/Cordoba", "saopaulo" },
+                 { "America/Bogota", "saopaulo" }, { "America/Chicago", "nyc" }, { "America/Mexico_City", "nyc" },
+                 { "America/Indiana/Indianapolis", "nyc" }, { "Asia/Seoul", "chuncheon" }, { "Asia/Tokyo", "chuncheon" },
+                 { "Asia/Kolkata", "singapore" }, { "Asia/Dubai", "singapore" }, { "Australia/Perth", "singapore" },
+                 { "Pacific/Auckland", "singapore" }, { "Pacific/Honolulu", "nyc" }, { "UTC", "nyc" },
+                 { "Etc/UTC", "nyc" }, { "", "nyc" } })
+            QCOMPARE(libretro::relayForTimeZone(QLatin1String(zone)), QLatin1String(relay));
+        // A 4K screen, or a 1080p one at 30 Hz, whose connector has
+        // 1920x1080: the game asks for it at 60 Hz. A tube's 240p and 480i,
+        // a 1080p60 screen, 50 Hz, a connector without the mode, or only its
+        // interlaced one: nothing.
+        const QStringList tv{ QStringLiteral("3840x2160"), QStringLiteral("1920x1080"), QStringLiteral("1920x1080i"),
+                              QStringLiteral("1280x720") };
+        const auto mode = [](const QSize &screen, double hz, bool tube, const QStringList &modes) {
+            const std::optional<libretro::GameMode> m = libretro::gameMode(screen, hz, tube, modes);
+            return m ? QStringLiteral("%1x%2@%3").arg(m->size.width()).arg(m->size.height()).arg(m->refresh) : QString();
+        };
+        QCOMPARE(mode(QSize(3840, 2160), 30, false, tv), QStringLiteral("1920x1080@60"));
+        QCOMPARE(mode(QSize(3840, 2160), 60, false, tv), QStringLiteral("1920x1080@60"));
+        QCOMPARE(mode(QSize(1920, 1080), 30, false, tv), QStringLiteral("1920x1080@60"));
+        QCOMPARE(mode(QSize(1920, 1080), 60, false, tv), QString());
+        QCOMPARE(mode(QSize(1920, 1080), 50, false, tv), QString());
+        QCOMPARE(mode(QSize(720, 240), 60, true, tv), QString());
+        QCOMPARE(mode(QSize(720, 480), 30, true, tv), QString());
+        QCOMPARE(mode(QSize(720, 480), 30, false, tv), QString());
+        QCOMPARE(mode(QSize(720, 576), 25, true, { QStringLiteral("720x576i") }), QString());
+        QCOMPARE(mode(QSize(3840, 2160), 30, false, { QStringLiteral("3840x2160"), QStringLiteral("1920x1080i") }),
+                 QString());
+        QCOMPARE(mode(QSize(), 30, false, tv), QString());
+        // Written on the console alone, as RetroArch's KMS context takes it.
+        QVERIFY(!config.contains(QStringLiteral("video_fullscreen_x")));
+        QVERIFY(!config.contains(QStringLiteral("video_refresh_rate")));
+        launch.modeSize = QSize(1920, 1080);
+        launch.modeRefresh = 60;
+        {
+            const QStringList lines = libretro::configText(launch).split(QLatin1Char('\n'));
+            for (const char *line : { "video_fullscreen_x = \"1920\"", "video_fullscreen_y = \"1080\"",
+                                      "video_refresh_rate = \"60.000000\"" })
+                QVERIFY2(lines.contains(QLatin1String(line)), line);
+            launch.console = false;
+            QVERIFY(!libretro::configText(launch).contains(QStringLiteral("video_fullscreen_x")));
+            launch.console = true;
+        }
+        launch.modeSize = QSize();
+        launch.modeRefresh = 0;
+        // The ping on the screen only over the network, off unless asked.
+        QVERIFY(!config.contains(QStringLiteral("netplay_ping_show")));
         // That file, by the core's name: its states deterministic, the same
         // on every machine, without which RetroArch neither hosts nor joins
         // a game with it.
@@ -2222,11 +2367,22 @@ private slots:
                                   "game_specific_options = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         // Online, each machine plays ahead on a guess, as any RetroArch
-        // does: no input latency to start with, and up to four frames of it
-        // for a machine that can't play its frames again in time.
-        for (const char *line : { "netplay_require_slaves = \"false\"", "netplay_input_latency_frames_min = \"0\"",
-                                  "netplay_input_latency_frames_range = \"4\"" })
+        // does: hosted here, two frames of input latency to start with,
+        // which the machines joining take, and up to four more for a machine
+        // that can't play its frames again in time; the ping off the screen
+        // unless asked for.
+        for (const char *line : { "netplay_require_slaves = \"false\"", "netplay_input_latency_frames_min = \"2\"",
+                                  "netplay_input_latency_frames_range = \"4\"", "netplay_ping_show = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        launch.pingShown = true;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("netplay_ping_show = \"true\"")));
+        launch.pingShown = false;
+        launch.netplay = libretro::Launch::Netplay::Join;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("netplay_input_latency_frames_min = \"0\"")));
+        launch.netplay = libretro::Launch::Netplay::Host;
+        config = libretro::configText(launch);
 
         QCOMPARE(libretro::arguments(launch),
                  QStringList({ QStringLiteral("-L"), QStringLiteral("/cores/fbneo_libretro.so"), QStringLiteral("--config"),
@@ -6475,7 +6631,27 @@ private slots:
         // online name; the cabinet's layout on every port, the file left by
         // the game off line replaced by it.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
+        // Relay Server with nothing saved: the nearest to the system's time
+        // zone, as the row shows it; one saved kept, whatever the zone.
+        arcade.setTimeZone(QStringLiteral("Asia/Tokyo"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Chuncheon"));
+        arcade.setTimeZone(QStringLiteral("America/Argentina/Buenos_Aires"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("São Paulo"));
+        arcade.setTimeZone(QString());
+        QCOMPARE(arcade.relayServer(), QStringLiteral("New York"));
+        arcade.setTimeZone(QStringLiteral("Europe/Istanbul"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Madrid"));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Singapore"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Singapore"));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QVariant());
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Madrid"));
+        arcade.setTimeZone(QStringLiteral("Australia/Sydney"));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
+        // A Pi 5's console (the test runs without a desktop): two frames
+        // queued for the screen, the 48 ms sound buffer, and the ping shown
+        // where asked.
+        arcade.setBoard(board::Family::Pi5);
+        arcade.onSettingChanged(module, QStringLiteral("show_ping"), QStringLiteral("ON"));
         QFile::remove(m_log);
         writeFile(remap, leftOver);
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
@@ -6483,8 +6659,13 @@ private slots:
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
-                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
+                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "netplay_input_latency_frames_min = \"2\"", "netplay_ping_show = \"true\"",
+                                  "video_max_swapchain_images = \"2\"", "audio_latency = \"48\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("audio_resampler_quality")));
+        arcade.setBoard(board::Family::Other);
+        arcade.onSettingChanged(module, QStringLiteral("show_ping"), QVariant());
         QVERIFY2(onPanel(config), qPrintable(config));
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")).size(), 6);
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));

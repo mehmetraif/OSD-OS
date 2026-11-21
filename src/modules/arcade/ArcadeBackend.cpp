@@ -9,6 +9,7 @@
 #include "../../util/LegacyNames.h"
 #include "../../util/ProcessOver.h"
 #include "../../wifi/LinkAdvice.h"
+#include "../../system/SystemLocale.h"
 #include "ArcadeDb.h"
 #include "FbneoInstaller.h"
 #include "LanRooms.h"
@@ -32,6 +33,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QTimeZone>
 #include <QTimer>
 #include <QUdpSocket>
 #include <QUrl>
@@ -504,7 +506,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                              "screen_shape",
                              "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
                              "menu_filters", "online_high_scores", "online_play", "engines",
-                             "online_name", "relay_server", "lan_play", "lan_sync", "pictures_source" }) {
+                             "online_name", "relay_server", "lan_play", "lan_sync", "pictures_source",
+                             "frame_buffers", "sound_buffer", "show_ping", "mame_vsync" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -681,7 +684,17 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
     } else if (key == QLatin1String("online_name")) {
         m_onlineName = value.toString().trimmed();
     } else if (key == QLatin1String("relay_server")) {
-        m_relay = kRelays.value(value.toString(), QStringLiteral("nyc"));
+        // Nothing saved (or a name not among them): the nearest to the
+        // system's time zone, as each game is hosted (relay()).
+        m_relay = kRelays.value(value.toString());
+    } else if (key == QLatin1String("frame_buffers")) {
+        m_frameBuffers = value.toString();
+    } else if (key == QLatin1String("sound_buffer")) {
+        m_soundBuffer = value.toString();
+    } else if (key == QLatin1String("show_ping")) {
+        m_showPing = isOn(value, false);
+    } else if (key == QLatin1String("mame_vsync")) {
+        m_mameVsync = value.toString();
     } else if (key == QLatin1String("lan_sync")) {
         // Smooth unless it says otherwise: unset too.
         m_lanFollow = value.toString() != QLatin1String("Responsive");
@@ -2560,6 +2573,15 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     }
     if (!m_video.isEmpty())
         args << QStringLiteral("-video") << m_video;
+    // Emulator Video → MAME Vsync: each frame waits for the screen's
+    // refresh, rather than MAME's own timer alone, which tears or judders
+    // where MAME draws through KMS (mameVsync()).
+    if (mameVsync())
+        args << QStringLiteral("-waitvsync");
+    // A screen too big or too slow for a game: 1920x1080 at 60 Hz.
+    if (const std::optional<libretro::GameMode> mode = gameMode())
+        args << QStringLiteral("-resolution")
+             << QStringLiteral("%1x%2@%3").arg(mode->size.width()).arg(mode->size.height()).arg(mode->refresh);
     // Emulator Video: the screen's shape, and the game's lines whole.
     args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale(),
                                   m_fitScreen, monitorFor(name));
@@ -2617,9 +2639,83 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     return true;
 }
 
-void ArcadeBackend::setScreen(bool tube, const QSize &size) {
+bool ArcadeBackend::onConsole() {
+#ifdef Q_OS_LINUX
+    // A desktop's program draws in its window; the console's through KMS.
+    return qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY");
+#else
+    return false;
+#endif
+}
+
+QStringList ArcadeBackend::connectorModes() const {
+    const auto modesOf = [](const QString &dir) {
+        QStringList modes;
+        for (const QByteArray &line : filetext::readText(dir + QStringLiteral("/modes"), 64 * 1024).split('\n')) {
+            if (!line.trimmed().isEmpty())
+                modes << QString::fromLatin1(line.trimmed());
+        }
+        return modes;
+    };
+    // The preset's output, as the launcher found it ("/dev/dri/card1",
+    // "HDMI-A-1").
+    const QString device = QFileInfo(qEnvironmentVariable("OSDOS_DRM_DEVICE")).fileName();
+    const QString connector = qEnvironmentVariable("OSDOS_DRM_CONNECTOR");
+    if (device.startsWith(QLatin1String("card")) && !connector.isEmpty() && !connector.contains(QLatin1Char('/')))
+        return modesOf(m_drmFolder + QLatin1Char('/') + device + QLatin1Char('-') + connector);
+    // Else the first with a screen plugged in, as RetroArch takes it.
+    QStringList dirs = QDir(m_drmFolder).entryList({ QStringLiteral("card*-*") }, QDir::Dirs | QDir::NoDotAndDotDot,
+                                                    QDir::Name);
+    for (const QString &dir : std::as_const(dirs)) {
+        const QString path = m_drmFolder + QLatin1Char('/') + dir;
+        if (filetext::readText(path + QStringLiteral("/status"), 64).trimmed() == "connected")
+            return modesOf(path);
+    }
+    return {};
+}
+
+std::optional<libretro::GameMode> ArcadeBackend::gameMode() const {
+    if (!onConsole() || (m_board != board::Family::Pi4 && m_board != board::Family::Pi5))
+        return std::nullopt;
+    const std::optional<libretro::GameMode> mode = libretro::gameMode(m_screenSize, m_screenRefresh, m_tube,
+                                                                      connectorModes());
+    if (mode)
+        qInfo("arcade: the screen is %dx%d at %g Hz: the game asks for %dx%d at %d Hz", m_screenSize.width(),
+              m_screenSize.height(), m_screenRefresh, mode->size.width(), mode->size.height(), mode->refresh);
+    return mode;
+}
+
+bool ArcadeBackend::mameVsync() const {
+    if (m_mameVsync == QLatin1String("On"))
+        return true;
+    if (m_mameVsync == QLatin1String("Off"))
+        return false;
+    // Auto: where MAME draws through KMS on a Raspberry Pi 4 or 5.
+    return onConsole() && (m_board == board::Family::Pi4 || m_board == board::Family::Pi5);
+}
+
+QString ArcadeBackend::relay() const {
+    if (!m_relay.isEmpty())
+        return m_relay;
+    QString zone = m_timeZone ? *m_timeZone : systemlocale::timeZone();
+    if (zone.isEmpty() && !m_timeZone)
+        zone = QString::fromUtf8(QTimeZone::systemTimeZoneId());
+    return libretro::relayForTimeZone(zone);
+}
+
+QString ArcadeBackend::relayServer() const {
+    const QString name = relay();
+    for (auto it = kRelays.cbegin(); it != kRelays.cend(); ++it) {
+        if (it.value() == name)
+            return it.key();
+    }
+    return QStringLiteral("New York");
+}
+
+void ArcadeBackend::setScreen(bool tube, const QSize &size, double refresh) {
     m_tube = tube;
     m_screenSize = size;
+    m_screenRefresh = refresh;
 }
 
 QString ArcadeBackend::screenShape() const {
@@ -3151,12 +3247,8 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.configDir = home + QStringLiteral("/config");
     launch.remapDir = home + QStringLiteral("/remaps");
     launch.infoDir = home + QStringLiteral("/info");
-#ifdef Q_OS_LINUX
     // A desktop's RetroArch draws in its window; the console's needs KMS.
-    launch.console = qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY");
-#else
-    launch.console = false;
-#endif
+    launch.console = onConsole();
     launch.sound = AudioOutput::hasPlaybackCard();
     // Emulator Video: the picture over the whole screen (Fit to Screen), or
     // in its shape on the screen, its lines whole.
@@ -3174,6 +3266,16 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     else if (launch.rotation % 2)
         launch.aspect = shown;
     launch.integerScale = integerScale();
+    // Emulator Video → Frame Buffers and Sound Buffer, by the machine.
+    launch.swapchainImages = libretro::swapchainImages(m_board, launch.console, m_frameBuffers);
+    const libretro::SoundTuning sound = libretro::soundTuning(m_board, m_soundBuffer);
+    launch.audioLatency = sound.latency;
+    launch.resamplerQuality = sound.resamplerQuality;
+    launch.pingShown = m_showPing;
+    if (const std::optional<libretro::GameMode> mode = gameMode()) {
+        launch.modeSize = mode->size;
+        launch.modeRefresh = mode->refresh;
+    }
     // The credits bought, played alone: put in once the game runs
     // (feedCoins()), through a UDP port free on this machine.
     const int coins = netplay == Netplay::None ? std::min(credits, kMaxCredits) : 0;
@@ -3207,7 +3309,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.joinAddress = joinAddress;
     launch.nickname = nickname(netplay == libretro::Launch::Netplay::LanHost
                                || netplay == libretro::Launch::Netplay::LanJoin);
-    launch.relay = m_relay;
+    launch.relay = relay();
     launch.lanSync = m_lanFollow ? libretro::Launch::LanSync::Follow : libretro::Launch::LanSync::Predict;
     const bool hosting = libretro::hosts(netplay);
     // The controller types every port plays with online: a host's own
