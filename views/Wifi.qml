@@ -224,6 +224,30 @@ FocusScope {
         }
     }
 
+    // What select does on a line, for the hint bar: "" where it does
+    // nothing (a note, a network busy joining).
+    function selectHint(row) {
+        if (!row)
+            return ""
+        if (row.type === "power")
+            return !wifiOn && country === "" && countryAvailable
+                   ? (countryBusy ? "" : "select:SET COUNTRY")
+                   : "select:" + (wifiOn ? "TURN OFF" : "TURN ON")
+        if (row.type === "country")
+            return countryAvailable && !countryBusy ? "select:CHOOSE" : ""
+        if (row.type === "search")
+            return "select:" + (searching ? "STOP" : "SEARCH")
+        if (row.type === "hidden")
+            return "select:TYPE NAME"
+        if (row.type === "network") {
+            var n = row.network
+            if (n.busy !== "")
+                return ""
+            return "select:" + (n.active || n.known ? "OPTIONS" : "JOIN")
+        }
+        return ""
+    }
+
     // A line's work under way (searching, connecting…) trails dots that come
     // and go.
     Timer {
@@ -297,9 +321,14 @@ FocusScope {
         visible: text !== "" && !keyboard.visible
     }
 
+    // The keys that do something on the line under the cursor: select's
+    // word is what it does there, and nothing but back with no line to go
+    // to (no Wi-Fi).
     HintBar {
         visible: !keyboard.visible
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+        text: root.hintLine(["back:BACK",
+                             wifiRoot.rows.filter(function(r) { return list.selectable(r) }).length > 1 ? "navigate:NAVIGATE" : "",
+                             wifiRoot.selectHint(wifiRoot.rows[list.currentIndex])])
     }
 
     // A saved network's options, the one joined's, or whether one not
@@ -333,7 +362,28 @@ FocusScope {
             else if (action === "disconnect")
                 wifiManager.disconnectNetwork()
             else if (action === "forget")
-                wifiManager.forget(n.ssid)
+                forgetQuestion.ask(n)
+        }
+        onClosed: list.forceActiveFocus()
+    }
+
+    // Forget is asked first, the cursor on Cancel: a password forgotten
+    // has to be typed again with a remote to join the network.
+    ChoiceOverlay {
+        id: forgetQuestion
+        objectName: "forgetQuestion"
+        anchors.fill: parent
+        property string ssid: ""
+        promptText: "Forget " + ssid + "?"
+        subtitleText: "Its password has to be typed again to join it"
+        choices: [{ label: "Cancel", action: "cancel" }, { label: "Forget", action: "forget" }]
+        function ask(network) {
+            ssid = network.ssid
+            open()
+        }
+        onActivated: function(action) {
+            if (action === "forget" && wifiManager)
+                wifiManager.forget(ssid)
         }
         onClosed: list.forceActiveFocus()
     }

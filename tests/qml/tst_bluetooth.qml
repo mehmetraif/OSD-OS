@@ -65,6 +65,7 @@ StandInRoot {
         when: windowShown
 
         function init() {
+            root.hints = root.keyboardHints
             bluetoothManager.available = true
             bluetoothManager.powered = true
             bluetoothManager.searching = false
@@ -107,6 +108,24 @@ StandInRoot {
                     return page.children[i]
             }
             return null
+        }
+
+        function questionOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].objectName === "forgetQuestion")
+                    return page.children[i]
+            }
+            return null
+        }
+        // The hint bar's line: the page's own, not one of its overlays'.
+        function hintOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                var item = page.children[i]
+                if (item.text !== undefined && item.always === undefined && item.objectName === "" && typeof item.text === "string"
+                        && item.text.indexOf(":BACK") >= 0)
+                    return item.text
+            }
+            return ""
         }
 
         function test_unavailable() {
@@ -153,12 +172,89 @@ StandInRoot {
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
             compare(overlay.choices.map(function(c) { return c.label }), ["Disconnect", "Forget"])
+            // Forget asks first, the cursor on Cancel: select there keeps it.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            var question = questionOf(page)
+            verify(question.visible)
+            compare(question.promptText, "Forget Keys?")
+            compare(question.choices.map(function(c) { return c.label }), ["Cancel", "Forget"])
+            compare(question.choiceIndex, 0)
+            keyClick(Qt.Key_Return)
+            verify(!question.visible)
+            compare(bluetoothManager.calls, ["pair /org/bluez/hci0/dev_Remote", "connect /org/bluez/hci0/dev_Pad"])
+            // Back from it keeps it too.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            verify(question.visible)
+            keyClick(Qt.Key_Escape)
+            verify(!question.visible)
+            compare(bluetoothManager.calls.length, 2)
+            // FORGET forgets it.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(bluetoothManager.calls, ["pair /org/bluez/hci0/dev_Remote", "connect /org/bluez/hci0/dev_Pad",
                                              "forget /org/bluez/hci0/dev_Keys"])
+            compare(cursor(page), "/org/bluez/hci0/dev_Keys")
             loader.source = ""
             compare(bluetoothManager.calls.slice(3), ["stopSearch", "cancelPairing"])
+        }
+
+        // A code to compare: CANCEL under the cursor as it opens, PAIR
+        // under it.
+        function test_pairingConfirm() {
+            var page = open()
+            bluetoothManager.prompt = { kind: "confirm", code: "123456", name: "Pad" }
+            var prompt = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].answered !== undefined)
+                    prompt = page.children[i]
+            }
+            verify(prompt !== null && prompt.visible)
+            compare(prompt.choiceIndex, 0)
+            keyClick(Qt.Key_Return)
+            compare(bluetoothManager.calls, ["answerPrompt false"])
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(bluetoothManager.calls, ["answerPrompt false", "answerPrompt true"])
+            bluetoothManager.prompt = {}
+        }
+
+        // The hint bar names what select does on the line under the cursor,
+        // in the keyboard's names or a pad's; with no Bluetooth, back alone.
+        function test_hints_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_hints(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var page = open()
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":TURN OFF")
+            keyClick(Qt.Key_Down)
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":SEARCH")
+            bluetoothManager.searching = true
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":STOP")
+            keyClick(Qt.Key_Down)
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":OPTIONS")
+            for (var i = 0; i < 2; i++)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), "/org/bluez/hci0/dev_Remote")
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":PAIR")
+            // Pairing: select does nothing there.
+            bluetoothManager.devices = root.someDevices(function(d) {
+                return d.name === "Remote" ? Object.assign({}, d, { busy: "pairing" }) : d
+            })
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE")
+            loader.source = ""
+            bluetoothManager.available = false
+            page = open()
+            compare(hintOf(page), h.back + ":BACK")
+            root.hints = root.keyboardHints
         }
 
         // What BlueZ says while the page is up changes the lines where they

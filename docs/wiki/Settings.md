@@ -286,10 +286,11 @@ Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 | **Country** | The country the Pi is used in. Wi-Fi stays off until it is set |
 | **Search** | Looks for networks for a minute; select stops it early |
 | **Network Not Listed** | Joins a network that doesn't say its name: type its name, then choose open or type its password |
-| **Saved** | The networks NetworkManager keeps, those out of reach as **Not Here**. Select offers **Connect**, **New Password** and **Forget**; on the one joined, **Disconnect** and **Forget** |
+| **Saved** | The networks NetworkManager keeps, those out of reach as **Not Here**. Select offers **Connect**, **New Password** and **Forget**; on the one joined, **Disconnect** and **Forget**. Forget asks first (**Forget …?**, the cursor on **Cancel**): its password has to be typed again to join it |
 | **Networks** | The others, the strongest first. Select one and type its password; an open one is joined at once |
 
 - A network joined is saved and joined by itself from then on.
+- The hint bar says what select does on the line under the cursor (**TURN ON**, **CHOOSE**, **SEARCH**, **JOIN**, **OPTIONS**), and only back on **No Wi-Fi**.
 - A network that wants a user name too (WPA Enterprise) can't be joined here.
 - A character the on-screen keyboard hasn't (`/`, `:`, a bracket) can be typed on a real keyboard.
 - Back from a network not listed's password, or from the question before it, keeps the name you typed: **Network Not Listed** opens on it again.
@@ -312,10 +313,11 @@ Problems are in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Trou
 | **Bluetooth** | Turns the adapter on or off. If it won't turn on, a **Details** line shows what the system says ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#bluetooth-wont-turn-on)) |
 | **Search** | Looks for devices for a minute; select stops it early. Put the device in pairing mode first |
 | **Found** | What the search found. Select pairs a device, trusts it so it reconnects after a restart, and connects it |
-| **Paired** | The paired devices. Select offers **Connect** or **Disconnect**, and **Forget** |
+| **Paired** | The paired devices. Select offers **Connect** or **Disconnect**, and **Forget**, which asks first (**Forget …?**, the cursor on **Cancel**) |
 
-- A keyboard shows a code to type on it. A phone shows the same code on both, to confirm. A gamepad or mouse asks nothing.
+- A keyboard shows a code to type on it. A phone shows the same code on both, to confirm: **Cancel**, under the cursor, or **Pair**. A gamepad or mouse asks nothing.
 - Back cancels a pairing. Leaving the page stops a search.
+- The hint bar says what select does on the line under the cursor (**TURN ON**, **SEARCH**, **PAIR**, **OPTIONS**), and only back on **No Bluetooth**.
 - Without BlueZ or an adapter the page says **No Bluetooth**. On a Mac, pair devices in the Mac's own Bluetooth settings.
 
 ## Startup

@@ -80,6 +80,7 @@ StandInRoot {
         when: windowShown
 
         function init() {
+            root.hints = root.keyboardHints
             root.menuLayout = "Standard"
             root.chrome.basePath = []
             wifiManager.available = true
@@ -151,6 +152,23 @@ StandInRoot {
             }
             return null
         }
+        function questionOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].objectName === "forgetQuestion")
+                    return page.children[i]
+            }
+            return null
+        }
+        // The hint bar's line: the page's own, not one of its overlays'.
+        function hintOf(page) {
+            for (var i = 0; i < page.children.length; i++) {
+                var item = page.children[i]
+                if (item.always === undefined && typeof item.text === "string" && item.text.indexOf(":BACK") >= 0
+                        && item.promptText === undefined)
+                    return item.text
+            }
+            return ""
+        }
         function chooserOf(page) {
             for (var i = 0; i < page.children.length; i++) {
                 if (page.children[i].entries !== undefined)
@@ -167,6 +185,47 @@ StandInRoot {
             wifiManager.available = false
             var page = open()
             compare(lines(page), ["No Wi-Fi"])
+        }
+
+        // The hint bar names what select does on the line under the cursor,
+        // in the keyboard's names or a pad's; with no Wi-Fi, back alone.
+        function test_hints_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_hints(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var lead = h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":"
+            var page = open()
+            compare(hintOf(page), lead + "TURN OFF")
+            moveTo(page, "Country")
+            compare(hintOf(page), lead + "CHOOSE")
+            moveTo(page, "Search")
+            compare(hintOf(page), lead + "SEARCH")
+            moveTo(page, "Network Not Listed")
+            compare(hintOf(page), lead + "TYPE NAME")
+            moveTo(page, "Cafe")
+            compare(hintOf(page), lead + "OPTIONS")
+            moveTo(page, "Neighbour")
+            compare(hintOf(page), lead + "JOIN")
+            // Joining: select does nothing there.
+            wifiManager.networks = wifiManager.networks.map(function(n) {
+                return n.ssid === "Neighbour" ? Object.assign({}, n, { busy: "connecting" }) : n
+            })
+            compare(hintOf(page), h.back + ":BACK " + h.navigate + ":NAVIGATE")
+            loader.source = ""
+            wifiManager.enabled = false
+            wifiManager.state = "off"
+            wifiManager.country = ""
+            wifiManager.countryName = ""
+            page = open()
+            compare(hintOf(page), lead + "SET COUNTRY")
+            loader.source = ""
+            wifiManager.available = false
+            page = open()
+            compare(hintOf(page), h.back + ":BACK")
+            root.hints = root.keyboardHints
         }
 
         // In a layout's frame (Camcorder's column, which the shell keeps on
@@ -326,10 +385,33 @@ StandInRoot {
             verify(keyboard.visible)
             type("Another1")
             keyClick(Qt.Key_Return)
+            // Forget asks first, the cursor on Cancel: select there keeps it,
+            // as back does.
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
+            var question = questionOf(page)
+            verify(question.visible)
+            compare(question.promptText, "Forget Cafe?")
+            compare(question.choices.map(function(c) { return c.label }), ["Cancel", "Forget"])
+            compare(question.choiceIndex, 0)
+            keyClick(Qt.Key_Return)
+            verify(!question.visible)
+            compare(wifiManager.calls, ["connectTo Cafe", "connectTo Cafe Another1"])
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Escape)
+            verify(!question.visible)
+            compare(wifiManager.calls.length, 2)
+            // FORGET forgets it.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
             compare(wifiManager.calls, ["connectTo Cafe", "connectTo Cafe Another1", "forget Cafe"])
+            compare(cursor(page), "Cafe")
             moveTo(page, "Home")
             keyClick(Qt.Key_Return)
             compare(overlay.choices.map(function(c) { return c.label }), ["Disconnect", "Forget"])

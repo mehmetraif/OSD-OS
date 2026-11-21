@@ -163,7 +163,7 @@ With the NFC Reader module enabled and a reader connected, Plex offers **WRITE N
 1. Select it. The screen says **TAP A CARD FOR…** and the title.
 2. Touch a card to the reader.
 3. Choose how it plays: **Write card**, or for a show, season, collection or playlist, in order or shuffled ([Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex#writing-an-nfc-card) lists the choices).
-4. If the card already plays something: **THIS CARD PLAYS "…". CHANGE TO…** → **Change this card** or **Cancel**.
+4. If the card already plays something: **THIS CARD PLAYS "…". CHANGE TO…** → **Cancel** (under the cursor) or **Change Card**.
 5. **CARD WRITTEN FOR…**: select to finish.
 
 It writes an ordinary tag file in the tags folder, which you can rename afterwards:

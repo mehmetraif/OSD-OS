@@ -141,6 +141,25 @@ FocusScope {
         }
     }
 
+    // What select does on a line, for the hint bar: "" where it does
+    // nothing (a note, a device busy pairing).
+    function selectHint(row) {
+        if (!row)
+            return ""
+        if (row.type === "power")
+            return "select:" + (powered ? "TURN OFF" : "TURN ON")
+        if (row.type === "details")
+            return "select:SHOW"
+        if (row.type === "search")
+            return "select:" + (searching ? "STOP" : "SEARCH")
+        if (row.type === "device") {
+            if (row.device.busy !== "")
+                return ""
+            return "select:" + (row.device.paired ? "OPTIONS" : "PAIR")
+        }
+        return ""
+    }
+
     // A line's work under way (searching, pairing…) trails dots that come
     // and go.
     Timer {
@@ -210,8 +229,14 @@ FocusScope {
         visible: text !== ""
     }
 
+    // The keys that do something on the line under the cursor: select's
+    // word is what it does there, and nothing but back with no line to go
+    // to (no Bluetooth).
     HintBar {
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+        text: root.hintLine(["back:BACK",
+                             bluetoothRoot.rows.filter(function(r) { return list.selectable(r) }).length > 1
+                                 ? "navigate:NAVIGATE" : "",
+                             bluetoothRoot.selectHint(bluetoothRoot.rows[list.currentIndex])])
     }
 
     // A paired device's options.
@@ -228,6 +253,27 @@ FocusScope {
             else if (action === "disconnect")
                 bluetoothManager.disconnectDevice(device.path)
             else if (action === "forget")
+                forgetQuestion.ask(device)
+        }
+        onClosed: list.forceActiveFocus()
+    }
+
+    // Forget is asked first, the cursor on Cancel: a device forgotten has
+    // to be paired again to be used.
+    ChoiceOverlay {
+        id: forgetQuestion
+        objectName: "forgetQuestion"
+        anchors.fill: parent
+        property var device: null
+        promptText: "Forget " + (device ? device.name : "") + "?"
+        subtitleText: "It has to be paired again to be used"
+        choices: [{ label: "Cancel", action: "cancel" }, { label: "Forget", action: "forget" }]
+        function ask(d) {
+            device = d
+            open()
+        }
+        onActivated: function(action) {
+            if (action === "forget" && device && bluetoothManager)
                 bluetoothManager.forget(device.path)
         }
         onClosed: list.forceActiveFocus()

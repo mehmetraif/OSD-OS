@@ -546,12 +546,12 @@ Settings → Network → **Bluetooth** pairs a keyboard, gamepad or remote. It n
 3. Select the device. The line reads `PAIRING…`, then `CONNECTING…`.
 4. What happens next depends on the device:
    - **A keyboard** asks for a code: type the code shown on that keyboard, then its Enter. An older keyboard gets a PIN to type the same way.
-   - **A phone** shows a code of its own, and OSD/OS asks "Does it show this code?": answer **Yes** or **No**.
+   - **A phone** shows a code of its own, and OSD/OS asks you to pair it if it shows this code: **Pair**, or **Cancel** (under the cursor as it opens).
    - **A gamepad, a mouse or a remote** pairs without a question.
    - Back, on the code, gives the pairing up.
 5. Once paired, the device is trusted and connected. It comes back by itself after a restart, a keyboard at its first key press.
 
-Select on a **paired** device offers **Connect** (or **Disconnect**) and **Forget**, which unpairs it. Leaving the page stops a search and gives up a pairing.
+Select on a **paired** device offers **Connect** (or **Disconnect**) and **Forget**, which asks first (the cursor on **Cancel**) and unpairs it. Leaving the page stops a search and gives up a pairing.
 
 The help line says what went wrong:
 

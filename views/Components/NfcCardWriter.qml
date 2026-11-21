@@ -65,9 +65,11 @@ FocusScope {
     // Each choice carries a stable action alongside its label. The action is what
     // drives behaviour — never the label text, which is free to be reworded.
     function choices() {
+        // Changing what a card plays is asked as every question is: Cancel
+        // first, under the cursor as it opens, then the verb.
         if (phase === "replace")
-            return [{ label: "Change this card", action: "write" },
-                    { label: "Cancel",           action: "cancel" }]
+            return [{ label: "Cancel",      action: "cancel" },
+                    { label: "Change Card", action: "write" }]
         if (offerShuffle)
             return [{ label: "Write card (" + orderedLabel + ")", action: "write" },
                     { label: "Write card (" + shuffleLabel + ")", action: "shuffle" },
