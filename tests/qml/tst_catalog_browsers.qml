@@ -25,6 +25,9 @@ StandInRoot {
         property string moduleName: "YouTube"
         property string moduleIcon: ""
         function leaveModule() {}
+        // A page that names a setting opens it (ModuleRouter's).
+        property var settingsOpened: []
+        function openSettings(key) { settingsOpened = settingsOpened.concat([key]) }
     }
 
     QtObject {
@@ -86,6 +89,9 @@ StandInRoot {
     QtObject {
         id: catalog
         property string problem: ""
+        // No TMDB key: a folder of titles is empty, and says why.
+        property bool keyMissing: false
+        property bool noKey: false
         signal listingReady(string path)
         signal detailsReady(string path, var details)
         function listing(path, preview) {
@@ -96,6 +102,11 @@ StandInRoot {
                         root.action("More…", "more", "search/cats#more"),
                         root.action("Netflix", "home", "home-page"),
                         root.folder("Movies", "movies")]
+            if (path === "movies" && noKey) {
+                problem = "No TMDB API key"
+                keyMissing = true
+                return []
+            }
             if (path === "movies")
                 return undefined
             return []
@@ -135,6 +146,9 @@ StandInRoot {
             youtubeBackend.problem = ""
             youtubeBackend.favorites = []
             catalog.problem = ""
+            catalog.keyMissing = false
+            catalog.noKey = false
+            moduleRoot.settingsOpened = []
         }
         function cleanup() { loader.source = "" }
 
@@ -349,6 +363,29 @@ StandInRoot {
             compare(line.always, data.always)
             data.backend.problem = ""
             verify(!line.visible)
+        }
+
+        // A web player's folder with no TMDB key: the problem line says so,
+        // and select, with nothing in the folder, opens the module's
+        // settings on TMDB Key, as the hint bar says. Another problem
+        // (no network) offers nothing of the kind.
+        function test_missingKeyOpensSettings() {
+            catalog.noKey = true
+            var view = open("netflix")
+            var tree = treeOf(view)
+            cursorTo(tree, "Movies")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return catalog.keyMissing })
+            compare(tree.currentEntry, null)
+            compare(problemOf(view).text, "No TMDB API key")
+            compare(hintOf(view).text, "[ESC]:BACK [ENTER]:SETTINGS")
+            keyClick(Qt.Key_Return)
+            compare(moduleRoot.settingsOpened, ["tmdb_api_key"])
+            catalog.keyMissing = false
+            catalog.problem = "No network"
+            verify(hintOf(view).text.indexOf("SETTINGS") < 0)
+            keyClick(Qt.Key_Return)
+            compare(moduleRoot.settingsOpened, ["tmdb_api_key"])
         }
 
         // The startup favourite plays at once, as if chosen in FAVORITES.

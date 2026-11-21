@@ -70,6 +70,9 @@ FocusScope {
         // What stands in the way of browsing, when anything does: no TMDB
         // key, or no network. Said with Help Line off too.
         problemAlways: true
+        // No TMDB key: select opens the module's settings on its TMDB Key.
+        problemAction: browse.catalog && browse.catalog.keyMissing ? "SETTINGS" : ""
+        onProblemActivated: moduleRoot.openSettings("tmdb_api_key")
         covered: options.visible
         fetch: function(path, preview) {
             if (!browse.catalog || !appCore)

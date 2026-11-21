@@ -127,8 +127,27 @@ FocusScope {
         root.changeWindow(internalLoader, prev.source, { "navParams": restored })
     }
 
+    // The module's settings page over the module, on the app's own stack
+    // (the shell's navigateTo), as Settings opens it, the cursor on the row
+    // of this key: a page that names a setting takes you to it. Back comes
+    // back to the module, which starts again with the setting as it is now.
+    // The row is found by its place among the manifest's rows, which the
+    // page shows one for one; focusKey names it too.
+    function openSettings(key) {
+        var schema = appCore ? (appCore.get_module_settings_schema(moduleId) || []) : []
+        var at = 0
+        for (var i = 0; i < schema.length; i++) {
+            if (schema[i].key === key) {
+                at = i
+                break
+            }
+        }
+        navigateTo("views/ModuleSettings.qml", { moduleId: moduleId, alsoModules: [], focusKey: key || "",
+                                                 navListState: { currentIndex: at } }, {})
+    }
+
     // Leaves the module at once, whatever views are on the stack: a
-    // player's CLOSE VIDEO, to the main menu.
+    // player's STOP, TO MAIN MENU, to the main menu.
     function leaveModule() {
         moduleRouter.goBack()
     }

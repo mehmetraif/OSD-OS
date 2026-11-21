@@ -32,6 +32,16 @@ FocusScope {
             jellyfinBackend.quick_connect_authenticate(qcRoot.secret)
         }
 
+        // TRY AGAIN's new code.
+        function onQuickConnectCodeReady(code, secret) {
+            qcRoot.code = code
+            qcRoot.secret = secret
+            qcRoot.failed = false
+            qcRoot.errorMsg = ""
+            qcRoot.pollCount = 0
+            pollTimer.restart()
+        }
+
         function onQuickConnectFailed(msg) {
             pollTimer.stop()
             qcRoot.failed = true
@@ -59,11 +69,26 @@ FocusScope {
         pollTimer.restart()
     }
 
+    // After a failure with a server to ask: a new code asked for.
+    readonly property bool canRetry: failed && serverUrl !== ""
+    function tryAgain() {
+        approved = false
+        failed = false
+        errorMsg = ""
+        code = ""
+        secret = ""
+        pollCount = 0
+        jellyfinBackend.quick_connect_initiate(serverUrl)
+    }
+
     focus: true
     Keys.onPressed: function(event) {
         if (root.isBack(event)) {
             jellyfinBackend.quick_connect_cancel()
             goBack()
+            event.accepted = true
+        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && canRetry) {
+            tryAgain()
             event.accepted = true
         }
     }
@@ -186,6 +211,7 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: failed ? root.hints.back + ":RETRY" : root.hints.back + ":CANCEL"
+        text: failed ? root.hintLine(["back:BACK", qcRoot.canRetry ? "select:TRY AGAIN" : ""])
+                     : root.hintLine(["back:CANCEL"])
     }
 }

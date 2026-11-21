@@ -28,6 +28,11 @@ FocusScope {
     property bool problemAlways: false
     // The view's options are up, over the problem line and the hints.
     property bool covered: false
+    // What select does about the problem in a folder with nothing in it
+    // (a web player's SETTINGS, with no TMDB key): its word on the hint bar,
+    // and problemActivated() on select. "" for none.
+    property string problemAction: ""
+    signal problemActivated()
     readonly property alias tree: tree
 
     signal playRequested(var item)
@@ -55,6 +60,17 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: tree.folderName
+    }
+
+    // Select with nothing under the cursor, which the tree leaves to its
+    // host: what the problem line offers.
+    readonly property bool offersProblemAction: problemAction !== "" && !tree.currentEntry
+                                                && !!catalog && catalog.problem !== ""
+    Keys.onPressed: function(event) {
+        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && offersProblemAction) {
+            problemActivated()
+            event.accepted = true
+        }
     }
 
     TreeBrowser {
@@ -117,7 +133,8 @@ FocusScope {
         // screen off) rather than moving.
         readonly property var entry: tree.currentEntry
         readonly property bool onPlayable: !!entry && entry.kind === browser.playKind
-        text: root.hints.back + ":BACK "
+        text: browser.offersProblemAction ? root.hintLine(["back:BACK", "select:" + browser.problemAction])
+              : root.hints.back + ":BACK "
               + (onPlayable ? String(root.hints.navigate).replace("]", "◄]") + ":NAVIGATE "
                               + root.hints.browse + (tree.preview ? ":INFO " : ":OPTIONS ")
                             : root.hints.arrows + ":NAVIGATE ")

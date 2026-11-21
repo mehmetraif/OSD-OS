@@ -184,7 +184,7 @@ See [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits).
 
 ## Troubleshooting
 
-When the module can't start, it says why:
+When the module can't start, it says why. Select on that screen opens Settings → TV / Movie → WEATHER with the cursor on **Location** (`[ENTER]:SET LOCATION`), and back from there opens Weather again with what you typed; without the network it looks again (`[ENTER]:TRY AGAIN`). The screen names the file too, as **Or write it in: …**.
 
 | Screen | Meaning | What to do |
 |---|---|---|
@@ -192,7 +192,7 @@ When the module can't start, it says why:
 | **LOCATION FILE IS EMPTY** | The file has no line that isn't blank or a comment. | Add your location on the first line. |
 | **LOCATION FILE COULD NOT BE READ** | The file can't be opened. | The user running OSD/OS must be able to read it. |
 | **LOCATION NOT FOUND** | The geocoder knows no place of that name. | Check the spelling of the part before the first comma, or use coordinates. |
-| **CAN'T REACH THE LOCATION SERVICE** | The geocoder didn't answer. | Check the network. Back, then open Weather again. |
+| **CAN'T REACH THE LOCATION SERVICE** | The geocoder didn't answer. | Check the network, then select (`[ENTER]:TRY AGAIN`). |
 
 | Problem | What to do |
 |---|---|

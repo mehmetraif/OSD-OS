@@ -100,9 +100,10 @@ QString TmdbCatalog::apiKey() const {
     return {};
 }
 
-void TmdbCatalog::setProblem(const QString &problem) {
-    if (problem == m_problem) return;
+void TmdbCatalog::setProblem(const QString &problem, bool keyMissing) {
+    if (problem == m_problem && keyMissing == m_keyMissing) return;
     m_problem = problem;
+    m_keyMissing = keyMissing;
     emit problemChanged();
 }
 
@@ -125,8 +126,8 @@ QVariant TmdbCatalog::listing(const QString &path, bool preview) {
         };
     }
     if (apiKey().isEmpty()) {
-        setProblem(QStringLiteral("No TMDB API key: type one in Settings, in the module's TMDB Key"
-                                  " (free from themoviedb.org, Settings, API)"));
+        setProblem(QStringLiteral("No TMDB API key: type one in this module's settings,"
+                                  " TMDB Key (free from themoviedb.org, Settings, API)"), true);
         return QVariantList();
     }
     if (failedRecently(path)) {

@@ -223,7 +223,7 @@ The catalogue comes from TMDB. A title plays in the service's own web player, in
 
 | What you see | Cause | Fix |
 |---|---|---|
-| **No TMDB API key: type one in Settings, in the module's TMDB Key (free from themoviedb.org, Settings, API)** | No key | Type a TMDB v3 key in Settings → TV / Movie → NETFLIX or PRIME VIDEO → TMDB Key. A v4 read access token (it starts `eyJ`) is too long to type: put it on the first line of `tmdb_api_key.txt` |
+| **No TMDB API key: type one in this module's settings, TMDB Key (free from themoviedb.org, Settings, API)** | No key | Select (`[ENTER]:SETTINGS`) opens the module's settings on **TMDB Key**: type a TMDB v3 key there (Settings → TV / Movie → NETFLIX or PRIME VIDEO → TMDB Key). A v4 read access token (it starts `eyJ`) is too long to type: put it on the first line of `tmdb_api_key.txt` |
 | **TMDB turned the API key down: check the TMDB Key in Settings** | TMDB answered 401 | The key was copied short, or shares its line with something else |
 | **Could not reach TMDB: check the network** | No network, or TMDB unreachable | Check the network |
 | **Chromium is not installed** | No Chromium or Chrome on the `PATH` | `sudo apt install chromium libwidevinecdm0 cage wtype` on Raspberry Pi OS (the image has it). Not on Windows; on a Mac it plays in Chrome |

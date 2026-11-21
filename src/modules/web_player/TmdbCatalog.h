@@ -35,6 +35,9 @@ class TmdbCatalog : public QObject {
     Q_OBJECT
     // "" while browsing works; otherwise what is in the way, to show instead.
     Q_PROPERTY(QString problem READ problem NOTIFY problemChanged)
+    // The problem is that no TMDB key is set: the browser offers the
+    // module's settings, where it is typed.
+    Q_PROPERTY(bool keyMissing READ keyMissing NOTIFY problemChanged)
 
 public:
     struct Service {
@@ -70,6 +73,7 @@ public:
     Q_INVOKABLE void loadDetails(const QVariantMap &title);
 
     QString problem() const { return m_problem; }
+    bool keyMissing() const { return m_keyMissing; }
 
 signals:
     void listingReady(const QString &path);
@@ -86,7 +90,7 @@ private:
     };
 
     QString apiKey() const;
-    void    setProblem(const QString &problem);
+    void    setProblem(const QString &problem, bool keyMissing = false);
     void    forget();
     bool    failedRecently(const QString &path) const;
     // GETs a TMDB endpoint and hands its JSON to done: empty when it failed,
@@ -113,6 +117,7 @@ private:
     QString m_tmdbUrl;
     QString m_wikidataUrl;
     QString m_problem;
+    bool    m_keyMissing = false;
     QString m_failure;   // what the last failed request was turned down for
     QNetworkAccessManager m_nam;
 

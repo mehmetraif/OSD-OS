@@ -20,6 +20,11 @@ StandInRoot {
         function get_module_info(id) {
             return id === "com.osdos.router_test" ? { name: "Router Test", icon: "logo.svg" } : {}
         }
+        function get_module_settings_schema(id) {
+            return id === "com.osdos.router_test"
+                ? [{ key: "enabled", type: "toggle" }, { key: "folder", type: "text" }, { key: "location", type: "text" }]
+                : []
+        }
     }
 
     Loader {
@@ -31,12 +36,14 @@ StandInRoot {
     // What the module asked of the shell, which listens for both on the
     // module by these names (Main.qml): another module's view, and leaving.
     property var shellNavigations: []
+    property var shellParams: []
     property int backs: 0
     Connections {
         target: loader.item
         ignoreUnknownSignals: true
         function onNavigateTo(path, params, listState) {
             root.shellNavigations = root.shellNavigations.concat([path])
+            root.shellParams = root.shellParams.concat([params])
         }
         function onGoBack() { root.backs++ }
     }
@@ -47,6 +54,7 @@ StandInRoot {
 
         function init() {
             root.shellNavigations = []
+            root.shellParams = []
             root.backs = 0
             loader.source = Qt.resolvedUrl("module_router/Root.qml")
             verify(loader.item !== null)
@@ -59,6 +67,19 @@ StandInRoot {
         function router() { return loader.item }
         function view() { return router().currentView }
         function shown() { return view() ? view().name : "" }
+
+        // A page that names a setting opens the module's settings page over
+        // the module, on the shell's stack, the cursor on that row.
+        function test_openSettings() {
+            router().openSettings("location")
+            compare(root.shellNavigations, ["views/ModuleSettings.qml"])
+            compare(root.shellParams[0].moduleId, "com.osdos.router_test")
+            compare(root.shellParams[0].focusKey, "location")
+            compare(root.shellParams[0].navListState.currentIndex, 2)
+            // A key it hasn't: the page's first row.
+            router().openSettings("nothing")
+            compare(root.shellParams[1].navListState.currentIndex, 0)
+        }
 
         // The first view, from the module's own folder (viewsUrl), not from
         // Components where the router is; it reads the Root by the Root's

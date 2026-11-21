@@ -23,7 +23,7 @@ The Plex module plays films and series from a [Plex Media Server](https://www.pl
 3. **Select User** lists the profiles. An account with one profile skips this step. A profile with a PIN asks for it ([below](#profiles)).
 4. **Select Server** lists the servers that profile can use. Choose one.
 
-- A code left unentered for long expires: **THE CODE EXPIRED: GO BACK AND TRY AGAIN**. Open Plex again for a fresh one.
+- A code left unentered for long expires: **THE CODE EXPIRED: TRY AGAIN FOR A NEW ONE**. Select (`[ENTER]:TRY AGAIN`) asks plex.tv for a fresh one, as it does after **PIN REQUEST FAILED**.
 - The device appears in your Plex account's authorized devices as **OSD/OS**. Removing it there signs OSD/OS out.
 
 ## Profiles
@@ -256,7 +256,7 @@ Two files in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `
 
 | Problem | What to do |
 |---|---|
-| **Requesting Pin…** stays, or **PIN REQUEST FAILED: …** | The device can't reach plex.tv: check the network |
+| **Requesting Pin…** stays, or **PIN REQUEST FAILED: …** | The device can't reach plex.tv: check the network, then select (`[ENTER]:TRY AGAIN`) |
 | The code was entered but it still says **Waiting…** | The code may have expired. Back out, open Plex again and enter the fresh code |
 | **FAILED TO LOAD ACCOUNT: …** | plex.tv did not return the account's profiles; try again |
 | **Select Server** is empty | Check the server is running and signed in to the same account (or shared with it) |

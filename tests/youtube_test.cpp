@@ -337,6 +337,26 @@ private slots:
         QCOMPARE(opened(QString()), search);
     }
 
+    // A web player's catalogue with no TMDB key says so, and says that it
+    // is the key (keyMissing), for the browser to offer the module's
+    // settings; a visit starting again clears both.
+    void webCatalogSaysTheKeyIsMissing() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        TmdbCatalog::Service service;
+        service.providerName = QStringLiteral("Stand-in");
+        service.homeLabel    = QStringLiteral("Home");
+        TmdbCatalog catalog(data.path(), nullptr, service);
+        QVERIFY(!catalog.keyMissing());
+        QCOMPARE(catalog.listing(QStringLiteral("movie")).toList().size(), 0);
+        QVERIFY(catalog.keyMissing());
+        QVERIFY(catalog.problem().startsWith(QStringLiteral("No TMDB API key")));
+        QCOMPARE(catalog.property("keyMissing").toBool(), true);
+        catalog.listing(QStringLiteral("home"));
+        QVERIFY(!catalog.keyMissing());
+        QVERIFY(catalog.problem().isEmpty());
+    }
+
     // The playlists' videos from a stand-in yt-dlp (the data folder's
     // bin/yt-dlp, which writes down the playlists it is asked for): fetched
     // as one is opened, every listed playlist at once, a removed video's

@@ -65,6 +65,14 @@ FocusScope {
     Component.onCompleted: {
         pinRequest = plexBackend.start_pin_auth()
     }
+    // After a failure: a new code asked for, the request before given up.
+    function tryAgain() {
+        plexBackend.cancel_pin_auth(pinRequest)
+        errorMsg = ""
+        pinCode = ""
+        waiting = false
+        pinRequest = plexBackend.start_pin_auth()
+    }
     // Backed out: nothing to poll plex.tv for any more.
     Component.onDestruction: plexBackend.cancel_pin_auth(pinRequest)
 
@@ -72,6 +80,9 @@ FocusScope {
     Keys.onPressed: function(event) {
         if (root.isBack(event)) {
             goBack()
+            event.accepted = true
+        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && errorMsg !== "") {
+            tryAgain()
             event.accepted = true
         }
     }
@@ -177,6 +188,6 @@ FocusScope {
     // Footer
     HintBar {
         id: footer
-        text: root.hints.back + ":BACK"
+        text: root.hintLine(["back:BACK", pinAuthRoot.errorMsg !== "" ? "select:TRY AGAIN" : ""])
     }
 }

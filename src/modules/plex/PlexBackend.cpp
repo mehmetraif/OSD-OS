@@ -1164,7 +1164,7 @@ void PlexBackend::pollPinTick() {
             // plex.tv forgets a PIN left unclaimed: nothing to poll for any more.
             m_pollTimer->stop();
             m_pendingPinId.clear();
-            emit errorOccurred("THE CODE EXPIRED: GO BACK AND TRY AGAIN");
+            emit errorOccurred("THE CODE EXPIRED: TRY AGAIN FOR A NEW ONE");
             return;
         }
         if (reply->error() != QNetworkReply::NoError) return; // silent — keep polling

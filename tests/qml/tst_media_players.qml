@@ -50,6 +50,7 @@ StandInRoot {
     // What the views asked of their router: views over the one shown, back,
     // and leaving the module at once (leaveModule).
     property var navigations: []
+    property var replaced: []
     property int backs: 0
     property int leaves: 0
 
@@ -60,6 +61,15 @@ StandInRoot {
         property string moduleName: "Plex"
         property string moduleIcon: ""
         function leaveModule() { root.leaves++ }
+        // A page that names a setting opens it (ModuleRouter's).
+        property var settingsOpened: []
+        function openSettings(key) { settingsOpened = settingsOpened.concat([key]) }
+    }
+
+    // WeatherBackend as its setup screen reads it.
+    QtObject {
+        id: weatherBackend
+        function location_file_path() { return "/data/weather_location.txt" }
     }
 
     // AppCore: the module's settings.
@@ -264,7 +274,8 @@ StandInRoot {
         // The users asked for: answered by the test (usersLoaded).
         property int userAsks: 0
         function load_users_from_cache() { userAsks++ }
-        function start_pin_auth() { return 1 }
+        property int pinStarts: 0
+        function start_pin_auth() { pinStarts++; return pinStarts }
         function cancel_pin_auth(request) {}
         function get_active_server_name() { return "Server" }
         function get_active_user_name() { return "User" }
@@ -482,6 +493,7 @@ StandInRoot {
         target: loader.item
         ignoreUnknownSignals: true
         function onGoBack() { root.backs++ }
+        function onReplaceWith(path, params) { root.replaced = root.replaced.concat([path]) }
         function onNavigateTo(path, params, listState) {
             root.navigations = root.navigations.concat([{ path: path, params: params, listState: listState }])
         }
@@ -496,6 +508,8 @@ StandInRoot {
             moduleRoot.moduleName = "Plex"
             root.chrome.basePath = []
             root.navigations = []
+            root.replaced = []
+            moduleRoot.settingsOpened = []
             root.backs = 0
             root.leaves = 0
             mpvController.videoActive = false
@@ -531,6 +545,7 @@ StandInRoot {
             plexBackend.queueAsks = 0
             plexBackend.userAsks = 0
             plexBackend.authState = "authed"
+            plexBackend.pinStarts = 0
             plexBackend.tunes = 0
             plexBackend.liveStops = 0
             plexBackend.timelines = []
@@ -1769,6 +1784,93 @@ StandInRoot {
             verify(lines.length > 0)
             for (var shown of lines)
                 verify(insidePage(shown), shown.text)
+        }
+
+        // Weather's setup screen: with no place, or one it can't use, select
+        // opens Weather's settings on Location (SET LOCATION); with no
+        // network, it looks again (TRY AGAIN). The file is named as a way
+        // too. In a keyboard's names and a pad's.
+        function test_weatherSetup_data() {
+            var pad = Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" })
+            return [{ tag: "missing", reason: "missing", hints: root.keyboardHints, word: "SET LOCATION" },
+                    { tag: "not found, a pad", reason: "notfound", hints: pad, word: "SET LOCATION" },
+                    { tag: "unreadable", reason: "unreadable", hints: root.keyboardHints, word: "SET LOCATION" },
+                    { tag: "network", reason: "network", hints: root.keyboardHints, word: "TRY AGAIN" },
+                    { tag: "network, a pad", reason: "network", hints: pad, word: "TRY AGAIN" }]
+        }
+        function test_weatherSetup(data) {
+            root.hints = data.hints
+            moduleRoot.moduleId = "com.osdos.weather"
+            var page = open("weather", "Setup.qml", { reason: data.reason })
+            var footer = ""
+            for (var i = 0; i < page.children.length; i++) {
+                var item = page.children[i]
+                if (typeof item.text === "string" && item.text.indexOf(data.hints.back + ":BACK") === 0)
+                    footer = item.text
+            }
+            compare(footer, data.hints.back + ":BACK " + data.hints.select + ":" + data.word)
+            keyClick(Qt.Key_Return)
+            if (data.reason === "network") {
+                compare(root.replaced, ["Weather.qml"])
+                compare(moduleRoot.settingsOpened, [])
+            } else {
+                compare(moduleRoot.settingsOpened, ["location"])
+                compare(root.replaced, [])
+            }
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            root.hints = root.keyboardHints
+        }
+
+        // A sign-in that failed offers TRY AGAIN on select, which asks
+        // again on the page itself: Plex's PIN, a new code from plex.tv;
+        // Jellyfin's Quick Connect, a new code from the server. Back still
+        // goes back; in a keyboard's names and a pad's.
+        function test_signInTryAgain_data() {
+            return [{ tag: "plex", module: "plex", view: "PinAuth.qml", hints: root.keyboardHints },
+                    { tag: "plex, a pad", module: "plex", view: "PinAuth.qml",
+                      hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) },
+                    { tag: "jellyfin", module: "jellyfin", view: "QuickConnect.qml", hints: root.keyboardHints },
+                    { tag: "jellyfin, a pad", module: "jellyfin", view: "QuickConnect.qml",
+                      hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_signInTryAgain(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var footer = function(page) {
+                for (var i = 0; i < page.children.length; i++) {
+                    var item = page.children[i]
+                    if (typeof item.text === "string" && item.text.indexOf(h.back + ":") === 0)
+                        return item.text
+                }
+                return ""
+            }
+            var page
+            if (data.module === "plex") {
+                page = open("plex", data.view, {})
+                compare(plexBackend.pinStarts, 1)
+                compare(footer(page), h.back + ":BACK")
+                plexBackend.errorOccurred("PIN REQUEST FAILED: timeout")
+                compare(footer(page), h.back + ":BACK " + h.select + ":TRY AGAIN")
+                keyClick(Qt.Key_Return)
+                compare(plexBackend.pinStarts, 2)
+                compare(page.errorMsg, "")
+                compare(footer(page), h.back + ":BACK")
+            } else {
+                page = open("jellyfin", data.view, { serverUrl: "http://10.0.0.2:8096", code: "123456", secret: "s" })
+                compare(footer(page), h.back + ":CANCEL")
+                jellyfinBackend.quickConnectFailed("CODE EXPIRED")
+                compare(footer(page), h.back + ":BACK " + h.select + ":TRY AGAIN")
+                keyClick(Qt.Key_Return)
+                compare(jellyfinBackend.signIns, [["quick", "http://10.0.0.2:8096"]])
+                jellyfinBackend.quickConnectCodeReady("654321", "t")
+                verify(!page.failed)
+                compare(page.code, "654321")
+                compare(footer(page), h.back + ":CANCEL")
+            }
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            root.hints = root.keyboardHints
         }
 
         // Emby: each field on the keyboard in turn, OK going on to the next;
