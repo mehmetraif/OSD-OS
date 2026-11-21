@@ -170,7 +170,7 @@ ModuleRouter {
             root.changeWindow(playLayer, "", {})
     }
     // Game Details and a room's page over the list too (pageLayer): back
-    // from one is the list as it was left, at once, where it used to be
+    // from one is the list as it was left, at once, rather than
     // made again from nothing, its rows, its dialogs and, in the Orb look,
     // its 3D scene. The list rests under a page as it does under a game's
     // screen: it is not drawn, and the keys are the page's.

@@ -189,7 +189,6 @@ FocusScope {
               : "Games folder: " + moduleRoot.gamesFolder
     }
 
-    // Footer
     HintBar {
         visible: !osk.visible && !options.menuUp
         // Select opens a folder and plays a game, and right on a game offers

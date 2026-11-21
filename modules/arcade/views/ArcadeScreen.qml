@@ -705,7 +705,6 @@ FocusScope {
     }
     // Leaving Search any other way, its keys hand the screen its keys back.
     onFilterIdChanged: if (filterId !== "search" && typing) leaveKeys(false)
-    // A game's Game Details.
     function openDetails(set, title) {
         navigateTo("Details.qml", { game: set, title: title }, {})
     }
