@@ -390,10 +390,14 @@ StandInRoot {
             compare(menuRow(page, 1).icons, [])
             verify(menuRow(page, 0).opens && menuRow(page, 3).opens && !menuRow(page, 2).opens)
             verify(findText(page, ":OPEN") !== null)
-            // Another pad pressed: the ● moves, the lines stay where they are.
+            // Another pad pressed: the ● moves, the lines stay where they are,
+            // the same lines.
+            var lines = page.rows
             inputManager.activeController = root.padKey
             compare(page.rows[0].key, root.jammaKey)
-            verify(page.rows[1].last && !page.rows[0].last)
+            verify(page.rows === lines)
+            compare(menuRow(page, 1).icons, ["rec"])
+            compare(menuRow(page, 0).icons, [])
 
             keyClick(Qt.Key_Left)
             compare(inputManager.calls.length, 0)
