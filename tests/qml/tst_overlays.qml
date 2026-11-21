@@ -161,6 +161,45 @@ StandInRoot {
             return true
         }
 
+        // The hint bar: all four arrows move, and select's word is what it
+        // does on the key in the box, nothing on OK with nothing typed; in a
+        // keyboard's names and a pad's.
+        function hintOf(item) {
+            if (typeof item.text === "string" && item.text.indexOf(":CANCEL") >= 0)
+                return item.text
+            for (var i = 0; i < item.children.length; i++) {
+                var found = hintOf(item.children[i])
+                if (found !== "")
+                    return found
+            }
+            return ""
+        }
+        function test_hint_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_hint(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var lead = h.back + ":CANCEL " + h.arrows + ":MOVE"
+            var keyboard = keyboardWith({ caseSensitive: true, masked: true })
+            keyboard.open("")
+            compare(hintOf(keyboard), lead + " " + h.select + ":TYPE")
+            var last = keyboard.rows.length - 1
+            var said = { 0: "SHIFT", 1: "TYPE", 2: "DELETE", 3: "SHOW" }
+            for (var c = 0; c < 4; c++) {
+                keyboard.moveTo(last, c)
+                compare(hintOf(keyboard), lead + " " + h.select + ":" + said[c])
+            }
+            // OK with nothing typed does nothing; with a letter, it is OK.
+            keyboard.moveTo(last, keyboard.okCol)
+            compare(hintOf(keyboard), lead)
+            keyClick("x")
+            keyboard.moveTo(last, keyboard.okCol)
+            compare(hintOf(keyboard), lead + " " + h.select + ":OK")
+            root.hints = root.keyboardHints
+        }
+
         // SHIFT changes what the keys say, the letters and the second row of
         // signs, and SHOW its own key: every key stays the item it was, none
         // made again, and the box where it was.

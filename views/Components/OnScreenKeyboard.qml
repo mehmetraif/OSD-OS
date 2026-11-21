@@ -99,6 +99,17 @@ FocusScope {
             text += key === "SPACE" ? " " : key
         }
     }
+    // What select does on the key in the box, for the hint bar.
+    function selectHint() {
+        var key = (rows[row] || [])[col] || ""
+        if (key === "OK")
+            return text.trim() === "" && !allowEmpty ? "" : "select:OK"
+        if (key === "DEL")
+            return "select:DELETE"
+        if (key === "SHIFT" || key === "SHOW" || key === "HIDE")
+            return "select:" + key
+        return "select:TYPE"
+    }
     // Down onto the last row's keys from the grid's column, and up from one
     // of them: three keys over the grid's ten columns, or four.
     function lastKeyOf(column) {
@@ -347,9 +358,11 @@ FocusScope {
                 }
             }
 
+            // All four arrows move the box; select's word is what it does
+            // on the key in it (nothing on OK with nothing typed).
             HintBar {
                 visible: !osk.inline
-                text: root.hintLine(["back:CANCEL", "navigate:MOVE", "select:TYPE"])
+                text: root.hintLine(["back:CANCEL", "arrows:MOVE", osk.selectHint()])
             }
         }
     }
