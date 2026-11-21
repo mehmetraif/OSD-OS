@@ -112,6 +112,19 @@ def looks(folder, file_name):
     return sorted(out, key=lambda o: o[0].lower())
 
 
+def known_conditions(cond):
+    """A manifest row's shown_with as the page can follow it: the conditions
+    on another row of the module's ({ "key", "value" }), one or a list. One
+    on something else (an app setting, the theme) is passed over; with none
+    left the row shows whatever is set."""
+    if not cond:
+        return None
+    if isinstance(cond, dict):
+        return cond if "key" in cond else None
+    kept = [c for c in cond if isinstance(c, dict) and "key" in c]
+    return kept or None
+
+
 def module_settings(manifest, extra):
     """A manifest's rows as the page offers them: those whose values are
     known without the device (submenus' rows flat under the module, as the
@@ -127,8 +140,9 @@ def module_settings(manifest, extra):
         for s in settings:
             key, kind = s.get("key"), s.get("type")
             row = {"key": key, "label": s.get("label", key), "help": help_text(s.get("description"))}
-            if "shown_with" in s:
-                row["shown_with"] = s["shown_with"]
+            shown_with = known_conditions(s.get("shown_with"))
+            if shown_with:
+                row["shown_with"] = shown_with
             # One on another row's value (Arcade's Attract After, not with
             # Attract Mode Off), as the page reads it (core.shown()); one on
             # the theme is the device's alone.

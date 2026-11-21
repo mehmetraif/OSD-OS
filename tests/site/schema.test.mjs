@@ -259,6 +259,16 @@ test("the looks offered are the app's", () => {
     assert.match(settingsQml, /key: "orb_fog",[\s\S]*?options: \["Picture", "Live"\]/);
 });
 
+test("a manifest's condition on an app setting is passed over, the row shown whatever is set", () => {
+    const manifest = JSON.parse(readFileSync(join(root, "modules/ambient_mode/manifest.json"), "utf8"));
+    const inManifest = manifest.settings.find(r => r.key === "auto_launch");
+    assert.equal(inManifest.shown_with.app, "startup_module");
+    const ambient = schema.modules.find(m => m.id === "com.osdos.ambient_mode");
+    const row = ambient.settings.find(r => r.key === "auto_launch");
+    assert.ok(row, "Auto-Launch Playback is on the page");
+    assert.equal(row.shown_with, undefined);
+});
+
 test("the rows of the page's Basic and Logins views", () => {
     const rows = [...appRows.map(r => ["app", r]), ...schema.modules.flatMap(m => m.settings.map(r => [m.id, r]))];
     for (const [scope, row] of rows)

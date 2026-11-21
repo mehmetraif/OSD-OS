@@ -25,7 +25,9 @@
       "options_source": "dynamic",
       "options_slot": "getStartupScriptOptions",
       "default": "None",
-      "description": "Runs automatically when OSD/OS starts on this module\nSet START ON MODULE to Scripts in app settings"
+      "shown_with": { "app": "startup_module", "value": "com.osdos.scripts",
+                      "reason": "Only with Start On on Scripts (Settings > Startup)" },
+      "description": "A script run as OSD/OS starts on Scripts (Start On, in Settings > Startup)\n[NONE] None is run"
     },
     {
       "key": "rescan",

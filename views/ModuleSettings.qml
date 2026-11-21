@@ -261,7 +261,12 @@ FocusScope {
     // Arcade", an on or off one's "Only with Online Play on", several "… or
     // …".
     function shownWithReason(cond, mid) {
-        var parts = conditions(cond).map(function(one) { return conditionWords(one, mid) })
+        var all = conditions(cond)
+        // One condition in its own words ("reason"), as an app setting's
+        // has them: where it is changed.
+        if (all.length === 1 && all[0].reason)
+            return String(all[0].reason)
+        var parts = all.map(function(one) { return conditionWords(one, mid) })
         return "Only with " + parts.join(" or ")
     }
     // What a row's "shown_unless" is kept back by, in words: the first of
@@ -279,6 +284,8 @@ FocusScope {
         var value = String(one.value)
         if (one.theme !== undefined)
             return "the theme's " + one.theme + " " + value
+        if (one.app !== undefined)
+            return one.reason ? String(one.reason) : "the app's " + one.app + " on " + value
         var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
         var label = row ? (row.label || one.key) : one.key
         var lower = value.toLowerCase()
@@ -301,8 +308,14 @@ FocusScope {
     // and what it is, such as its look for the Arcade screen ("arcade":
     // "orb"). "shown_unless" is the same turned round: its row can't be used
     // while a condition holds (the Arcade screen's List Style in the Orb
-    // look, which lays the list out itself).
+    // look, which lays the list out itself). Or on an app setting:
+    // { "app", "value", "reason" }, one of the app's keys (app.<key> in
+    // config.json) and the value it is saved as, such as Settings → Startup's
+    // Start On naming the module ("startup_module": "com.osdos.scripts"),
+    // followed as it changes (onAppSettingChanged).
     function shownWith(cond, mid, depth) {
+        if (cond.app !== undefined)
+            return String(appValue(cond.app)) === String(cond.value)
         if (cond.theme !== undefined) {
             var part = (root.theme || {})[cond.theme]
             return String(part === undefined || part === null ? "" : part) === String(cond.value)
@@ -325,7 +338,29 @@ FocusScope {
     // one, or a list of them, which from the manifest is a sequence rather
     // than a JS Array.
     function conditions(cond) {
-        return !cond ? [] : cond.key !== undefined || cond.theme !== undefined ? [cond] : Array.from(cond)
+        return !cond ? [] : cond.key !== undefined || cond.theme !== undefined || cond.app !== undefined
+                           ? [cond] : Array.from(cond)
+    }
+
+    // The app settings the rows' conditions ask for, by key: read once, and
+    // as AppCore says one has changed. "" for one not saved.
+    property var appValues: ({})
+    function appValue(key) {
+        if (appValues[key] === undefined) {
+            var saved = appCore.get_setting("", key)
+            appValues[key] = saved === undefined || saved === null ? "" : saved
+        }
+        return appValues[key]
+    }
+    // Whether a row of the page waits on this app setting.
+    function followsApp(key) {
+        var rows = [menuSchema].concat(alsoModules.map(function(mid) { return alsoSchemas[mid] || [] }))
+        return rows.some(function(list) {
+            return Array.from(list).some(function(row) {
+                return conditions(row.shown_with).concat(conditions(row.shown_unless))
+                           .some(function(one) { return one.app === key })
+            })
+        })
     }
 
     // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
@@ -702,6 +737,15 @@ FocusScope {
         target: appCore
         ignoreUnknownSignals: true
         function onSettingsNotSaved() { moduleSettingsRoot.loadSettings(moduleSettingsRoot.currentKey()) }
+        // An app setting a row waits on, changed (Settings → Startup's Start
+        // On): the rows dimmed or not anew, in place.
+        function onAppSettingChanged(key, value) {
+            if (!moduleSettingsRoot.followsApp(key))
+                return
+            moduleSettingsRoot.appValues[key] = value
+            moduleSettingsRoot.followRows()
+            moduleSettingsRoot.requestOptions(false)
+        }
     }
 
     // A slider's steps wait to be written until they rest: leaving the page

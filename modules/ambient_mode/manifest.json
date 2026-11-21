@@ -23,7 +23,9 @@
       "label": "Auto-Launch Playback",
       "type": "toggle",
       "default": "OFF",
-      "description": "Starts playing, shuffled, when OSD/OS starts on this module\nSet START ON MODULE to Ambient:Mode in app settings"
+      "shown_with": { "app": "startup_module", "value": "com.osdos.ambient_mode",
+                      "reason": "Only with Start On on Ambient:Mode (Settings > Startup)" },
+      "description": "Starts playing, shuffled, as OSD/OS starts on Ambient:Mode (Start On, in Settings > Startup)"
     },
     {
       "key": "video_scaling",

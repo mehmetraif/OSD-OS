@@ -525,6 +525,7 @@ The manifest's fields are in [Writing a module](https://github.com/mehmetraif/OS
 | `requires_auth` | The module is signed in, with its SIGN IN row | `Sign in first (SIGN IN above)` |
 | `requires_capability` | The server offers it (Jellyfin's Intro Skip and Credit Skip) | `Not offered by the server` |
 | `shown_with` | Another row has a given value (Arcade's Relay Server) | `Only with Online Play on` |
+| `shown_with` on an app setting | An app setting has a given value (Ambient:Mode's Auto-Launch Playback, Scripts' Auto-Run On Startup: Settings → Startup → Start On naming the module) | Its own reason: `Only with Start On on Ambient:Mode (Settings > Startup)` |
 
 ## Quit
 

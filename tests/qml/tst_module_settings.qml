@@ -43,7 +43,12 @@ StandInRoot {
         signal dynamicOptionsReady(string mid, string key, var items)
         signal moduleAuthStateChanged(string mid)
         function get_settings() { return { modules: { "com.osdos.test": values, "com.osdos.other": otherValues } } }
+        // The app's own settings (app.<key>), and AppCore saying one changed.
+        property var appValues: ({})
+        signal appSettingChanged(string key, string value)
         function get_setting(module, key) {
+            if (module === "")
+                return appValues[key]
             var saved = module === "com.osdos.other" ? otherValues : values
             var parts = key.split(".")
             return parts.length === 2 ? (saved[parts[0]] || {})[parts[1]] : saved[key]
@@ -210,6 +215,7 @@ StandInRoot {
             appCore.actions = []
             appCore.schema = arcadeRows
             appCore.otherValues = {}
+            appCore.appValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
             appCore.noSuchAction = false
@@ -917,6 +923,41 @@ StandInRoot {
         // or by another row's value. Dimmed, ◄ ► leave it as it is; a row
         // that "shown_with" keeps back too says that first. With another
         // theme, or none, it is a row like the others.
+        // A row that works only with an app setting (Settings → Startup's
+        // Start On naming the module, "shown_with": { "app", "value",
+        // "reason" }): dimmed with its reason while that isn't so, usable
+        // once it is, following a change made while the page is open.
+        function test_shownWithAppSetting() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "auto_launch", label: "Auto-Launch Playback", type: "toggle", default: "OFF",
+                  shown_with: { app: "startup_module", value: "com.osdos.test",
+                                reason: "Only with Start On on Test (Settings > Startup)" } }
+            ]
+            var page = open()
+            compare(off(page, "auto_launch"), "Only with Start On on Test (Settings > Startup)")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.auto_launch, undefined)
+            var help = findChild(page, "helpLine")
+            compare(help.text, "Only with Start On on Test (Settings > Startup)\n")
+
+            appCore.appValues = { startup_module: "com.osdos.test" }
+            appCore.appSettingChanged("startup_module", "com.osdos.test")
+            compare(off(page, "auto_launch"), "")
+            compare(cursor(page), "auto_launch")
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.auto_launch, true)
+
+            appCore.appSettingChanged("startup_module", "None")
+            compare(off(page, "auto_launch"), "Only with Start On on Test (Settings > Startup)")
+            loader.source = ""
+            // Saved before the page opens.
+            appCore.appValues = { startup_module: "com.osdos.test" }
+            page = open()
+            compare(off(page, "auto_launch"), "")
+        }
+
         function test_shownUnless() {
             appCore.schema = [
                 { key: "screen", label: "Screen", type: "list_single", options: ["Original", "Arcade"],
