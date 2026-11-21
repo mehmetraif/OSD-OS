@@ -207,6 +207,11 @@ ModuleRouter {
         }
     }
 
+    // No one looks at the menus: a game has the screen, or the screen saver
+    // is up. What the views do only to be seen (the pictures' turn, the rooms
+    // asked for again, the Orb look's frames) rests meanwhile.
+    readonly property bool away: (!!arcadeBackend && arcadeBackend.running) || root.screenSaverActive
+
     // A toggle of the module's, ON unless it is turned off.
     function isOn(value) {
         return value === undefined || value === null || value === true || String(value).toUpperCase() === "ON"

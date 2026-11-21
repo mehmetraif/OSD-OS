@@ -157,8 +157,7 @@ FocusScope {
     // screen, no game is playing over it, and the screen saver isn't up. A
     // cabinet left on a list of rooms asked the network every few seconds
     // for as long as it stood there, and the lobby with it.
-    readonly property bool roomsShown: gamesRoot.visible && !!arcadeBackend && !arcadeBackend.running
-                                       && !root.screenSaverActive
+    readonly property bool roomsShown: gamesRoot.visible && !!arcadeBackend && !moduleRoot.away
 
     // The lobby read as its rooms come to be shown, and again while they
     // are: they last a minute there, and hosts say they are still there

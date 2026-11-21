@@ -408,8 +408,7 @@ FocusScope {
         repeat: true
         // Not behind a game's screen nor under the screen saver: each turn
         // read a picture from the card for no one.
-        running: arcadeScreen.pictures.length > 1 && !!arcadeBackend && !arcadeBackend.running
-                 && arcadeScreen.visible && !root.screenSaverActive
+        running: arcadeScreen.pictures.length > 1 && arcadeScreen.visible && !moduleRoot.away
         onTriggered: arcadeScreen.pictureIndex = (arcadeScreen.pictureIndex + 1) % arcadeScreen.pictures.length
     }
     // Its achievements on RetroAchievements, counted, with a Web API key
@@ -716,8 +715,7 @@ FocusScope {
     // game is playing over it, and the screen saver isn't up (a cabinet left
     // on this screen asked the network every five seconds for as long as it
     // stood there, and the lobby every twenty on its filters).
-    readonly property bool roomsShown: arcadeScreen.visible && !!arcadeBackend && !arcadeBackend.running
-                                       && !root.screenSaverActive
+    readonly property bool roomsShown: arcadeScreen.visible && !!arcadeBackend && !moduleRoot.away
 
     // The lobby read as its rooms become the filter shown, those of the
     // folder's games or all of them, and again while they are: not up to

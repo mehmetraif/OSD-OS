@@ -182,7 +182,7 @@ FocusScope {
     Timer {
         interval: 20000
         repeat: true
-        running: lobbyRoot.visible && !!arcadeBackend && !arcadeBackend.running && !root.screenSaverActive
+        running: lobbyRoot.visible && !!arcadeBackend && !moduleRoot.away
         onTriggered: {
             if (lobbyRoot.parent)
                 arcadeBackend.refreshRooms()

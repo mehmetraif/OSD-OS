@@ -49,6 +49,7 @@ StandInRoot {
         property string attractMode: "Off"
         property int attractAfter: 60
         property var playing: null
+        readonly property bool away: (!!arcadeBackend && arcadeBackend.running) || root.screenSaverActive
         function addCredit() {
             if (!freePlay)
                 credits = Math.min(maxCredits, credits + 1)
