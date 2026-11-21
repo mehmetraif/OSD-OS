@@ -321,6 +321,24 @@ private:
     static bool presentationOption(const QString &arg);
     // An mpv process for a session: args its options, media what plays.
     void startProcess(QStringList args, const QStringList &media);
+    // A process's command line is any account's to read while it runs (ps,
+    // /proc/<pid>/cmdline), so what the log would blank (redactSecrets()) is
+    // taken off it, a media server's token above all, and handed to mpv in
+    // two files of the user's own among the run's, written anew for each
+    // process and gone with its session (closeIpc()):
+    //  - its HTTP headers (Plex's token, Jellyfin's and Emby's
+    //    authorization), always, and its subtitle files where the address of
+    //    one holds a token (Emby's api_key; all of them then, so that they
+    //    keep their order), as the lines of a config file mpv reads with
+    //    --include;
+    //  - what plays, where it is all http or https addresses and one of them
+    //    holds a token or a sign-in (Emby's stream), as a playlist mpv reads
+    //    with --playlist. mpv takes no other protocol from a playlist, so an
+    //    address of another kind stays where it was.
+    // False when a file couldn't be written: nothing is started then, rather
+    // than with the secret on the command line after all. A session inside
+    // the window has no command line, and is given its options as they are.
+    bool offCommandLine(QStringList &options, QStringList &media);
     // `then` once the screen is free (screenBusy()), looked at again every
     // few milliseconds until it is: for the session loadAndPlay() asked for
     // as `serial`, and never once another has been asked for since.
@@ -520,6 +538,10 @@ private:
     QString       m_inputConfPath;
     QString       m_logFilePath;
     QString       m_subInfoPath;       // JSON map: external sub URL -> friendly name (for the OSC)
+    // What a process is handed in files rather than on its command line
+    // (offCommandLine()): options, and what plays.
+    QString       m_privateOptionsPath;
+    QString       m_privateMediaPath;
     // Settings → TV / Movie → Logo Image read as mpv's raw overlay (mpv-logo.lua):
     // the file, the picture and size it was last made from (made again for
     // another), and the overlay's size.

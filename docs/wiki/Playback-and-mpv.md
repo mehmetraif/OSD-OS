@@ -246,7 +246,7 @@ Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.jso
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `mpv-osc-ambient.lua`, `--loop-playlist=inf`, `--shuffle`; `--no-audio` when its own music plays, in a second mpv (`--no-video --loop-playlist=inf`) |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | An m3u in the data folder's `playlists/`; its Subtitles and Loop Playback; a YouTube video's flags as the YouTube module makes them |
 
-OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`.
+OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`. The tokens never reach mpv's command line, which any account on the machine can read: the headers, and Emby's addresses that hold its `api_key`, are handed to mpv in two files of the user's own in the run-time folder (`osdos-mpv-private.conf` through `--include`, `osdos-mpv-private.m3u` through `--playlist`), removed once the video ends.
 
 ## Scaling
 

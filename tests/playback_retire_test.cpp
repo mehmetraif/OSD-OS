@@ -4,8 +4,10 @@
 // starts, is told to quit (SIGTERM) and exits, and whether an earlier one was
 // still alive as it started. And what becomes of a video its menu's Browse
 // left as the next is asked for; how a tube's shape, whose pixels aren't
-// square, reaches mpv; and what of an address mpv prints reaches the log and
-// the Playback failed notice: none of its sign-in, nor a server's token.
+// square, reaches mpv; what of an address mpv prints reaches the log and
+// the Playback failed notice: none of its sign-in, nor a server's token; and
+// what of a session reaches mpv's command line, which any account can read:
+// no token either, which goes in files of the user's own.
 #include "player/MpvController.h"
 #include "player/EmbeddedMpv.h"
 #include "player/VideoSurface.h"
@@ -27,13 +29,23 @@
 #include <QMutex>
 #include <QRegularExpression>
 #include <QSignalSpy>
+#include <QStandardPaths>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <sys/stat.h>
 
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
 media=""
-for a in "$@"; do media="$a"; done
+for a in "$@"; do
+  case "$a" in
+    --playlist=*) media=$(grep -v '^#' "${a#--playlist=}" | tail -n 1) ;;
+    --*) ;;
+    *) media="$a" ;;
+  esac
+done
 address="$media"
 media=$(basename "$media" .mp4)
 if [ -f "$log.pids" ]; then
@@ -120,6 +132,45 @@ private:
     static inline QtMessageHandler s_previous = nullptr;
 };
 
+// A stand-in for a media server, on this machine: it writes down each
+// request it is asked, headers and all, and answers a small picture for a
+// stream (/Videos/<id>/stream) and a line of subtitles for anything else.
+class ServerStandIn : public QTcpServer {
+public:
+    ServerStandIn() {
+        QImage picture(16, 16, QImage::Format_RGB32);
+        picture.fill(Qt::gray);
+        QBuffer buffer(&m_picture);
+        buffer.open(QIODevice::WriteOnly);
+        picture.save(&buffer, "PNG");
+        connect(this, &QTcpServer::newConnection, this, [this]() {
+            while (QTcpSocket *socket = nextPendingConnection()) {
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+                connect(socket, &QTcpSocket::readyRead, socket, [this, socket]() { read(socket); });
+            }
+        });
+    }
+    QString address() const { return QStringLiteral("http://127.0.0.1:%1").arg(serverPort()); }
+    QList<QByteArray> asked;
+
+private:
+    void read(QTcpSocket *socket) {
+        const QByteArray request = socket->property("request").toByteArray() + socket->readAll();
+        socket->setProperty("request", request);
+        if (!request.contains("\r\n\r\n") || socket->property("answered").toBool())
+            return;
+        socket->setProperty("answered", true);
+        asked << request;
+        const bool stream = request.contains("/stream");
+        const QByteArray body = stream ? m_picture : QByteArray("1\n00:00:00,000 --> 00:00:01,000\nline\n");
+        socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + QByteArray(stream ? "image/png" : "text/plain")
+                      + "\r\nContent-Length: " + QByteArray::number(body.size())
+                      + "\r\nConnection: close\r\n\r\n" + body);
+        socket->disconnectFromHost();
+    }
+    QByteArray m_picture;
+};
+
 class PlaybackRetireTest : public QObject {
     Q_OBJECT
 
@@ -169,6 +220,22 @@ class PlaybackRetireTest : public QObject {
     // The run-time folder the controller's files go in (XDG_RUNTIME_DIR): the
     // test's own, and apart from its temp folder, which they used to be in.
     QString runDir() const { return m_dir.path() + QStringLiteral("/run"); }
+    // The files a process is handed what must not be on its command line in.
+    QString privateOptions() const { return runDir() + QStringLiteral("/osdos-mpv-private.conf"); }
+    QString privateMedia() const { return runDir() + QStringLiteral("/osdos-mpv-private.m3u"); }
+    static QByteArray contents(const QString &path) {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    }
+    // Its owner's alone to read and write (0600).
+    static bool ownersAlone(const QString &path) {
+        struct stat info;
+        return ::stat(QFile::encodeName(path).constData(), &info) == 0 && (info.st_mode & 0777) == 0600;
+    }
+    // A line of an mpv config file, its value quoted by its length.
+    static QByteArray optionLine(const char *option, const QByteArray &value) {
+        return QByteArray(option) + "=%" + QByteArray::number(value.size()) + '%' + value + '\n';
+    }
     // The player's control connection, stood in for by the test: mpv's
     // socket, which the controller connects to once it listens.
     QString socketPath() const { return runDir() + QStringLiteral("/osdos-mpv.sock"); }
@@ -371,6 +438,191 @@ private slots:
         QVERIFY2(arguments().filter(QStringLiteral("--input-conf")).isEmpty(),
                  qPrintable(arguments().join(QLatin1Char(' '))));
         QVERIFY(!arguments().filter(QStringLiteral("--input-ar-delay=")).isEmpty());
+    }
+
+    // A media server's token never reaches mpv's command line, which any
+    // account on the machine can read while the video plays (ps,
+    // /proc/<pid>/cmdline): Plex's and Jellyfin's headers go in a config file
+    // mpv is given with --include, and so do the subtitle files of a server
+    // whose addresses hold the token (Emby's api_key), in their order, whose
+    // stream goes in a playlist given with --playlist. Both files are in the
+    // run-time folder, their owner's alone, and gone once the session is
+    // over. What holds no secret stays on the command line as it was.
+    void aServersTokenIsNotOnTheCommandLine() {
+        const auto commandLine = [this] { return arguments().join(QLatin1Char('\n')); };
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+
+        // Plex: its token is a header, its addresses hold none.
+        const QString plexSub = QStringLiteral("https://plex.example:32400/library/streams/9");
+        m_mpv->loadAndPlay(QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4"), 0, 1, 0, { plexSub },
+                           {}, false, -1, 0, QStringLiteral("made-up-plex-token"));
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start film"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
+        QVERIFY2(!commandLine().contains(QLatin1String("http-header-fields")), qPrintable(commandLine()));
+        QVERIFY(arguments().contains(QStringLiteral("--include=") + privateOptions()));
+        QVERIFY(arguments().contains(QStringLiteral("--sub-file=") + plexSub));
+        QCOMPARE(arguments().last(), QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4"));
+        QCOMPARE(contents(privateOptions()),
+                 optionLine("http-header-fields-append", "X-Plex-Token:made-up-plex-token"));
+        QVERIFY(ownersAlone(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
+        // Nothing of it in the temp folder.
+        QVERIFY(QDir(m_dir.path()).entryList({ QStringLiteral("osdos-*") }, QDir::AllEntries | QDir::System).isEmpty());
+        // Over, its file is gone.
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QVERIFY(!QFile::exists(privateOptions()));
+
+        // Jellyfin: the same, its header with quotes of its own.
+        m_mpv->loadAndPlay(QStringLiteral("https://jellyfin.example/Videos/7/stream.mp4"), 0, 1, -2, {}, {}, false, -1, 0,
+                           QString(), false, QString(), false, {}, 0, false, {}, QStringLiteral("made-up-jellyfin-token"));
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start stream"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
+        QCOMPARE(contents(privateOptions()),
+                 optionLine("http-header-fields-append", "Authorization:MediaBrowser Token=\"made-up-jellyfin-token\""));
+        QVERIFY(ownersAlone(privateOptions()));
+
+        // Emby: the token is in its stream's address and in its subtitles'
+        // too. The session before is replaced, and its file with it.
+        const QString embyStream = QStringLiteral("http://emby.example:8096/Videos/7/stream?static=true&mediaSourceId=7"
+                                                  "&api_key=made-up-emby-key");
+        const QString embySubs[] = { QStringLiteral("http://emby.example:8096/Videos/7/7/Subtitles/3/Stream.srt"
+                                                    "?api_key=made-up-emby-key"),
+                                     QStringLiteral("http://emby.example:8096/Videos/7/7/Subtitles/2/Stream.ass"
+                                                    "?api_key=made-up-emby-key") };
+        m_mpv->loadAndPlay(embyStream, 90, 1, 0, { embySubs[0], embySubs[1] }, {}, false, -1, 0, QString(), false,
+                           QString(), false, {}, 0, false, {}, QStringLiteral("made-up-emby-key"));
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start stream?static=true&mediaSourceId=7&api_key=made-up-emby-key"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
+        QVERIFY2(!commandLine().contains(QLatin1String("emby.example")), qPrintable(commandLine()));
+        QVERIFY(arguments().contains(QStringLiteral("--include=") + privateOptions()));
+        QVERIFY(arguments().contains(QStringLiteral("--playlist=") + privateMedia()));
+        QVERIFY(arguments().contains(QStringLiteral("--start=90.000")));
+        QVERIFY(!arguments().contains(QStringLiteral("--")));
+        QCOMPARE(contents(privateOptions()),
+                 optionLine("sub-files-append", embySubs[0].toUtf8())
+                     + optionLine("sub-files-append", embySubs[1].toUtf8())
+                     + optionLine("http-header-fields-append", "Authorization:MediaBrowser Token=\"made-up-emby-key\""));
+        QCOMPARE(contents(privateMedia()), QByteArray("#EXTM3U\n") + embyStream.toUtf8() + '\n');
+        QVERIFY(ownersAlone(privateOptions()));
+        QVERIFY(ownersAlone(privateMedia()));
+        QVERIFY(QDir(m_dir.path()).entryList({ QStringLiteral("osdos-*") }, QDir::AllEntries | QDir::System).isEmpty());
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 2, 5000);
+        QVERIFY(!QFile::exists(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
+
+        // A video with nothing to hide is handed no file.
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("--include=")), qPrintable(commandLine()));
+        QVERIFY2(!commandLine().contains(QLatin1String("--playlist=")), qPrintable(commandLine()));
+        QVERIFY(!QFile::exists(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
+    }
+
+    // With no file to put the token in (a folder has its name), nothing is
+    // started with it on the command line after all: the session ends as
+    // one mpv could not be started for, the player's own failure.
+    void withoutAFileForItATokenIsNotHandedOver() {
+        QVERIFY(QDir().mkpath(privateOptions() + QStringLiteral("/held")));
+        const auto free = qScopeGuard([this] { QDir(privateOptions()).removeRecursively(); });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^\\[AtomicFile\\] Could not write ")));
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral(
+                                               "^\\[MpvController\\] Cannot start playback: what mpv is handed in a file")));
+        m_mpv->loadAndPlay(QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4"), 0, 1, 0, {}, {}, false,
+                           -1, 0, QStringLiteral("made-up-plex-token"));
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
+        QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not be started"));
+        QVERIFY2(m_mpv->lastErrorDetail().contains(runDir()), qPrintable(m_mpv->lastErrorDetail()));
+        QVERIFY(m_mpv->playerFailed());
+        QVERIFY(!happened("start film"));
+    }
+
+    // The files as the controller writes them, read by the mpv that is
+    // installed (skipped without one): asked of a stand-in for a server, the
+    // stream is asked for by the address in the playlist, its token in it,
+    // and it and each subtitle file, in their order, with the header.
+    void theInstalledMpvReadsTheFiles() {
+        QStringList folders = qEnvironmentVariable("PATH").split(QLatin1Char(':'), Qt::SkipEmptyParts);
+        folders.removeAll(m_dir.path() + QStringLiteral("/bin"));
+        const QString mpv = QStandardPaths::findExecutable(QStringLiteral("mpv"), folders);
+        if (mpv.isEmpty())
+            QSKIP("mpv isn't installed here");
+
+        ServerStandIn server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        const QString stream = server.address() + QStringLiteral("/Videos/7/stream?static=true&api_key=made-up-emby-key");
+        const QString subs[] = {
+            server.address() + QStringLiteral("/Videos/7/7/Subtitles/3/Stream.srt?api_key=made-up-emby-key"),
+            server.address() + QStringLiteral("/Videos/7/7/Subtitles/2/Stream.srt?api_key=made-up-emby-key") };
+        m_mpv->loadAndPlay(stream, 0, 1, 0, { subs[0], subs[1] }, {}, false, -1, 0, QString(), false, QString(), false,
+                           {}, 0, false, {}, QStringLiteral("made-up-emby-key"));
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start stream?static=true&api_key=made-up-emby-key"), 5000);
+        QVERIFY(QFile::exists(privateOptions()));
+        QVERIFY(QFile::exists(privateMedia()));
+
+        QProcess real;
+        real.setProcessChannelMode(QProcess::MergedChannels);
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        // Straight to the stand-in, whatever proxy the machine has.
+        for (const char *name : { "http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY" })
+            env.remove(QLatin1String(name));
+        real.setProcessEnvironment(env);
+        QByteArray said;
+        connect(&real, &QProcess::readyRead, this, [&]() { said += real.readAll(); });
+        real.start(mpv, { QStringLiteral("--no-config"), QStringLiteral("--vo=null"), QStringLiteral("--ao=null"),
+                          QStringLiteral("--no-input-terminal"), QStringLiteral("--image-display-duration=0.2"),
+                          QStringLiteral("--include=") + privateOptions(),
+                          QStringLiteral("--playlist=") + privateMedia() });
+        QVERIFY2(real.waitForStarted(5000), qPrintable(real.errorString()));
+        // What it asked for, each address once, in the order it first did.
+        const auto paths = [&server]() {
+            QList<QByteArray> seen;
+            for (const QByteArray &request : server.asked) {
+                const QByteArray path = request.mid(4, request.indexOf(' ', 4) - 4);
+                if (!seen.contains(path))
+                    seen << path;
+            }
+            return seen;
+        };
+        QTRY_VERIFY2_WITH_TIMEOUT(paths().size() >= 3 || real.state() == QProcess::NotRunning, said.constData(), 20000);
+        real.kill();
+        real.waitForFinished(5000);
+        const qsizetype host = server.address().size();
+        QCOMPARE(paths(), (QList<QByteArray>{ stream.mid(host).toUtf8(), subs[0].mid(host).toUtf8(),
+                                              subs[1].mid(host).toUtf8() }));
+        for (const QByteArray &request : std::as_const(server.asked))
+            QVERIFY2(request.contains("\r\nAuthorization:MediaBrowser Token=\"made-up-emby-key\"\r\n"),
+                     request.constData());
+    }
+
+    // Inside the window (Transparent Background) a session has no command
+    // line: libmpv is given the header as it is, which the server is asked
+    // with, and no file is written for it.
+    void aVideoInsideTheWindowIsHandedItsTokenAsItIs() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        ServerStandIn server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        m_mpv->loadAndPlay(server.address() + QStringLiteral("/Videos/7/stream?static=true&api_key=made-up-emby-key"),
+                           0, -1, -2, {}, {}, false, -1, 0, QStringLiteral("made-up-plex-token"), true, QString(), false,
+                           {}, 0, false, {}, QStringLiteral("made-up-emby-key"));
+        QTRY_VERIFY_WITH_TIMEOUT(!server.asked.isEmpty(), 15000);
+        const QByteArray request = server.asked.first();
+        QVERIFY2(request.startsWith("GET /Videos/7/stream?static=true&api_key=made-up-emby-key HTTP/"),
+                 request.constData());
+        QVERIFY2(request.contains("\r\nX-Plex-Token:made-up-plex-token\r\n"), request.constData());
+        QVERIFY2(request.contains("\r\nAuthorization:MediaBrowser Token=\"made-up-emby-key\"\r\n"), request.constData());
+        QVERIFY(!QFile::exists(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
     }
 
     // On a tube mpv is told the screen is 4:3 whatever its pixels; on a

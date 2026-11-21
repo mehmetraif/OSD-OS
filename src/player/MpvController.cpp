@@ -118,6 +118,27 @@ bool asksForYtdl(const QStringList &extraArgs) {
     });
 }
 
+// Whether the log would blank some of it (redactSecrets()): a media server's
+// token, the sign-in of an address.
+bool holdsSecret(const QString &text) {
+    return redactSecrets(text) != text;
+}
+
+// An address mpv takes from a playlist as it takes one from its command line
+// (anything else is "potentially unsafe" there, and refused).
+bool webAddress(const QString &word) {
+    return word.startsWith(QLatin1String("http://"), Qt::CaseInsensitive)
+           || word.startsWith(QLatin1String("https://"), Qt::CaseInsensitive);
+}
+
+// An option as a line of an mpv config file, its value quoted by its length
+// in bytes ("%5%value"): mpv then takes it as it is, a header's own quotes, a
+// "#" and a "," with it, where its other ways of quoting end at one of them.
+QByteArray configLine(const char *option, const QString &value) {
+    const QByteArray bytes = value.toUtf8();
+    return QByteArray(option) + "=%" + QByteArray::number(bytes.size()) + '%' + bytes + '\n';
+}
+
 // The last value an option was given among these, "" if none.
 QString lastOption(const QStringList &options, const QLatin1String &name) {
     QString value;
@@ -333,6 +354,9 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
 #endif
 {
     placeRunFiles();
+    // What a run that ended badly left of its last process's (offCommandLine()).
+    QFile::remove(m_privateOptionsPath);
+    QFile::remove(m_privateMediaPath);
     m_videoProfile = detectVideoProfile();
     qInfo("[MpvController] video profile: %s",
           m_videoProfile == VideoProfile::Pi4       ? "Pi 4 — drm + drm-copy,v4l2m2m-copy"
@@ -452,6 +476,8 @@ MpvController::~MpvController() {
             }
         }
     }
+    QFile::remove(m_privateOptionsPath);
+    QFile::remove(m_privateMediaPath);
     // Quitting mid-playback on a headless Pi used to leave the VT switched away
     // and DRM master dropped — a black screen or a stray text console. Restore
     // synchronously here: terminate() above has already released mpv's hold on
@@ -473,6 +499,8 @@ void MpvController::placeRunFiles() {
     m_inputConfPath = runtimefiles::path(QStringLiteral("osdos-input.conf"));
     m_logFilePath = runtimefiles::path(QStringLiteral("osdos-mpv.log"));
     m_subInfoPath = runtimefiles::path(QStringLiteral("osdos-mpv-subinfo.json"));
+    m_privateOptionsPath = runtimefiles::path(QStringLiteral("osdos-mpv-private.conf"));
+    m_privateMediaPath = runtimefiles::path(QStringLiteral("osdos-mpv-private.m3u"));
     m_logoOverlayPath = runtimefiles::path(QStringLiteral("osdos-logo.bgra"));
 }
 
@@ -698,6 +726,8 @@ QStringList MpvController::trackArgs(const PlaybackRequest &request, bool embedd
     if (!asksForYtdl(request.extraArgs))
         args << QStringLiteral("--ytdl=no");
     args << request.extraArgs;
+    // The servers' tokens, as headers of every request mpv makes for the
+    // session. A process is handed them in a file (offCommandLine()).
     if (!request.plexToken.isEmpty()) {
         args << QString("--http-header-fields=X-Plex-Token:%1").arg(request.plexToken);
     }
@@ -909,9 +939,9 @@ void MpvController::play(const PlaybackRequest &request) {
     m_pendingStartClear = startSeconds > 0.5f;
 
     // Stamp the log file so each session is identifiable when tailing over SSH.
-    // Owner-only perms: mpv logs its command line (incl. auth headers) at verbose
-    // level into --log-file, and it truncates rather than recreates the file — so
-    // permissions set here survive the mpv session.
+    // Owner-only perms: mpv logs the options it is given (incl. auth headers) at
+    // verbose level into --log-file, and it truncates rather than recreates the
+    // file — so permissions set here survive the mpv session.
     {
         QFile lf(m_logFilePath);
         if (lf.open(QFile::Append | QFile::Text)) {
@@ -1052,9 +1082,10 @@ void MpvController::endAtOnce(const QString &reason) {
 // Takes the IPC down after a session: no reconnecting, the timers off, what
 // mpv last sent read (drain: readyRead and the end of the process are
 // separate events, so its final end-file may still sit unread), the socket
-// file gone, what it said was up over the picture (its deck menu, its screen
-// saver) forgotten, and the position and duration it got to handed out and
-// zeroed.
+// file gone, and with it what its process was handed in files of its own
+// (offCommandLine(): a server's token), what it said was up over the picture
+// (its deck menu, its screen saver) forgotten, and the position and duration
+// it got to handed out and zeroed.
 void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_ipcWanted = false;
     m_reconnecting = false;
@@ -1069,6 +1100,8 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
         onIpcReadyRead();
     m_ipc->abort();
     QFile::remove(m_socketPath);
+    QFile::remove(m_privateOptionsPath);
+    QFile::remove(m_privateMediaPath);
     m_oscMenuShown = false;
     m_saverShown = false;
     if (pos) *pos = m_position;
@@ -1245,6 +1278,19 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         endAtOnce(QStringLiteral("failed"));
         return;
     }
+    // A server's token goes to mpv in a file, not on its command line; with
+    // no file to put it in, the session ends as one mpv couldn't be started
+    // for.
+    QStringList plays = media;
+    if (!offCommandLine(args, plays)) {
+        const QString folder = runtimefiles::dir();
+        qWarning("[MpvController] Cannot start playback: what mpv is handed in a file could not be written");
+        setFailure(QStringLiteral("mpv could not be started"),
+                   folder.isEmpty() ? QStringLiteral("There is no folder for its files")
+                                    : QStringLiteral("Its files could not be written in ") + folder, true);
+        endAtOnce(QStringLiteral("failed"));
+        return;
+    }
 
     m_process = new QProcess(this);
     m_process->setProcessChannelMode(QProcess::MergedChannels);
@@ -1282,7 +1328,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         if (out.contains(QLatin1String("VO: [")))
             noteStarted();
     });
-    auto launch = [this, bin, media](QStringList options) {
+    auto launch = [this, bin, plays](QStringList options) {
         // The second try of a session that showed nothing: decoded on the
         // CPU, whatever the device's decoder list or mpv_video_args says
         // (the last word on the command line).
@@ -1290,7 +1336,8 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
             options << QStringLiteral("--hwdec=no");
         const QString hwdec = lastOption(options, QLatin1String("hwdec"));
         m_hardwareDecode = !hwdec.isEmpty() && hwdec != QLatin1String("no");
-        options << QStringLiteral("--") << media;
+        if (!plays.isEmpty())
+            options << QStringLiteral("--") << plays;
         qDebug("[MpvController] launch: mpv %s", qPrintable(redactSecrets(options.join(QLatin1Char(' ')))));
         m_process->start(bin, options);
         // A start that failed at once (no process to fork: errorOccurred came
@@ -1410,6 +1457,60 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         appendVideoArgs(args);
         launch(args);
     }
+}
+
+bool MpvController::offCommandLine(QStringList &options, QStringList &media) {
+    static const QLatin1String kHeader("--http-header-fields=");
+    static const QLatin1String kSubFile("--sub-file=");
+    // Nothing of the process before is handed to this one.
+    QFile::remove(m_privateOptionsPath);
+    QFile::remove(m_privateMediaPath);
+    const bool subsHoldSecret = std::any_of(options.cbegin(), options.cend(), [](const QString &option) {
+        return option.startsWith(kSubFile) && holdsSecret(option);
+    });
+    // Each is a line of its file: one with a line break of its own would be
+    // read as two, the second an option, or a video, of whoever wrote it.
+    bool oneLine = true;
+    const auto value = [&oneLine](const QString &text) {
+        if (text.contains(QLatin1Char('\n')) || text.contains(QLatin1Char('\r')))
+            oneLine = false;
+        return text;
+    };
+    QByteArray lines;
+    QStringList kept;
+    for (const QString &option : std::as_const(options)) {
+        if (option.startsWith(kHeader))
+            lines += configLine("http-header-fields-append", value(option.mid(kHeader.size())));
+        else if (subsHoldSecret && option.startsWith(kSubFile))
+            lines += configLine("sub-files-append", value(option.mid(kSubFile.size())));
+        else
+            kept << option;
+    }
+    QByteArray list;
+    if (!media.isEmpty() && std::all_of(media.cbegin(), media.cend(), webAddress)
+            && std::any_of(media.cbegin(), media.cend(), holdsSecret)) {
+        list = "#EXTM3U\n";
+        for (const QString &address : std::as_const(media))
+            list += value(address).toUtf8() + '\n';
+    }
+    if (!oneLine) {
+        qWarning("[MpvController] A header or an address with a line break in it is not handed to mpv");
+        return false;
+    }
+    const QFileDevice::Permissions own = QFile::ReadOwner | QFile::WriteOwner;
+    if (!lines.isEmpty()) {
+        if (m_privateOptionsPath.isEmpty() || !writeFileAnew(m_privateOptionsPath, lines, own))
+            return false;
+        kept << QStringLiteral("--include=") + m_privateOptionsPath;
+    }
+    if (!list.isEmpty()) {
+        if (m_privateMediaPath.isEmpty() || !writeFileAnew(m_privateMediaPath, list, own))
+            return false;
+        kept << QStringLiteral("--playlist=") + m_privateMediaPath;
+        media.clear();
+    }
+    options = kept;
+    return true;
 }
 
 void MpvController::stop() {
