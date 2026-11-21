@@ -95,9 +95,11 @@ FocusScope {
               : "High score tables of the Arcade games"
     }
 
-    // Footer: select opens a folder; an entry's line is only read.
+    // Footer: select opens a folder; an entry's line is only read. With no
+    // tables, back alone.
     HintBar {
         readonly property var entry: tree.currentEntry
-        text: root.hintLine(["back:BACK", "arrows:NAVIGATE", entry && entry.isFolder ? "select:OPEN" : ""])
+        text: tree.rootEmpty ? root.hintLine(["back:BACK"])
+              : root.hintLine(["back:BACK", "arrows:NAVIGATE", entry && entry.isFolder ? "select:OPEN" : ""])
     }
 }

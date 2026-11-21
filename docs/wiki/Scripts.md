@@ -26,16 +26,16 @@ The Scripts module lists the `.sh` files in a folder and runs the one you choose
 
 ## The list
 
-Each row shows the script's name and its mode (CONSOLE or TAKEOVER), with a `*` before the mode for a favourite.
+Each row shows the script's name and its mode (CONSOLE or TAKEOVER), with a `*` before the mode for one that is on the main menu (its help line says **ON MAIN MENU**).
 
 | Action | Keyboard | Gamepad | What it does |
 |---|---|---|---|
 | Move | ▲ ▼ | D-pad, left stick | Up and down the list (it wraps) |
-| Run | Enter | A | Runs the script (after a yes/no question, if its `.txt` asks for one) |
-| Favourite | ► | D-pad right | Puts the script on the main menu, or takes it off |
+| Run | Enter | A | Runs the script (after **Run script?**, Cancel under the cursor, if its `.txt` asks for it) |
+| On Main Menu | ► | D-pad right | Puts the script on the main menu as a row of its own, or takes it off. The hint bar reads `[►]:ON MAIN MENU` (`OFF MAIN MENU` for one that is on it) |
 | Back | Esc | B | Back to the main menu |
 
-With no scripts in the folder, the screen says **No scripts found: Please add .sh files to the scripts directory**.
+With no scripts in the folder, the screen says **No scripts found: Add .sh files to the scripts folder**, and the hint bar has back alone.
 
 ## The .txt beside each script
 

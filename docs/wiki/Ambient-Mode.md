@@ -38,9 +38,9 @@ Other audio mpv plays (Opus, for one) can go in an `m3u` ([below](https://github
 
 The rows wrap, so SHUFFLE is one ◄ from each row's first choice.
 
-▲ ▼ move between the rows. ◄ ►, or a gamepad's shoulder buttons, change the video or the audio. Select on **START** plays, and back leaves.
+▲ ▼ move between the rows. ◄ ►, or a gamepad's shoulder buttons, change the video or the audio. Select plays from any row, the cursor's first one (Video) too, and back leaves. The hint bar reads `[ENTER]:START`.
 
-With no video in the folder, the screen says **No items found: Please add items in the ambient:mode media directory**. Audio files alone don't count.
+With no video in the folder, the screen says **No items found: Add videos to the Ambient:Mode media folder**, and the hint bar has back alone. Audio files alone don't count.
 
 ## How it plays
 

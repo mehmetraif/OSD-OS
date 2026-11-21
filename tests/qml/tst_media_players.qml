@@ -344,14 +344,21 @@ StandInRoot {
         property int audioStops: 0
         function startAudio(paths, shuffle) { audioStarts++ }
         function stopAudio() { audioStops++ }
+        // Its picker's files (Items.qml).
+        property var videos: []
+        property var audios: []
+        function getVideoFiles() { return videos }
+        function getAudioFiles() { return audios }
     }
 
     // ScriptsBackend as the Scripts module's list uses it: one script that
     // asks before it runs (its sidecar's confirm = yes), one that doesn't.
     QtObject {
         id: scriptsBackend
+        // A folder with none in it.
+        property bool none: false
         function getScripts() {
-            return [{ basename: "backup.sh", name: "Backup", mode: "console", confirm: true, favorite: false },
+            return none ? [] : [{ basename: "backup.sh", name: "Backup", mode: "console", confirm: true, favorite: false },
                     { basename: "hello.sh", name: "Hello", mode: "console", confirm: false, favorite: false }]
         }
         function setFavorite(basename, favorite) { return false }
@@ -530,6 +537,9 @@ StandInRoot {
             plexBackend.trackWrites = []
             ambientModeBackend.audioStarts = 0
             ambientModeBackend.audioStops = 0
+            ambientModeBackend.videos = []
+            ambientModeBackend.audios = []
+            scriptsBackend.none = false
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
             playlistsBackend.resumeIndex = 0
@@ -2444,6 +2454,83 @@ StandInRoot {
             open("nfc_reader", "Player.qml", { videoPath: "/films/A.mkv", title: "A" })
             compare(mpvController.loads, 1)
             compare(mpvController.subTracks, [data.subTrack])
+        }
+
+        // Ambient:Mode's picker: select starts from any row, VIDEO's (where
+        // the cursor is as it opens) as START's, ◄ ► still changing the
+        // row's value; the hint bar says START, CHANGE only where a row has
+        // more than one value. With nothing to play, back alone, and select
+        // starts nothing.
+        function test_ambientPicker_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_ambientPicker(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var footer = function(view) {
+                for (var i = 0; i < view.children.length; i++) {
+                    var item = view.children[i]
+                    if (typeof item.text === "string" && item.text.indexOf(":BACK") >= 0)
+                        return item.text
+                }
+                return ""
+            }
+            var view = open("ambient_mode", "Items.qml", {})
+            compare(footer(view), h.back + ":BACK")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+
+            ambientModeBackend.videos = [{ name: "Fireplace", path: "/ambient/Fireplace.mp4" },
+                                         { name: "Rain", path: "/ambient/Rain.mp4" }]
+            view = open("ambient_mode", "Items.qml", {})
+            compare(view.focusRow, 0)
+            compare(footer(view), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.change + ":CHANGE "
+                                  + h.select + ":START")
+            keyClick(Qt.Key_Right)
+            compare(view.videoIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Player.qml")
+            compare(root.navigations[0].params.videoPath, "/ambient/Rain.mp4")
+            // AUDIO: the video's own alone, nothing to change.
+            keyClick(Qt.Key_Down)
+            compare(footer(view), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":START")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            keyClick(Qt.Key_Down)
+            compare(footer(view), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":START")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 3)
+            root.hints = root.keyboardHints
+        }
+
+        // The Scripts module's list: ► puts a script on the main menu (or
+        // takes it off), which the hint bar and the help line say in those
+        // words; an empty folder has back alone.
+        function test_scriptsHints_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_scriptsHints(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var footer = function(view) {
+                for (var i = 0; i < view.children.length; i++) {
+                    var item = view.children[i]
+                    if (typeof item.text === "string" && item.text.indexOf(":BACK") >= 0)
+                        return item.text
+                }
+                return ""
+            }
+            var items = open("scripts", "Items.qml", {})
+            compare(footer(items), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.browse + ":ON MAIN MENU "
+                                   + h.select + ":RUN")
+            loader.source = ""
+            scriptsBackend.none = true
+            items = open("scripts", "Items.qml", {})
+            compare(footer(items), h.back + ":BACK")
+            root.hints = root.keyboardHints
         }
 
         // The Scripts module's Run script? asks as the players do: Cancel

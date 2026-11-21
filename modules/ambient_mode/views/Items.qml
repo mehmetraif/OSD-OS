@@ -16,7 +16,8 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
-    // Focus rows: 0=video track, 1=audio track, 2=start button
+    // Focus rows: 0=video track, 1=audio track, 2=start button. Select on
+    // any of them starts, with the video and audio the rows show.
     property int focusRow: 0
 
     property var videoFiles: []
@@ -99,7 +100,7 @@ FocusScope {
                 audioIndex = (audioIndex + 1) % audioSlotCount
             event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (focusRow === 2 && videoFiles.length > 0)
+            if (videoFiles.length > 0)
                 launchPlayer(videoShuffleSelected, audioShuffleSelected)
             event.accepted = true
         }
@@ -132,7 +133,7 @@ FocusScope {
             font.pixelSize: root.sh * 0.05 //24
         }
         Text {
-            text: "Please add items in the ambient:mode media directory"
+            text: "Add videos to the Ambient:Mode media folder"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -350,8 +351,14 @@ FocusScope {
         }
     }
 
+    // With nothing to play, back alone; else ◄ ► where the row has more
+    // than one value, and select starts from every row.
     HintBar {
         id: footer
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
+        readonly property bool changes: (itemsRoot.focusRow === 0 && itemsRoot.videoSlotCount > 1)
+                                        || (itemsRoot.focusRow === 1 && itemsRoot.audioSlotCount > 1)
+        text: itemsRoot.videoFiles.length === 0
+              ? root.hintLine(["back:BACK"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE", changes ? "change:CHANGE" : "", "select:START"])
     }
 }
