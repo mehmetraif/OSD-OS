@@ -175,24 +175,10 @@ FocusScope {
     }
 
     function playBestEpisode() {
-        if (episodes.length === 0) return
-        var target = null
-        // 1. In-progress episode (viewOffset > 0)
-        for (var i = 0; i < episodes.length; i++) {
-            if (episodes[i].viewOffset > 0) { target = episodes[i]; break }
-        }
-        // 2. First unwatched episode (viewCount === 0)
-        if (!target) {
-            for (var j = 0; j < episodes.length; j++) {
-                if (!episodes[j].viewCount || episodes[j].viewCount === 0) { target = episodes[j]; break }
-            }
-        }
-        // 3. All watched — start from beginning
-        if (!target) {
-            target = episodes[0]
-        }
+        var target = Episodes.best(episodes, function(ep) { return ep.viewCount > 0 })
+        if (!target) return
         var ep = Object.assign({}, target)
-        // For cases 2 and 3 ensure we start from beginning
+        // One not part-watched starts from the beginning.
         if (!ep.viewOffset) ep.viewOffset = 0
         seasonRoot.navigateTo("Item.qml", {
             item: ep,

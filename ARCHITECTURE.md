@@ -111,7 +111,7 @@ osd-os/
     TestPatterns.qml                # Settings → Screen → Test Patterns: the 240p Test Suite's pictures to set a screen up by
     FilePicker.qml                  # the folder or file a setting names, picked on a TreeBrowser
     ...
-    Components/                     # shared QML components (ModuleRouter, AppBar, HintBar, MenuRow, MenuList, LetterList, PaneMessage, SettingRow, ScrolledText, ScrolledLines, HelpLine, ScrollMarks, IconColumn, MonitorChrome, MonitorRow, ListPager, TreeBrowser, InfoPanel, EntryOptions, PlaylistAdder, PlayerMenu, LoadingScreen, PromptScreen, OsdGround, SkinImage, SelectionBox, BackgroundFx, MousePointer, ScreenSaver, OnScreenKeyboard, WebPlayerBrowse, WebPlayerLaunch, the MediaServer* views (Jellyfin's and Emby's libraries, lists, item pages and player: a module's view file is the component with its backend), the Osd* elements, ChoiceOverlay, MpvKeys.js, Hints.js, qmldir)
+    Components/                     # shared QML components (ModuleRouter, AppBar, HintBar, MenuRow, MenuList, LetterList, PaneMessage, SettingRow, ScrolledText, ScrolledLines, HelpLine, ScrollMarks, IconColumn, MonitorChrome, MonitorRow, ListPager, TreeBrowser, InfoPanel, EntryOptions, PlaylistAdder, PlayerMenu, LoadingScreen, PromptScreen, OsdGround, SkinImage, SelectionBox, BackgroundFx, MousePointer, ScreenSaver, OnScreenKeyboard, WebPlayerBrowse, WebPlayerLaunch, the MediaServer* views (Jellyfin's and Emby's libraries, lists, item pages and player: a module's view file is the component with its backend), the Osd* elements, ChoiceOverlay, MpvKeys.js, Hints.js, Episodes.js, qmldir)
     BootScreen.qml                  # boot screen of the OSD/OS image (see os/README.md)
   assets/
     themes/                         # Settings → Look → Theme's own themes (Trinitron … Demoscene): theme.json and its music
@@ -1040,6 +1040,10 @@ The keys a player's view sends on to mpv as its video plays, one table for every
 ### Hints (`views/Components/Hints.js`)
 
 The keys as every view takes and names them, a `.pragma library` in `qmldir` as `MpvKeys` is, behind `Main.qml`'s own two (and `StandInRoot`'s, in the tests): `root.isBack(event)`, whether a key is back (Esc, as a pad's back comes too, Backspace, or a remote's Back), and `root.hintLine(parts)`, a hint bar's line from `root.hints`, each part a hint's name and what the key does (`"back:BACK"`), a part `""` left out, the parts a space apart. A binding on `root.hintLine()` follows the hints from the keyboard's to a pad's.
+
+### Episodes (`views/Components/Episodes.js`)
+
+The episode a show's or a season's PLAY opens on Plex, Jellyfin and Emby, a `.pragma library` in `qmldir` as `MpvKeys` is: `Episodes.best(episodes, watched)` is the first part-watched, else the first unwatched, else the first, `watched` saying whether an episode has been seen in its server's terms (Plex's `viewCount`, Jellyfin's and Emby's `played`). Plex's backend picks a card's episode the same way in C++ (`PlexBackend::pickOnDeckEpisode`).
 
 ### OsdGround (`views/Components/OsdGround.qml`)
 

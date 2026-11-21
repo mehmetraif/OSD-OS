@@ -45,6 +45,7 @@ ButtonGrid ButtonGrid.qml
 WindowChange WindowChange.qml
 MpvKeys 1.0 MpvKeys.js
 Hints 1.0 Hints.js
+Episodes 1.0 Episodes.js
 ModuleRouter ModuleRouter.qml
 MediaServerLibraries MediaServerLibraries.qml
 MediaServerItems MediaServerItems.qml

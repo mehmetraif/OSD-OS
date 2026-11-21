@@ -1889,6 +1889,20 @@ StandInRoot {
             compare(MpvKeys.name(Qt.Key_Q), "")
         }
 
+        // The episode a show's or a season's PLAY opens (Episodes.js): the
+        // first part-watched, else the first unwatched, else the first.
+        function test_bestEpisode() {
+            function seen(ep) { return ep.viewCount > 0 }
+            var watched = { id: "1", viewCount: 1 }, fresh = { id: "2" }, fresh2 = { id: "3", viewCount: 0 }
+            var partly = { id: "4", viewCount: 1, viewOffset: 5000 }
+            compare(Episodes.best([], seen), null)
+            compare(Episodes.best([watched, fresh, partly], seen).id, "4")
+            compare(Episodes.best([watched, fresh2, fresh], seen).id, "3")
+            compare(Episodes.best([watched, { id: "5", viewCount: 2 }], seen).id, "1")
+            compare(Episodes.best([{ id: "6", played: true }, { id: "7", played: false }],
+                                  function(ep) { return ep.played }).id, "7")
+        }
+
         // Every player sends mpv the same keys through that one table as
         // its video plays: Plex's and its live channels', Jellyfin's,
         // Emby's, Local Files', YouTube's, the NFC Reader's, Playlists' and

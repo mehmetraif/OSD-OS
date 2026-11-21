@@ -1,4 +1,5 @@
 import QtQuick
+import "Episodes.js" as Episodes
 
 // Season landing — season context + episode list. Reached from ItemShow;
 // selecting an episode opens Item.qml. Jellyfin's and Emby's: a module's
@@ -55,19 +56,9 @@ FocusScope {
 
     focus: true
 
-    // Resume in-progress → first unwatched → first.
     function playBestEpisode() {
-        if (episodes.length === 0) return
-        var target = null
-        for (var i = 0; i < episodes.length; i++) {
-            if (episodes[i].viewOffset > 0) { target = episodes[i]; break }
-        }
-        if (!target) {
-            for (var j = 0; j < episodes.length; j++) {
-                if (!episodes[j].played) { target = episodes[j]; break }
-            }
-        }
-        if (!target) target = episodes[0]
+        var target = Episodes.best(episodes, function(ep) { return ep.played })
+        if (!target) return
         seasonRoot.navigateTo("Item.qml", { item: target, libraryName: libraryName }, {})
     }
 
