@@ -1006,7 +1006,10 @@ private slots:
 
         const QJsonObject subtitle{ { "Type", "Subtitle" }, { "Index", 3 }, { "Codec", "subrip" },
                                     { "IsTextSubtitleStream", true } };
-        const QJsonObject source{ { "Id", "src" }, { "MediaStreams", QJsonArray{ subtitle } } };
+        // One in a file beside the video, said so: not in the stream mpv counts.
+        const QJsonObject beside{ { "Type", "Subtitle" }, { "Index", 4 }, { "Codec", "pgssub" },
+                                  { "IsExternal", true } };
+        const QJsonObject source{ { "Id", "src" }, { "MediaStreams", QJsonArray{ subtitle, beside } } };
         const QByteArray film = QJsonDocument(QJsonObject{ { "Id", "film" },
                                                            { "MediaSources", QJsonArray{ source } } }).toJson();
         QSignalSpy jfItem(&jellyfin, &JellyfinBackend::itemLoaded);
@@ -1021,6 +1024,12 @@ private slots:
         };
         QCOMPARE(subUrl(jfItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt"));
         QCOMPARE(subUrl(emItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt?api_key=token"));
+        for (const QSignalSpy *spy : { &jfItem, &emItem }) {
+            const QVariantList subs = spy->last().at(0).toMap().value(QStringLiteral("subtitleStreams")).toList();
+            QCOMPARE(subs.size(), 2);
+            QVERIFY(!subs.at(0).toMap().value(QStringLiteral("external")).toBool());
+            QVERIFY(subs.at(1).toMap().value(QStringLiteral("external")).toBool());
+        }
 
         qsizetype asked = jf->replies.size();
         QVERIFY(QMetaObject::invokeMethod(&jellyfin, "getVideoQualities"));

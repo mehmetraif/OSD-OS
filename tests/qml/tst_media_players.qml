@@ -1442,6 +1442,47 @@ StandInRoot {
             compare(backend.stops, stops + 4)
         }
 
+        // The subtitle mpv is started on, direct-played: one in the file
+        // itself is numbered as mpv numbers it, the file's own first and
+        // sidecars after, whatever the server lists before it. Plex loads
+        // every sidecar, Jellyfin and Emby the one chosen only.
+        function test_subtitleTrackAsMpvNumbersIt_data() {
+            var plexSubs = [{ id: "0", displayTitle: "OFF" },
+                            { id: "21", displayTitle: "ENGLISH (SRT EXTERNAL)", subUrl: "http://plex/s/21.srt" },
+                            { id: "22", displayTitle: "ENGLISH PGS" },
+                            { id: "23", displayTitle: "FRENCH (SRT EXTERNAL)", subUrl: "http://plex/s/23.srt" },
+                            { id: "24", displayTitle: "FRENCH PGS" }]
+            var serverSubs = [{ id: "5", displayTitle: "English (external)", external: true,
+                                subUrl: "http://server/e1/5.srt" },
+                              { id: "6", displayTitle: "German (external sup)", external: true },
+                              { id: "3", displayTitle: "English PGS" },
+                              { id: "4", displayTitle: "French PGS" }]
+            var plexFiles = ["http://plex/s/21.srt", "http://plex/s/23.srt"]
+            return [{ tag: "plex first in the file", module: "plex", subs: plexSubs, sel: "22", track: 1, files: plexFiles },
+                    { tag: "plex second in the file", module: "plex", subs: plexSubs, sel: "24", track: 2, files: plexFiles },
+                    { tag: "plex sidecar", module: "plex", subs: plexSubs, sel: "23", track: 0,
+                      files: ["http://plex/s/23.srt", "http://plex/s/21.srt"] },
+                    { tag: "jellyfin first in the file", module: "jellyfin", subs: serverSubs, sel: "3", track: 1, files: [] },
+                    { tag: "jellyfin second in the file", module: "jellyfin", subs: serverSubs, sel: "4", track: 2, files: [] },
+                    { tag: "jellyfin beside the file", module: "jellyfin", subs: serverSubs, sel: "6", track: -2, files: [] },
+                    { tag: "emby second in the file", module: "emby", subs: serverSubs, sel: "4", track: 2, files: [] },
+                    { tag: "emby sidecar", module: "emby", subs: serverSubs, sel: "5", track: 0,
+                      files: ["http://server/e1/5.srt"] }]
+        }
+        function test_subtitleTrackAsMpvNumbersIt(data) {
+            if (data.module === "plex")
+                open("plex", "Player.qml", { streamUrl: "http://plex/10", plexToken: "token",
+                                             ratingKey: "10", partKey: "/library/parts/10", title: "Episode 1",
+                                             subtitleStreams: data.subs, selectedSubtitleId: data.sel })
+            else
+                open(data.module, "Player.qml", { streamUrl: "http://server/Videos/e1/stream?static=true",
+                                                  itemId: "e1", mediaSourceId: "e1", title: "Episode 1",
+                                                  subtitleStreams: data.subs, selectedSubtitleId: data.sel })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks[0], data.track)
+            compare(mpvController.subFiles[0], data.files)
+        }
+
         // The view's on-screen keyboard.
         function keyboardOf(item) {
             for (var i = 0; i < item.children.length; i++) {

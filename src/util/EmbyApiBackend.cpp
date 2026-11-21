@@ -386,6 +386,9 @@ QVariantMap EmbyApiBackend::formatItem(const QJsonObject &item, const QString &s
             ss["codec"]       = codec;
             ss["selected"]    = s["IsDefault"].toBool();
             ss["forced"]      = s["IsForced"].toBool();
+            // In a file beside the video, not in the file itself: not in a
+            // Direct Play stream for mpv's --sid to count (MediaServerPlayer.qml).
+            ss["external"]    = s["IsExternal"].toBool();
             ss["displayTitle"]= s["DisplayTitle"].toString();
             ss["title"]       = s["Title"].toString();
             // Image subs (PGS/VOBSUB) have no text sidecar — mpv renders them

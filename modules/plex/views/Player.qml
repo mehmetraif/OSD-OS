@@ -205,8 +205,17 @@ FocusScope {
             subTrack = -1
         else if (selectedSubUrl)
             subTrack = 0
-        else
-            subTrack = subtitleIdx
+        else {
+            // A subtitle in the file itself (no key, so no sidecar). mpv numbers
+            // the file's own subtitles first, 1 up, and the --sub-file sidecars
+            // after them, so its --sid counts only the streams before it that
+            // are in the file, not the sidecars Plex lists among them.
+            subTrack = 0
+            for (var k = 1; k <= subtitleIdx; k++) {
+                if (!(subtitleStreams[k] && subtitleStreams[k].subUrl))
+                    subTrack++
+            }
+        }
         return { urls: allSubUrls, track: subTrack }
     }
 

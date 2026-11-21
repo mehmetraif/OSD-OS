@@ -382,8 +382,21 @@ FocusScope {
             // soft track to select, and the HLS stream carries no embedded subs to
             // index into.
             subTrack = -2
-        else
-            subTrack = subtitleIdx + 1    // embedded/image sub → mpv 1-based --sid
+        else if (selectedSub.external)
+            // An image sub in a file beside the video: not in the stream, and
+            // with no sidecar to hand mpv, nothing it could show.
+            subTrack = -2
+        else {
+            // Embedded image sub → mpv's 1-based --sid. mpv numbers the file's
+            // own subtitles first and any --sub-file after them, so the subtitles
+            // the server lists from files beside the video (IsExternal) are not
+            // counted, wherever it lists them.
+            subTrack = 1
+            for (var k = 0; k < subtitleIdx; k++) {
+                if (!(subtitleStreams[k] && subtitleStreams[k].external))
+                    subTrack++
+            }
+        }
         return {
             urls:   pairs.map(function(p) { return p.url }),
             titles: pairs.map(function(p) { return p.title }),
