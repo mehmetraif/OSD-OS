@@ -1,5 +1,6 @@
 #pragma once
 #include "../../util/AtomicFile.h"
+#include "../../util/FileText.h"
 #include <QFile>
 #include <QHash>
 #include <QJsonDocument>
@@ -30,10 +31,13 @@ public:
     void load(const QString &folder) {
         m_folder = folder;
         m_entries.clear();
-        QFile file(folder + QLatin1Char('/') + m_fileName);
-        if (folder.isEmpty() || !file.open(QIODevice::ReadOnly))
+        if (folder.isEmpty())
             return;
-        const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
+        const QString path = folder + QLatin1Char('/') + m_fileName;
+        QJsonObject kept;
+        QString why;
+        if (!filetext::readJsonObject(path, &kept, &why) && !why.isEmpty())
+            qWarning("[Arcade] %s: %s", qPrintable(path), qPrintable(why));
         for (auto it = kept.constBegin(); it != kept.constEnd(); ++it)
             m_entries.insert(it.key(), T::fromJson(it.value().toObject()));
     }

@@ -5,6 +5,7 @@
 #include "../../input/ControllerProfile.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/DeviceName.h"
+#include "../../util/FileText.h"
 #include "../../util/LegacyNames.h"
 #include "../../util/ProcessOver.h"
 #include "ArcadeDb.h"
@@ -917,10 +918,13 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
     read.cacheAsked = withCache;
     if (withCache)
         read.roms = romcheck::load(home + QStringLiteral("/romcheck.json"));
-    QFile cacheFile(home + QStringLiteral("/games.json"));
-    if (withCache && cacheFile.open(QIODevice::ReadOnly)) {
-        const QJsonObject cache = QJsonDocument::fromJson(cacheFile.readAll()).object();
-        cacheFile.close();
+    const QString cachePath = home + QStringLiteral("/games.json");
+    if (withCache && QFileInfo::exists(cachePath)) {
+        // One that can't be read is as one of another version.
+        QJsonObject cache;
+        QString why;
+        if (!filetext::readJsonObject(cachePath, &cache, &why) && !why.isEmpty())
+            qWarning("[Arcade] %s: %s", qPrintable(cachePath), qPrintable(why));
         // The sets MAME had no machine of before it was asked about every set
         // again; in one made by another version, all it had none of.
         const bool older = cache.value(QStringLiteral("version")).toInt() != kCacheVersion;
@@ -2388,12 +2392,13 @@ QVariant ArcadeBackend::requestEntries(const QString &path) {
 qint64 ArcadeBackend::playTimeOf(const QString &set) {
     if (!m_playTimeLoaded) {
         m_playTimeLoaded = true;
-        QFile file(m_home + QStringLiteral("/playtime.json"));
-        if (file.open(QIODevice::ReadOnly)) {
-            const QJsonObject times = QJsonDocument::fromJson(file.readAll()).object();
-            for (auto it = times.constBegin(); it != times.constEnd(); ++it)
-                m_playTime.insert(it.key(), static_cast<qint64>(it.value().toDouble()));
-        }
+        const QString path = m_home + QStringLiteral("/playtime.json");
+        QJsonObject times;
+        QString why;
+        if (!filetext::readJsonObject(path, &times, &why) && !why.isEmpty())
+            qWarning("[Arcade] %s: %s", qPrintable(path), qPrintable(why));
+        for (auto it = times.constBegin(); it != times.constEnd(); ++it)
+            m_playTime.insert(it.key(), static_cast<qint64>(it.value().toDouble()));
     }
     return m_playTime.value(set);
 }

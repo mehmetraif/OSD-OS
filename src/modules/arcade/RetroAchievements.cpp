@@ -3,6 +3,7 @@
 #include "Libretro.h"
 #include "../highscores/ScoreTable.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/FileText.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -233,10 +234,14 @@ bool RetroAchievements::listFresh() const {
 
 void RetroAchievements::loadList() {
     m_listLoaded = true;
-    QFile file(listFile(m_home));
-    if (!file.open(QIODevice::ReadOnly))
+    const QString path = listFile(m_home);
+    QJsonObject kept;
+    QString why;
+    if (!filetext::readJsonObject(path, &kept, &why)) {
+        if (!why.isEmpty())
+            qWarning("[Arcade] %s: %s", qPrintable(path), qPrintable(why));
         return;
-    const QJsonObject kept = QJsonDocument::fromJson(file.readAll()).object();
+    }
     const QJsonObject games = kept.value(QStringLiteral("games")).toObject();
     m_gameIds.clear();
     for (auto it = games.constBegin(); it != games.constEnd(); ++it)

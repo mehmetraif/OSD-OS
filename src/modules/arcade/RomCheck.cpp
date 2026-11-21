@@ -1,4 +1,5 @@
 #include "RomCheck.h"
+#include "../../util/FileText.h"
 #include "../../util/ProcessOver.h"
 #include "../../util/SevenZip.h"
 #include <QFile>
@@ -204,10 +205,13 @@ void VerifyReader::readLine(const QString &text) {
 
 Results load(const QString &path) {
     Results results;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    QJsonObject json;
+    QString why;
+    if (!filetext::readJsonObject(path, &json, &why)) {
+        if (!why.isEmpty())
+            qWarning("[Arcade] %s: %s", qPrintable(path), qPrintable(why));
         return results;
-    const QJsonObject json = QJsonDocument::fromJson(file.readAll()).object();
+    }
     if (json.value(QStringLiteral("version")).toInt() != kVersion)
         return results;
     results.checked = QDateTime::fromString(json.value(QStringLiteral("checked")).toString(), Qt::ISODate);

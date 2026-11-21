@@ -1,5 +1,6 @@
 #include "RetroAchievementsAccount.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/FileText.h"
 #include "../../util/ProcessOver.h"
 #include "RetroAchievements.h"
 #include <QCoreApplication>
@@ -37,13 +38,14 @@ RetroAchievementsAccount::RetroAchievementsAccount(const QString &home, RetroAch
 {
     // The account, without its password, which is kept nowhere but in OSD/OS
     // Setup's file until RetroAchievements has had it (takeSetupAccount()).
-    QFile account(m_home + QStringLiteral("/retroachievements.json"));
-    if (account.open(QIODevice::ReadOnly)) {
-        const QJsonObject kept = QJsonDocument::fromJson(account.readAll()).object();
-        m_raUser = kept.value(QStringLiteral("user")).toString();
-        m_raToken = kept.value(QStringLiteral("token")).toString();
-        m_raKey = kept.value(QStringLiteral("key")).toString();
-    }
+    const QString accountPath = m_home + QStringLiteral("/retroachievements.json");
+    QJsonObject kept;
+    QString why;
+    if (!filetext::readJsonObject(accountPath, &kept, &why) && !why.isEmpty())
+        qWarning("[Arcade] %s: %s", qPrintable(accountPath), qPrintable(why));
+    m_raUser = kept.value(QStringLiteral("user")).toString();
+    m_raToken = kept.value(QStringLiteral("token")).toString();
+    m_raKey = kept.value(QStringLiteral("key")).toString();
     m_retroAchievements->setKey(m_raKey);
     m_retroAchievements->setUser(m_raUser);
     connect(m_retroAchievements, &RetroAchievements::keyRefused, this, [this] {

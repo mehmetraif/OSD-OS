@@ -1,6 +1,7 @@
 #include "HighScoresBackend.h"
 #include "../arcade/Mame.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/FileText.h"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -91,11 +92,14 @@ QVariantList fieldEntries(const scores::Game &game) {
 // (arcade/games.json), where it has them.
 QHash<QString, QString> namesOf(const QString &gamesJson, const QStringList &sets) {
     QHash<QString, QString> names;
-    QFile file(gamesJson);
-    if (!file.open(QIODevice::ReadOnly))
+    QJsonObject cache;
+    QString why;
+    if (!filetext::readJsonObject(gamesJson, &cache, &why)) {
+        if (!why.isEmpty())
+            qWarning("[HighScores] %s: %s", qPrintable(gamesJson), qPrintable(why));
         return names;
-    const QJsonObject machines = QJsonDocument::fromJson(file.readAll()).object()
-                                     .value(QStringLiteral("machines")).toObject();
+    }
+    const QJsonObject machines = cache.value(QStringLiteral("machines")).toObject();
     for (const QString &set : sets) {
         const QString name = machines.value(set).toObject().value(QStringLiteral("description")).toString();
         if (!name.isEmpty())
@@ -316,10 +320,14 @@ QString HighScoresBackend::gamesJsonIdentity() const {
 
 void HighScoresBackend::loadCache() {
     m_loaded = true;
-    QFile file(m_home + QStringLiteral("/scores.json"));
-    if (!file.open(QIODevice::ReadOnly))
+    const QString path = m_home + QStringLiteral("/scores.json");
+    QJsonObject cache;
+    QString why;
+    if (!filetext::readJsonObject(path, &cache, &why)) {
+        if (!why.isEmpty())
+            qWarning("[HighScores] %s: %s", qPrintable(path), qPrintable(why));
         return;
-    const QJsonObject cache = QJsonDocument::fromJson(file.readAll()).object();
+    }
     m_identity = cache.value(QStringLiteral("definitions")).toString();
     m_namesFrom = cache.value(QStringLiteral("namesFrom")).toString();
     const QJsonObject games = cache.value(QStringLiteral("games")).toObject();
