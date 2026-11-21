@@ -64,7 +64,7 @@ constexpr qint64 kObsMaxAgeSec = 75 * 60;
 // Private extension to WMO 4677, which has no code for a broken deck: it offers
 // four sky states (0–3) where METAR reports five. Codes at 100+ are ours, are
 // never emitted by Open-Meteo, and share the domain so that anything mapping
-// from codes — the planned icons, most of all — needs only one lookup table.
+// from codes — the icons, most of all — needs only one lookup table.
 constexpr int kCodeMostlyCloudy = 103;
 
 // WMO 4677 weather interpretation codes, as short uppercase strings.

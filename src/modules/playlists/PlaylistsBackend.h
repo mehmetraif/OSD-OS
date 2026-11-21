@@ -33,7 +33,7 @@ class YouTubeBackend;
 //   { "playlists": [ { id, name, kind: "online"|"offline", order: "inorder"|
 //                      "shuffle", items: [ { id, module, key, title, source } ],
 //                      resume: { itemId, positionMs } } ],
-//     "downloads": { key: { path, state: "done"|"failed", reason, bytes } } }
+//     "downloads": { key: { path, state: "done"|"failed", reason } } }
 // An item's key names the video whatever list it is on: "local:<path>",
 // "youtube:<videoId>", "jellyfin:<itemId>", "emby:<itemId>".
 class PlaylistsBackend : public QObject {
@@ -150,9 +150,8 @@ private:
     void queueOfflineItems();
     // Queues again the downloads that failed in a way that may pass (no
     // network yet after a power cut, a server still starting), a while after
-    // they did: the app's next start is no longer what it takes. Not those
-    // that fail whatever the network does (refused, signed out, no yt-dlp,
-    // a folder or a card that can't be written).
+    // they did. Not those that fail whatever the network does (refused,
+    // signed out, no yt-dlp, a folder or a card that can't be written).
     void retryFailed();
     // Whether it is to be downloaded (not when on the device already).
     bool enqueue(const QString &key);

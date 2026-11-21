@@ -970,7 +970,7 @@ void PlaylistsBackend::record(bool ok) {
                                             {QStringLiteral("folder"), m_active.folder}});
         qWarning("[Playlists] download of %s failed: %s", qPrintable(key), qPrintable(reason));
         // One that may pass is tried again after a while (retryFailed), with
-        // the others that fail meanwhile: until now only the next start did.
+        // the others that fail meanwhile.
         if (m_active.mayPass) {
             m_retryKeys.insert(key);
             if (!m_retryTimer->isActive())

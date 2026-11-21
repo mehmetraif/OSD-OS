@@ -440,10 +440,9 @@ void YouTubeBackend::ensurePlaylistsFresh(bool forceRefresh) {
         finishPlaylistAggregate(); // everything fresh — serve from cache
         return;
     }
-    // Resolve the same user-updatable yt-dlp mpv's ytdl_hook will use at
-    // playback time (data-dir drop-in → sibling → PATH), so app and mpv agree.
     if (ytdlp::locate(m_dataRoot).isEmpty()) {
-        // Nothing can be fetched; report against whatever the cache holds.
+        // No yt-dlp: nothing can be fetched; report against whatever the
+        // cache holds.
         finishPlaylistAggregate();
         return;
     }

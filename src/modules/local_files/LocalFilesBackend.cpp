@@ -18,11 +18,9 @@
 #include <algorithm>
 
 static const QString kModuleId = QStringLiteral("com.osdos.local_files");
-// supported image types
 static const QStringList kImageExts = {
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff"
 };
-// supported playlist types
 static const QStringList kPlaylistExts = { 
     "m3u", "m3u8" 
 };

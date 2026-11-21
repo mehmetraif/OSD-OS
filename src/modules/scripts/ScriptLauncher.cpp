@@ -296,8 +296,8 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     if (isBusy())
         return fail(QStringLiteral("Another script is still running"));
 
-    // --- Pre-flight. Nothing is spawned (and from Phase 4, no display is handed
-    // over) until every one of these passes.
+    // --- Pre-flight. Nothing is spawned (and no display is handed over) until
+    // every one of these passes.
     const QFileInfo fi(entry.path);
     if (!fi.exists())    return fail(QStringLiteral("File no longer exists"));
     if (!fi.isFile())    return fail(QStringLiteral("Not a regular file"));
