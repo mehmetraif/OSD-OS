@@ -689,8 +689,9 @@ FocusScope {
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")
                 settingsRoot.themeChosen()
-            // Cabinet Lock's row says whether it has a module to stay on.
-            else if (row.key === "startup_module")
+            // Cabinet Lock's row says whether it has a module to stay on; Scaling's help
+            // whether 14:9 and Pan & Scan work (1080p Playback).
+            else if (row.key === "startup_module" || row.key === "smooth_playback")
                 settingsRoot.buildModel(currentIndex)
         }
         // A module's row: the module turned on or off (its "enabled", as its

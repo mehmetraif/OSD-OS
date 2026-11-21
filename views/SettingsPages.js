@@ -821,13 +821,24 @@ function videoRows(items) {
     var scalingOpts = ["Letterbox", "14:9", "Pan & Scan", "Anamorphic"]
     var scaling = appSettings["video_scaling"]
                   || (appSettings["auto_crop"] === "On" ? "Pan & Scan" : "Letterbox")
+    // On a Raspberry Pi 3 (the decode profile whose smooth 1080p can't
+    // crop, mpvController.hasSmoothPlaybackTradeoff()) with 1080p Playback
+    // on, its default there, 14:9 and Pan & Scan show the whole picture:
+    // the help line says so, and what they need.
+    var cropOff = mpvController.hasSmoothPlaybackTradeoff() && appSettings["smooth_playback"] !== "Off"
+    var cropNote = cropOff ? "14:9 and Pan & Scan need 1080p Playback off" : ""
     items.push({
         type: "list_single",
         key: "video_scaling",
         label: "Scaling",
         options: scalingOpts,
         value: scalingOpts.indexOf(scaling) >= 0 ? scaling : "Letterbox",
-        description: "How a 16:9 picture fills the 4:3 screen, in every module that doesn't set its own\n[LETTERBOX] All of it, bars above and below  [14:9] A little of the sides cut, thinner bars  [PAN & SCAN] Fills it, the sides cut  [ANAMORPHIC] Fills it squeezed, for a TV set to 16:9",
+        description: "How a 16:9 picture fills the 4:3 screen, in every module that doesn't set its own"
+                     + (cropNote !== "" ? ". " + cropNote : "")
+                     + "\n[LETTERBOX] All of it, bars above and below  [14:9] A little of the sides cut, thinner bars"
+                     + (cropNote !== "" ? ": " + cropNote : "")
+                     + "  [PAN & SCAN] Fills it, the sides cut" + (cropNote !== "" ? ": " + cropNote : "")
+                     + "  [ANAMORPHIC] Fills it squeezed, for a TV set to 16:9",
         moduleId: ""
     })
 

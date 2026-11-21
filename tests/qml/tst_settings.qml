@@ -162,7 +162,9 @@ StandInRoot {
     }
     QtObject {
         id: mpvController
-        function hasSmoothPlaybackTradeoff() { return false }
+        // A Raspberry Pi 3's decode profile, whose smooth 1080p can't crop.
+        property bool pi3: false
+        function hasSmoothPlaybackTradeoff() { return pi3 }
         function embeddedAvailable() { return true }
     }
     // DisplayOutput as the page uses it: a Pi 4's outputs while available,
@@ -336,6 +338,7 @@ StandInRoot {
             displayOutput.powerOffAvailable = false
             displayOutput.asked = []
             root.transitionPresets = ["Fade"]
+            mpvController.pi3 = false
             root.theme = {}
             root.unusableTransitions = []
             audioOutput.available = false
@@ -2118,6 +2121,28 @@ StandInRoot {
             moveTo(page, "Music File")
             verify(helpOf(page).shownText.indexOf("Silent here") < 0, helpOf(page).shownText)
             menuMusic.silent = {}
+        }
+
+        // Scaling on a Raspberry Pi 3 with 1080p Playback on: its help line,
+        // and the bracket of 14:9 and Pan & Scan, say they need it off;
+        // elsewhere, or with it off, nothing.
+        function test_scalingOnAPi3() {
+            var page = open({ group: "tv" })
+            var help = helpOf(page)
+            compare(cursor(page), "Scaling")
+            verify(help.shownText.indexOf("1080p Playback") < 0, help.shownText)
+            loader.source = ""
+            mpvController.pi3 = true
+            page = open({ group: "tv" })
+            help = helpOf(page)
+            verify(help.shownText.indexOf("14:9 and Pan & Scan need 1080p Playback off") > 0, help.shownText)
+            keyClick(Qt.Key_Right)
+            compare(help.value, "14:9")
+            verify(help.shownText.indexOf("[14:9] A little of the sides cut, thinner bars: 14:9 and Pan & Scan need 1080p Playback off") > 0, help.shownText)
+            loader.source = ""
+            appCore.values = { smooth_playback: "Off" }
+            page = open({ group: "tv" })
+            verify(helpOf(page).shownText.indexOf("1080p Playback") < 0, helpOf(page).shownText)
         }
 
         function test_partRowsInForce() {
