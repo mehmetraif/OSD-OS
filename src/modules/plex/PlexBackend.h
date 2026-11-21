@@ -392,7 +392,7 @@ private:
     // and the server every request goes to
     QJsonValue plexSetting(const QString &key) const;
     void savePlexSetting(const QString &key, const QJsonValue &value);
-    void profileNotSwitched();
+    void profileNotSwitched(const QString &why = QStringLiteral("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER"));
     void setActiveServer(const QString &uri, const QString &machineId);
 
     // HTTP helper — POST with JSON body

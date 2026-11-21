@@ -784,6 +784,65 @@ private slots:
         QCOMPARE(active(), QStringLiteral("1"));
     }
 
+    // A managed profile is never sent to a server on the owner's token: a
+    // server it has no token of its own for gets none, and a switch to a
+    // profile none of whose servers this device knows is refused.
+    void plexAManagedProfileNeverUsesTheOwnersToken() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString file = tmp.path() + QStringLiteral("/plex_auth.json");
+        const auto write = [&](const QString &active, const QJsonObject &managed) {
+            QFile auth(file);
+            QVERIFY(auth.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            auth.write(QJsonDocument(QJsonObject{
+                { "auth_token", "token" }, { "active_server_uri", "http://owners" },
+                { "active_server_machine_id", "owners" },
+                { "account_user_id", "1" }, { "active_user_id", active },
+                { "users", QJsonArray{ QJsonObject{ { "id", "1" }, { "uuid", "owner" } },
+                                       QJsonObject{ { "id", "2" }, { "uuid", "kid" } } } },
+                { "servers", QJsonArray{ QJsonObject{ { "machineId", "owners" }, { "uri", "http://owners" },
+                                                      { "name", "OWNERS" } } } },
+                { "user_server_tokens", QJsonObject{ { "owners", "owner-token" } } },
+                { "managed_user_tokens", managed } }).toJson());
+        };
+        AppCore core(tmp.path(), tmp.path());
+        PlexBackend backend(tmp.path(), tmp.path(), &core);
+        // Each file written read afresh: two can share a time and a size.
+        const auto set = [&](const QString &active, const QJsonObject &managed) {
+            write(active, managed);
+            backend.m_authCacheValid = false;
+        };
+
+        // The owner's own server, on the owner's token.
+        set(QStringLiteral("1"), QJsonObject{});
+        QCOMPARE(backend.serverToken(), QStringLiteral("owner-token"));
+
+        // The kid's profile, on a server it has no token for: none.
+        set(QStringLiteral("2"), QJsonObject{ { "kids", "kid-token" } });
+        QCOMPARE(backend.serverToken(), QString());
+        // Nor with no token kept for it at all.
+        set(QStringLiteral("2"), QJsonObject{});
+        QCOMPARE(backend.serverToken(), QString());
+
+        // From the owner's profile to the kid's, whose only server is one
+        // this device was never told of: refused, the owner's left on.
+        set(QStringLiteral("1"), QJsonObject{});
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        QSignalSpy loaded(&backend, &PlexBackend::serversLoaded);
+        backend.select_user(QStringLiteral("2"), QStringLiteral("0000"));
+        network->last()->complete(QJsonDocument(QJsonObject{ { "authToken", "kid-switch" } }).toJson());
+        QVERIFY(network->last()->url().path().endsWith(QStringLiteral("/resources")));
+        network->last()->complete(QJsonDocument(QJsonArray{ QJsonObject{
+            { "provides", "server" }, { "clientIdentifier", "kids" }, { "accessToken", "kid-token" } } }).toJson());
+        QCOMPARE(loaded.count(), 0);
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(backend.loadAuth().value("active_user_id").toString(), QStringLiteral("1"));
+        QCOMPARE(backend.serverToken(), QStringLiteral("owner-token"));
+    }
+
     void plexPinPollingStopsOnceTheCodeExpires() {
         QTemporaryDir tmp;
         PlexBackend backend(tmp.path(), tmp.path());

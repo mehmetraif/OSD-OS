@@ -512,12 +512,22 @@ QString PlexBackend::serverUrl() const {
 QString PlexBackend::serverToken() const {
     QJsonObject auth = loadAuth();
     QString mid = auth["active_server_machine_id"].toString();
-    if (mid.isEmpty()) return accountToken();
 
-    // Managed user: their per-server token takes precedence
+    // Managed user: their own per-server token, or none. The owner's tokens
+    // below would show a managed profile the owner's libraries and write its
+    // watch state into the owner's, so a server the profile has no token for
+    // is asked with none and turns the request away.
+    // Who is active says it where both are known; else tokens kept for a
+    // managed profile do.
     QJsonObject managed = auth["managed_user_tokens"].toObject();
-    if (!managed.isEmpty() && managed.contains(mid))
-        return managed[mid].toString();
+    const QString activeId = auth["active_user_id"].toString();
+    const QString ownerId = auth["account_user_id"].toString();
+    const bool managedActive = !activeId.isEmpty() && !ownerId.isEmpty()
+        ? activeId != ownerId : !managed.isEmpty();
+    if (managedActive)
+        return mid.isEmpty() ? QString() : managed[mid].toString();
+
+    if (mid.isEmpty()) return accountToken();
 
     // Owner: pre-swapped token stored at activateUser time
     QJsonObject ust = auth["user_server_tokens"].toObject();
@@ -793,11 +803,18 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
             QJsonArray allServers = a["servers"].toArray();
             QJsonObject effectiveManaged = a["managed_user_tokens"].toObject();
             QVariantList accessible;
-            if (!owner && !effectiveManaged.isEmpty()) {
+            if (!owner) {
                 for (const auto &sv : allServers) {
                     QJsonObject s = sv.toObject();
                     if (effectiveManaged.contains(s["machineId"].toString()))
                         accessible.append(s.toVariantMap());
+                }
+                // A managed profile none of whose servers this device knows
+                // would be left on the server active before it, for which it
+                // has no token: nothing it could watch. Not switched to.
+                if (accessible.isEmpty() && !sameUser) {
+                    profileNotSwitched(QStringLiteral("COULD NOT SWITCH PROFILE: IT HAS NO SERVER ON THIS DEVICE"));
+                    return;
                 }
             } else {
                 for (const auto &sv : allServers) accessible.append(sv.toObject().toVariantMap());
@@ -3313,8 +3330,8 @@ void PlexBackend::cancel_pending_pin() {
 // A switch that failed leaves the profile as it was. Settings saves its
 // Current User row before it asks for the switch, so the setting is put back
 // and the choices sent again: the row there shows who is still watching.
-void PlexBackend::profileNotSwitched() {
-    emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+void PlexBackend::profileNotSwitched(const QString &why) {
+    emit errorOccurred(why);
     const QString activeId = loadAuth()["active_user_id"].toString();
     if (!activeId.isEmpty() && plexSetting("current_user_id").toString() != activeId)
         savePlexSetting("current_user_id", activeId);
