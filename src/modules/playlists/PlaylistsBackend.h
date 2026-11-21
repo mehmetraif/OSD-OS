@@ -33,7 +33,7 @@ class YouTubeBackend;
 //   { "playlists": [ { id, name, kind: "online"|"offline", order: "inorder"|
 //                      "shuffle", items: [ { id, module, key, title, source } ],
 //                      resume: { itemId, positionMs } } ],
-//     "downloads": { key: { path, state: "done"|"failed", reason } } }
+//     "downloads": { key: { path, state: "done"|"failed", reason, folder } } }
 // An item's key names the video whatever list it is on: "local:<path>",
 // "youtube:<videoId>", "jellyfin:<itemId>", "emby:<itemId>".
 class PlaylistsBackend : public QObject {
