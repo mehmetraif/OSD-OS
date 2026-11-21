@@ -41,10 +41,11 @@ APP="$T/opt/osdos"
 UPDATES="$T/data/updates"
 # A release's tree, as its tarball unpacks (strip 3: ./usr/local/...): an app
 # that says its release, the release of the share it finds ("2/2"; "2/1" is
-# the new app on the old share) and the output the launcher gave it.
+# the new app on the old share), the output the launcher gave it and the KMS
+# configuration it gave Qt.
 release_tree() {  # dir, version
     mkdir -p "$1/bin" "$1/share/osdos"
-    printf '#!/bin/sh\necho "%s/$(cat "%s/share/osdos/version") ${OSDOS_DRM_CONNECTOR:-}"\n' "$2" "$APP" > "$1/bin/osdos"
+    printf '#!/bin/sh\necho "%s/$(cat "%s/share/osdos/version") ${OSDOS_DRM_CONNECTOR:-} ${QT_QPA_EGLFS_KMS_CONFIG:-}"\n' "$2" "$APP" > "$1/bin/osdos"
     chmod +x "$1/bin/osdos"
     echo "$2" > "$1/share/osdos/version"
 }
@@ -235,6 +236,27 @@ wait
 rm -rf "$T/sys/class/drm/card2-DPI-1"
 check "a Pi 5 whose preset's output never comes takes the display connected" "" "$(run | cut -d' ' -f2)"
 check "...and says why" "1" "$(grep -c "DPI output never appeared" "$T/stderr")"
+
+# Qt's KMS configuration (the display connected, card1): in the service's
+# run-time folder (RuntimeDirectory=), or the session's; with neither, in a
+# file of its own in the temp folder, never at a name there someone else could
+# have made first; and not given to Qt when it can't be written.
+rm -f "$T/boot/osdos-display.txt"
+mkdir -p "$T/service-run" "$T/tmp"
+kms() { env -u XDG_RUNTIME_DIR -u RUNTIME_DIRECTORY DATA_ROOT="$T/data" WAYLAND_DISPLAY= DISPLAY= "$@" "$T/osdos" 2> "$T/stderr" | cut -d' ' -f3; }
+check "Qt's KMS configuration in the service's run-time folder" "$T/service-run/osdos-kms.json" \
+      "$(kms RUNTIME_DIRECTORY="$T/service-run" XDG_RUNTIME_DIR="$T")"
+check "...written" '{ "device": "'"$T"'/dev/dri/card1" }' "$(cat "$T/service-run/osdos-kms.json")"
+check "...or in the session's" "$T/osdos-kms.json" "$(kms XDG_RUNTIME_DIR="$T")"
+echo '{ "device": "/dev/dri/someone-elses" }' > "$T/tmp/osdos-kms.json"
+conf=$(kms TMPDIR="$T/tmp")
+check "...with neither, in a file of its own in the temp folder" "yes" \
+      "$(case "$conf" in "$T"/tmp/osdos-kms.??????) echo yes ;; *) echo "no: $conf" ;; esac)"
+check "...written" '{ "device": "'"$T"'/dev/dri/card1" }' "$(cat "$conf" 2>&1)"
+check "...the name someone else made left alone" '{ "device": "/dev/dri/someone-elses" }' "$(cat "$T/tmp/osdos-kms.json")"
+check "...and not given to Qt when it can't be written" "" "$(kms TMPDIR="$T/no-such-folder")"
+check "...saying so" "1" "$(grep -c "KMS configuration couldn't be written" "$T/stderr")"
+rm -rf "$T/service-run" "$T/tmp" "$T/osdos-kms.json"
 
 # scripts/rpi-run-local.sh runs a build of your own with the launcher's
 # display part, from the same install.sh: on a display server (DISPLAY set)

@@ -448,19 +448,33 @@ else
         done
     fi
     if [ -n "$KMS_CARD" ] && [ -e "/dev/dri/$KMS_CARD" ]; then
-        KMS_CONF="${XDG_RUNTIME_DIR:-/tmp}/osdos-kms.json"
         if [ -n "$KMS_OUTPUT" ]; then
             # Qt names an output by its type and number: HDMI-A-1 is HDMI1.
             qt_name="${KMS_OUTPUT%-*}"
             qt_name="${qt_name%-[AB]}${KMS_OUTPUT##*-}"
-            printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }\n' \
-                "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}" > "$KMS_CONF"
+            kms_json=$(printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }' \
+                "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}")
             export OSDOS_DRM_DEVICE="/dev/dri/$KMS_CARD" OSDOS_DRM_CONNECTOR="$KMS_OUTPUT" \
                 OSDOS_DRM_MODE="$KMS_MODE"
         else
-            printf '{ "device": "/dev/dri/%s" }\n' "$KMS_CARD" > "$KMS_CONF"
+            kms_json=$(printf '{ "device": "/dev/dri/%s" }' "$KMS_CARD")
         fi
-        export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
+        # Qt's KMS configuration in a folder of this user's alone, the
+        # service's run-time folder (RuntimeDirectory=) or the session's,
+        # else in a file of its own made in the temp folder, never a name
+        # there anyone could have made first; and given to Qt only once it is
+        # written.
+        kms_dir="${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-}}"
+        if [ -n "$kms_dir" ] && [ -d "$kms_dir" ] && [ -w "$kms_dir" ] && [ -O "$kms_dir" ]; then
+            KMS_CONF="$kms_dir/osdos-kms.json"
+        else
+            KMS_CONF=$(mktemp "${TMPDIR:-/tmp}/osdos-kms.XXXXXX" 2> /dev/null) || KMS_CONF=""
+        fi
+        if [ -n "$KMS_CONF" ] && printf '%s\n' "$kms_json" > "$KMS_CONF"; then
+            export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
+        else
+            echo "osdos: Qt's KMS configuration couldn't be written; Qt picks the display itself" >&2
+        fi
     fi
 fi
 
@@ -498,6 +512,9 @@ Environment=QT_QPA_EGLFS_ALWAYS_SET_MODE=1
 Environment=QT_QPA_EGLFS_KMS_ATOMIC=1
 Environment=QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml
 Environment=OSDOS_AUTOSTART=1
+# The app's user's own folder for what the launcher writes for a run (Qt's KMS
+# configuration): /run/osdos.
+RuntimeDirectory=osdos
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStart=${LAUNCHER}
 Restart=on-failure
