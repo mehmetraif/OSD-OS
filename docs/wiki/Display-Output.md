@@ -156,15 +156,19 @@ The blocks below leave out each preset's prose comments. Four comment lines are 
 | Line | What it does |
 |---|---|
 | `# osdos-output: Composite` or `DPI` | On a Pi 5, the kind of output OSD/OS and mpv take ([The Pi 5's output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-pi-5s-output)) |
-| `# osdos-mode: 720x480` | On a Pi 5, that output's mode |
+| `# osdos-mode: 720x480` | On a Pi 5, that output's mode. In the HDMI preset, which names no output, `1920x1080@60`: the mode asked of the HDMI display connected, when it has 1920x1080 ([HDMI](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#hdmi)) |
 | `# osdos-controls: jamma` | `osdos-jamma` waits for the board's controls as the Pi starts ([Controls → A JAMMA cabinet](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)) |
 | `# osdos-sync: separate` | The switch writes no `force_csync` for it. On a Pi 5 that would put a sync on GPIO 1, the controls' I2C clock |
 
 ### HDMI
 
 ```ini
+# osdos-mode: 1920x1080@60
 display_auto_detect=1
 hdmi_force_hotplug=1
+
+[pi4]
+hdmi_pixel_freq_limit=148500000
 
 [pi5]
 dtoverlay=vc4-kms-v3d
@@ -172,7 +176,15 @@ dtoverlay=vc4-kms-v3d
 [all]
 ```
 
-The image's default (`OSDOS_DISPLAY=hdmi`). The TV's resolution is detected. `hdmi_force_hotplug=1` drives HDMI even when the Pi doesn't see the TV.
+The image's default (`OSDOS_DISPLAY=hdmi`). The TV's resolution is detected, at most 1920x1080 at 60 Hz. `hdmi_force_hotplug=1` drives HDMI even when the Pi doesn't see the TV.
+
+**1080p at 60 Hz at most.** A 4K TV prefers 2160p. A Pi 4 can drive that only at 30 Hz, where the menus, videos and games all run at 30 frames a second (a game at half its speed, and the other machines of a network game waiting for it), and a Pi 5 would draw everything at four times the pixels for a picture that is 1080p or less underneath. So:
+
+- **A Pi 4**, whose firmware picks the mode (fake KMS), is offered no mode above 1080p60's pixel clock, 148.5 MHz (`hdmi_pixel_freq_limit`), and takes the best of the rest: 1080p60 on a 4K TV.
+- **A Pi 5** (full KMS) asks the HDMI display connected for 1920x1080 at 60 Hz when it lists 1920x1080 (`# osdos-mode:`, read by the launcher): OSD/OS's own screen at 60 Hz, and mpv's videos in 1920x1080 (the first of that size the display lists, its highest refresh). A game asks for its mode itself.
+- **A display without 1080p** (a 720p TV, a monitor of its own size) keeps the mode it gets: nothing is forced.
+
+What the display is at: `cat /sys/class/drm/card*-HDMI-A-1/modes | head -3` lists its modes, and during a video or a game `sudo grep -h -A3 'mode:' /sys/kernel/debug/dri/*/state` shows the one in use (`kmsprint` too, where it is installed).
 
 ### Composite: the AV jack, or a Pi 5's TV pads
 

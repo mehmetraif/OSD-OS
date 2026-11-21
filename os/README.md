@@ -119,7 +119,7 @@ A card with less than 2 GiB to spare past the system gets no film partition, and
 
 | Output | Preset (`osdos-display-….txt`) | Pi 3 | Pi 4 | Pi 5 |
 |---|---|---|---|---|
-| HDMI, resolution auto-detected (the default) | `hdmi` | ✓ | ✓ | ✓ |
+| HDMI, resolution auto-detected, 1080p at 60 Hz at most (the default) | `hdmi` | ✓ | ✓ | ✓ |
 | Composite NTSC / PAL, 4:3: the AV jack, or a Pi 5's TV pads | `crt-ntsc`, `crt-pal` | ✓ | ✓ | ✓ |
 | Composite NTSC / PAL from a Pi 5's GPIO pins | `crt-gpio-ntsc`, `crt-gpio-pal` | | | ✓ |
 | SCART RGB on the GPIO pins, NTSC timing (480i) / PAL timing (576i) | `scart-rgb-ntsc`, `scart-rgb-pal` | ✓ | ✓ | ✓ |
@@ -128,6 +128,8 @@ A card with less than 2 GiB to spare past the system gets no film partition, and
 | The same board in a 15 kHz monitor's other modes: 240p 320 across (Native) or 1920 (Super), 288p 720 or 1920 across | `jamma-240p-native`, `jamma-240p-super`, `jamma-288p`, `jamma-288p-super` | ✓ | ✓ | ✓ |
 | The same board, interlaced: 480i at 720 or 640 across, 576i | `jamma-480i`, `jamma-480i-640`, `jamma-576i` | ✓ | ✓ | |
 | The same board for a medium resolution (25 kHz, 496×384) or VGA (31 kHz, 640×480) monitor, or a tri-sync one | `jamma-25k`, `jamma-31k` | ✓ | ✓ | ✓ |
+
+HDMI goes to 1080p at 60 Hz at most: a 4K TV would take a Pi 4 to 2160p at 30 Hz, where the menus, videos and games run at 30 frames a second, and a Pi 5 to 2160p, four times the pixels for a picture that is 1080p or less underneath. A Pi 4's firmware is offered no mode above 1080p60's pixel clock (`hdmi_pixel_freq_limit=148500000`); a Pi 5's launcher asks the HDMI display connected for `1920x1080@60` when it has that size (`# osdos-mode:` in the preset), for OSD/OS's screen and mpv's videos. A display without 1080p keeps the mode it gets ([Display Output → HDMI](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#hdmi)).
 
 The Pi reads its display settings only as it powers on, so the switch is a restart:
 

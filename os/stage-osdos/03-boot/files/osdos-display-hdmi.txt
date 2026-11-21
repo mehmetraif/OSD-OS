@@ -1,7 +1,20 @@
-# HDMI to a modern TV, its resolution detected. Chosen in Settings → Screen → Display
-# Output, or copied over osdos-display.txt (config.txt says how).
+# HDMI to a modern TV, its resolution detected, at most 1920x1080 at 60 Hz.
+# Chosen in Settings → Screen → Display Output, or copied over
+# osdos-display.txt (config.txt says how).
+# A 4K TV would otherwise take a Pi 4 to 2160p at 30 Hz, where the menus,
+# videos and games run at 30 frames a second, and a Pi 5 to 2160p, where
+# everything is drawn four times over. A display without 1080p keeps the
+# mode it is given.
+# A Pi 5 (full KMS, where the system picks the mode): OSD/OS asks this of the
+# HDMI display connected, when it has 1920x1080:
+# osdos-mode: 1920x1080@60
 display_auto_detect=1
 hdmi_force_hotplug=1
+
+[pi4]
+# A Pi 4's firmware picks the mode (vc4-fkms-v3d): none above 1080p60's
+# pixel clock, 148.5 MHz, so that 1080p60 is the best a 4K TV offers it.
+hdmi_pixel_freq_limit=148500000
 
 [pi5]
 dtoverlay=vc4-kms-v3d

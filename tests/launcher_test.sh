@@ -45,7 +45,7 @@ UPDATES="$T/data/updates"
 # configuration it gave Qt.
 release_tree() {  # dir, version
     mkdir -p "$1/bin" "$1/share/osdos"
-    printf '#!/bin/sh\necho "%s/$(cat "%s/share/osdos/version") ${OSDOS_DRM_CONNECTOR:-} ${QT_QPA_EGLFS_KMS_CONFIG:-}"\n' "$2" "$APP" > "$1/bin/osdos"
+    printf '#!/bin/sh\necho "%s/$(cat "%s/share/osdos/version") ${OSDOS_DRM_CONNECTOR:-} ${QT_QPA_EGLFS_KMS_CONFIG:-} mode=${OSDOS_DRM_MODE:-}"\n' "$2" "$APP" > "$1/bin/osdos"
     chmod +x "$1/bin/osdos"
     echo "$2" > "$1/share/osdos/version"
 }
@@ -236,6 +236,32 @@ wait
 rm -rf "$T/sys/class/drm/card2-DPI-1"
 check "a Pi 5 whose preset's output never comes takes the display connected" "" "$(run | cut -d' ' -f2)"
 check "...and says why" "1" "$(grep -c "DPI output never appeared" "$T/stderr")"
+
+# HDMI's preset on a Pi 5 (a mode, no output): the HDMI display connected,
+# asked for 1920x1080 at 60 Hz when it has that size; Qt is given the
+# refresh, mpv the size alone. Without it (a display of 1280x720 at most),
+# the display's own choice, as before.
+HDMI_PRESET="$(dirname "$INSTALL_SH")/../os/stage-osdos/03-boot/files/osdos-display-hdmi.txt"
+cp "$HDMI_PRESET" "$T/boot/osdos-display.txt"
+mkdir -p "$T/sys/class/drm/card1-HDMI-A-2" "$T/service-run"
+echo disconnected > "$T/sys/class/drm/card1-HDMI-A-1/status"
+echo connected > "$T/sys/class/drm/card1-HDMI-A-2/status"
+printf '3840x2160\n2560x1440\n1920x1080\n1920x1080i\n1280x720\n' > "$T/sys/class/drm/card1-HDMI-A-2/modes"
+out=$(env -u XDG_RUNTIME_DIR RUNTIME_DIRECTORY="$T/service-run" DATA_ROOT="$T/data" WAYLAND_DISPLAY= DISPLAY= "$T/osdos" 2> "$T/stderr")
+check "a Pi 5 on HDMI's preset takes the HDMI display connected" "HDMI-A-2" "$(cut -d' ' -f2 <<< "$out")"
+check "...mpv in 1920x1080" "mode=1920x1080" "$(cut -d' ' -f4 <<< "$out")"
+check "...Qt at 60 Hz" '{ "device": "'"$T"'/dev/dri/card1", "outputs": [ { "name": "HDMI2", "primary": true, "mode": "1920x1080@60" } ] }' \
+      "$(cat "$T/service-run/osdos-kms.json")"
+printf '1280x720\n1920x1080i\n720x480\n' > "$T/sys/class/drm/card1-HDMI-A-2/modes"
+out=$(env -u XDG_RUNTIME_DIR RUNTIME_DIRECTORY="$T/service-run" DATA_ROOT="$T/data" WAYLAND_DISPLAY= DISPLAY= "$T/osdos" 2> "$T/stderr")
+check "...a display without 1080p left to its own choice" " mode=" "$(cut -d' ' -f2,4 <<< "$out")"
+check "...Qt not given a mode" '{ "device": "'"$T"'/dev/dri/card1" }' "$(cat "$T/service-run/osdos-kms.json")"
+check "the HDMI preset asks for 1080p60 of a Pi 5" "# osdos-mode: 1920x1080@60" "$(grep '^# osdos-mode:' "$HDMI_PRESET")"
+check "...and limits a Pi 4's firmware to its pixel clock" "hdmi_pixel_freq_limit=148500000" \
+      "$(sed -n '/^\[pi4\]/,/^\[/p' "$HDMI_PRESET" | grep '^hdmi_pixel_freq_limit=')"
+check "...naming no output, which stays the display connected" "" "$(grep '^# osdos-output:' "$HDMI_PRESET")"
+rm -rf "$T/sys/class/drm/card1-HDMI-A-2" "$T/service-run"
+echo connected > "$T/sys/class/drm/card1-HDMI-A-1/status"
 
 # Qt's KMS configuration (the display connected, card1): in the service's
 # run-time folder (RuntimeDirectory=), or the session's; with neither, in a

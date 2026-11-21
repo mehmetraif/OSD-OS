@@ -409,11 +409,14 @@ else
     # ("# osdos-mode: WxH") if the connector has it: a Pi 5 may keep HDMI on
     # beside a CRT, and there a composite mode's lines make PAL or NTSC. mpv
     # plays on it too (OSDOS_DRM_*). A Pi 4 has one output on at a time.
-    KMS_CARD=""; KMS_OUTPUT=""; KMS_MODE=""
+    # A preset with a mode and no output (HDMI's, "# osdos-mode: 1920x1080@60")
+    # asks it of the display connected, if that is HDMI and has the mode's
+    # size, progressive: otherwise the display's own choice, as before.
+    KMS_CARD=""; KMS_OUTPUT=""; KMS_MODE=""; want=""; mode=""
     PRESET=/boot/firmware/osdos-display.txt
     if [ -r "$PRESET" ] && tr -d '\0' 2>/dev/null < /proc/device-tree/model | grep -q '^Raspberry Pi 5'; then
         want=$(sed -n 's/^# osdos-output: *\([A-Za-z-]*\).*/\1/p' "$PRESET" | head -n1)
-        mode=$(sed -n 's/^# osdos-mode: *\([0-9]*x[0-9]*\).*/\1/p' "$PRESET" | head -n1)
+        mode=$(sed -n 's/^# osdos-mode: *\([0-9]*x[0-9]*\(@[0-9]*\)\{0,1\}\).*/\1/p' "$PRESET" | head -n1)
         # Composite and DPI come from the RP1's drivers, which may register
         # their connector after vc4's HDMI has: waited for, up to ten seconds,
         # rather than taking HDMI for the boot and leaving the CRT dark.
@@ -429,11 +432,23 @@ else
         for d in /sys/class/drm/card*-"${want:-none}"-*; do
             [ -e "$d" ] || continue
             n=$(basename "$d"); KMS_CARD="${n%%-*}"; KMS_OUTPUT="${n#*-}"
-            if [ -n "$mode" ] && grep -qE "^${mode}i?\$" "$d/modes" 2>/dev/null; then
+            if [ -n "$mode" ] && grep -qE "^${mode%@*}i?\$" "$d/modes" 2>/dev/null; then
                 KMS_MODE="$mode"
             fi
             break
         done
+        # HDMI's preset: the display connected, in the mode asked if it has
+        # the size (the modes file lists sizes alone, 1920x1080i apart).
+        if [ -z "$want" ] && [ -n "$mode" ]; then
+            for s in /sys/class/drm/card*-HDMI-A-*/status; do
+                [ -e "$s" ] && [ "$(cat "$s")" = connected ] || continue
+                d=$(dirname "$s")
+                if grep -qx "${mode%@*}" "$d/modes" 2>/dev/null; then
+                    n=$(basename "$d"); KMS_CARD="${n%%-*}"; KMS_OUTPUT="${n#*-}"; KMS_MODE="$mode"
+                fi
+                break
+            done
+        fi
     fi
 
     # Point Qt EGLFS at the DRM card that has a real display pipeline. Render-
@@ -464,8 +479,13 @@ else
             qt_name="${qt_name%-[AB]}${KMS_OUTPUT##*-}"
             kms_json=$(printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }' \
                 "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}")
+            # mpv's DRM output gets the size alone: it would refuse to play
+            # on a display without the refresh asked, which the launcher can't
+            # read from sysfs; of the modes of that size it takes the first,
+            # the highest refresh. Qt takes the refresh, or the display's own
+            # choice without it.
             export OSDOS_DRM_DEVICE="/dev/dri/$KMS_CARD" OSDOS_DRM_CONNECTOR="$KMS_OUTPUT" \
-                OSDOS_DRM_MODE="$KMS_MODE"
+                OSDOS_DRM_MODE="${KMS_MODE%@*}"
         else
             kms_json=$(printf '{ "device": "/dev/dri/%s" }' "$KMS_CARD")
         fi
