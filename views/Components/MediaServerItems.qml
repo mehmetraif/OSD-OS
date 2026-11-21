@@ -23,7 +23,7 @@ FocusScope {
     property string parentId: navParams.parentId || ""
     property string libraryName: navParams.libraryName || ""
     property string includeTypes: navParams.includeTypes || "Movie"
-    property string mode: navParams.mode || "browse"   // "browse", "resume", or "up_next"
+    property string mode: navParams.mode || "browse"   // "browse", "folder", "boxset", "static", "resume" or "up_next"
 
     property var items: []
     property bool isLoading: false

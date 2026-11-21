@@ -329,10 +329,6 @@ FocusScope {
 
     function applyLanguagePreferences(d) {
         if (!d) return
-        // [dev] console.log("[Item] applyPrefs serverAudio=" + serverAudioLang + " serverSub=" + serverSubLang +
-        // [dev]             " mode=" + serverSubMode +
-        // [dev]             " nAudio=" + (d.audioStreams ? d.audioStreams.length : 0) +
-        // [dev]             " nSub=" + (d.subtitleStreams ? d.subtitleStreams.length : 0))
 
         var savedAudioLangIdx = backend.get_last_audio_lang_idx()
         var savedSubLangIdx   = backend.get_last_sub_lang_idx()
