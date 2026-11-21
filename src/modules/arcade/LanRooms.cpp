@@ -1,7 +1,9 @@
 #include "LanRooms.h"
 #include "../../util/NetInterfaces.h"
 #include <QHostAddress>
+#include <QFile>
 #include <QNetworkDatagram>
+#include <QProcess>
 #include <QTimer>
 #include <QUdpSocket>
 #include <algorithm>
@@ -179,6 +181,10 @@ void LanRooms::finishLanRead() {
 }
 
 bool LanRooms::askForPorts(const QString &host, int players) {
+    // A second release of this host's ports not sent yet would give up the
+    // ones about to be asked for.
+    if (QTimer *again = m_releasesAgain.take(QHostAddress(host).toString()))
+        delete again;
     m_asking = Asking{ host, players };
     if (askAgain())
         return true;
@@ -281,20 +287,42 @@ void LanRooms::answerPorts(const std::optional<libretro::PortRange> &ports) {
     emit portsAnswered(ports, asking.layout);
 }
 
-void LanRooms::releaseClaimed() {
+void LanRooms::releaseClaimed(bool now) {
     if (!m_claimedFrom.isEmpty())
-        releaseClaim(std::exchange(m_claimedFrom, QString()));
+        releaseClaim(std::exchange(m_claimedFrom, QString()), now);
 }
 
-void LanRooms::releaseClaim(const QString &address) {
-    QUdpSocket socket;
-    socket.writeDatagram(libretro::claimRelease(), QHostAddress(address), m_claimPort);
+void LanRooms::releaseClaim(const QString &address, bool now) {
+    const QHostAddress host(address);
+    if (!m_releaseSocket)
+        m_releaseSocket = new QUdpSocket(this);
+    m_releaseSocket->writeDatagram(libretro::claimRelease(), host, m_claimPort);
+    const QString key = host.toString();
+    delete m_releasesAgain.take(key);
+    if (now) {
+        m_releaseSocket->writeDatagram(libretro::claimRelease(), host, m_claimPort);
+        return;
+    }
+    // Again a moment later: a datagram lost on the way would keep the ports
+    // from the next machine for the rest of the host's game.
+    auto *again = new QTimer(this);
+    again->setSingleShot(true);
+    connect(again, &QTimer::timeout, this, [this, host, key, again] {
+        if (m_releasesAgain.value(key) != again)
+            return;
+        m_releasesAgain.remove(key);
+        again->deleteLater();
+        m_releaseSocket->writeDatagram(libretro::claimRelease(), host, m_claimPort);
+    });
+    m_releasesAgain.insert(key, again);
+    again->start(kReleaseAgainMs);
 }
 
 bool LanRooms::startClaims(int own, int most, int each, libretro::Launch::Layout layout) {
     stopClaims();
     m_claims.reset(own, most, each);
     m_claimLayout = layout;
+    m_claimClock.start();
     m_claimSocket = new QUdpSocket(this);
     if (!m_claimSocket->bind(QHostAddress(QHostAddress::AnyIPv4), m_claimPort)) {
         qWarning("[Arcade] The machines joining can't be given their ports: %s", qPrintable(m_claimSocket->errorString()));
@@ -302,7 +330,75 @@ bool LanRooms::startClaims(int own, int most, int each, libretro::Launch::Layout
         return false;
     }
     connect(m_claimSocket, &QUdpSocket::readyRead, this, &LanRooms::answerClaims);
+    // The claims looked at against RetroArch's connections as the game goes
+    // on: often where it costs a small file's read (Linux, or a test's
+    // source), else only while a claim is still to be seen connected.
+#ifdef Q_OS_LINUX
+    const bool cheap = true;
+#else
+    const bool cheap = bool(m_peerSource);
+#endif
+    m_claimCheck = new QTimer(this);
+    m_claimCheck->setInterval(cheap ? m_claimCheckMs : kClaimCheckElsewhereMs);
+    connect(m_claimCheck, &QTimer::timeout, this, [this, cheap] {
+        if (cheap || m_claims.awaiting())
+            checkClaims();
+    });
+    m_claimCheck->start();
     return true;
+}
+
+void LanRooms::clientLeft() {
+    if (m_claimSocket)
+        checkClaims();
+}
+
+void LanRooms::checkClaims() {
+    if (m_claims.empty())
+        return;
+    if (m_peerSource) {
+        if (const std::optional<QSet<QString>> peers = m_peerSource())
+            expireClaims(*peers);
+        return;
+    }
+#ifdef Q_OS_LINUX
+    // Both tables: RetroArch listens on IPv6 where it can, its IPv4 peers
+    // then ::ffff:a.b.c.d.
+    QByteArray table;
+    for (const char *path : { "/proc/net/tcp", "/proc/net/tcp6" }) {
+        QFile file{ QString::fromLatin1(path) };
+        if (file.open(QIODevice::ReadOnly))
+            table += file.read(4 * 1024 * 1024) + '\n';
+    }
+    if (!table.trimmed().isEmpty())
+        expireClaims(libretro::procNetPeers(table, libretro::kLanPort));
+#else
+    // netstat, asked without a wait: one at a time, its answer taken as it
+    // comes, nothing done where it can't run.
+    if (m_netstat)
+        return;
+    m_netstat = new QProcess(this);
+    connect(m_netstat, &QProcess::finished, this, [this](int code, QProcess::ExitStatus status) {
+        QProcess *netstat = std::exchange(m_netstat, nullptr);
+        netstat->deleteLater();
+        if (status == QProcess::NormalExit && code == 0 && m_claimSocket)
+            expireClaims(libretro::netstatPeers(netstat->readAllStandardOutput(), libretro::kLanPort));
+    });
+    connect(m_netstat, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        QProcess *netstat = std::exchange(m_netstat, nullptr);
+        if (netstat)
+            netstat->deleteLater();
+    });
+    m_netstat->start(QStringLiteral("netstat"), { QStringLiteral("-an") });
+#endif
+}
+
+void LanRooms::expireClaims(const QSet<QString> &connected) {
+    const QStringList dropped = m_claims.expire(connected, m_claimClock.elapsed(), m_claimGrace);
+    for (const QString &address : dropped)
+        qInfo("[Arcade] %s has no connection to the game: its ports are free again", qPrintable(address));
 }
 
 void LanRooms::answerClaims() {
@@ -316,7 +412,7 @@ void LanRooms::answerClaims() {
             // The layout first, the ports after: a joiner starts its game on
             // the ports, and takes the layout with them; an older one reads
             // the ports alone.
-            const libretro::PortRange ports = m_claims.claim(from, *players);
+            const libretro::PortRange ports = m_claims.claim(from, *players, m_claimClock.elapsed());
             m_claimSocket->writeDatagram(libretro::claimLayout(m_claimLayout), packet.senderAddress(),
                                          packet.senderPort());
             m_claimSocket->writeDatagram(libretro::claimAnswer(ports), packet.senderAddress(), packet.senderPort());
@@ -331,4 +427,6 @@ void LanRooms::answerClaims() {
 void LanRooms::stopClaims() {
     delete m_claimSocket;
     m_claimSocket = nullptr;
+    delete m_claimCheck;
+    m_claimCheck = nullptr;
 }

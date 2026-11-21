@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QHash>
 #include <QList>
+#include <QSet>
 #include <QSize>
 #include <QString>
 #include <QStringList>
@@ -617,12 +618,26 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 // of free ports that takes all its players, else the first free port and
 // what follows it; one asking again is given its ports anew, and one leaving
 // gives them up.
+// A joiner whose release is lost (a dropped datagram, a machine that
+// crashed or lost its Wi-Fi) gives nothing back, so the host also drops a
+// claim by what it sees of RetroArch's connections (expire()): one whose
+// address has been seen connected and no longer is, and one never seen
+// connected once it is grace old, the time a machine takes to start the
+// game and connect.
 class PortClaims {
 public:
     void reset(int own, int most = kMostPorts, int each = kMostPorts);
-    // The joiner's ports, none ({ 0, 0 }) when none is left (or no player).
-    PortRange claim(const QString &address, int players);
+    // The joiner's ports, none ({ 0, 0 }) when none is left (or no player),
+    // claimed at now (ms on any clock expire() is given too).
+    PortRange claim(const QString &address, int players, qint64 now = 0);
     void release(const QString &address);
+    // The claims dropped, by address, given the addresses RetroArch's
+    // netplay port has a connection from now (connected).
+    QStringList expire(const QSet<QString> &connected, qint64 now, qint64 grace);
+    // Whether a claim hasn't been seen connected yet: one expire() would
+    // drop once it is old enough.
+    bool awaiting() const;
+    bool empty() const { return m_claims.isEmpty(); }
     int own() const { return m_own; }
     int most() const { return m_most; }
     int each() const { return m_each; }
@@ -632,6 +647,8 @@ private:
         QString address;
         int first = 0;
         int players = 0;
+        qint64 since = 0;
+        bool seen = false;
     };
     bool taken(int port) const;
     int m_own = 0;
@@ -639,6 +656,18 @@ private:
     int m_each = kMostPorts;
     QList<Claim> m_claims;
 };
+
+// The IPv4 addresses with an established TCP connection to localPort on
+// this machine, from Linux's /proc/net/tcp or /proc/net/tcp6 (an IPv4
+// peer of an IPv6 socket as ::ffff:a.b.c.d), or from `netstat -an`'s
+// output on Windows, macOS and the BSDs ("192.168.1.5:55435" or
+// "192.168.1.5.55435" for the local address, the peer's after it).
+QSet<QString> procNetPeers(const QByteArray &table, quint16 localPort);
+QSet<QString> netstatPeers(const QByteArray &output, quint16 localPort);
+// Whether a line of a host's RetroArch log says a client has left
+// (netplay_hangup(): "\"<nick>\" has disconnected", or "A netplay client has
+// disconnected" for one without a name).
+bool isClientHangup(const QString &line);
 
 // A libretro core as it describes itself (retro_get_system_info): its name
 // and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's

@@ -64,6 +64,7 @@ Up to six players play across the machines, in the games that take them, seated 
 - A controller no one plays holds no player.
 - Each controller of a machine takes a channel as the machine comes in, up to six in all: three for a machine on the 6-Button Panel layout. A machine given none watches.
 - A player who left keeps their place for whoever comes in on the same channel.
+- A machine that leaves gives its channels back to the host. If that message is lost, or the machine crashed or lost its Wi-Fi, the host frees them once RetroArch has no connection from that machine (at the latest 45 seconds after it asked, for one that never connected), so the next machine to join still gets them.
 
 The host's button layout holds for every machine:
 

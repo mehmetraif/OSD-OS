@@ -4,6 +4,7 @@
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
 #include "modules/arcade/Http.h"
+#include "modules/arcade/LanRooms.h"
 #include "modules/arcade/Libretro.h"
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/RecordFile.h"
@@ -2592,6 +2593,117 @@ private slots:
         QCOMPARE(claims.each(), 1);
         claims.reset(1);
         QCOMPARE(claims.each(), libretro::kMostPorts);
+        // A claim kept while its address is connected, or until it is grace
+        // old; dropped once its connection is gone, or never came. One
+        // claimed again (a joiner rejoining from the same address) is given
+        // its time anew.
+        claims.reset(1, 6, 1);
+        QCOMPARE(claims.claim(QStringLiteral("a"), 1, 0).first, 2);
+        QCOMPARE(claims.claim(QStringLiteral("b"), 1, 0).first, 3);
+        QVERIFY(claims.awaiting());
+        QCOMPARE(claims.expire({ QStringLiteral("a") }, 1000, 5000), QStringList());
+        QVERIFY(claims.awaiting());
+        QCOMPARE(claims.expire({ QStringLiteral("a") }, 5000, 5000), QStringList({ QStringLiteral("b") }));
+        QVERIFY(!claims.awaiting());
+        QCOMPARE(claims.claim(QStringLiteral("c"), 1, 5000).first, 3);
+        QCOMPARE(claims.expire({}, 6000, 5000), QStringList({ QStringLiteral("a") }));
+        QCOMPARE(claims.claim(QStringLiteral("a"), 1, 6000).first, 2);
+        QCOMPARE(claims.expire({ QStringLiteral("c") }, 7000, 5000), QStringList());
+        QCOMPARE(claims.expire({ QStringLiteral("c") }, 10999, 5000), QStringList());
+        QCOMPARE(claims.expire({ QStringLiteral("c") }, 11000, 5000), QStringList({ QStringLiteral("a") }));
+        QVERIFY(!claims.empty());
+        claims.release(QStringLiteral("c"));
+        QVERIFY(claims.empty());
+        // The connections to RetroArch's port as Linux's tables have them
+        // (IPv4, and an IPv4 peer of an IPv6 socket), and as netstat does
+        // on Windows, macOS and the BSDs: established ones alone.
+        const QByteArray tcp =
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+            "   0: 00000000:D88B 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 1 1\n"
+            "   1: 0501A8C0:D88B 1401A8C0:C35A 01 00000000:00000000 00:00000000 00000000  1000        0 2 1\n"
+            "   2: 0501A8C0:D88B 1501A8C0:C35B 06 00000000:00000000 00:00000000 00000000  1000        0 3 1\n"
+            "   3: 0501A8C0:1F90 1601A8C0:C35C 01 00000000:00000000 00:00000000 00000000  1000        0 4 1\n"
+            "   4: 0000000000000000FFFF00000501A8C0:D88B 0000000000000000FFFF00001701A8C0:C35D 01 0:0 0:0 0 1000 0 5 1\n";
+        QCOMPARE(libretro::procNetPeers(tcp, libretro::kLanPort),
+                 QSet<QString>({ QStringLiteral("192.168.1.20"), QStringLiteral("192.168.1.23") }));
+        const QByteArray windows =
+            "  Proto  Local Address          Foreign Address        State\n"
+            "  TCP    0.0.0.0:55435          0.0.0.0:0              LISTENING\n"
+            "  TCP    192.168.1.5:55435      192.168.1.20:51234     ESTABLISHED\n"
+            "  TCP    192.168.1.5:8080       192.168.1.22:51236     ESTABLISHED\n"
+            "  TCP    [::ffff:192.168.1.5]:55435  [::ffff:192.168.1.21]:51235  ESTABLISHED\n";
+        QCOMPARE(libretro::netstatPeers(windows, libretro::kLanPort),
+                 QSet<QString>({ QStringLiteral("192.168.1.20"), QStringLiteral("192.168.1.21") }));
+        const QByteArray bsd =
+            "tcp4       0      0  192.168.1.5.55435      192.168.1.20.51234     ESTABLISHED\n"
+            "tcp4       0      0  *.55435                *.*                    LISTEN\n"
+            "tcp4       0      0  192.168.1.5.55435      192.168.1.24.51240     TIME_WAIT\n";
+        QCOMPARE(libretro::netstatPeers(bsd, libretro::kLanPort), QSet<QString>({ QStringLiteral("192.168.1.20") }));
+        // And as this machine's kernel writes them: a connection made here
+        // found by its port, over IPv4 and over IPv6 to a dual-stack socket.
+        for (const QHostAddress &listen : { QHostAddress(QHostAddress::LocalHost), QHostAddress(QHostAddress::Any) }) {
+            QTcpServer server;
+            QVERIFY(server.listen(listen, 0));
+            QTcpSocket client;
+            client.connectToHost(QHostAddress::LocalHost, server.serverPort());
+            QVERIFY(client.waitForConnected(3000));
+            QTRY_VERIFY(server.hasPendingConnections() || server.waitForNewConnection(100));
+            QByteArray table;
+            for (const char *path : { "/proc/net/tcp", "/proc/net/tcp6" }) {
+                QFile file{ QString::fromLatin1(path) };
+                if (file.open(QIODevice::ReadOnly))
+                    table += file.readAll() + '\n';
+            }
+            QVERIFY2(libretro::procNetPeers(table, server.serverPort()).contains(QStringLiteral("127.0.0.1")),
+                     table.constData());
+        }
+        // RetroArch's host's words for a client gone, named or not.
+        QVERIFY(libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] \"ann\" has disconnected")));
+        QVERIFY(libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] A netplay client has disconnected")));
+        QVERIFY(!libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] Netplay disconnected")));
+        QVERIFY(!libretro::isClientHangup(QStringLiteral("\"ann\" has disconnected")));
+
+        // The host's OSD/OS: a claim never followed by a connection given up
+        // once it is old enough, said in the log.
+        {
+            LanRooms lan;
+            QUdpSocket probe;
+            QVERIFY(probe.bind(QHostAddress::LocalHost, 0));
+            const quint16 claimPort = probe.localPort();
+            probe.close();
+            lan.setClaimPort(claimPort);
+            QSet<QString> connected;
+            lan.setPeerSource([&connected] { return std::optional<QSet<QString>>(connected); });
+            lan.setClaimGrace(300);
+            lan.setClaimCheckInterval(50);
+            QVERIFY(lan.startClaims(1, 6, 1, libretro::Launch::Layout::Classic));
+            QUdpSocket joiner;
+            QVERIFY(joiner.bind(QHostAddress::LocalHost, 0));
+            const auto ask = [&] {
+                joiner.writeDatagram(libretro::claimQuery(1), QHostAddress::LocalHost, claimPort);
+                for (int waited = 0; waited < 3000; waited += 20) {
+                    while (joiner.hasPendingDatagrams()) {
+                        if (const auto r = libretro::readClaimAnswer(joiner.receiveDatagram().data()))
+                            return r->first;
+                    }
+                    QTest::qWait(20);
+                }
+                return -1;
+            };
+            QCOMPARE(ask(), 2);
+            // Connected: kept past the grace.
+            connected = { QStringLiteral("127.0.0.1") };
+            QTest::qWait(500);
+            // Gone: freed at the next look, as at once after a client left.
+            connected.clear();
+            QTest::ignoreMessage(QtInfoMsg, "[Arcade] 127.0.0.1 has no connection to the game: its ports are free again");
+            lan.clientLeft();
+            // Rejoining from the same address: its port again, and its time.
+            QCOMPARE(ask(), 2);
+            QTest::ignoreMessage(QtInfoMsg, "[Arcade] 127.0.0.1 has no connection to the game: its ports are free again");
+            QTest::qWait(600);
+            lan.stopClaims();
+        }
 
         // A host's answer to the query on the local network: its game, who
         // hosts it, what it plays in, and where it is joined, at the address
@@ -7071,6 +7183,10 @@ private slots:
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QCOMPARE(claimed.first(), libretro::claimQuery(1));
         QVERIFY(!arcade.running());
+        // Given back twice, a moment apart, in case one is lost.
+        QTRY_COMPARE(claimed.count(libretro::claimRelease()), qsizetype(2));
+        QTest::qWait(LanRooms::kReleaseAgainMs + 100);
+        QCOMPARE(claimed.count(libretro::claimRelease()), qsizetype(2));
         // The host's answer once more, late (asked twice, it answers twice),
         // with the game already started on the first: the ports this machine
         // plays on stay its until its game ends, and go back then.

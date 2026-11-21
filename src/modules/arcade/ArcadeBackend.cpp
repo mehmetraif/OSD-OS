@@ -98,9 +98,11 @@ constexpr int kCacheSaveMs = 30000;
 // given to say its version: a core is tens of megabytes to load on a Pi.
 constexpr int kVersionReadMs = 10000;
 // Over the network, how often RetroArch's log is read as the game goes on, and
-// for how long hosting: a port it can't take it says at once, and a client it
-// turns away or that leaves ends nothing. Joining, it is read for as long as
-// the game goes on, as the host may leave at any time.
+// for how long hosting online: a port it can't take it says at once, and a
+// client it turns away or that leaves ends nothing. Joining, it is read for as
+// long as the game goes on, as the host may leave at any time; hosting on the
+// local network too, as a client that leaves frees its ports
+// (LanRooms::clientLeft()).
 constexpr int kNetplayWatchMs = 500;
 constexpr int kNetplayWatchFor = 60000;
 
@@ -558,8 +560,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
 
 ArcadeBackend::~ArcadeBackend() {
     // The ports of a game still being played go back to its host, which
-    // would keep them from the next machine until its own game ended.
-    m_lan->releaseClaimed();
+    // would keep them from the next machine until its own game ended: both
+    // datagrams at once, as no event loop runs on for the second.
+    m_lan->releaseClaimed(true);
     // The pictures' records as they stand (m_pictureSaves waits for them).
     m_pictures->flushRecords();
     // The read keeps nothing of this object's: it may finish on its own.
@@ -4174,7 +4177,8 @@ void ArcadeBackend::watchNetplay() {
     // the game starts, joining for as long as it goes on, and the game
     // stopped at the first such line. The end then says why (fbneoNotice()).
     const bool hosting = libretro::hosts(m_playingNetplay);
-    if ((hosting && m_playClock.elapsed() > kNetplayWatchFor) || !m_launcher->isBusy()) {
+    const bool lanHost = m_playingNetplay == libretro::Launch::Netplay::LanHost;
+    if ((hosting && !lanHost && m_playClock.elapsed() > kNetplayWatchFor) || !m_launcher->isBusy()) {
         m_netplayWatch->stop();
         return;
     }
@@ -4190,7 +4194,11 @@ void ArcadeBackend::watchNetplay() {
     const QList<QByteArray> lines = m_netplayLogTail.left(end).split('\n');
     m_netplayLogTail.remove(0, end + 1);
     for (const QByteArray &line : lines) {
-        m_netplayLog.read(QString::fromUtf8(line));
+        const QString text = QString::fromUtf8(line);
+        // A client gone: its ports looked at against the connections left.
+        if (lanHost && libretro::isClientHangup(text))
+            m_lan->clientLeft();
+        m_netplayLog.read(text);
         const QString failure = m_netplayLog.failure();
         if (failure.isEmpty() && !m_netplayLog.hostLeft())
             continue;

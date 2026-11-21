@@ -4,9 +4,12 @@
 #include <QList>
 #include <QObject>
 #include <QSet>
+#include <QElapsedTimer>
 #include <QString>
+#include <functional>
 #include <optional>
 
+class QProcess;
 class QTimer;
 class QUdpSocket;
 
@@ -56,10 +59,15 @@ public:
     bool askForPorts(const QString &host, int players);
     // The ports a host gave this machine, given back as its game ends
     // (claimedFrom: that host; "" for none); and those of an answer that came
-    // too late, or from another host.
+    // too late, or from another host. The release is a datagram sent twice,
+    // kReleaseAgainMs apart, so that one lost on Wi-Fi doesn't keep the
+    // ports from the next machine; now sends both at once (the app
+    // stopping). Asking the same host for ports again before the second goes
+    // out keeps it back, so that it doesn't give up the ports just asked for.
     void setClaimedFrom(const QString &host) { m_claimedFrom = host; }
-    void releaseClaimed();
-    void releaseClaim(const QString &address);
+    void releaseClaimed(bool now = false);
+    void releaseClaim(const QString &address, bool now = false);
+    static constexpr int kReleaseAgainMs = 300;
 
     // Hosting: the ports taken counted (this machine's own first, 1 to own,
     // of most, each machine joining's players no more than each), and each
@@ -68,6 +76,24 @@ public:
     // machine joining then takes RetroArch's first free port.
     bool startClaims(int own, int most, int each, libretro::Launch::Layout layout);
     void stopClaims();
+    // While hosting, a claim is dropped (libretro::PortClaims::expire()) once
+    // RetroArch's netplay port (libretro::kLanPort) no longer has a
+    // connection from its address after having had one, or has had none
+    // kClaimGraceMs after it was claimed. The connections are read from
+    // /proc/net/tcp and tcp6 every kClaimCheckMs on Linux; elsewhere from
+    // `netstat -an`, run only while a claim hasn't been seen connected
+    // (every kClaimCheckElsewhereMs) and when RetroArch's log says a client
+    // left (clientLeft()). A joiner rejoining from the same address claims
+    // anew, and is given its time again.
+    void clientLeft();
+    static constexpr int kClaimGraceMs = 45000;
+    static constexpr int kClaimCheckMs = 2000;
+    static constexpr int kClaimCheckElsewhereMs = 15000;
+    // For tests: what the connections are read from (the addresses, nothing
+    // where they can't be told) and the time a claim is given.
+    void setPeerSource(std::function<std::optional<QSet<QString>>()> source) { m_peerSource = std::move(source); }
+    void setClaimGrace(int ms) { m_claimGrace = ms; }
+    void setClaimCheckInterval(int ms) { m_claimCheckMs = ms; }
 
 signals:
     void roomsRead();
@@ -83,6 +109,8 @@ private:
     void readPortsAnswer();
     void answerPorts(const std::optional<libretro::PortRange> &ports);
     void answerClaims();
+    void checkClaims();
+    void expireClaims(const QSet<QString> &connected);
 
     // The socket the query goes out of and the answers come to, where it
     // goes ("" to broadcast it), the time the answers are listened for, the
@@ -126,4 +154,16 @@ private:
     QUdpSocket *m_claimAsk = nullptr;
     QTimer *m_claimWait = nullptr;
     QString m_claimedFrom;
+    // The second release of each host's ports, waiting kReleaseAgainMs, by
+    // its address.
+    QHash<QString, QTimer *> m_releasesAgain;
+    QUdpSocket *m_releaseSocket = nullptr;
+    // Hosting: how old each claim is, how often the connections are looked
+    // at, and the netstat under way elsewhere.
+    QElapsedTimer m_claimClock;
+    QTimer *m_claimCheck = nullptr;
+    QProcess *m_netstat = nullptr;
+    std::function<std::optional<QSet<QString>>()> m_peerSource;
+    int m_claimGrace = kClaimGraceMs;
+    int m_claimCheckMs = kClaimCheckMs;
 };

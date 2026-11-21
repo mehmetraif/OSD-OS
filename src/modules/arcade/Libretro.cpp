@@ -1536,7 +1536,7 @@ bool PortClaims::taken(int port) const {
     });
 }
 
-PortRange PortClaims::claim(const QString &address, int players) {
+PortRange PortClaims::claim(const QString &address, int players, qint64 now) {
     release(address);
     if (players < 1)
         return {};
@@ -1551,19 +1551,116 @@ PortRange PortClaims::claim(const QString &address, int players) {
         while (run < players && first + run <= m_most && !taken(first + run))
             ++run;
         if (run == players) {
-            m_claims.append({ address, first, players });
+            m_claims.append({ address, first, players, now, false });
             return { first, players };
         }
         if (some.first == 0)
             some = { first, run };
     }
     if (some.first > 0)
-        m_claims.append({ address, some.first, some.players });
+        m_claims.append({ address, some.first, some.players, now, false });
     return some;
 }
 
 void PortClaims::release(const QString &address) {
     m_claims.removeIf([&address](const Claim &c) { return c.address == address; });
+}
+
+QStringList PortClaims::expire(const QSet<QString> &connected, qint64 now, qint64 grace) {
+    QStringList dropped;
+    for (auto it = m_claims.begin(); it != m_claims.end();) {
+        if (connected.contains(it->address)) {
+            it->seen = true;
+            ++it;
+        } else if (it->seen || now - it->since >= grace) {
+            // Gone since it was seen, or never come in the time it is given.
+            dropped << it->address;
+            it = m_claims.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    return dropped;
+}
+
+bool PortClaims::awaiting() const {
+    return std::any_of(m_claims.cbegin(), m_claims.cend(), [](const Claim &c) { return !c.seen; });
+}
+
+QSet<QString> procNetPeers(const QByteArray &table, quint16 localPort) {
+    // "sl local_address rem_address st ...": each address its hex number
+    // (an IPv6 one four of them), as the machine holds it, then ":" and the
+    // port's; st 01 is TCP_ESTABLISHED.
+    const auto ipv4 = [](const QByteArray &hex) -> std::optional<quint32> {
+        bool ok = false;
+        const quint32 word = hex.toUInt(&ok, 16);
+        if (!ok)
+            return std::nullopt;
+        // The address's bytes in network order in memory, read as a number
+        // of this machine's order.
+        return Q_BYTE_ORDER == Q_LITTLE_ENDIAN ? qbswap(word) : word;
+    };
+    QSet<QString> peers;
+    for (const QByteArray &line : table.split('\n')) {
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        if (fields.size() < 4 || fields.at(3) != "01")
+            continue;
+        const QList<QByteArray> local = fields.at(1).split(':');
+        const QList<QByteArray> remote = fields.at(2).split(':');
+        bool ok = false;
+        if (local.size() != 2 || remote.size() != 2 || local.at(1).toUInt(&ok, 16) != localPort || !ok)
+            continue;
+        const QByteArray &address = remote.at(0);
+        std::optional<quint32> number;
+        if (address.size() == 8)
+            number = ipv4(address);
+        else if (address.size() == 32 && address.left(16) == "0000000000000000"
+                 && (address.mid(16, 8) == "FFFF0000" || address.mid(16, 8) == "0000FFFF"))
+            number = ipv4(address.mid(24, 8));
+        if (number)
+            peers.insert(QHostAddress(*number).toString());
+    }
+    return peers;
+}
+
+QSet<QString> netstatPeers(const QByteArray &output, quint16 localPort) {
+    const QByteArray port = QByteArray::number(localPort);
+    // An address and its port: "a.b.c.d:port", "[::ffff:a.b.c.d]:port", or
+    // the BSDs' "a.b.c.d.port".
+    const auto split = [](QByteArray endpoint) -> std::pair<QByteArray, QByteArray> {
+        endpoint.replace('[', "").replace(']', "");
+        qsizetype at = endpoint.lastIndexOf(':');
+        if (at < 0 || endpoint.count('.') == 4)
+            at = endpoint.lastIndexOf('.');
+        if (at < 0)
+            return {};
+        QByteArray address = endpoint.left(at);
+        if (address.startsWith("::ffff:"))
+            address = address.mid(7);
+        return { address, endpoint.mid(at + 1) };
+    };
+    QSet<QString> peers;
+    for (const QByteArray &line : output.split('\n')) {
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        if (!fields.contains("ESTABLISHED"))
+            continue;
+        for (qsizetype i = 0; i + 1 < fields.size(); ++i) {
+            const auto [address, localOne] = split(fields.at(i));
+            if (localOne != port)
+                continue;
+            const QHostAddress peer(QString::fromLatin1(split(fields.at(i + 1)).first));
+            if (peer.protocol() == QAbstractSocket::IPv4Protocol)
+                peers.insert(peer.toString());
+            break;
+        }
+    }
+    return peers;
+}
+
+bool isClientHangup(const QString &line) {
+    return line.contains(QLatin1String("[Netplay]"))
+           && (line.contains(QLatin1String("\" has disconnected"))
+               || line.contains(QLatin1String("A netplay client has disconnected")));
 }
 
 CoreInfo loadCoreInfo(const QString &path, QString *error) {
