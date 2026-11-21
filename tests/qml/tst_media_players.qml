@@ -1957,7 +1957,7 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             var keyboard = keyboardOf(auth)
             verify(keyboard.visible)
-            compare(keyboard.title, "Server URL")
+            compare(keyboard.title, "Server Address")
             typeOn(keyboard, "10.0.0.2:8096")
             okOn(keyboard)
             compare(auth.serverUrl, "http://10.0.0.2:8096")
@@ -2037,6 +2037,43 @@ StandInRoot {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             compare(jelly.focusIndex, 0)
+        }
+
+        // Emby's method row: YOUR SERVER or EMBY CONNECT, the one chosen
+        // filled on the row and marked ► once the cursor leaves it; ◄ ►
+        // choose and select goes on, as the hint bar says (in a keyboard's
+        // names and a pad's); the field is SERVER ADDRESS, as in Settings,
+        // and so is Jellyfin's.
+        function test_embyMethodRow_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_embyMethodRow(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var auth = open("emby", "Auth.qml", {})
+            var said = function(page, text) {
+                return shownTexts(page).filter(function(t) { return t.text === text }).length
+            }
+            var hint = function(page) {
+                return shownTexts(page).filter(function(t) { return t.text.indexOf(h.back + ":BACK") === 0 })
+                                       .map(function(t) { return t.text })[0] || ""
+            }
+            compare(hint(auth), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.change + ":CHOOSE " + h.select + ":NEXT")
+            compare(said(auth, "Your Server"), 1)
+            compare(said(auth, "Server Address:"), 1)
+            keyClick(Qt.Key_Down)
+            compare(said(auth, "► Your Server"), 1)
+            compare(hint(auth), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":TYPE")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            compare(auth.method, 1)
+            keyClick(Qt.Key_Return)
+            compare(said(auth, "► Emby Connect"), 1)
+            compare(said(auth, "Your Server"), 1)
+            var jelly = open("jellyfin", "Auth.qml", {})
+            compare(said(jelly, "Server Address:"), 1)
+            root.hints = root.keyboardHints
         }
 
         // The keyboard's signs: every one a keyboard has, SHIFT changing the

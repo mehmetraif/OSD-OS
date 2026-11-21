@@ -113,7 +113,7 @@ FocusScope {
     function submit() {
         if (waiting) return
         if (serverUrl === "") {
-            errorMsg = "Please enter a server URL"
+            errorMsg = "Please enter the server's address"
             return
         }
         waiting = true
@@ -140,14 +140,14 @@ FocusScope {
                                       ? (root.paneTop + root.paneBottom) / 2 - root.sh / 2 : 0
         spacing: root.sh * 0.0333333 //16
 
-        // Server URL field
+        // Server address field
         Column {
             spacing: root.sh * 0.0166667 //8
             width: root.sw * 0.5 //320
             anchors.horizontalCenter: parent.horizontalCenter
 
             Text {
-                text: "Server URL"
+                text: "Server Address:"
                 color: root.primaryColor
                 font.family: root.globalFont
                 font.capitalization: Font.AllUppercase
@@ -239,7 +239,7 @@ FocusScope {
     OnScreenKeyboard {
         id: keyboard
         anchors.fill: parent
-        title: "Server URL"
+        title: "Server Address"
         caseSensitive: true
         maxLength: 200
         onAccepted: function(text) {

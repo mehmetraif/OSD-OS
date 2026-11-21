@@ -20,7 +20,7 @@ The Jellyfin module plays films, series and home videos from a [Jellyfin](https:
 
 ## Signing in with Quick Connect
 
-1. Open **Jellyfin** from the main menu. **Connect to Server** has a **Server URL** field and a **Quick Connect** button.
+1. Open **Jellyfin** from the main menu. **Connect to Server** has a **Server Address** field and a **Quick Connect** button.
 2. ▲ ▼ go between the field and the button, round the ends. Select on the field opens the on-screen keyboard. Enter the server's address with its port, as `http://192.168.1.20:8096`. OK goes on to **Quick Connect**.
 3. Select on **Quick Connect**. The code fills the screen, with **Enter the above code at:** and an address ending `/web/#quickconnect`.
 4. On your other device, open that address, enter the code and authorize it.
@@ -30,7 +30,7 @@ Back on the code screen cancels. OSD/OS appears in the server's list of devices 
 
 | Message | What it means |
 |---|---|
-| **Please enter a server URL** | The Server URL field is empty |
+| **Please enter the server's address** | The Server Address field is empty |
 | **CONNECTION FAILED: …** | Nothing answered at that address: a typing slip, a missing `http://` or port, or the server is off or on another network |
 | **QUICK CONNECT NOT ENABLED ON SERVER** | Quick Connect is off: turn it on in the Jellyfin dashboard |
 | **SERVER ERROR (HTTP …)** | Something at that address answered with an error of that status: often another web server (404), or a proxy whose Jellyfin isn't running (502, 503) |

@@ -157,7 +157,7 @@ FocusScope {
     function typeField(index) {
         typing = index
         keyboard.masked = index === idxPass
-        keyboard.title = index === idxServer ? "Server URL"
+        keyboard.title = index === idxServer ? "Server Address"
                        : index === idxPass ? "Password"
                        : method === 1 ? "Email" : "Username"
         keyboard.open(index === idxServer ? (serverUrl !== "" ? serverUrl : "http://")
@@ -190,7 +190,7 @@ FocusScope {
     function submit() {
         if (waiting) return
         if (serverUrl === "") {
-            errorMsg = "Please enter a server URL"
+            errorMsg = "Please enter the server's address"
             return
         }
         if (username === "") {
@@ -295,7 +295,9 @@ FocusScope {
 
         // One of the two sign-in methods. Selecting is what focusing does — the
         // row is a single focus stop and Left/Right move between the options,
-        // so there is no separate "confirm" step to forget.
+        // so there is no separate "confirm" step to forget. The one chosen is
+        // filled while the cursor is on the row, and marked ► once it leaves,
+        // so the form always shows which one SIGN IN will use.
         component MethodOption: Rectangle {
             id: opt
             property string label: ""
@@ -311,7 +313,7 @@ FocusScope {
 
             Text {
                 anchors.centerIn: parent
-                text: opt.label
+                text: (opt.selected && !opt.rowFocused ? "► " : "") + opt.label
                 color: opt.selected && opt.rowFocused ? root.surfaceColor
                      : root.primaryColor
                 font.family: root.globalFont
@@ -331,7 +333,7 @@ FocusScope {
 
                 Row {
                     spacing: root.sw * 0.025 //16
-                    MethodOption { label: "Local Server"; value: 0 }
+                    MethodOption { label: "Your Server"; value: 0 }
                     Text {
                         text: "OR"
                         color: root.primaryColor
@@ -354,7 +356,7 @@ FocusScope {
                 Field {
                     id: serverField
                     visible: authRoot.method === 0
-                    label: "Server URL:"
+                    label: "Server Address:"
                     index: authRoot.idxServer
                     text: authRoot.serverUrl
                     width: authRoot.formWidth //460
@@ -404,7 +406,9 @@ FocusScope {
             Text {
                 text: waiting ? "CONNECTING..."
                     : (errorMsg !== "" ? errorMsg
-                    : (focusIndex === idxMethod ? "CHOOSE HOW TO SIGN IN"
+                    : (focusIndex === idxMethod
+                       ? (method === 1 ? "Emby Connect: your emby.media account finds your server"
+                                       : "Your server, at home or away: sign in by its address")
                     : (method === 1 ? "EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL"
                     : "SIGN IN WITH YOUR SERVER ACCOUNT")))
                 color: root.primaryColor
@@ -440,10 +444,11 @@ FocusScope {
         }
     }
 
-    // Footer
+    // Footer: on the method row ◄ ► choose and select goes on to the form.
     HintBar {
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             "select:" + (focusIndex === idxMethod ? "CHOOSE" : focusIndex === idxSubmit ? "SIGN IN" : "TYPE")])
+        id: hintBar
+        text: focusIndex === idxMethod ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHOOSE", "select:NEXT"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:" + (focusIndex === idxSubmit ? "SIGN IN" : "TYPE")])
     }
 
     OnScreenKeyboard {
