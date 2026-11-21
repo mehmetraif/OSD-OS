@@ -948,7 +948,10 @@ Restart=no
 TERMINAL_UNIT
 
     sudo systemctl daemon-reload
-    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+    # Restarted, not only started: one already listening keeps the group it
+    # was made with until then, and the service's user may be another now.
+    sudo systemctl enable osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+    sudo systemctl restart osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
     # A service kept as it was stays enabled or not, as it was left, and the
     # login on tty1 with it.
     if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
