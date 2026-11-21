@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QPointer>
-#include <QLocalSocket>
+#include "../util/MpvSocket.h"
 #include <QSize>
 #include <QTimer>
 #include <QJsonArray>
@@ -265,7 +265,6 @@ signals:
 
 private slots:
     void onProcessFinished();
-    void tryConnectIpc();
     void onIpcReadyRead();
 
 private:
@@ -507,7 +506,7 @@ private:
     QPointer<QProcess> m_retiringProcess;
     QElapsedTimer m_retireClock;           // since m_retiringProcess was told to quit
     bool          m_handingBack    = false; // handBackScreen() under way
-    QLocalSocket *m_ipc            = nullptr;
+    MpvSocket    *m_ipc            = nullptr;
     bool          m_ipcWanted     = false;
     // The control connection went while wanted, and is being made again.
     bool          m_reconnecting  = false;
@@ -518,7 +517,6 @@ private:
     // that lets it go when no repeat has come for a moment.
     QString       m_keyDown;
     QTimer       *m_keyUpTimer     = nullptr;
-    QTimer       *m_connectTimer   = nullptr;
     QTimer       *m_watchdogTimer  = nullptr;
     // The session's start, watched (watchStart()): what it was started
     // with, since when, whether its first picture has come, whether its mpv

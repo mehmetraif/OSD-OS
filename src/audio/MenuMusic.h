@@ -1,5 +1,5 @@
 #pragma once
-#include <QLocalSocket>
+#include "../util/MpvSocket.h"
 #include <QObject>
 #include <QPointer>
 #include <QProcess>
@@ -102,10 +102,9 @@ private:
     bool m_renderModule = false;
     // WAVs begun, each made under a name of its own.
     int m_renders = 0;
-    QLocalSocket m_ipc;
+    MpvSocket m_ipc;
     QString m_socketPath;
     QTimer m_startDelay;
-    QTimer m_connect;
     // Runs while the music waits for a sound card to play through.
     QTimer m_cardWait;
 };

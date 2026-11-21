@@ -80,7 +80,7 @@ constexpr int kLeftEarlyMs = 4000;
 constexpr int kLaunchTickMs = 50;
 constexpr int kScreenPollMs = 25;
 // The player's control connection is tried this often until it is made
-// (tryConnectIpc()). One lost, and not made again this long later while the
+// (MpvSocket::connectTo()). One lost, and not made again this long later while the
 // player still plays, is worth a line in the log.
 constexpr int kConnectRetryMs = 100;
 constexpr int kReconnectNoteMs = 3000;
@@ -439,9 +439,8 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     m_hasAmbientOscScript = QFile::exists(m_appRoot + "/scripts/mpv-osc-ambient.lua");
     m_hasMediaKeysScript  = QFile::exists(m_appRoot + "/scripts/mpv-media-keys.lua");
 
-    m_ipc = new QLocalSocket(this);
+    m_ipc = new MpvSocket(this, kConnectRetryMs);
     connect(m_ipc, &QLocalSocket::connected, this, [this] {
-        m_connectTimer->stop();
         if (m_reconnecting) {
             m_reconnecting = false;
             qWarning("[MpvController] Control connection to the player made again");
@@ -469,9 +468,6 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     connect(m_keyUpTimer, &QTimer::timeout, this, &MpvController::releaseKeys);
     connect(m_ipc, &QLocalSocket::readyRead, this, &MpvController::onIpcReadyRead);
 
-    m_connectTimer = new QTimer(this);
-    m_connectTimer->setInterval(kConnectRetryMs);
-    connect(m_connectTimer, &QTimer::timeout, this, &MpvController::tryConnectIpc);
     // The player's control connection gone while it is wanted: made again.
     // An mpv ending closes it too, a moment before its process has gone, so
     // that alone isn't worth a line in the log; one that still plays a few
@@ -480,7 +476,7 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         if (!m_ipcWanted) return;
         m_reconnecting = true;
         m_watchdogTimer->stop();
-        m_connectTimer->start();
+        m_ipc->connectTo(m_socketPath);
         const int serial = m_launchSerial;
         QTimer::singleShot(kReconnectNoteMs, this, [this, serial]() {
             if (m_reconnecting && serial == m_launchSerial
@@ -1152,7 +1148,7 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     // Nothing is held down in a player that is over.
     m_keyDown.clear();
     m_keyUpTimer->stop();
-    m_connectTimer->stop();
+    m_ipc->stopConnecting();
     m_watchdogTimer->stop();
     m_startTimer->stop();
     if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
@@ -1394,7 +1390,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
         qWarning("[MpvController] mpv could not be started: %s", qPrintable(proc->errorString()));
         setFailure(QStringLiteral("mpv could not be started"), proc->errorString(), true);
         m_ipcWanted = false;
-        m_connectTimer->stop();
+        m_ipc->stopConnecting();
         proc->deleteLater();
         m_process = nullptr;
         endAtOnce(QStringLiteral("failed"));
@@ -1518,7 +1514,7 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
     // synchronously, and the session is over) has no socket to wait for.
     if (m_process && m_process->state() != QProcess::NotRunning) {
         m_ipcWanted = true;
-        m_connectTimer->start();
+        m_ipc->connectTo(m_socketPath);
         watchStart();
     }
 }
@@ -1711,14 +1707,6 @@ void MpvController::showOsdSkipPrompt() {
 
 void MpvController::clearOsdPrompt() {
     sendCommand({"script-message", "skip-overlay-state", "0"});
-}
-
-void MpvController::tryConnectIpc() {
-    if (!m_ipcWanted) { m_connectTimer->stop(); m_reconnecting = false; return; }
-    if (m_ipc->state() == QLocalSocket::ConnectedState ||
-        m_ipc->state() == QLocalSocket::ConnectingState)
-        return;
-    m_ipc->connectToServer(m_socketPath);
 }
 
 void MpvController::onIpcReadyRead() {
@@ -1940,9 +1928,7 @@ void MpvController::sendCommand(const QJsonArray &args) {
                  QJsonDocument(QJsonObject{{"command", args}}).toJson(QJsonDocument::Compact).constData());
         return;
     }
-    QJsonObject cmd;
-    cmd["command"] = args;
-    m_ipc->write(QJsonDocument(cmd).toJson(QJsonDocument::Compact) + "\n");
+    m_ipc->command(args);
 }
 
 MpvController::VideoProfile MpvController::detectVideoProfile() const {
@@ -2316,7 +2302,7 @@ void MpvController::startEmbedded(const QStringList &args) {
     m_sessionArgs = args;
     emit videoActiveChanged();
     m_ipcWanted = true;
-    m_connectTimer->start();
+    m_ipc->connectTo(m_socketPath);
     watchStart();
 }
 
