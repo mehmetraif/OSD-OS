@@ -314,6 +314,77 @@ private slots:
         QCOMPARE(opened(QString()), search);
     }
 
+    // The playlists' videos from a stand-in yt-dlp (the data folder's
+    // bin/yt-dlp, which writes down the playlists it is asked for): fetched
+    // as one is opened, every listed playlist at once, a removed video's
+    // tombstone left out, the name yt-dlp reports given to the folder the
+    // file doesn't name, and kept: opened again, nothing is asked for again.
+    void playlistsFromYtDlp() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const auto write = [&data](const QString &name, const QByteArray &text) {
+            QFile file(data.path() + QLatin1Char('/') + name);
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            file.write(text);
+        };
+        const auto names = [](const QVariant &listing) {
+            QStringList out;
+            for (const QVariant &entry : listing.toList())
+                out << entry.toMap().value(QStringLiteral("name")).toString();
+            return out;
+        };
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        write(QStringLiteral("bin/yt-dlp"),
+              "#!/bin/sh\n"
+              "for last; do :; done\n"
+              "echo \"$last\" >> \"$(dirname \"$0\")/asked\"\n"
+              "case \"$last\" in *PLbroken) exit 1 ;; esac\n"
+              "id=${last##*=}\n"
+              "printf '{\"id\":\"one-%s\",\"title\":\"First of %s\",\"channel\":\"Chan\",\"playlist_title\":\"Title %s\"}\\n' \"$id\" \"$id\" \"$id\"\n"
+              "printf '{\"id\":\"gone\",\"title\":\"[Deleted video]\"}\\n'\n"
+              "printf '{\"id\":\"two-%s\",\"title\":\"Second of %s\",\"uploader\":\"Up\"}\\n' \"$id\" \"$id\"\n");
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/yt-dlp"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        write(QStringLiteral("config.json"), "{}");
+        write(QStringLiteral("youtube_playlists.txt"), "PLfirst\nMine | PLsecond\nPLbroken\n");
+        const auto asked = [&data]() {
+            QFile file(data.path() + QStringLiteral("/bin/asked"));
+            return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts)
+                                                  : QStringList();
+        };
+        AppCore core(data.path(), data.path());
+        YouTubeBackend youtube(data.path(), data.path(), &core, nullptr);
+        QSignalSpy ready(&youtube, &YouTubeBackend::listingReady);
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlists"))),
+                 QStringList({ QStringLiteral("PLfirst"), QStringLiteral("Mine"), QStringLiteral("PLbroken") }));
+        // Only a branch's preview: not fetched.
+        QVERIFY(!youtube.listing(QStringLiteral("playlist/PLfirst"), true).isValid());
+        QTest::qWait(200);
+        QVERIFY(asked().isEmpty());
+
+        QVERIFY(!youtube.listing(QStringLiteral("playlist/PLsecond")).isValid());
+        QTRY_VERIFY_WITH_TIMEOUT(ready.count() >= 2, 10000);
+        QStringList answered;
+        for (const QList<QVariant> &signal : ready)
+            answered << signal.value(0).toString();
+        QCOMPARE(answered, QStringList({ QStringLiteral("playlist/PLsecond"), QStringLiteral("playlists") }));
+        QStringList all = asked();
+        all.sort();
+        QCOMPARE(all, QStringList({ QStringLiteral("https://www.youtube.com/playlist?list=PLbroken"),
+                                    QStringLiteral("https://www.youtube.com/playlist?list=PLfirst"),
+                                    QStringLiteral("https://www.youtube.com/playlist?list=PLsecond") }));
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlist/PLsecond"))),
+                 QStringList({ QStringLiteral("First of PLsecond"), QStringLiteral("Second of PLsecond") }));
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlist/PLfirst"))),
+                 QStringList({ QStringLiteral("First of PLfirst"), QStringLiteral("Second of PLfirst") }));
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlist/PLbroken"))), QStringList());
+        QCOMPARE(names(youtube.listing(QStringLiteral("playlists"))),
+                 QStringList({ QStringLiteral("Title PLfirst"), QStringLiteral("Mine"), QStringLiteral("PLbroken") }));
+        QCOMPARE(youtube.problem(), QString());
+        QTest::qWait(200);
+        QCOMPARE(asked().size(), 3);
+    }
+
     // The format each ADVANCED choice hands yt-dlp, character for character:
     // H.264 ahead of any codec, a dub's language ahead of the codec, and the
     // original track and plain best last.
