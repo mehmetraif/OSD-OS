@@ -9,6 +9,7 @@
 // display_output_pi3 as a Pi 3, whose outputs are a Pi 4's).
 #include "display/DisplayOutput.h"
 #include "util/Board.h"
+#include "util/ExitCodes.h"
 
 #include <QDir>
 #include <QFile>
@@ -430,8 +431,9 @@ private slots:
     }
 
     // Each preset offered exits with the code osdos-stop (scripts/install.sh)
-    // writes it on: its place in DISPLAY_PRESETS, counted from 20, and 20
-    // more to power off after it.
+    // writes it on: its place in DISPLAY_PRESETS, counted from the first of
+    // the range util/ExitCodes.h names, none of them the one back, and
+    // kDisplayThenPowerOff more to power off after it.
     void exitCodesAreOsdosStops() {
         QFile script(QStringLiteral(INSTALL_SH));
         QVERIFY(script.open(QIODevice::ReadOnly));
@@ -439,22 +441,25 @@ private slots:
                                                  .match(QString::fromUtf8(script.readAll()));
         QVERIFY(list.hasMatch());
         const QStringList order = list.captured(1).split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-        QCOMPARE(order.indexOf(QStringLiteral("previous")), 9);  // 29: back to the output before
+        QCOMPARE(int(order.indexOf(QStringLiteral("previous"))),
+                 exitcode::kDisplayRevert - exitcode::kDisplayPresetFirst);  // back to the output before
         qputenv("OSDOS_LAUNCHER_API", "9");
         inForce(QStringLiteral("hdmi"));
         const QStringList offered = ids(DisplayOutput(m_data.path()).options());
         QVERIFY(offered.contains(QStringLiteral("jamma-31k")));
         QCOMPARE(offered.contains(QStringLiteral("jamma-480i-640")), !pi5());
         for (const QString &id : offered) {
-            const int code = 20 + int(order.indexOf(id));
-            QVERIFY2(code >= 20, qPrintable(id + QStringLiteral(" isn't osdos-stop's")));
+            const int code = exitcode::kDisplayPresetFirst + int(order.indexOf(id));
+            QVERIFY2(code >= exitcode::kDisplayPresetFirst && code <= exitcode::kDisplayPresetLast
+                         && code != exitcode::kDisplayRevert,
+                     qPrintable(id + QStringLiteral(" isn't osdos-stop's")));
             for (const bool off : { false, true }) {
                 inForce(id == QLatin1String("hdmi") ? QStringLiteral("jamma-240p") : QStringLiteral("hdmi"));
                 DisplayOutput output(m_data.path());
                 QTest::ignoreMessage(QtInfoMsg, QRegularExpression(
                     QStringLiteral("-> %1%2: exit %3 for osdos-stop$")
                         .arg(QRegularExpression::escape(id), off ? QStringLiteral(", then off") : QString())
-                        .arg(code + (off ? 20 : 0))));
+                        .arg(code + (off ? exitcode::kDisplayThenPowerOff : 0))));
                 QVERIFY(off ? output.applyAndPowerOff(id) : output.apply(id));
             }
         }
