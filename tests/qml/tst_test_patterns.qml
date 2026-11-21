@@ -160,6 +160,14 @@ StandInRoot {
             }
         }
 
+        // What the patterns say reads plainly: an apostrophe only inside a
+        // word ("A tube's"), never one left over after a word ("the edges',").
+        function test_noStrayApostrophe() {
+            var page = open()
+            for (var p = 0; p < page.patterns.length; p++)
+                verify(!/'(?![a-z])/i.test(page.patterns[p].help), page.patterns[p].name + ": " + page.patterns[p].help)
+        }
+
         // Every pattern's every kind is there and loads: a picture, a tile,
         // or a colour over the whole screen.
         function test_everyPatternLoads() {

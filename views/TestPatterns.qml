@@ -51,8 +51,8 @@ FocusScope {
           kinds: [ drawnGrid ? { draw: "grid", w: gridColumns * 16, h: lines }
                    : tall ? { image: "grid-480.png", w: 640, h: 480 } : { image: "grid-240.png", w: 320, h: 240 } ] },
         { name: "Monoscope",
-          help: "A tube's setup: the center cross for static convergence, the sides for the edges', the corners for"
-                + " corner convergence, purity and geometry. The red square is square on a screen set right:"
+          help: "A tube's setup: the center cross for static convergence, the sides for convergence at the edges,"
+                + " the corners for corner convergence, purity and geometry. The red square is square on a screen set right:"
                 + " measure it, and set the height and width until its sides match",
           kinds: [ tall ? { image: "monoscope-480.png", w: 640, h: 480 } : { image: "monoscope-240.png", w: 320, h: 240 } ] },
         { name: "Convergence",
