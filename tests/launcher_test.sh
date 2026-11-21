@@ -162,6 +162,7 @@ put_release() {  # version [path]
         printf 'INSTALL_DIR=%q TMP_DIR=%q TARBALL=%q SYSTEMD_SERVICE=%q OWNER_USER=%q CUT=%q TAR_CUT=%q APP_WAS_RUNNING= UNPACKED=\n' \
             "$APP" "$T/download" "OSD-OS-$1.tar.gz" "$T/osdos.service" "$(id -un)" "${2:-}" "${TAR_CUT:-}"
         printf 'systemctl() { echo "$*" >> %q; }\n' "$T/systemctl"
+        printf 'getent() { echo "owner:x:1000:1000::%s:/bin/sh"; }\n' "$T/home"
         printf 'sudo() { echo "$*" >> %q; if [ "$1" = -u ]; then shift 2; fi; "$@"; }\n' "$T/sudo"
         echo 'mv() { if [ "$1" = "$CUT" ]; then exit 3; fi; command mv "$@"; }'
         echo 'tar() { command tar "$@"; if [ -n "$TAR_CUT" ]; then exit 3; fi; }'
@@ -195,6 +196,17 @@ check "the installer unpacks the release as the app's user" "1" \
       "$(grep -c "^-u $(id -un) tar -xzf - " "$T/sudo")"
 check "...into folders that are that user's from the start" "1" \
       "$(grep -c "^install -d -o $(id -un) -g $(id -gn) .*/\.new .*/\.old$" "$T/sudo")"
+# A stage the app had armed (the user's data folder is the launcher's here)
+# goes as the installer puts a release in place: the launcher would otherwise
+# put it in place over that one at the next start.
+install_release 1
+stage_release 1a
+mkdir -p "$T/home/.local/share"
+ln -sfn "$T/data" "$T/home/.local/share/OSD-OS"
+check "the installer over an armed stage puts its release in place" "0" "$(put_release 2)"
+check "...the stage gone" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
+check "...and its release, not the stage's, runs" "2/2" "$(run | cut -d' ' -f1)"
+rm -rf "$T/home" "$UPDATES"
 install_release 1
 put_release 2 "$APP/.new/share" > /dev/null
 check "the installer over a swap cut short puts the new release in place" "0" "$(put_release 3)"

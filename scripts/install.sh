@@ -234,6 +234,12 @@ done
 sudo mv "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
 sync -f "${INSTALL_DIR}" 2> /dev/null || sync
 sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.discard"
+# An in-app update the app had staged and armed goes, with what the launcher
+# said of one before: the launcher would otherwise put it in place over this
+# release at the next start. The app sweeps its download.
+OWNER_UPDATES="$(getent passwd "${OWNER_USER}" | cut -d: -f6)/.local/share/OSD-OS/updates"
+sudo -u "${OWNER_USER}" rm -f "${OWNER_UPDATES}/staged.sha256" "${OWNER_UPDATES}/staged.json" \
+    "${OWNER_UPDATES}/staged.sha256.failed"
 if ! sudo -u "${OWNER_USER}" test -w "${INSTALL_DIR}"; then
     echo "Warning: ${OWNER_USER} can't write ${INSTALL_DIR}, so in-app updates won't apply." >&2
 fi
