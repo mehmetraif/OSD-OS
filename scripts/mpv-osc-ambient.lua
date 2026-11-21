@@ -1,4 +1,7 @@
 local assdraw = require 'mp.assdraw'
+-- The drawing, Scalings and key flushing the OSD/OS scripts share, from this
+-- file's own folder (see osdos-osd.lua for why so).
+local osd = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "") .. "osdos-osd.lua")
 
 local menu_visible = false
 local focus_btn = 1  -- index into buttons (CROP when shown, then STOP)
@@ -7,54 +10,10 @@ local idle_timer = nil
 
 local MENU_TIMEOUT = 5
 
-local C_WHITE = "&HFFFFFF&"
-local C_BLACK = "&H000000&"
-local A_OPAQUE = "&H00&"
-local A_TRANS  = "&HFF&"
-
-local function draw_rect(ass, x, y, w, h, fc, fa, bs, bc)
-    ass:new_event()
-    ass:pos(x, y)
-    ass:append(string.format(
-        "{\\bord%d\\3c%s\\3a&H00&\\1c%s\\1a%s\\shad0}",
-        bs, bc, fc, fa))
-    ass:draw_start()
-    ass:rect_cw(0, 0, w, h)
-    ass:draw_stop()
-end
-
-local function draw_text(ass, x, y, anchor, text, fs, fc, fa)
-    ass:new_event()
-    ass:append(string.format(
-        "{\\an%d\\pos(%.2f,%.2f)\\fnVCR OSD Mono\\fs%d\\1c%s\\1a%s\\shad0\\bord0}%s",
-        anchor, x, y, fs, fc, fa, text))
-end
-
--- The four Scalings of Settings (MpvController::sessionArgs), which CROP steps
--- through live: how a 16:9 picture fills the 4:3 tube. Their values are
--- MpvController::scalingProperties()'s, the app's one place for them: this
--- table runs inside mpv, so it keeps a copy.
-local SCALINGS = {
-    { name = "LETTERBOX",  panscan = 0,    keepaspect = true  },
-    { name = "14:9",       panscan = 0.43, keepaspect = true  },
-    { name = "PAN & SCAN", panscan = 1,    keepaspect = true  },
-    { name = "ANAMORPHIC", panscan = 0,    keepaspect = false },
-}
-
--- The one in force, read off mpv, so CROP carries on from the Scaling the
--- video started with.
-local function current_scaling()
-    if mp.get_property_bool("keepaspect", true) == false then return 4 end
-    local p = mp.get_property_number("panscan", 0) or 0
-    if p > 0.7 then return 3 elseif p > 0.2 then return 2 end
-    return 1
-end
-
-local function next_scaling()
-    local s = SCALINGS[current_scaling() % #SCALINGS + 1]
-    mp.set_property_bool("keepaspect", s.keepaspect)
-    mp.set_property_number("panscan", s.panscan)
-end
+local C_WHITE, C_BLACK = osd.C_WHITE, osd.C_BLACK
+local A_OPAQUE, A_TRANS = osd.A_OPAQUE, osd.A_TRANS
+local draw_rect, draw_text = osd.draw_rect, osd.draw_text
+local SCALINGS, current_scaling, next_scaling = osd.SCALINGS, osd.current_scaling, osd.next_scaling
 
 -- CROP is omitted when MpvController flags a decode path where --panscan
 -- blanks the video (Pi 3 overlay path with 1080p Playback ON).
@@ -70,10 +29,8 @@ local function draw_menu()
     local ww, wh = mp.get_osd_size()
     if ww == 0 or wh == 0 then return end
 
-    local fs      = math.floor(wh * 0.0333333)
-    local lm      = math.floor(ww * 0.12)
-    local rm      = math.floor(ww * 0.88)
-    local bar_w   = rm - lm
+    local m       = osd.metrics(ww, wh)
+    local fs, lm, bar_w = m.fs, m.lm, m.bar_w
     local border  = 2
     local btn_h   = math.floor(fs * 1.5)
     local btn_gap = math.floor(bar_w * 0.025)
@@ -101,14 +58,9 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
--- A script's key bindings reach mpv's input from an idle handler, after the
--- callback that added or removed them returns. Flushed here instead, as in
--- mpv-osc.lua, so that OSD/OS is told the menu is up only once the keys are
--- the menu's, and told it is down only once they are given back (mpv 0.35
--- and later; older ones apply bindings at once).
-local function flush_keybindings()
-    if mp.flush_keybindings then mp.flush_keybindings() end
-end
+-- OSD/OS is told the menu is up only once the keys are the menu's, and down
+-- only once they are given back (osd.flush_keybindings).
+local flush_keybindings = osd.flush_keybindings
 
 -- The menu off the screen: its drawing, its refresh and its keys. OSD/OS is
 -- told each way (osdos-osd-menu shown / hidden, as mpv-osc.lua tells it):

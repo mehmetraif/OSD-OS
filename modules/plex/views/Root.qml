@@ -58,8 +58,7 @@ ModuleRouter {
             navigateToView("ProfilePin.qml", { userId: pendingPin, reauth: true })
         } else if (state === "authed") {
             // UserSelect reads the users kept itself, given none.
-            var autoSignIn = appCore.get_setting(moduleId, "auto_sign_in")
-            if (autoSignIn !== true && autoSignIn !== "ON")
+            if (!root.settingOn(moduleId, "auto_sign_in", false))
                 navigateToView("UserSelect.qml", { reauth: true })
             else
                 navigateToView("Libraries.qml", {})

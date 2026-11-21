@@ -26,7 +26,7 @@ Item {
     readonly property bool monitor: root.monitorInk === true
     readonly property var pal: root.menuPalette || ({})
     // A mark before the line rather than a bar under it.
-    readonly property bool marked: monitor && root.menuLayout !== "Flat Panel"
+    readonly property bool marked: monitor && !root.flatLayout
     // The palette's colours with the scheme's to fall back on: as a layout
     // is changed the palette goes a moment before `monitor` follows it.
     readonly property color ink: monitor && pal.ink !== undefined ? pal.ink : root.surfaceColor

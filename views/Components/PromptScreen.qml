@@ -45,9 +45,14 @@ Item {
     property var choices: []
     property int currentIndex: 0
     // The answer the mouse is over (Main.qml's followPointer()): the host
-    // moves its cursor there (onHovered), as it does for ▲ ▼.
+    // moves its cursor there (onHovered), as it does for ▲ ▼. A row of the
+    // answers' own list alone: the frame's column, drawn again beside them
+    // in Camcorder, is a list too, and the mouse over one of its icons is
+    // over no answer.
     signal hovered(int index)
-    function hoverRow(index) {
+    function hoverRow(index, list) {
+        if (list !== answers)
+            return
         if (index >= 0 && index < choices.length && !(choices[index] && choices[index].divider))
             hovered(index)
     }
@@ -64,7 +69,8 @@ Item {
     // Asked in the layout's frame, where one is up (its ground's inLayout):
     // on unless a host turns it off. And what follows from it (asked):
     // whether a monitor layout's frame is round it, Flat Panel's mixed case,
-    // and whether what it is about and the answers go in the pane.
+    // whether Camcorder's column is beside it, and whether what it is about
+    // and the answers go in the pane.
     // All four are aliases, declared after `content`, so that `content`
     // keeps its place among the properties: PressPrompt's own `content` is an
     // alias of it, which a QML cache kept from an earlier version holds by
@@ -76,8 +82,9 @@ Item {
     QtObject {
         id: asked
         readonly property bool monitor: ground.inLayout && root.monitorInk === true
-        readonly property bool mixedCase: monitor && root.menuLayout === "Flat Panel"
-        readonly property bool paned: monitor || root.framed === true
+        readonly property bool mixedCase: monitor && root.flatLayout
+        readonly property bool columned: ground.inLayout && root.framed === true
+        readonly property bool paned: monitor || columned
     }
 
     anchors.fill: parent
@@ -92,9 +99,10 @@ Item {
     }
 
     // The frame's column again, over that ground, as the shell has it under
-    // the view: its icons, the one framed, where it stands.
+    // the view: its icons, the one framed, where it stands. Not for one
+    // asked over the whole screen.
     Loader {
-        active: prompt.visible && root.framed === true
+        active: prompt.visible && asked.columned
         sourceComponent: IconColumn {
             x: root.frameColumn.x
             y: root.frameColumn.y
@@ -155,89 +163,159 @@ Item {
         }
 
         // The answers, as many as maxChoices at a time, the cursor's among
-        // them.
+        // them. A line between groups ({ divider: true }) is drawn in a strip
+        // of its own, thinner than an answer, and the window has room for it
+        // over its maxChoices answers: it never costs one of them. Only
+        // whole lines show, and never more than maxChoices answers.
         Item {
             visible: prompt.choices.length > 0
             width: parent.width
-            height: answers.height
+            height: answers.windowHeight
 
-            ListView {
-                id: answers
-                readonly property real rowHeight: root.menuRowHeight
+            Item {
+                id: wholeLines
+                // The lines wholly in the window where the list stands now.
+                readonly property var span: (answers.contentY, answers.originY, answers.contentHeight,
+                                             answers.count, answers.windowHeight, prompt.maxChoices,
+                                             answers.shownSpan())
+                y: span.top
                 width: parent.width
-                // By the answers it is given, which it has as it is made,
-                // not by its count, which it has only once made: a window
-                // made as its question opens (ChoiceOverlay) then draws all
-                // its answers at once, not from the next frame on.
-                height: Math.min(prompt.choices.length, prompt.maxChoices) * rowHeight
+                height: span.bottom - span.top
                 clip: true
-                interactive: false
-                highlightFollowsCurrentItem: false
-                model: prompt.choices
 
-                // The cursor's answer in view, as the cursor moves and as the
-                // answers change.
-                function keep() {
-                    if (prompt.currentIndex >= 0 && prompt.currentIndex < count)
-                        positionViewAtIndex(prompt.currentIndex, ListView.Contain)
-                }
-                onCountChanged: Qt.callLater(keep)
+                ListView {
+                    id: answers
+                    readonly property real rowHeight: root.menuRowHeight
+                    readonly property real ruleHeight: Math.round(rowHeight / 2)
+                    y: -wholeLines.y
+                    width: parent.width
+                    // By the answers it is given, which it has as it is made,
+                    // not by its count, which it has only once made: a window
+                    // made as its question opens (ChoiceOverlay) then draws
+                    // all its answers at once, not from the next frame on.
+                    height: windowHeight
+                    interactive: false
+                    highlightFollowsCurrentItem: false
+                    model: prompt.choices
 
-                delegate: Item {
-                    id: answer
-                    readonly property bool current: index === prompt.currentIndex
-                    readonly property bool divider: typeof modelData === "object" && !!modelData.divider
-                    readonly property bool starts: typeof modelData === "object" && !!modelData.starts
-                    width: answers.width
-                    height: answers.rowHeight
-
-                    // A line between groups: a rule across the middle half.
-                    Rectangle {
-                        visible: answer.divider
-                        anchors.centerIn: parent
-                        width: Math.round(parent.width * 0.5)
-                        height: root.px
-                        color: root.primaryColor
-                        antialiasing: false
+                    function isRule(i) {
+                        var c = prompt.choices[i]
+                        return c !== null && c !== undefined && typeof c === "object" && !!c.divider
+                    }
+                    function lineHeight(i) {
+                        return isRule(i) ? ruleHeight : rowHeight
+                    }
+                    // The window's height: the tallest run of up to
+                    // maxChoices answers, with the lines among them.
+                    readonly property real windowHeight: {
+                        var n = prompt.choices.length
+                        var tallest = 0
+                        for (var s = 0; s < n; s++) {
+                            if (isRule(s))
+                                continue
+                            var h = 0
+                            var answered = 0
+                            for (var j = s; j < n && answered < prompt.maxChoices; j++) {
+                                h += lineHeight(j)
+                                if (!isRule(j)) {
+                                    answered++
+                                    tallest = Math.max(tallest, h)
+                                }
+                            }
+                        }
+                        return tallest
+                    }
+                    // Where the whole lines in the window begin and end, from
+                    // its top: the first that starts in it, to the last that
+                    // ends in it, maxChoices answers at most. By the lines as
+                    // the list has laid them out (those in and around the
+                    // window are always made).
+                    function shownSpan() {
+                        var top = -1
+                        var bottom = 0
+                        var answered = 0
+                        for (var i = 0; i < count; i++) {
+                            var item = itemAtIndex(i)
+                            if (!item)
+                                continue
+                            var y = item.y - contentY
+                            if (top < 0 && y >= -0.5)
+                                top = y
+                            if (top < 0)
+                                continue
+                            if (y + item.height > windowHeight + 0.5 || (!isRule(i) && answered === prompt.maxChoices))
+                                break
+                            if (!isRule(i))
+                                answered++
+                            bottom = y + item.height
+                        }
+                        return top < 0 ? { top: 0, bottom: 0 } : { top: top, bottom: bottom }
                     }
 
-                    // The answer under the cursor, boxed, or in the skin's
-                    // picture of a selected line (Settings → Look → Skin):
-                    // its ▶ and its label.
-                    SelectionBox {
-                        id: answerBox
-                        anchors.fill: line
-                        visible: answer.current && !answer.divider
+                    // The cursor's answer in view, as the cursor moves and as
+                    // the answers change.
+                    function keep() {
+                        if (prompt.currentIndex >= 0 && prompt.currentIndex < count)
+                            positionViewAtIndex(prompt.currentIndex, ListView.Contain)
                     }
+                    onCountChanged: Qt.callLater(keep)
 
-                    Row {
-                        id: line
-                        visible: !answer.divider
-                        anchors.centerIn: parent
-                        leftPadding: root.sw * 0.009375 //6
-                        rightPadding: root.sw * 0.009375 //6
-                        spacing: answer.starts ? root.sw * 0.0125 : 0 //8
+                    delegate: Item {
+                        id: answer
+                        readonly property bool current: index === prompt.currentIndex
+                        readonly property bool divider: typeof modelData === "object" && !!modelData.divider
+                        readonly property bool starts: typeof modelData === "object" && !!modelData.starts
+                        width: answers.width
+                        height: divider ? answers.ruleHeight : answers.rowHeight
 
-                        PixelIcon {
-                            visible: answer.starts
-                            name: "play"
-                            color: answer.current ? answerBox.ink : root.primaryColor
-                            anchors.verticalCenter: parent.verticalCenter
+                        // A line between groups: a rule across the middle half.
+                        Rectangle {
+                            visible: answer.divider
+                            anchors.centerIn: parent
+                            width: Math.round(parent.width * 0.5)
+                            height: root.px
+                            color: root.primaryColor
+                            antialiasing: false
                         }
 
-                        Text {
-                            id: label
-                            width: Math.min(implicitWidth, answers.width - line.leftPadding - line.rightPadding
-                                            - (answer.starts ? line.spacing + root.px * 7 : 0))
-                            textFormat: Text.PlainText
-                            text: typeof modelData === "string" ? modelData : (modelData.label || "")
-                            color: answer.current ? answerBox.ink : root.primaryColor
-                            font.family: root.globalFont
-                            font.capitalization: prompt.mixedCase ? Font.MixedCase : Font.AllUppercase
-                            font.pixelSize: root.sh * 0.05 //24
-                            elide: Text.ElideRight
-                            topPadding: root.sh * 0.0041667 //2
-                            bottomPadding: root.sh * 0.00625 //3
+                        // The answer under the cursor, boxed, or in the skin's
+                        // picture of a selected line (Settings → Look → Skin):
+                        // its ▶ and its label.
+                        SelectionBox {
+                            id: answerBox
+                            anchors.fill: line
+                            visible: answer.current && !answer.divider
+                        }
+
+                        Row {
+                            id: line
+                            visible: !answer.divider
+                            anchors.centerIn: parent
+                            leftPadding: root.sw * 0.009375 //6
+                            rightPadding: root.sw * 0.009375 //6
+                            spacing: answer.starts ? root.sw * 0.0125 : 0 //8
+
+                            PixelIcon {
+                                visible: answer.starts
+                                name: "play"
+                                color: answer.current ? answerBox.ink : root.primaryColor
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Text {
+                                id: label
+                                width: Math.min(implicitWidth, answers.width - line.leftPadding - line.rightPadding
+                                                - (answer.starts ? line.spacing + root.px * 7 : 0))
+                                textFormat: Text.PlainText
+                                text: typeof modelData === "string" ? modelData : (modelData.label || "")
+                                color: answer.current ? answerBox.ink : root.primaryColor
+                                font.family: root.globalFont
+                                font.capitalization: prompt.mixedCase ? Font.MixedCase : Font.AllUppercase
+                                font.pixelSize: root.sh * 0.05 //24
+                                elide: Text.ElideRight
+                                topPadding: root.sh * 0.0041667 //2
+                                bottomPadding: root.sh * 0.00625 //3
+                            }
                         }
                     }
                 }
@@ -245,9 +323,56 @@ Item {
 
             // ▲ / ▼ while answers are hidden above or below.
             ScrollMarks {
-                anchors.fill: answers
+                anchors.fill: parent
                 list: answers
                 pages: false
+            }
+        }
+
+        // What the answer under the cursor means, for an answer that says
+        // ({ label, action, description }: Host LAN Game's advice), its
+        // lines one under another. The room the longest of them takes is
+        // kept while any answer has one (each laid out unseen, `sizes`), so
+        // the answers stay where they are as the cursor moves.
+        Item {
+            readonly property var notes: Array.from(prompt.choices || []).map(function(c) {
+                return c !== null && typeof c === "object" && c.description ? String(c.description) : ""
+            })
+            visible: notes.some(function(n) { return n !== "" })
+            width: parent.width
+            height: sizes.childrenRect.height
+
+            Item {
+                id: sizes
+                visible: false
+                width: parent.width
+                Repeater {
+                    model: parent.parent.notes
+                    Text {
+                        required property string modelData
+                        width: sizes.width
+                        textFormat: Text.PlainText
+                        text: modelData
+                        font: note.font
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Text {
+                id: note
+                objectName: "choiceNote"
+                readonly property var choice: prompt.choices[prompt.currentIndex]
+                width: parent.width
+                textFormat: Text.PlainText
+                text: choice !== undefined && choice !== null && typeof choice === "object" && choice.description
+                      ? String(choice.description) : ""
+                color: root.primaryColor
+                font.family: root.globalFont
+                font.capitalization: prompt.mixedCase ? Font.MixedCase : Font.AllUppercase
+                font.pixelSize: root.sh * 0.0375 //18
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
             }
         }
     }

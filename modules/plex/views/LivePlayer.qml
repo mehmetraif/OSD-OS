@@ -20,7 +20,7 @@ FocusScope {
     property string sessionId:     ""
     property string streamUrl:     ""
     property string plexToken:     ""
-    property bool   playbackStarted: false
+    property alias  playbackStarted: session.started
     property bool   exiting:        false
     // Waiting for the server to tune the channel: its failure is the
     // channel's, not an error elsewhere's.
@@ -28,20 +28,13 @@ FocusScope {
 
     focus: true
 
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
-
     // Tune the channel. tune_channel resolves asynchronously through
     // onStreamUrlReady, which loads the resulting HLS stream into mpv.
     function tune() {
         if (!channel.channelId) { goBack(); return }
         playbackStarted = false
         streamUrl = ""
-        sessionId = newSessionId()
+        sessionId = plexBackend.new_session_id()
         tuning = true
         plexBackend.tune_channel(channel.channelId, sessionId)
     }
@@ -87,19 +80,14 @@ FocusScope {
             event.accepted = true
             return
         }
-        // The keys mpv takes (MpvKeys.js); back quits mpv, and
-        // onPlaybackEnded drives the teardown + goBack. A key's repeats go
-        // as repeats: mpv holds the key down for them, and lets it go as
-        // the key is (Keys.onReleased).
-        var key = MpvKeys.name(event.key)
-        if (key !== "") {
-            mpvController.sendKey(key, event.isAutoRepeat)
-            event.accepted = true
-        }
+        // Back quits mpv, and onPlaybackEnded drives the teardown + goBack.
+        session.forwardKey(event)
     }
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    PlayerSession {
+        id: session
+        player: livePlayerRoot
     }
 
     Connections {
@@ -112,7 +100,7 @@ FocusScope {
             livePlayerRoot.streamUrl = url
             livePlayerRoot.plexToken = plexToken
             // Live always transcodes (HLS): no separate audio/sub tracks to pick.
-            mpvController.loadAndPlay(url, 0, 0, -1, [], [], false, -1, 0.0, plexToken)
+            mpvController.loadAndPlay({ url: url, subTrack: -1, plexToken: plexToken })
         }
 
         function onErrorOccurred(msg) {
@@ -129,10 +117,6 @@ FocusScope {
 
     Connections {
         target: mpvController
-
-        function onPositionChanged(ms) {
-            if (ms > 0) livePlayerRoot.playbackStarted = true
-        }
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             // mpv couldn't play the stream, or it broke off: why, in mpv's

@@ -10,10 +10,10 @@
 #include <QTest>
 #include <QVariantMap>
 
-// Settings → System's Time Zone and Keyboard (SystemSettings), on a stand-in
-// for the system's files (OSDOS_SYSTEM_ROOT) and for osdos-system.socket: what
-// the system has, the zones and layouts offered, and a new one sent as
-// osdos-stop takes it.
+// Settings → System's Time Zone, Keyboard and SSH (SystemSettings), on a
+// stand-in for the system's files (OSDOS_SYSTEM_ROOT) and for
+// osdos-system.socket: what the system has, the zones and layouts offered,
+// and a new one, or SSH on or off, sent as osdos-stop takes it.
 class SystemSettingsTest : public QObject {
     Q_OBJECT
     QTemporaryDir m_root;
@@ -226,6 +226,150 @@ private slots:
 
         qunsetenv("OSDOS_LAUNCHER_API");
         qunsetenv("OSDOS_RUN_DIR");
+    }
+
+    // SSH: on when systemd starts ssh.service (its link in
+    // multi-user.target.wants), only where the helper is; "ssh on" or "ssh
+    // off" sent, and why nobody could sign in yet when the helper says the
+    // app's user has no password and ~/.ssh/authorized_keys has no key.
+    void ssh() {
+        QTemporaryDir home;
+        QVERIFY(home.isValid());
+        const QByteArray homeBefore = qgetenv("HOME");
+        qputenv("HOME", home.path().toUtf8());
+        write(QStringLiteral("/usr/lib/systemd/system/ssh.service"), "[Unit]\nDescription=OpenBSD Secure Shell server\n");
+        const QString wants = m_root.path() + QStringLiteral("/etc/systemd/system/multi-user.target.wants/ssh.service");
+        QVERIFY(QDir().mkpath(QFileInfo(wants).path()));
+        const auto enable = [&wants](bool on) {
+            QFile::remove(wants);
+            if (on)
+                QFile::link(QStringLiteral("/usr/lib/systemd/system/ssh.service"), wants);
+        };
+
+        // Off the image: off, whatever the system has, and nothing asked.
+        enable(true);
+        {
+            SystemSettings settings;
+            QVERIFY(!settings.available());
+            QVERIFY(!settings.ssh());
+            QVERIFY(!settings.setSsh(true));
+            QVERIFY(!settings.setSsh(false));
+            QVERIFY(!settings.busy());
+            QCOMPARE(settings.message(), QString());
+            QCOMPARE(settings.sshNote(), QString());
+        }
+
+        QTemporaryDir run;
+        QVERIFY(run.isValid());
+        qputenv("OSDOS_RUN_DIR", run.path().toUtf8());
+        qputenv("OSDOS_LAUNCHER_API", "10");
+        QLocalServer server;
+        QVERIFY(server.listen(run.path() + QStringLiteral("/osdos-system.sock")));
+        QByteArrayList asked;
+        QByteArray reply = "ok\n";
+        connect(&server, &QLocalServer::newConnection, &server, [&server, &asked, &reply, &enable] {
+            QLocalSocket *socket = server.nextPendingConnection();
+            connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
+            connect(socket, &QLocalSocket::readyRead, socket, [socket, &asked, &reply, &enable] {
+                if (!socket->canReadLine())
+                    return;
+                asked << socket->readLine();
+                // The service as systemctl would leave it.
+                if (reply.startsWith("ok"))
+                    enable(asked.last() == "ssh on\n");
+                socket->write(reply);
+                socket->flush();
+                socket->disconnectFromServer();
+            });
+        });
+
+        // What systemd has: on, then off once read again.
+        SystemSettings settings;
+        QVERIFY(settings.available());
+        QVERIFY(settings.ssh());
+        QCOMPARE(settings.sshNote(), QString());
+        QSignalSpy changed(&settings, &SystemSettings::changed);
+        enable(false);
+        settings.refresh();
+        QVERIFY(!settings.ssh());
+        QCOMPARE(changed.size(), 1);
+        // As the system has it already: nothing sent.
+        QVERIFY(!settings.setSsh(false));
+        QVERIFY(asked.isEmpty());
+
+        // On, with no password for the app's user (the helper's word) and no
+        // key: said why nobody can sign in yet.
+        reply = "ok no-password\n";
+        QSignalSpy busy(&settings, &SystemSettings::busyChanged);
+        QVERIFY(settings.setSsh(true));
+        QVERIFY(settings.busy());
+        // One at a time.
+        QVERIFY(!settings.setSsh(false));
+        QVERIFY(!settings.setTimeZone(QStringLiteral("Europe/Berlin")));
+        QTRY_VERIFY(!settings.busy());
+        QCOMPARE(busy.size(), 2);
+        QCOMPARE(asked, QByteArrayList({ "ssh on\n" }));
+        QVERIFY(settings.ssh());
+        QCOMPARE(settings.message(), QStringLiteral("SSH on"));
+        QCOMPARE(settings.sshNote(), QStringLiteral("Set a password or a key with OSD/OS Setup first"));
+        QVERIFY(!settings.setSsh(true));
+        QCOMPARE(asked.size(), 1);
+        // A key in ~/.ssh/authorized_keys (a comment and a line that isn't
+        // one don't count): someone can.
+        QVERIFY(QDir().mkpath(home.path() + QStringLiteral("/.ssh")));
+        QFile keys(home.path() + QStringLiteral("/.ssh/authorized_keys"));
+        QVERIFY(keys.open(QIODevice::WriteOnly));
+        keys.write("# none yet\nnot a key\n");
+        keys.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), QStringLiteral("Set a password or a key with OSD/OS Setup first"));
+        QVERIFY(keys.open(QIODevice::Append));
+        keys.write("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented den@laptop\n");
+        keys.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), QString());
+        QVERIFY(keys.remove());
+
+        // Off: nothing to say.
+        reply = "ok\n";
+        QVERIFY(settings.setSsh(false));
+        QTRY_VERIFY(!settings.busy());
+        QCOMPARE(asked.last(), QByteArray("ssh off\n"));
+        QVERIFY(!settings.ssh());
+        QCOMPARE(settings.message(), QStringLiteral("SSH off"));
+        QCOMPARE(settings.sshNote(), QString());
+        // On, the app's user with a password: nothing to say, key or none.
+        QVERIFY(settings.setSsh(true));
+        QTRY_VERIFY(!settings.busy());
+        QVERIFY(settings.ssh());
+        QCOMPARE(settings.sshNote(), QString());
+
+        // Refused: why, on what it had.
+        reply = "it didn't stop\n";
+        QVERIFY(settings.setSsh(false));
+        QTRY_VERIFY(!settings.busy());
+        QCOMPARE(asked.last(), QByteArray("ssh off\n"));
+        QVERIFY(settings.ssh());
+        QCOMPARE(settings.message(), QStringLiteral("SSH not turned off: it didn't stop"));
+        enable(false);
+        settings.refresh();
+        reply = "systemctl couldn't enable it\n";
+        QVERIFY(settings.setSsh(true));
+        QTRY_VERIFY(!settings.busy());
+        QVERIFY(!settings.ssh());
+        QCOMPARE(settings.message(), QStringLiteral("SSH not turned on: systemctl couldn't enable it"));
+        // An image's helper from before SSH: its refusal said.
+        reply = "nothing this sets\n";
+        QVERIFY(settings.setSsh(true));
+        QTRY_VERIFY(!settings.busy());
+        QVERIFY(!settings.ssh());
+        QCOMPARE(settings.message(), QStringLiteral("SSH not turned on: nothing this sets"));
+        QCOMPARE(asked.size(), 6);
+
+        server.close();
+        qunsetenv("OSDOS_LAUNCHER_API");
+        qunsetenv("OSDOS_RUN_DIR");
+        qputenv("HOME", homeBefore);
     }
 };
 

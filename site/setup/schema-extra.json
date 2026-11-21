@@ -7,11 +7,8 @@
         { "key": "osd_theme", "label": "Theme", "type": "choice", "options": [["None", ""]], "options_from": "themes", "default": "",
           "view": "basic",
           "help": "The whole look in one: the color scheme, the skin, the effects and the menu music. [NONE] OSD/OS's own. The rows below left at THEME follow it." },
-        { "key": "orb_fog", "label": "Orb Fog", "type": "choice", "default": "Picture", "options": ["Picture", "Live"],
-          "shown_with": { "key": "osd_theme", "value": "orb" },
-          "help": "The fog drifting behind the Arcade screen's panels in the Orb look. [PICTURE] A picture of fog, light on the GPU. [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU." },
         { "key": "color_scheme", "theme_part": true, "label": "Color Scheme", "type": "choice", "default": "",
-          "options": [["Theme", ""], "Video 1", "Late Night", "Synthwave", "Terminal", "T-120", "Amber", "Kinescope", "SMPTE ECR 1-1978"],
+          "options": [["Theme", ""], "Video 1", "Late Night", "Synthwave", "Terminal", "T-120", "Amber", "Kinescope", ["SMPTE ECR", "SMPTE ECR 1-1978"]],
           "help": "The two colors everything is drawn in. [THEME] The theme's, else Video 1." },
         { "key": "skin", "theme_part": true, "label": "Skin", "type": "choice", "default": "", "options": [["Theme", ""], ["None", "Off"]], "options_from": "skins",
           "help": "How the window is dressed: its frame, the title and hint bars, the selected line and the icons. [THEME] The theme's, else OSD/OS's own." },
@@ -19,7 +16,7 @@
           "options": [["Theme", ""], "Off", "Rainbow", "Shimmer", "Glow", "Flicker"],
           "help": "What the text, the lines and the bars do, on the GPU. [THEME] The theme's, else off." },
         { "key": "background_effect", "theme_part": true, "label": "Background Effect", "type": "choice", "default": "",
-          "options": [["Theme", ""], "Off", "Matrix", "Fire", "Stars", "Snow", "Checkered Flag", "Plasma"],
+          "options": [["Theme", ""], "Off", "Matrix", "Fire", "Stars", "Snow", ["Flag", "Checkered Flag"], "Plasma"],
           "help": "What goes on behind the menus, in the window, on the GPU. [THEME] The theme's, else off." },
         { "key": "selector_effect", "theme_part": true, "label": "Selector Effect", "type": "choice", "default": "",
           "options": [["Theme", ""], "Off", "Sparkles", "Welding", "Lightning", "Rainbow", "Snow"],
@@ -30,6 +27,9 @@
         { "key": "transition", "theme_part": true, "label": "Transition", "type": "choice", "default": "",
           "options": [["Theme", ""], "Off", "Fade", "Cube", "Ripple", "Wave", "Drop"],
           "help": "How one window gives way to the next. [THEME] The theme's, else off." },
+        { "key": "orb_fog", "label": "Orb Fog", "type": "choice", "default": "Picture", "options": ["Picture", "Live"],
+          "shown_with": { "key": "osd_theme", "value": "orb" },
+          "help": "The fog drifting behind the Arcade screen's panels in the Orb look. [PICTURE] A picture of fog, light on the GPU. [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU." },
         { "key": "menu_music", "theme_part": true, "label": "Menu Music", "type": "choice", "default": "",
           "options": [["Theme", ""], "Off", "File"],
           "help": "A tune under the menus, never while a video plays. [THEME] The theme's, if it has one. [FILE] A file of your own, below." },
@@ -42,31 +42,35 @@
           "help": "How loud the menu music is." },
         { "key": "menu_layout", "label": "Menu Layout", "type": "choice", "default": "Standard", "options": ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"],
           "help": "How Settings and the main menu are laid out. [STANDARD] A list, a page at a time. [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column that stays in place, the rows of the one chosen beside it. [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first. [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select. [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps." },
-        { "key": "osd_background", "label": "OSD Background", "type": "choice", "default": "Full", "options": ["Full", "Off", "Window"],
-          "help": "What the menus are drawn on. [FULL] The color scheme's background, all over. [OFF] None, the menus on black like a deck's on-screen display. [WINDOW] A framed window of it behind the menus, black around it." },
-        { "key": "osd_frame", "label": "Window Frame", "type": "choice", "default": "On", "options": ["On", "Off", "Shadow"],
+        { "key": "osd_background", "label": "OSD Background", "type": "choice", "default": "Full", "options": ["Full", "Off", ["Box", "Window"]],
+          "help": "What the menus are drawn on. [FULL] The color scheme's background, all over. [OFF] None, the menus on black like a deck's on-screen display. [BOX] A framed box of it behind the menus, black around it." },
+        { "key": "osd_frame", "label": "OSD Frame", "type": "choice", "default": "On", "options": ["On", "Off", "Shadow"],
           "shown_with": { "key": "osd_background", "value": "Window" },
-          "help": "The frame of the OSD Background's window. [SHADOW] The line and a shadow below and to the right, like a DOS window's." },
-        { "key": "startup_module", "label": "Start on Module", "type": "choice", "default": "None", "options": [["None", "None"]], "options_from": "modules",
+          "help": "The frame of the OSD Background's box. [SHADOW] The line and a shadow below and to the right, like a DOS window's." },
+        { "key": "startup_module", "label": "Start On", "type": "choice", "default": "None", "options": [["None", "None"]], "options_from": "modules",
           "view": "basic",
           "help": "Open straight into a module as OSD/OS starts. The module is turned on with it." },
-        { "key": "monitor", "label": "Monitor", "type": "choice", "default": "Horizontal", "options": ["Horizontal", "Turned Right", "Turned Left"],
+        { "key": "monitor", "label": "Rotation", "type": "choice", "default": "Horizontal", "options": [["None", "Horizontal"], "Turned Right", "Turned Left"],
           "view": "basic",
-          "help": "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets. [TURNED RIGHT] Its top on the right as you face it. [TURNED LEFT] Its top on the left." },
-        { "key": "display_index", "label": "Display", "type": "choice", "default": "0",
+          "help": "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets. [NONE] The monitor stands as monitors do. [TURNED RIGHT] Its top on the right as you face it. [TURNED LEFT] Its top on the left." },
+        { "key": "display_index", "label": "Use Display", "type": "choice", "default": "0",
           "options": [["First", "0"], ["Second", "1"], ["Third", "2"], ["Fourth", "3"]],
           "help": "Which display a computer with several opens OSD/OS on, and plays its videos on, from its next start. A Raspberry Pi has one." },
-        { "key": "boot_colors", "label": "Boot Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
-          "help": "The colours of the boot screen, with its cassette. [THEME] The theme's or color scheme's. [DEFAULT] White on blue." },
+        { "key": "loading_effect", "label": "Loading Effect", "type": "toggle", "on": "On", "off": "Off", "default": "On",
+          "help": "While a video loads, a tape's noise and tracking bands roll over its counters." },
+        { "key": "loading_colors", "label": "Loading Colors", "type": "choice", "default": "Theme", "options": [["Menu", "Theme"], ["Blue", "Default"]],
+          "help": "The colors of the screen a video loads behind. [MENU] The menus' own, a theme's or the color scheme's. [BLUE] White on blue." },
+        { "key": "boot_colors", "label": "Boot Colors", "type": "choice", "default": "Theme", "options": [["Menu", "Theme"], ["Blue", "Default"]],
+          "help": "The colors of the boot screen, with its cassette. [MENU] The menus' own, a theme's or the color scheme's. [BLUE] White on blue." },
         { "key": "hint_bar", "label": "Hint Bar", "type": "toggle", "on": "On", "off": "Off", "default": "On",
           "help": "The key hints on the bar at the foot of every screen." },
         { "key": "help_line", "label": "Help Line", "type": "toggle", "on": "On", "off": "Off", "default": "On",
           "help": "The box under a menu with a line about the selected row." },
         { "key": "status_icons", "label": "Status Icons", "type": "toggle", "on": "On", "off": "Off", "default": "On",
           "help": "What is on, at the top right of the title bar: Wi-Fi's signal, Bluetooth, and the Arcade's high scores, trophy, globe and network." },
-        { "key": "screensaver_timeout", "label": "Screen Saver", "type": "choice", "default": "OFF",
-          "options": [["Off", "OFF"], ["30 sec", "30"], ["60 sec", "60"], ["120 sec", "120"]],
-          "help": "Prevent CRT burn-in after seconds of inactivity or pause." },
+        { "key": "screensaver_timeout", "label": "Screen Saver", "type": "choice", "default": "300", "nearest": true,
+          "options": [["Off", "OFF"], ["1 min", "60"], ["2 min", "120"], ["5 min", "300"], ["10 min", "600"]],
+          "help": "A picture moving over the screen after this long without a key, in the menus or on a paused video, against a CRT's burn-in. [OFF] Never." },
         { "key": "mouse_pointer", "label": "Mouse Pointer", "type": "choice", "default": "5",
           "options": [["Off", "off"], ["2 sec", "2"], ["5 sec", "5"], ["10 sec", "10"], ["30 sec", "30"], ["Always", "always"]],
           "help": "A mouse's pointer shows as it moves, and goes again after these seconds without moving." }
@@ -80,21 +84,17 @@
         { "key": "transparent_background", "label": "Transparent Background", "type": "slider_off", "min": 0, "max": 100, "step": 10, "off": "Off", "default": "Off", "on_default": 40,
           "start_text": "TRANSPARENT", "end_text": "SOLID", "legacy": { "on": 0, "dim": 60 },
           "help": "How much of a video shows through the menus when back returns to them and leaves it playing behind. [SOLID] None of it, but it plays on, sound and all. Off: back stops the video, as it always has." },
+        { "key": "info_screen", "label": "Info Screen", "type": "choice", "default": "3",
+          "options": [["Off", "off"], ["With ►", "key"], ["1 sec", "1"], ["2 sec", "2"], ["3 sec", "3"], ["5 sec", "5"]],
+          "help": "A film's details in Netflix, Prime Video and YouTube: with right on a film, and with a time also on its own once the cursor has rested on the film that long. [WITH ►] Only with right on a film. [OFF] Never." },
         { "key": "video_output_levels", "label": "Video Levels", "type": "choice", "default": "Auto", "options": ["Auto", "Limited", "Full"],
           "help": "Match the color range your display expects. [LIMITED] If blacks crush. [FULL] If blacks look gray." },
-        { "key": "loading_effect", "label": "Loading Effect", "type": "toggle", "on": "On", "off": "Off", "default": "On",
-          "help": "While a video loads, a tape's noise and tracking bands roll over its counters." },
-        { "key": "loading_colors", "label": "Loading Screen Colors", "type": "choice", "default": "Theme", "options": ["Theme", "Default"],
-          "help": "The colours of the screen a video loads behind. [DEFAULT] White on blue." },
         { "key": "video_logo", "label": "Channel Logo", "type": "choice", "default": "off",
           "options": [["Off", "off"], ["Top Left", "tl"], ["Top Right", "tr"], ["Bottom Left", "bl"], ["Bottom Right", "br"], ["All Corners", "all"]],
           "help": "A logo in a corner of the picture while a video plays, like a channel's." },
         { "key": "video_logo_image", "label": "Logo Image", "type": "text", "default": "", "placeholder": "/media/OSD-OS/logo.png",
           "shown_unless": { "key": "video_logo", "value": "off" },
           "help": "The channel logo's picture on the device, a PNG with a clear background best. Empty: OSD/OS's." },
-        { "key": "info_screen", "label": "Info Screen", "type": "choice", "default": "3",
-          "options": [["Off", "off"], ["Key", "key"], ["1 sec", "1"], ["2 sec", "2"], ["3 sec", "3"], ["5 sec", "5"]],
-          "help": "A film's details in Netflix, Prime Video and YouTube. [KEY] With right on a film. [SEC] Also on its own once the cursor rests on it." },
         { "key": "mpv_video_args", "label": "Video Arguments", "type": "text", "default": "", "placeholder": "--vo=gpu --hwdec=no",
           "max_length": 120, "trim": true,
           "help": "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device. Empty: OSD/OS's own." }
@@ -107,50 +107,52 @@
       "options": {
         "shuffle_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
         "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
-        "auto_subtitles": [["Forced Only", "forced"], ["On", "on"], ["Off", "off"]],
+        "auto_subtitles": [["Off", "off"], ["Forced Only", "forced"], ["On", "on"]],
         "sub_lang": "languages",
-        "image_duration": [["5 Seconds", "5"], ["10 Seconds", "10"], ["30 Seconds", "30"], ["60 Seconds", "60"]]
+        "image_duration": [["5 sec", "5"], ["10 sec", "10"], ["30 sec", "30"], ["1 min", "60"]]
       }
     },
     "com.osdos.nfc_reader": {
       "options": {
         "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
-        "auto_subtitles": [["Forced Only", "forced"], ["On", "on"], ["Off", "off"]],
+        "auto_subtitles": [["Off", "off"], ["Forced Only", "forced"], ["On", "on"]],
         "sub_lang": "languages"
       }
     },
     "com.osdos.youtube": {
       "options": {
         "audio_language": [["Original", "original"], ["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]],
-        "subtitle_language": [["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]]
+        "subtitles": [["Off", "Off"], ["On", "On"], ["On+Auto Captions", "With Auto"]],
+        "subtitle_language": [["Any", "-"], ["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]]
       }
     },
     "com.osdos.plex": {
       "options": {
-        "video_quality": [["Direct Play", "auto"], ["8 Mbps (1080p)", "8000"], ["4 Mbps (720p)", "4000"], ["2 Mbps (480p)", "2000"]],
-        "resume_playback": [["Ask", "ask"], ["Always", "yes"]]
+        "video_quality": [["Direct Play", "auto"], ["1080p", "8000"], ["720p", "4000"], ["480p", "2000"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]]
       },
       "defaults": { "video_quality": "auto" },
       "views": { "auto_sign_in": "logins" }
     },
     "com.osdos.jellyfin": {
       "options": {
-        "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
-        "resume_playback": [["Ask", "ask"], ["Always", "always"]]
+        "video_quality": [["Direct Play", "auto"], ["1080p", "1080p"], ["720p", "720p"], ["576p", "576p"], ["480p", "480p"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "always"], ["Never", "never"]]
       },
       "views": { "server_url": "logins" }
     },
     "com.osdos.emby": {
       "options": {
-        "video_quality": [["Direct Play", "auto"], ["480p (NTSC CRT)", "480p"], ["576p (PAL CRT)", "576p"], ["720p", "720p"], ["1080p", "1080p"]],
-        "resume_playback": [["Ask", "ask"], ["Always", "always"]]
+        "video_quality": [["Direct Play", "auto"], ["1080p", "1080p"], ["720p", "720p"], ["576p", "576p"], ["480p", "480p"]],
+        "resume_playback": [["Ask", "ask"], ["Always", "always"], ["Never", "never"]]
       },
       "views": { "server_url": "logins" }
     },
     "com.osdos.arcade": {
       "options": {
         "start_filter": [["All Games", "all"], ["Favorites", "favorites"], ["Recently Played", "recent"], ["LAN Games", "lan"], ["Online Games", "online"], ["RetroArch Lobby", "lobby"], ["RetroAchievements", "achievements"], ["Playable Online", "netplay"], ["Vertical Games", "vertical"]],
-        "regions": [["World", "world"], ["USA", "usa"], ["Europe", "europe"], ["Asia", "asia"], ["Japan", "japan"], ["Korea", "korea"], ["China", "china"], ["Hong Kong", "hong_kong"], ["Taiwan", "taiwan"], ["Hispanic", "hispanic"], ["Brazil", "brazil"], ["Oceania", "oceania"], ["Others", "others"]]
+        "regions": [["World", "world"], ["USA", "usa"], ["Europe", "europe"], ["Asia", "asia"], ["Japan", "japan"], ["Korea", "korea"], ["China", "china"], ["Hong Kong", "hong_kong"], ["Taiwan", "taiwan"], ["Hispanic", "hispanic"], ["Brazil", "brazil"], ["Oceania", "oceania"], ["Others", "others"]],
+        "relay_server": ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"]
       },
       "defaults": { "start_filter": "all" },
       "views": { "online_play": "basic", "lan_play": "basic" },
@@ -169,9 +171,15 @@
       "views": { "location": "basic" }
     },
     "com.osdos.netflix": {
+      "options": {
+        "region": [["Australia", "AU"], ["Canada", "CA"], ["France", "FR"], ["Germany", "DE"], ["Italy", "IT"], ["Netherlands", "NL"], ["Spain", "ES"], ["Turkey", "TR"], ["UK", "GB"], ["USA", "US"]]
+      },
       "views": { "tmdb_api_key": "logins" }
     },
     "com.osdos.prime_video": {
+      "options": {
+        "region": [["Australia", "AU"], ["Canada", "CA"], ["France", "FR"], ["Germany", "DE"], ["Italy", "IT"], ["Netherlands", "NL"], ["Spain", "ES"], ["Turkey", "TR"], ["UK", "GB"], ["USA", "US"]]
+      },
       "views": { "tmdb_api_key": "logins" }
     }
   },

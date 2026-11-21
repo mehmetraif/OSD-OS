@@ -109,13 +109,6 @@ FocusScope {
             subMenuRoot.navigateTo("Items.qml", params, { currentIndex: menuList.currentIndex })
         }
 
-        Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace) {
-                subMenuRoot.goBack()
-                event.accepted = true
-            }
-        }
-
         delegate: Item {
             width: menuList.width
             height: root.menuRowHeight

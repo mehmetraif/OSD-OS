@@ -90,11 +90,11 @@ public:
     void gameEnded(const QString &set);
 
     // A game's pictures, as file URLs, in the order the Arcade screen shows
-    // them: the games folder's snap of it, those numbered after it there
-    // (RetroAchievements' among them), its title screen in the titles
-    // folder, then the first snapshot MAME took of it; a clone's own, else
-    // its parent's. As read with the folder (takeRead()), till the list
-    // opens again, and those downloaded since.
+    // them: its title screen in the titles folder, those numbered after it
+    // in the games folder (RetroAchievements' among them), the games
+    // folder's snap of it, then the first snapshot MAME took of it; a
+    // clone's own, else its parent's. As read with the folder (takeRead()),
+    // till the list opens again, and those downloaded since.
     QStringList picturesOf(const QString &set) const;
     // ArcadeBackend::wantPictures().
     void want(const QString &set);
@@ -103,7 +103,7 @@ public:
     QVariantMap progress() const;
     // ArcadeBackend::downloadPictures(): the look through every game.
     void download();
-    // Settings → Arcade → Pictures From: "RetroAchievements",
+    // Settings → Arcade → Game Pictures → Source: "RetroAchievements",
     // "progetto-SNAPS", "Off", or both for anything else.
     void setSource(const QString &source);
     // Read the Games Again: every game's pictures looked for once the games
@@ -178,7 +178,7 @@ private:
     // RetroAchievements' key is kept, and wasn't refused.
     bool achievementsUsable() const;
     // progetto-SNAPS' pictures of a game without any (picturesOf()), through
-    // ArcadeDB, as Pictures From allows: its screenshot in play saved as
+    // ArcadeDB, as Game Pictures' Source allows: its screenshot in play saved as
     // snap/<set>.png, its title screen as titles/<set>.png, the way the
     // picture packs for MAME lay them out, never over a file there. Asked
     // about once: what ArcadeDB has of each set is noted in the snap
@@ -197,10 +197,9 @@ private:
     void onSnapDownloaded(const QString &set, bool title, const QByteArray &data);
     void finishSnap(const QString &set, bool saved);
     // A picture of RetroAchievements' downloaded for a game, or not (data
-    // empty): saved off the GUI thread as <name>_<n> in the snap folder, n
-    // the first number no picture of that name has there, so that a file
-    // already there, the user's own or one saved before, is never written
-    // over; then its record kept.
+    // empty): saved off the GUI thread as <name>_<n> in the snap folder
+    // (savePicture(), which never writes over a file there); then its record
+    // kept.
     void onPictureDownloaded(const QString &name, const QString &path, const QByteArray &data);
     void finishPicture(const QString &name, bool saved);
     // What kind of picture one saved is, as it goes among a game's: one
@@ -238,7 +237,7 @@ private:
     QHash<QString, QStringList> m_numbered;   // set → the pictures numbered after it there, in turn
     QHash<QString, QString> m_titles;   // set → its title screen in the games folder's titles
     QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
-    // Settings → Arcade → Pictures From: which sources a game's pictures
+    // Settings → Arcade → Game Pictures → Source: which sources a game's pictures
     // come from.
     bool m_picturesAchievements = true;
     bool m_picturesSnaps = true;

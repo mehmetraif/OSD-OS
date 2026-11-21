@@ -35,7 +35,7 @@ Item {
 
     // In a monitor layout's frame, and its rows a page at a time there.
     readonly property bool monitor: root.monitorFramed === true
-    readonly property bool paged: monitor && root.menuLayout === "Flat Panel"
+    readonly property bool paged: monitor && root.flatLayout
 
     anchors.top: parent.top
     anchors.left: parent.left
@@ -59,6 +59,12 @@ Item {
     // list drawn as a module's lists are, without them (LetterList's).
     // Flat Panel's pages either way.
     property bool marks: true
+    // The rows glide after the cursor as ▲ ▼ step it past an edge, as the
+    // ListView follows its current row by itself (its highlightMoveVelocity,
+    // 400 pixels a second), rather than jump to it: a media server's A–Z
+    // lists (LetterList), as Plex's list moved before it was one. Round the
+    // ends, and in Flat Panel's pages, it jumps as any list does.
+    property bool glides: false
 
     // The rows the cursor stops on: every row but a heading, a note, a line
     // read alone and a gap (Hover.js's selectable(), which the mouse keeps
@@ -94,10 +100,43 @@ Item {
             return
         var i = selectableFrom(currentIndex + delta, delta)
         if (stopsAt(i)) {
+            var round = delta > 0 ? i < currentIndex : i > currentIndex
             currentIndex = i
-            show(i)
+            if (!glides || round || paged)
+                show(i)
         }
         moved(delta)
+    }
+
+    // New rows (model) for a list whose lines are read again and again (a
+    // search's networks, the system's facts): given it only as lines come,
+    // go or change places, idOf(row) being which line a row is, whatever it
+    // says now. The same lines in the same places leave the list and its
+    // cursor as they are, the host's delegate changing a line's value or
+    // help where it is; otherwise the cursor goes back to its line, else to
+    // the row now in its place that it stops on.
+    function take(rows, idOf) {
+        var shown = view.model && view.model.length !== undefined ? view.model : []
+        var same = rows.length === shown.length
+        for (var i = 0; i < rows.length && same; i++)
+            same = idOf(rows[i]) === idOf(shown[i])
+        if (same)
+            return
+        var at = currentIndex
+        var current = shown[at]
+        var id = current && selectable(current) ? idOf(current) : undefined
+        view.model = rows
+        if (rows.length === 0)
+            return
+        var index = -1
+        for (i = 0; i < rows.length && index < 0 && id !== undefined; i++) {
+            if (idOf(rows[i]) === id)
+                index = i
+        }
+        if (index < 0)
+            index = selectableFrom(Math.min(Math.max(at, 0), rows.length - 1), 1)
+        currentIndex = index
+        show(index)
     }
 
     // Scrolls so that the row is in view. Rows are whole lines, a slider's

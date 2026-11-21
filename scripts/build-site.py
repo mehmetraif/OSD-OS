@@ -13,7 +13,7 @@ modules/arcade/views/orb/, and the skins' pictures), and schema.json, the
 settings the page offers, read from the app as it is: Settings' own rows
 (site/setup/schema-extra.json), the modules' manifests, the presets
 (os/stage-osdos/03-boot/files, with the names Settings → Screen → Display Output gives
-them in src/display/DisplayOutput.cpp), the themes and skins (assets/), the
+them in its display-presets.json), the themes and skins (assets/), the
 looks Main.qml has (its colour schemes and effects), the subtitle languages,
 and the time zone database's countries and zones.
 
@@ -78,8 +78,13 @@ THEME_RECORDED = {
 
 
 def option(o):
-    """An option as [label, value]: a string is both."""
-    return [o, o] if isinstance(o, str) else [o[0], o[1]]
+    """An option as [label, value]: a string is both; a manifest's
+    { "id", "label" } its label over its id, as the app shows it."""
+    if isinstance(o, str):
+        return [o, o]
+    if isinstance(o, dict):
+        return [o.get("label", o["id"]), o["id"]]
+    return [o[0], o[1]]
 
 
 def help_text(description):
@@ -112,10 +117,24 @@ def looks(folder, file_name):
     return sorted(out, key=lambda o: o[0].lower())
 
 
+def known_conditions(cond):
+    """A manifest row's shown_with as the page can follow it: the conditions
+    on another row of the module's ({ "key", "value" }), one or a list. One
+    on something else (an app setting, the theme) is passed over; with none
+    left the row shows whatever is set."""
+    if not cond:
+        return None
+    if isinstance(cond, dict):
+        return cond if "key" in cond else None
+    kept = [c for c in cond if isinstance(c, dict) and "key" in c]
+    return kept or None
+
+
 def module_settings(manifest, extra):
     """A manifest's rows as the page offers them: those whose values are
     known without the device (submenus' rows flat under the module, as the
-    app keeps them), and the extra ones, each with the page's view it is in
+    app keeps them, and the rows a page of the module's own holds), and the
+    extra ones, each with the page's view it is in
     besides Advanced (views, by key). Views and actions have none."""
     options = extra.get("options", {})
     defaults = extra.get("defaults", {})
@@ -126,12 +145,25 @@ def module_settings(manifest, extra):
         for s in settings:
             key, kind = s.get("key"), s.get("type")
             row = {"key": key, "label": s.get("label", key), "help": help_text(s.get("description"))}
-            if "shown_with" in s:
-                row["shown_with"] = s["shown_with"]
+            shown_with = known_conditions(s.get("shown_with"))
+            if shown_with:
+                row["shown_with"] = shown_with
+            # One on another row's value (Arcade's Attract After, not with
+            # Attract Mode Off), as the page reads it (core.shown()); one on
+            # the theme is the device's alone.
+            unless = s.get("shown_unless")
+            if isinstance(unless, dict) and "key" in unless:
+                row["shown_unless"] = {"key": unless["key"], "value": unless["value"]}
             if key in views:
                 row["view"] = views[key]
             if kind == "submenu":
                 out.append({"type": "heading", "label": s.get("label", "")})
+                walk(s.get("settings", []))
+                continue
+            if kind == "module_view":
+                # A page of the module's own may hold a setting of its own
+                # (Arcade's Game Pictures, its Source), there in its
+                # place among the rows.
                 walk(s.get("settings", []))
                 continue
             if key == "enabled":
@@ -197,38 +229,26 @@ def modules(extra):
         enabled = next((s for s in manifest.get("settings", []) if s.get("key") == "enabled"), {})
         mod_extra = extra["modules"].get(mid, {})
         group = manifest.get("settings_group", "")
-        out.append({
+        place = manifest.get("menu_order")
+        if isinstance(place, bool) or not isinstance(place, (int, float)):
+            place = None
+        out.append((place, {
             "id": mid,
             "name": manifest["name"],
-            # The main menu lists the modules in their folders' order.
             "folder": path.parent.name,
             "group": groups.get(group, groups[""]),
             "enabled": str(enabled.get("default", "ON")).upper() != "OFF",
             "settings": module_settings(manifest, mod_extra),
             "retroachievements": bool(mod_extra.get("retroachievements")),
-        })
+        }))
+    # The main menu's order, as AppCore makes it (AppCore::menuOrderBefore()):
+    # by group (TV / Movie, Arcade, the rest), within a group by the
+    # manifest's "menu_order", lower first and a module without one after
+    # those with one, then by name.
     order = list(dict.fromkeys(groups.values()))
-    return sorted(out, key=lambda m: (order.index(m["group"]), m["name"].lower()))
-
-
-def preset_models(pid):
-    """The boards a preset is for, as Settings → Screen → Display Output offers it
-    (DisplayOutput.cpp's boardHas()): keep the two in step."""
-    if pid == "hdmi":
-        return ["pi3", "pi4", "pi5"]
-    if pid.startswith("crt-gpio-"):
-        return ["pi5"]
-    if pid.startswith("crt-"):
-        return ["pi3", "pi4", "pi5"]
-    if pid in ("scart-rgb-ntsc", "scart-rgb-pal"):
-        return ["pi3", "pi4", "pi5"]
-    if pid.startswith("scart-rgb-"):
-        return ["pi3", "pi4"]
-    if pid in ("jamma-480i", "jamma-480i-640", "jamma-576i"):
-        return ["pi3", "pi4"]
-    if pid.startswith("jamma-"):
-        return ["pi3", "pi4", "pi5"]
-    return []
+    out.sort(key=lambda pm: (order.index(pm[1]["group"]), pm[0] is None, pm[0] or 0,
+                             pm[1]["name"].lower(), pm[1]["folder"]))
+    return [m for _, m in out]
 
 
 def preset_about(text):
@@ -246,24 +266,22 @@ def preset_about(text):
 
 
 def presets():
-    source = (ROOT / "src/display/DisplayOutput.cpp").read_text()
-    # The warnings said as a preset is chosen: a constant of one or more
-    # string literals.
-    warnings = {name: "".join(re.findall(r'"([^"]*)"', literals))
-                for name, literals in re.findall(r'constexpr const char \*(k\w+) =\s*((?:"[^"]*"\s*)+);', source)}
+    """The presets with the names, boards and warnings Settings → Screen →
+    Display Output gives them (display-presets.json, which the app has built
+    in)."""
     out = []
-    for pid, label, warning in re.findall(
-            r'\{\s*"([a-z0-9-]+)",\s*"([^"]+)",\s*\d+,\s*\d+(?:,\s*(k\w+))?\s*\}', source):
+    for preset in json.loads((PRESETS / "display-presets.json").read_text())["presets"]:
+        pid = preset["id"]
         path = PRESETS / f"osdos-display-{pid}.txt"
         if not path.is_file():
             sys.exit(f"build-site: {path} is missing for the preset {pid}")
         text = path.read_text()
-        out.append({"id": pid, "label": label, "models": preset_models(pid),
-                    "about": preset_about(text), "warning": warnings.get(warning, "")})
+        out.append({"id": pid, "label": preset["label"], "models": preset["boards"],
+                    "about": preset_about(text), "warning": preset.get("warning", "")})
     files = {p.name for p in PRESETS.glob("osdos-display-*.txt")}
     named = {f"osdos-display-{p['id']}.txt" for p in out}
     if files != named:
-        sys.exit(f"build-site: presets without a name in DisplayOutput.cpp: {sorted(files - named)}")
+        sys.exit(f"build-site: presets not in display-presets.json: {sorted(files - named)}")
     return out
 
 
@@ -319,7 +337,7 @@ def qml_block(source, name):
 
 
 def skin_part(value, folder, served):
-    """One of a skin's pictures as AppCore's skinImage() reads it: { source,
+    """One of a skin's pictures as skinImage() (src/util/Looks.cpp) reads it: { source,
     border: [left, top, right, bottom], tile }, its picture copied where the
     page has it (served: its folder there). As lookFile() takes one: a PNG,
     GIF or BMP in the look's folder, none out of it, through a link either.

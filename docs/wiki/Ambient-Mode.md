@@ -17,7 +17,7 @@ A backdrop for the room: a video of your choice plays on a loop, with music of y
    | OSD/OS image, Raspberry Pi OS, SteamOS | `~/.local/share/OSD-OS/ambient/` |
    | macOS | `~/Library/Application Support/OSD-OS/ambient/` |
 
-   Or pick another with Settings → TV / Movie → Ambient:Mode → **Media Directory**: USE THIS FOLDER picks the folder open, Default Folder the module's own. On the OSD/OS image, make an `Ambient` folder on the card's **OSD-OS** drive from a computer, then pick `/media/OSD-OS/Ambient`.
+   Or pick another with Settings → TV / Movie → Ambient:Mode → **Media Folder**: USE THIS FOLDER picks the folder open, Default Folder the module's own. On the OSD/OS image, make an `Ambient` folder on the card's **OSD-OS** drive from a computer, then pick `/media/OSD-OS/Ambient`.
 3. Open **Ambient:Mode** from the main menu.
 
 Only files directly in the folder are listed, by name, and only these types (in any case):
@@ -38,9 +38,9 @@ Other audio mpv plays (Opus, for one) can go in an `m3u` ([below](https://github
 
 The rows wrap, so SHUFFLE is one ◄ from each row's first choice.
 
-▲ ▼ move between the rows. ◄ ►, or a gamepad's shoulder buttons, change the video or the audio. Select on **START** plays, and back leaves.
+▲ ▼ move between the rows. ◄ ►, or a gamepad's shoulder buttons, change the video or the audio. Select plays from any row, the cursor's first one (Video) too, and back leaves. The hint bar reads `[ENTER]:START`.
 
-With no video in the folder, the screen says **No items found: Please add items in the ambient:mode media directory**. Audio files alone don't count.
+With no video in the folder, the screen says **No items found: Add videos to the Ambient:Mode media folder**, and the hint bar has back alone. Audio files alone don't count.
 
 ## How it plays
 
@@ -85,12 +85,12 @@ The `music` folder itself isn't listed, but the playlist reaches into it.
 
 **Auto-Launch Playback** plays straight away when OSD/OS starts on this module:
 
-1. Settings → TV / Movie → Ambient:Mode → **Auto-Launch Playback**: On.
-2. Settings → Startup → **Start on Module**: Ambient:Mode.
+1. Settings → Startup → **Start On**: Ambient:Mode.
+2. Settings → TV / Movie → Ambient:Mode → **Auto-Launch Playback**: On. The row is dimmed, its help line saying **Only with Start On on Ambient:Mode (Settings > Startup)**, until step 1 is done.
 
 - It always shuffles: the videos when there is more than one, and the music when there is more than one audio file or playlist. With one or none, the clip's own sound plays.
 - It doesn't happen when the module is opened from the main menu. Back from playback lands on the Ambient:Mode screen.
-- A favourite chosen with **Play at Startup** comes before Start on Module ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
+- A favourite chosen with **Play at Startup** comes before Start On ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 
 ## An example
 
@@ -119,7 +119,7 @@ Settings → TV / Movie → **Ambient:Mode**:
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | ENABLED | On, Off | Off | Shows Ambient:Mode on the main menu | `modules.com.osdos.ambient_mode.enabled` |
-| Media Directory | A folder, or Default Folder | Default (`ambient` in the data folder) | Where the clips and the music are | `modules.com.osdos.ambient_mode.media_directory` (`""` for the default) |
+| Media Folder | A folder, or Default Folder | Default (`ambient` in the data folder) | Where the clips and the music are | `modules.com.osdos.ambient_mode.media_directory` (`""` for the default) |
 | Auto-Launch Playback | On, Off | Off | Plays, shuffled, as soon as OSD/OS starts on this module ([above](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode#starting-by-itself)) | `modules.com.osdos.ambient_mode.auto_launch` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 clip fills a 4:3 screen in this module. Default follows Settings → TV / Movie → Scaling | `modules.com.osdos.ambient_mode.video_scaling` |
 
@@ -129,10 +129,10 @@ What you chose on the module's screen isn't remembered between visits.
 
 | What happens | What to do |
 |---|---|
-| **No items found** | No video of a listed type sits directly in the media folder. Check Media Directory and the files' extensions |
+| **No items found** | No video of a listed type sits directly in the media folder. Check Media Folder and the files' extensions |
 | No music | The music needs mpv on the `PATH` or beside the app: otherwise the log says `[AmbientMode] mpv not found in PATH — audio will not play`. In a playlist, check the paths: names are case-sensitive on Linux. Check Settings → Sound → Audio Output too |
 | Black bars round the clip | Set Scaling (Pan & Scan fills a 4:3 screen with a 16:9 clip), or use CROP in the playback menu |
-| It doesn't start by itself | Start on Module must be Ambient:Mode, Auto-Launch Playback On, and the folder must hold a video. A Play at Startup favourite comes first |
+| It doesn't start by itself | Start On must be Ambient:Mode, Auto-Launch Playback On, and the folder must hold a video. A Play at Startup favourite comes first |
 | The clip stutters on a Pi | A Pi decodes H.264 in hardware, and a Pi 4 or 5 HEVC too. VP9 and AV1 are decoded by the CPU ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)). Use a 1080p or 720p H.264 copy |
 
 ## See also

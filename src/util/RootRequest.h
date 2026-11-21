@@ -11,11 +11,13 @@ class QObject;
 // to, osdos-<stem>.socket, one unit a request. A line goes out, a line comes
 // back: "ok", or why not. Display Output's At Next Start ("display"), Wi-Fi's
 // country ("wifi"), the device's name ("name") and Settings → System's time
-// zone and keyboard ("system") go this way.
+// zone, keyboard and SSH ("system") go this way.
 namespace rootrequest {
 
 struct Answer {
+    // "ok", or "ok <note>": done, with a word on it (SSH's "no-password").
     bool ok = false;
+    QString note;
     // The helper's reason; without its answer, what went wrong on the way
     // ("osdos-<stem>.socket isn't listening", "no answer", "no answer in
     // time").

@@ -43,8 +43,8 @@ QJsonValue firstOption(const QJsonArray &options) {
 }
 
 // A module's rows as build-site.py's module_settings() keeps them: those
-// whose values are known without the device, submenus' rows flat under the
-// module, and the page's own rows for it.
+// whose values are known without the device, submenus' rows and those of a
+// module's own page flat under the module, and the page's own rows for it.
 void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, QJsonValue> &out) {
     const QJsonObject options = extra.value(QLatin1String("options")).toObject();
     const QJsonObject defaults = extra.value(QLatin1String("defaults")).toObject();
@@ -52,7 +52,9 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
         const QJsonObject row = v.toObject();
         const QString key = row.value(QLatin1String("key")).toString();
         const QString type = row.value(QLatin1String("type")).toString();
-        if (type == QLatin1String("submenu")) {
+        // A submenu's rows, and those a module's own page holds (Arcade's
+        // Game Pictures, its Source), flat under the module.
+        if (type == QLatin1String("submenu") || type == QLatin1String("module_view")) {
             walkRows(row.value(QLatin1String("settings")).toArray(), extra, out);
             continue;
         }
@@ -91,19 +93,28 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
     }
 }
 
-// Whether a line of authorized_keys is a public key the card's setup takes
-// (public_key() there): a type, then its key.
-bool publicKey(const QString &line) {
-    static const QRegularExpression kKey(
-        QStringLiteral("^(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\\.com)"
-                       "\\s+[A-Za-z0-9+/]+={0,3}(\\s.*)?$"));
-    return kKey.match(line).hasMatch();
-}
-
-// sshd's drop-in and authorized_keys are read no further than this.
+// sshd's drop-in is read no further than this.
 constexpr qint64 kMaxText = 256 * 1024;
 
 } // namespace
+
+QJsonValue nearestChoice(const QJsonValue &value, const QStringList &choices) {
+    const QString text = value.isDouble() ? QString::number(value.toDouble()) : value.toString();
+    if (choices.isEmpty() || choices.contains(text))
+        return value;
+    // As JavaScript's parseInt() reads it: the whole number it starts with.
+    static const QRegularExpression leading(QStringLiteral("^\\s*([+-]?\\d+)"));
+    const QRegularExpressionMatch number = leading.match(text);
+    const qint64 seconds = number.hasMatch() ? number.captured(1).toLongLong() : 0;
+    QString nearest;
+    for (const QString &choice : choices) {
+        bool ok = false;
+        const qint64 at = choice.toLongLong(&ok);
+        if (ok && (nearest.isEmpty() || qAbs(at - seconds) < qAbs(nearest.toLongLong() - seconds)))
+            nearest = choice;
+    }
+    return QJsonValue(seconds > 0 && !nearest.isEmpty() ? nearest : choices.first());
+}
 
 Form formOf(const QJsonObject &extra, const QHash<QString, QJsonObject> &manifests) {
     Form form;
@@ -114,6 +125,12 @@ Form formOf(const QJsonObject &extra, const QHash<QString, QJsonObject> &manifes
             if (!key.isEmpty())
                 form.app.insert(key, row.contains(QLatin1String("default")) ? row.value(QLatin1String("default"))
                                                                             : QJsonValue());
+            if (!key.isEmpty() && row.value(QLatin1String("nearest")).toBool()) {
+                QStringList values;
+                for (const QJsonValue &option : row.value(QLatin1String("options")).toArray())
+                    values << (option.isArray() ? option.toArray().at(1) : option).toVariant().toString();
+                form.nearest.insert(key, values);
+            }
         }
     }
     const QJsonObject extraModules = extra.value(QLatin1String("modules")).toObject();
@@ -144,25 +161,20 @@ void readSystem(System &system, const QString &root, const QString &home) {
     if (!layout.isEmpty())
         system.keyboard = layout;
 
-    // SSH, where it is there to be turned on: on when systemd starts it,
-    // password login as the card's setup said (its own drop-in), and the
-    // keys that log in.
-    const bool installed = QFileInfo::exists(root + QStringLiteral("/usr/lib/systemd/system/ssh.service"))
-                           || QFileInfo::exists(root + QStringLiteral("/lib/systemd/system/ssh.service"));
-    if (installed) {
-        const QFileInfo wanted(root + QStringLiteral("/etc/systemd/system/multi-user.target.wants/ssh.service"));
-        system.ssh = wanted.exists() || wanted.isSymLink() ? 1 : 0;
+    // SSH, where it is there to be turned on: on when systemd starts it, as
+    // Settings → System shows it, password login as the card's setup said
+    // (its own drop-in), and the keys that log in.
+    const int ssh = systemlocale::ssh(root);
+    if (ssh >= 0) {
+        system.ssh = ssh;
         static const QRegularExpression kPasswords(QStringLiteral("^\\s*PasswordAuthentication\\s+yes\\b"),
                                                    QRegularExpression::MultilineOption
                                                        | QRegularExpression::CaseInsensitiveOption);
         const QByteArray dropIn =
             filetext::readText(root + QStringLiteral("/etc/ssh/sshd_config.d/00-osdos-setup.conf"), kMaxText);
         system.sshPasswordLogin = kPasswords.match(QString::fromUtf8(dropIn)).hasMatch();
-        const QByteArray keys = filetext::readText(home + QStringLiteral("/.ssh/authorized_keys"), kMaxText);
-        const QStringList lines = QString::fromUtf8(keys).split(QLatin1Char('\n'));
-        for (const QString &line : lines) {
-            const QString key = line.trimmed();
-            if (publicKey(key) && !system.sshKeys.contains(key))
+        for (const QString &key : systemlocale::sshKeys(home)) {
+            if (!system.sshKeys.contains(key))
                 system.sshKeys << key;
         }
     }
@@ -226,8 +238,11 @@ QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject
     const QJsonObject savedApp = config.value(QLatin1String("app")).toObject();
     for (auto it = savedApp.constBegin(); it != savedApp.constEnd(); ++it) {
         const auto row = form.app.constFind(it.key());
-        if (row != form.app.constEnd() && !sameValue(it.value(), row.value()))
-            app.insert(it.key(), it.value());
+        // A value no longer among the row's choices, as Settings shows it.
+        const auto choices = form.nearest.constFind(it.key());
+        const QJsonValue value = choices != form.nearest.constEnd() ? nearestChoice(it.value(), *choices) : it.value();
+        if (row != form.app.constEnd() && !sameValue(value, row.value()))
+            app.insert(it.key(), value);
     }
     QJsonObject modules;
     const QJsonObject savedModules = config.value(QLatin1String("modules")).toObject();

@@ -23,7 +23,7 @@ Until the file is there, the module says what is missing (see [Troubleshooting](
 | macOS | `~/Library/Application Support/OSD-OS/weather_location.txt` |
 
 - The **first line** is your location, a place name or coordinates. With **Location** set in Settings that one is used instead, and applies at once.
-- **Each line after it** is another place for the Other Locations screen, which has room for about six. **Other Places** in Settings lists them too, and its places come first.
+- **Each line after it** is another place for the Other Locations screen, which has room for about six. **Other Locations** in Settings lists them too, and its places come first.
 - Blank lines are ignored. A line starting with `#` is a comment.
 - **After changing the file, restart OSD/OS.** Places are looked up once per run.
 - An extra place that can't be found is skipped.
@@ -63,7 +63,7 @@ Reykjavik
 
 ## The screens
 
-The screens follow one another in a loop, each up for the **Screen Time** (10 seconds by default). **Displays** chooses which are in the loop.
+The screens follow one another in a loop, each up for the **Time per Screen** (10 seconds by default). **Screens** chooses which are in the loop.
 
 | Screen | What it shows |
 |---|---|
@@ -100,7 +100,7 @@ While the module is open, the screen saver stays away. Once it is left the scree
 
 - Changing **Units** fetches the numbers again at once.
 - **Hours Format** sets the clock and the almanac's sunrise and sunset: `14:52:58` and `07:12` with 24-hour, `2:52:58 PM` and `7:12 AM` with 12-hour.
-- Hours Format and Screen Time take effect the next time you open the module.
+- Hours Format and Time per Screen take effect the next time you open the module.
 
 ## Background music
 
@@ -136,19 +136,19 @@ Settings → TV / Movie → **WEATHER**. The keys sit under `modules.com.osdos.w
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows Weather on the main menu. | `enabled` |
 | Location | A line typed | Not Set | Your place: a name, or coordinates with a label. Applies at once. | `location` |
-| Other Places | A list of lines, 12 at most | None | The Other Locations screen's places, written as Location is. Looked up again at each change. | `other_places` |
-| Displays | Current Conditions, Extended Forecast, Other Locations, Almanac: each on or off | All on | Which screens are in the loop. With none on, Current Conditions alone. | `displays.current`, `.extended`, `.others`, `.almanac` |
+| Other Locations | A list of lines, 12 at most | None | The Other Locations screen's places, written as Location is. Looked up again at each change. | `other_places` |
+| Screens | Current Conditions, Extended Forecast, Other Locations, Almanac: each on or off | All on | Which screens are in the loop. With none on, Current Conditions alone. | `displays.current`, `.extended`, `.others`, `.almanac` |
 | Music | On, Off | On | Background music while the forecast is up. | `music` |
 | Music List | A list of lines, 20 at most | None | Your own tracks in place of the built-in ones: links, or files' paths. | `music_list` |
 | Units | Metric, US | Metric | See [Units](https://github.com/mehmetraif/OSD-OS/wiki/Weather#units-and-the-clock). | `units` |
-| Screen Time | 10 SEC, 30 SEC, 60 SEC | 10 SEC | How long each screen stays up. | `screen_time` |
+| Time per Screen | 10 sec, 30 sec, 1 min | 10 sec | How long each screen stays up. | `screen_time` (`"10 SEC"`, `"30 SEC"`, `"60 SEC"`) |
 | Hours Format | 24-hour, 12-hour | 24-hour | The clock, sunrise and sunset. | `hours_format` |
 
 ## Files and config keys
 
 | File | What it is |
 |---|---|
-| `weather_location.txt` | Your location, then your other places, where Settings' Location and Other Places don't say. You write it. |
+| `weather_location.txt` | Your location, then your other places, where Settings' Location and Other Locations don't say. You write it. |
 | `weather_music.txt` | Optional: your own music list, read while Settings' Music List is empty. OSD/OS never writes it. |
 
 ```json
@@ -184,7 +184,7 @@ See [Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits).
 
 ## Troubleshooting
 
-When the module can't start, it says why:
+When the module can't start, it says why. Select on that screen opens Settings → TV / Movie → WEATHER with the cursor on **Location** (`[ENTER]:SET LOCATION`), and back from there opens Weather again with what you typed; without the network it looks again (`[ENTER]:TRY AGAIN`). The screen names the file too, as **Or write it in: …**.
 
 | Screen | Meaning | What to do |
 |---|---|---|
@@ -192,7 +192,7 @@ When the module can't start, it says why:
 | **LOCATION FILE IS EMPTY** | The file has no line that isn't blank or a comment. | Add your location on the first line. |
 | **LOCATION FILE COULD NOT BE READ** | The file can't be opened. | The user running OSD/OS must be able to read it. |
 | **LOCATION NOT FOUND** | The geocoder knows no place of that name. | Check the spelling of the part before the first comma, or use coordinates. |
-| **CAN'T REACH THE LOCATION SERVICE** | The geocoder didn't answer. | Check the network. Back, then open Weather again. |
+| **CAN'T REACH THE LOCATION SERVICE** | The geocoder didn't answer. | Check the network, then select (`[ENTER]:TRY AGAIN`). |
 
 | Problem | What to do |
 |---|---|

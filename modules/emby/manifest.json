@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.emby",
   "name": "Emby",
+  "menu_order": 50,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
@@ -9,7 +10,17 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Emby on the main menu\nNeeds an Emby server: its address in Server Address, then SIGN IN"
+    },
+    {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "options_source": "dynamic",
+      "options_slot": "get_account",
+      "description": "Opens Emby to sign in: the server's address and a password, or Emby Connect\nSigned in, the user in use"
     },
     {
       "key": "server_url",
@@ -17,7 +28,7 @@
       "type": "text",
       "default": "",
       "placeholder": "http://192.168.1.10:8096",
-      "max_length": 64,
+      "max_length": 200,
       "description": "Your Emby server, as http://192.168.1.10:8096\nThe sign-in screen fills it in too"
     },
     {
@@ -26,7 +37,8 @@
       "type": "multiselect_submenu",
       "options_source": "dynamic",
       "options_slot": "getLibraries",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Which of the server's libraries the home screen lists"
     },
     {
       "key": "video_quality",
@@ -35,7 +47,8 @@
       "options_source": "dynamic",
       "options_slot": "getVideoQualities",
       "default": "auto",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The most a video is sent at\n[DIRECT PLAY] The file as it is, no transcode\n[1080P] [720P] Transcoded where larger\n[576P] Transcoded where larger: a PAL CRT's lines\n[480P] Transcoded where larger: an NTSC CRT's lines"
     },
     {
       "key": "resume_playback",
@@ -44,14 +57,16 @@
       "options_source": "dynamic",
       "options_slot": "get_resume_playback_options",
       "default": "ask",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "autoplay_next_episode",
       "label": "Autoplay Next Episode",
       "type": "toggle",
       "default": "OFF",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "What follows an episode played to its end\n[ON] The next episode of the series\n[OFF] Back to its page"
     },
     {
       "key": "intro_skip",
@@ -60,7 +75,7 @@
       "options": ["Off", "Auto", "Button"],
       "default": "Off",
       "requires_auth": true,
-      "description": "Uses Emby's intro chapter markers when the server has detected them"
+      "description": "What happens as a marked intro starts\n[OFF] Nothing\n[AUTO] Skipped by itself\n[BUTTON] SKIP is offered: select skips\nUses the chapter markers the server has detected"
     },
     {
       "key": "outro_skip",
@@ -69,7 +84,7 @@
       "options": ["Off", "Auto", "Button"],
       "default": "Off",
       "requires_auth": true,
-      "description": "Uses Emby's credit chapter markers when the server has detected them"
+      "description": "What happens as marked credits start\n[OFF] Nothing\n[AUTO] Skipped by itself\n[BUTTON] SKIP is offered: select skips\nUses the chapter markers the server has detected"
     },
     {
       "key": "video_scaling",
@@ -81,7 +96,7 @@
     },
     {
       "key": "logout",
-      "label": "Sign out",
+      "label": "Sign Out",
       "type": "action",
       "action_slot": "logout",
       "confirm": "Sign out of Emby?",

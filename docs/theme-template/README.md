@@ -22,7 +22,7 @@ A theme to copy and make your own. A theme is the whole look in one folder: the 
    The folder's name is what Settings saves. A folder named like one of OSD/OS's own (`trinitron`, `matrix`, `demoscene`…) is used in its place.
 2. **Name it.** `"name"` in `theme.json` is what Settings → Look → Theme shows: 28 characters at most, else the folder's name is shown.
 3. **Change what you like**, or take a part out: a part the theme leaves out is drawn without it (no effect, OSD/OS's own window, no music; the colors Video 1's).
-4. **Pick it** in Settings → Look → Theme. A new folder is listed the next time Settings opens. Picking a theme sets every part to it (each row below Theme says THEME); a row changed after that keeps your choice, or Off, until the next theme is picked. The window's frame shows with OSD Background set to Window.
+4. **Pick it** in Settings → Look → Theme. A new folder is listed the next time Settings opens. Picking a theme sets every part to it (each row below Theme says THEME); a row changed after that keeps your choice, or Off, until the next theme is picked. The window's frame shows with OSD Background set to Box.
 
 To see a picture or a shader you changed in a theme already in use, restart OSD/OS: one already shown stays in memory.
 

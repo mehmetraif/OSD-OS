@@ -54,6 +54,10 @@ ChoiceOverlay {
         for (var i = 0; i < lists.length; i++)
             out.push({ label: lists[i].name + (lists[i].kind === "offline" ? " (Offline)" : ""),
                        action: "add", id: lists[i].id, name: lists[i].name })
+        // The playlists first, the cursor on the first, a line between them
+        // and the two NEW ones.
+        if (out.length > 0)
+            out.push({ divider: true, label: "", action: "" })
         out.push({ label: "New Online Playlist", action: "new", kind: "online" })
         out.push({ label: "New Offline Playlist", action: "new", kind: "offline" })
         rows = out

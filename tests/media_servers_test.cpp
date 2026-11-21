@@ -30,13 +30,20 @@
 // found again at the address it has now, Emby Connect tries a server's
 // address from outside when its LAN address gives no sign-in, Settings'
 // Libraries are told why there are none when the server can't be reached,
-// Jellyfin's Quick Connect says a server's refusal by its status, an error
+// Jellyfin's Quick Connect says a server's refusal by its status and
+// trusts a self-signed certificate of its own server's only, an error
 // says a refusal's status and never the address asked, a
 // Server Address changed while signed in to Jellyfin or Emby signs out of
 // the server that issued the token, which goes to no other host, and
 // Jellyfin's and Emby's backends, one code, ask each in its own way where
 // their servers differ: PlaybackInfo with their own device profiles, the
-// URLs mpv is handed, Emby's Dolby Vision transcoded.
+// URLs mpv is handed, Emby's Dolby Vision transcoded. A Plex sign-in left
+// with a token and no account asks plex.tv for it again. An NFC card's
+// lookup left for another card's answers no one. Plex's shuffle asks for a
+// show's episodes once for each bag it makes of them. Plex's extras, a
+// library's menu and a show's episode in progress answer the page that
+// asked last. Signing out of Jellyfin or Emby forgets the tracks chosen
+// last.
 
 class Reply : public QNetworkReply {
 public:
@@ -75,7 +82,15 @@ public:
     }
     qint64 bytesAvailable() const override { return m_body.size() + QNetworkReply::bytesAvailable(); }
     QByteArray sent;    // the body the request sent (a POST's)
+    // A certificate that isn't trusted, the server's own or, after a
+    // redirect, another host's: the errors the backend let go are kept.
+    void untrusted(const QUrl &at) {
+        setUrl(at);
+        emit sslErrors({ QSslError(QSslError::SelfSignedCertificate) });
+    }
+    QList<QSslError> ignored;
 protected:
+    void ignoreSslErrorsImplementation(const QList<QSslError> &errors) override { ignored += errors; }
     qint64 readData(char *data, qint64 max) override {
         const qint64 size = qMin(max, qint64(m_body.size()));
         if (!size) return -1;
@@ -551,6 +566,78 @@ private slots:
         const QJsonObject films{ { "key", "1" }, { "title", "Films" }, { "type", "movie" } };
         librariesSayWhyThereAreNone(backend, network, plexContainer({ { "Directory", QJsonArray{ films } } }));
     }
+    // The lists the three backends keep: a while, the last six, the oldest
+    // going first, and never one without a key.
+    void keptListsKeepTheLastFewAWhile() {
+        KeptLists kept;
+        const QVariantList rows{ QStringLiteral("Film") };
+        kept.keep(QString(), rows, 0);
+        QVERIFY(!kept.find(QString(), 0));
+        kept.keep(QStringLiteral("a"), rows, 0);
+        QCOMPARE(kept.find(QStringLiteral("a"), KeptLists::kKeepMs - 1), rows);
+        QVERIFY(!kept.find(QStringLiteral("a"), KeptLists::kKeepMs));
+        for (int i = 1; i <= KeptLists::kKept; ++i)
+            kept.keep(QString::number(i), rows, 0);
+        QVERIFY(!kept.find(QStringLiteral("a"), 0));
+        QVERIFY(kept.find(QStringLiteral("1"), 0));
+        kept.keep(QStringLiteral("1"), rows, 0);    // kept again: the newest now
+        kept.keep(QStringLiteral("b"), rows, 0);
+        QVERIFY(kept.find(QStringLiteral("1"), 0));
+        QVERIFY(!kept.find(QStringLiteral("2"), 0));
+        kept.clear();
+        QVERIFY(!kept.find(QStringLiteral("1"), 0));
+    }
+    // A Plex library's menu asks the server one thing: whether the section
+    // has hubs, which is what RECOMMENDED is offered on.
+    void plexLibraryMenuAsksForHubsOnly() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy caps(&backend, &PlexBackend::capabilitiesLoaded);
+        backend.check_section_capabilities(QStringLiteral("1"));
+        QCOMPARE(network->replies.size(), 1);
+        QCOMPARE(network->last()->url().path(), QStringLiteral("/hubs/sections/1"));
+        network->last()->complete(plexContainer({ { "Hub", QJsonArray{ QJsonObject{ { "title", "Recently Added" } } } } }));
+        QCOMPARE(caps.count(), 1);
+        QVERIFY(caps.last().at(0).toMap().value(QStringLiteral("recommended")).toBool());
+        backend.check_section_capabilities(QStringLiteral("1"));
+        network->last()->fail(500);
+        QCOMPARE(caps.count(), 2);
+        QVERIFY(!caps.last().at(0).toMap().value(QStringLiteral("recommended")).toBool());
+    }
+    // A Plex item's stream as its detail says to play it (start_stream()):
+    // direct play answered at once, the session's identifier in its
+    // address; an item to transcode asks the server for a transcode from 0
+    // with that session and its tracks. Each play's session is new.
+    void plexStreamAsItsDetailSays() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        const QString session = backend.new_session_id();
+        static const QRegularExpression form(QStringLiteral("^[A-Z0-9]{12}$"));
+        QVERIFY2(form.match(session).hasMatch(), qPrintable(session));
+        QVERIFY(backend.new_session_id() != session);
+
+        QSignalSpy ready(&backend, &PlexBackend::streamUrlReady);
+        const int asked = network->replies.size();
+        backend.start_stream({ { "ratingKey", "10" }, { "partKey", "/library/parts/10/file.mkv" } },
+                             session, QStringLiteral("1"), QStringLiteral("0"));
+        QCOMPARE(ready.count(), 1);
+        QVERIFY(ready.first().at(0).toString().contains(QStringLiteral("/library/parts/10/file.mkv?")));
+        QVERIFY(ready.first().at(0).toString().contains(QStringLiteral("X-Plex-Session-Identifier=") + session));
+        QCOMPARE(network->replies.size(), asked);
+
+        backend.start_stream({ { "ratingKey", "10" }, { "partKey", "/library/parts/10/file.mkv" },
+                               { "forceTranscode", true } },
+                             session, QStringLiteral("1"), QStringLiteral("0"));
+        QCOMPARE(network->replies.size(), asked + 1);
+        const QUrlQuery query(network->last()->url());
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/transcode/universal/start.m3u8")));
+        QCOMPARE(query.queryItemValue(QStringLiteral("session")), session);
+        QCOMPARE(query.queryItemValue(QStringLiteral("path")), QStringLiteral("/library/metadata/10"));
+    }
     void jellyfinFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<JellyfinBackend>("Jellyfin"); }
     void embyFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<EmbyBackend>("Emby"); }
     // Plex's: an item, what is under it (a show's seasons, a season's
@@ -678,6 +765,76 @@ private slots:
     // A profile switch plex.tv doesn't answer changes nothing: the profile
     // that was active stays, whatever PIN was typed, and nothing more is
     // asked. The profile already active is refreshed as before.
+    // SIGN IN's value, the name of who is signed in, as its one choice: none
+    // while no one is, the user signed in as on Jellyfin and Emby, Plex's
+    // profile in use.
+    void signInRowNamesTheAccount() {
+        const auto named = [](const QSignalSpy &spy) {
+            const QList<QVariant> &last = spy.last();
+            [&] { QCOMPARE(last.at(0).toString(), QStringLiteral("sign_in")); }();
+            const QVariantList choices = last.at(1).toList();
+            return choices.isEmpty() ? QString() : choices.first().toMap().value("label").toString();
+        };
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        QSignalSpy options(&jellyfin, &JellyfinBackend::dynamicOptionsReady);
+        jellyfin.get_account();
+        QCOMPARE(named(options), QString());
+        signIn(jellyfin);
+        jellyfin.m_userName = QStringLiteral("Ann");
+        jellyfin.get_account();
+        QCOMPARE(named(options), QStringLiteral("Ann"));
+
+        QTemporaryDir plexData;
+        PlexBackend plex(plexData.path(), plexData.path());
+        QSignalSpy plexOptions(&plex, &PlexBackend::dynamicOptionsReady);
+        plex.get_account();
+        QCOMPARE(named(plexOptions), QString());
+        QFile auth(plexData.path() + QStringLiteral("/plex_auth.json"));
+        QVERIFY(auth.open(QIODevice::WriteOnly));
+        auth.write(QJsonDocument(QJsonObject{
+            { "auth_token", "token" }, { "active_server_uri", "http://server" }, { "active_user_id", "2" },
+            { "users", QJsonArray{ QJsonObject{ { "id", "1" }, { "title", "Owner" } },
+                                   QJsonObject{ { "id", "2" }, { "title", "Kid" } } } } }).toJson());
+        auth.close();
+        plex.get_account();
+        QCOMPARE(named(plexOptions), QStringLiteral("Kid"));
+    }
+
+    // Resume Playback and Video Quality read the same on the three servers:
+    // Ask, Always, Never; Direct Play, then 1080p down to 480p. Each choice
+    // is saved as it was before.
+    void resumeAndQualityReadTheSame() {
+        const auto choices = [](const QSignalSpy &spy, const QString &key) {
+            QStringList out;
+            for (const QList<QVariant> &sent : spy) {
+                if (sent.at(0).toString() != key)
+                    continue;
+                out.clear();
+                for (const QVariant &v : sent.at(1).toList())
+                    out << v.toMap().value("label").toString() + QLatin1Char('=') + v.toMap().value("id").toString();
+            }
+            return out;
+        };
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        QSignalSpy jf(&jellyfin, &JellyfinBackend::dynamicOptionsReady);
+        jellyfin.get_resume_playback_options();
+        jellyfin.EmbyApiBackend::getVideoQualities();
+        QCOMPARE(choices(jf, "resume_playback"), QStringList({ "Ask=ask", "Always=always", "Never=never" }));
+        QCOMPARE(choices(jf, "video_quality"),
+                 QStringList({ "Direct Play=auto", "1080p=1080p", "720p=720p", "576p=576p", "480p=480p" }));
+
+        QTemporaryDir plexData;
+        PlexBackend plex(plexData.path(), plexData.path());
+        QSignalSpy px(&plex, &PlexBackend::dynamicOptionsReady);
+        plex.get_resume_playback_options();
+        plex.getVideoQualities();
+        QCOMPARE(choices(px, "resume_playback"), QStringList({ "Ask=ask", "Always=yes", "Never=no" }));
+        QCOMPARE(choices(px, "video_quality"),
+                 QStringList({ "Direct Play=auto", "1080p=8000", "720p=4000", "480p=2000" }));
+    }
+
     void plexAFailedSwitchChangesNoProfile() {
         QTemporaryDir tmp;
         QVERIFY(tmp.isValid());
@@ -776,6 +933,65 @@ private slots:
         QCOMPARE(errors.count(), 0);
         QCOMPARE(loaded.count(), 1);
         QCOMPARE(active(), QStringLiteral("1"));
+    }
+
+    // A managed profile is never sent to a server on the owner's token: a
+    // server it has no token of its own for gets none, and a switch to a
+    // profile none of whose servers this device knows is refused.
+    void plexAManagedProfileNeverUsesTheOwnersToken() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString file = tmp.path() + QStringLiteral("/plex_auth.json");
+        const auto write = [&](const QString &active, const QJsonObject &managed) {
+            QFile auth(file);
+            QVERIFY(auth.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            auth.write(QJsonDocument(QJsonObject{
+                { "auth_token", "token" }, { "active_server_uri", "http://owners" },
+                { "active_server_machine_id", "owners" },
+                { "account_user_id", "1" }, { "active_user_id", active },
+                { "users", QJsonArray{ QJsonObject{ { "id", "1" }, { "uuid", "owner" } },
+                                       QJsonObject{ { "id", "2" }, { "uuid", "kid" } } } },
+                { "servers", QJsonArray{ QJsonObject{ { "machineId", "owners" }, { "uri", "http://owners" },
+                                                      { "name", "OWNERS" } } } },
+                { "user_server_tokens", QJsonObject{ { "owners", "owner-token" } } },
+                { "managed_user_tokens", managed } }).toJson());
+        };
+        AppCore core(tmp.path(), tmp.path());
+        PlexBackend backend(tmp.path(), tmp.path(), &core);
+        // Each file written read afresh: two can share a time and a size.
+        const auto set = [&](const QString &active, const QJsonObject &managed) {
+            write(active, managed);
+            backend.m_authCacheValid = false;
+        };
+
+        // The owner's own server, on the owner's token.
+        set(QStringLiteral("1"), QJsonObject{});
+        QCOMPARE(backend.serverToken(), QStringLiteral("owner-token"));
+
+        // The kid's profile, on a server it has no token for: none.
+        set(QStringLiteral("2"), QJsonObject{ { "kids", "kid-token" } });
+        QCOMPARE(backend.serverToken(), QString());
+        // Nor with no token kept for it at all.
+        set(QStringLiteral("2"), QJsonObject{});
+        QCOMPARE(backend.serverToken(), QString());
+
+        // From the owner's profile to the kid's, whose only server is one
+        // this device was never told of: refused, the owner's left on.
+        set(QStringLiteral("1"), QJsonObject{});
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        QSignalSpy loaded(&backend, &PlexBackend::serversLoaded);
+        backend.select_user(QStringLiteral("2"), QStringLiteral("0000"));
+        network->last()->complete(QJsonDocument(QJsonObject{ { "authToken", "kid-switch" } }).toJson());
+        QVERIFY(network->last()->url().path().endsWith(QStringLiteral("/resources")));
+        network->last()->complete(QJsonDocument(QJsonArray{ QJsonObject{
+            { "provides", "server" }, { "clientIdentifier", "kids" }, { "accessToken", "kid-token" } } }).toJson());
+        QCOMPARE(loaded.count(), 0);
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(backend.loadAuth().value("active_user_id").toString(), QStringLiteral("1"));
+        QCOMPARE(backend.serverToken(), QStringLiteral("owner-token"));
     }
 
     void plexPinPollingStopsOnceTheCodeExpires() {
@@ -941,7 +1157,10 @@ private slots:
 
         const QJsonObject subtitle{ { "Type", "Subtitle" }, { "Index", 3 }, { "Codec", "subrip" },
                                     { "IsTextSubtitleStream", true } };
-        const QJsonObject source{ { "Id", "src" }, { "MediaStreams", QJsonArray{ subtitle } } };
+        // One in a file beside the video, said so: not in the stream mpv counts.
+        const QJsonObject beside{ { "Type", "Subtitle" }, { "Index", 4 }, { "Codec", "pgssub" },
+                                  { "IsExternal", true } };
+        const QJsonObject source{ { "Id", "src" }, { "MediaStreams", QJsonArray{ subtitle, beside } } };
         const QByteArray film = QJsonDocument(QJsonObject{ { "Id", "film" },
                                                            { "MediaSources", QJsonArray{ source } } }).toJson();
         QSignalSpy jfItem(&jellyfin, &JellyfinBackend::itemLoaded);
@@ -956,6 +1175,12 @@ private slots:
         };
         QCOMPARE(subUrl(jfItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt"));
         QCOMPARE(subUrl(emItem), QStringLiteral("http://server/Videos/film/src/Subtitles/3/Stream.srt?api_key=token"));
+        for (const QSignalSpy *spy : { &jfItem, &emItem }) {
+            const QVariantList subs = spy->last().at(0).toMap().value(QStringLiteral("subtitleStreams")).toList();
+            QCOMPARE(subs.size(), 2);
+            QVERIFY(!subs.at(0).toMap().value(QStringLiteral("external")).toBool());
+            QVERIFY(subs.at(1).toMap().value(QStringLiteral("external")).toBool());
+        }
 
         qsizetype asked = jf->replies.size();
         QVERIFY(QMetaObject::invokeMethod(&jellyfin, "getVideoQualities"));
@@ -1045,7 +1270,8 @@ private slots:
     // subtitles as sidecars or embedded, burnt in for a transcode, and
     // Emby's always as sidecars, its image ones burnt in for a transcode;
     // Jellyfin's Direct Play bitrate at 1000 Mbps, Emby's in its profile,
-    // which it needs; a quality's caps for a transcode. Direct Play's URL
+    // which it needs; a quality's caps for a transcode, and a Direct Play
+    // the server can't give asked for again as one. Direct Play's URL
     // carries Emby's token and not Jellyfin's; a transcode's is held to the
     // height asked for.
     void playbackInfoIsAskedEachServersWay() {
@@ -1084,6 +1310,46 @@ private slots:
         QCOMPARE(emReady.last().at(0).toString(),
                  QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"
                                 "&api_key=token"));
+        // Played whole, a text subtitle beside it for both.
+        for (const QSignalSpy *ready : { &jfReady, &emReady }) {
+            QCOMPARE(ready->last().at(1).toString(), QStringLiteral("DirectPlay"));
+            QVERIFY(ready->last().at(2).toBool());
+        }
+
+        // Direct Play asked, and the source can't be (a bitrate limit the
+        // server holds the user to): no transcode built on the Direct Play
+        // profile, whose subtitles the server would not burn in, but
+        // PlaybackInfo asked again for a transcode, the same tracks with it.
+        const QByteArray denied = QJsonDocument(QJsonObject{
+            { "PlaySessionId", "ps1" },
+            { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "TranscodingUrl",
+                "/videos/film/master.m3u8?PlaySessionId=ps1&SubtitleStreamIndex=2&SubtitleMethod=External" } } } } }).toJson();
+        for (auto [backend, network, ready] : { std::tuple<EmbyApiBackend *, Network *, QSignalSpy *>{ &jellyfin, jf, &jfReady },
+                                                std::tuple<EmbyApiBackend *, Network *, QSignalSpy *>{ &emby, em, &emReady } }) {
+            const qsizetype told = ready->count();
+            backend->get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 1, 2);
+            const qsizetype asked = network->replies.size();
+            network->last()->complete(denied);
+            QCOMPARE(ready->count(), told);
+            QCOMPARE(network->replies.size(), asked + 1);
+            const QJsonObject again = sentBody(network->last());
+            QVERIFY(again["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().isEmpty());
+            QVERIFY(!again["EnableDirectPlay"].toBool());
+            QCOMPARE(again["AudioStreamIndex"].toInt(), 1);
+            QCOMPARE(again["SubtitleStreamIndex"].toInt(), 2);
+            QCOMPARE(subtitleMethods(again, "pgssub"), QStringLiteral("Encode"));
+            QCOMPARE(subtitleMethods(again, "subrip"),
+                     backend == &jellyfin ? QStringLiteral("Encode") : QStringLiteral("External"));
+            network->last()->complete(QJsonDocument(QJsonObject{
+                { "PlaySessionId", "ps1" },
+                { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "TranscodingUrl",
+                    "/videos/film/master.m3u8?PlaySessionId=ps1&SubtitleStreamIndex=2" } } } } }).toJson());
+            QCOMPARE(ready->count(), told + 1);
+            QVERIFY(ready->last().at(0).toString().contains(QLatin1String("master.m3u8")));
+            // A transcode: Jellyfin's text subtitle burnt in, Emby's beside it.
+            QCOMPARE(ready->last().at(1).toString(), QStringLiteral("Transcode"));
+            QCOMPARE(ready->last().at(2).toBool(), backend == &emby);
+        }
 
         setVideoQuality(tmp.path(), "720p");
         jellyfin.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, 2);
@@ -1233,6 +1499,43 @@ private slots:
         QVERIFY(!body.contains(QLatin1String("MaxStreamingBitrate")));
         QVERIFY(!body.contains(QLatin1String("MaxHeight")));
         QCOMPARE(body["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 2000000000);
+    }
+
+    // Quick Connect lets a self-signed certificate go for the server it was
+    // started on, as every other request to a server does, and for no other
+    // host a request is sent on to; its cancel's reply is freed.
+    void jellyfinQuickConnectTrustsOnlyItsServer() {
+        QTemporaryDir tmp;
+        JellyfinBackend backend(tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        const QUrl own(QStringLiteral("https://jellyfin.lan:8920/QuickConnect"));
+        const QUrl other(QStringLiteral("https://elsewhere.example/QuickConnect"));
+        const QList<std::function<void()>> asks = {
+            [&] { backend.quick_connect_initiate(QStringLiteral("https://jellyfin.lan:8920")); },
+            [&] { backend.quick_connect_poll(QStringLiteral("secret")); },
+            [&] { backend.quick_connect_authenticate(QStringLiteral("secret")); },
+        };
+        for (const auto &ask : asks) {
+            ask();
+            network->last()->untrusted(own);
+            QCOMPARE(network->last()->ignored.size(), 1);
+            ask();
+            network->last()->untrusted(other);
+            QVERIFY(network->last()->ignored.isEmpty());
+        }
+
+        backend.m_quickConnectSecret = QStringLiteral("secret");
+        backend.quick_connect_cancel();
+        QPointer<Reply> cancel = network->last();
+        QVERIFY(cancel->url().path().endsWith(QLatin1String("/QuickConnect/Connect")));
+        cancel->untrusted(own);
+        QCOMPARE(cancel->ignored.size(), 1);
+        cancel->complete(QByteArray());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(cancel.isNull());
+        network->replies.removeLast();
     }
 
     // Quick Connect says what the server answered, as it starts and at the
@@ -1605,6 +1908,285 @@ private slots:
         only->drop();
         QCOMPARE(network->last(), only);
         QCOMPARE(failed.count(), 2);
+        // No answer has no status to say: the network's own word.
+        QCOMPARE(failed.last().at(0).toString(), QStringLiteral("SERVER EXCHANGE FAILED: Connection refused"));
+        // None of the failed exchanges took the place of the server signed in to.
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("https://away.example:8920"));
+    }
+
+    // A sign-in whose account didn't come once the code was claimed (plex.tv
+    // a moment away) leaves a token and no one to choose: the users are asked
+    // for again as their page opens, not shown as none for ever. Their
+    // servers not coming is said, rather than answered with users nothing
+    // was kept of; once both have come they are kept, and asked for no more.
+    void plexSignInWithoutItsAccountAsksForItAgain() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        backend.saveAuth(QJsonObject{ { "auth_token", "token" } });
+        QCOMPARE(backend.get_auth_state(), QStringLiteral("needs_user"));
+        QSignalSpy users(&backend, &PlexBackend::usersLoaded);
+        QSignalSpy errors(&backend, &PlexBackend::errorOccurred);
+        const QByteArray home = QJsonDocument(QJsonObject{ { "users", QJsonArray{
+            QJsonObject{ { "id", 1 }, { "uuid", "owner" }, { "title", "Owner" } } } } }).toJson();
+
+        backend.load_users_from_cache();
+        QCOMPARE(network->replies.size(), 1);
+        QCOMPARE(network->last()->url().host(), QStringLiteral("plex.tv"));
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/api/v2/home/users")));
+        QCOMPARE(users.count(), 0);
+        network->last()->drop();
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(errors.last().at(0).toString(), QStringLiteral("FAILED TO LOAD ACCOUNT: Connection refused"));
+        QCOMPARE(users.count(), 0);
+
+        // The users come, their servers don't.
+        backend.load_users_from_cache();
+        network->last()->complete(home);
+        QVERIFY(network->last()->url().path().endsWith(QLatin1String("/api/v2/resources")));
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 2);
+        QCOMPARE(errors.last().at(0).toString(), QStringLiteral("FAILED TO LOAD SERVERS: HTTP 500"));
+        QCOMPARE(users.count(), 0);
+        QVERIFY(backend.loadAuth()["users"].toArray().isEmpty());
+
+        // Both come: kept, the server at the address that answers.
+        backend.load_users_from_cache();
+        network->last()->complete(home);
+        network->last()->complete(QJsonDocument(QJsonArray{ QJsonObject{
+            { "clientIdentifier", "machine" }, { "name", "Home" }, { "provides", "server" },
+            { "accessToken", "server-token" },
+            { "connections", QJsonArray{ QJsonObject{ { "uri", "http://server" }, { "local", true } } } } } }).toJson());
+        QCOMPARE(network->last()->url().host(), QStringLiteral("server"));
+        network->last()->complete(QByteArray());
+        QCOMPARE(users.count(), 1);
+        QCOMPARE(users.last().at(0).toList().size(), 1);
+        QCOMPARE(backend.loadAuth()["users"].toArray().size(), 1);
+        QCOMPARE(backend.loadAuth()["servers"].toArray().size(), 1);
+        QCOMPARE(errors.count(), 2);
+        const qsizetype asked = network->replies.size();
+        backend.load_users_from_cache();
+        QCOMPARE(network->replies.size(), asked);
+        QCOMPARE(users.count(), 2);
+        QCOMPARE(users.last().at(0).toList().size(), 1);
+    }
+
+    // An NFC card's item looked for, and the card given up (back) or another
+    // tapped before it came: the first's answer, coming late, plays in no
+    // player and fails none, at whichever step it had got to, and nothing
+    // more is asked for it; the card asked for last is the one told. A
+    // set's rows the same.
+    void plexCardLeftAnswersNoOne() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy item(&backend, &PlexBackend::cardItemReady);
+        QSignalSpy rows(&backend, &PlexBackend::cardQueueReady);
+        QSignalSpy errors(&backend, &PlexBackend::cardError);
+        const auto found = [](const QString &key) { return plexContainer({ { "Metadata", plexFilms({ key }) } }); };
+
+        // Given up as its guid is looked for: its item is not asked for.
+        backend.resolve_card(QStringLiteral("plex://movie/a"), QString());
+        Reply *a = network->last();
+        backend.cancel_stream();
+        backend.resolve_card(QStringLiteral("plex://movie/b"), QString());
+        Reply *b = network->last();
+        QVERIFY(a != b);
+        const qsizetype asked = network->replies.size();
+        a->complete(found(QStringLiteral("1")));
+        QCOMPARE(network->replies.size(), asked);
+        b->complete(found(QStringLiteral("2")));
+        // Another card tapped as the item itself is fetched.
+        Reply *second = network->last();
+        QVERIFY(second->url().path().endsWith(QLatin1String("/library/metadata/2")));
+        backend.resolve_card(QStringLiteral("plex://movie/c"), QString());
+        Reply *c = network->last();
+        second->complete(found(QStringLiteral("2")));
+        QCOMPARE(item.count(), 0);
+        c->complete(found(QStringLiteral("3")));
+        network->last()->complete(found(QStringLiteral("3")));
+        QCOMPARE(item.count(), 1);
+        QCOMPARE(item.first().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("3"));
+
+        // A card left that fails says nothing in the next one's place, and a
+        // set left answers with no rows.
+        backend.resolve_card(QStringLiteral("plex://movie/d"), QString());
+        Reply *d = network->last();
+        backend.resolve_card_queue(QStringLiteral("plex://collection/7"));
+        Reply *set = network->last();
+        d->fail(500);
+        QCOMPARE(errors.count(), 0);
+        backend.cancel_stream();
+        set->complete(plexContainer({ { "Metadata", plexFilms({ "8", "9" }) } }));
+        QCOMPARE(rows.count(), 0);
+        backend.resolve_card_queue(QStringLiteral("plex://collection/7"));
+        network->last()->complete(plexContainer({ { "Metadata", plexFilms({ "8", "9" }) } }));
+        QCOMPARE(rows.count(), 1);
+        QCOMPARE(rows.first().at(0).toList().size(), 2);
+        // The card asked for last failing is said.
+        backend.resolve_card(QStringLiteral("plex://movie/e"), QString());
+        network->last()->fail(500);
+        QCOMPARE(errors.count(), 1);
+        QCOMPARE(item.count(), 1);
+    }
+
+    // A show shuffled: its episodes are asked for once (its seasons, then
+    // each season's episodes) and the bag made of them is kept, so the next
+    // draw asks for the episode drawn and nothing else; only a bag run out
+    // asks for the episodes again.
+    void plexShuffleDrawsFromTheBagItKept() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy next(&backend, &PlexBackend::nextEpisodeReady);
+        const QJsonArray seasons{ QJsonObject{ { "ratingKey", "s1" }, { "type", "season" } },
+                                  QJsonObject{ { "ratingKey", "s2" }, { "type", "season" } } };
+        // An episode drawn for the show, every request it makes answered:
+        // how many there were.
+        const auto draw = [&]() {
+            const qsizetype before = network->replies.size();
+            backend.load_random_episode(QStringLiteral("show"));
+            for (qsizetype i = before; i < network->replies.size(); ++i) {
+                Reply *reply = network->replies.at(i);
+                const QString path = reply->url().path();
+                if (path.endsWith(QLatin1String("/show/children")))
+                    reply->complete(plexContainer({ { "Metadata", seasons } }));
+                else if (path.endsWith(QLatin1String("/s1/children")))
+                    reply->complete(plexContainer({ { "Metadata", plexFilms({ "101", "102" }) } }));
+                else if (path.endsWith(QLatin1String("/s2/children")))
+                    reply->complete(plexContainer({ { "Metadata", plexFilms({ "201" }) } }));
+                else
+                    reply->complete(plexContainer({ { "Metadata", plexFilms({ path.section(QLatin1Char('/'), -1) }) } }));
+            }
+            return network->replies.size() - before;
+        };
+        QCOMPARE(draw(), 4);    // the seasons, each one's episodes, the episode drawn
+        QCOMPARE(next.count(), 1);
+        QCOMPARE(draw(), 1);
+        QCOMPARE(draw(), 1);
+        QCOMPARE(next.count(), 3);
+        QStringList drawn;
+        for (const QList<QVariant> &told : next)
+            drawn << told.at(0).toMap().value(QStringLiteral("ratingKey")).toString();
+        drawn.sort();
+        QCOMPARE(drawn, QStringList({ QStringLiteral("101"), QStringLiteral("102"), QStringLiteral("201") }));
+        // The bag run out: made again of the show's episodes as they are now.
+        QCOMPARE(draw(), 4);
+        QCOMPARE(next.count(), 4);
+    }
+
+    // A show's page left for one of its seasons before its extras came: the
+    // show's, answering last, are not told to the season's page (which would
+    // offer VIEW EXTRAS for none of its own), nor is their failure. A
+    // library's menu left for another library's, and a show's episode in
+    // progress asked for by PLAY and then another show's, the same way: the
+    // one asked for last is the one told.
+    void plexExtrasMenuAndOnDeckLeftAreDropped() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+
+        QSignalSpy extras(&backend, &PlexBackend::extrasLoaded);
+        backend.load_extras(QStringLiteral("show"));
+        Reply *show = network->last();
+        backend.load_extras(QStringLiteral("season"));
+        Reply *season = network->last();
+        season->complete(plexContainer({ { "size", 0 } }));
+        QCOMPARE(extras.count(), 1);
+        show->complete(plexContainer({ { "Metadata", plexFilms({ "30" }) } }));
+        QCOMPARE(extras.count(), 1);
+        QVERIFY(extras.first().at(0).toList().isEmpty());
+        backend.load_extras(QStringLiteral("show"));
+        show = network->last();
+        backend.load_extras(QStringLiteral("season"));
+        season = network->last();
+        show->fail(500);
+        QCOMPARE(extras.count(), 1);
+        season->complete(plexContainer({ { "Metadata", plexFilms({ "31" }) } }));
+        QCOMPARE(extras.count(), 2);
+        QCOMPARE(extras.last().at(0).toList().size(), 1);
+
+        // Each library's menu is asked of the server in one request.
+        QSignalSpy menu(&backend, &PlexBackend::capabilitiesLoaded);
+        backend.check_section_capabilities(QStringLiteral("1"));
+        Reply *first = network->last();
+        backend.check_section_capabilities(QStringLiteral("2"));
+        Reply *second = network->last();
+        second->complete(plexContainer({}));
+        QCOMPARE(menu.count(), 1);
+        QVERIFY(!menu.first().at(0).toMap().value(QStringLiteral("recommended")).toBool());
+        first->complete(plexContainer({ { "Hub", QJsonArray{ QJsonObject{ { "title", "Recent" } } } } }));
+        QCOMPARE(menu.count(), 1);
+
+        QSignalSpy onDeck(&backend, &PlexBackend::inProgressEpisodeLoaded);
+        const auto inProgress = [](const char *key) {
+            return plexContainer({ { "Metadata", QJsonArray{ QJsonObject{ { "ratingKey", key },
+                                                                          { "viewOffset", 5000 } } } } });
+        };
+        backend.load_on_deck_for(QStringLiteral("showA"));
+        Reply *a = network->last();
+        backend.load_on_deck_for(QStringLiteral("showB"));
+        Reply *b = network->last();
+        a->complete(inProgress("a1"));
+        QCOMPARE(onDeck.count(), 0);
+        b->complete(inProgress("b1"));
+        QCOMPARE(onDeck.count(), 1);
+        QCOMPARE(onDeck.first().at(0).toMap().value(QStringLiteral("ratingKey")).toString(), QStringLiteral("b1"));
+    }
+
+    // The audio and subtitle languages chosen last are the user's who chose
+    // them: signing out forgets them, so the next user signed in gets the
+    // languages the server keeps for them, not the last one's (Jellyfin,
+    // then Emby).
+    void signOutForgetsTheTracksChosen() {
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        EmbyBackend emby(tmp.path());
+        for (EmbyApiBackend *backend : { static_cast<EmbyApiBackend *>(&jellyfin),
+                                         static_cast<EmbyApiBackend *>(&emby) }) {
+            Network *network = signIn(*backend);
+            QSignalSpy languages(backend, &EmbyApiBackend::serverLanguagePreferencesReady);
+            backend->set_last_track_langs(QStringLiteral("fra"), QStringLiteral("eng"), 1, 0);
+            QCOMPARE(backend->get_last_audio_lang_idx(), 1);
+            QCOMPARE(backend->get_last_sub_lang_idx(), 0);
+            backend->logout();
+            QVERIFY(!backend->has_auth());
+            QCOMPARE(backend->get_last_audio_lang_idx(), -1);
+            QCOMPARE(backend->get_last_sub_lang_idx(), -1);
+            // The next user, signed in to the same server.
+            backend->m_serverUrl = QStringLiteral("http://server");
+            backend->m_accessToken = QStringLiteral("token2");
+            backend->m_userId = QStringLiteral("user2");
+            backend->load_server_preferences();
+            network->last()->complete(QJsonDocument(QJsonObject{ { "Configuration", QJsonObject{
+                { "AudioLanguagePreference", "deu" }, { "SubtitleLanguagePreference", "spa" },
+                { "SubtitleMode", "Always" } } } }).toJson());
+            QCOMPARE(languages.count(), 1);
+            QCOMPARE(languages.first().at(0).toString(), QStringLiteral("deu"));
+            QCOMPARE(languages.first().at(1).toString(), QStringLiteral("spa"));
+            QCOMPARE(languages.first().at(2).toString(), QStringLiteral("Always"));
+        }
+    }
+
+    // An Emby sign-in becomes the server signed in to only once it succeeds.
+    void embySignInTakesTheServerOnceItSucceeds() {
+        QTemporaryDir tmp;
+        EmbyBackend backend(tmp.path());
+        Network *network = signIn(backend);
+        backend.authenticate(QStringLiteral("http://other"), QStringLiteral("name"), QStringLiteral("pw"));
+        QCOMPARE(network->last()->url().host(), QStringLiteral("other"));
+        network->last()->fail(401);
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("http://server"));
+        QCOMPARE(backend.m_accessToken, QStringLiteral("token"));
+        backend.authenticate(QStringLiteral("http://other"), QStringLiteral("name"), QStringLiteral("pw"));
+        network->last()->complete(QJsonDocument(QJsonObject{
+            { "AccessToken", "token2" }, { "User", QJsonObject{ { "Id", "user2" }, { "Name", "name" } } } }).toJson());
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("http://other"));
+        QCOMPARE(backend.m_accessToken, QStringLiteral("token2"));
     }
 };
 

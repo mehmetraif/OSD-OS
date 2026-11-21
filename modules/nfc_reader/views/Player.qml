@@ -11,8 +11,8 @@ FocusScope {
     property string videoPath:  navParams.videoPath || ""
     property string videoTitle: navParams.title || ""
 
-    property bool   playbackStarted: false
-    property int    lastStartMs:     0   // what the last attempt started from, for retry
+    property alias  playbackStarted: session.started
+    property alias  lastStartMs:     session.startMs   // what the last attempt started from, for retry
     property int    lastPlPos:       -1
 
     property int    savedPositionMs: 0
@@ -24,11 +24,11 @@ FocusScope {
     // mpv subtitle-track flag derived from subtitleMode: 0 = on, -1 = forced only, -2 = off.
     property int    subFlag:         (subtitleMode == "on") ? 0 : ((subtitleMode == "forced") ? -1 : -2)
 
-    // Track last non-null values during playback; groundwork for a future
-    // resume-playback setting (mirrors the other module players).
-    property int    lastKnownPositionMs: 0
-    property int    lastKnownDurationMs: 0
-    property int    lastKnownPlaylistPos: -1
+    // Where the session is, as mpv says (PlayerSession), for its save at
+    // the end.
+    property alias  lastKnownPositionMs:  session.positionMs
+    property alias  lastKnownDurationMs:  session.durationMs
+    property alias  lastKnownPlaylistPos: session.playlistPos
 
     focus: true
 
@@ -49,7 +49,8 @@ FocusScope {
         // extraArgs opts into yt-dlp so YouTube-page URLs in the mapping
         // resolve; safe for local files and direct media URLs, which the
         // native demuxer handles before the ytdl hook ever runs.
-        mpvController.loadAndPlay(videoPath, startMs / 1000.0, -1, subFlag, [], subtitleLangs, false, plPos, 0.0, "", false, "", false, [], 0.0, false, ytdlArgs)
+        mpvController.loadAndPlay({ url: videoPath, startSeconds: startMs / 1000.0, subTrack: subFlag,
+                                    subLangs: subtitleLangs, playlistStart: plPos, extraArgs: ytdlArgs })
     }
 
     Keys.onPressed: function(event) {
@@ -57,39 +58,18 @@ FocusScope {
         // Main.qml (Ctrl+Q), not to mpv.
         if (resumePrompt.visible)
             return
-        // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats:
-        // mpv holds the key down for them, and lets it go as the key is
-        // (Keys.onReleased).
-        var key = MpvKeys.name(event.key)
-        if (key !== "") {
-            mpvController.sendKey(key, event.isAutoRepeat)
-            event.accepted = true
-        }
+        session.forwardKey(event)
     }
-    // A key let go: the one mpv holds down for its repeats, if any, with it.
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    PlayerSession {
+        id: session
+        player: playerRoot
+        followsPlaylist: true
     }
 
     Connections {
         target: mpvController
-
-        function onPositionChanged(ms) {
-            if (ms > 0) {
-                playerRoot.playbackStarted = true
-                playerRoot.lastKnownPositionMs = ms
-            }
-        }
-        function onDurationChanged(ms) {
-            if (ms > 0) playerRoot.lastKnownDurationMs = ms
-        }
-        function onPlaylistPosChanged(pos) {
-            if (pos >= 0) {
-                playerRoot.lastKnownPlaylistPos = pos
-                playerRoot.lastKnownPositionMs  = 0
-            }
-        }
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             // A bad mapping path or missing yt-dlp surfaces as an mpv failure

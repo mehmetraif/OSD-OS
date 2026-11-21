@@ -28,30 +28,42 @@ add_library(osdos_test_audio STATIC
     ../src/util/MpvLocator.cpp)
 target_link_libraries(osdos_test_audio PUBLIC osdos_test_core Qt6::Network)
 
-add_executable(reliability_test
-    reliability_test.cpp
-    ../src/modules/playlists/ServerDownload.cpp
-    ../src/modules/weather/WeatherBackend.cpp
-    ../src/update/UpdateManager.cpp
-    ../src/util/LogFile.cpp)
-target_include_directories(reliability_test PRIVATE ../src)
-target_compile_definitions(reliability_test PRIVATE APP_VERSION="test"
-    OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(reliability_test PRIVATE osdos_test_audio
-    Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test)
-add_test(NAME reliability COMMAND reliability_test)
+# A C++ test: <name>_test, built of <name>_test.cpp and SOURCES with src/ to
+# include and DEFINITIONS, linked with LIBRARIES and Qt's Core and Test, and
+# run as <name>, with its TIMEOUT and ENVIRONMENT where it has them.
+function(osdos_cpp_test name)
+    cmake_parse_arguments(arg "" "TIMEOUT" "SOURCES;LIBRARIES;DEFINITIONS;ENVIRONMENT" ${ARGN})
+    add_executable(${name}_test ${name}_test.cpp ${arg_SOURCES})
+    target_include_directories(${name}_test PRIVATE ../src)
+    if(arg_DEFINITIONS)
+        target_compile_definitions(${name}_test PRIVATE ${arg_DEFINITIONS})
+    endif()
+    target_link_libraries(${name}_test PRIVATE ${arg_LIBRARIES} Qt6::Core Qt6::Test)
+    add_test(NAME ${name} COMMAND ${name}_test)
+    if(arg_ENVIRONMENT)
+        set_tests_properties(${name} PROPERTIES ENVIRONMENT "${arg_ENVIRONMENT}")
+    endif()
+    if(arg_TIMEOUT)
+        set_tests_properties(${name} PROPERTIES TIMEOUT ${arg_TIMEOUT})
+    endif()
+endfunction()
+
+osdos_cpp_test(reliability
+    SOURCES ../src/modules/playlists/ServerDownload.cpp ../src/modules/weather/WeatherBackend.cpp
+            ../src/update/UpdateManager.cpp ../src/util/LogFile.cpp
+    DEFINITIONS APP_VERSION="test" OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+    LIBRARIES osdos_test_audio Qt6::Concurrent Qt6::Network Qt6::Qml)
 # What a view says under "… is not installed", for the system OSD/OS runs
 # on (util/InstallHint.h).
-add_executable(install_hint_test install_hint_test.cpp)
-target_include_directories(install_hint_test PRIVATE ../src)
-target_link_libraries(install_hint_test PRIVATE Qt6::Core Qt6::Test)
-add_test(NAME install_hint COMMAND install_hint_test)
+osdos_cpp_test(install_hint)
 # The small files the app reads whole, and its JSON told apart from a file
 # that isn't there and one that is broken (util/FileText.h).
-add_executable(file_text_test file_text_test.cpp)
-target_include_directories(file_text_test PRIVATE ../src)
-target_link_libraries(file_text_test PRIVATE Qt6::Core Qt6::Test)
-add_test(NAME file_text COMMAND file_text_test)
+osdos_cpp_test(file_text)
+# The signals that end the app (SIGTERM, SIGINT, SIGHUP), handled from the
+# event loop with nothing polling for them (util/TermSignals).
+if(NOT WIN32)
+    osdos_cpp_test(term_signals SOURCES ../src/util/TermSignals.cpp)
+endif()
 
 # The 7z extractor (the LZMA SDK's decoder, built in as in the app) on
 # archives made with py7zr (data/arcade/*.7z): what is in them, taken out
@@ -60,19 +72,13 @@ add_test(NAME file_text COMMAND file_text_test)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/lzma.cmake)
 # The engines' versions (scripts/engines.env), as the app has them.
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/engines.cmake)
-add_executable(sevenzip_test sevenzip_test.cpp ../src/util/SevenZip.cpp)
-target_include_directories(sevenzip_test PRIVATE ../src)
-target_compile_definitions(sevenzip_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(sevenzip_test PRIVATE Qt6::Core Qt6::Test osdos_lzma)
-add_test(NAME sevenzip COMMAND sevenzip_test)
+osdos_cpp_test(sevenzip SOURCES ../src/util/SevenZip.cpp
+    DEFINITIONS TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}" LIBRARIES osdos_lzma)
 # Settings → System → Export to OSD/OS Setup: the settings gathered as the
 # page's file, cut into the links of QR codes, and drawn as codes.
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/qrcodegen.cmake)
-add_executable(setup_export_test setup_export_test.cpp ../src/util/SetupExport.cpp)
-target_include_directories(setup_export_test PRIVATE ../src)
-target_compile_definitions(setup_export_test PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(setup_export_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test osdos_qrcodegen)
-add_test(NAME setup_export COMMAND setup_export_test)
+osdos_cpp_test(setup_export SOURCES ../src/util/SetupExport.cpp
+    DEFINITIONS SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.." LIBRARIES Qt6::Gui osdos_qrcodegen)
 find_program(LUA_EXECUTABLE NAMES lua5.4 lua54 lua REQUIRED)   # lua54: the BSDs' packages
 add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/osc_test.lua
                                   ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-osc.lua)
@@ -80,26 +86,16 @@ add_test(NAME osc_controls COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}
 # a playlist.
 add_test(NAME media_keys COMMAND ${LUA_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/media_keys_test.lua
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/mpv-media-keys.lua)
-add_executable(storage_search_test
-    storage_search_test.cpp
-    ../src/modules/local_files/LocalFilesBackend.cpp
-    ../src/modules/local_files/RemovableDrives.cpp)
-target_include_directories(storage_search_test PRIVATE ../src)
-target_link_libraries(storage_search_test PRIVATE osdos_test_core
-    Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test)
-add_test(NAME storage_search COMMAND storage_search_test)
+osdos_cpp_test(storage_search
+    SOURCES ../src/modules/local_files/LocalFilesBackend.cpp ../src/modules/local_files/RemovableDrives.cpp
+    LIBRARIES osdos_test_core Qt6::Concurrent Qt6::Network Qt6::Qml)
 
 # Themes and skins, read from the app's folder and the data folder's
 # (util/Looks, through AppCore), and their icons as the icon provider draws
 # and keeps them (OsdIconProvider).
-add_executable(looks_test
-    looks_test.cpp
-    ../src/util/OsdIconProvider.cpp)
-target_include_directories(looks_test PRIVATE ../src)
-target_compile_definitions(looks_test PRIVATE OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(looks_test PRIVATE osdos_test_core
-    Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick Qt6::Test)
-add_test(NAME looks COMMAND looks_test)
+osdos_cpp_test(looks SOURCES ../src/util/OsdIconProvider.cpp
+    DEFINITIONS OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+    LIBRARIES osdos_test_core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Quick)
 
 # The items that draw in art pixels (VhsNoise and SelectorFx, on
 # ArtPixelItem): what they draw from a given seed, frame by frame, and on the
@@ -107,46 +103,30 @@ add_test(NAME looks COMMAND looks_test)
 # QML sets them. Its floats as IEEE has them, a*b+c never fused into one step
 # where the processor can (arm64), so that the sparks' frames are the same on
 # every machine.
-add_executable(art_pixels_test
-    art_pixels_test.cpp
-    ../src/fx/ArtPixelItem.cpp
-    ../src/player/VhsNoise.cpp
-    ../src/fx/SelectorFx.cpp)
-target_include_directories(art_pixels_test PRIVATE ../src)
+osdos_cpp_test(art_pixels
+    SOURCES ../src/fx/ArtPixelItem.cpp ../src/player/VhsNoise.cpp ../src/fx/SelectorFx.cpp
+    LIBRARIES Qt6::Gui Qt6::Qml Qt6::Quick
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 if(NOT MSVC)
     target_compile_options(art_pixels_test PRIVATE -ffp-contract=off)
 endif()
-target_link_libraries(art_pixels_test PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
-add_test(NAME art_pixels COMMAND art_pixels_test)
-set_tests_properties(art_pixels PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 
 # The Jellyfin, Emby and Plex backends against a stand-in network: a list
 # asked for after another drops the first's reply, lists kept until a playback
 # ends, a stream given up dropped unreported, an auth check that changes
 # nothing quiet, and Plex's next item for a player left dropped.
 find_package(OpenSSL REQUIRED)
-add_executable(media_servers_test
-    media_servers_test.cpp
-    ../src/util/EmbyApiBackend.cpp
-    ../src/modules/jellyfin/JellyfinBackend.cpp
-    ../src/modules/emby/EmbyBackend.cpp
-    ../src/modules/plex/PlexBackend.cpp)
-target_include_directories(media_servers_test PRIVATE ../src)
-target_link_libraries(media_servers_test PRIVATE osdos_test_core
-    Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test OpenSSL::Crypto)
-add_test(NAME media_servers COMMAND media_servers_test)
+osdos_cpp_test(media_servers
+    SOURCES ../src/util/EmbyApiBackend.cpp ../src/modules/jellyfin/JellyfinBackend.cpp
+            ../src/modules/emby/EmbyBackend.cpp ../src/modules/plex/PlexBackend.cpp
+    LIBRARIES osdos_test_core Qt6::Concurrent Qt6::Network Qt6::Qml OpenSSL::Crypto)
 
 # An NFC card's file: mapped again, the old one kept till the new one is
 # written, and a long title cut to a name every filesystem takes.
-add_executable(nfc_cards_test
-    nfc_cards_test.cpp
-    ../src/modules/nfc_reader/NfcReaderBackend.cpp
-    ../src/modules/nfc_reader/PcscDriver.cpp
-    ../src/modules/nfc_reader/Pn532SerialDriver.cpp
-    ../src/modules/nfc_reader/SerialPort.cpp)
-target_include_directories(nfc_cards_test PRIVATE ../src)
-target_link_libraries(nfc_cards_test PRIVATE osdos_test_core Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
-add_test(NAME nfc_cards COMMAND nfc_cards_test)
+osdos_cpp_test(nfc_cards
+    SOURCES ../src/modules/nfc_reader/NfcReaderBackend.cpp ../src/modules/nfc_reader/PcscDriver.cpp
+            ../src/modules/nfc_reader/Pn532SerialDriver.cpp ../src/modules/nfc_reader/SerialPort.cpp
+    LIBRARIES osdos_test_core Qt6::Network Qt6::Qml)
 
 # The High Scores module on MAME's files of three games (data/highscores),
 # read by openhi2txt with hi2txt's definitions: the tables as lines, what is
@@ -154,16 +134,11 @@ add_test(NAME nfc_cards COMMAND nfc_cards_test)
 # minizip is found, as the module's tables are in the app.
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/openhi2txt.cmake)
 if(OPENHI2TXT_FOUND)
-    add_executable(highscores_test
-        highscores_test.cpp
-        ../src/modules/highscores/HighScoresBackend.cpp
-        ../src/modules/highscores/ScoreTable.cpp
-        ../src/modules/arcade/Mame.cpp)
-    target_include_directories(highscores_test PRIVATE ../src)
-    target_compile_definitions(highscores_test PRIVATE
-        OSDOS_HIGH_SCORES=1 APP_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-    target_link_libraries(highscores_test PRIVATE Qt6::Core Qt6::Concurrent Qt6::Test openhi2txt::openhi2txt)
-    add_test(NAME highscores COMMAND highscores_test)
+    osdos_cpp_test(highscores
+        SOURCES ../src/modules/highscores/HighScoresBackend.cpp ../src/modules/highscores/ScoreTable.cpp
+                ../src/modules/arcade/Mame.cpp
+        DEFINITIONS OSDOS_HIGH_SCORES=1 APP_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+        LIBRARIES Qt6::Concurrent openhi2txt::openhi2txt)
 else()
     message(WARNING "minizip not found: the High Scores test is left out")
 endif()
@@ -195,17 +170,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
     # One video handed over to the next (MpvController), against a stand-in
     # for mpv. Linux only: the stand-in is a shell script that looks in /proc.
-    add_executable(playback_retire_test
-        playback_retire_test.cpp
-        ../src/player/MpvController.cpp
-        ../src/player/EmbeddedMpv.cpp
-        ../src/player/VideoSurface.cpp
-        ../src/util/Diagnostics.cpp
-        ../src/util/ExecPath.cpp
-        ../src/util/FontconfigOverride.cpp)
-    target_include_directories(playback_retire_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(playback_retire_test PRIVATE osdos_test_launch osdos_test_system
-        Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network Qt6::Test ${Libdrm_LIBRARIES})
+    # Its stand-in for mpv runs as a process and the controller's waits for
+    # real, test after test (a start watched, a player ended, a session given
+    # up on): past the minute CI gives a test without a timeout of its own.
+    osdos_cpp_test(playback_retire
+        SOURCES ../src/player/MpvController.cpp ../src/player/EmbeddedMpv.cpp ../src/player/VideoSurface.cpp
+                ../src/util/Diagnostics.cpp ../src/util/ExecPath.cpp ../src/util/FontconfigOverride.cpp
+        LIBRARIES osdos_test_launch osdos_test_system Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network
+        TIMEOUT 180)
     # libmpv's headers where there are any (as the app's own build takes
     # them), so that a video played inside the window (EmbeddedMpv) is tested
     # too; without them, or without libmpv itself at run time, that test is
@@ -215,39 +187,27 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_definitions(playback_retire_test PRIVATE OSDOS_EMBEDDED_MPV=1)
         target_include_directories(playback_retire_test PRIVATE ${MPV_INCLUDEDIR})
     endif()
-    add_test(NAME playback_retire COMMAND playback_retire_test)
 
     # The menu music, against a stand-in for mpv: it plays in the menus, and
     # stops at once when anything else is about to play sound. And the app's
     # other audio mpvs beside it, Weather's music and Ambient Mode's audio.
-    add_executable(menu_music_test
-        menu_music_test.cpp
-        ../src/modules/ambient_mode/AmbientModeBackend.cpp
-        ../src/modules/weather/WeatherBackend.cpp)
-    target_include_directories(menu_music_test PRIVATE ../src)
-    target_compile_definitions(menu_music_test PRIVATE APP_VERSION="test")
-    target_link_libraries(menu_music_test PRIVATE osdos_test_audio Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
-    add_test(NAME menu_music COMMAND menu_music_test)
+    osdos_cpp_test(menu_music
+        SOURCES ../src/modules/ambient_mode/AmbientModeBackend.cpp ../src/modules/weather/WeatherBackend.cpp
+        DEFINITIONS APP_VERSION="test" LIBRARIES osdos_test_audio Qt6::Network Qt6::Qml)
 
     # The crash and stall reports (util/Diagnostics), from child processes
     # that crash or freeze on purpose. Linux only, as the reports are.
-    add_executable(diagnostics_test diagnostics_test.cpp ../src/util/Diagnostics.cpp)
-    target_include_directories(diagnostics_test PRIVATE ../src)
-    target_link_libraries(diagnostics_test PRIVATE Qt6::Core Qt6::Test)
-    add_test(NAME diagnostics COMMAND diagnostics_test)
+    osdos_cpp_test(diagnostics SOURCES ../src/util/Diagnostics.cpp)
 
     # Settings → Screen → Display Output against the image's presets in a stand-in boot
     # partition: which are offered, by board and launcher API, and At Next
     # Start through a stand-in for its socket.
-    add_executable(display_output_test
-        display_output_test.cpp
-        ../src/display/DisplayOutput.cpp)
-    target_include_directories(display_output_test PRIVATE ../src)
-    target_compile_definitions(display_output_test PRIVATE
-        PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
-        INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh")
-    target_link_libraries(display_output_test PRIVATE osdos_test_system Qt6::Core Qt6::Network Qt6::Test)
-    add_test(NAME display_output COMMAND display_output_test)
+    osdos_cpp_test(display_output SOURCES ../src/display/DisplayOutput.cpp
+        DEFINITIONS PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
+                    INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh"
+        LIBRARIES osdos_test_system Qt6::Network)
+    qt_add_resources(display_output_test "display_presets" PREFIX "/display" BASE "../os/stage-osdos/03-boot/files"
+                     FILES "../os/stage-osdos/03-boot/files/display-presets.json")
     # The same as a Pi 5, whose outputs are others.
     add_test(NAME display_output_pi5 COMMAND display_output_test)
     set_tests_properties(display_output_pi5 PROPERTIES
@@ -256,52 +216,50 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME display_output_pi3 COMMAND display_output_test)
     set_tests_properties(display_output_pi3 PROPERTIES
         ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 3 Model B Plus Rev 1.3")
+    # And as a Pi 500, a Pi 5 without the TV pads' composite.
+    add_test(NAME display_output_pi500 COMMAND display_output_test)
+    set_tests_properties(display_output_pi500 PROPERTIES
+        ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 500 Rev 1.0")
 
     # The OSD/OS image's boot screen (BootProgress) against a stand-in for
     # systemctl: the services it lists as they start, and OSD/OS Setup's
     # SETTINGS only once it does.
-    add_executable(boot_progress_test boot_progress_test.cpp ../src/boot/BootProgress.cpp)
-    target_include_directories(boot_progress_test PRIVATE ../src)
-    target_link_libraries(boot_progress_test PRIVATE osdos_test_names Qt6::Core Qt6::Test)
-    add_test(NAME boot_progress COMMAND boot_progress_test)
+    osdos_cpp_test(boot_progress SOURCES ../src/boot/BootProgress.cpp LIBRARIES osdos_test_names)
 
     # Settings → Network → Bluetooth's DETAILS (BluetoothManager, built
     # without BlueZ, as on a Mac) against a stand-in for journalctl: the
     # system log's Bluetooth lines, one reading at a time, and one that
     # takes too long stopped with what it gave by then.
-    add_executable(bluetooth_test
-        bluetooth_test.cpp
-        ../src/bluetooth/BluetoothManager.cpp)
-    target_include_directories(bluetooth_test PRIVATE ../src)
-    target_link_libraries(bluetooth_test PRIVATE Qt6::Core Qt6::Test)
-    add_test(NAME bluetooth COMMAND bluetooth_test)
+    osdos_cpp_test(bluetooth SOURCES ../src/bluetooth/BluetoothManager.cpp)
 
     # A process over, told once each time (util/ProcessOver.h), against
     # /bin/sh: one that exits, one killed, one that can't be started, one
     # started again, and one still running at the time limit, told at once,
     # then ended and deleted.
-    add_executable(process_over_test process_over_test.cpp)
-    target_include_directories(process_over_test PRIVATE ../src)
-    target_link_libraries(process_over_test PRIVATE Qt6::Core Qt6::Test)
-    add_test(NAME process_over COMMAND process_over_test)
+    osdos_cpp_test(process_over)
 
-    # Settings → System → About → System Information (SystemInfo): its rows from what
+    # Settings → System → System Information (SystemInfo): its rows from what
     # the system says, Linux's files from a stand-in root, the name a network
     # takes of what is typed, and the device renamed through a stand-in for
     # osdos-name.socket.
-    add_executable(system_info_test system_info_test.cpp ../src/system/SystemInfo.cpp)
-    target_include_directories(system_info_test PRIVATE ../src)
-    target_link_libraries(system_info_test PRIVATE osdos_test_system Qt6::Core Qt6::Network Qt6::Test)
-    add_test(NAME system_info COMMAND system_info_test)
+    osdos_cpp_test(system_info SOURCES ../src/system/SystemInfo.cpp LIBRARIES osdos_test_system Qt6::Network)
+
+    # The system around an arcade game (GameSystem) against a stand-in for
+    # osdos-game.socket: what a game's start sends and its end, the
+    # connection held between, the line of what the Pi did and the notice,
+    # nothing asked without the helper; and the emulator's nice, given by
+    # the launcher where the limit allows it.
+    osdos_cpp_test(game_system SOURCES ../src/modules/arcade/GameSystem.cpp
+        LIBRARIES osdos_test_launch osdos_test_system osdos_test_core Qt6::Network)
+    # The same as a Raspberry Pi 4, where a game without the helper says so.
+    add_test(NAME game_system_pi4 COMMAND game_system_test)
+    set_tests_properties(game_system_pi4 PROPERTIES ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 4 Model B Rev 1.5")
 
     # Settings → System's Time Zone and Keyboard (SystemSettings): what the
     # system has from a stand-in root, the lists it offers, and a new one sent
     # through a stand-in for osdos-system.socket.
-    add_executable(system_settings_test system_settings_test.cpp ../src/system/SystemSettings.cpp)
-    target_include_directories(system_settings_test PRIVATE ../src)
-    target_compile_definitions(system_settings_test PRIVATE SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/..")
-    target_link_libraries(system_settings_test PRIVATE osdos_test_system Qt6::Core Qt6::Network Qt6::Test)
-    add_test(NAME system_settings COMMAND system_settings_test)
+    osdos_cpp_test(system_settings SOURCES ../src/system/SystemSettings.cpp
+        DEFINITIONS SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.." LIBRARIES osdos_test_system Qt6::Network)
 
     # Settings → Network → Wi-Fi (WifiManager) against a stand-in for NetworkManager
     # (fake_networkmanager) on a D-Bus of the test's own, and for the country
@@ -311,14 +269,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # for screenshots of the app against it; ctest doesn't run it.
     find_package(Qt6 QUIET COMPONENTS DBus)
     if(Qt6DBus_FOUND)
-        add_executable(wifi_test
-            wifi_test.cpp
-            fake_networkmanager.cpp
-            ../src/wifi/WifiManager.cpp)
-        target_include_directories(wifi_test PRIVATE ../src)
-        target_compile_definitions(wifi_test PRIVATE OSDOS_WIFI=1)
-        target_link_libraries(wifi_test PRIVATE osdos_test_system Qt6::Core Qt6::DBus Qt6::Network Qt6::Test)
-        add_test(NAME wifi COMMAND wifi_test)
+        osdos_cpp_test(wifi SOURCES fake_networkmanager.cpp ../src/wifi/WifiManager.cpp
+            DEFINITIONS OSDOS_WIFI=1 LIBRARIES osdos_test_system Qt6::DBus Qt6::Network)
 
         add_executable(fake_networkmanager fake_networkmanager_main.cpp fake_networkmanager.cpp)
         target_link_libraries(fake_networkmanager PRIVATE Qt6::Core Qt6::DBus)
@@ -338,6 +290,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/Mame.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
+        ../src/modules/arcade/GameSystem.cpp
         ../src/modules/arcade/ProgramInstaller.cpp
         ../src/modules/arcade/RetroAchievements.cpp
         ../src/modules/arcade/RetroAchievementsAccount.cpp
@@ -347,7 +300,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(arcade_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
     target_compile_definitions(arcade_test PRIVATE TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     osdos_engine_definitions(arcade_test)
-    target_link_libraries(arcade_test PRIVATE osdos_test_launch
+    target_link_libraries(arcade_test PRIVATE osdos_test_launch osdos_test_system
         Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES} osdos_lzma)
     # FinalBurn Neo's download unpacks its core with minizip, where there is one.
     if(OPENHI2TXT_FOUND)
@@ -370,41 +323,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # A playlist's m3u: owner-only and whole, the one before removed once it
     # is written, and one a full card can't take reported, the one before
     # kept. Linux only, as the arcade test, for what the backends start.
-    add_executable(playlists_test
-        playlists_test.cpp
-        ../src/modules/playlists/PlaylistsBackend.cpp
-        ../src/modules/playlists/ServerDownload.cpp
-        ../src/modules/local_files/LocalFilesBackend.cpp
-        ../src/modules/local_files/RemovableDrives.cpp)
-    target_include_directories(playlists_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(playlists_test PRIVATE osdos_test_youtube
-        Qt6::Core Qt6::Concurrent Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
-    add_test(NAME playlists COMMAND playlists_test)
+    osdos_cpp_test(playlists
+        SOURCES ../src/modules/playlists/PlaylistsBackend.cpp ../src/modules/playlists/ServerDownload.cpp
+                ../src/modules/local_files/LocalFilesBackend.cpp ../src/modules/local_files/RemovableDrives.cpp
+        LIBRARIES osdos_test_youtube Qt6::Concurrent Qt6::Network Qt6::Qml)
 
     # YouTube's subscriptions read from a stand-in for its feeds: four at a
     # time, the channel opened first. Linux only, as the playlists test, for
     # the sign-in browser the backend holds.
-    add_executable(youtube_test youtube_test.cpp)
-    target_include_directories(youtube_test PRIVATE ../src ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(youtube_test PRIVATE osdos_test_youtube
-        Qt6::Core Qt6::Network Qt6::Qml Qt6::Test ${Libdrm_LIBRARIES})
-    add_test(NAME youtube COMMAND youtube_test)
+    osdos_cpp_test(youtube LIBRARIES osdos_test_youtube Qt6::Network Qt6::Qml)
 
     # A Raspberry Pi to JAMMA board's pins as gamepad events (osdos-jamma).
     # Linux only, as uinput's codes are.
-    add_executable(jamma_test jamma_test.cpp ../src/jamma/JammaPanel.cpp)
-    target_include_directories(jamma_test PRIVATE ../src)
-    target_link_libraries(jamma_test PRIVATE Qt6::Core Qt6::Test)
-    add_test(NAME jamma COMMAND jamma_test)
+    osdos_cpp_test(jamma SOURCES ../src/jamma/JammaPanel.cpp)
 
     # osdos-modetest (src/modetest): modelines read, the built-in modes, which
     # a screen may be given and the picture drawn in each; and the tool itself
     # where there is no screen: a modeline that isn't one turned down, and
     # none found to test on. Linux only, as libdrm is.
-    add_executable(modetest_test modetest_test.cpp ../src/modetest/ModeLine.cpp)
-    target_include_directories(modetest_test PRIVATE ../src)
-    target_link_libraries(modetest_test PRIVATE Qt6::Core Qt6::Test)
-    add_test(NAME modetest COMMAND modetest_test)
+    osdos_cpp_test(modetest SOURCES ../src/modetest/ModeLine.cpp)
     add_executable(modetest_tool ../src/modetest/main.cpp ../src/modetest/ModeLine.cpp)
     set_target_properties(modetest_tool PROPERTIES AUTOMOC OFF)
     target_include_directories(modetest_tool PRIVATE ${Libdrm_INCLUDE_DIRS})
@@ -431,6 +368,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # (scripts/save-logs.sh), on a stand-in partition and journalctl.
     add_test(NAME save_logs COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/save_logs_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/save-logs.sh)
+
+    # FinalBurn Neo's source unpacked and both cores built in order
+    # (scripts/build-fbneo-cores.sh), with stand-ins for curl and the builds;
+    # and each system's settings (scripts/fbneo-make.sh), -ffp-contract=off
+    # on all of them, with stand-ins for uname and make.
+    add_test(NAME fbneo_cores COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/fbneo_cores_test.sh
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/build-fbneo-cores.sh)
 
     # The image's stop helper, osdos-stop (scripts/install.sh), on a stand-in
     # boot partition: the display presets it writes, and At Next Start's and
@@ -496,6 +440,10 @@ osdos_qml_test(controls_views tst_controllers.qml)
 # The Arcade module's views (modules/arcade/views/Games.qml, ArcadeScreen.qml,
 # Play.qml) against a stand-in for ArcadeBackend.
 osdos_qml_test(arcade_views tst_arcade.qml)
+# Its views' own waits run for real (a held select, Attract Mode's idle time,
+# a name's scroll), view after view: a minute in all, the minute CI gives a
+# test without a timeout of its own.
+set_tests_properties(arcade_views PROPERTIES TIMEOUT 180)
 # A module's settings page (views/ModuleSettings.qml) against a stand-in for
 # AppCore: rows that follow another row's value.
 osdos_qml_test(module_settings_view tst_module_settings.qml)
@@ -535,20 +483,24 @@ osdos_qml_test(window_change tst_window_change.qml)
 # way forward and back, the two replaces, a view the Root opens its own way,
 # inFrame, and the shell's own navigateTo.
 osdos_qml_test(module_router tst_module_router.qml)
+# The catalogue browsers, YouTube's (modules/youtube/views/Items.qml) and a
+# web player module's (views/Components/WebPlayerBrowse.qml), both a
+# CatalogBrowser (views/Components/CatalogBrowser.qml), against
+# stand-ins for their backends.
+osdos_qml_test(catalog_browser_views tst_catalog_browsers.qml)
 
 # Settings → Look → Menu Layout's monitor layouts as a frame every kind of
 # view takes its place in (views/Components/MonitorChrome.qml and the shared
 # components that hand it their content), against a stand-in for Main.qml.
 osdos_qml_test(monitor_frame_views tst_monitor_frame.qml)
-# About (views/About.qml): System Information first, the device's name its
-# value, opening its page; OSD/OS's lines and the arcade's, each licence a
-# page of its own, against stand-ins for the licence files and the name.
+# About (views/About.qml): OSD/OS's lines and the arcade's, each license a
+# page of its own, against stand-ins for the license files.
 osdos_qml_test(about_view tst_about.qml)
 # Settings → Screen → Test Patterns (views/TestPatterns.qml): every pattern there and
 # loading, the keys through them, the name and keys over them, the effects
 # resting and the screen saver waiting.
 osdos_qml_test(test_patterns_view tst_test_patterns.qml)
-# About → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
+# Settings → System → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
 # line as they are read again, and the device renamed on the keyboard, against
 # a stand-in for SystemInfo.
 osdos_qml_test(system_info_view tst_system_info.qml)
@@ -564,17 +516,15 @@ osdos_qml_test(media_players_views tst_media_players.qml)
 # pad's Arcade Buttons as MAME and RetroArch name them and whose a key is
 # (ControllerProfile), and InputManager with pads SDL makes up (its virtual
 # joysticks), its settings kept in config.json (AppCore).
+# Its waits are InputManager's own, for real (a hold's second and a half,
+# the unlock buttons' three seconds, a page's wait run out): a minute and
+# more in all, past the minute CI gives a test without a timeout of its own.
 find_package(SDL2 CONFIG REQUIRED)
-add_executable(controllers_test
-    controllers_test.cpp
-    ../src/input/InputManager.cpp
-    ../src/input/ControllerProfile.cpp
-    ../src/input/JammaPins.cpp)
-target_include_directories(controllers_test PRIVATE ../src)
-target_link_libraries(controllers_test PRIVATE osdos_test_core
-    Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network Qt6::Test SDL2::SDL2)
-add_test(NAME controllers COMMAND controllers_test)
-set_tests_properties(controllers PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+osdos_cpp_test(controllers
+    SOURCES ../src/input/InputManager.cpp ../src/input/ControllerProfile.cpp ../src/input/JammaPins.cpp
+            ../src/input/IdleTracker.cpp
+    LIBRARIES osdos_test_core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Network SDL2::SDL2
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)
 
 # The app itself (the build in build/, made apart from the tests; OSDOS_APP
 # for another), started offscreen: the main menu with every module on it,

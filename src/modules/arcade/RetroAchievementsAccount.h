@@ -1,11 +1,16 @@
 #pragma once
 #include "Libretro.h"
+#include <QFileDevice>
 #include <QObject>
 #include <QString>
 #include <functional>
 
 class QProcess;
 class RetroAchievements;
+
+// What a file holding a token, a key or a password is written with: the
+// account's file, and the RetroArch config a game is lent it in.
+inline constexpr QFileDevice::Permissions kOwnerOnly = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
 
 // The RetroAchievements account RetroArch plays FinalBurn Neo's games under
 // (Online High Scores; Settings → Arcade → RetroAchievements Account): its

@@ -7,8 +7,9 @@
 # database's list of countries, and the device name's (osdos-stop
 # device-name), on a stand-in /etc/hosts, and the time zone's and the
 # keyboard's (osdos-stop system-setting), against stand-ins for the time zone
-# database and XKB's layouts. systemctl, raspi-config, hostnamectl and
-# timedatectl are stand-ins that only note what they were asked.
+# database and XKB's layouts, and SSH's (osdos-stop system-setting ssh), on a
+# stand-in /etc/shadow. systemctl, raspi-config, hostnamectl and timedatectl
+# are stand-ins that only note what they were asked.
 #   osdos_stop_test.sh <scripts/install.sh> <os/stage-osdos/03-boot/files>
 set -u
 
@@ -28,13 +29,28 @@ awk -v marker=STOP_HELPER '
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/iso3166.tab#g" \
                       -e "s#^ZONES=/usr/share/zoneinfo\$#ZONES=$T/zoneinfo#" \
                       -e "s#^LAYOUTS=/usr/share/X11/xkb/symbols\$#LAYOUTS=$T/xkb#" \
-                      -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/osdos-stop"
+                      -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
+                      -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" \
+                      -e "s#^GAME_RUN=/run/osdos-game\$#GAME_RUN=$T/run/osdos-game#" \
+                      -e "s#^GAME_FLAG=/run/osdos-game/playing\$#GAME_FLAG=$T/run/osdos-game/playing#" \
+                      -e "s#^CPUFREQ=/sys/devices/system/cpu/cpufreq\$#CPUFREQ=$T/cpufreq#" \
+                      -e "s#^THERMAL=/sys/class/thermal\$#THERMAL=$T/thermal#" \
+                      -e "s#^FIRMWARE=/sys/devices/platform\$#FIRMWARE=$T/platform#" \
+                      -e "s#^NET=/sys/class/net\$#NET=$T/net#" \
+                      -e "s#^MODULES=/sys/module\$#MODULES=$T/module#" > "$T/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/iso3166.tab" "$T/osdos-stop" || { echo "FAIL: osdos-stop's list of countries not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts not found in $INSTALL_SH"; exit 1; }
 grep -q "^ZONES=$T/zoneinfo\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's time zones not found in $INSTALL_SH"; exit 1; }
 grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboard layouts not found in $INSTALL_SH"; exit 1; }
-printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n' "$T" > "$T/bin/systemctl"
+grep -q "^SHADOW=$T/etc/shadow\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/shadow not found in $INSTALL_SH"; exit 1; }
+# systemctl names the app's service's user as app-user has it, and fails a
+# command while <command>-fails is there (enable-fails, start-fails, ...).
+for v in GAME_RUN GAME_FLAG CPUFREQ THERMAL FIRMWARE NET MODULES; do
+    grep -q "^$v=$T/" "$T/osdos-stop" || { echo "FAIL: osdos-stop's $v not found in $INSTALL_SH"; exit 1; }
+done
+printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n[ "$1" != show ] || cat "%s/app-user" 2> /dev/null\n[ ! -e "%s/$1-fails" ]\n' \
+    "$T" "$T" "$T" > "$T/bin/systemctl"
 # raspi-config says something of its own, which must stay out of the answer,
 # and fails while raspi-config-fails is there.
 printf '#!/bin/sh\necho "$*" >> "%s/raspi-config"\necho "raspi-config on its own"\n[ ! -e "%s/raspi-config-fails" ]\n' \
@@ -114,7 +130,7 @@ cp "$T/boot/osdos-display-hdmi.txt" "$T/boot/osdos-display.txt"
 
 # A switch now: written, then a reboot; a Pi 5's SCART sync, not JAMMA's.
 on_exit 26
-check "exit 26 writes SCART RGB PAL" scart-rgb-pal "$(in_force)"
+check "exit 26 writes SCART RGB 576i" scart-rgb-pal "$(in_force)"
 check "exit 26 keeps HDMI to go back to" hdmi "$(previous)"
 check "exit 26 writes SCART's composite sync" yes "$(csync)"
 check "exit 26 reboots" reboot "$(asked)"
@@ -129,7 +145,7 @@ check "exit 29 brings SCART's sync back" yes "$(csync)"
 new_boot
 # The JAMMA board's other modes, 31-39, none with a composite sync.
 on_exit 31
-check "exit 31 writes JAMMA 240p 15 kHz (320x240)" jamma-240p-native "$(in_force)"
+check "exit 31 writes JAMMA 320x240" jamma-240p-native "$(in_force)"
 check "exit 31 writes no composite sync" no "$(csync)"
 check "exit 31 reboots" reboot "$(asked)"
 new_boot
@@ -407,6 +423,299 @@ printf 'keyboard xx\n' | system_request > /dev/null
 check "a setting refused answered is no failure" 0 "$?"
 check "a setting refused goes to the journal" "osdos-stop system-setting: no such keyboard" "$(cat "$T/stderr")"
 check "after them all, still no reboot" "" "$(asked)"
+
+# SSH, while the app runs: on, enabled and started; off, disabled and
+# stopped; nothing else, and nothing of sshd's own settings. Turned on, the
+# answer says when the app's user (osdos.service's, pi here) has no password
+# to log in with, never anything of the password itself.
+ssh_setting() { : > "$T/systemctl"; system_setting "$1"; }
+changed()     { grep -v '^show ' "$T/systemctl"; }
+echo pi > "$T/app-user"
+printf 'root:*:19000:0:99999:7:::\npi:%s:19000:0:99999:7:::\n' '$6$invented$cAfEcAfEcAfE' > "$T/etc/shadow"
+check "ssh on: answers ok" ok "$(ssh_setting 'ssh on')"
+check "ssh on: enabled, then started" $'enable ssh.service\nstart ssh.service' "$(changed)"
+check "ssh on: asks whose the app is" "show --property=User --value osdos.service" "$(grep '^show ' "$T/systemctl")"
+check "ssh off: answers ok" ok "$(ssh_setting 'ssh off')"
+check "ssh off: disabled, then stopped" $'disable ssh.service\nstop ssh.service' "$(changed)"
+check "ssh off: whose the app is not asked" "" "$(grep '^show ' "$T/systemctl")"
+for locked in '!' '!$6$invented$cAfEcAfEcAfE' '*' ''; do
+    printf 'pi:%s:19000:0:99999:7:::\n' "$locked" > "$T/etc/shadow"
+    check "ssh on, pi's password '$locked': no password to log in with" "ok no-password" "$(ssh_setting 'ssh on')"
+    check "ssh on, pi's password '$locked': on all the same" $'enable ssh.service\nstart ssh.service' "$(changed)"
+done
+check "ssh on: nothing of the password in the journal" "" "$(grep -e invented -e cAfE "$T/stderr")"
+check "ssh off, no password: only ok" ok "$(ssh_setting 'ssh off')"
+# Where whose the app is, or its password, can't be told: nothing said.
+: > "$T/app-user"
+check "ssh on, the app's user unknown: ok" ok "$(ssh_setting 'ssh on')"
+echo 'pi;reboot' > "$T/app-user"
+check "ssh on, a user that isn't a name: ok" ok "$(ssh_setting 'ssh on')"
+echo pi > "$T/app-user"
+rm "$T/etc/shadow"
+check "ssh on, no /etc/shadow: ok" ok "$(ssh_setting 'ssh on')"
+printf 'pi:$6$invented$cAfEcAfEcAfE:19000:0:99999:7:::\n' > "$T/etc/shadow"
+# Only on or off: nothing else reaches systemctl.
+for bad in '' 'yes' 'ON' 'on off' 'on;reboot' '$(reboot)' 'restart' 'on ' 'mask'; do
+    check "ssh: '$bad' isn't on or off" "SSH is only on or off" "$(ssh_setting "ssh $bad")"
+    check "ssh: '$bad': systemctl not asked" "" "$(cat "$T/systemctl")"
+done
+check "ssh alone is neither" "SSH is only on or off" "$(ssh_setting 'ssh')"
+check "ssh refused goes to the journal" "osdos-stop system-setting: SSH is only on or off" "$(cat "$T/stderr")"
+# systemctl failing: said, and SSH not left enabled for the next start when
+# it couldn't start now.
+touch "$T/enable-fails"
+check "enable failing is a refusal" "systemctl couldn't enable it" "$(ssh_setting 'ssh on')"
+check "enable failing: not started" "enable ssh.service" "$(changed)"
+rm "$T/enable-fails"
+touch "$T/start-fails"
+check "start failing is a refusal" "it didn't start" "$(ssh_setting 'ssh on')"
+check "start failing: disabled again" $'enable ssh.service\nstart ssh.service\ndisable ssh.service' "$(changed)"
+rm "$T/start-fails"
+touch "$T/disable-fails"
+check "disable failing is a refusal" "systemctl couldn't disable it" "$(ssh_setting 'ssh off')"
+check "disable failing: not stopped" "disable ssh.service" "$(changed)"
+rm "$T/disable-fails"
+touch "$T/stop-fails"
+check "stop failing is a refusal" "it didn't stop" "$(ssh_setting 'ssh off')"
+rm "$T/stop-fails"
+check "after SSH, still no reboot" "" "$(grep -e reboot -e poweroff "$T/systemctl")"
+
+# An arcade game's CPU governor (osdos-stop game, through osdos-game.socket),
+# on a stand-in for the kernel's files: one CPU frequency policy, the CPU's
+# thermal zone and the firmware's throttling bits. The helper runs as the
+# socket runs it, its standard input the app's connection, held open for
+# the game (descriptor 7 here).
+mkdir -p "$T/cpufreq/policy0" "$T/thermal/thermal_zone0" "$T/platform/soc/soc:firmware"
+echo cpu-thermal > "$T/thermal/thermal_zone0/type"
+governor()  { cat "$T/cpufreq/policy0/scaling_governor"; }
+playing()   { [ -e "$T/run/osdos-game/playing" ] && echo up || echo down; }
+pi_is() {  # governor, temperature (millidegrees), get_throttled
+    echo "$1" > "$T/cpufreq/policy0/scaling_governor"
+    echo "$2" > "$T/thermal/thermal_zone0/temp"
+    echo "$3" > "$T/platform/soc/soc:firmware/get_throttled"
+}
+# The game started with the line given: the helper left running, its
+# answer (the first line it writes) printed once it has one.
+game_start() {
+    rm -f "$T/game-in" "$T/game-out"
+    mkfifo "$T/game-in"
+    : > "$T/game-out"
+    PATH="$T/bin:$PATH" "$T/osdos-stop" game < "$T/game-in" > "$T/game-out" 2> "$T/stderr" &
+    GAME_PID=$!
+    exec 7> "$T/game-in"
+    printf '%s\n' "$1" >&7
+    local i
+    for i in $(seq 100); do
+        grep -q . "$T/game-out" && break
+        sleep 0.05
+    done
+    head -n1 "$T/game-out"
+}
+# Its end: "end" sent, or the connection closed (the app gone), and the
+# helper waited for.
+game_end()   { printf 'end\n' >&7; exec 7>&-; wait "$GAME_PID"; }
+game_close() { exec 7>&-; wait "$GAME_PID"; }
+
+pi_is ondemand 52000 0
+game_start 'start full-speed' > "$T/answer"
+check "game: full speed asked, performance" "ok performance" "$(cat "$T/answer")"
+check "game: the governor at performance during it" performance "$(governor)"
+check "game: the flag up during it" up "$(playing)"
+check "game: the governor before it kept" "policy0 ondemand" "$(cat "$T/run/osdos-game/governors")"
+game_end
+check "game: its end answered is no failure" 0 "$?"
+check "game: the governor put back at its end" ondemand "$(governor)"
+check "game: the flag down at its end" down "$(playing)"
+
+game_start 'start full-speed network' > "$T/answer"
+check "game: a network game, performance" "ok performance" "$(cat "$T/answer")"
+game_close
+check "game: the app's connection closed, the governor put back" ondemand "$(governor)"
+check "game: ...and the flag down" down "$(playing)"
+
+game_start 'start as-is' > "$T/answer"
+check "game: full speed turned off in Settings" "ok kept ondemand, as Settings asks" "$(cat "$T/answer")"
+check "game: ...the governor as it was" ondemand "$(governor)"
+check "game: ...the flag up all the same" up "$(playing)"
+game_end
+check "game: ...and down after" down "$(playing)"
+
+pi_is schedutil 78000 0
+game_start 'start full-speed' > "$T/answer"
+check "game: a Pi already hot keeps its governor" "ok kept schedutil, as the Pi was at 78.0 °C at the start" \
+      "$(cat "$T/answer")"
+check "game: ...which stays as it was" schedutil "$(governor)"
+game_end
+check "game: ...and is said in the journal" \
+      "osdos-stop game: the governor kept at schedutil, as the Pi was at 78.0 °C at the start" "$(head -n1 "$T/stderr")"
+pi_is ondemand 50000 50005
+game_start 'start full-speed' > "$T/answer"
+check "game: a Pi throttled now keeps its governor" "ok kept ondemand, as the Pi was throttled at the start (0x50005)" \
+      "$(cat "$T/answer")"
+check "game: ...which stays as it was" ondemand "$(governor)"
+game_end
+pi_is ondemand 50000 50000
+game_start 'start full-speed' > "$T/answer"
+check "game: throttled earlier only, performance" "ok performance" "$(cat "$T/answer")"
+game_end
+check "game: ...put back" ondemand "$(governor)"
+
+# A helper stopped mid-game (the system going down) puts it back too.
+pi_is ondemand 50000 0
+game_start 'start full-speed' > /dev/null
+kill -TERM "$GAME_PID"
+wait "$GAME_PID"
+exec 7>&-
+check "game: its helper stopped, the governor put back" ondemand "$(governor)"
+check "game: ...and the flag down" down "$(playing)"
+# One killed outright leaves it to the app's service: osdos.service's
+# ExecStopPost (osdos-stop with the app's exit) puts it back.
+game_start 'start full-speed' > /dev/null
+kill -KILL "$GAME_PID"
+wait "$GAME_PID" 2> /dev/null
+exec 7>&-
+check "game: its helper killed, performance stays meanwhile" performance "$(governor)"
+on_exit 143
+check "game: the app's service stopped, the governor put back" ondemand "$(governor)"
+check "game: ...and the flag down" down "$(playing)"
+check "game: ...and the Pi left on" "" "$(asked)"
+# And what such a game left is put back before the next is kept.
+mkdir -p "$T/run/osdos-game"
+echo "policy0 schedutil" > "$T/run/osdos-game/governors"
+pi_is performance 50000 0
+game_start 'start full-speed' > "$T/answer"
+check "game: one left from before put back first" "ok performance" "$(cat "$T/answer")"
+check "game: ...the governor from before it kept" "policy0 schedutil" "$(cat "$T/run/osdos-game/governors")"
+game_end
+check "game: ...and put back" schedutil "$(governor)"
+
+# Only its own words: anything else changes nothing.
+pi_is ondemand 50000 0
+for bad in 'start' 'start fast' 'start full-speed wifi' 'start full-speed network;reboot' 'stop' \
+           'start ../governor' 'end' ' '; do
+    game_start "$bad" > "$T/answer"
+    check "game: '$bad' is refused" "nothing this does" "$(cat "$T/answer")"
+    game_close
+    check "game: '$bad': the governor as it was" ondemand "$(governor)"
+    check "game: '$bad': no flag" down "$(playing)"
+done
+check "game: nothing sent" "nothing asked" "$(PATH="$T/bin:$PATH" "$T/osdos-stop" game < /dev/null 2> /dev/null)"
+
+# What the Pi did during a game, said at its end: the governor, the clock,
+# the throttling bits the game saw or set, the highest temperature, and in a
+# network game the route's interface, and on Wi-Fi its band, its signal at
+# the start and the end and the radio's scans and roams (stand-ins for ip
+# and iw: the route, the link and the radio's events as they print them).
+told()   { sed -n 2p "$T/game-out"; }
+journal() { tail -n1 "$T/stderr"; }
+echo 1800000 > "$T/cpufreq/policy0/scaling_cur_freq"
+mkdir -p "$T/net/eth0" "$T/net/wlan0/wireless" "$T/module/brcmfmac/parameters"
+echo 1 > "$T/module/brcmfmac/parameters/roamoff"
+printf '#!/bin/sh\ncat "%s/route"\n' "$T" > "$T/bin/ip"
+# iw dev wlan0 link: the link as iw prints it; iw event -t: the radio's
+# events, then on until it is stopped.
+cat > "$T/bin/iw" << EOF
+#!/bin/sh
+case "\$1" in
+    dev) cat "$T/iw-link" ;;
+    event) cat "$T/iw-events"; exec sleep 60 ;;
+esac
+EOF
+chmod +x "$T/bin/ip" "$T/bin/iw"
+link() {  # frequency, signal
+    printf 'Connected to 02:00:00:00:00:01 (on wlan0)\n\tSSID: home\n\tfreq: %s\n\tRX: 1 bytes (1 packets)\n\tsignal: %s dBm\n' \
+        "$1" "$2" > "$T/iw-link"
+}
+
+pi_is ondemand 52000 0
+game_start 'start full-speed' > /dev/null
+echo 63400 > "$T/thermal/thermal_zone0/temp"
+sleep 2.5
+echo 1500000 > "$T/cpufreq/policy0/scaling_cur_freq"
+echo 58000 > "$T/thermal/thermal_zone0/temp"
+game_end
+check "game: its end says what the Pi did" \
+      "notice=none governor performance, clock 1500-1800 MHz, throttling none, highest 63.4 °C" "$(told)"
+check "game: ...and so does the journal" \
+      "osdos-stop game: the game ended, the system as it was: governor performance, clock 1500-1800 MHz, throttling none, highest 63.4 °C" \
+      "$(journal)"
+echo 1800000 > "$T/cpufreq/policy0/scaling_cur_freq"
+
+# Throttled or short of power since the game began: by the firmware's bits
+# since boot that the game set.
+pi_is ondemand 50000 0
+game_start 'start full-speed' > /dev/null
+echo 50000 > "$T/platform/soc/soc:firmware/get_throttled"
+game_end
+check "game: short of power and throttled during it" \
+      "notice=power,throttled governor performance, clock 1800 MHz, throttling 0x5 (under-voltage, throttled), highest 50.0 °C" \
+      "$(told)"
+# Set before the game: not the game's.
+game_start 'start full-speed' > /dev/null
+game_end
+check "game: what was there before it isn't the game's" "notice=none" "$(told | cut -d' ' -f1)"
+pi_is ondemand 50000 0
+game_start 'start full-speed' > /dev/null
+echo 20002 > "$T/platform/soc/soc:firmware/get_throttled"
+game_end
+check "game: the clock capped is throttling" "notice=throttled" "$(told | cut -d' ' -f1)"
+pi_is ondemand 50000 0
+game_start 'start as-is' > /dev/null
+echo 10001 > "$T/platform/soc/soc:firmware/get_throttled"
+game_end
+check "game: short of power only" \
+      "notice=power governor ondemand, clock 1800 MHz, throttling 0x1 (under-voltage), highest 50.0 °C" "$(told)"
+
+# A network game over Wi-Fi.
+pi_is ondemand 50000 0
+echo "default via 192.168.1.1 dev wlan0 proto dhcp src 192.168.1.20 metric 600" > "$T/route"
+link 5180.0 -58
+printf '%s\n' "1700000000.100000: wlan0 (phy #0): scan started" \
+    "1700000000.200000: wlan0 (phy #0): scan finished: 5180 5200, \"\"" \
+    "1700000030.100000: wlan0 (phy #0): scan started" \
+    "1700000031.100000: wlan0 (phy #0): roamed to 02:00:00:00:00:02" \
+    "1700000040.100000: wlan1 (phy #1): scan started" > "$T/iw-events"
+game_start 'start full-speed network' > /dev/null
+sleep 0.3
+link 5180.0 -61
+game_end
+check "game: a network game over Wi-Fi: its band, signal, scans and roams" \
+      "notice=none governor performance, clock 1800 MHz, throttling none, highest 50.0 °C, Wi-Fi wlan0 5 GHz (5180 MHz), signal -58 dBm at the start, -61 dBm at the end, 2 scans, 1 roams, roamoff 1" \
+      "$(told)"
+link 2437 -70
+: > "$T/iw-events"
+game_start 'start full-speed network' > /dev/null
+: > "$T/iw-link"
+game_end
+check "game: on 2.4 GHz, and gone at the end" \
+      "Wi-Fi wlan0 2.4 GHz (2437 MHz), signal -70 dBm at the start, not connected at the end, 0 scans, 0 roams, roamoff 1" \
+      "$(told | sed 's/.*°C, //')"
+# Over a cable, or without a route, there is no Wi-Fi to count.
+echo "default via 192.168.1.1 dev eth0 proto dhcp src 192.168.1.21 metric 100" > "$T/route"
+game_start 'start full-speed network' > /dev/null
+game_end
+check "game: a network game over a cable" "network over eth0" "$(told | sed 's/.*°C, //')"
+: > "$T/route"
+game_start 'start full-speed network' > /dev/null
+game_end
+check "game: a network game without a route" "network: no default route" "$(told | sed 's/.*°C, //')"
+# A game alone says nothing of the network.
+game_start 'start full-speed' > /dev/null
+game_end
+check "game: a game alone says nothing of the network" "highest 50.0 °C" "$(told | sed 's/.*, //')"
+# The connection closed (the app gone): the journal has it, nobody else.
+game_start 'start full-speed' > /dev/null
+game_close
+check "game: closed, nothing more on the connection" "" "$(told)"
+check "game: ...the journal has it" \
+      "osdos-stop game: the game ended, the system as it was: governor performance, clock 1800 MHz, throttling none, highest 50.0 °C" \
+      "$(journal)"
+
+# The yt-dlp update waits on the flag the helper keeps, by its path.
+flag=$(sed -n 's/^GAME_FLAG=//p' "$INSTALL_SH")
+check "game: the yt-dlp update skips its run while the flag is up" \
+      "ExecCondition=/usr/bin/test ! -e $flag" \
+      "$(grep '^ExecCondition=/usr/bin/test' "$PRESETS/../../06-youtube/files/osdos-yt-dlp-update.service")"
 
 # Neither a stop from outside nor a crash touches anything.
 for code in 143 1 SEGV; do

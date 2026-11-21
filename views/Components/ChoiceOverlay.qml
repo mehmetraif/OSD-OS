@@ -1,9 +1,9 @@
 import QtQuick
 
 // A full-screen keyboard-driven chooser: a prompt, the thing being acted on, and
-// a short list of options. Factored out of NfcCardWriter.qml's chooser so every
-// prompt in the app reads the same way, in the standard window (PromptScreen):
-// the prompt in the title bar, the thing under it.
+// a short list of options, in the standard window every prompt in the app
+// reads the same way in (PromptScreen): the prompt in the title bar, the thing
+// under it.
 //
 // The host binds `choices` to a list of { label, action } maps and acts on the
 // action in onActivated — the action is what drives behavior, never the label

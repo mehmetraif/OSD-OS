@@ -4,8 +4,10 @@
 // starts, is told to quit (SIGTERM) and exits, and whether an earlier one was
 // still alive as it started. And what becomes of a video its menu's Browse
 // left as the next is asked for; how a tube's shape, whose pixels aren't
-// square, reaches mpv; and what of an address mpv prints reaches the log and
-// the Playback failed notice: none of its sign-in, nor a server's token.
+// square, reaches mpv; what of an address mpv prints reaches the log and
+// the Playback failed notice: none of its sign-in, nor a server's token; and
+// what of a session reaches mpv's command line, which any account can read:
+// no token either, which goes in files of the user's own.
 #include "player/MpvController.h"
 #include "player/EmbeddedMpv.h"
 #include "player/VideoSurface.h"
@@ -27,13 +29,33 @@
 #include <QMutex>
 #include <QRegularExpression>
 #include <QSignalSpy>
+#include <QStandardPaths>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <sys/stat.h>
 
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
+if [ "$2" = --list-options ]; then
+  echo "options $FAKE_MPV_SUBS" >> "$log"
+  if [ "$FAKE_MPV_SUBS" = old ]; then
+    echo ' --subs-with-matching-audio       Flag (default: yes)'
+  else
+    echo ' --subs-with-matching-audio       Choices: no forced yes (default: yes)'
+  fi
+  echo ' --subs-fallback-forced           Choices: no yes always (default: yes)'
+  exit 0
+fi
 media=""
-for a in "$@"; do media="$a"; done
+for a in "$@"; do
+  case "$a" in
+    --playlist=*) media=$(grep -v '^#' "${a#--playlist=}" | tail -n 1) ;;
+    --*) ;;
+    *) media="$a" ;;
+  esac
+done
 address="$media"
 media=$(basename "$media" .mp4)
 if [ -f "$log.pids" ]; then
@@ -120,6 +142,45 @@ private:
     static inline QtMessageHandler s_previous = nullptr;
 };
 
+// A stand-in for a media server, on this machine: it writes down each
+// request it is asked, headers and all, and answers a small picture for a
+// stream (/Videos/<id>/stream) and a line of subtitles for anything else.
+class ServerStandIn : public QTcpServer {
+public:
+    ServerStandIn() {
+        QImage picture(16, 16, QImage::Format_RGB32);
+        picture.fill(Qt::gray);
+        QBuffer buffer(&m_picture);
+        buffer.open(QIODevice::WriteOnly);
+        picture.save(&buffer, "PNG");
+        connect(this, &QTcpServer::newConnection, this, [this]() {
+            while (QTcpSocket *socket = nextPendingConnection()) {
+                connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+                connect(socket, &QTcpSocket::readyRead, socket, [this, socket]() { read(socket); });
+            }
+        });
+    }
+    QString address() const { return QStringLiteral("http://127.0.0.1:%1").arg(serverPort()); }
+    QList<QByteArray> asked;
+
+private:
+    void read(QTcpSocket *socket) {
+        const QByteArray request = socket->property("request").toByteArray() + socket->readAll();
+        socket->setProperty("request", request);
+        if (!request.contains("\r\n\r\n") || socket->property("answered").toBool())
+            return;
+        socket->setProperty("answered", true);
+        asked << request;
+        const bool stream = request.contains("/stream");
+        const QByteArray body = stream ? m_picture : QByteArray("1\n00:00:00,000 --> 00:00:01,000\nline\n");
+        socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + QByteArray(stream ? "image/png" : "text/plain")
+                      + "\r\nContent-Length: " + QByteArray::number(body.size())
+                      + "\r\nConnection: close\r\n\r\n" + body);
+        socket->disconnectFromHost();
+    }
+    QByteArray m_picture;
+};
+
 class PlaybackRetireTest : public QObject {
     Q_OBJECT
 
@@ -147,8 +208,8 @@ class PlaybackRetireTest : public QObject {
         return QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
     }
     void play(const char *name, float startSeconds = 0) {
-        m_mpv->loadAndPlay(m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4"),
-                           startSeconds, -1, -1);
+        m_mpv->loadAndPlay({ { "url", m_dir.path() + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".mp4") },
+                             { "startSeconds", startSeconds } });
     }
     // The warnings written to the log while `what` runs, each as it is
     // written.
@@ -169,6 +230,22 @@ class PlaybackRetireTest : public QObject {
     // The run-time folder the controller's files go in (XDG_RUNTIME_DIR): the
     // test's own, and apart from its temp folder, which they used to be in.
     QString runDir() const { return m_dir.path() + QStringLiteral("/run"); }
+    // The files a process is handed what must not be on its command line in.
+    QString privateOptions() const { return runDir() + QStringLiteral("/osdos-mpv-private.conf"); }
+    QString privateMedia() const { return runDir() + QStringLiteral("/osdos-mpv-private.m3u"); }
+    static QByteArray contents(const QString &path) {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    }
+    // Its owner's alone to read and write (0600).
+    static bool ownersAlone(const QString &path) {
+        struct stat info;
+        return ::stat(QFile::encodeName(path).constData(), &info) == 0 && (info.st_mode & 0777) == 0600;
+    }
+    // A line of an mpv config file, its value quoted by its length.
+    static QByteArray optionLine(const char *option, const QByteArray &value) {
+        return QByteArray(option) + "=%" + QByteArray::number(value.size()) + '%' + value + '\n';
+    }
     // The player's control connection, stood in for by the test: mpv's
     // socket, which the controller connects to once it listens.
     QString socketPath() const { return runDir() + QStringLiteral("/osdos-mpv.sock"); }
@@ -189,8 +266,7 @@ class PlaybackRetireTest : public QObject {
     }
     // A picture mpv makes itself (lavfi), without a file or sound.
     void playPicture(const char *source) {
-        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:") + QLatin1String(source), 0, -1, -1, {}, {}, false, -1, 0,
-                           QString(), true);
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("av://lavfi:") + QLatin1String(source) }, { "muteAudio", true } });
     }
     static bool write(const QString &path, const QByteArray &text) {
         QFile file(path);
@@ -325,6 +401,18 @@ private slots:
         QCOMPARE(EmbeddedMpv::fencesNotMade(), before + 1);
     }
 
+    // Transparent Background's values, read the one way the app plays by and
+    // Settings shows (Main.qml asks the controller): a solidity, or its first
+    // words, On and Dim, is on; Off, unset or anything else is off.
+    void transparentBackgroundIsReadOneWay() {
+        for (const QVariant &on : { QVariant(QStringLiteral("40")), QVariant(QStringLiteral(" 0 ")), QVariant(100),
+                                    QVariant(QStringLiteral("On")), QVariant(QStringLiteral("dim")) })
+            QVERIFY2(m_mpv->asksForTransparentBackground(on), qPrintable(on.toString()));
+        for (const QVariant &off : { QVariant(), QVariant(QString()), QVariant(QStringLiteral("Off")),
+                                     QVariant(QStringLiteral("50%")), QVariant(QStringLiteral("Solid")) })
+            QVERIFY2(!m_mpv->asksForTransparentBackground(off), qPrintable(off.toString()));
+    }
+
     void runFilesAreTheUsersOwn() {
         const auto read = [](const QString &path) {
             QFile file(path);
@@ -371,6 +459,195 @@ private slots:
         QVERIFY2(arguments().filter(QStringLiteral("--input-conf")).isEmpty(),
                  qPrintable(arguments().join(QLatin1Char(' '))));
         QVERIFY(!arguments().filter(QStringLiteral("--input-ar-delay=")).isEmpty());
+    }
+
+    // A media server's token never reaches mpv's command line, which any
+    // account on the machine can read while the video plays (ps,
+    // /proc/<pid>/cmdline): Plex's and Jellyfin's headers go in a config file
+    // mpv is given with --include, and so do the subtitle files of a server
+    // whose addresses hold the token (Emby's api_key), in their order, whose
+    // stream goes in a playlist given with --playlist. Both files are in the
+    // run-time folder, their owner's alone, and gone once the session is
+    // over. What holds no secret stays on the command line as it was.
+    void aServersTokenIsNotOnTheCommandLine() {
+        const auto commandLine = [this] { return arguments().join(QLatin1Char('\n')); };
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+
+        // Plex: its token is a header, its addresses hold none.
+        const QString plexSub = QStringLiteral("https://plex.example:32400/library/streams/9");
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4") },
+                             { "audioTrack", 1 }, { "subTrack", 0 }, { "subFiles", QStringList { plexSub } },
+                             { "plexToken", QStringLiteral("made-up-plex-token") } });
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start film"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
+        QVERIFY2(!commandLine().contains(QLatin1String("http-header-fields")), qPrintable(commandLine()));
+        QVERIFY(arguments().contains(QStringLiteral("--include=") + privateOptions()));
+        QVERIFY(arguments().contains(QStringLiteral("--sub-file=") + plexSub));
+        QCOMPARE(arguments().last(), QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4"));
+        QCOMPARE(contents(privateOptions()),
+                 optionLine("http-header-fields-append", "X-Plex-Token:made-up-plex-token"));
+        QVERIFY(ownersAlone(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
+        // Nothing of it in the temp folder.
+        QVERIFY(QDir(m_dir.path()).entryList({ QStringLiteral("osdos-*") }, QDir::AllEntries | QDir::System).isEmpty());
+        // Over, its file is gone.
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QVERIFY(!QFile::exists(privateOptions()));
+
+        // Jellyfin: the same, its header with quotes of its own.
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("https://jellyfin.example/Videos/7/stream.mp4") },
+                             { "audioTrack", 1 }, { "subTrack", -2 },
+                             { "jellyfinToken", QStringLiteral("made-up-jellyfin-token") } });
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start stream"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
+        QCOMPARE(contents(privateOptions()),
+                 optionLine("http-header-fields-append", "Authorization:MediaBrowser Token=\"made-up-jellyfin-token\""));
+        QVERIFY(ownersAlone(privateOptions()));
+
+        // Emby: the token is in its stream's address and in its subtitles'
+        // too. The session before is replaced, and its file with it.
+        const QString embyStream = QStringLiteral("http://emby.example:8096/Videos/7/stream?static=true&mediaSourceId=7"
+                                                  "&api_key=made-up-emby-key");
+        const QString embySubs[] = { QStringLiteral("http://emby.example:8096/Videos/7/7/Subtitles/3/Stream.srt"
+                                                    "?api_key=made-up-emby-key"),
+                                     QStringLiteral("http://emby.example:8096/Videos/7/7/Subtitles/2/Stream.ass"
+                                                    "?api_key=made-up-emby-key") };
+        m_mpv->loadAndPlay({ { "url", embyStream }, { "startSeconds", 90 }, { "audioTrack", 1 }, { "subTrack", 0 },
+                             { "subFiles", QStringList { embySubs[0], embySubs[1] } },
+                             { "jellyfinToken", QStringLiteral("made-up-emby-key") } });
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start stream?static=true&mediaSourceId=7&api_key=made-up-emby-key"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("made-up")), qPrintable(commandLine()));
+        QVERIFY2(!commandLine().contains(QLatin1String("emby.example")), qPrintable(commandLine()));
+        QVERIFY(arguments().contains(QStringLiteral("--include=") + privateOptions()));
+        QVERIFY(arguments().contains(QStringLiteral("--playlist=") + privateMedia()));
+        QVERIFY(arguments().contains(QStringLiteral("--start=90.000")));
+        QVERIFY(!arguments().contains(QStringLiteral("--")));
+        QCOMPARE(contents(privateOptions()),
+                 optionLine("sub-files-append", embySubs[0].toUtf8())
+                     + optionLine("sub-files-append", embySubs[1].toUtf8())
+                     + optionLine("http-header-fields-append", "Authorization:MediaBrowser Token=\"made-up-emby-key\""));
+        QCOMPARE(contents(privateMedia()), QByteArray("#EXTM3U\n") + embyStream.toUtf8() + '\n');
+        QVERIFY(ownersAlone(privateOptions()));
+        QVERIFY(ownersAlone(privateMedia()));
+        QVERIFY(QDir(m_dir.path()).entryList({ QStringLiteral("osdos-*") }, QDir::AllEntries | QDir::System).isEmpty());
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 2, 5000);
+        QVERIFY(!QFile::exists(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
+
+        // A video with nothing to hide is handed no file.
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(!commandLine().contains(QLatin1String("--include=")), qPrintable(commandLine()));
+        QVERIFY2(!commandLine().contains(QLatin1String("--playlist=")), qPrintable(commandLine()));
+        QVERIFY(!QFile::exists(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
+    }
+
+    // With no file to put the token in (a folder has its name), nothing is
+    // started with it on the command line after all: the session ends as
+    // one mpv could not be started for, the player's own failure.
+    void withoutAFileForItATokenIsNotHandedOver() {
+        QVERIFY(QDir().mkpath(privateOptions() + QStringLiteral("/held")));
+        const auto free = qScopeGuard([this] { QDir(privateOptions()).removeRecursively(); });
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral("^\\[AtomicFile\\] Could not write ")));
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression(QStringLiteral(
+                                               "^\\[MpvController\\] Cannot start playback: what mpv is handed in a file")));
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("https://plex.example:32400/library/parts/7/film.mp4") },
+                             { "audioTrack", 1 }, { "subTrack", 0 }, { "plexToken", QStringLiteral("made-up-plex-token") } });
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
+        QCOMPARE(m_mpv->lastError(), QStringLiteral("mpv could not be started"));
+        QVERIFY2(m_mpv->lastErrorDetail().contains(runDir()), qPrintable(m_mpv->lastErrorDetail()));
+        QVERIFY(m_mpv->playerFailed());
+        QVERIFY(!happened("start film"));
+    }
+
+    // The files as the controller writes them, read by the mpv that is
+    // installed (skipped without one): asked of a stand-in for a server, the
+    // stream is asked for by the address in the playlist, its token in it,
+    // and it and each subtitle file, in their order, with the header.
+    void theInstalledMpvReadsTheFiles() {
+        QStringList folders = qEnvironmentVariable("PATH").split(QLatin1Char(':'), Qt::SkipEmptyParts);
+        folders.removeAll(m_dir.path() + QStringLiteral("/bin"));
+        const QString mpv = QStandardPaths::findExecutable(QStringLiteral("mpv"), folders);
+        if (mpv.isEmpty())
+            QSKIP("mpv isn't installed here");
+
+        ServerStandIn server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        const QString stream = server.address() + QStringLiteral("/Videos/7/stream?static=true&api_key=made-up-emby-key");
+        const QString subs[] = {
+            server.address() + QStringLiteral("/Videos/7/7/Subtitles/3/Stream.srt?api_key=made-up-emby-key"),
+            server.address() + QStringLiteral("/Videos/7/7/Subtitles/2/Stream.srt?api_key=made-up-emby-key") };
+        m_mpv->loadAndPlay({ { "url", stream }, { "audioTrack", 1 }, { "subTrack", 0 },
+                             { "subFiles", QStringList { subs[0], subs[1] } },
+                             { "jellyfinToken", QStringLiteral("made-up-emby-key") } });
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start stream?static=true&api_key=made-up-emby-key"), 5000);
+        QVERIFY(QFile::exists(privateOptions()));
+        QVERIFY(QFile::exists(privateMedia()));
+
+        QProcess real;
+        real.setProcessChannelMode(QProcess::MergedChannels);
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        // Straight to the stand-in, whatever proxy the machine has.
+        for (const char *name : { "http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY" })
+            env.remove(QLatin1String(name));
+        real.setProcessEnvironment(env);
+        QByteArray said;
+        connect(&real, &QProcess::readyRead, this, [&]() { said += real.readAll(); });
+        real.start(mpv, { QStringLiteral("--no-config"), QStringLiteral("--vo=null"), QStringLiteral("--ao=null"),
+                          QStringLiteral("--no-input-terminal"), QStringLiteral("--image-display-duration=0.2"),
+                          QStringLiteral("--include=") + privateOptions(),
+                          QStringLiteral("--playlist=") + privateMedia() });
+        QVERIFY2(real.waitForStarted(5000), qPrintable(real.errorString()));
+        // What it asked for, each address once, in the order it first did.
+        const auto paths = [&server]() {
+            QList<QByteArray> seen;
+            for (const QByteArray &request : server.asked) {
+                const QByteArray path = request.mid(4, request.indexOf(' ', 4) - 4);
+                if (!seen.contains(path))
+                    seen << path;
+            }
+            return seen;
+        };
+        QTRY_VERIFY2_WITH_TIMEOUT(paths().size() >= 3 || real.state() == QProcess::NotRunning, said.constData(), 20000);
+        real.kill();
+        real.waitForFinished(5000);
+        const qsizetype host = server.address().size();
+        QCOMPARE(paths(), (QList<QByteArray>{ stream.mid(host).toUtf8(), subs[0].mid(host).toUtf8(),
+                                              subs[1].mid(host).toUtf8() }));
+        for (const QByteArray &request : std::as_const(server.asked))
+            QVERIFY2(request.contains("\r\nAuthorization:MediaBrowser Token=\"made-up-emby-key\"\r\n"),
+                     request.constData());
+    }
+
+    // Inside the window (Transparent Background) a session has no command
+    // line: libmpv is given the header as it is, which the server is asked
+    // with, and no file is written for it.
+    void aVideoInsideTheWindowIsHandedItsTokenAsItIs() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        ServerStandIn server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        m_mpv->loadAndPlay({ { "url", server.address() + QStringLiteral("/Videos/7/stream?static=true&api_key=made-up-emby-key") },
+                             { "subTrack", -2 }, { "plexToken", QStringLiteral("made-up-plex-token") }, { "muteAudio", true },
+                             { "jellyfinToken", QStringLiteral("made-up-emby-key") } });
+        QTRY_VERIFY_WITH_TIMEOUT(!server.asked.isEmpty(), 15000);
+        const QByteArray request = server.asked.first();
+        QVERIFY2(request.startsWith("GET /Videos/7/stream?static=true&api_key=made-up-emby-key HTTP/"),
+                 request.constData());
+        QVERIFY2(request.contains("\r\nX-Plex-Token:made-up-plex-token\r\n"), request.constData());
+        QVERIFY2(request.contains("\r\nAuthorization:MediaBrowser Token=\"made-up-emby-key\"\r\n"), request.constData());
+        QVERIFY(!QFile::exists(privateOptions()));
+        QVERIFY(!QFile::exists(privateMedia()));
     }
 
     // On a tube mpv is told the screen is 4:3 whatever its pixels; on a
@@ -533,8 +810,7 @@ private slots:
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
         QSignalSpy background(m_mpv, &MpvController::backgroundChanged);
         // A picture mpv makes itself, without a file or sound.
-        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10"), 0, -1, -1, {}, {}, false, -1, 0,
-                           QString(), true);
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10") }, { "muteAudio", true } });
         QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
         QCOMPARE(m_mpv->videoFrame().size(), QSize(640, 480));
@@ -581,8 +857,8 @@ private slots:
         const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
         // A second of picture and of sound that mpv makes itself.
-        m_mpv->loadAndPlay(QStringLiteral("av://lavfi:testsrc=size=64x48:rate=10:duration=1[out0];sine=duration=1[out1]"),
-                           0, -1, -1, {}, {}, false, -1, 0, QString(), true);
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("av://lavfi:testsrc=size=64x48:rate=10:duration=1[out0];sine=duration=1[out1]") },
+                             { "muteAudio", true } });
         QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 20000);
         QVERIFY2(ended.first().at(2).toString() != QLatin1String("failed"), "a video that played was called failed");
@@ -672,6 +948,89 @@ private slots:
         QVERIFY(!m_mpv->background());
         QTRY_COMPARE_WITH_TIMEOUT(property("panscan").toDouble(), 1.0, 5000);
         QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
+    }
+
+    // A video played inside the window reports its position over the same
+    // control connection: at thirty frames a second its views hear it four
+    // times a second, the first at once, and position() is mpv's latest.
+    void anEmbeddedVideosPositionReachesTheViewsFourTimesASecond() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy positions(m_mpv, &MpvController::positionChanged);
+        playPicture("color=c=gray:s=64x48:r=30");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->position() > 0, 15000);
+        QTRY_VERIFY_WITH_TIMEOUT(!positions.isEmpty() && positions.last().first().toInt() > 0, 100);
+        const int first = positions.count();
+        QTest::qWait(2000);
+        const int heard = positions.count() - first;
+        QVERIFY2(heard >= 5 && heard <= 10, qPrintable(QString::number(heard)));
+        QVERIFY(m_mpv->position() >= positions.last().first().toInt());
+    }
+
+    // Transparent Background: a video behind the menus, taken back by its
+    // player (takeBack()), carries on where it is, whatever its player saved
+    // as back left it (nothing in its first seconds, nothing near its end):
+    // it is not sought. With none behind the menus, there is none to take.
+    void aVideoTakenBackCarriesOnWhereItIs() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QVERIFY(!m_mpv->takeBack());
+        playPicture("color=c=gray:s=64x48:r=10:d=60");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->position() > 1500, 15000);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        QSignalSpy position(m_mpv, &MpvController::positionChanged);
+        QVERIFY(m_mpv->takeBack());
+        QVERIFY(!m_mpv->background());
+        QTest::qWait(600);
+        QVERIFY(!position.isEmpty());
+        QVERIFY2(m_mpv->position() > 1500, qPrintable(QString::number(m_mpv->position())));
+        for (const QList<QVariant> &at : std::as_const(position))
+            QVERIFY2(at.first().toInt() > 1500, qPrintable(at.first().toString()));
+    }
+
+    // Transparent Background: a video behind the menus whose screen saver is
+    // up, chosen again, carries on with the saver over it; back then goes to
+    // the saver, as it did before, and the video stays in front.
+    void aVideoChosenAgainKeepsItsScreenSaver() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        // The saver says it is up, as mpv-screensaver.lua does, to every
+        // client of mpv's socket, the controller's among them once it has
+        // said what it had to as the video went behind the menus.
+        QLocalSocket probe;
+        QTRY_VERIFY_WITH_TIMEOUT((probe.state() == QLocalSocket::ConnectedState
+                                  || (probe.connectToServer(socketPath()), probe.waitForConnected(500))), 10000);
+        QByteArray heard;
+        connect(&probe, &QLocalSocket::readyRead, this, [&]() { heard += probe.readAll(); });
+        QTRY_VERIFY_WITH_TIMEOUT(heard.contains("osdos-osd-menu-hide"), 10000);
+        probe.write("{\"command\":[\"script-message\",\"osdos-screensaver\",\"shown\"]}\n");
+        probe.flush();
+        QTRY_VERIFY_WITH_TIMEOUT(heard.contains("\"osdos-screensaver\",\"shown\""), 5000);
+        QTest::qWait(200);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QVERIFY(!m_mpv->background());
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(!m_mpv->background());
     }
 
     // A Scaling chosen in a player's menu reaches the video under it as a
@@ -1189,7 +1548,7 @@ private slots:
         qputenv("FAKE_MPV_MODE", mode);
         LogCapture log;
         QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
-        m_mpv->loadAndPlay(address, 0, -1, -1);
+        m_mpv->loadAndPlay({ { "url", address } });
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("failed"));
         // The line mpv printed, among the "[mpv]" ones.
@@ -1307,9 +1666,9 @@ private slots:
         LogCapture log;
         // A scheme no mpv has a protocol for (nothing is looked up or
         // reached), then a picture mpv makes itself.
-        m_mpv->loadAndPlay(QStringLiteral("nosuch://ann:made-up-password@nas.example/films/a.mkv?ApiKey=made-up-key"),
-                           0, -1, -1, {}, {}, false, -1, 0, QString(), true, QString(), false, {}, 0, false, {},
-                           QString(), {QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10")});
+        m_mpv->loadAndPlay({ { "url", QStringLiteral("nosuch://ann:made-up-password@nas.example/films/a.mkv?ApiKey=made-up-key") },
+                             { "muteAudio", true },
+                             { "extraUrls", QStringList { QStringLiteral("av://lavfi:color=c=gray:s=64x48:r=10") } } });
         // mpv's own line on it, not the launch line's.
         static const QRegularExpression mpvSaid(QStringLiteral("\\[mpv\\] [^\\n]*nosuch://[^\\n]*"));
         QTRY_VERIFY2_WITH_TIMEOUT(mpvSaid.match(log.text()).hasMatch(), qPrintable(log.text()), 10000);
@@ -1417,6 +1776,194 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 8000);
         QCOMPARE(ended.first().at(2).toString(), QStringLiteral("eof"));
         QVERIFY(m_mpv->lastError().isEmpty());
+    }
+
+    // How long a session's mpv has to open what it plays and show its first
+    // picture: a file's while for a file and for a playlist of files, a
+    // stream's for an address, for a playlist of addresses on the device
+    // (a Jellyfin video on one of Playlists') and for what yt-dlp is to find
+    // (YouTube videos on one).
+    void aPlaylistOfStreamsHasAStreamsWhileToStart() {
+        qunsetenv("OSDOS_START_TIMEOUT_MS");
+        const QString files = m_dir.path() + QStringLiteral("/files.m3u");
+        const QString streams = m_dir.path() + QStringLiteral("/streams.m3u");
+        QVERIFY(write(files, "#EXTM3U\n#EXTINF:-1,A\n/media/A.mp4\nfile:///media/B.mp4\n"));
+        QVERIFY(write(streams, "#EXTM3U\n/media/A.mp4\n#EXTINF:-1,B\nhttps://jellyfin.example/Videos/7/stream\n"));
+        const QStringList none{ QStringLiteral("--ytdl=no") };
+        const QStringList ytdl{ QStringLiteral("--ytdl=no"), QStringLiteral("--ytdl=yes") };
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("/media/A.mp4") }, none, false), 25000);
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("/media/A.mp4") }, none, true), 10000);
+        QCOMPARE(MpvController::startTimeoutMs({ files }, none, false), 25000);
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("https://plex.example/film.mp4") }, none, false), 90000);
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("https://plex.example/film.mp4") }, none, true), 45000);
+        QCOMPARE(MpvController::startTimeoutMs({ streams }, none, false), 90000);
+        QCOMPARE(MpvController::startTimeoutMs({ QUrl::fromLocalFile(streams).toString() }, none, true), 45000);
+        QCOMPARE(MpvController::startTimeoutMs({ files }, ytdl, false), 90000);
+        QCOMPARE(MpvController::startTimeoutMs({ files }, ytdl, true), 45000);
+    }
+
+    // Forced Only subtitles: "forced" for --subs-with-matching-audio, with
+    // --subs-fallback-forced=always, where mpv takes it (0.38 and later);
+    // an older mpv, which refuses to start with it, gets the second alone.
+    // Each mpv is asked once, by its own list of options.
+    void forcedSubtitlesAsTheInstalledMpvTakesThem() {
+        const auto forcedOnly = [this](const char *film) {
+            m_mpv->loadAndPlay({ { "url", m_dir.path() + QStringLiteral("/") + QLatin1String(film) + QStringLiteral(".mp4") },
+                                 { "audioTrack", 0 }, { "subTrack", -1 } });
+        };
+        forcedOnly("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+        QVERIFY(arguments().contains(QStringLiteral("--subs-fallback-forced=always")));
+        forcedOnly("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+        // (Asked already, should an earlier test have played with them.)
+        QVERIFY(events().count(QStringLiteral("options ")) <= 1);
+
+        // Another mpv, older, first on PATH.
+        const QString old = m_dir.path() + QStringLiteral("/bin-old");
+        QVERIFY(QDir().mkpath(old));
+        QVERIFY(QFile::copy(m_dir.path() + QStringLiteral("/bin/mpv"), old + QStringLiteral("/mpv")));
+        const QByteArray path = qgetenv("PATH");
+        qputenv("PATH", old.toUtf8() + ':' + path);
+        qputenv("FAKE_MPV_SUBS", "old");
+        const auto restore = qScopeGuard([path] { qputenv("PATH", path); qunsetenv("FAKE_MPV_SUBS"); });
+        forcedOnly("C");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
+        QVERIFY2(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty(),
+                 qPrintable(arguments().join(QLatin1Char(' '))));
+        QVERIFY(arguments().contains(QStringLiteral("--subs-fallback-forced=always")));
+        QCOMPARE(events().count(QStringLiteral("options old")), 1);
+        forcedOnly("D");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
+        QVERIFY(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty());
+        QCOMPARE(events().count(QStringLiteral("options old")), 1);
+    }
+
+    // mpv tells the position at every frame; its views hear it at most
+    // every quarter second. Exact all the same: the first (the loading
+    // screen's hand-over), a seek's result, a pause's, a playlist's last
+    // video's before the next, and the last before the end, which its player
+    // saves; the latest always comes.
+    void thePositionReachesTheViewsFourTimesASecond() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        QSignalSpy positions(m_mpv, &MpvController::positionChanged);
+        QList<int> heard;  // the positions as the views heard them, in order
+        int heardAtEnd = -1;
+        connect(m_mpv, &MpvController::positionChanged, this, [&](int ms) { heard << ms; });
+        connect(m_mpv, &MpvController::playlistPosChanged, this, [&](int pos) { heard << -1000 - pos; });
+        connect(m_mpv, &MpvController::playbackEnded, this,
+                [&](int, int, const QString &) { heardAtEnd = heard.isEmpty() ? -1 : heard.last(); });
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        const auto tell = [&](const QByteArray &line) {
+            socket->write(line + '\n');
+            socket->flush();
+        };
+        const auto at = [&](double seconds) {
+            tell("{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\",\"data\":"
+                 + QByteArray::number(seconds, 'f', 3) + '}');
+        };
+        const auto last = [&]() { return heard.isEmpty() ? -1 : heard.last(); };
+        tell("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":0}");
+        // mpv's 0 first, then its first picture's: each at once.
+        at(0.0);
+        QTRY_COMPARE_WITH_TIMEOUT(positions.count(), 1, 2000);
+        at(0.04);
+        QTRY_COMPARE_WITH_TIMEOUT(positions.count(), 2, 100);
+        QCOMPARE(last(), 40);
+
+        // A second and a half of frames, sixty a second: six or seven
+        // reports, not ninety, the last frame's among them.
+        for (int frame = 1; frame <= 90; ++frame) {
+            at(0.04 + frame / 60.0);
+            QTest::qWait(16);
+        }
+        QTest::qWait(300);
+        const int frames = positions.count() - 2;
+        QVERIFY2(frames >= 4 && frames <= 8, qPrintable(QString::number(frames)));
+        QCOMPARE(last(), 1540);
+        QCOMPARE(m_mpv->position(), 1540);
+
+        // A seek's result, while a report would otherwise wait: at once.
+        at(2.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 2000, 100);
+        tell("{\"event\":\"seek\"}");
+        at(30.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 30000, 100);
+        at(30.02);
+        tell("{\"event\":\"playback-restart\"}");
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 30020, 100);
+        at(30.04);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 30040, 100);
+
+        // Paused: where it stopped, at once.
+        QTest::qWait(300);
+        at(31.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 31000, 100);
+        at(31.5);
+        tell("{\"event\":\"property-change\",\"id\":4,\"name\":\"pause\",\"data\":true}");
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 31500, 100);
+        tell("{\"event\":\"property-change\",\"id\":4,\"name\":\"pause\",\"data\":false}");
+
+        // On to the playlist's next video: the last one's last position
+        // first, as it came, then the next one's first at once.
+        QTest::qWait(300);
+        at(40.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 40000, 100);
+        at(40.5);
+        tell("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":1}");
+        QTRY_COMPARE_WITH_TIMEOUT(last(), -1001, 100);
+        QCOMPARE(heard.at(heard.size() - 2), 40500);
+        at(0.5);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 500, 100);
+
+        // Stopped a moment after a report: its player hears the last
+        // position before the end, and the end has it too.
+        at(5.0);
+        at(5.1);
+        QTest::qWait(30);
+        QCOMPARE(last(), 500);
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(heardAtEnd, 5100);
+        QCOMPARE(ended.first().at(0).toInt(), 5100);
+    }
+
+    // A playlist gone on to its next video ends before that one has a
+    // position of its own (mpv has none for it until it plays): its player
+    // is handed none, not the last video's. The same video told again (a
+    // control connection made anew) keeps where it is.
+    void aPlaylistsNextVideoStartsAtNothing() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QSignalSpy moved(m_mpv, &MpvController::playlistPosChanged);
+        socket->write("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":0}\n"
+                      "{\"event\":\"property-change\",\"id\":2,\"name\":\"duration\",\"data\":60.0}\n"
+                      "{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\",\"data\":40.0}\n"
+                      "{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":0}\n");
+        socket->flush();
+        QTRY_COMPARE_WITH_TIMEOUT(moved.count(), 2, 5000);
+        QCOMPARE(m_mpv->position(), 40000);
+        socket->write("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":1}\n"
+                      "{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\"}\n"
+                      "{\"event\":\"property-change\",\"id\":2,\"name\":\"duration\"}\n");
+        socket->flush();
+        QTRY_COMPARE_WITH_TIMEOUT(moved.count(), 3, 5000);
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(0).toInt(), 0);
+        QCOMPARE(ended.first().at(1).toInt(), 0);
     }
 
     // A video its menu's Browse left (an mpv process having ended for the

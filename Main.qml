@@ -75,10 +75,10 @@ Window {
     // already fullscreen, so this is a no-op there. Under Window Mode the
     // window is a window, framed, where the desktop puts it (setWindowed()).
     // Hidden until the settings are read (Component.onCompleted, which
-    // shows it: showWindow()). Shown as it was made, it drew its first frame
-    // before them, in Video 1's blue, where the platform draws a window the
-    // moment it is shown (the Pi's EGLFS): a theme's boot screen came up
-    // blue for an instant, then in its own colours.
+    // shows it: showWindow()). Shown as it is made, it would draw its first
+    // frame before them, in Video 1's blue, where the platform draws a window
+    // the moment it is shown (the Pi's EGLFS): a theme's boot screen would
+    // come up blue for an instant, then in its own colours.
     visibility: Window.Hidden
     function showWindow() {
         if (visibility !== Window.Hidden)
@@ -212,6 +212,11 @@ Window {
         var name = module ? module[1] : path.replace(/^.*\//, "").replace(/\.[^.]*$/, "")
         return icons[name.toLowerCase()] || url
     }
+    // An icon drawn in one colour by OsdIconProvider: what `url` draws, in
+    // `colour`.
+    function iconUrl(colour, url) {
+        return "image://osdicon/" + String(colour).replace("#", "") + "/" + url
+    }
 
     // The effects there are, by name, as Settings offers them. The screen's
     // and the text's are numbers the screen's shader takes
@@ -323,9 +328,9 @@ Window {
     // on and not resting, about thirty times a second.
     property real fxTime: 0
     // The background's and the selector's rest under the screen saver too,
-    // which covers them: they were drawn behind it, thirty frames a second,
-    // for as long as the screen stood idle. A screen effect that moves goes
-    // on: the saver's own picture is seen through it.
+    // which covers them: drawn behind it, they would cost thirty frames a
+    // second for as long as the screen stood idle. A screen effect that
+    // moves goes on: the saver's own picture is seen through it.
     readonly property bool fxMoving: !effectsRest && ((backgroundShader !== "" && !screenSaverActive)
         || (screen.shaded && (screenEffect.noise > 0 || screenEffect.animate === true
                               || textEffect.rainbow > 0 || textEffect.shimmer > 0 || textEffect.flicker > 0)))
@@ -411,6 +416,9 @@ Window {
     // Loader.setSource has them), as Settings → Look → Effects → Transition
     // has it, or at once (WindowChange's change()).
     function changeWindow(loader, source, properties, base) { windowChange.change(loader, source, properties, base) }
+    // The old window being caught: the view leaving still has the keys, and
+    // what it asks for meanwhile (a second select) is not taken.
+    readonly property bool windowCatching: windowChange.capturing
 
     // --- MENU MUSIC (Settings → Sound → Menu Music, or the theme's) ---
     // In the menus only: not while the effects rest, a script or a module's
@@ -458,9 +466,16 @@ Window {
     readonly property var layoutRead: ({ name: "Standard" })
     property string menuLayout: {
         if (appCore)
-            layoutRead.name = menuLayoutOf((appCore.get_settings().app || {}).menu_layout)
+            layoutRead.name = menuLayoutOf(appCore.get_setting("", "menu_layout"))
         return layoutRead.name
     }
+    // The layouts, in the order Settings offers them, and which one is in
+    // force: the views go by these flags rather than by the names.
+    readonly property var menuLayouts: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"]
+    readonly property bool camcorderLayout: menuLayout === "Camcorder"
+    readonly property bool studioLayout: menuLayout === "Studio Monitor"
+    readonly property bool broadcastLayout: menuLayout === "Broadcast"
+    readonly property bool flatLayout: menuLayout === "Flat Panel"
     // The monitor layouts' colours, whatever the colour scheme: the ground,
     // the text, a row that can't be used, the strips and bars (accent), the
     // text on them and the guide (soft), the cursor's mark or a value being
@@ -488,9 +503,9 @@ Window {
     // other way round, or in a monitor layout's frame its mark with the
     // ground's colour on it, Flat Panel's bar with its text's.
     readonly property string cursorColor: !monitorInk ? primaryColor
-                                        : menuLayout === "Flat Panel" ? menuPalette.bar : menuPalette.mark
+                                        : flatLayout ? menuPalette.bar : menuPalette.mark
     readonly property string cursorInk: !monitorInk ? surfaceColor
-                                      : menuLayout === "Flat Panel" ? menuPalette.ink : menuPalette.ground
+                                      : flatLayout ? menuPalette.ink : menuPalette.ground
     // Two colours only, like a deck's on-screen display: everything is drawn in
     // the scheme's primary colour on its surface colour. A selection is a solid
     // box with its text in the surface colour, and anything dimmed is dithered
@@ -517,7 +532,7 @@ Window {
     // than twice as tall as wide), anything else square. Video drawn in the
     // window takes its picture's shape from it (VideoSurface).
     readonly property real framePixelAspect: tube && width > 0 ? Math.round(height * 4 / 3) / width : 1
-    // Settings → Screen → Monitor (app.monitor, Horizontal): a monitor turned
+    // Settings → Screen → Rotation (app.monitor, Horizontal): a monitor turned
     // on its side for vertical games (TATE), which the system doesn't know
     // of, as a cabinet's or a Pi's: Turned Right has the monitor's top on
     // the right as one faces it, Turned Left on the left. Everything OSD/OS
@@ -653,14 +668,14 @@ Window {
     property bool viewInFrame: false
     property int viewLoading: 0
     onLiveInFrameChanged: if (viewLoading === 0) viewInFrame = liveInFrame
-    readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0 && viewInFrame
+    readonly property bool framed: camcorderLayout && shownFrameIcons.length > 0 && viewInFrame
     // A monitor layout's frame is up: its chrome drawn, the view's rows in
     // its pane.
     readonly property bool monitorFramed: menuPalette !== null && viewInFrame
     // A value changed in two steps there, as Broadcast's and Flat Panel's
     // menus change one (Settings', a module's settings): select, ▲ ▼, then
     // select again, back leaving it as it was; ◄ ► change nothing.
-    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
+    readonly property bool twoStep: monitorFramed && (broadcastLayout || flatLayout)
     // A layer that takes the whole screen over the view, in the scheme's
     // colours (the on-screen keyboard, an info screen: an OsdGround that is
     // not laid `inLayout`), is outside the frame, and so is whatever rests
@@ -794,7 +809,8 @@ Window {
             break
         case "screensaver_timeout":
             // Seconds, or "OFF" (parseInt's NaN): the tracker starts disabled.
-            var seconds = parseInt(value)
+            // Never saved: five minutes (SettingsPages.js's Screen Saver).
+            var seconds = value === undefined || value === null || value === "" ? 300 : parseInt(value)
             if (seconds > 0) {
                 idleTracker.threshold = seconds
                 idleTracker.enabled = true
@@ -910,6 +926,9 @@ Window {
     // [ENTER]:SELECT" from the keyboard, and a binding on it follows the
     // hints to a pad's and back (Components/Hints.js).
     function hintLine(parts) { return Hints.line(hints, parts) }
+    // A toggle's setting, on or off, whichever form it is saved in, else
+    // `fallback`, its manifest default (AppCore::setting_on()).
+    function settingOn(moduleId, key, fallback) { return appCore ? appCore.setting_on(moduleId, key, !!fallback) : !!fallback }
     readonly property string appVersion: appCore ? appCore.appVersion : ""
     // A build made from source rather than a release (CMake's APP_VERSION).
     readonly property bool devBuild: appVersion === "dev"
@@ -1019,7 +1038,7 @@ Window {
     }
 
     // --- CABINET LOCK (Settings → Startup → Cabinet Lock, views/CabinetLock.qml) ---
-    // On, OSD/OS stays on its Start on Module, a cabinet's Arcade screen:
+    // On, OSD/OS stays on its Start On module, a cabinet's Arcade screen:
     // back there goes nowhere, and back from anywhere else comes to it, so
     // the main menu, Settings and Quit are out of reach, as is Ctrl+Q. The
     // unlock buttons held together for three seconds
@@ -1034,7 +1053,11 @@ Window {
         return cabinetLockOn && !cabinetUnlocked && inputManager.unlockButtons !== ""
                && appCore.startupModuleEntryPoint() !== ""
     }
-    // The Start on Module alone above the main menu, as at startup.
+    // The start module open under the lock, where back at its first view
+    // goes nowhere (onGoBack): that view leaves BACK out of its hints.
+    readonly property bool leavingBarred: cabinetLocked() && appCore.moduleIdForSource(moduleLoader.source.toString())
+                                          === appCore.get_setting("", "startup_module")
+    // The Start On module alone above the main menu, as at startup.
     function openHome() {
         var entry = appCore.startupModuleEntryPoint()
         if (!entry)
@@ -1209,13 +1232,13 @@ Window {
     // behind them, 0 (TRANSPARENT) to 100 (SOLID: none of it shows, but it
     // plays on, sound and all), or "Off", the default when unset (back stops
     // the video, as it always has). Its first values were words: On (0) and
-    // Dim (60). Read as MpvController::transparentBackground() reads it.
+    // Dim (60). Whether it is on, as the app plays by it, is the controller's
+    // to say.
     function backgroundOn(raw) {
-        var s = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase()
-        return s === "on" || s === "dim" || !isNaN(parseInt(s))
+        return mpvController.asksForTransparentBackground(raw)
     }
     function menuLayoutOf(raw) {
-        return ["Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"].indexOf(raw) >= 0 ? raw : "Standard"
+        return menuLayouts.indexOf(raw) >= 0 ? raw : "Standard"
     }
     function osdBackgroundOf(raw) {
         return raw === "Window" || raw === "Off" ? raw : "Full"
@@ -1428,11 +1451,11 @@ Window {
                 // Not under a layer that takes the whole screen in the
                 // scheme's colours (the on-screen keyboard, an info screen):
                 // such a layer's ground is the stage's, narrower than the
-                // chrome, whose tab and corners showed round it.
+                // chrome, whose tab and corners would show round it.
                 visible: root.monitorInk
                 screen: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
                 // Studio Monitor's strip: the icons Camcorder's column has.
-                icons: root.menuLayout === "Studio Monitor" ? root.shownFrameIcons : []
+                icons: root.studioLayout ? root.shownFrameIcons : []
                 iconIndex: root.shownFrameIndex
                 iconsActive: root.frameActive && !root.moduleFrame
                              && !!moduleLoader.item && moduleLoader.item.ownsFrame === true
@@ -1469,6 +1492,7 @@ Window {
                     ignoreUnknownSignals: true
 
                     function onNavigateTo(path, params, listState) {
+                        if (root.windowCatching) return
                         // The way to the view opened: this view's own, as
                         // the frame has it; kept, for the way back.
                         root.appNavStack.push({ source: moduleLoader.source, params: root.appCurrentParams,
@@ -1478,7 +1502,7 @@ Window {
                     }
 
                     function onGoBack() {
-                        if (root.appNavStack.length === 0) return
+                        if (root.appNavStack.length === 0 || root.windowCatching) return
                         // Locked: the start module in the main menu's place,
                         // and nothing behind it.
                         if (root.appNavStack.length === 1 && root.cabinetLocked()) {

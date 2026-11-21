@@ -164,72 +164,27 @@ Item {
         y: Math.round(arcadeScreen.areaTop * arcadeScreen.v)
         width: Math.round(arcadeScreen.columnWidth * arcadeScreen.u)
         height: Math.round(arcadeScreen.pictureHeight * arcadeScreen.v)
-        color: shown.status === Image.Ready ? "#000000" : arcadeScreen.ground
+        color: pictures.shown.status === Image.Ready ? "#000000" : arcadeScreen.ground
         border.width: arcadeScreen.frame
         border.color: root.primaryColor
         antialiasing: false
 
-        // The picture to show, and the two that show it: the one on the
-        // screen, and the next loading behind it, which takes its place once
-        // it is in (or can't be), so the pictures cut from one to the next.
-        readonly property string wanted: arcadeScreen.pictures.length > 0
-                                         ? arcadeScreen.pictures[arcadeScreen.pictureIndex % arcadeScreen.pictures.length]
-                                         : ""
-        property Image shown: pictureA
-        readonly property Image behind: shown === pictureA ? pictureB : pictureA
-        onWantedChanged: showWanted()
-        Component.onCompleted: showWanted()
-        function showWanted() {
-            if (wanted === "") {
-                pictureA.source = ""
-                pictureB.source = ""
-            } else if (shown.source.toString() !== wanted) {
-                behind.source = wanted
-                takeOver(behind)
-            }
-        }
-        function takeOver(picture) {
-            if (picture === behind && picture.source.toString() === wanted
-                && (picture.status === Image.Ready || picture.status === Image.Error))
-                shown = picture
-        }
-
-        // A picture in the frame. A screenshot (its shape near enough the
-        // game's screen's, whatever its pixels) fills the screen, 4:3 (a
-        // vertical game's 3:4, upright in the middle); one of another shape (a
-        // box, a flyer, a marquee) keeps its own, as big as fits. Each is
-        // decoded no bigger than the screen, in its own shape (sourceSize).
         // The game's screen in the frame: as big as fits, in its shape.
         readonly property real gameShape: arcadeScreen.details.vertical ? 3 / 4 : 4 / 3
         readonly property real roomWidth: width - 2 * arcadeScreen.frame
         readonly property real roomHeight: height - 2 * arcadeScreen.frame
         readonly property bool heightBound: roomHeight > 0 && gameShape < roomWidth / roomHeight
-        readonly property real screenHeight: heightBound ? roomHeight : Math.round(roomWidth / gameShape)
-        readonly property real screenWidth: heightBound ? Math.round(roomHeight * gameShape) : roomWidth
-        component Picture: Image {
-            id: picture
-            readonly property real shape: implicitHeight > 0 ? implicitWidth / implicitHeight : 0
-            readonly property bool screenLike: shape === 0 || (arcadeScreen.details.vertical ? shape >= 0.55 && shape <= 1
-                                                                                             : shape >= 1 && shape <= 2)
-            visible: preview.shown === picture && status === Image.Ready
-            width: screenLike ? preview.screenWidth : Math.min(preview.screenWidth, Math.round(preview.screenHeight * shape))
-            height: screenLike ? preview.screenHeight : Math.min(preview.screenHeight, Math.round(preview.screenWidth / shape))
-            x: Math.round((preview.width - width) / 2)
-            y: Math.round((preview.height - height) / 2)
-            sourceSize.width: preview.screenWidth
-            sourceSize.height: preview.screenHeight
-            asynchronous: true
-            onStatusChanged: preview.takeOver(picture)
+        GamePictures {
+            id: pictures
+            anchors.fill: parent
+            screenHeight: preview.heightBound ? preview.roomHeight : Math.round(preview.roomWidth / preview.gameShape)
+            screenWidth: preview.heightBound ? Math.round(preview.roomHeight * preview.gameShape) : preview.roomWidth
         }
-        Picture { id: pictureA }
-        Picture { id: pictureB }
 
         // Without one, or with one that can't be shown: which file it would be;
-        // for a set that isn't a game, that it isn't recognized. None on
-        // Search, whose keys are in the frame.
+        // for a set that isn't a game, that it isn't recognized.
         Column {
-            visible: (preview.wanted === "" || preview.shown.status === Image.Error) && arcadeScreen.current !== null
-                     && arcadeScreen.filterId !== "search"
+            visible: pictures.noteShown
             anchors.centerIn: parent
             width: parent.width - 4 * root.px
             spacing: Math.round(12 * arcadeScreen.v)

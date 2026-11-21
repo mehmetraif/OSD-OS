@@ -22,6 +22,28 @@ on_chroot << EOF
 chown -R "${FIRST_USER_NAME}:" /opt/osdos
 EOF
 
+# The app able to start in the image, on the libraries the stage's packages
+# (00-packages) brought: asked FinalBurn Neo's core, which comes with it, for
+# its name (osdos --core-info, as scripts/bsd-ci.sh asks the BSDs' packages),
+# as the user it runs as. Unlike the QML's compile below, this one stops the
+# build: an app that can't start makes an image that boots to nothing. The
+# core is looked for first, so that a tarball laid out otherwise stops the
+# build saying so rather than passing unseen.
+CORE=/opt/osdos/lib/osdos/fbneo_libretro.so
+if [ ! -s "${ROOTFS_DIR}${CORE}" ]; then
+	echo "files/osdos.tar.gz has no ${CORE#/opt/osdos/}: FinalBurn Neo's core comes with the app" >&2
+	exit 1
+fi
+info=$(on_chroot << EOF
+runuser -u "${FIRST_USER_NAME}" -- /opt/osdos/bin/osdos --core-info ${CORE}
+EOF
+) || { echo "OSD/OS doesn't start in the image (its error above): '${info}'" >&2; exit 1; }
+if ! grep -q '^name=.' <<< "${info}"; then
+	echo "OSD/OS doesn't start in the image, or doesn't name FinalBurn Neo's core: '${info}'" >&2
+	exit 1
+fi
+echo "OSD/OS starts in the image: ${info//$'\n'/, }"
+
 # The app's QML compiled into the QML cache of the user it runs as
 # (osdos --compile-qml), so that the image's first start doesn't compile it
 # before the menus can be drawn: the cache is kept by each file's path and

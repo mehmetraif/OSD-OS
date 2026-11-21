@@ -11,6 +11,7 @@ FocusScope {
     readonly property bool inFrame: true
 
     property var navParams: ({})
+    signal replaceWith(string path, var params)
     signal goBack()
 
     // "missing" | "empty" | "unreadable" | "notfound" | "network"
@@ -30,14 +31,24 @@ FocusScope {
     property string detail: {
         switch (reason) {
         case "notfound":
-            return "Please check the place's name in Settings, in WEATHER's Location, or in the location file"
+            return "Check the place's name in Weather's Location, or in the location file"
         case "network":
-            return "Please check your network connection and try again"
+            return "Check your network connection, then try again"
         case "unreadable":
-            return "Please check the location file's permissions"
+            return "Check the location file's permissions, or type a place in Weather's Location"
         default:
-            return "Please type your town, or its latitude and longitude, in Settings, in WEATHER's Location"
+            return "Type your town, or its latitude and longitude, in Weather's Location"
         }
+    }
+    // Select: the network asked again, or Settings' Location row, where a
+    // place is typed (back from it comes back to the module, which looks
+    // again).
+    readonly property bool retries: reason === "network"
+    function act() {
+        if (retries)
+            replaceWith("Weather.qml", {})
+        else
+            moduleRoot.openSettings("location")
     }
     // The file itself, named for the reasons that are about it.
     readonly property bool namesFile: reason !== "network"
@@ -47,6 +58,9 @@ FocusScope {
     Keys.onPressed: function(event) {
         if (root.isBack(event)) {
             goBack()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            act()
             event.accepted = true
         }
     }
@@ -91,7 +105,7 @@ FocusScope {
         // The file's path as it is: a path is case-sensitive.
         Text {
             visible: setupRoot.namesFile && setupRoot.locationPath !== ""
-            text: setupRoot.locationPath
+            text: "Or write it in: " + setupRoot.locationPath
             color: root.primaryColor
             font.family: root.globalFont
             horizontalAlignment: Text.AlignHCenter
@@ -102,6 +116,6 @@ FocusScope {
     }
 
     HintBar {
-        text: root.hints.back + ":BACK"
+        text: root.hintLine(["back:BACK", setupRoot.retries ? "select:TRY AGAIN" : "select:SET LOCATION"])
     }
 }

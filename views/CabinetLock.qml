@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// Settings → Startup → Cabinet Lock: OSD/OS kept on its Start on Module, a cabinet's
+// Settings → Startup → Cabinet Lock: OSD/OS kept on its Start On module, a cabinet's
 // Arcade screen, while the lock is on (Main.qml). Back there goes nowhere,
 // so the main menu, Settings and Quit are out of reach, but for the unlock
 // buttons: one to four inputs of any pads and keyboards, a direction among
@@ -24,7 +24,7 @@ FocusScope {
     // tears down (see Bluetooth.qml).
     readonly property string buttons: inputManager ? inputManager.unlockButtons : ""
     property bool lockOn: false
-    // The Start on Module's name, "" for none (or one turned off).
+    // The Start On's name, "" for none (or one turned off).
     property string homeName: ""
 
     // Waiting for new unlock buttons: what is held now, by name, more than
@@ -39,13 +39,14 @@ FocusScope {
     readonly property var rows: [
         // On with no module to stay on, it locks nothing, and says so.
         { key: "lock", label: "Cabinet Lock", value: !lockOn ? "Off" : homeName !== "" ? "On" : "On (No Module)",
-          description: "Keeps OSD/OS on its Start on Module" + (homeName !== "" ? ", " + homeName : "")
+          description: "Keeps OSD/OS on its Start On module" + (homeName !== "" ? ", " + homeName : "")
                        + ": back there goes nowhere, and the main menu, Settings and Quit open only with the unlock"
                        + " buttons held together for three seconds, until OSD/OS starts again or they are held again" },
         { key: "buttons", label: "Unlock Buttons", value: buttons !== "" ? buttons : "None",
           description: "One to four buttons or keys held together, a direction among them if you like:"
                        + " select, then hold them for two seconds. Each but a direction waits a moment for the"
-                       + " rest before it acts, so a START among them never starts a game" }
+                       + " rest before it acts, so a START among them never starts a game; one alone acts as"
+                       + " it is let go" }
     ]
 
     function refresh() {
@@ -65,13 +66,14 @@ FocusScope {
     // to stay on, or without buttons, those first.
     function wantLock(on) {
         if (!on) {
-            appCore.save_setting("", "cabinet_lock", "Off")
+            if (!appCore.save_setting("", "cabinet_lock", "Off"))
+                notSaved()
             refresh()
             return
         }
         if (homeName === "") {
-            notice.promptText = "No Start on Module"
-            notice.subtitleText = "Choose the module the cabinet stays on in Settings → Startup → Start on Module first"
+            notice.promptText = "No Start On module"
+            notice.subtitleText = "Choose the module the cabinet stays on in Settings → Startup → Start On first"
             notice.open()
             return
         }
@@ -85,12 +87,20 @@ FocusScope {
         confirm.open()
     }
 
+    // A choice that couldn't be kept: said, as the page shows what was there
+    // before and would otherwise say nothing.
+    function notSaved() {
+        notice.promptText = "Not saved"
+        notice.subtitleText = "The settings could not be written: nothing has changed"
+        notice.open()
+    }
+
     function startCapture() {
         if (!inputManager)
             return
         heldNames = ""
         tooMany = false
-        secondsLeft = 10
+        secondsLeft = inputManager.unlockCaptureSeconds
         capturing = true
         overlay.forceActiveFocus()
         inputManager.captureUnlockButtons(true)
@@ -111,22 +121,25 @@ FocusScope {
         function onUnlockButtonsHeld(names, many) {
             lockRoot.heldNames = names
             lockRoot.tooMany = many
-            lockRoot.secondsLeft = 10
+            lockRoot.secondsLeft = inputManager.unlockCaptureSeconds
         }
-        function onUnlockCaptureEnded(saved) {
+        function onUnlockCaptureEnded(saved, unsaved) {
             if (!lockRoot.capturing)
                 return
             lockRoot.capturing = false
             list.forceActiveFocus()
             var lock = lockRoot.lockAfter && saved
             lockRoot.lockAfter = false
-            if (lock)
+            // Held long enough, but not kept: the old ones stay.
+            if (unsaved)
+                lockRoot.notSaved()
+            else if (lock)
                 lockRoot.wantLock(true)
         }
     }
 
     // The seconds left of the wait with nothing held: InputManager ends it
-    // at ten, this only counts them down.
+    // as they run out (unlockCaptureSeconds), this only counts them down.
     Timer {
         interval: 1000
         repeat: true
@@ -182,8 +195,10 @@ FocusScope {
     }
 
     HintBar {
+        // On the lock's row ◄ ► and select alike turn it on or off: its own
+        // ◄ ► say so, and the line names select's, at the bar's own size.
         text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             lockRoot.rows[list.currentIndex].key === "lock" ? "change:CHANGE" : "", "select:SELECT"])
+                             lockRoot.rows[list.currentIndex].key === "lock" ? "select:ON/OFF" : "select:SELECT"])
     }
 
     // --- WAITING FOR THE BUTTONS ---
@@ -233,9 +248,9 @@ FocusScope {
         promptText: "Lock the cabinet?"
         choices: [{ label: "Lock", action: "lock" }, { label: "Cancel", action: "cancel" }]
         onActivated: function(action) {
-            // Main.qml opens the Start on Module at once.
-            if (action === "lock")
-                appCore.save_setting("", "cabinet_lock", "On")
+            // Main.qml opens the Start On module at once.
+            if (action === "lock" && !appCore.save_setting("", "cabinet_lock", "On"))
+                lockRoot.notSaved()
         }
         onClosed: list.forceActiveFocus()
     }

@@ -28,14 +28,45 @@ enum class LabelStyle { Auto, ABelow, ARight, Shapes, Numbers };
 LabelStyle labelStyleFromName(const QString &name);
 QString labelStyleName(LabelStyle style);
 QString labelStyleTitle(LabelStyle style);
-// In the order Settings offers them.
-QStringList labelStyleNames();
+// In the order Settings offers them, as a pad's page has them (Button
+// Names): [{ style (its name), title }].
+QVariantList labelStyles();
 // A pad's input, input.cfg's token for it ("a", "dpup", "leftx-",
 // "lefttrigger+"), as that style prints it. Auto isn't one: InputManager
 // makes it one of the four first.
 QString inputLabel(LabelStyle style, const QString &token);
 
+// A pad's key: "pad-" and SDL's GUID for it (lower case) as far as that GUID
+// names the model and stays the same from one connection to the next
+// (stablePadGuid()), so that the same pad finds its settings again whatever
+// it was plugged into, and the same model shares them.
 QString padKey(const QString &sdlGuid);
+// SDL's GUID of a pad, lower case, without what changes between two
+// connections of the same pad. A GUID with a vendor and a product keeps those
+// alone: its bus (USB or Bluetooth), the checksum of the name SDL gives it,
+// its version and its driver's bytes (XInput's, HIDAPI's, Raw Input's...)
+// are zeroed. An XInput pad SDL knows no vendor and product of is named by
+// its slot ("XInput Controller #2", as the slot it gets may change), the
+// name's checksum in its GUID with it: that checksum is zeroed. Any other
+// GUID (a pad SDL knows by its bus and its name alone, the name in the
+// GUID) is kept as it is. "" stays "".
+QString stablePadGuid(const QString &sdlGuid);
+// The key a profile, or a player's choice, saved by an earlier version is
+// read under now: a pad's whole SDL GUID made stable (padKey()); any other
+// key as it is.
+QString currentKey(const QString &key);
+// A pad's name without the slot number SDL names an XInput pad by when it
+// knows no vendor and product of it ("XInput Controller #2" is "XInput
+// Controller"); any other name as it is.
+QString padModelName(const QString &name);
+// The key a pad that connects takes its settings by: its own (padKey())
+// when it has settings or isn't known by its vendor and product; else the
+// key of a pad of the same vendor and the same name (padModelName()) that
+// has settings, the same pad over another connection (a pad has a product
+// number of its own over Bluetooth); else its own. profiles: the settings
+// kept, by key.
+struct Profile;
+QString sharedPadKey(const QString &key, const QString &name, const QHash<QString, Profile> &profiles);
 // Whether a controller's key is a pad's (padKey()), not a keyboard's or a
 // remote's.
 bool isPadKey(const QString &key);
@@ -64,7 +95,7 @@ bool hasMouseButtons(const QSet<int> &keys);
 // Sound → Audio Output is where that device belongs.
 bool looksLikeUsbAudioHid(const QString &name);
 
-// Settings → Controls → a pad → Arcade Buttons: which of its inputs is each
+// Settings → Controls → a pad → Game Buttons: which of its inputs is each
 // of a cabinet's, Button 1 to 8, Coin and Start (kArcadeInputs, in that
 // order), the same in MAME and FinalBurn Neo. An input is input.cfg's token:
 // a button ("x", "rightshoulder"), a trigger pressed ("righttrigger+"), or
@@ -81,8 +112,10 @@ QString arcadeInputLabel(int index);
 // the buttons as MAME numbers them, Back and Start, then the rest.
 QStringList arcadeTokens();
 bool isArcadeToken(const QString &token);
-// LAYOUT's choices, in its order: "default", none of OSD/OS's (MAME and
-// FinalBurn Neo each lay a pad's buttons out their own way); "fighting6", a
+// LAYOUT's choices, in its order: "auto", OSD/OS's own by the game's
+// buttons (arcadeAutoInputs()), where a pad SDL knows by its kind starts;
+// "default", none of OSD/OS's (MAME and FinalBurn Neo each lay a pad's
+// buttons out their own way), where any other pad starts; "fighting6", a
 // fighter's punches over its kicks where a pad has them (X Y RB over A B
 // RT); "neogeo4", a Neo Geo's A B C D on A B X Y, as MAME numbers a pad's
 // buttons; a console pad's own: "nes" (B A), "megadrive" (A B C, then X Y
@@ -90,7 +123,7 @@ bool isArcadeToken(const QString &token);
 // fighters': X Y Z over A B C) and "n64" (Killer Instinct Gold's: B C◄ C▲
 // over A C▼ C►); and "custom", set button by button. Their titles, and a
 // layout's inputs (kArcadeInputs tokens, "" for none; none at all for
-// default and custom). numbered: a stick whose buttons are wired by number,
+// auto, default and custom). numbered: a stick whose buttons are wired by number,
 // a JAMMA board's, whose six-button panel is its pins 1 2 3 over 4 5 6:
 // "fighting6" is its buttons in order (arcadeDefaultInputs()), where a
 // pad's has its face buttons' rows.
@@ -102,6 +135,10 @@ QStringList arcadeLayoutInputs(const QString &layout, bool numbered = false);
 // stick has these under Default too: its pins' buttons 1 to 8, COIN and
 // START, as osdos-jamma gives them.
 QStringList arcadeDefaultInputs();
+// Auto's inputs for a game: one of up to four buttons on Neo Geo 4's, one
+// of five or more (manyButtons) on Fighting 6's. Coin and Start are Back and
+// Start in both.
+QStringList arcadeAutoInputs(bool manyButtons, bool numbered = false);
 
 // What a pad has, as MAME's game controller support (its sdlgame joystick
 // provider) sees it through SDL: its inputs SDL binds (tokens without a
@@ -142,17 +179,24 @@ struct Profile {
     // "keyboard" or "remote".
     QString name;
     QString kind;
+    // A pad's SDL_GameControllerType as last seen (0, unknown, for none):
+    // its Auto labels and its Game Buttons' Auto while it is away.
+    // config.json has it as "sdl_type".
+    int sdlType = 0;
     LabelStyle labels = LabelStyle::Auto;
     QHash<QString, QString> bindings;
-    // Its Arcade Buttons: a layout of arcadeLayouts() but "default" ("" for
-    // that), and with one its kArcadeInputs tokens, Coin's and Start's never
-    // "".
+    // Its Arcade Buttons: a layout of arcadeLayouts() chosen, "" for none
+    // (Auto for a pad SDL knows by its kind, Engine's for any other), and
+    // with a preset or Custom its kArcadeInputs tokens, Coin's and Start's
+    // never "" (none for "auto" and "default", which a game's own buttons
+    // and the engines lay out).
     QString arcadeLayout;
     QStringList arcade;
     // The inputs last set by hand (Custom's), kept while another layout is
     // chosen, so that Custom brings them back: kArcadeInputs tokens, or
-    // none. config.json has them as arcade.custom beside a preset's inputs,
-    // and with no layout as arcade: { layout: "default", custom }.
+    // none. config.json has them as arcade.custom beside a layout, and
+    // with none chosen as arcade: { custom }. "default" written is Engine's
+    // chosen, which a pad SDL knows by its kind keeps over Auto.
     QStringList arcadeCustom;
 
     bool isEmpty() const {
@@ -219,16 +263,42 @@ QStringList padMappings();
 QString mappingWithoutCrc(const QString &mapping);
 // Each player's Arcade Buttons as the engines take them, kArcadeInputs
 // entries each, mameInput()'s and retroarchBind()'s names: empty for a
-// player whose pad has no layout of its own. InputManager keeps them as it
-// keeps the players' environment; the Arcade module writes them for each
-// game. kPlayers entries.
+// player whose pad has no layout of its own (Engine's). On Auto, mame and
+// retroarch are a game of up to four buttons' (Neo Geo 4's) and mameMany
+// and retroarchMany one of five or more's (Fighting 6's): the Arcade module
+// takes the one its game needs (mameFor(), retroarchFor()). Online, and for
+// a host's layout, Auto is no layout of the player's own (retroarchOnline()):
+// it plays there as Engine's does. InputManager keeps them as it keeps the
+// players' environment; the Arcade module writes them for each game.
+// kPlayers entries.
+// key, name and layout: the player's pad's key and name, and the layout in
+// force for it (arcadeLayouts()' name, "default" for Engine's), for the log
+// line a game starts with (playersLogLine()).
 struct ArcadeBinds {
     QStringList mame;
     QStringList retroarch;
+    QStringList mameMany;
+    QStringList retroarchMany;
+    bool automatic = false;
+    QString key;
+    QString name;
+    QString layout;
     bool isEmpty() const { return mame.isEmpty(); }
+    QStringList mameFor(bool manyButtons) const { return automatic && manyButtons ? mameMany : mame; }
+    QStringList retroarchFor(bool manyButtons) const { return automatic && manyButtons ? retroarchMany : retroarch; }
+    QStringList retroarchOnline() const { return automatic ? QStringList() : retroarch; }
 };
 void setPlayerArcade(const QList<ArcadeBinds> &players);
 QList<ArcadeBinds> playerArcade();
+// The line the Arcade module logs as a game starts, so that a saved log says
+// what each player played with: for each player with a pad, its name and key,
+// the layout in force for it (Auto with the row the game takes, manyButtons),
+// the binds written for it (applied, the engine's names for Button 1 to 8,
+// Coin and Start; none for Engine's, or Auto online) and the device the
+// engine keeps for that player (devices, "" for none said); engine and
+// driver name the emulator and the joypad driver it is told to use.
+QString playersLogLine(const QString &engine, const QString &driver, bool manyButtons,
+                       const QList<QStringList> &applied, const QStringList &devices = {});
 
 // Which keyboard or remote a key came from. Qt doesn't say; the nodes, read
 // beside it, do: each press noted as it comes, then taken by the key event

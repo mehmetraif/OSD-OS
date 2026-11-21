@@ -1,5 +1,5 @@
 #pragma once
-#include <QLocalSocket>
+#include "../util/MpvSocket.h"
 #include <QObject>
 #include <QPointer>
 #include <QProcess>
@@ -52,6 +52,12 @@ public:
     static void hold(const QString &who);
     static void release(const QString &who);
 
+    // Why `file` (a path) can't be played here, "" when nothing says so: a
+    // MIDI file without FluidSynth or a SoundFont, a module mpv gave up on
+    // with no openmpt123 to make it a WAV. Settings → Sound → Music File's
+    // help line opens with it.
+    Q_INVOKABLE QString missingFor(const QString &file) const;
+
 public slots:
     // On another sound card (Settings → Sound → Audio Output): from the start
     // there, a tune the card before couldn't play too.
@@ -102,10 +108,9 @@ private:
     bool m_renderModule = false;
     // WAVs begun, each made under a name of its own.
     int m_renders = 0;
-    QLocalSocket m_ipc;
+    MpvSocket m_ipc;
     QString m_socketPath;
     QTimer m_startDelay;
-    QTimer m_connect;
     // Runs while the music waits for a sound card to play through.
     QTimer m_cardWait;
 };

@@ -61,6 +61,9 @@ public:
     // manifest: sign_out (action). Deletes SIGN IN's browser profile, and with
     // it the sign-in yt-dlp reads.
     Q_INVOKABLE void signOut();
+    // SIGN IN's browser's (WebPlayerBackend::get_auth_state()): "authed"
+    // while it keeps a profile, and so a sign-in yt-dlp reads.
+    Q_INVOKABLE QString get_auth_state() const;
 
     // Root.qml, as the module opens: brings yt-dlp up to date on OSD/OS's
     // image, where its update (osdos-yt-dlp-update.service) otherwise runs
@@ -100,6 +103,7 @@ public:
     // ADVANCED's language lists (options_slot), by yt-dlp's language codes.
     Q_INVOKABLE void get_audio_languages();
     Q_INVOKABLE void get_subtitle_languages();
+    Q_INVOKABLE void get_subtitle_options();
 
     // Watch history (youtube_history.json). A finished video stays in history
     // with pos 0 (so it lists under RECENTLY WATCHED but never prompts to resume);
@@ -142,6 +146,11 @@ public:
     Q_INVOKABLE QVariant entries(const QString &path, bool preview = false);
     // Loads the next matches of a search onto its end.
     Q_INVOKABLE void     loadMore(const QString &path);
+    // Before a search typed in is opened: the searches so far are let go,
+    // so the same words ask YouTube afresh (it may have other matches by
+    // now) and none is kept for the whole run. One still on its way is left
+    // to land.
+    Q_INVOKABLE void     forgetSearches();
     // What a video's info screen shows: detailsReady(path, { title, facts,
     // summary, rows, complete }) follows at once with what the list knows,
     // and again, complete, with what yt-dlp adds (length, views, the whole
@@ -156,25 +165,46 @@ signals:
     void listingReady(const QString &path);
     void detailsReady(const QString &path, const QVariantMap &details);
     void problemChanged();
+    void authStateChanged();
 
 private:
     bool m_updateStarted = false;
 
-    struct ChannelEntry {
-        QString      channelId;
-        QString      channelName;      // from the RSS feed <title>
-        QVariantList videos;           // newest first
+    // A channel, from its RSS feed, or a playlist, from yt-dlp.
+    struct Source {
+        QString      title;            // the feed's <title>, or the playlist_title yt-dlp reported
+        QVariantList videos;           // newest first (a channel), or the playlist's order
         qint64       fetchedMs = 0;    // 0 = never fetched successfully
-        bool         feedOk    = false;
+        bool         ok        = false;
     };
 
-    struct PlaylistEntry {
-        QString      playlistId;
-        QString      fileName;         // optional "Name |" override from the file
-        QString      fetchedTitle;     // playlist_title reported by yt-dlp
-        QVariantList videos;           // playlist order
-        qint64       fetchedMs = 0;
-        bool         fetchOk   = false;
+    // The in-memory session cache of the channels or of the playlists, and
+    // the refresh that fills it, a few sources at a time.
+    struct SourceCache {
+        QHash<QString, Source> sources;
+        QStringList order;             // IDs in the lists' order (deduped)
+        QStringList fetchQueue;        // stale IDs waiting for a request or process slot
+        int         pending = 0;       // the refresh's sources not landed yet
+        int         active  = 0;       // of those, the ones being fetched
+        // The tree's view of the cache: when it last filled (or failed
+        // outright), and the paths waiting for that.
+        qint64      loadedMs = 0;
+        qint64      failedMs = 0;
+        QStringList waits;
+
+        // Filled for these IDs within kCacheTtlMs.
+        bool        fresh(const QStringList &ids, qint64 now) const;
+        // Takes the IDs as its order and returns those to fetch: all with
+        // force, else the ones never fetched or older than kCacheTtlMs.
+        QStringList stale(const QStringList &ids, bool force, qint64 now);
+        // A source fetched.
+        void        store(const QString &id, const QString &title, const QVariantList &videos);
+        // A source's fetch has landed, however it went: true once it was the
+        // refresh's last.
+        bool        landed();
+        // The refresh is over: whether any source has ever been fetched,
+        // noted as loadedMs or failedMs.
+        bool        finish(qint64 now);
     };
 
     struct PlaylistFileRef {
@@ -240,29 +270,10 @@ private:
     QNetworkAccessManager m_nam;
     WebPlayerBackend *m_browser = nullptr;
 
-    QHash<QString, ChannelEntry> m_channels;  // in-memory session cache
-    QStringList m_channelOrder;               // channel IDs in file order (deduped)
-    QStringList m_channelFetchQueue;          // stale IDs waiting for a request slot
-    int m_pendingChannels      = 0;
-    int m_activeChannelFetches = 0;
+    SourceCache m_channels;                   // fed by RSS requests
+    SourceCache m_playlists;                  // fed by yt-dlp processes
     QUrl m_feedUrl{ QStringLiteral("https://www.youtube.com/feeds/videos.xml") };
 
-    // Playlist mirror of the channel cache/refresh state, fed by yt-dlp
-    // subprocesses instead of RSS requests.
-    QHash<QString, PlaylistEntry> m_playlists;
-    QStringList m_playlistOrder;              // playlist IDs in file order (deduped)
-    QStringList m_playlistFetchQueue;         // stale IDs waiting for a process slot
-    int m_pendingPlaylists       = 0;
-    int m_activePlaylistFetches  = 0;
-
-    // The tree's view of the caches: when each last filled (or failed
-    // outright), and the paths waiting for that.
-    qint64      m_channelsLoadedMs  = 0;
-    qint64      m_channelsFailedMs  = 0;
-    QStringList m_channelWaits;
-    qint64      m_playlistsLoadedMs = 0;
-    qint64      m_playlistsFailedMs = 0;
-    QStringList m_playlistWaits;
     QHash<QString, Search> m_searches;        // search/<words> -> matches
     QHash<QString, QVariantMap> m_details;    // videoId -> what yt-dlp told of it
     bool        m_fetchingDetails = false;

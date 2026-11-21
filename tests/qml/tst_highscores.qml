@@ -157,12 +157,22 @@ StandInRoot {
             tryVerify(function() { return findText(view, "All Games") !== null })
         }
 
-        // No tables: how they come, or what keeps them from being read.
-        function test_empty() {
+        // No tables: how they come, or what keeps them from being read; the
+        // hint bar has back alone, in a keyboard's names or a pad's.
+        function test_empty_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_empty(data) {
+            root.hints = data.hints
             highScoresBackend.entries = { "top": [] }
             var view = open()
             tryVerify(function() { return findText(view, "No high scores yet") !== null })
             verify(findText(view, "Play a game in Arcade") !== null)
+            var bar = findText(view, data.hints.back + ":BACK")
+            verify(bar !== null)
+            compare(bar.text, data.hints.back + ":BACK")
+            root.hints = root.keyboardHints
             highScoresBackend.problem = "This build of OSD/OS reads no high score tables: it was built without minizip"
             verify(findText(view, "built without minizip") !== null)
             compare(findText(view, "Play a game in Arcade"), null)

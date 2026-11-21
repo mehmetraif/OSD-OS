@@ -2,6 +2,7 @@
 #include "../../AppCore.h"
 #include "../../util/AtomicFile.h"
 #include "../../util/ServerLog.h"
+#include "../../util/PlaybackOptions.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -28,6 +29,19 @@
 
 static const QString PLEX_TV = QStringLiteral("https://plex.tv");
 static const QString kModuleId = QStringLiteral("com.osdos.plex");
+
+// plex.tv's list of the account's servers, with every kind of connection each
+// has (HTTPS, relayed, IPv6), as sign-in, a profile switch and a server found
+// again ask for it.
+static QUrl serverResourcesUrl() {
+    QUrl url(PLEX_TV + "/api/v2/resources");
+    QUrlQuery q;
+    q.addQueryItem("includeHttps", "1");
+    q.addQueryItem("includeRelay", "1");
+    q.addQueryItem("includeIPv6", "1");
+    url.setQuery(q);
+    return url;
+}
 
 // Auth logging helpers.  plex.tv issues JWTs while PMS only accepts opaque
 // per-server tokens, so "which kind of token did we end up with" is the single
@@ -60,10 +74,9 @@ static const QString kPlexPlatform = QStringLiteral("Linux");
 // Construction
 // ---------------------------------------------------------------------------
 
-PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
+PlexBackend::PlexBackend(const QString &, const QString &dataRoot, AppCore *appCore,
                          QObject *parent)
     : QObject(parent)
-    , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
     , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
@@ -512,12 +525,22 @@ QString PlexBackend::serverUrl() const {
 QString PlexBackend::serverToken() const {
     QJsonObject auth = loadAuth();
     QString mid = auth["active_server_machine_id"].toString();
-    if (mid.isEmpty()) return accountToken();
 
-    // Managed user: their per-server token takes precedence
+    // Managed user: their own per-server token, or none. The owner's tokens
+    // below would show a managed profile the owner's libraries and write its
+    // watch state into the owner's, so a server the profile has no token for
+    // is asked with none and turns the request away.
+    // Who is active says it where both are known; else tokens kept for a
+    // managed profile do.
     QJsonObject managed = auth["managed_user_tokens"].toObject();
-    if (!managed.isEmpty() && managed.contains(mid))
-        return managed[mid].toString();
+    const QString activeId = auth["active_user_id"].toString();
+    const QString ownerId = auth["account_user_id"].toString();
+    const bool managedActive = !activeId.isEmpty() && !ownerId.isEmpty()
+        ? activeId != ownerId : !managed.isEmpty();
+    if (managedActive)
+        return mid.isEmpty() ? QString() : managed[mid].toString();
+
+    if (mid.isEmpty()) return accountToken();
 
     // Owner: pre-swapped token stored at activateUser time
     QJsonObject ust = auth["user_server_tokens"].toObject();
@@ -710,13 +733,7 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
                              << "token=" << tokenShape(switchToken)
                              << "differsFromMaster=" << (switchToken != masterToken);
 
-        QUrl resUrl(PLEX_TV + "/api/v2/resources");
-        QUrlQuery q;
-        q.addQueryItem("includeHttps", "1");
-        q.addQueryItem("includeRelay", "1");
-        q.addQueryItem("includeIPv6", "1");
-        resUrl.setQuery(q);
-        auto *resReply = plexGet(resUrl, owner ? masterToken : switchToken);
+        auto *resReply = plexGet(serverResourcesUrl(), owner ? masterToken : switchToken);
         connect(resReply, &QNetworkReply::finished, this,
                 [this, resReply, userId, masterToken, switchToken, owner, sameUser, callback]() {
             resReply->deleteLater();
@@ -742,7 +759,6 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
 
             QJsonObject a = loadAuth();
             a["active_user_id"]    = userId;
-            a["active_user_token"] = masterToken; // always master JWT for plex.tv API
 
             if (owner) {
                 // Swap JWT-bearing entries for the legacy switch token so PMS accepts them
@@ -793,11 +809,18 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
             QJsonArray allServers = a["servers"].toArray();
             QJsonObject effectiveManaged = a["managed_user_tokens"].toObject();
             QVariantList accessible;
-            if (!owner && !effectiveManaged.isEmpty()) {
+            if (!owner) {
                 for (const auto &sv : allServers) {
                     QJsonObject s = sv.toObject();
                     if (effectiveManaged.contains(s["machineId"].toString()))
                         accessible.append(s.toVariantMap());
+                }
+                // A managed profile none of whose servers this device knows
+                // would be left on the server active before it, for which it
+                // has no token: nothing it could watch. Not switched to.
+                if (accessible.isEmpty() && !sameUser) {
+                    profileNotSwitched(QStringLiteral("COULD NOT SWITCH PROFILE: IT HAS NO SERVER ON THIS DEVICE"));
+                    return;
                 }
             } else {
                 for (const auto &sv : allServers) accessible.append(sv.toObject().toVariantMap());
@@ -811,12 +834,6 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
 
 QString PlexBackend::accountToken() const {
     return loadAuth()["auth_token"].toString();
-}
-
-QString PlexBackend::userToken() const {
-    QJsonObject auth = loadAuth();
-    QString t = auth["active_user_token"].toString();
-    return t.isEmpty() ? auth["auth_token"].toString() : t;
 }
 
 QString PlexBackend::videoQuality() const {
@@ -939,20 +956,13 @@ void PlexBackend::sendQueuedGets() {
 void PlexBackend::loadList(void (PlexBackend::*answer)(const QVariant &), const QString &keep,
                            const QUrl &url, const QString &failure, std::function<void()> retry,
                            std::function<QVariantList(const QByteArray &)> read, bool flatten) {
-    // Long enough to go into a film's detail screen and back, or play a
-    // trailer, short enough to show what was added on the server meanwhile.
-    constexpr qint64 kListKeepMs = 10 * 60 * 1000;
-    constexpr int kListsKept = 6;
     const int request = ++m_listRequest;
     // Kept per server and user, whose token it is: a list of another's isn't.
     const QString kept = keep.isEmpty() ? QString() : serverUrl() + QLatin1Char(' ') + serverToken()
                                                        + QLatin1Char(' ') + keep;
-    const auto found = m_keptLists.constFind(kept);
-    if (!kept.isEmpty() && found != m_keptLists.constEnd()
-        && QDateTime::currentMSecsSinceEpoch() - found->at < kListKeepMs) {
+    if (const auto found = m_keptLists.find(kept)) {
         // Told as a reply is: once the view that asked has done asking.
-        const QVariantList rows = found->rows;
-        QTimer::singleShot(0, this, [this, request, answer, rows]() {
+        QTimer::singleShot(0, this, [this, request, answer, rows = *found]() {
             if (request == m_listRequest)
                 emit (this->*answer)(rows);
         });
@@ -984,13 +994,7 @@ void PlexBackend::loadList(void (PlexBackend::*answer)(const QVariant &), const 
             auto tell = [this, request, answer, kept](const QVariantList &rows) {
                 if (request != m_listRequest)
                     return;
-                if (!kept.isEmpty()) {
-                    m_keptLists.insert(kept, { rows, QDateTime::currentMSecsSinceEpoch() });
-                    m_keptOrder.removeAll(kept);
-                    m_keptOrder.append(kept);
-                    while (m_keptOrder.size() > kListsKept)
-                        m_keptLists.remove(m_keptOrder.takeFirst());
-                }
+                m_keptLists.keep(kept, rows);
                 emit (this->*answer)(rows);
             };
             if (flatten)
@@ -1075,10 +1079,29 @@ void PlexBackend::build_stream_url(const QString &ratingKey,
     emit streamUrlReady(url, token);
 }
 
+QString PlexBackend::new_session_id() const {
+    static const char kChars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    QString id;
+    for (int i = 0; i < 12; ++i)
+        id += QLatin1Char(kChars[QRandomGenerator::global()->bounded(int(sizeof(kChars) - 1))]);
+    return id;
+}
+
+void PlexBackend::start_stream(const QVariantMap &detail, const QString &sessionId,
+                               const QString &audioId, const QString &subtitleId) {
+    const QString ratingKey = detail.value(QStringLiteral("ratingKey")).toString();
+    const QString partKey = detail.value(QStringLiteral("partKey")).toString();
+    if (detail.value(QStringLiteral("forceTranscode")).toBool())
+        request_transcode(ratingKey, partKey, sessionId, audioId, subtitleId, 0);
+    else
+        build_stream_url(ratingKey, partKey, sessionId);
+}
+
 void PlexBackend::cancel_stream() {
     ++m_streamRequest;
     ++m_nextRequest;
     ++m_queueRequest;
+    ++m_cardRequest;
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,7 +1165,7 @@ void PlexBackend::pollPinTick() {
             // plex.tv forgets a PIN left unclaimed: nothing to poll for any more.
             m_pollTimer->stop();
             m_pendingPinId.clear();
-            emit errorOccurred("THE CODE EXPIRED: GO BACK AND TRY AGAIN");
+            emit errorOccurred("THE CODE EXPIRED: TRY AGAIN FOR A NEW ONE");
             return;
         }
         if (reply->error() != QNetworkReply::NoError) return; // silent — keep polling
@@ -1195,20 +1218,15 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
             users.append(homeUserEntry(v.toObject()));
 
         // Step 2: fetch resources (servers)
-        QUrl resUrl(PLEX_TV + "/api/v2/resources");
-        QUrlQuery q;
-        q.addQueryItem("includeHttps", "1");
-        q.addQueryItem("includeRelay", "1");
-        q.addQueryItem("includeIPv6", "1");
-        resUrl.setQuery(q);
-        auto *resReply = plexGet(resUrl, token);
+        auto *resReply = plexGet(serverResourcesUrl(), token);
         connect(resReply, &QNetworkReply::finished, this, [this, users, resReply, token]() {
             resReply->deleteLater();
             if (resReply->error() != QNetworkReply::NoError) {
-                // Still emit users even if resource fetch fails
-                QVariantList ul;
-                for (const auto &v : users) ul.append(v.toObject().toVariantMap());
-                emit usersLoaded(ul);
+                // Said, and nothing kept: users told without their servers
+                // were users nothing was kept of, whom select_user() then
+                // didn't know. The users page asks for both again
+                // (load_users_from_cache()).
+                emit errorOccurred("FAILED TO LOAD SERVERS: " + serverlog::why(resReply));
                 return;
             }
             QJsonArray resources = QJsonDocument::fromJson(resReply->readAll()).array();
@@ -1232,7 +1250,8 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
                 });
             }
 
-            // Probe servers sequentially, build list, then save + emit
+            // Every server probed at once, each its connections in turn; the list
+            // saved and emitted once the last has answered
             auto *serverList = new QJsonArray();
             auto *remaining  = new int(pending.size());
 
@@ -1260,14 +1279,12 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
 
             for (const auto &si : pending) {
                 probeConnections(si.connections, [this, si, serverList, remaining, users, allServerTokens](QString uri) {
-                    bool isLocal = !uri.isEmpty(); // probe only tries local; non-empty = LAN
-                    bool isRelay = false;
                     if (uri.isEmpty()) {
                         // No local connection found. Prefer relay (Plex's own proxy,
                         // works for both API calls and file streaming from WAN).
                         for (const auto &cv : si.connections) {
                             QJsonObject c = cv.toObject();
-                            if (c["relay"].toBool()) { uri = c["uri"].toString(); isRelay = true; break; }
+                            if (c["relay"].toBool()) { uri = c["uri"].toString(); break; }
                         }
                         // Owned servers often have no relay entry — fall back to a
                         // WAN IPv4 direct URL so the server still appears in the list.
@@ -1290,8 +1307,6 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
                         s["machineId"] = si.clientIdentifier;
                         s["name"]      = si.name;
                         s["uri"]       = uri;
-                        s["local"]     = isLocal;
-                        s["relay"]     = isRelay;
                         serverList->append(s);
                     }
                     (*remaining)--;
@@ -1352,7 +1367,6 @@ void PlexBackend::probeNext(const QList<QString> &uris, int index,
     QString uri = uris[index];
     auto *reply = plexGet(QUrl(uri + "/"), {});
 
-    // 3-second timeout per probe
     auto *timer = new QTimer(this);
     timer->setSingleShot(true);
     timer->setInterval(3000);
@@ -1389,13 +1403,7 @@ void PlexBackend::probeActiveServer(std::function<void(bool found)> done) {
     const QString machineId = loadAuth()["active_server_machine_id"].toString();
     if (machineId.isEmpty()) { done(false); return; }
 
-    QUrl resUrl(PLEX_TV + "/api/v2/resources");
-    QUrlQuery q;
-    q.addQueryItem("includeHttps", "1");
-    q.addQueryItem("includeRelay", "1");
-    q.addQueryItem("includeIPv6", "1");
-    resUrl.setQuery(q);
-    auto *resReply = plexGet(resUrl, accountToken());
+    auto *resReply = plexGet(serverResourcesUrl(), accountToken());
     connect(resReply, &QNetworkReply::finished, this, [this, resReply, machineId, done]() {
         resReply->deleteLater();
         QJsonArray connections;
@@ -1440,6 +1448,14 @@ void PlexBackend::load_users_from_cache() {
     QVariantList users;
     for (const auto &v : auth["users"].toArray())
         users.append(v.toObject().toVariantMap());
+    // Signed in, with no one kept to choose: the account didn't come once
+    // the sign-in's code was claimed (plex.tv a moment away), and only the
+    // token was kept. Asked for again, as the sign-in does, rather than
+    // answered with none: the users page would be empty at every opening.
+    if (users.isEmpty() && !auth["auth_token"].toString().isEmpty()) {
+        fetchUsersAndServers(auth["auth_token"].toString());
+        return;
+    }
     emit usersLoaded(users);
 }
 
@@ -1923,66 +1939,30 @@ void PlexBackend::load_folder(const QString &sectionId, const QString &folderKey
 }
 
 void PlexBackend::check_section_capabilities(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-
-    auto *caps = new QVariantMap{{"recommended",false},{"collections",false},{"playlists",false}};
-    auto *remaining = new int(3);
-    auto done = [this, caps, remaining]() {
-        (*remaining)--;
-        if (*remaining == 0) {
-            emit capabilitiesLoaded(*caps);
-            delete caps;
-            delete remaining;
-        }
-    };
-
-    // Hubs
-    QUrl hubsUrl(uri + "/hubs/sections/" + sectionId);
+    // Whether the section has hubs, which is all its menu (Library.qml) asks:
+    // the menu offers its other lists whatever they hold. The library asked
+    // about last is the one answered (m_capabilitiesRequest).
+    const int request = ++m_capabilitiesRequest;
+    QUrl hubsUrl(serverUrl() + "/hubs/sections/" + sectionId);
     QUrlQuery hq; hq.addQueryItem("count","1"); hubsUrl.setQuery(hq);
-    auto *hubReply = plexGet(hubsUrl, token);
-    connect(hubReply, &QNetworkReply::finished, this, [this, hubReply, caps, done, sectionId]() {
+    auto *hubReply = plexGet(hubsUrl, serverToken());
+    connect(hubReply, &QNetworkReply::finished, this, [this, hubReply, request, sectionId]() {
         hubReply->deleteLater();
+        bool recommended = false;
         if (hubReply->error() == QNetworkReply::NoError) {
             QJsonArray hubs = QJsonDocument::fromJson(hubReply->readAll())
                               .object()["MediaContainer"].toObject()["Hub"].toArray();
-            (*caps)["recommended"] = !hubs.isEmpty();
+            recommended = !hubs.isEmpty();
         } else if (hubReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            handle498([this, sectionId]{ check_section_capabilities(sectionId); });
+            // Asked again with the token renewed, unless the library was left meanwhile.
+            handle498([this, request, sectionId] {
+                if (request == m_capabilitiesRequest)
+                    check_section_capabilities(sectionId);
+            });
         }
-        done();
-    });
-
-    // Collections
-    QUrl collUrl(uri + "/library/sections/" + sectionId + "/collections");
-    QUrlQuery cq; cq.addQueryItem("X-Plex-Container-Size","0"); collUrl.setQuery(cq);
-    auto *collReply = plexGet(collUrl, token);
-    connect(collReply, &QNetworkReply::finished, this, [this, collReply, caps, done, sectionId]() {
-        collReply->deleteLater();
-        if (collReply->error() == QNetworkReply::NoError) {
-            int total = QJsonDocument::fromJson(collReply->readAll())
-                        .object()["MediaContainer"].toObject()["totalSize"].toInt();
-            (*caps)["collections"] = total > 0;
-        } else if (collReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            handle498([this, sectionId]{ check_section_capabilities(sectionId); });
-        }
-        done();
-    });
-
-    // Playlists
-    QUrl plUrl(uri + "/playlists");
-    QUrlQuery pq; pq.addQueryItem("sectionID",sectionId); pq.addQueryItem("playlistType","video");
-    pq.addQueryItem("X-Plex-Container-Size","0"); plUrl.setQuery(pq);
-    auto *plReply = plexGet(plUrl, token);
-    connect(plReply, &QNetworkReply::finished, this, [this, plReply, caps, done, sectionId]() {
-        plReply->deleteLater();
-        if (plReply->error() == QNetworkReply::NoError) {
-            int total = QJsonDocument::fromJson(plReply->readAll())
-                        .object()["MediaContainer"].toObject()["totalSize"].toInt();
-            (*caps)["playlists"] = total > 0;
-        } else if (plReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            handle498([this, sectionId]{ check_section_capabilities(sectionId); });
-        }
-        done();
+        // Another library opened since: its menu is not this one's.
+        if (request == m_capabilitiesRequest)
+            emit capabilitiesLoaded(QVariantMap{{"recommended", recommended}});
     });
 }
 
@@ -2178,12 +2158,21 @@ void PlexBackend::load_children(const QString &ratingKey) {
 
 void PlexBackend::load_extras(const QString &ratingKey) {
     QString uri = serverUrl(), token = serverToken();
+    const int request = ++m_extrasRequest;
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + ratingKey + "/extras"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey, request]() {
         reply->deleteLater();
+        // Another item's extras asked for since: this one was left, and its
+        // extras are not the page's that is shown now.
+        if (request != m_extrasRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey]{ load_extras(ratingKey); }); return;
+                // Left meanwhile, it isn't asked again in the next one's place.
+                handle498([this, request, ratingKey] {
+                    if (request == m_extrasRequest)
+                        load_extras(ratingKey);
+                });
+                return;
             }
             // No errorOccurred here: the detail views' error handlers reset
             // loading/play state, and a failed extras fetch must not do that.
@@ -2221,12 +2210,21 @@ void PlexBackend::load_extras(const QString &ratingKey) {
 
 void PlexBackend::load_on_deck_for(const QString &ratingKey) {
     QString uri = serverUrl(), token = serverToken();
+    const int request = ++m_onDeckRequest;
     auto *reply = plexGet(QUrl(uri + "/library/metadata/" + ratingKey + "/onDeck"), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, ratingKey, request]() {
         reply->deleteLater();
+        // Another show's asked for since (its PLAY): this one was left, and
+        // opens no episode from that show's page.
+        if (request != m_onDeckRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ratingKey]{ load_on_deck_for(ratingKey); }); return;
+                // Left meanwhile, it isn't asked again in the next one's place.
+                handle498([this, request, ratingKey] {
+                    if (request == m_onDeckRequest)
+                        load_on_deck_for(ratingKey);
+                });
+                return;
             }
             emit inProgressEpisodeLoaded(QVariantMap{}); return;
         }
@@ -2437,12 +2435,14 @@ QString PlexBackend::takeFromShuffleBag(const QString &scopeRatingKey,
 }
 
 // Loads a chosen episode's full detail and emits it as the card's result.
-void PlexBackend::emitCardDetail(const QString &ratingKey, bool trackProgress,
+void PlexBackend::emitCardDetail(int request, const QString &ratingKey, bool trackProgress,
                                  const QString &scopeRatingKey) {
     auto *reply = plexGet(QUrl(serverUrl() + "/library/metadata/" + ratingKey), serverToken());
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, trackProgress, scopeRatingKey]() {
+            [this, reply, request, trackProgress, scopeRatingKey]() {
         reply->deleteLater();
+        // The card given up, or another tapped, as its item came.
+        if (request != m_cardRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             emit cardError(QStringLiteral("COULD NOT LOAD ITEM")); return;
         }
@@ -2486,6 +2486,15 @@ void PlexBackend::answerNext(int request, const QVariantMap &detail) {
 void PlexBackend::load_random_episode(const QString &scopeRatingKey) {
     const int request = ++m_nextRequest;
     if (scopeRatingKey.isEmpty()) { answerNext(request, {}); return; }
+    // The bag kept for this show or season still has episodes in it: the
+    // next is drawn from it as it is. Only a new bag is made of the pool,
+    // and asking for that at every episode was a request for each season of
+    // the show, to draw from a bag that didn't need them.
+    if (m_shuffleScope == scopeRatingKey && !m_shuffleBag.isEmpty()) {
+        m_lastShuffledKey = m_shuffleBag.takeLast();
+        emitNextEpisode(request, m_lastShuffledKey);
+        return;
+    }
     fetchEpisodePool(scopeRatingKey, [this, request, scopeRatingKey](const QVariantList &pool) {
         // Nothing drawn from the bag for a draw no longer waited for.
         if (request == m_nextRequest)
@@ -2573,6 +2582,9 @@ void PlexBackend::load_queue_item(const QString &ratingKey) {
 }
 
 void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
+    // The card asked for last is the one answered (m_cardRequest): every
+    // step of the lookup below is for this one, or dropped.
+    const int request = ++m_cardRequest;
     if (guid.isEmpty()) { emit cardError(QStringLiteral("THIS CARD HAS NO PLEX ITEM")); return; }
     const QString uri = serverUrl(), token = serverToken();
     if (uri.isEmpty() || token.isEmpty()) {
@@ -2590,11 +2602,18 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
 
     auto *reply = plexGet(url, token);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, guid, mode, trackProgress]() {
+            [this, reply, request, guid, mode, trackProgress]() {
         reply->deleteLater();
+        // The card given up, or another tapped, meanwhile: nothing more is
+        // asked for this one, and no one is told of it.
+        if (request != m_cardRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, guid, mode]{ resolve_card(guid, mode); }); return;
+                handle498([this, request, guid, mode] {
+                    if (request == m_cardRequest)
+                        resolve_card(guid, mode);
+                });
+                return;
             }
             emit cardError(QStringLiteral("PLEX SERVER UNREACHABLE")); return;
         }
@@ -2621,7 +2640,7 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
         if (type == QLatin1String("movie") || type == QLatin1String("episode")
             || type == QLatin1String("clip")) {
             // No scope: a single item has nothing to shuffle within.
-            emitCardDetail(ratingKey, trackProgress, QString());
+            emitCardDetail(request, ratingKey, trackProgress, QString());
             return;
         }
 
@@ -2631,7 +2650,9 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
         }
 
         const bool shuffle = (mode == QLatin1String("shuffle"));
-        fetchEpisodePool(ratingKey, [this, ratingKey, shuffle, trackProgress](const QVariantList &pool) {
+        fetchEpisodePool(ratingKey, [this, request, ratingKey, shuffle, trackProgress](const QVariantList &pool) {
+            // Left as its episodes came: nothing drawn from the bag for it.
+            if (request != m_cardRequest) return;
             if (pool.isEmpty()) { emit cardError(QStringLiteral("NO EPISODES FOUND")); return; }
             if (shuffle) {
                 // The first episode is drawn from the same bag the autoplay
@@ -2639,12 +2660,12 @@ void PlexBackend::resolve_card(const QString &guid, const QString &mode) {
                 // rather than a random first pick followed by a separate cycle.
                 // The scope travels with the detail so the Player can ask for the
                 // next draw when this episode ends.
-                emitCardDetail(takeFromShuffleBag(ratingKey, pool), trackProgress, ratingKey);
+                emitCardDetail(request, takeFromShuffleBag(ratingKey, pool), trackProgress, ratingKey);
                 return;
             }
             const QVariantMap pick = pickOnDeckEpisode(pool);
             if (pick.isEmpty()) { emit cardError(QStringLiteral("NO EPISODES FOUND")); return; }
-            emitCardDetail(pick["ratingKey"].toString(), trackProgress, QString());
+            emitCardDetail(request, pick["ratingKey"].toString(), trackProgress, QString());
         });
     });
 }
@@ -2662,6 +2683,8 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
     static const QString kCollectionPrefix = QStringLiteral("plex://collection/");
     static const QString kPlaylistPrefix   = QStringLiteral("plex://playlist/");
 
+    // A card as resolve_card()'s is: the one asked for last is answered.
+    const int request = ++m_cardRequest;
     QString path;
     if (ref.startsWith(kCollectionPrefix))
         path = "/library/collections/" + ref.mid(kCollectionPrefix.size()) + "/items";
@@ -2675,11 +2698,17 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
     }
 
     auto *reply = plexGet(QUrl(uri + path), token);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, ref]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, request, ref]() {
         reply->deleteLater();
+        // The card given up, or another tapped, meanwhile.
+        if (request != m_cardRequest) return;
         if (reply->error() != QNetworkReply::NoError) {
             if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-                handle498([this, ref]{ resolve_card_queue(ref); }); return;
+                handle498([this, request, ref] {
+                    if (request == m_cardRequest)
+                        resolve_card_queue(ref);
+                });
+                return;
             }
             // A deleted collection or playlist 404s here rather than answering
             // empty, so it has to read as the same "gone" message.
@@ -2697,34 +2726,29 @@ void PlexBackend::resolve_card_queue(const QString &ref) {
         }
         QVariantList items;
         for (const auto &mv : metadata) items.append(formatItem(mv.toObject()));
-        flattenSeasons(items, [this](const QVariantList &flat) {
+        flattenSeasons(items, [this, request](const QVariantList &flat) {
+            if (request != m_cardRequest) return;
             qDebug() << "[Plex] Card resolved — set of" << flat.size() << "rows";
             emit cardQueueReady(flat);
         });
     });
 }
 
-void PlexBackend::request_transcode(const QString &ratingKey, const QString &partKey,
-                                    const QString &sessionId,
-                                    const QString &audioId, const QString &subtitleId,
-                                    int offsetMs) {
-    QString uri   = serverUrl();
-    QString token = serverToken();
-    QString quality = videoQuality();
-
-    qDebug() << "[Plex] Playback: TRANSCODE — full re-encode, quality cap:" << quality << "kbps";
-    QUrl url(uri + "/video/:/transcode/universal/start.m3u8");
+QUrlQuery PlexBackend::transcodeQuery(const QString &path, const QString &sessionId, bool seekable) const {
+    const QString quality = videoQuality();
     QUrlQuery q;
     q.addQueryItem("hasMDE",      "1");
-    q.addQueryItem("path",        "/library/metadata/" + ratingKey);
+    q.addQueryItem("path",        path);
     q.addQueryItem("mediaIndex",  "0");
     q.addQueryItem("partIndex",   "0");
     q.addQueryItem("protocol",    "hls");
-    q.addQueryItem("fastSeek",    "1");
-    q.addQueryItem("copyts",      "1");
+    if (seekable) {
+        q.addQueryItem("fastSeek", "1");
+        q.addQueryItem("copyts",   "1");
+    }
     q.addQueryItem("directPlay",  "0");
     q.addQueryItem("directStream","0");
-    // Auto: no cap, the server's own choice (as tune_channel's).
+    // Auto: no cap, the server's own choice.
     if (quality != "auto") q.addQueryItem("maxVideoBitrate", quality);
     q.addQueryItem("subtitleSize","100");
     q.addQueryItem("audioBoost",  "100");
@@ -2734,6 +2758,44 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
     // (which identifies the calling application for auth/logging purposes).
     q.addQueryItem("X-Plex-Platform", "Chrome");
     q.addQueryItem("X-Plex-Client-Identifier", clientId());
+    return q;
+}
+
+QNetworkReply *PlexBackend::startTranscode(const QUrlQuery &query, const QString &token) {
+    QUrl url(serverUrl() + "/video/:/transcode/universal/start.m3u8");
+    url.setQuery(query);
+    // Build the request with Chrome as the platform in the header too, so it
+    // matches the query param. Plex uses the Chrome profile for transcoding.
+    QNetworkRequest req = plexRequest(url, token);
+    req.setRawHeader("X-Plex-Platform", "Chrome");
+    auto *reply = m_nam->get(req);
+    ignoreSslErrors(reply);
+    return reply;
+}
+
+QString PlexBackend::transcodeStreamUrl(QNetworkReply *reply) {
+    // The server returns a master m3u8 with a relative variant URL.
+    // Parse it to find the first non-comment line, then resolve to absolute.
+    QString variantPath;
+    for (const QString &line : QString::fromUtf8(reply->readAll()).split('\n')) {
+        QString t = line.trimmed();
+        if (!t.isEmpty() && !t.startsWith('#')) { variantPath = t; break; }
+    }
+    if (variantPath.isEmpty())
+        return reply->url().toString();
+    QUrl base = reply->url();
+    base.setQuery(QString());
+    return base.resolved(QUrl(variantPath)).toString();
+}
+
+void PlexBackend::request_transcode(const QString &ratingKey, const QString &partKey,
+                                    const QString &sessionId,
+                                    const QString &audioId, const QString &subtitleId,
+                                    int offsetMs) {
+    QString token = serverToken();
+
+    qDebug() << "[Plex] Playback: TRANSCODE — full re-encode, quality cap:" << videoQuality() << "kbps";
+    QUrlQuery q = transcodeQuery("/library/metadata/" + ratingKey, sessionId, true);
     if (offsetMs > 0)
         q.addQueryItem("offset", QString::number(offsetMs / 1000));
     if (!audioId.isEmpty())
@@ -2742,15 +2804,9 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
         q.addQueryItem("subtitleStreamID", subtitleId);
         q.addQueryItem("subtitles", "burn");
     }
-    url.setQuery(q);
 
-    // Build the request with Chrome as the platform in the header too, so it
-    // matches the query param. Plex uses the Chrome profile for transcoding.
-    QNetworkRequest req = plexRequest(url, token);
-    req.setRawHeader("X-Plex-Platform", "Chrome");
     const int request = ++m_streamRequest;
-    auto *reply = m_nam->get(req);
-    ignoreSslErrors(reply);
+    auto *reply = startTranscode(q, token);
     connect(reply, &QNetworkReply::finished, this,
             [this, reply, request, token, ratingKey, partKey, sessionId, audioId, subtitleId, offsetMs]() {
         reply->deleteLater();
@@ -2766,23 +2822,7 @@ void PlexBackend::request_transcode(const QString &ratingKey, const QString &par
             }
             emit errorOccurred("TRANSCODE FAILED: " + serverlog::why(reply)); return;
         }
-        // The server returns a master m3u8 with a relative variant URL.
-        // Parse it to find the first non-comment line, then resolve to absolute.
-        QByteArray body = reply->readAll();
-        QString variantPath;
-        for (const QString &line : QString::fromUtf8(body).split('\n')) {
-            QString t = line.trimmed();
-            if (!t.isEmpty() && !t.startsWith('#')) { variantPath = t; break; }
-        }
-        QString streamUrl;
-        if (!variantPath.isEmpty()) {
-            QUrl base = reply->url();
-            base.setQuery(QString());
-            QUrl resolved = base.resolved(QUrl(variantPath));
-            streamUrl = resolved.toString();
-        } else {
-            streamUrl = reply->url().toString();
-        }
+        const QString streamUrl = transcodeStreamUrl(reply);
         qDebug() << "[Plex] Transcode stream URL for mpv:" << streamUrl;
         emit streamUrlReady(streamUrl, token);
     });
@@ -2808,7 +2848,6 @@ void PlexBackend::update_timeline(const QString &ratingKey, const QString &partK
     // it was.
     if (state == QLatin1String("stopped")) {
         m_keptLists.clear();
-        m_keptOrder.clear();
     }
 }
 
@@ -2834,7 +2873,7 @@ void PlexBackend::set_subtitle_stream(const QString &streamId, const QString &pa
 // NOTE: the live endpoints below are reverse-engineered/version-sensitive (Plex's
 // API documentation describes the shapes but real PMS responses vary). Each parse
 // logs its raw input on miss so field mappings can be confirmed against a live
-// DVR server (see the plan's verification step). The channel list is built from
+// DVR server. The channel list is built from
 // the EPG lineup; tuning produces an HLS transcode reusing the same master-m3u8
 // parse + streamUrlReady hand-off as request_transcode.
 // ---------------------------------------------------------------------------
@@ -2994,33 +3033,11 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
         m_liveSessionId   = sessionId;
         m_liveStartedMs   = QDateTime::currentMSecsSinceEpoch();
 
-        // Start the HLS transcode against the tuned path. Reuses the universal
-        // transcoder + master-m3u8 parse from request_transcode.
-        QString uri = serverUrl(), token = serverToken();
-        QString quality = videoQuality();
-        QUrl startUrl(uri + "/video/:/transcode/universal/start.m3u8");
-        QUrlQuery sq;
-        sq.addQueryItem("hasMDE",       "1");
-        sq.addQueryItem("path",         livePath);
-        sq.addQueryItem("mediaIndex",   "0");
-        sq.addQueryItem("partIndex",    "0");
-        sq.addQueryItem("protocol",     "hls");
-        sq.addQueryItem("directPlay",   "0");
-        sq.addQueryItem("directStream", "0");
-        // Live always transcodes; cap bitrate when the user picked a fixed quality.
-        if (quality != "auto") sq.addQueryItem("maxVideoBitrate", quality);
-        sq.addQueryItem("subtitleSize", "100");
-        sq.addQueryItem("audioBoost",   "100");
-        sq.addQueryItem("session",      sessionId);
-        sq.addQueryItem("X-Plex-Platform", "Chrome");
-        sq.addQueryItem("X-Plex-Client-Identifier",  clientId());
+        // Start the HLS transcode against the tuned path, as a film's is.
+        const QString token = serverToken();
+        QUrlQuery sq = transcodeQuery(livePath, sessionId, false);
         sq.addQueryItem("X-Plex-Session-Identifier", sessionId);
-        startUrl.setQuery(sq);
-
-        QNetworkRequest req = plexRequest(startUrl, token);
-        req.setRawHeader("X-Plex-Platform", "Chrome");
-        auto *startReply = m_nam->get(req);
-        ignoreSslErrors(startReply);
+        auto *startReply = startTranscode(sq, token);
         connect(startReply, &QNetworkReply::finished, this, [this, startReply, request, token, sessionId]() {
             startReply->deleteLater();
             if (request != m_streamRequest) {
@@ -3035,20 +3052,7 @@ void PlexBackend::tune_channel(const QString &channelId, const QString &sessionI
             if (startReply->error() != QNetworkReply::NoError) {
                 emit errorOccurred("LIVE STREAM FAILED: " + serverlog::why(startReply)); return;
             }
-            QByteArray sbody = startReply->readAll();
-            QString variantPath;
-            for (const QString &line : QString::fromUtf8(sbody).split('\n')) {
-                QString t = line.trimmed();
-                if (!t.isEmpty() && !t.startsWith('#')) { variantPath = t; break; }
-            }
-            QString streamUrl;
-            if (!variantPath.isEmpty()) {
-                QUrl base = startReply->url();
-                base.setQuery(QString());
-                streamUrl = base.resolved(QUrl(variantPath)).toString();
-            } else {
-                streamUrl = startReply->url().toString();
-            }
+            const QString streamUrl = transcodeStreamUrl(startReply);
             qDebug() << "[Plex] Live stream URL for mpv:" << streamUrl;
             emit streamUrlReady(streamUrl, token);
         });
@@ -3135,22 +3139,29 @@ void PlexBackend::getServers() {
     emit dynamicOptionsReady("server_machine_id", options);
 }
 
+// Video Quality, as the media servers' read: Direct Play, then 1080p down to
+// 480p, each saved as the bitrate it caps a transcode at.
 void PlexBackend::getVideoQualities() {
     QVariantList options = {
         QVariantMap{{"id","auto"}, {"label","Direct Play"}},
-        QVariantMap{{"id","8000"}, {"label","8 Mbps (1080p)"}},
-        QVariantMap{{"id","4000"}, {"label","4 Mbps (720p)"}},
-        QVariantMap{{"id","2000"}, {"label","2 Mbps (480p)"}},
+        QVariantMap{{"id","8000"}, {"label","1080p"}},
+        QVariantMap{{"id","4000"}, {"label","720p"}},
+        QVariantMap{{"id","2000"}, {"label","480p"}},
     };
     emit dynamicOptionsReady("video_quality", options);
 }
 
+// Resume Playback, as every module's: Ask, Always, Never.
 void PlexBackend::get_resume_playback_options() {
+    emit dynamicOptionsReady("resume_playback", playbackoptions::resumePlayback());
+}
+
+void PlexBackend::get_account() {
     QVariantList options;
-    QVariantMap ask; ask["id"] = "ask"; ask["label"] = "Ask";
-    QVariantMap yes; yes["id"] = "yes"; yes["label"] = "Always";
-    options << ask << yes;
-    emit dynamicOptionsReady("resume_playback", options);
+    const QString name = get_auth_state() == QLatin1String("none") ? QString() : get_active_user_name();
+    if (!name.isEmpty())
+        options.append(QVariantMap{{"id", name}, {"label", name}});
+    emit dynamicOptionsReady("sign_in", options);
 }
 
 void PlexBackend::getLibraries() {
@@ -3242,8 +3253,8 @@ void PlexBackend::cancel_pending_pin() {
 // A switch that failed leaves the profile as it was. Settings saves its
 // Current User row before it asks for the switch, so the setting is put back
 // and the choices sent again: the row there shows who is still watching.
-void PlexBackend::profileNotSwitched() {
-    emit errorOccurred("COULD NOT SWITCH PROFILE: PLEX DID NOT ANSWER");
+void PlexBackend::profileNotSwitched(const QString &why) {
+    emit errorOccurred(why);
     const QString activeId = loadAuth()["active_user_id"].toString();
     if (!activeId.isEmpty() && plexSetting("current_user_id").toString() != activeId)
         savePlexSetting("current_user_id", activeId);

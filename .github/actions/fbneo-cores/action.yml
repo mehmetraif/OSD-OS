@@ -1,9 +1,9 @@
 name: FinalBurn Neo cores
 description: >
   OSD/OS's two FinalBurn Neo cores, built from the commit scripts/engines.env
-  names or kept from an earlier run: the whole core with FinalBurn Neo's list
-  of arcade games (scripts/build-fbneo.sh), and the LAN core, the whole core
-  with OSD/OS's patch (scripts/build-fbneo-lan.sh). Each is loaded once to check that it names
+  names or kept from an earlier run (scripts/build-fbneo-cores.sh): the whole
+  core with FinalBurn Neo's list of arcade games (scripts/build-fbneo.sh), and
+  the LAN core, the whole core with OSD/OS's patch (scripts/build-fbneo-lan.sh). Each is loaded once to check that it names
   itself as RetroArch matches it. Both are put where the package keeps them,
   with the list and FinalBurn Neo's licence. Run from the repository's root,
   after the checkout.
@@ -36,22 +36,12 @@ runs:
       uses: actions/cache/restore@v6.1.0
       with:
         path: fbneo-cores
-        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ runner.os == 'Windows' && 'ucrt64-' || '' }}${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
+        key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ runner.os == 'Windows' && 'ucrt64-' || '' }}${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo-cores.sh', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
 
-    # One download, unpacked twice: the LAN core's patch goes in a copy of
-    # its own. Without the source's project files for IDEs, whose
-    # symbolic links Windows can't make.
     - name: Download FinalBurn Neo's source
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: |
-        . scripts/engines.env
-        curl -fsSL --retry 3 -o fbneo-src.tar.gz "https://github.com/libretro/FBNeo/archive/${FBNEO_COMMIT}.tar.gz"
-        for dir in fbneo-src fbneo-lan-src; do
-          mkdir -p "$dir"
-          tar -xzf fbneo-src.tar.gz -C "$dir" --strip-components 1 --exclude='*/projectfiles'
-        done
-        rm fbneo-src.tar.gz
+      run: bash scripts/build-fbneo-cores.sh download
 
     # On Windows MSYS2's MinGW-w64, which FinalBurn Neo's makefile builds a
     # DLL with (its MSVC builds are UWP's), in its UCRT64 environment: on
@@ -67,16 +57,12 @@ runs:
     - name: Build FinalBurn Neo's cores
       if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
       shell: bash
-      run: |
-        bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-cores fbneo-cores/license.txt
-        bash scripts/build-fbneo.sh fbneo-src fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
+      run: bash scripts/build-fbneo-cores.sh build fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
 
     - name: Build FinalBurn Neo's cores (MSYS2 UCRT64)
       if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
       shell: msys2 {0}
-      run: |
-        bash scripts/build-fbneo-lan.sh fbneo-lan-src fbneo-cores fbneo-cores/license.txt
-        bash scripts/build-fbneo.sh fbneo-src fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
+      run: bash scripts/build-fbneo-cores.sh build fbneo-cores fbneo-cores/fbneo-arcade.dat fbneo-cores/license.txt
 
     - name: Keep FinalBurn Neo's cores
       if: steps.cache.outputs.cache-hit != 'true'

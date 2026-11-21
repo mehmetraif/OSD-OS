@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Components
 import OSDOS.Testing
+import "../../views/Components/Hover.js" as Hover
 
 // What comes over a view, each on its own: the on-screen keyboard
 // (views/Components/OnScreenKeyboard.qml), whose keys stay the keys they are
@@ -72,6 +73,16 @@ StandInRoot {
         keysTo: [noticeLoader.item, viewLoader]
         onWoken: root.saverUp = false
         onQuitAsked: root.quits++
+    }
+
+    // A question on its own, as a host that keeps its keys draws it.
+    Component {
+        id: question
+        PromptScreen {
+            title: "Keep this display output?"
+            message: "HDMI 720p"
+            choices: ["Keep", "Switch Back"]
+        }
     }
 
     SignalSpy {
@@ -148,6 +159,45 @@ StandInRoot {
                 }
             }
             return true
+        }
+
+        // The hint bar: all four arrows move, and select's word is what it
+        // does on the key in the box, nothing on OK with nothing typed; in a
+        // keyboard's names and a pad's.
+        function hintOf(item) {
+            if (typeof item.text === "string" && item.text.indexOf(":CANCEL") >= 0)
+                return item.text
+            for (var i = 0; i < item.children.length; i++) {
+                var found = hintOf(item.children[i])
+                if (found !== "")
+                    return found
+            }
+            return ""
+        }
+        function test_hint_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_hint(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var lead = h.back + ":CANCEL " + h.arrows + ":MOVE"
+            var keyboard = keyboardWith({ caseSensitive: true, masked: true })
+            keyboard.open("")
+            compare(hintOf(keyboard), lead + " " + h.select + ":TYPE")
+            var last = keyboard.rows.length - 1
+            var said = { 0: "SHIFT", 1: "TYPE", 2: "DELETE", 3: "SHOW" }
+            for (var c = 0; c < 4; c++) {
+                keyboard.moveTo(last, c)
+                compare(hintOf(keyboard), lead + " " + h.select + ":" + said[c])
+            }
+            // OK with nothing typed does nothing; with a letter, it is OK.
+            keyboard.moveTo(last, keyboard.okCol)
+            compare(hintOf(keyboard), lead)
+            keyClick("x")
+            keyboard.moveTo(last, keyboard.okCol)
+            compare(hintOf(keyboard), lead + " " + h.select + ":OK")
+            root.hints = root.keyboardHints
         }
 
         // SHIFT changes what the keys say, the letters and the second row of
@@ -322,6 +372,9 @@ StandInRoot {
 
         function cleanup() {
             loader.source = ""
+            root.framed = false
+            root.setFrame([], 0, false, false)
+            root.menuLayout = "Standard"
         }
 
         // The list of answers a PromptScreen draws.
@@ -399,6 +452,321 @@ StandInRoot {
             compare(canceledSpy.count, 1)
             compare(activatedSpy.count, 1)
         }
+
+        // The frame's column of icons a PromptScreen draws again in
+        // Camcorder's frame (an IconColumn), or null.
+        function columnOf(prompt) {
+            var column = null
+            var find = function(item) {
+                if (typeof item.active === "boolean" && item.count !== undefined && item.model !== undefined)
+                    column = item
+                for (var i = 0; i < item.children.length && !column; i++)
+                    find(item.children[i])
+            }
+            find(prompt)
+            return column
+        }
+        // The mouse on an item, at its middle unless told where, as
+        // Main.qml's followPointer() has it.
+        function hover(item, x, y) {
+            var p = item.mapToItem(root, x === undefined ? item.width / 2 : x, y === undefined ? item.height / 2 : y)
+            Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+        }
+
+        // The mouse moves the cursor to the answer it is over, and nowhere
+        // from anything else: in Camcorder's frame the window draws the
+        // frame's column again beside its answers, and the mouse over an
+        // icon there leaves the cursor on its answer (the first may be Power
+        // Off, and a click is select). In Standard there is no column.
+        function test_mouseOverTheFramesColumn_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_mouseOverTheFramesColumn(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }, { icon: "eject" }], 2, false, false)
+            root.framed = data.framed
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Quit OSD/OS?",
+                               choices: [{ label: "Power Off", action: "poweroff" }, { label: "Restart", action: "restart" },
+                                         { label: "Cancel", action: "cancel" }] })
+            var overlay = loader.item
+            verify(overlay !== null, "loaded ChoiceOverlay.qml")
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var answers = answersOf(prompt)
+            keyClick(Qt.Key_Up)
+            compare(overlay.choiceIndex, 2)
+            var column = columnOf(prompt)
+            compare(column !== null, data.framed)
+            if (column) {
+                compare(column.count, 3)
+                // Each icon in turn, the first first.
+                for (var i = 0; i < 3; i++) {
+                    hover(column, column.width / 2, (i + 0.5) * root.menuRowHeight)
+                    compare(overlay.choiceIndex, 2, "the cursor left on its answer, the mouse on icon " + i)
+                }
+                // The answers beside the column, in the pane.
+                verify(answers.mapToItem(root, 0, 0).x >= column.mapToItem(root, column.width, 0).x)
+            }
+            // An answer: the cursor's.
+            hover(answers.itemAtIndex(0))
+            compare(overlay.choiceIndex, 0)
+            hover(answers.itemAtIndex(1))
+            compare(overlay.choiceIndex, 1)
+            // The title bar, and the room under the answers: nowhere.
+            hover(prompt, prompt.width / 2, root.sh * 0.15)
+            hover(prompt, prompt.width / 2, root.sh * 0.8)
+            compare(overlay.choiceIndex, 1)
+        }
+
+        // A choice that says what it means ({ description }: Host LAN Game's
+        // advice) has its lines under the answers while the cursor is on it,
+        // in every Menu Layout, in the pane where the layout has one; the
+        // room is kept on the other answers, so none of them moves as the
+        // cursor does, and with no choice that says anything there is none.
+        function test_choiceNote_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", framed: false },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false },
+                    { tag: "Flat Panel", layout: "Flat Panel", framed: false }]
+        }
+        function test_choiceNote(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var note = "Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable\nThe fastest machine on a cable should host"
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Pac-Man", subtitleText: "pacman",
+                               choices: [{ label: "Play", action: "play", starts: true },
+                                         { label: "Host LAN Game", action: "hostLan", starts: true, description: note },
+                                         { divider: true },
+                                         { label: "Add to Favorites", action: "favorite" }] })
+            var overlay = loader.item
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var line = findChild(prompt, "choiceNote")
+            verify(line !== null)
+            var answers = answersOf(prompt)
+            verify(line.visible)
+            compare(line.text, "")
+            var top = answers.mapToItem(root, 0, 0).y
+            var lineTop = line.mapToItem(root, 0, 0).y
+            keyClick(Qt.Key_Down)
+            compare(overlay.choiceIndex, 1)
+            compare(line.text, note)
+            compare(answers.mapToItem(root, 0, 0).y, top)
+            compare(line.mapToItem(root, 0, 0).y, lineTop)
+            // Under the answers, across them, over the foot.
+            verify(lineTop >= top + answers.height)
+            compare(line.mapToItem(root, 0, 0).x, answers.mapToItem(root, 0, 0).x)
+            compare(line.width, answers.width)
+            if (prompt.paned)
+                compare(line.mapToItem(root, 0, 0).x, root.paneX)
+            verify(lineTop + line.height <= root.height - root.helpLineMargin, "above the foot")
+            compare(line.font.capitalization, data.layout === "Flat Panel" ? Font.MixedCase : Font.AllUppercase)
+            keyClick(Qt.Key_Down)
+            compare(overlay.choiceIndex, 3)
+            compare(line.text, "")
+            keyClick(Qt.Key_Escape)
+
+            overlay.choices = [{ label: "Play", action: "play" }, { label: "Game Details", action: "details" }]
+            overlay.open()
+            verify(!line.visible)
+        }
+
+        // A question asked over the whole screen whatever the layout
+        // (`inLayout` off: a new display output's, before the menus): in
+        // Camcorder's frame it draws no column and lies across the window,
+        // not in the pane, as in Standard and in a monitor layout. One
+        // asked in the layout has Camcorder's column beside it, and lies in
+        // the pane.
+        function test_askedOverTheWholeScreen_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false }]
+        }
+        function test_askedOverTheWholeScreen(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var whole = createTemporaryObject(question, root, { inLayout: false })
+            verify(whole !== null)
+            verify(!whole.paned)
+            compare(columnOf(whole), null)
+            var answers = answersOf(whole)
+            compare(answers.mapToItem(root, 0, 0).x, root.contentBox.x)
+            compare(answers.width, root.contentBox.width)
+            whole.visible = false
+
+            var inIt = createTemporaryObject(question, root)
+            verify(inIt !== null)
+            compare(inIt.paned, data.layout !== "Standard")
+            compare(columnOf(inIt) !== null, data.framed)
+            answers = answersOf(inIt)
+            compare(answers.mapToItem(root, 0, 0).x, root.paneX)
+            compare(answers.width, root.paneWidth)
+            if (data.layout !== "Standard")
+                verify(root.paneX > root.contentBox.x)
+        }
+
+        // The card writer (views/Components/NfcCardWriter.qml) asks in the
+        // window every question has, in the layout: each phase's words in
+        // its title bar, the title the card is for under it, the answers
+        // while there is one to choose, the keys in its hint bar; beside
+        // Camcorder's column, in the pane. The mouse moves its cursor.
+        function test_cardWriterWindow_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_cardWriterWindow(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var held = createTemporaryObject(cardWriter, root)
+            verify(held !== null)
+            var writer = held.writer
+            writer.offerShuffle = true
+            writer.open()
+            var prompt = root.promptIn(writer)
+            verify(prompt !== null)
+            compare(prompt.title, "Tap a card for...")
+            compare(prompt.kind, "notice")
+            compare(prompt.message, "<b>The Film</b>")
+            compare(prompt.choices.length, 0)
+            compare(prompt.hint, "[ESC]:CANCEL")
+            compare(columnOf(prompt) !== null, data.framed)
+            compare(prompt.paned, data.framed)
+            // Nothing to choose until a card comes.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "armed")
+
+            held.reader.cardCaptured("04AABBCC", "An Older Film")
+            compare(writer.phase, "choose")
+            compare(prompt.title, "Write card for...")
+            compare(prompt.kind, "question")
+            compare(prompt.choices.map(function(c) { return c.label }),
+                    ["Write card (Sequential Episodes)", "Write card (Shuffle Episodes)", "Cancel"])
+            compare(prompt.hint, "[ESC]:CANCEL [▲▼]:NAVIGATE [ENTER]:SELECT")
+            var answers = answersOf(prompt)
+            compare(answers.mapToItem(root, 0, 0).x, data.framed ? root.paneX : root.contentBox.x)
+            keyClick(Qt.Key_Up)
+            compare(prompt.currentIndex, 2)
+            hover(answers.itemAtIndex(1))
+            compare(writer.choiceIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "replace")
+            compare(prompt.title, "This card plays \"An Older Film\". Change to...")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Cancel", "Change Card"])
+            compare(prompt.currentIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "done")
+            compare(prompt.title, "Card written for...")
+            compare(prompt.kind, "notice")
+            compare(prompt.choices.length, 0)
+            compare(prompt.hint, "[ENTER]:DONE")
+            keyClick(Qt.Key_Return)
+            verify(!writer.visible)
+        }
+
+        // A line between groups (Add to Playlist's, between the playlists
+        // and the NEW rows) costs no answer: with three playlists all five
+        // answers are in the window, and no ▼; a longer list scrolls with
+        // ▲ ▼, never more than five answers whole in the window and nothing
+        // of another cut at its edges, the cursor's always among them. In
+        // every Menu Layout.
+        function test_dividerCostsNoAnswer_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", framed: false },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false },
+                    { tag: "Flat Panel", layout: "Flat Panel", framed: false }]
+        }
+        function test_dividerCostsNoAnswer(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var listOf = function(names) {
+                return names.map(function(n) { return { label: n, action: "add" } })
+                            .concat([{ divider: true, label: "", action: "" },
+                                     { label: "New Online Playlist", action: "new" },
+                                     { label: "New Offline Playlist", action: "new" }])
+            }
+            loader.setSource(Qt.resolvedUrl("../../views/Components/ChoiceOverlay.qml"),
+                             { promptText: "Add to playlist?", subtitleText: "A Film",
+                               choices: listOf(["Martial Arts Night", "Anime Night", "Sunday Matinee"]) })
+            var overlay = loader.item
+            overlay.open()
+            var prompt = root.promptIn(overlay)
+            var answers = answersOf(prompt)
+            var window = answers.parent
+            var box = window.parent
+            var marks = null
+            for (var k = 0; k < box.children.length; k++) {
+                if (box.children[k].moreBelow !== undefined)
+                    marks = box.children[k]
+            }
+            verify(marks !== null)
+            // The answers wholly in the window, and whether any line is cut
+            // at its edges.
+            var shown = function() {
+                var whole = []
+                var cut = false
+                for (var i = 0; i < overlay.choices.length; i++) {
+                    var line = answers.itemAtIndex(i)
+                    if (!line || !line.visible)
+                        continue
+                    var y = line.mapToItem(window, 0, 0).y
+                    var inside = y >= -0.5 && y + line.height <= window.height + 0.5
+                    var outside = y + line.height <= 0.5 || y >= window.height - 0.5
+                    if (inside && !overlay.choices[i].divider)
+                        whole.push(overlay.choices[i].label)
+                    else if (!inside && !outside)
+                        cut = true
+                }
+                return { whole: whole, cut: cut }
+            }
+            var three = shown()
+            compare(three.whole, ["Martial Arts Night", "Anime Night", "Sunday Matinee",
+                                  "New Online Playlist", "New Offline Playlist"])
+            verify(!three.cut)
+            verify(!marks.moreBelow && !marks.moreAbove)
+            // The window over the answers' room in the middle.
+            verify(box.mapToItem(root, 0, box.height).y <= root.height - root.helpLineMargin, "above the foot")
+            keyClick(Qt.Key_Escape)
+
+            overlay.choices = listOf(["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"])
+            overlay.open()
+            var first = shown()
+            compare(first.whole, ["One", "Two", "Three", "Four", "Five"])
+            verify(!first.cut)
+            verify(marks.moreBelow && !marks.moreAbove)
+            for (var step = 0; step < 9; step++) {
+                keyClick(Qt.Key_Down)
+                var now = shown()
+                verify(now.whole.length <= 5, now.whole.join(", "))
+                verify(now.whole.length >= 4, now.whole.join(", "))
+                verify(!now.cut, "a line cut at " + overlay.choiceIndex)
+                verify(now.whole.indexOf(overlay.choices[overlay.choiceIndex].label) >= 0,
+                       overlay.choices[overlay.choiceIndex].label + " in " + now.whole.join(", "))
+            }
+            compare(overlay.choiceIndex, 10)
+            compare(shown().whole, ["Six", "Seven", "Eight", "New Online Playlist", "New Offline Playlist"])
+            verify(marks.moreAbove && !marks.moreBelow)
+            // Round the ends, and back.
+            keyClick(Qt.Key_Down)
+            compare(overlay.choiceIndex, 0)
+            compare(shown().whole, first.whole)
+            verify(!shown().cut)
+            keyClick(Qt.Key_Up)
+            compare(overlay.choiceIndex, 10)
+            compare(shown().whole, ["Six", "Seven", "Eight", "New Online Playlist", "New Offline Playlist"])
+            verify(!shown().cut)
+            keyClick(Qt.Key_Escape)
+        }
     }
 
     TestCase {
@@ -440,6 +808,16 @@ StandInRoot {
             verify(view.content.activeFocus)
             keyClick(Qt.Key_Return)
             compare(root.viewKeys, 1)
+        }
+
+        // The logo is a tenth of the screen's width, the size of the one
+        // over a paused video.
+        function test_theLogoIsATenthAcross() {
+            root.saverUp = true
+            var logo = findChild(saver, "bounceLogo")
+            verify(logo !== null)
+            verify(Math.abs(logo.sourceSize.width - root.sw * 0.1) <= 1,
+                   "the logo's width: " + logo.sourceSize.width + " of " + root.sw)
         }
 
         // A question the view asks while the saver is up (the update's, as
@@ -530,10 +908,152 @@ StandInRoot {
         }
     }
 
+    // The card writer and a web player's launch page, each with what it reads
+    // of the app and of its module beside it.
+    Component {
+        id: cardWriter
+        Item {
+            property alias writer: writer
+            property alias reader: nfcReaderBackend
+            anchors.fill: parent
+            QtObject {
+                id: nfcReaderBackend
+                property bool available: true
+                property bool readerConnected: true
+                signal cardCaptured(string uid, string existing)
+                function setCardCapture(on) {}
+                function writeCardFile(uid, title, ref, mode) { return true }
+            }
+            QtObject {
+                id: appCore
+                function is_module_enabled(id) { return true }
+            }
+            NfcCardWriter {
+                id: writer
+                anchors.fill: parent
+                cardRef: "plex://movie/1"
+                cardTitle: "<b>The Film</b>"
+            }
+        }
+    }
+    Component {
+        id: launchPage
+        Item {
+            property alias page: page
+            anchors.fill: parent
+            QtObject {
+                id: moduleRoot
+                property string moduleIcon: ""
+                property string moduleName: "Netflix"
+            }
+            QtObject {
+                id: idleTracker
+                function resetActivity() {}
+            }
+            QtObject {
+                id: appCore
+                function installHint(what) { return "" }
+            }
+            // A browser that can't be started, and says why.
+            QtObject {
+                id: browser
+                property bool running: false
+                property bool opened: true
+                property var catalog: null
+                signal finished(int exitCode, string reason)
+                function launch(url) { return false }
+                function lastError() { return "<b>/opt/osdos/web-player.sh</b> could not be started" }
+            }
+            WebPlayerLaunch {
+                id: page
+                anchors.fill: parent
+                backend: browser
+                serviceName: "Netflix"
+                navParams: ({ name: "<b>The Film</b>" })
+            }
+        }
+    }
+
+    // What a server, a catalogue, a card or a file's name says is shown as
+    // it is written: a title that looks like markup is its letters, never
+    // read as markup (a picture's tag in one would fetch its address). On the
+    // info screen (views/Components/InfoPanel.qml), the card writer
+    // (views/Components/NfcCardWriter.qml) and a web player's launch page
+    // (views/Components/WebPlayerLaunch.qml).
+    TestCase {
+        name: "WordsAsWritten"
+        when: windowShown
+
+        function cleanup() {
+            loader.source = ""
+        }
+
+        // Every Text an item holds whose words have "<b>" in them, all the
+        // way down.
+        function marked(item) {
+            var found = []
+            if (item.text !== undefined && item.textFormat !== undefined && String(item.text).indexOf("<b>") >= 0)
+                found.push(item)
+            for (var i = 0; i < item.children.length; i++)
+                found = found.concat(marked(item.children[i]))
+            return found
+        }
+        // At least so many of them, each as it is written.
+        function asWritten(item, atLeast) {
+            var texts = marked(item)
+            verify(texts.length >= atLeast, texts.length + " of " + atLeast + " lines found")
+            for (var i = 0; i < texts.length; i++)
+                compare(texts[i].textFormat, Text.PlainText, String(texts[i].text))
+        }
+
+        // The entry's own name, then its title, its facts, its story and a
+        // line of its details as they come in.
+        function test_infoScreen() {
+            loader.setSource(Qt.resolvedUrl("../../views/Components/InfoPanel.qml"))
+            var info = loader.item
+            verify(info !== null, "loaded InfoPanel.qml")
+            info.show({ title: "<b>The Film</b>" })
+            asWritten(info, 1)
+            info.details = { title: "<b>The Film</b>", facts: "<b>1999</b> • 2H 10M", summary: "<b>A story.</b>",
+                             rows: [{ label: "Genre", value: "<b>Drama</b>" }] }
+            asWritten(info, 4)
+        }
+
+        // The title a card is written for, and the one a card already plays.
+        function test_cardWriter() {
+            var held = createTemporaryObject(cardWriter, root)
+            verify(held !== null)
+            held.writer.open()
+            compare(held.writer.phase, "armed")
+            asWritten(held.writer, 1)
+            held.reader.cardCaptured("04AABBCC", "<b>An Older Film</b>")
+            compare(held.writer.phase, "choose")
+            keyClick(Qt.Key_Return)
+            compare(held.writer.phase, "replace")
+            asWritten(held.writer, 2)
+        }
+
+        // The title being opened, then why it didn't open.
+        function test_webPlayerLaunch() {
+            var held = createTemporaryObject(launchPage, root)
+            verify(held !== null)
+            compare(held.page.phase, "opening")
+            asWritten(held.page, 1)
+            tryCompare(held.page, "phase", "error", 1000)
+            asWritten(held.page, 1)
+        }
+    }
+
+    // MpvController, as the loading screen hears it: a video inside the
+    // window has drawn a picture.
+    QtObject {
+        id: mpvController
+        signal videoFrameReady()
+    }
     // The loading screen a player shows while its video starts: its letters
     // in the loading ink, each bleeding to the right in the colours' second
     // ink (root.loadingBleed), Video 1's with Default; no bleed with the
-    // Loading Effect off.
+    // Loading Effect off. And when it moves.
     Component {
         id: tapeLayer
         LoadingScreen {
@@ -569,6 +1089,32 @@ StandInRoot {
             tape.effect = false
             verify(!bleed[0].visible)
             root.loadingThemed = true
+        }
+
+        // With Transparent Background it goes on moving while the window's
+        // video has no picture yet (nothing is drawn over it), and rests
+        // once one is over it; its session gone, and shown again, it moves.
+        // While another process has the screen it rests.
+        function test_restsUnderAPicture() {
+            var tape = createTemporaryObject(tapeLayer, root)
+            verify(tape.live)
+            root.videoActive = true
+            verify(tape.live)
+            mpvController.videoFrameReady()
+            verify(!tape.live)
+            root.videoActive = false
+            verify(tape.live)
+            root.videoActive = true
+            verify(tape.live)
+            mpvController.videoFrameReady()
+            verify(!tape.live)
+            tape.visible = false
+            tape.visible = true
+            verify(tape.live)
+            root.videoActive = false
+            root.screenHandedOff = true
+            verify(!tape.live)
+            root.screenHandedOff = false
         }
     }
 }

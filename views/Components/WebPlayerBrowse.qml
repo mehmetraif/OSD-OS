@@ -37,7 +37,7 @@ FocusScope {
     function open(params, trail) {
         if (params.item && appCore)
             appCore.add_to_list(moduleRoot.moduleId, "recent", params.item, 30)
-        navigateTo("Launch.qml", params, { trail: trail || tree.trailState() })
+        navigateTo("Launch.qml", params, { trail: trail || catalogBrowser.tree.trailState() })
     }
 
     // The startup favourite, opened as if chosen in FAVORITES, so coming back
@@ -59,25 +59,21 @@ FocusScope {
         }
     }
 
-    // The app's INFO SCREEN setting: "off", "key" (right only) or seconds.
-    readonly property string infoSetting: (appCore ? appCore.get_setting("", "info_screen") : "") || "3"
-
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: tree.folderName
-    }
-
-    TreeBrowser {
-        id: tree
+    CatalogBrowser {
+        id: catalogBrowser
         anchors.fill: parent
         focus: true
-        rootPath: "home"
-        // The problem line's room, while it shows (Help Line on).
-        reservedBottom: problemLine.visible && problemLine.shown ? areaBottom - problemLine.y : 0
-        preview: browse.infoSetting !== "off"
-        previewDelay: (parseInt(browse.infoSetting) || 0) * 1000
+        catalog: browse.catalog
         savedTrail: browse.navListState.trail || []
+        playKind: "title"
+        searchTitle: "Search " + browse.serviceName
+        // What stands in the way of browsing, when anything does: no TMDB
+        // key, or no network. Said with Help Line off too.
+        problemAlways: true
+        // No TMDB key: select opens the module's settings on its TMDB Key.
+        problemAction: browse.catalog && browse.catalog.keyMissing ? "SETTINGS" : ""
+        onProblemActivated: moduleRoot.openSettings("tmdb_api_key")
+        covered: options.visible
         fetch: function(path, preview) {
             if (!browse.catalog || !appCore)
                 return []
@@ -90,101 +86,19 @@ FocusScope {
                     { name: "Favorites", path: "favorites", isFolder: true }].concat(entries)
         }
         onActivated: function(item) {
-            switch (item.kind) {
-            case "search":
-                osk.open("")
-                break
-            case "more":
-                browse.catalog.loadMore(item.path.replace("#more", ""))
-                break
-            case "home":
+            if (item.kind === "home")
                 browse.open({ name: browse.serviceName })
-                break
-            case "title":
-                browse.open({ item: item, name: item.name })
-                break
-            }
         }
-        onPreviewRequested: function(item) {
-            if (item.kind !== "title" || !browse.catalog)
-                return
-            info.show(item)
-            info.loading = true
-            browse.catalog.loadDetails(item)
-        }
-        onOptionsRequested: function(item) {
-            if (item.kind === "title")
-                options.offer(item)
-        }
-        onLeaveRequested: browse.goBack()
-    }
-
-    Connections {
-        target: browse.catalog
-        function onListingReady(path) { tree.refresh(path) }
-        function onDetailsReady(path, details) {
-            if (!info.item || info.item.path !== path)
-                return
-            info.details = details
-            info.loading = false
-        }
-    }
-
-    // What stands in the way of browsing, when anything does: no TMDB key, or
-    // no network.
-    HelpLine {
-        id: problemLine
-        visible: !osk.visible && !info.visible && !options.visible && text !== ""
-        text: browse.catalog ? browse.catalog.problem : ""
-        // A problem is said with Help Line off too.
-        always: text !== ""
-    }
-
-    HintBar {
-        visible: !osk.visible && !info.visible && !options.visible
-        // What select does with the entry under the cursor: a title plays,
-        // and right on it opens its info (or its options, with the info
-        // screen off) rather than moving.
-        readonly property var entry: tree.currentEntry
-        readonly property bool onTitle: !!entry && entry.kind === "title"
-        text: root.hints.back + ":BACK "
-              + (onTitle ? String(root.hints.navigate).replace("]", "\u25C4]") + ":NAVIGATE "
-                           + root.hints.browse + (tree.preview ? ":INFO " : ":OPTIONS ")
-                         : root.hints.arrows + ":NAVIGATE ")
-              + root.hints.select
-              + (!entry || entry.isFolder ? ":OPEN"
-                 : entry.kind === "title" ? ":PLAY"
-                 : entry.kind === "search" ? ":SEARCH"
-                 : entry.kind === "more" ? ":MORE" : ":OPEN")
-    }
-
-    // A title's info: the tree's last layer.
-    InfoPanel {
-        id: info
-        anchors.fill: parent
         onPlayRequested: function(item) { browse.open({ item: item, name: item.name }) }
         onOptionsRequested: function(item) { options.offer(item) }
-        onMoveRequested: function(delta) { tree.move(delta) }
-        onClosed: tree.forceActiveFocus()
-    }
-
-    OnScreenKeyboard {
-        id: osk
-        anchors.fill: parent
-        title: "Search " + browse.serviceName
-        onAccepted: function(text) {
-            tree.forceActiveFocus()
-            tree.openItem({ name: "Search: " + text, path: "search/" + text })
-        }
-        onCanceled: tree.forceActiveFocus()
+        onLeaveRequested: browse.goBack()
     }
 
     EntryOptions {
         id: options
         anchors.fill: parent
         moduleId: moduleRoot.moduleId
-        onFavoritesEdited: tree.refresh("favorites")
-        // Back to the info screen when it was opened from there.
-        onClosed: info.visible ? info.forceActiveFocus() : tree.forceActiveFocus()
+        onFavoritesEdited: catalogBrowser.tree.refresh("favorites")
+        onClosed: catalogBrowser.refocus()
     }
 }

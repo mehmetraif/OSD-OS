@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Components
 import OSDOS.Testing
+import "../../views/Components/Hover.js" as Hover
 
 // The media server modules' players, detail screens and routers (Plex,
 // Jellyfin, Emby: modules/*/views/Player.qml, Item.qml, Root.qml) against
@@ -10,14 +11,20 @@ import OSDOS.Testing
 // waiting for one lead back to the detail screen, not a black screen with no
 // mpv to take a key; a detail screen plays only the stream it asked for; a
 // launch given up drops its stream; signing out leaves no view signed out of
-// for back to return to, and prompts no card, whose views say so instead. A video that fails says why (PlaybackNotice), with
+// for back to return to, and prompts no card, whose views say so instead.
+// A card's playback writes no track to Plex as an item's own.
+// Plex's users page says it is loading while its users are asked for, or
+// why they didn't come. A video that fails says why (PlaybackNotice), with
 // RETRY, mpv itself missing without the transcode no transcode would mend.
 // Jellyfin's and Emby's sign-in screens take their fields on the on-screen
 // keyboard (its signs, SHOW, the mouse), and their Continue Watching and
 // Next Up put the cursor back on the item left; the A–Z list the media
 // servers' lists are (LetterList), on its own; and Plex's list, each kind of
-// it, its letters and its rows. And Local Files' player: a remote's
-// channel or page keys step through the folder's films.
+// it, its letters and its rows. A list takes a backend's error for its own
+// only while it waits for its rows. And Local Files' player: a remote's
+// channel or page keys step through the folder's films. A video behind the
+// menus, chosen again, is taken back where it is (takeBack); back before
+// a video's first picture keeps where it was to start.
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
 // The sign-in pages keep an error as long as Qt's own inside the page.
@@ -43,6 +50,7 @@ StandInRoot {
     // What the views asked of their router: views over the one shown, back,
     // and leaving the module at once (leaveModule).
     property var navigations: []
+    property var replaced: []
     property int backs: 0
     property int leaves: 0
 
@@ -53,6 +61,15 @@ StandInRoot {
         property string moduleName: "Plex"
         property string moduleIcon: ""
         function leaveModule() { root.leaves++ }
+        // A page that names a setting opens it (ModuleRouter's).
+        property var settingsOpened: []
+        function openSettings(key) { settingsOpened = settingsOpened.concat([key]) }
+    }
+
+    // WeatherBackend as its setup screen reads it.
+    QtObject {
+        id: weatherBackend
+        function location_file_path() { return "/data/weather_location.txt" }
     }
 
     // AppCore: the module's settings.
@@ -67,8 +84,10 @@ StandInRoot {
         }
         function get_module_info(id) { return { name: moduleRoot.moduleName, icon: "" } }
         function is_module_enabled(id) { return false }
-        // The video's menu (PlayerMenu): the module's rows, none here.
-        function get_module_settings_schema(id) { return [] }
+        // The video's menu (PlayerMenu): the module's rows, none unless a
+        // test gives some.
+        property var schema: []
+        function get_module_settings_schema(id) { return schema }
         function invoke_module_action(id, slot) {}
         function save_setting(id, key, value) {}
         signal dynamicOptionsReady(string moduleId, string key, var items)
@@ -95,9 +114,23 @@ StandInRoot {
         property var asked: []
         property bool pending: false
         function entries(path) { synced++; return path === "/films" ? folder : [] }
+        function mediaRoot() { return "/films" }
+        function clearDirectoryCache() {}
         function requestEntries(path) {
             asked = asked.concat([path])
             return pending ? undefined : (path === "/films" ? folder : [])
+        }
+        // Shuffle Playback and Auto Show Subtitles as the backend reads them
+        // (storage_search tests the backend's own): the old On/Off form,
+        // true or false, as the choice it is now; a value that is no choice
+        // as the first.
+        function shufflePlaybackChoice(value) {
+            return value === true ? "yes" : value === false ? "no"
+                 : ["ask", "yes", "no"].indexOf(value) >= 0 ? value : "ask"
+        }
+        function autoSubtitlesChoice(value) {
+            return value === true ? "on" : value === false ? "forced"
+                 : ["forced", "on", "off"].indexOf(value) >= 0 ? value : "forced"
         }
         function isImage(path) { return /\.(jpg|png)$/.test(path) }
         function isPlaylist(path) { return /\.m3u$/.test(path) }
@@ -132,9 +165,15 @@ StandInRoot {
         property var starts: []
         // The subtitles each was started with: -2 none, -1 forced only, 0 any.
         property var subTracks: []
+        // The subtitle languages each was started with, mpv's --slang.
+        property var subLangs: []
         // The subtitle files each was handed, and the arguments added for it.
         property var subFiles: []
         property var extraArgs: []
+        // The playlist's video each was started at (-1 its first).
+        property var playlistStarts: []
+        property var shuffles: []
+        property var loops: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
         signal playlistPosChanged(int pos)
@@ -142,17 +181,25 @@ StandInRoot {
         signal skipRequested()
         signal subtitleCycleRequested()
         signal audioCycleRequested()
-        function loadAndPlay(url, startSeconds, audioTrack, subTrack, files, subLangs, loop, playlistStart,
-                             transcodeOffset, plexToken, muteAudio, oscMode, shuffle, subTitles,
-                             imageDuration, imageContent, extra) {
+        // MpvController's: one request, its fields at their defaults where
+        // left out.
+        function loadAndPlay(request) {
             loads++
-            urls = urls.concat([url])
-            starts = starts.concat([startSeconds || 0])
-            subTracks = subTracks.concat([subTrack])
-            subFiles = subFiles.concat([files || []])
-            extraArgs = extraArgs.concat([extra || []])
+            urls = urls.concat([request.url])
+            starts = starts.concat([request.startSeconds || 0])
+            subTracks = subTracks.concat([request.subTrack !== undefined ? request.subTrack : -1])
+            subLangs = subLangs.concat([request.subLangs || []])
+            subFiles = subFiles.concat([request.subFiles || []])
+            extraArgs = extraArgs.concat([request.extraArgs || []])
+            playlistStarts = playlistStarts.concat([request.playlistStart !== undefined ? request.playlistStart : -1])
+            shuffles = shuffles.concat([!!request.shuffle])
+            loops = loops.concat([!!request.loop])
         }
         function noteSession(note) {}
+        // The session behind the menus taken back where it is, if there is
+        // one (background), counted.
+        property int takeBacks: 0
+        function takeBack() { takeBacks++; return background }
         // The failures a player had written to the log (logFailure): which
         // player, what it played, and why where the player said.
         property var failures: []
@@ -201,6 +248,16 @@ StandInRoot {
         function expand_queue(items) { queueAsks++ }
         function request_transcode() { transcodes++ }
         function build_stream_url(ratingKey, partKey, sessionId) { streamUrlReady("http://plex/" + ratingKey, "token") }
+        // The backend's: a transcode where the detail must be transcoded,
+        // else direct play.
+        function start_stream(detail, sessionId, audioId, subtitleId) {
+            if (detail.forceTranscode)
+                request_transcode(detail.ratingKey, detail.partKey, sessionId, audioId, subtitleId, 0)
+            else
+                build_stream_url(detail.ratingKey, detail.partKey, sessionId)
+        }
+        property int sessions: 0
+        function new_session_id() { return "SESSION" + (++sessions) }
         // The timelines reported: [ratingKey, state, time].
         property var timelines: []
         function update_timeline(ratingKey, partKey, state, timeMs, durationMs) {
@@ -209,16 +266,21 @@ StandInRoot {
         function load_next_episode(ratingKey) { nextAsks++ }
         function load_queue_item(ratingKey) {}
         function load_random_episode(scope) {}
-        function set_audio_stream() {}
-        function set_subtitle_stream() {}
+        // The tracks written to the server as an item's own: [kind, stream, part].
+        property var trackWrites: []
+        function set_audio_stream(streamId, partId) { trackWrites = trackWrites.concat([["audio", streamId, partId]]) }
+        function set_subtitle_stream(streamId, partId) { trackWrites = trackWrites.concat([["subtitle", streamId, partId]]) }
         function load_item_detail(ratingKey) {}
         function load_extras(ratingKey) {}
         function load_show_year(ratingKey) {}
         function reset_device_check() {}
         function get_auth_state() { return authState }
         function pending_pin_user() { return "" }
-        function load_users_from_cache() {}
-        function start_pin_auth() { return 1 }
+        // The users asked for: answered by the test (usersLoaded).
+        property int userAsks: 0
+        function load_users_from_cache() { userAsks++ }
+        property int pinStarts: 0
+        function start_pin_auth() { pinStarts++; return pinStarts }
         function cancel_pin_auth(request) {}
         function get_active_server_name() { return "Server" }
         function get_active_user_name() { return "User" }
@@ -260,7 +322,18 @@ StandInRoot {
         // Where the video was left: { pos }.
         property var saved: ({})
         function playbackArgs(settings) { return [] }
-        function playbackSettings() { return ({}) }
+        // The ADVANCED settings as the backend reads them, each at its
+        // manifest default until set.
+        function playbackSettings() {
+            function setting(key, fallback) {
+                var value = appCore.get_setting("com.osdos.youtube", key)
+                return (value === undefined || value === null || value === "") ? fallback : String(value)
+            }
+            return { resolution: setting("playback_resolution", "480p"), codec: setting("video_codec", "H.264"),
+                     maxFrameRate: setting("max_frame_rate", "Any"), audioLanguage: setting("audio_language", "original"),
+                     subtitles: setting("subtitles", "Off"), subtitleLanguage: setting("subtitle_language", "-"),
+                     speed: setting("playback_speed", "1x") }
+        }
         function getSavedPosition(videoId) { return saved }
         function savePosition(videoId, pos, title, channelName) {}
         function isInWatchLater(videoId) { return false }
@@ -287,14 +360,21 @@ StandInRoot {
         property int audioStops: 0
         function startAudio(paths, shuffle) { audioStarts++ }
         function stopAudio() { audioStops++ }
+        // Its picker's files (Items.qml).
+        property var videos: []
+        property var audios: []
+        function getVideoFiles() { return videos }
+        function getAudioFiles() { return audios }
     }
 
     // ScriptsBackend as the Scripts module's list uses it: one script that
     // asks before it runs (its sidecar's confirm = yes), one that doesn't.
     QtObject {
         id: scriptsBackend
+        // A folder with none in it.
+        property bool none: false
         function getScripts() {
-            return [{ basename: "backup.sh", name: "Backup", mode: "console", confirm: true, favorite: false },
+            return none ? [] : [{ basename: "backup.sh", name: "Backup", mode: "console", confirm: true, favorite: false },
                     { basename: "hello.sh", name: "Hello", mode: "console", confirm: false, favorite: false }]
         }
         function setFavorite(basename, favorite) { return false }
@@ -322,7 +402,7 @@ StandInRoot {
         function quick_connect_cancel() {}
         function authenticate(url, user, password) { signIns = signIns.concat([["direct", url, user, password]]) }
         function connect_authenticate(user, password) { signIns = signIns.concat([["connect", user, password]]) }
-        signal streamUrlReady(string url)
+        signal streamUrlReady(string url, string playMethod, bool subtitlesBeside)
         signal errorOccurred(string message)
         signal nextEpisodeReady(var detail)
         signal segmentsReady(string itemId, var segments)
@@ -354,6 +434,8 @@ StandInRoot {
         signal upNextLoaded(var items)
         function load_continue_watching() {}
         function load_up_next() {}
+        function load_items(parentId, includeTypes, sortBy) {}
+        function load_boxset_children(parentId) {}
     }
     ServerBackend { id: jellyfinBackend }
     ServerBackend { id: embyBackend }
@@ -368,6 +450,18 @@ StandInRoot {
         signal playlistsChanged()
         signal downloadProgress(string key, int percent)
         function playlist(id) { return { id: id, name: "Night", kind: kind, items: items } }
+        // The module's first page (Playlists.qml): the playlists there are,
+        // and one made there.
+        property var lists: []
+        function playlists() { return lists }
+        function createPlaylist(name, kind) {
+            var id = "p" + (lists.length + 1)
+            lists = lists.concat([{ id: id, name: name, kind: kind, count: 0, ready: 0 }])
+            return id
+        }
+        function downloadFolder() { return "/media/Playlists" }
+        function supports(module) { return true }
+        function addEntry(playlistId, module, entry) { return { ok: true, title: entry.title } }
         function indexOfItem(itemId) {
             for (var i = 0; i < items.length; i++) {
                 if (items[i].id === itemId)
@@ -392,12 +486,18 @@ StandInRoot {
         // Where the list stopped last time.
         property int resumeIndex: 0
         property int resumeMs: 0
+        // The videos that can't play, left out of the m3u as the backend
+        // does.
+        property var unplayable: []
         function prepare(id, fromItemId) {
+            var from = fromItemId === "" || unplayable.indexOf(fromItemId) >= 0 ? -1 : indexOfItem(fromItemId)
             return { file: "/data/" + id + ".m3u", count: 2, youtube: false, images: false,
-                     startIndex: -1, resumeIndex: resumeIndex, resumeMs: resumeMs }
+                     startIndex: from, resumeIndex: resumeIndex, resumeMs: resumeMs }
         }
         function savedPositionMs(id) { return 0 }
-        function savePosition(id, pos, plPos) {}
+        // The places saved: [plPos, ms].
+        property var saves: []
+        function savePosition(id, plPos, ms) { saves = saves.concat([[plPos, ms]]) }
         function clearPosition(id) {}
     }
 
@@ -410,6 +510,7 @@ StandInRoot {
         target: loader.item
         ignoreUnknownSignals: true
         function onGoBack() { root.backs++ }
+        function onReplaceWith(path, params) { root.replaced = root.replaced.concat([path]) }
         function onNavigateTo(path, params, listState) {
             root.navigations = root.navigations.concat([{ path: path, params: params, listState: listState }])
         }
@@ -424,17 +525,30 @@ StandInRoot {
             moduleRoot.moduleName = "Plex"
             root.chrome.basePath = []
             root.navigations = []
+            root.replaced = []
+            moduleRoot.settingsOpened = []
             root.backs = 0
             root.leaves = 0
             mpvController.videoActive = false
+            mpvController.background = false
+            mpvController.takeBacks = 0
+            root.videoBehind = false
+            root.takeBackNote = ({})
             appCore.settings = {}
+            appCore.schema = []
+            TypedFields.clear()
             appCore.lists = {}
+            root.hints = root.keyboardHints
             mpvController.loads = 0
             mpvController.urls = []
             mpvController.starts = []
             mpvController.subTracks = []
+            mpvController.subLangs = []
             mpvController.subFiles = []
             mpvController.extraArgs = []
+            mpvController.playlistStarts = []
+            mpvController.shuffles = []
+            mpvController.loops = []
             mpvController.position = 0
             mpvController.keys = []
             mpvController.lastError = ""
@@ -448,16 +562,25 @@ StandInRoot {
             plexBackend.nextAsks = 0
             plexBackend.cardAsks = 0
             plexBackend.queueAsks = 0
+            plexBackend.userAsks = 0
             plexBackend.authState = "authed"
+            plexBackend.pinStarts = 0
             plexBackend.tunes = 0
             plexBackend.liveStops = 0
             plexBackend.timelines = []
+            plexBackend.trackWrites = []
             ambientModeBackend.audioStarts = 0
             ambientModeBackend.audioStops = 0
+            ambientModeBackend.videos = []
+            ambientModeBackend.audios = []
+            scriptsBackend.none = false
             playlistsBackend.kind = "online"
             playlistsBackend.items = [{ id: "v1" }, { id: "v2" }]
+            playlistsBackend.lists = []
             playlistsBackend.resumeIndex = 0
             playlistsBackend.resumeMs = 0
+            playlistsBackend.saves = []
+            playlistsBackend.unplayable = []
             youtubeBackend.saved = {}
             nfcReaderBackend.saved = {}
             for (var backend of [jellyfinBackend, embyBackend]) {
@@ -661,7 +784,7 @@ StandInRoot {
             var player = openJellyfinPlayer("jellyfin")
             mpvController.playbackEnded(0, 0, "failed")
             compare(jellyfinBackend.asks, 1)
-            jellyfinBackend.streamUrlReady("http://server/videos/e1/master.m3u8")
+            jellyfinBackend.streamUrlReady("http://server/videos/e1/master.m3u8", "Transcode", false)
             compare(mpvController.loads, 2)
             var stops = jellyfinBackend.stops
             mpvController.lastError = "mpv could not play it"
@@ -800,6 +923,33 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
+        // The users page of a sign-in left without its account (the code
+        // claimed, plex.tv a moment away): the backend is asked for the
+        // users, and the page says it is loading until they come, or why
+        // they didn't; never an empty page with nothing said. Users handed
+        // to the page (the sign-in's own) are shown at once.
+        function test_plexUsersPageWaitsForTheAccount() {
+            var page = open("plex", "UserSelect.qml", {})
+            var said = function() {
+                return shownTexts(page).map(function(t) { return t.text }).join("|")
+            }
+            compare(plexBackend.userAsks, 1)
+            verify(said().indexOf("LOADING...") >= 0, said())
+            plexBackend.errorOccurred("FAILED TO LOAD ACCOUNT: Connection refused")
+            verify(said().indexOf("LOADING...") < 0, said())
+            verify(said().indexOf("FAILED TO LOAD ACCOUNT: Connection refused") >= 0, said())
+            loader.source = ""
+            page = open("plex", "UserSelect.qml", {})
+            verify(said().indexOf("LOADING...") >= 0, said())
+            plexBackend.usersLoaded([{ id: "1", title: "OWNER" }])
+            tryVerify(function() { return said().indexOf("OWNER") >= 0 }, 1000, said())
+            verify(said().indexOf("LOADING...") < 0, said())
+            loader.source = ""
+            page = open("plex", "UserSelect.qml", { users: [{ id: "1", title: "OWNER" }] })
+            compare(plexBackend.userAsks, 2)
+            verify(said().indexOf("LOADING...") < 0, said())
+        }
+
         // A card never prompts: signed out (the token refused and not
         // renewed, or a sign-out) as a card's item is looked for, its player
         // waits for a stream, or a card's set is made, no PinAuth comes; the
@@ -847,6 +997,39 @@ StandInRoot {
             view.forceActiveFocus()
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // A card's playback writes no track to Plex as an item's own: not for
+        // its first item (CardPlay), and not for the ones autoplay goes on
+        // to, whose tracks are only matched to the first's by language. In
+        // the module, the episode autoplay goes on to has them written, as
+        // PLAY on its detail screen would.
+        function test_plexCardWritesNoTracks_data() {
+            return [{ tag: "card", card: true }, { tag: "module", card: false }]
+        }
+        function test_plexCardWritesNoTracks(data) {
+            appCore.settings = { autoplay_next_episode: true }
+            var first = { ratingKey: "10", partKey: "/library/parts/10", partId: "p10", title: "Episode 1",
+                          audioStreams: [{ id: "a1", language: "eng" }],
+                          subtitleStreams: [{ id: "0", language: "" }, { id: "s1", language: "eng" }],
+                          selectedAudioId: "a1", selectedSubtitleId: "s1" }
+            if (data.card) {
+                var router = open("plex", "Root.qml", { cardRef: "plex://show/abc" })
+                plexBackend.cardItemReady(first)
+                verify(String(router.children[0].source).indexOf("Player.qml") >= 0)
+            } else {
+                open("plex", "Player.qml", Object.assign({ streamUrl: "http://plex/10", plexToken: "token" }, first))
+            }
+            compare(mpvController.loads, 1)
+            compare(plexBackend.trackWrites, [])
+            mpvController.playbackEnded(60000, 60000, "eof")
+            compare(plexBackend.nextAsks, 1)
+            plexBackend.nextEpisodeReady({ ratingKey: "11", partKey: "/library/parts/11", partId: "p11", title: "Episode 2",
+                                           audioStreams: [{ id: "a2", language: "eng" }],
+                                           subtitleStreams: [{ id: "0", language: "" }, { id: "s2", language: "eng" }] })
+            compare(mpvController.loads, 2)
+            compare(mpvController.urls[1], "http://plex/11")
+            compare(plexBackend.trackWrites, data.card ? [] : [["audio", "a2", "p11"], ["subtitle", "s2", "p11"]])
         }
 
         // Jellyfin's and Emby's home screen (one shared view, each with its
@@ -918,6 +1101,45 @@ StandInRoot {
             list = opened(left, ["a", "b"])
             compare(currentItemId(list), "b")
         }
+        // A list takes a backend's error for its own only while it waits for
+        // its rows: said then, and gone as the rows come after all (the
+        // error was another request's). One that comes once the rows are
+        // there (a request of a page left, failing late) is not this
+        // list's, and isn't drawn over its rows. Plex's list and its
+        // libraries, Jellyfin's and Emby's list and box set.
+        function test_listErrorOnlyWhileWaiting_data() {
+            var film = { ratingKey: "r1", itemId: "i1", title: "ALIEN", type: "movie" }
+            var show = { ratingKey: "r2", itemId: "i2", title: "ALIEN NATION", type: "series" }
+            var boxSet = { item: { itemId: "b1", title: "Alien" } }
+            return [
+                { tag: "plex list", module: "plex", view: "Items.qml", params: { listType: "library_all", sectionId: "7" },
+                  answer: "itemsLoaded", rows: [film], error: "errorMessage" },
+                { tag: "plex libraries", module: "plex", view: "Libraries.qml", params: {}, answer: "librariesLoaded",
+                  rows: [{ key: "1", title: "FILMS", sectionId: "1", sectionType: "movie" }], error: "errorMsg" },
+                { tag: "jellyfin list", module: "jellyfin", view: "Items.qml", params: { parentId: "l1" },
+                  answer: "itemsLoaded", rows: [film], error: "errorMessage" },
+                { tag: "emby list", module: "emby", view: "Items.qml", params: { parentId: "l1" },
+                  answer: "itemsLoaded", rows: [film], error: "errorMessage" },
+                { tag: "jellyfin box set", module: "jellyfin", view: "Boxset.qml", params: boxSet,
+                  answer: "boxsetChildrenLoaded", rows: [film, show], error: "errorMessage" },
+                { tag: "emby box set", module: "emby", view: "Boxset.qml", params: boxSet,
+                  answer: "boxsetChildrenLoaded", rows: [film, show], error: "errorMessage" }
+            ]
+        }
+        function test_listErrorOnlyWhileWaiting(data) {
+            var backend = data.module === "plex" ? plexBackend : data.module === "emby" ? embyBackend : jellyfinBackend
+            var page = open(data.module, data.view, data.params)
+            backend[data.answer](data.rows)
+            backend.errorOccurred("LOAD DETAIL FAILED: HTTP 404")
+            compare(page[data.error], "")
+            loader.source = ""
+            page = open(data.module, data.view, data.params)
+            backend.errorOccurred("LOAD LIBRARY FAILED: HTTP 500")
+            compare(page[data.error], "LOAD LIBRARY FAILED: HTTP 500")
+            backend[data.answer](data.rows)
+            compare(page[data.error], "")
+        }
+
         // The item a list view's cursor is on (its list of items, not of
         // letters).
         function currentItemId(list) {
@@ -1074,6 +1296,105 @@ StandInRoot {
             loader.sourceComponent = undefined
         }
 
+        // ▲ ▼ past an edge glide the rows after the cursor, as Plex's list
+        // moved before it was a LetterList: the ListView following its
+        // current row at its own pace (highlightMoveVelocity, 400 pixels a
+        // second), in every layout that scrolls its rows (Standard,
+        // Camcorder's pane, Studio Monitor's and Broadcast's frames, rows
+        // drawn as MonitorRows there). Keys held step as fast as they come;
+        // round the ends and to a letter the rows land at once. Flat Panel
+        // turns its pages at once.
+        function test_letterListGlides_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", framed: false },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false },
+                    { tag: "Flat Panel", layout: "Flat Panel", framed: false }]
+        }
+        function test_letterListGlides(data) {
+            root.menuLayout = data.layout
+            root.framed = data.framed
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            var view = null
+            var find = function(item) {
+                for (var i = 0; i < item.children.length && !view; i++) {
+                    if (item.children[i].highlightMoveVelocity !== undefined)
+                        view = item.children[i]
+                    else
+                        find(item.children[i])
+                }
+            }
+            find(rows)
+            verify(view !== null)
+            var rowHeight = view.itemAtIndex(0).height
+            var shown = Math.floor(rows.height / rowHeight + 0.001)
+            verify(shown < 20, "more rows than show: " + shown)
+            var settled = function(y) { return Math.abs(rows.contentY - y) < 0.5 }
+            // Within the rows shown nothing moves but the cursor.
+            for (var i = 0; i < shown - 1; i++)
+                keyClick(Qt.Key_Down)
+            wait(50)
+            verify(settled(rows.originY))
+
+            if (data.layout === "Flat Panel") {
+                // The next page, at once.
+                keyClick(Qt.Key_Down)
+                compare(list.currentIndex, shown)
+                verify(settled(rows.originY + shown * root.chrome.rowHeight))
+                loader.sourceComponent = undefined
+                return
+            }
+
+            // Past the foot: the rows glide there, at the ListView's pace.
+            compare(view.highlightMoveVelocity, 400)
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, shown)
+            var below = rows.originY + (shown + 1) * rowHeight - rows.height
+            verify(rows.contentY < below - 0.5, "gliding, not there at once: " + rows.contentY)
+            tryVerify(function() { return settled(below) }, 1000)
+
+            // Held: each press a row on at once, the rows following.
+            for (i = 0; i < 5; i++)
+                keyPress(Qt.Key_Down, Qt.NoModifier, -1)
+            keyRelease(Qt.Key_Down)
+            compare(list.currentIndex, shown + 5)
+            below += 5 * rowHeight
+            verify(rows.contentY < below - 0.5)
+            tryVerify(function() { return settled(below) }, 2000)
+            // And back up past the top of what shows: gliding too. The top
+            // is the first row shown whole: where the rows' height is no
+            // whole number of rows (a layout's frame under another font),
+            // the row above it shows in part, and the cursor on that one
+            // would move the rows already.
+            var top = Math.ceil((rows.contentY - rows.originY) / rowHeight - 0.001)
+            while (list.currentIndex > top)
+                keyClick(Qt.Key_Up)
+            tryVerify(function() { return settled(below) }, 1000)
+            keyClick(Qt.Key_Up)
+            verify(rows.contentY > rows.originY + (top - 1) * rowHeight + 0.5)
+            tryVerify(function() { return settled(rows.originY + (top - 1) * rowHeight) }, 1000)
+
+            // Round the top to the last row: at once.
+            list.currentIndex = 0
+            rows.positionViewAtIndex(0, ListView.Beginning)
+            keyClick(Qt.Key_Up)
+            compare(list.currentIndex, 22)
+            verify(settled(rows.originY + rows.contentHeight - rows.height))
+            // To a letter: at once, its first row at the top.
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Down)
+            compare(list.letterIndex[lettersOf(list).currentIndex].letter, "#")
+            compare(list.currentIndex, 0)
+            verify(settled(rows.originY))
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 3)
+            verify(settled(Math.min(rows.originY + 3 * rowHeight, rows.originY + rows.contentHeight - rows.height)))
+            loader.sourceComponent = undefined
+        }
+
         // The letters follow the cursor's row as ▲ ▼ move it, and round an
         // end of the list go round theirs: to the last letter from the first
         // row up, even where the last row is under "#".
@@ -1092,6 +1413,50 @@ StandInRoot {
             compare(letters.currentIndex, list.letterIndex.length - 1)
             keyClick(Qt.Key_Right)
             compare(list.letterIndex[letters.currentIndex].letter, "#")
+            loader.sourceComponent = undefined
+        }
+
+        // The mouse over a letter (Hover.js), with the keys in the letters,
+        // is ▲ ▼ to it: the cursor on the letter and the rows jumped to the
+        // first under it, at the top of the list. With the keys in the rows
+        // the letters are not the mouse's. In Standard, and in Camcorder's
+        // pane.
+        function test_letterListMouseOnALetter_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_letterListMouseOnALetter(data) {
+            root.menuLayout = data.layout
+            root.framed = data.framed
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            var letters = lettersOf(list)
+            var hover = function(index) {
+                var cell = letters.itemAtIndex(index)
+                verify(cell !== null, "letter " + index + " drawn")
+                var p = cell.mapToItem(root, cell.width / 2, cell.height / 2)
+                Hover.follow(root, root.Window.activeFocusItem, p.x, p.y)
+            }
+            hover(3)
+            compare(letters.currentIndex, 0)
+            compare(list.currentIndex, 0)
+            keyClick(Qt.Key_Right)
+            verify(list.letterNavActive)
+            // C: Clue, the sixth row.
+            hover(3)
+            compare(list.letterIndex[letters.currentIndex].letter, "C")
+            compare(list.currentIndex, 5)
+            fuzzyCompare(rows.contentY, rows.originY + 5 * root.menuRowHeight, 0.5)
+            // And back up to #, as ▲ would go.
+            hover(0)
+            compare(list.currentIndex, 0)
+            fuzzyCompare(rows.contentY, rows.originY, 0.5)
+            hover(2)
+            keyClick(Qt.Key_Return)
+            verify(!list.letterNavActive)
+            compare(list.currentIndex, 3)
+            root.framed = false
             loader.sourceComponent = undefined
         }
 
@@ -1286,7 +1651,8 @@ StandInRoot {
         function test_serverTrackSwitchMidTranscode(data) {
             var backend = data.module === "emby" ? embyBackend : jellyfinBackend
             var player = open(data.module, "Player.qml", {
-                streamUrl: "http://server/videos/e1/master.m3u8", itemId: "e1", mediaSourceId: "e1",
+                streamUrl: "http://server/videos/e1/master.m3u8", playMethod: "Transcode",
+                subtitlesBeside: data.module === "emby", itemId: "e1", mediaSourceId: "e1",
                 title: "Episode 1", selectedAudioId: "1", selectedSubtitleId: "",
                 audioStreams: [{ id: 1, language: "eng", displayTitle: "English 5.1" },
                                { id: 2, language: "fra", displayTitle: "French" }],
@@ -1307,7 +1673,7 @@ StandInRoot {
             compare(backend.asks, 1)
             compare(backend.lastAsk, ["e1", "e1", 2, -1, true])
             verify(player.waiting)
-            backend.streamUrlReady("http://server/videos/e1/master.m3u8?audio=2")
+            backend.streamUrlReady("http://server/videos/e1/master.m3u8?audio=2", "Transcode", data.module === "emby")
             compare(mpvController.loads, 2)
             compare(mpvController.starts[1], 30)
             compare(mpvController.extraArgs[1][2], "--script-opts-append=transcode-audio=French")
@@ -1320,7 +1686,8 @@ StandInRoot {
                 mpvController.subtitleCycleRequested()
                 mpvController.playbackEnded(30000, 60000, "stopped")
                 compare(backend.lastAsk, ["e1", "e1", 2, steps[i].sub, true])
-                backend.streamUrlReady("http://server/videos/e1/master.m3u8?subtitle=" + steps[i].sub)
+                backend.streamUrlReady("http://server/videos/e1/master.m3u8?subtitle=" + steps[i].sub, "Transcode",
+                                       data.module === "emby")
                 compare(mpvController.loads, 3 + i)
                 compare(mpvController.starts[2 + i], 30)
                 compare(mpvController.extraArgs[2 + i][0], "--script-opts-append=transcode-sub=" + steps[i].name)
@@ -1329,6 +1696,59 @@ StandInRoot {
             }
             compare(root.backs, 0)
             compare(backend.stops, stops + 4)
+        }
+
+        // The subtitle mpv is started on, direct-played: OFF is none at all
+        // (-2), and one in the file itself is numbered as mpv numbers it, the
+        // file's own first and sidecars after, whatever the server lists
+        // before it. Plex loads
+        // every sidecar, Jellyfin and Emby the one chosen only.
+        function test_subtitleTrackAsMpvNumbersIt_data() {
+            var plexSubs = [{ id: "0", displayTitle: "OFF" },
+                            { id: "21", displayTitle: "ENGLISH (SRT EXTERNAL)", subUrl: "http://plex/s/21.srt" },
+                            { id: "22", displayTitle: "ENGLISH PGS" },
+                            { id: "23", displayTitle: "FRENCH (SRT EXTERNAL)", subUrl: "http://plex/s/23.srt" },
+                            { id: "24", displayTitle: "FRENCH PGS" }]
+            var serverSubs = [{ id: "5", displayTitle: "English (external)", external: true,
+                                subUrl: "http://server/e1/5.srt" },
+                              { id: "6", displayTitle: "German (external sup)", external: true },
+                              { id: "3", displayTitle: "English PGS" },
+                              { id: "4", displayTitle: "French PGS" }]
+            var plexFiles = ["http://plex/s/21.srt", "http://plex/s/23.srt"]
+            return [{ tag: "plex off", module: "plex", subs: plexSubs, sel: "0", track: -2, files: plexFiles },
+                    { tag: "plex first in the file", module: "plex", subs: plexSubs, sel: "22", track: 1, files: plexFiles },
+                    { tag: "plex second in the file", module: "plex", subs: plexSubs, sel: "24", track: 2, files: plexFiles },
+                    { tag: "plex sidecar", module: "plex", subs: plexSubs, sel: "23", track: 0,
+                      files: ["http://plex/s/23.srt", "http://plex/s/21.srt"] },
+                    { tag: "jellyfin first in the file", module: "jellyfin", subs: serverSubs, sel: "3", track: 1, files: [] },
+                    { tag: "jellyfin second in the file", module: "jellyfin", subs: serverSubs, sel: "4", track: 2, files: [] },
+                    { tag: "jellyfin beside the file", module: "jellyfin", subs: serverSubs, sel: "6", track: -2, files: [] },
+                    { tag: "emby second in the file", module: "emby", subs: serverSubs, sel: "4", track: 2, files: [] },
+                    { tag: "emby sidecar", module: "emby", subs: serverSubs, sel: "5", track: 0,
+                      files: ["http://server/e1/5.srt"] }]
+        }
+        function test_subtitleTrackAsMpvNumbersIt(data) {
+            if (data.module === "plex")
+                open("plex", "Player.qml", { streamUrl: "http://plex/10", plexToken: "token",
+                                             ratingKey: "10", partKey: "/library/parts/10", title: "Episode 1",
+                                             subtitleStreams: data.subs, selectedSubtitleId: data.sel })
+            else
+                open(data.module, "Player.qml", { streamUrl: "http://server/Videos/e1/stream?static=true",
+                                                  itemId: "e1", mediaSourceId: "e1", title: "Episode 1",
+                                                  subtitleStreams: data.subs, selectedSubtitleId: data.sel })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks[0], data.track)
+            compare(mpvController.subFiles[0], data.files)
+        }
+
+        // A Plex transcode's subtitle is burnt into the picture: mpv shows
+        // none of its own (-2).
+        function test_plexTranscodeShowsNoSubtitleTrack() {
+            open("plex", "Player.qml", { streamUrl: "http://plex/transcode/10.m3u8", plexToken: "token",
+                                         ratingKey: "10", partKey: "/library/parts/10", title: "Episode 1",
+                                         isTranscoding: true })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks[0], -2)
         }
 
         // The view's on-screen keyboard.
@@ -1485,6 +1905,155 @@ StandInRoot {
                 verify(insidePage(shown), shown.text)
         }
 
+        // Playlists' first page: the playlists first, the cursor on the
+        // first, then the NEW lines under a heading; with none, the NEW
+        // lines alone. A playlist made there opens, and back from it lands
+        // on it. A playlist's page opens on ADD VIDEOS while it is empty,
+        // on PLAY once it has videos.
+        function test_playlistsPage() {
+            var linesOf = function(page) { return page.rows.map(function(r) { return r.label }) }
+            var page = open("playlists", "Playlists.qml", {})
+            compare(linesOf(page), ["New Online Playlist", "New Offline Playlist"])
+            compare(page.rows[0].type, "new")
+            loader.source = ""
+            playlistsBackend.lists = [{ id: "p1", name: "Night", kind: "online", count: 2, ready: 0 },
+                                      { id: "p2", name: "Trip", kind: "offline", count: 3, ready: 1 }]
+            page = open("playlists", "Playlists.qml", {})
+            compare(linesOf(page), ["Night", "Trip", "New", "New Online Playlist", "New Offline Playlist"])
+            compare(page.rows[2].type, "section")
+            var list = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].currentIndex !== undefined && typeof page.children[i].step === "function")
+                    list = page.children[i]
+            }
+            compare(list.currentIndex, 0)
+            // Down from Trip passes over the heading.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(page.rows[list.currentIndex].label, "New Online Playlist")
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(page)
+            verify(keyboard.visible)
+            typeOn(keyboard, "TV")
+            okOn(keyboard)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Playlist.qml")
+            compare(root.navigations[0].params.playlistId, "p3")
+            compare(page.rows[list.currentIndex].id, "p3")
+            compare(root.navigations[0].listState.currentIndex, list.currentIndex)
+
+            // Its page, empty: on ADD VIDEOS.
+            playlistsBackend.items = []
+            var pageOf = open("playlists", "Playlist.qml", { playlistId: "p3" })
+            compare(pageOf.currentRow.type, "add")
+            playlistsBackend.items = [{ id: "v1", title: "A" }]
+            pageOf = open("playlists", "Playlist.qml", { playlistId: "p1" })
+            compare(pageOf.currentRow.type, "play")
+
+            // Add to Playlist reads the same way: the playlists first, the
+            // cursor on the first, a line, then the NEW ones.
+            loader.source = ""
+            loader.setSource(Qt.resolvedUrl("../../views/Components/PlaylistAdder.qml"))
+            var adder = loader.item
+            verify(adder !== null)
+            adder.offer("com.osdos.local_files", { title: "A Film", path: "/films/A.mkv" })
+            compare(adder.choices.map(function(c) { return c.divider ? "—" : c.label }),
+                    ["Night", "Trip (Offline)", "TV", "—", "New Online Playlist", "New Offline Playlist"])
+            compare(adder.choiceIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(adder.choiceIndex, 5)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            compare(adder.choiceIndex, 2)
+        }
+
+        // Weather's setup screen: with no place, or one it can't use, select
+        // opens Weather's settings on Location (SET LOCATION); with no
+        // network, it looks again (TRY AGAIN). The file is named as a way
+        // too. In a keyboard's names and a pad's.
+        function test_weatherSetup_data() {
+            var pad = Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" })
+            return [{ tag: "missing", reason: "missing", hints: root.keyboardHints, word: "SET LOCATION" },
+                    { tag: "not found, a pad", reason: "notfound", hints: pad, word: "SET LOCATION" },
+                    { tag: "unreadable", reason: "unreadable", hints: root.keyboardHints, word: "SET LOCATION" },
+                    { tag: "network", reason: "network", hints: root.keyboardHints, word: "TRY AGAIN" },
+                    { tag: "network, a pad", reason: "network", hints: pad, word: "TRY AGAIN" }]
+        }
+        function test_weatherSetup(data) {
+            root.hints = data.hints
+            moduleRoot.moduleId = "com.osdos.weather"
+            var page = open("weather", "Setup.qml", { reason: data.reason })
+            var footer = ""
+            for (var i = 0; i < page.children.length; i++) {
+                var item = page.children[i]
+                if (typeof item.text === "string" && item.text.indexOf(data.hints.back + ":BACK") === 0)
+                    footer = item.text
+            }
+            compare(footer, data.hints.back + ":BACK " + data.hints.select + ":" + data.word)
+            keyClick(Qt.Key_Return)
+            if (data.reason === "network") {
+                compare(root.replaced, ["Weather.qml"])
+                compare(moduleRoot.settingsOpened, [])
+            } else {
+                compare(moduleRoot.settingsOpened, ["location"])
+                compare(root.replaced, [])
+            }
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            root.hints = root.keyboardHints
+        }
+
+        // A sign-in that failed offers TRY AGAIN on select, which asks
+        // again on the page itself: Plex's PIN, a new code from plex.tv;
+        // Jellyfin's Quick Connect, a new code from the server. Back still
+        // goes back; in a keyboard's names and a pad's.
+        function test_signInTryAgain_data() {
+            return [{ tag: "plex", module: "plex", view: "PinAuth.qml", hints: root.keyboardHints },
+                    { tag: "plex, a pad", module: "plex", view: "PinAuth.qml",
+                      hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) },
+                    { tag: "jellyfin", module: "jellyfin", view: "QuickConnect.qml", hints: root.keyboardHints },
+                    { tag: "jellyfin, a pad", module: "jellyfin", view: "QuickConnect.qml",
+                      hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_signInTryAgain(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var footer = function(page) {
+                for (var i = 0; i < page.children.length; i++) {
+                    var item = page.children[i]
+                    if (typeof item.text === "string" && item.text.indexOf(h.back + ":") === 0)
+                        return item.text
+                }
+                return ""
+            }
+            var page
+            if (data.module === "plex") {
+                page = open("plex", data.view, {})
+                compare(plexBackend.pinStarts, 1)
+                compare(footer(page), h.back + ":BACK")
+                plexBackend.errorOccurred("PIN REQUEST FAILED: timeout")
+                compare(footer(page), h.back + ":BACK " + h.select + ":TRY AGAIN")
+                keyClick(Qt.Key_Return)
+                compare(plexBackend.pinStarts, 2)
+                compare(page.errorMsg, "")
+                compare(footer(page), h.back + ":BACK")
+            } else {
+                page = open("jellyfin", data.view, { serverUrl: "http://10.0.0.2:8096", code: "123456", secret: "s" })
+                compare(footer(page), h.back + ":CANCEL")
+                jellyfinBackend.quickConnectFailed("CODE EXPIRED")
+                compare(footer(page), h.back + ":BACK " + h.select + ":TRY AGAIN")
+                keyClick(Qt.Key_Return)
+                compare(jellyfinBackend.signIns, [["quick", "http://10.0.0.2:8096"]])
+                jellyfinBackend.quickConnectCodeReady("654321", "t")
+                verify(!page.failed)
+                compare(page.code, "654321")
+                compare(footer(page), h.back + ":CANCEL")
+            }
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            root.hints = root.keyboardHints
+        }
+
         // Emby: each field on the keyboard in turn, OK going on to the next;
         // the password masked, SHOW showing it; then Sign In.
         function test_embySignInOnTheKeyboard() {
@@ -1493,7 +2062,7 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             var keyboard = keyboardOf(auth)
             verify(keyboard.visible)
-            compare(keyboard.title, "Server URL")
+            compare(keyboard.title, "Server Address")
             typeOn(keyboard, "10.0.0.2:8096")
             okOn(keyboard)
             compare(auth.serverUrl, "http://10.0.0.2:8096")
@@ -1519,6 +2088,117 @@ StandInRoot {
             compare(auth.focusIndex, 4)
             keyClick(Qt.Key_Return)
             compare(embyBackend.signIns, [["direct", "http://10.0.0.2:8096", "Ann", "p[w]\\\""]])
+        }
+
+        // Emby's and Jellyfin's sign-in forms keep what was typed: back from
+        // the form and in again finds the server's address and the user
+        // name as they were, never the password; the method chosen too.
+        function test_signInFormKeepsWhatWasTyped() {
+            var auth = open("emby", "Auth.qml", {})
+            compare(auth.serverUrl, "")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            var keyboard = keyboardOf(auth)
+            typeOn(keyboard, "10.0.0.2:8096")
+            okOn(keyboard)
+            keyClick(Qt.Key_Return)
+            typeOn(keyboard, "Ann")
+            okOn(keyboard)
+            keyClick(Qt.Key_Return)
+            typeOn(keyboard, "pw")
+            okOn(keyboard)
+            compare([auth.serverUrl, auth.username, auth.password], ["http://10.0.0.2:8096", "Ann", "pw"])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            auth = open("emby", "Auth.qml", {})
+            compare([auth.serverUrl, auth.username, auth.password], ["http://10.0.0.2:8096", "Ann", ""])
+            // Emby Connect chosen, kept too.
+            auth.setMethod(1)
+            auth = open("emby", "Auth.qml", {})
+            compare(auth.method, 1)
+
+            var jelly = open("jellyfin", "Auth.qml", {})
+            compare(jelly.serverUrl, "")
+            keyClick(Qt.Key_Return)
+            typeOn(keyboardOf(jelly), "10.0.0.3:8096")
+            okOn(keyboardOf(jelly))
+            jelly = open("jellyfin", "Auth.qml", {})
+            compare(jelly.serverUrl, "http://10.0.0.3:8096")
+        }
+
+        // The two forms' lists go round their ends, as every list does.
+        function test_signInFormWraps() {
+            var auth = open("emby", "Auth.qml", {})
+            keyClick(Qt.Key_Up)
+            compare(auth.focusIndex, auth.idxSubmit)
+            keyClick(Qt.Key_Down)
+            compare(auth.focusIndex, auth.idxMethod)
+            var jelly = open("jellyfin", "Auth.qml", {})
+            compare(jelly.focusIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(jelly.focusIndex, 1)
+            keyClick(Qt.Key_Down)
+            compare(jelly.focusIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(jelly.focusIndex, 0)
+        }
+
+        // Emby's method row: YOUR SERVER or EMBY CONNECT, the one chosen
+        // filled on the row and marked ► once the cursor leaves it; ◄ ►
+        // choose and select goes on, as the hint bar says (in a keyboard's
+        // names and a pad's); the field is SERVER ADDRESS, as in Settings,
+        // and so is Jellyfin's.
+        function test_embyMethodRow_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_embyMethodRow(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var auth = open("emby", "Auth.qml", {})
+            var said = function(page, text) {
+                return shownTexts(page).filter(function(t) { return t.text === text }).length
+            }
+            var hint = function(page) {
+                return shownTexts(page).filter(function(t) { return t.text.indexOf(h.back + ":BACK") === 0 })
+                                       .map(function(t) { return t.text })[0] || ""
+            }
+            compare(hint(auth), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.change + ":CHOOSE " + h.select + ":NEXT")
+            compare(said(auth, "Your Server"), 1)
+            compare(said(auth, "Server Address:"), 1)
+            keyClick(Qt.Key_Down)
+            compare(said(auth, "► Your Server"), 1)
+            compare(hint(auth), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":TYPE")
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            compare(auth.method, 1)
+            keyClick(Qt.Key_Return)
+            compare(said(auth, "► Emby Connect"), 1)
+            compare(said(auth, "Your Server"), 1)
+            var jelly = open("jellyfin", "Auth.qml", {})
+            compare(said(jelly, "Server Address:"), 1)
+            root.hints = root.keyboardHints
+        }
+
+        // Emby's status line: a long error wraps onto as many lines as it
+        // needs across the form, none of it cut, and stays above the hint
+        // bar, in Standard and in Camcorder's narrower pane.
+        function test_embyStatusLineWraps_data() {
+            return [{ tag: "standard", framed: false }, { tag: "camcorder", framed: true }]
+        }
+        function test_embyStatusLineWraps(data) {
+            root.framed = data.framed
+            var auth = open("emby", "Auth.qml", {})
+            var error = "CONNECTION FAILED: Host jellyfin.media.home.internal.mycompanydomain.example.com not found"
+            embyBackend.errorOccurred(error)
+            var line = shownTexts(auth).filter(function(t) { return t.text === error })[0]
+            verify(line !== undefined)
+            verify(line.lineCount > 1, "wrapped")
+            verify(!line.truncated, "nothing cut")
+            var bottom = line.mapToItem(root, 0, line.contentHeight).y
+            verify(bottom <= root.sh * 0.85, "above the hint bar: " + bottom)
+            root.framed = false
         }
 
         // The keyboard's signs: every one a keyboard has, SHIFT changing the
@@ -1549,6 +2229,37 @@ StandInRoot {
             compare(keyboard.text, "k")
             keyClick(Qt.Key_Delete)
             compare(keyboard.text, "")
+        }
+
+        // Local Files with nothing in its media folder says so, and its hint
+        // bar offers back alone: nothing to move to or open. With files, the
+        // keys that move and open again.
+        function test_localFilesEmptyOffersBackAlone() {
+            var findText = function(item, text) {
+                if (item.text !== undefined && item.visible && String(item.text).indexOf(text) >= 0)
+                    return item
+                for (var i = 0; i < item.children.length; i++) {
+                    var found = findText(item.children[i], text)
+                    if (found)
+                        return found
+                }
+                return null
+            }
+            moduleRoot.moduleName = "Local Files"
+            localFilesBackend.folder = []
+            localFilesBackend.pending = false
+            var list = open("local_files", "Items.qml", {})
+            var bar = findChild(list, "hintBar")
+            verify(bar !== null)
+            tryVerify(function() { return findText(list, "No items found") !== null }, 1000)
+            compare(bar.text, root.hints.back + ":BACK")
+            loader.source = ""
+            localFilesBackend.folder = [{ name: "More", path: "/films/More", isFolder: true }]
+            list = open("local_files", "Items.qml", {})
+            bar = findChild(list, "hintBar")
+            tryVerify(function() { return bar.text.indexOf(":OPEN") > 0 }, 1000)
+            verify(bar.text.indexOf(":NAVIGATE") > 0)
+            compare(findText(list, "No items found"), null)
         }
 
         // Local Files: Page Up or Channel + plays the folder's next film,
@@ -1588,9 +2299,16 @@ StandInRoot {
             compare(appCore.lists.recent[0].path, "/films/C.mkv")
             compare(player.filePath, "/films/C.mkv")
             compare(player.itemTitle, "C.mkv")
-            compare(player.lastKnownPositionMs, 0)
+            // Where C was asked to start, until mpv says otherwise.
+            compare(player.lastKnownPositionMs, 90000)
             verify(!promptOf(player).visible)
+            // Saved where mpv is this moment, not where its last report to
+            // the views (every quarter second) said.
+            player.lastKnownPositionMs = 95000
+            mpvController.position = 95240
             keyClick(Qt.Key_PageUp)
+            mpvController.position = 0
+            compare(localFilesBackend.positions["/films/C.mkv"].pos, 95240)
             compare(mpvController.urls[2], "/films/A.mkv")
             keyClick(Qt.Key_PageDown)
             compare(mpvController.urls[3], "/films/C.mkv")
@@ -1652,6 +2370,109 @@ StandInRoot {
             verify(!MpvKeys.isChannel("UP"))
             compare(MpvKeys.name(Qt.Key_A, true), "")
             compare(MpvKeys.name(Qt.Key_Q), "")
+        }
+
+        // Where a session is (views/Components/PlayerSession.qml), on its
+        // own: where begin() asked it to start until mpv says otherwise, the
+        // point zeroed only as mpv goes on to another of the playlist's
+        // videos; a player that plays no playlist leaves the video mpv is on
+        // alone. (The stand-in's positionChanged and durationChanged carry
+        // nothing, so the session is told them as MpvController tells it.)
+        Component {
+            id: lonelySession
+            PlayerSession {}
+        }
+        function test_playerSessionFollowsMpv() {
+            var session = createTemporaryObject(lonelySession, root, { followsPlaylist: true })
+            session.begin(90000, 2)
+            compare([session.startMs, session.positionMs, session.playlistPos], [90000, 90000, 2])
+            verify(!session.started)
+            // The video it was started at: the point stays.
+            mpvController.playlistPosChanged(2)
+            compare(session.positionMs, 90000)
+            session.mpv.onPositionChanged(0)
+            verify(!session.started)
+            session.mpv.onPositionChanged(95000)
+            session.mpv.onDurationChanged(600000)
+            verify(session.started)
+            compare([session.positionMs, session.durationMs], [95000, 600000])
+            // On to the next: it is at nothing yet.
+            mpvController.playlistPosChanged(3)
+            compare([session.positionMs, session.playlistPos], [0, 3])
+            // A list started at its first video (-1) is at its first.
+            session.begin(30000)
+            compare(session.playlistPos, -1)
+            mpvController.playlistPosChanged(0)
+            compare([session.positionMs, session.playlistPos], [30000, 0])
+
+            var single = createTemporaryObject(lonelySession, root)
+            single.begin(30000)
+            mpvController.playlistPosChanged(1)
+            compare([single.positionMs, single.playlistPos], [30000, -1])
+            // Its end for the menu opens the menu; no other end does.
+            var asked = 0
+            single.menuRequested.connect(function() { asked++ })
+            single.end("menu")
+            compare(asked, 1)
+        }
+
+        // An entry on FAVORITES and Play at Startup (EntryFavorites.js), as
+        // an entry's options and a video's menu offer them: the startup
+        // favourite put on FAVORITES too, and taken off at startup as it
+        // goes off FAVORITES; named by its title, else its name.
+        function test_entryFavorites() {
+            var core = {
+                favorites: [], startup: "",
+                list_contains: function(id, list, path) {
+                    return this.favorites.some(function(e) { return e.path === path })
+                },
+                add_to_list: function(id, list, entry, max) { this.favorites = this.favorites.concat([entry]) },
+                remove_from_list: function(id, list, path) {
+                    this.favorites = this.favorites.filter(function(e) { return e.path !== path })
+                },
+                get_setting: function(id, key) { return this.startup },
+                save_setting: function(id, key, value) { this.startup = value }
+            }
+            var film = { name: "B.mkv", path: "/films/B.mkv", isFolder: false }
+            var talk = { name: "A Talk.mp4", title: "A Talk", path: "video/abc123" }
+            compare(EntryFavorites.choices(false, false).map(function(c) { return c.label + ":" + c.action }),
+                    ["Add to Favorites:favorite", "Play at Startup:startup"])
+            compare(EntryFavorites.choices(true, true).map(function(c) { return c.label }),
+                    ["Remove from Favorites", "Don't Play at Startup"])
+
+            EntryFavorites.toggleFavorite(core, "m", film)
+            verify(EntryFavorites.isFavorite(core, "m", film))
+            verify(!EntryFavorites.isAtStartup(core, "m", film))
+            // Already a favourite: nothing more on FAVORITES.
+            verify(!EntryFavorites.toggleStartup(core, "m", film))
+            compare(core.startup, { module: "m", path: "/films/B.mkv", name: "B.mkv" })
+            verify(EntryFavorites.isAtStartup(core, "m", film))
+            verify(!EntryFavorites.isAtStartup(core, "other", film))
+            // Off FAVORITES, and so off at startup.
+            EntryFavorites.toggleFavorite(core, "m", film)
+            compare([core.favorites.length, core.startup], [0, ""])
+
+            // Played at startup from FAVORITES: it goes there too.
+            verify(EntryFavorites.toggleStartup(core, "m", talk))
+            compare(core.favorites, [talk])
+            compare(core.startup.name, "A Talk")
+            verify(!EntryFavorites.toggleStartup(core, "m", talk))
+            compare(core.startup, "")
+            compare(core.favorites, [talk])
+        }
+
+        // The episode a show's or a season's PLAY opens (Episodes.js): the
+        // first part-watched, else the first unwatched, else the first.
+        function test_bestEpisode() {
+            function seen(ep) { return ep.viewCount > 0 }
+            var watched = { id: "1", viewCount: 1 }, fresh = { id: "2" }, fresh2 = { id: "3", viewCount: 0 }
+            var partly = { id: "4", viewCount: 1, viewOffset: 5000 }
+            compare(Episodes.best([], seen), null)
+            compare(Episodes.best([watched, fresh, partly], seen).id, "4")
+            compare(Episodes.best([watched, fresh2, fresh], seen).id, "3")
+            compare(Episodes.best([watched, { id: "5", viewCount: 2 }], seen).id, "1")
+            compare(Episodes.best([{ id: "6", played: true }, { id: "7", played: false }],
+                                  function(ep) { return ep.played }).id, "7")
         }
 
         // Every player sends mpv the same keys through that one table as
@@ -1767,7 +2588,306 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
-        // CLOSE VIDEO in a player's menu (YouTube's, Local Files',
+        // Resume Playback, as each module saves it: Ask asks where to start
+        // a video with a resume point, Always starts it there, Never from
+        // the beginning, without asking. Plex, Local Files and the NFC
+        // Reader save ask / yes / no, Jellyfin and Emby ask / always /
+        // never, YouTube Ask / Always / Never.
+        function test_resumePlaybackFollowsItsSetting_data() {
+            var server = { streamUrl: "http://server/stream", itemId: "e1", mediaSourceId: "e1",
+                           title: "Episode 1", viewOffset: 90000 }
+            var players = [{ module: "plex", saved: ["ask", "yes", "no"],
+                             params: { streamUrl: "http://plex/10", plexToken: "token", ratingKey: "10",
+                                       partKey: "/library/parts/10", title: "Episode 1", viewOffset: 90000 } },
+                           { module: "jellyfin", saved: ["ask", "always", "never"], params: server },
+                           { module: "emby", saved: ["ask", "always", "never"], params: server },
+                           { module: "youtube", saved: ["Ask", "Always", "Never"],
+                             params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123",
+                                               title: "A Talk" } } },
+                           { module: "local_files", saved: ["ask", "yes", "no"],
+                             params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                           { module: "nfc_reader", saved: ["ask", "yes", "no"],
+                             params: { videoPath: "/films/A.mkv", title: "A" } }]
+            var rows = []
+            for (var p of players) {
+                rows.push({ tag: p.module + ", Ask", module: p.module, params: p.params, saved: p.saved[0], asks: true })
+                rows.push({ tag: p.module + ", Always", module: p.module, params: p.params, saved: p.saved[1], start: 90 })
+                rows.push({ tag: p.module + ", Never", module: p.module, params: p.params, saved: p.saved[2], start: 0 })
+            }
+            return rows
+        }
+        function test_resumePlaybackFollowsItsSetting(data) {
+            appCore.settings = { resume_playback: data.saved, shuffle_playback: "no" }
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 } }
+            youtubeBackend.saved = { pos: 90000 }
+            nfcReaderBackend.saved = { pos: 90000, plPos: -1 }
+
+            var prompt = promptOf(open(data.module, "Player.qml", data.params))
+            compare(prompt.visible, !!data.asks)
+            if (data.asks) {
+                compare(mpvController.loads, 0)
+                return
+            }
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], data.start)
+        }
+
+        // A video still playing behind the menus, chosen again (the main
+        // menu's row, or the same video in its module): its player takes the
+        // session back where it is (takeBack), not from what it saved as back
+        // left it, which says nothing of a video's first seconds or its end.
+        // Left with Browse instead (none behind the menus), it starts again
+        // where it was saved, without asking.
+        function test_aVideoBehindTheMenusIsTakenBack_data() {
+            var talk = { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" }
+            return [{ tag: "youtube", module: "youtube", params: { item: talk },
+                      note: { module: "com.osdos.youtube", params: { item: talk } } },
+                    { tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" },
+                      note: { module: "com.osdos.local_files", params: { filePath: "/films/B.mkv" }, plPos: -1,
+                              shuffle: false } },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" },
+                      note: { module: "com.osdos.playlists", params: { playlistId: "p1", plPos: -1,
+                                                                       prepared: { file: "/data/p1.m3u", count: 2 } } } }]
+        }
+        function test_aVideoBehindTheMenusIsTakenBack(data) {
+            appCore.settings = { resume_playback: "ask", shuffle_playback: "no" }
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 } }
+            youtubeBackend.saved = { pos: 90000 }
+            root.takeBackNote = data.note
+            root.videoBehind = true
+            mpvController.background = true
+            var player = open(data.module, "Player.qml", data.params)
+            compare(mpvController.takeBacks, 1)
+            compare(mpvController.loads, 0)
+            verify(!promptOf(player).visible)
+            verify(player.playbackStarted)
+
+            // Left with Browse: started again where it was saved.
+            if (data.module === "playlists")
+                return
+            root.videoBehind = false
+            mpvController.background = false
+            open(data.module, "Player.qml", data.params)
+            compare(mpvController.takeBacks, 1)
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 90)
+        }
+
+        // Back before the first picture, an mpv process having the screen:
+        // the video ends for its player's menu, and closing the menu starts
+        // it again where it was asked to start, at the playlist's video, its
+        // resume point kept, not from the beginning. mpv saying it is at
+        // that video changes nothing; only another video starts at nothing.
+        function test_backBeforeThePictureKeepsTheResumePoint_data() {
+            return [{ tag: "youtube", module: "youtube", settings: { resume_playback: "Always" },
+                      params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" } } },
+                    { tag: "local_files", module: "local_files", settings: { resume_playback: "yes", shuffle_playback: "no" },
+                      params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                    { tag: "local_files, a playlist", module: "local_files", playlist: true,
+                      settings: { resume_playback: "yes", shuffle_playback: "no" },
+                      params: { filePath: "/films/list.m3u", title: "list.m3u" } },
+                    { tag: "playlists", module: "playlists", playlist: true, settings: {},
+                      params: { playlistId: "p1" } }]
+        }
+        function test_backBeforeThePictureKeepsTheResumePoint(data) {
+            appCore.settings = data.settings
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 },
+                                            "/films/list.m3u": { pos: 90000, plPos: 2 } }
+            youtubeBackend.saved = { pos: 90000 }
+            playlistsBackend.resumeIndex = 2
+            playlistsBackend.resumeMs = 90000
+            var player = open(data.module, "Player.qml", data.params)
+            if (data.module === "playlists")
+                keyClick(Qt.Key_Return)   // Resume video 3 at 1:30
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 90)
+            if (data.playlist) {
+                compare(mpvController.playlistStarts[0], 2)
+                mpvController.playlistPosChanged(2)
+            }
+            mpvController.playbackEnded(0, 0, "menu")
+            if (data.module === "local_files")
+                compare(localFilesBackend.positions[data.params.filePath].pos, 90000)
+            if (data.module === "playlists")
+                compare(playlistsBackend.saves, [[2, 90000]])
+            player.backToVideo()
+            compare(mpvController.loads, 2)
+            compare(mpvController.starts[1], 90)
+            if (data.playlist) {
+                compare(mpvController.playlistStarts[1], 2)
+                if (data.module === "local_files")
+                    compare(localFilesBackend.positions[data.params.filePath].plPos, 2)
+                // On to the next video: it is at nothing yet.
+                mpvController.playlistPosChanged(3)
+                compare(player.lastKnownPositionMs, 0)
+                compare(player.lastKnownPlaylistPos, 3)
+            }
+        }
+
+        // A Local Files playlist played shuffled: its places are in an order
+        // only that session had, so it saves none (the one kept for the file
+        // stays as it was), and starting again after the menu, or RETRY,
+        // shuffles it afresh from the start.
+        // Local Files' and Playlists' Loop Playback as it is saved: true or
+        // false, or an older config's "ON" or "OFF", which is off.
+        function test_loopPlaybackAsSaved_data() {
+            return [{ tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" } }]
+        }
+        function test_loopPlaybackAsSaved(data) {
+            var saved = [true, false, "ON", "OFF", undefined]
+            for (var i = 0; i < saved.length; i++) {
+                appCore.settings = { resume_playback: "no", shuffle_playback: "no", loop_playback: saved[i] }
+                playlistsBackend.resumeIndex = -1
+                playlistsBackend.resumeMs = 0
+                open(data.module, "Player.qml", data.params)
+            }
+            compare(mpvController.loops, [true, false, true, false, false])
+        }
+
+        function test_aShuffledPlaylistKeepsNoPlace() {
+            appCore.settings = { resume_playback: "ask", shuffle_playback: "yes" }
+            localFilesBackend.positions = { "/films/list.m3u": { pos: 90000, plPos: 2 } }
+            var player = open("local_files", "Player.qml", { filePath: "/films/list.m3u", title: "list.m3u" })
+            compare(mpvController.shuffles, [true])
+            mpvController.playlistPosChanged(4)
+            player.lastKnownPositionMs = 30000
+            mpvController.playbackEnded(30000, 60000, "menu")
+            compare(localFilesBackend.positions["/films/list.m3u"], { pos: 90000, plPos: 2 })
+            player.backToVideo()
+            compare(mpvController.shuffles, [true, true])
+            compare(mpvController.starts[1], 0)
+            compare(mpvController.playlistStarts[1], -1)
+            mpvController.playbackEnded(0, 0, "failed")
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            keyClick(Qt.Key_Return)
+            compare(mpvController.shuffles, [true, true, true])
+            compare(mpvController.starts[2], 0)
+            compare(mpvController.playlistStarts[2], -1)
+            mpvController.playlistPosChanged(1)
+            mpvController.playbackEnded(20000, 60000, "stopped")
+            compare(localFilesBackend.positions["/films/list.m3u"], { pos: 90000, plPos: 2 })
+        }
+
+        // A Local Files playlist left at its third video with no time in it
+        // (a slideshow's pictures have none, or it stopped as the video
+        // began) resumes there: asked, always, and at startup.
+        function test_aPlaylistResumesAtItsVideoWithNoTime_data() {
+            return [{ tag: "asked", settings: { resume_playback: "ask", shuffle_playback: "no" }, asks: true },
+                    { tag: "always", settings: { resume_playback: "yes", shuffle_playback: "no" } },
+                    { tag: "at startup", settings: { resume_playback: "ask", shuffle_playback: "no" }, startup: true }]
+        }
+        function test_aPlaylistResumesAtItsVideoWithNoTime(data) {
+            appCore.settings = data.settings
+            localFilesBackend.positions = { "/films/list.m3u": { pos: 0, plPos: 2 } }
+            var player = open("local_files", "Player.qml", { filePath: "/films/list.m3u", title: "list.m3u",
+                                                            startup: !!data.startup })
+            if (data.asks) {
+                var prompt = promptOf(player)
+                verify(prompt.visible)
+                compare(prompt.choices[0].label, "Resume video 3 at 0:00")
+                keyClick(Qt.Key_Return)
+            }
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 0)
+            compare(mpvController.playlistStarts[0], 2)
+        }
+
+        // A video's own menu (PlayerMenu) in every player that has one: its
+        // two ways out first, under the cursor as it opens, each with its
+        // help, then a gap the cursor passes over, then the settings, then
+        // the player's own lines. The same rows with Transparent Background
+        // on (a video behind the menus) and off; only BACK TO's help says
+        // which. The hint bar names CHANGE on a setting alone and SELECT on
+        // an action alone, in a keyboard's names and a pad's.
+        function test_playerMenu_data() {
+            var talk = { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" }
+            var rows = []
+            for (var module of ["youtube", "local_files", "playlists"]) {
+                for (var behind of [false, true]) {
+                    for (var pad of [false, true]) {
+                        rows.push({ tag: module + (behind ? ", behind the menus" : ", ended for it") + (pad ? ", a pad" : ""),
+                                    module: module, behind: behind, pad: pad,
+                                    params: module === "youtube" ? { item: talk }
+                                          : module === "local_files" ? { filePath: "/films/B.mkv", title: "B.mkv" }
+                                          : { playlistId: "p1" },
+                                    own: module === "youtube" ? ["Add to Favorites", "Play at Startup", "Save to Watch Later"]
+                                       : module === "local_files" ? ["Add to Favorites", "Play at Startup"] : [] })
+                    }
+                }
+            }
+            return rows
+        }
+        function test_playerMenu(data) {
+            appCore.settings = { resume_playback: "no", shuffle_playback: "no" }
+            appCore.schema = [{ key: "video_scaling", label: "Scaling", type: "list_single",
+                                options: ["Default", "Fit"], default: "Default" }]
+            playlistsBackend.resumeIndex = -1
+            moduleRoot.moduleName = data.module === "youtube" ? "YouTube"
+                                  : data.module === "local_files" ? "Local Files" : "Playlists"
+            if (data.pad)
+                root.hints = Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" })
+            var h = root.hints
+            var player = open(data.module, "Player.qml", data.params)
+            mpvController.videoActive = data.behind
+            player.openMenu()
+            var menu = null
+            for (var i = 0; i < player.children.length; i++) {
+                if (typeof player.children[i].exits === "function")
+                    menu = player.children[i]
+            }
+            verify(menu !== null && menu.visible)
+            var name = moduleRoot.moduleName
+            compare(menu.rows.map(function(r) { return r.label || "" }),
+                    ["Back to " + name, "Stop, to Main Menu", "", "Scaling"].concat(data.own))
+            compare(menu.rows[2].gap, true)
+            // A name ending in s takes the apostrophe alone.
+            var owner = { youtube: "YouTube's", local_files: "Local Files'", playlists: "Playlists'" }[data.module]
+            compare(menu.rows[0].description, data.behind ? "To " + owner + " lists, the video playing on behind them"
+                                                          : "To " + owner + " lists. The video stops where it is")
+            compare(menu.rows[1].description, "Ends the video and goes to the main menu")
+            var hintBar = function() {
+                for (var j = 0; j < menu.children.length; j++) {
+                    var item = menu.children[j]
+                    if (typeof item.text === "string" && item.text.indexOf(":VIDEO") >= 0)
+                        return item.text
+                }
+                return ""
+            }
+            var list = null
+            for (var k = 0; k < menu.children.length; k++) {
+                if (menu.children[k].currentIndex !== undefined && typeof menu.children[k].step === "function")
+                    list = menu.children[k]
+            }
+            compare(list.currentIndex, 0)
+            compare(hintBar(), h.back + ":VIDEO " + h.navigate + ":NAVIGATE " + h.select + ":SELECT")
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 1)
+            compare(hintBar(), h.back + ":VIDEO " + h.navigate + ":NAVIGATE " + h.select + ":SELECT")
+            // Over the gap to the first setting.
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 3)
+            compare(hintBar(), h.back + ":VIDEO " + h.navigate + ":NAVIGATE " + h.change + ":CHANGE")
+            keyClick(Qt.Key_Up)
+            compare(list.currentIndex, 1)
+            // ◄ ► on a way out change nothing.
+            keyClick(Qt.Key_Right)
+            compare(list.currentIndex, 1)
+            verify(menu.visible)
+            // STOP, TO MAIN MENU leaves the module, the video stopped first
+            // where one plays.
+            keyClick(Qt.Key_Return)
+            verify(!menu.visible)
+            if (data.behind) {
+                compare(root.leaves, 0)
+                mpvController.videoActive = false
+                mpvController.playbackEnded(5000, 60000, "stopped")
+            }
+            compare(root.leaves, 1)
+        }
+
+        // STOP, TO MAIN MENU in a player's menu (YouTube's, Local Files',
         // Playlists'): the video stopped, then the module left at once for
         // the main menu (the router's leaveModule), not one view back; with
         // no video left playing, the module left there and then.
@@ -1794,6 +2914,26 @@ StandInRoot {
             compare(root.backs, 0)
         }
 
+        // YouTube's player hands mpv the subtitle language of Subtitles In
+        // while Subtitles is on, none on Subtitles In's Any (saved "-", and
+        // where nothing is saved), and none with Subtitles off.
+        function test_youtubeSubtitleLanguages_data() {
+            return [{ tag: "a language", settings: { subtitles: "On", subtitle_language: "tr" }, track: 0, langs: ["tr"] },
+                    { tag: "Any", settings: { subtitles: "On", subtitle_language: "-" }, track: 0, langs: [] },
+                    { tag: "nothing saved", settings: { subtitles: "On" }, track: 0, langs: [] },
+                    { tag: "with automatic captions, Any", settings: { subtitles: "With Auto", subtitle_language: "-" },
+                      track: 0, langs: [] },
+                    { tag: "off", settings: { subtitles: "Off", subtitle_language: "tr" }, track: -2, langs: [] }]
+        }
+        function test_youtubeSubtitleLanguages(data) {
+            appCore.settings = data.settings
+            open("youtube", "Player.qml", { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123",
+                                                    title: "A Talk" } })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks, [data.track])
+            compare(mpvController.subLangs, [data.langs])
+        }
+
         // The NFC Reader's player starts a card's video with Auto Show
         // Subtitles as its backend reads the setting: one saved in its old
         // On/Off form (true or false) plays subtitles On or Forced Only,
@@ -1811,6 +2951,142 @@ StandInRoot {
             open("nfc_reader", "Player.qml", { videoPath: "/films/A.mkv", title: "A" })
             compare(mpvController.loads, 1)
             compare(mpvController.subTracks, [data.subTrack])
+        }
+
+        // Ambient:Mode's picker: select starts from any row, VIDEO's (where
+        // the cursor is as it opens) as START's, ◄ ► still changing the
+        // row's value; the hint bar says START, CHANGE only where a row has
+        // more than one value. With nothing to play, back alone, and select
+        // starts nothing.
+        function test_ambientPicker_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_ambientPicker(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var footer = function(view) {
+                for (var i = 0; i < view.children.length; i++) {
+                    var item = view.children[i]
+                    if (typeof item.text === "string" && item.text.indexOf(":BACK") >= 0)
+                        return item.text
+                }
+                return ""
+            }
+            var view = open("ambient_mode", "Items.qml", {})
+            compare(footer(view), h.back + ":BACK")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 0)
+
+            ambientModeBackend.videos = [{ name: "Fireplace", path: "/ambient/Fireplace.mp4" },
+                                         { name: "Rain", path: "/ambient/Rain.mp4" }]
+            view = open("ambient_mode", "Items.qml", {})
+            compare(view.focusRow, 0)
+            compare(footer(view), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.change + ":CHANGE "
+                                  + h.select + ":START")
+            keyClick(Qt.Key_Right)
+            compare(view.videoIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "Player.qml")
+            compare(root.navigations[0].params.videoPath, "/ambient/Rain.mp4")
+            // AUDIO: the video's own alone, nothing to change.
+            keyClick(Qt.Key_Down)
+            compare(footer(view), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":START")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 2)
+            keyClick(Qt.Key_Down)
+            compare(footer(view), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.select + ":START")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 3)
+            root.hints = root.keyboardHints
+        }
+
+        // A row with one choice shows that choice, without ◄ ►: one video
+        // and no music, VIDEO shows the video's name and AUDIO VIDEO AUDIO,
+        // each line as tall as its row; a second video brings the arrows.
+        function test_ambientPickerOneChoiceShown_data() {
+            return [{ tag: "one video", videos: 1, arrows: false },
+                    { tag: "two videos", videos: 2, arrows: true }]
+        }
+        function test_ambientPickerOneChoiceShown(data) {
+            ambientModeBackend.videos = [{ name: "Fireplace", path: "/ambient/Fireplace.mp4" },
+                                         { name: "Rain", path: "/ambient/Rain.mp4" }].slice(0, data.videos)
+            ambientModeBackend.audios = []
+            var view = open("ambient_mode", "Items.qml", {})
+            var line = function(item, text) {
+                if (item.textItem !== undefined && item.text === text)
+                    return item
+                for (var i = 0; i < item.children.length; i++) {
+                    var found = line(item.children[i], text)
+                    if (found)
+                        return found
+                }
+                return null
+            }
+            var arrows = function(item) {
+                var n = item.text === "►" && item.visible ? 1 : 0
+                for (var i = 0; i < item.children.length; i++)
+                    n += arrows(item.children[i])
+                return n
+            }
+            for (var name of ["Fireplace", "VIDEO AUDIO"]) {
+                var value = line(view, name)
+                verify(value !== null, name)
+                verify(value.visible, name)
+                compare(value.height, root.menuRowHeight, name)
+                verify(value.textItem.height > 0 && value.textItem.y >= 0
+                       && value.textItem.y + value.textItem.height <= value.height, name)
+            }
+            compare(arrows(view), data.arrows ? 1 : 0)
+        }
+
+        // An empty media folder says so, naming the setting that picks it as
+        // the module's settings page does: Media Folder.
+        function test_emptyMediaFolderNamesItsSetting_data() {
+            return [{ tag: "local_files", module: "local_files", says: "Add files to the Local Files media folder" },
+                    { tag: "ambient_mode", module: "ambient_mode", says: "Add videos to the Ambient:Mode media folder" }]
+        }
+        function test_emptyMediaFolderNamesItsSetting(data) {
+            localFilesBackend.folder = []
+            ambientModeBackend.videos = []
+            var texts = function(item) {
+                var found = typeof item.text === "string" && item.visible ? [item.text] : []
+                for (var i = 0; i < item.children.length; i++)
+                    found = found.concat(texts(item.children[i]))
+                return found
+            }
+            var view = open(data.module, "Items.qml", {})
+            tryVerify(function() { return texts(view).indexOf(data.says) >= 0 }, 2000, texts(view).join(" | "))
+            compare(texts(view).filter(function(t) { return /directory/i.test(t) }), [])
+        }
+
+        // The Scripts module's list: ► puts a script on the main menu (or
+        // takes it off), which the hint bar and the help line say in those
+        // words; an empty folder has back alone.
+        function test_scriptsHints_data() {
+            return [{ tag: "keyboard", hints: root.keyboardHints },
+                    { tag: "pad", hints: Object.assign({}, root.keyboardHints, { back: "[B]", select: "[A]" }) }]
+        }
+        function test_scriptsHints(data) {
+            root.hints = data.hints
+            var h = data.hints
+            var footer = function(view) {
+                for (var i = 0; i < view.children.length; i++) {
+                    var item = view.children[i]
+                    if (typeof item.text === "string" && item.text.indexOf(":BACK") >= 0)
+                        return item.text
+                }
+                return ""
+            }
+            var items = open("scripts", "Items.qml", {})
+            compare(footer(items), h.back + ":BACK " + h.navigate + ":NAVIGATE " + h.browse + ":ON MAIN MENU "
+                                   + h.select + ":RUN")
+            loader.source = ""
+            scriptsBackend.none = true
+            items = open("scripts", "Items.qml", {})
+            compare(footer(items), h.back + ":BACK")
+            root.hints = root.keyboardHints
         }
 
         // The Scripts module's Run script? asks as the players do: Cancel
@@ -1880,6 +3156,37 @@ StandInRoot {
             compare(notice.detail, "On macOS: brew install mpv")
             keyClick(Qt.Key_Return)
             compare(mpvController.loads, 2)
+        }
+
+        // PLAY FROM HERE on a video that can't play yet (not downloaded, its
+        // download failed, its file or server gone) says why, and plays
+        // nothing, not the list from its first video; on one that can, the
+        // list plays from it.
+        function test_playlistsPlayFromHereOnAVideoThatCannotPlay_data() {
+            return [{ tag: "queued", item: { id: "v2", state: "queued" }, why: "It is not on the device yet" },
+                    { tag: "downloading", item: { id: "v2", state: "downloading" }, why: "It is not on the device yet" },
+                    { tag: "failed", item: { id: "v2", state: "failed" }, why: "Its download failed" },
+                    { tag: "file gone", item: { id: "v2", state: "missing" }, why: "Its file is not there" },
+                    { tag: "signed out", item: { id: "v2", state: "missing", reason: "signed out" },
+                      why: "Its server is signed out" }]
+        }
+        function test_playlistsPlayFromHereOnAVideoThatCannotPlay(data) {
+            playlistsBackend.kind = "offline"
+            playlistsBackend.items = [{ id: "v1", state: "ready" }, data.item]
+            playlistsBackend.unplayable = ["v2"]
+            var player = open("playlists", "Player.qml", { playlistId: "p1", fromItemId: "v2" })
+            compare(mpvController.loads, 0)
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            compare(notice.title, "Could not play")
+            compare(notice.reason, data.why)
+            keyClick(Qt.Key_Return)
+            compare(root.backs, 1)
+            compare(mpvController.loads, 0)
+
+            open("playlists", "Player.qml", { playlistId: "p1", fromItemId: "v1" })
+            compare(mpvController.loads, 1)
+            compare(mpvController.playlistStarts, [0])
         }
 
         // The players that go back without a word when their video fails

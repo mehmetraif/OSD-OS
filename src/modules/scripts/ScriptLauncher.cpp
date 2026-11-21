@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 #endif
 #ifndef SIGKILL
 // Windows has no SIGKILL: here the number only tells killGroup() a kill from
@@ -296,8 +297,8 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     if (isBusy())
         return fail(QStringLiteral("Another script is still running"));
 
-    // --- Pre-flight. Nothing is spawned (and from Phase 4, no display is handed
-    // over) until every one of these passes.
+    // --- Pre-flight. Nothing is spawned (and no display is handed over) until
+    // every one of these passes.
     const QFileInfo fi(entry.path);
     if (!fi.exists())    return fail(QStringLiteral("File no longer exists"));
     if (!fi.isFile())    return fail(QStringLiteral("Not a regular file"));
@@ -433,12 +434,31 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
                                               : QProcess::MergedChannels);
 
 #ifdef Q_OS_UNIX
+    // A nice value below 0 only where the limit lets this user give it
+    // (Linux's RLIMIT_NICE: 20 minus the lowest nice it allows), or as root:
+    // tried otherwise, it would only fail.
+    int nice = 0;
+    if (entry.nice < 0) {
+        bool allowed = ::geteuid() == 0;
+#ifdef RLIMIT_NICE
+        struct rlimit limit {};
+        allowed = allowed || (::getrlimit(RLIMIT_NICE, &limit) == 0
+                              && (limit.rlim_cur == RLIM_INFINITY || limit.rlim_cur >= rlim_t(20 - entry.nice)));
+#endif
+        if (allowed)
+            nice = entry.nice;
+        else
+            qInfo("[Scripts] '%s' runs at the app's priority: nice %d isn't allowed here (LimitNICE=)",
+                  qPrintable(entry.basename), entry.nice);
+    }
     // Runs between fork and exec: async-signal-safe calls only, no allocation.
     // setsid() makes the child its own session AND process-group leader, so
     // pgid == pid, killpg() reaches everything it spawns, and (in takeover mode)
     // an empty group is how we know the screen is free again.
-    m_process->setChildProcessModifier([devPath, wantCtty]() {
+    m_process->setChildProcessModifier([devPath, wantCtty, nice]() {
         ::setsid();
+        if (nice != 0)
+            ::setpriority(PRIO_PROCESS, 0, nice);
         if (wantCtty) {
             const int fd = ::open(devPath.data(), O_RDWR | O_NOCTTY);
             if (fd >= 0) {
@@ -489,6 +509,10 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
         given += QStringLiteral(", no sound card that can play");
     if (env.contains(QStringLiteral("SDL_KMSDRM_DEVICE_INDEX")))
         given += QStringLiteral(", DRM card ") + env.value(QStringLiteral("SDL_KMSDRM_DEVICE_INDEX"));
+#ifdef Q_OS_UNIX
+    if (nice != 0)
+        given += QStringLiteral(", nice %1").arg(nice);
+#endif
     qInfo("[Scripts] Running '%s' (%s, %s%s%s%s)", qPrintable(entry.basename),
           direct ? "direct" : "/bin/sh",
           takeover ? "takeover" : "console",

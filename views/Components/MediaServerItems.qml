@@ -23,7 +23,7 @@ FocusScope {
     property string parentId: navParams.parentId || ""
     property string libraryName: navParams.libraryName || ""
     property string includeTypes: navParams.includeTypes || "Movie"
-    property string mode: navParams.mode || "browse"   // "browse", "resume", or "up_next"
+    property string mode: navParams.mode || "browse"   // "browse", "folder", "boxset", "static", "resume" or "up_next"
 
     property var items: []
     property bool isLoading: false
@@ -39,6 +39,7 @@ FocusScope {
     // lists keep their order, and the cursor its row.
     function show(loadedItems) {
         isLoading = false
+        errorMessage = ""
         items = loadedItems
         itemList.restore(mode === "resume" || mode === "up_next" ? navListState
                          : { currentIndex: navListState.currentIndex })
@@ -63,10 +64,16 @@ FocusScope {
             if (itemListRoot.mode === "up_next") itemListRoot.show(loadedItems)
         }
 
+        // The backend's errors are every request's: this list's own only
+        // while it waits for its rows. One that comes once they are shown
+        // (a request of a page left, failing late) is not drawn over them;
+        // one taken while waiting goes as the rows come after all (show()).
         function onErrorOccurred(msg) {
+            console.log("[" + moduleRoot.moduleName + " Items] Error: " + msg)
+            if (!itemListRoot.isLoading)
+                return
             itemListRoot.isLoading = false
             itemListRoot.errorMessage = msg
-            console.log("[" + moduleRoot.moduleName + " Items] Error: " + msg)
         }
     }
 

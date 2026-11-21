@@ -80,12 +80,12 @@ Right on a game opens its options; on the Arcade screen, hold select.
 | Option | What it does |
 |---|---|
 | **Game Details** | The game's page ([Game Details](#game-details)) |
-| **Monitor** | For a vertical game, while Settings → Screen → Monitor isn't turned: **Turned Right**, **Turned Left** or **Default** ([A monitor on its side](#a-monitor-on-its-side-tate)) |
+| **Vertical Games** | For a vertical game, while Settings → Screen → Rotation isn't turned: **Turned Right**, **Turned Left** or **Default**, as Settings → Arcade → Emulator Video → Vertical Games is ([A monitor on its side](#a-monitor-on-its-side-tate)) |
 | **Difficulty** | For a game MAME plays whose board has a difficulty DIP switch ([Difficulty](#difficulty)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off; 100 at most |
 | **Engine** | For a game both MAME and FinalBurn Neo have: **Auto**, **MAME** or **FinalBurn Neo** ([FinalBurn Neo](#finalburn-neo)) |
 | **Host Online Game**, **Host LAN Game** | With **Online Play** or **LAN Play** on, for a game FinalBurn Neo has ([Playing together](#playing-together)) |
-| **Play at Startup** / **Don't Play at Startup** | Starts the game every time OSD/OS starts, ahead of Settings → Startup → Start on Module. There is one for the whole app: choosing another replaces it |
+| **Play at Startup** / **Don't Play at Startup** | Starts the game every time OSD/OS starts, ahead of Settings → Startup → Start On. There is one for the whole app: choosing another replaces it |
 
 ## The Arcade screen
 
@@ -115,7 +115,7 @@ On a pad, COIN is its Back button, so here the pad's B is Back.
 
 <table>
 <tr><th>Straight</th><th>Curved</th><th>3D Curved</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: Final Fight two rows under the wheel's middle, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: nine games on the wheel, Final Fight a row under its middle, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
 </table>
 
 **Settings → Arcade → List Style** lays the list out:
@@ -182,7 +182,7 @@ On a CRT, move each side to where the tube's edge cuts the picture off.
 
 Three settings hide games from every filter and list, on both screens. Favorites and Recently Played keep the hidden games.
 
-- **Hide Hacks and Bootlegs** hides the sets marked as a bootleg or a hack, in the parentheses of the name (`Galaga (bootleg)`) or as the maker.
+- **Hide Bootlegs** hides the sets marked as a bootleg or a hack, in the parentheses of the name (`Galaga (bootleg)`) or as the maker.
 - **Hide Incomplete Games** hides the games [Check ROMs](#check-roms) found files missing of for every engine that knows them.
 - **Regions** hides the sets of the regions turned off: World, USA, Europe, Asia, Japan, Korea, China, Hong Kong, Taiwan, Hispanic, Brazil, Oceania and Others.
 
@@ -205,7 +205,7 @@ Search is the last filter. While it is shown, the on-screen keyboard stands in t
 
 ### Menu Filters
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, ON; the help line: Turns all of the choices under it on or off" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online, Vertical Games and Not Recognized, ON; the GENRES heading selected; the help line: Turns all of the choices under it on or off; the hint bar: [◄►]/[ENTER]:CHANGE ALL" />
 
 **Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings: **Lists**, **Genres**, **Players**, **Years** and **Publishers**.
 
@@ -237,7 +237,7 @@ The genres come from **catver.ini**, progettosnaps.net's category list for MAME'
 A game's pictures are, in this order:
 
 1. `titles/<set>.png` in the games folder, its title screen.
-2. `snap/<set>_1.png`, `snap/<set>_2.jpg`… in the games folder: your own and those downloaded from RetroAchievements.
+2. `snap/<set>_1.png`, `snap/<set>_2.jpg`… in the games folder: your own and those downloaded from RetroAchievements. They count up from 1; one after more than three numbers in a row are missing is taken for another machine's (a picture pack's `tmnt_104.png` is a pinball's, not Konami's TMNT's).
 3. `snap/<set>.png` (or `.jpg`).
 4. The first snapshot taken of it in MAME (F12 in the game), kept in `arcade/snap/<set>/`.
 
@@ -245,7 +245,7 @@ A game's pictures are, in this order:
 - With more than one, the Arcade screen shows the next every 4 seconds.
 - Without any, the frame says `No Picture` and the file it would be, with `No Web API Key` or `Web API Key Refused` where that is why.
 
-**Settings → Arcade → Pictures From** sets where pictures are downloaded from: **RetroAchievements, then progetto-SNAPS** (the default), either alone, or **Off**. **Settings → Arcade → Game Pictures** says how many games have a picture, and holds **Download Pictures**.
+**Settings → Arcade → Game Pictures** opens on **Source**, which sets where pictures are downloaded from: **Both** (the default: RetroAchievements, then progetto-SNAPS for the games still without a picture), **RetroAchievements**, **progetto-SNAPS**, or **Off**. Under it is **Download Pictures**, the cursor on it, then how many games have a picture, and whether each source is in use: **RetroAchievements** reads `No Key` without a Web API key and `Refused` when RetroAchievements turned the key down, its help line saying which.
 
 #### Pictures from RetroAchievements
 
@@ -266,7 +266,7 @@ These need a **Web API Key** in **Settings → Arcade → RetroAchievements Acco
 
 #### Download Pictures
 
-**Settings → Arcade → Game Pictures → Download Pictures** looks for every game's pictures in the background, a game a second, as Pictures From allows.
+**Settings → Arcade → Game Pictures → Download Pictures** looks for every game's pictures in the background, a game a second, as Game Pictures' Source allows.
 
 - The Game Pictures page and the picture's frame say how far it has got (`Downloading 120/900`).
 - Games whose pictures couldn't be had are tried again ten minutes later, up to three looks in a row.
@@ -286,9 +286,10 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. The credits 
 **Settings → Arcade → Attract Mode** makes the Arcade screen go through its games on its own when left alone, a game every six seconds. It is Off by default.
 
 - **In Order** goes down the list and round; **Random** picks a game at random each time.
-- **Attract After** sets how long the screen is left alone first: 30 Seconds, 1 Minute (the default), 2 Minutes or 5 Minutes.
+- **Attract After** sets how long the screen is left alone first: 30 sec, 1 min (the default), 2 min or 5 min.
 - The first button or key ends it and does nothing else. COIN also puts in a credit.
 - It waits on Search, Online Games, LAN Games and RetroArch Lobby, and on a filter of fewer than two games.
+- Where it can begin, the screen saver (Settings → Screen → Screen Saver) waits, whichever of the two times is shorter.
 
 ### The Orb look
 
@@ -300,7 +301,7 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. The credits 
 Settings → Look → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass. The keys do what they do on the screen above.
 
 - The games are on a panel at the right, eight to a page. The game's pictures are in the orb at the left.
-- Settings → Look → **Orb Fog** chooses the fog behind: **Picture** (the default) or **Live** (more work for a Raspberry Pi's GPU).
+- Settings → Look → Effects → **Orb Fog** chooses the fog behind: **Picture** (the default) or **Live** (more work for a Raspberry Pi's GPU).
 - A game started goes into the orb for about two and a half seconds, in which no key counts.
 - Screen Adjustment, Hint Bar and Help Line apply; List Style, Border and Info Background don't, and Settings → Arcade shows them dimmed, the help line saying why.
 
@@ -321,7 +322,7 @@ Running `install.sh` again does the same ([Installation → Updating with instal
 
 ### Favorites as a file
 
-**Settings → Arcade → Favorites** keeps the favorites as `osdos-favorites.txt` in the games folder. **Export** writes it, a game's set a line, its title after a `#`:
+**Settings → Arcade → Favorites** keeps the favorites as `osdos-favorites.txt` in the games folder. The page opens on **Export** and **Import**, how many favorites there are under them. **Export** writes it, a game's set a line, its title after a `#`:
 
 ```
 # OSD/OS's Arcade favorites: a game's set a line, its title after the #.
@@ -346,11 +347,11 @@ Three settings turn the picture for a monitor on its side. **Turned Right** has 
 
 | The monitor | Setting |
 |---|---|
-| Stays turned | **Settings → Screen → Monitor** |
+| Stays turned | **Settings → Screen → Rotation** |
 | Is turned for vertical games | **Settings → Arcade → Emulator Video → Vertical Games**: only the vertical games are turned |
-| Is turned for one game | **Monitor** in the game's options, which goes before Vertical Games |
+| Is turned for one game | **Vertical Games** in the game's options, which goes before Settings → Arcade → Emulator Video → Vertical Games |
 
-With Settings → Screen → Monitor turned:
+With Settings → Screen → Rotation turned:
 
 - The games stand upright on it: a vertical game fills the screen, a horizontal one lies across its middle.
 - The Arcade screen takes a tall layout of its own. The Orb look isn't drawn.
@@ -367,10 +368,12 @@ A desktop's monitor is turned in the system's display settings; OSD/OS then lays
 - **The list**: **Earned**, then **Not Earned**. The help line says what the selected one asks for, and `Earned 2026-03-14 in Hardcore` or `Not Earned Yet`.
 - **The badges** are saved in the games folder's `snap` folder as `achieve_sf2_12345.png` (`achieve_sf2_12345_lock.png` for the grey one).
 
-The achievements are read with the account's **Web API Key**, and its **User** for which you have earned ([FinalBurn Neo](#finalburn-neo)). Without them the page says why:
+The achievements are read with the account's **Web API Key**, and its **User Name** for which you have earned ([FinalBurn Neo](#finalburn-neo)). Without them the page says why:
 
-- `No Web API key: Settings, Arcade, RetroAchievements Account`
+- `Achievements need a Web API key`
 - `RetroAchievements refused the Web API key`
+
+With either of those two, **►** (`[►]:SET KEY`) opens **Settings → Arcade → RetroAchievements Account** over the list, and back from it returns to Game Details, the achievements read again. Not while [Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings) keeps Settings shut.
 - `RetroAchievements could not be reached`
 - `RetroAchievements has no achievements for this game`
 
@@ -385,9 +388,9 @@ Names, years, makers, players and systems come from MAME. Those of a set only Fi
 
 ## Check ROMs
 
-**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs** on that page: nothing starts it by itself. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`).
+**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs**, the page's first row, the cursor on it, which shows how far it has got: nothing starts it by itself. What the last check found is under it. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`). Started while the games are still being read, it waits for that too, and then checks them all.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: Last Check Never, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row">
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: the Check ROMs row first with the cursor on it, then Last Check Never and the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games">
 
 The page counts the games: **Complete** (whole for every engine that knows them), **FinalBurn Neo Only** and **MAME Only** (whole for one engine), **Incomplete** (whole for neither) and **Not Checked**. What the check found is used at once:
 
@@ -413,6 +416,8 @@ MAME's own menu is **Tab** on a keyboard, or the controller's guide button: **MO
 
 A game that couldn't start, or that MAME ended with an error, shows what went wrong and MAME's last lines ([Troubleshooting](#troubleshooting)).
 
+A game that ended as it should goes straight back to the list. On a Raspberry Pi that ran short of power or slowed itself down during the game, a screen with the game's name says so first, the first time each happens after OSD/OS starts ([The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)); back goes on to the list.
+
 ## Players and buttons
 
 MAME's players are the ones **Settings → Controls → Players** sets ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#players)): player 1's controller is MAME's joystick 1, up to player 6.
@@ -433,6 +438,7 @@ MAME's players are the ones **Settings → Controls → Players** sets ([Control
 **Game Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Game Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#game-buttons)).
 
 - A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line.
+- A pad SDL knows by its kind starts on **Auto**: a game of five buttons or more (Street Fighter II, Mortal Kombat, Killer Instinct) on **Fighting 6**'s buttons, any other on **Neo Geo 4**'s. Which is which comes from MAME's own list of the games, which OSD/OS carries. Online, Auto plays as Engine's.
 - What is changed in MAME's menu comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
 - In a game played with others, the host's layout holds for every player ([Players](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#players)).
 
@@ -494,12 +500,12 @@ FinalBurn Neo is a second arcade emulator, played here in RetroArch as a libretr
 Sign in under **Settings → Arcade → RetroAchievements Account**:
 
 1. Make an account at retroachievements.org.
-2. Type **User**, then **Password**, then **Sign In**. **Status** says **Checking** for a moment, then **Signed In**.
-   - **Not Signed In**: RetroAchievements' reason is under **Password** (`Invalid User/Password combination`). Type it again.
+2. Type **User Name**, then **Password** (each reads **Not Set** until it is typed), then **Sign In**, which is dimmed until both are typed. The **Account** line says **Not Signed In**, then **Signing In** for a moment, then your user name.
+   - **Not Signed In** again: RetroAchievements' reason is under **Password** (`Invalid User/Password combination`). Type it again.
    - **At the Next Game**: no connection. RetroArch signs in as the next FinalBurn Neo game starts.
-3. Type the **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**. It is not the password. The page says **Working**, **Kept** while it can't be checked, or **Refused**.
+3. Type the **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**. It is not the password. The page says **Working**, **Set** while it can't be checked, or **Refused**.
 
-The key is for the leaderboards, the games' pictures and the achievements in Game Details. **Forget Web API Key** removes it; **Sign Out** forgets the account and its token. The password is never saved. On the OSD/OS image and a Raspberry Pi, the RetroArch that comes with OSD/OS sends it over https, and only to a server whose certificate it has checked. A system's own RetroArch built without TLS, as Debian's and Ubuntu's packages are, sends it over plain HTTP: use one you use nowhere else there.
+The key is for the leaderboards, the games' pictures and the achievements in Game Details. **Forget Web API Key** removes it; **Sign Out** forgets the account and its token. Each asks first ("Forget the Web API key?", "Sign out of RetroAchievements?"), with **Cancel** under the cursor. The password is never saved. On the OSD/OS image and a Raspberry Pi, the RetroArch that comes with OSD/OS sends it over https, and only to a server whose certificate it has checked. A system's own RetroArch built without TLS, as Debian's and Ubuntu's packages are, sends it over plain HTTP: use one you use nowhere else there.
 
 **RA Hi-Score.** With Online High Scores on RetroAchievements and a key, the Arcade screen's box shows each FinalBurn Neo game's leaderboard, kept ten minutes. For a game with no leaderboard, or while it is read or can't be, the box shows this machine's own table. With no table either, it says `Reading…`, or `Not Reachable` without a connection or with a key refused.
 
@@ -509,11 +515,11 @@ The High Scores module shows MAME's tables only: a game played in FinalBurn Neo 
 
 FinalBurn Neo comes with OSD/OS on every system, built from one commit of it. RetroArch and MAME are the OSD/OS image's versions ([The same engines on every machine](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#the-same-engines-on-every-machine)).
 
-**Settings → Arcade → FinalBurn Neo** shows RetroArch, the core, and how many games its list has.
+**Settings → Arcade → FinalBurn Neo** opens on the core's download, the cursor on it, then shows RetroArch, the core, and how many games its list has.
 
 - The core reads **With OSD/OS**, **Latest** after an upgrade, or **Installed**. Its line names the commit and date OSD/OS brought, as `77016b4 (261108)`.
 - **Upgrade to Latest** fetches the core libretro builds every night, about 35 MB, into `arcade/retroarch` in the data folder. Machines playing together need the same core, so play with others on OSD/OS's.
-- **Download Latest Again** fetches a newer one. **Back to OSD/OS's Version** deletes it. Core options, remap files, saves and save states stay.
+- **Download Latest Again** fetches a newer one. **Back to OSD/OS's Version**, under it, deletes it once you answer **Go Back** to "Go back to OSD/OS's version? The download is deleted" (**Cancel** is under the cursor). Core options, remap files, saves and save states stay.
 - The BSDs have no such row. A build of OSD/OS from source without the core has **Download** instead.
 - A download that brings nothing for a minute, or grows past 64 MB, is given up.
 
@@ -536,11 +542,13 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 - **LAN Play**: up to six players across the machines of your network, with no internet.
 - **Online Play**: through RetroArch's lobby and a relay.
 - **LAN Games**, **Online Games** and **RetroArch Lobby** list the games others host. **Host LAN Game** and **Host Online Game** host one.
+- On a room of **LAN Games**, the line under the list (the help line on the Arcade screen) opens with `Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable` where that is how this machine reaches the host. **Host LAN Game** says the same of this machine's link under the options while the cursor is on it, then `The fastest machine on a cable should host` where that applies, and the page shown while it hosts says both again ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)).
 - A game hosted or joined plays in FinalBurn Neo whatever its **Engine** says.
 
 ## The picture and the sound
 
 - MAME and RetroArch draw the game in the display mode OSD/OS runs in (**Settings → Screen → Display Output**).
+- On a Raspberry Pi whose screen is larger than 1920x1080 (a 4K TV), or runs at less than 50 Hz, a game asks for 1920x1080 at 60 Hz where the TV offers it, and the app's log says so: `arcade: the screen is 3840x2160 at 30 Hz: the game asks for 1920x1080 at 60 Hz`. A CRT's, JAMMA's and SCART's modes, and a 1080p screen, are left as they are.
 - On a Raspberry Pi 5, MAME opens the output the display preset names. RetroArch opens the first output with a screen plugged in.
 - The sound goes to the card **Settings → Sound → Audio Output** chose ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)). With no sound card that can play, the game plays without sound.
 - A Pi 5's HDMI plays sound only while that port shows the picture. On the JAMMA board or composite, a USB sound card plays.
@@ -556,22 +564,27 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 | Integer Scale | Auto, On, Off | A game's lines drawn whole, once (twice on a 480-line output), with a thin border above and below. **Auto**: on on a CRT's display output. A game with more lines than the screen fills it either way | `modules.com.osdos.arcade.integer_scale` |
 | Vertical Games | Horizontal, Turned Right, Turned Left | Turns the vertical games for a monitor you turn on its side for them ([A monitor on its side](#a-monitor-on-its-side-tate)) | `modules.com.osdos.arcade.vertical_monitor` |
 | MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | How MAME draws. **Auto** leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL). Try another when a game shows no picture | `modules.com.osdos.arcade.video` |
+| MAME Vsync | Auto, On, Off | Each frame of MAME's waits for the screen's refresh (`-waitvsync`), against tearing and judder. **Auto**: on on a Raspberry Pi 4 or 5 drawing on the console, off elsewhere. **Off** if a game runs slow with it | `modules.com.osdos.arcade.mame_vsync` |
+| Frame Buffers | Auto, Two, Three | How many frames RetroArch keeps queued for the screen on the console (`video_max_swapchain_images`). **Two** shows each frame a refresh sooner than RetroArch's own **Three**, but a frame that comes late is held a whole refresh. **Auto**: Two on a Raspberry Pi 5, Three on the other Pis. A desktop's RetroArch keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.frame_buffers` |
 
 ## Settings
 
-Settings → Arcade. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose **Enabled** follows these rows under a **High Scores** heading. The rows marked † show while Screen is Arcade.
+Settings → Arcade. Enabled comes first, then the rows in groups under headings the cursor steps over: **Games**, **Arcade Screen**, **Playing**, **Scores and Pictures**, **Online and LAN** and **Emulators**. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose Enabled, a row named **High Scores**, follows them under a **High Scores** heading. The rows marked † can be used while Screen is Arcade, and are dimmed otherwise.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
+| Enabled | ON, OFF | OFF | Shows Arcade on the main menu. The games need MAME, and FinalBurn Neo's RetroArch | `modules.com.osdos.arcade.enabled` |
+| **GAMES** | | | | |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets ([Setting it up](#setting-it-up)) | `modules.com.osdos.arcade.games_directory` |
-| Hide Hacks and Bootlegs | ON, OFF | OFF | Hides bootleg and hack sets ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
+| Hide Bootlegs | ON, OFF | OFF | Hides bootleg and hack sets ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
 | Hide Incomplete Games | ON, OFF | OFF | Hides the games Check ROMs found incomplete | `modules.com.osdos.arcade.hide_incomplete` |
 | Regions | Each region ON or OFF | All ON | Hides a region's sets ([Filters](#filters)) | `modules.com.osdos.arcade.regions` |
+| Read the Games Again | (action) | | [Reading the games](#reading-the-games) | |
+| Favorites, Check ROMs | (pages) | | [Favorites as a file](#favorites-as-a-file), [Check ROMs](#check-roms) | |
+| **ARCADE SCREEN** | | | | |
 | Screen | Original, Arcade | Arcade | The tree, or the Arcade screen | `modules.com.osdos.arcade.screen` |
 | Start Filter † | All Games, a list, LAN Games, Online Games, RetroArch Lobby, a genre, a number of players, a decade or a publisher | All Games | The filter the Arcade screen opens on | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters † | Each filter ON or OFF | All ON, the publishers OFF | The filters ◄ ► goes round | `modules.com.osdos.arcade.menu_filters` |
-| Play at Startup | None, then the favorites | None | A favorite started as OSD/OS starts | `modules.com.osdos.arcade.play_at_startup` |
 | List Style † | Straight, Curved, 3D Curved | Curved | How the Arcade screen's games lie | `modules.com.osdos.arcade.list_style` |
 | Border † | ON, OFF | ON | The frames round the picture and the box | `modules.com.osdos.arcade.border` |
 | Info Background † | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How much of the Background Effect shows under the picture and the box | `modules.com.osdos.arcade.info_background` |
@@ -579,29 +592,35 @@ Settings → Arcade. The page is shared with the [High Scores](https://github.co
 | Hint Bar † | ON, OFF | ON | The keys at the foot of the Arcade screen | `modules.com.osdos.arcade.hint_bar` |
 | Help Line † | ON, OFF | ON | The line under the list | `modules.com.osdos.arcade.help_line` |
 | Attract Mode † | Off, In Order, Random | Off | The Arcade screen goes through its games when left alone | `modules.com.osdos.arcade.attract_mode` |
-| Attract After | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the screen is left alone first. Shown while Attract Mode isn't Off | `modules.com.osdos.arcade.attract_after` |
+| Attract After † | 30 sec, 1 min, 2 min, 5 min | 1 min | How long the screen is left alone first. Dimmed while Attract Mode is Off ("Only with Attract Mode on") | `modules.com.osdos.arcade.attract_after` (`"30 Seconds"`, `"1 Minute"`, `"2 Minutes"`, `"5 Minutes"`) |
+| **PLAYING** | | | | |
 | Start Info Screen | ON, OFF | ON | The screen before a game ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | Play Mode | Credits, Free Play | Credits | COIN buys credits, or every game starts with 9 | `modules.com.osdos.arcade.play_mode` |
+| Play at Startup | None, then the favorites | None | A favorite started as OSD/OS starts: the same setting as Settings → Startup → Play at Startup, one for the whole of OSD/OS | `modules.com.osdos.arcade.play_at_startup` |
+| **SCORES AND PICTURES** | | | | |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables ([High scores](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
-| Online High Scores | Off, RetroAchievements | Off | FinalBurn Neo's games play in hardcore mode, their scores going to RetroAchievements | `modules.com.osdos.arcade.online_high_scores` |
+| Online High Scores | Off, RetroAchievements | Off | FinalBurn Neo's games play in hardcore mode, with no save states, as RetroAchievements' leaderboards take only those; their scores go to RetroAchievements | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (page) | | Sign in and out, and the Web API key ([FinalBurn Neo](#finalburn-neo)) | |
-| Pictures From | RetroAchievements, then progetto-SNAPS; RetroAchievements; progetto-SNAPS; Off | RetroAchievements, then progetto-SNAPS | Where pictures are downloaded from | `modules.com.osdos.arcade.pictures_source` |
-| Game Pictures | (page) | | How many games have a picture, and Download Pictures | |
+| Game Pictures | (page) | | Source, Download Pictures, and how many games have a picture | |
+| Source (on Game Pictures' page) | Both, RetroAchievements, progetto-SNAPS, Off | Both | Where pictures are downloaded from. **Both** is saved as `"RetroAchievements, then progetto-SNAPS"` | `modules.com.osdos.arcade.pictures_source` |
+| **ONLINE AND LAN** | | | | |
 | Online Play | Off, On | Off | Play over the internet, in FinalBurn Neo | `modules.com.osdos.arcade.online_play` |
-| Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from. Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
+| Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | The nearest to the time zone | Where a game you host is relayed from. Unset, the one nearest the time zone of **Settings → System → Time Zone**: Madrid for Europe and Africa, São Paulo for South America, New York for the rest of the Americas, Chuncheon for Korea and Japan, Singapore for the rest of Asia and Oceania; New York for UTC. The row shows that one while nothing is saved, without saving it. Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
 | LAN Play | Off, On | Off | Play on the same network, in FinalBurn Neo | `modules.com.osdos.arcade.lan_play` |
-| LAN Sync | Smooth, Responsive | Smooth | How a game you host keeps its machines together. **Smooth**: the joiners follow the host. **Responsive**: every machine plays ahead, with a frame of input latency ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)). Shown while LAN Play is On | `modules.com.osdos.arcade.lan_sync` |
-| Online Name | (on-screen keyboard) | Online, the RetroAchievements account's, else OSD-OS; on the local network, the device's name | The name the others see. Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.online_name` |
+| LAN Sync | Smooth, Responsive | Smooth | How a game you host keeps its machines together. **Smooth**: the joiners follow the host, so host on the fastest machine, on a cable. **Responsive**: every machine plays ahead, with a frame of input latency ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)). Shown while LAN Play is On | `modules.com.osdos.arcade.lan_sync` |
+| Online Name | (on-screen keyboard) | Online, the RetroAchievements account's, else OSD-OS; on the local network, the device's name | The name the others see, shown on the row: the one typed, else the default (with LAN Play on, the device's name). Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.online_name` |
+| Show Ping | ON, OFF | OFF | Over the network, each player's ping on RetroArch's screen during the game ([How a game went](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#how-a-game-went)). Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.show_ping` |
+| **EMULATORS** | | | | |
+| Sound Buffer | Auto, RetroArch's | Auto | FinalBurn Neo's sound buffer. **Auto**: 48 ms, so the sound trails the picture less, and on a Raspberry Pi 4 RetroArch's 64 ms with a lighter resampler. **RetroArch's**: RetroArch's own 64 ms and resampler, if the sound crackles | `modules.com.osdos.arcade.sound_buffer` |
+| CPU at Full Speed | ON, OFF | ON | While a game plays, in MAME or FinalBurn Neo, the Pi's CPU governor at `performance`, put back as the game ends, on the OSD/OS image or after `install.sh` ([The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). A Pi already hot or throttled keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.cpu_full_speed` |
 | MAME, FinalBurn Neo | (pages) | | [MAME's page](#mames-page), [The core and RetroArch](#the-core-and-retroarch) | |
-| Emulator Video | (page) | | Five settings ([Emulator Video](#emulator-video)) | |
-| Favorites, Check ROMs | (pages) | | [Favorites as a file](#favorites-as-a-file), [Check ROMs](#check-roms) | |
-| Read the Games Again | (action) | | [Reading the games](#reading-the-games) | |
+| Emulator Video | (page) | | Seven settings ([Emulator Video](#emulator-video)) | |
 
 ### How the values are saved
 
 | Key | Saved as |
 |---|---|
-| `enabled`, `hide_bootlegs`, `hide_incomplete`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores` | `true` or `false` |
+| `enabled`, `hide_bootlegs`, `hide_incomplete`, `border`, `hint_bar`, `help_line`, `start_info`, `high_scores`, `show_ping`, `cpu_full_speed` | `true` or `false` |
 | `games_directory` | `""` for the default, else the folder's full path |
 | `regions` | The regions turned on or off, by id: `{ "japan": false }`. The ids: `world`, `usa`, `europe`, `asia`, `japan`, `korea`, `china`, `hong_kong`, `taiwan`, `hispanic`, `brazil`, `oceania`, `others` |
 | `start_filter` | The filter's id: `"all"`, `"favorites"`, `"recent"`, `"lan"`, `"online"`, `"lobby"` (RetroArch Lobby), `"achievements"` (RetroAchievements), `"netplay"` (Playable Online), `"vertical"` (Vertical Games), `"genres/<genre>"`, `"players/<n>"`, `"years/<decade>"` (`"years/1980s"`, `"years/unknown"`) or `"makers/<publisher>"` |
@@ -611,7 +630,7 @@ Settings → Arcade. The page is shared with the [High Scores](https://github.co
 | `screen_adjustment` | How far each side is moved out (in, below 0), in 960ths of the screen's width and 720ths of its height: `{ "top": 30, "bottom": 54, "left": 12, "right": 12 }` |
 | `online_name` | The name, `""` for the default |
 | `engines` | Each game's Engine, by set, except Auto: `{ "sf2": "fbneo", "mslug": "mame" }` |
-| `monitors` | Each game's Monitor, by set, except Default: `{ "galaga": "Turned Right" }` |
+| `monitors` | Each game's Vertical Games option, by set, except Default: `{ "galaga": "Turned Right" }` |
 | `difficulties` | Each game's Difficulty, by set, as MAME names the setting: `{ "dkong": "Hard" }` |
 | Any other key | The option's text, as the tables have it: `"3D Curved"`, `"1 Minute"`, `"São Paulo"` |
 

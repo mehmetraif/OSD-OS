@@ -1,16 +1,17 @@
 {
   "id": "com.osdos.highscores",
   "name": "High Scores",
+  "menu_order": 20,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "arcade",
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "High Scores",
       "type": "toggle",
       "default": "OFF",
-      "description": "Shows High Scores on the main menu: each game's high score tables as MAME keeps them, with Save High Scores on"
+      "description": "Shows High Scores on the main menu: each game's high score tables as MAME keeps them, which needs Arcade's Save High Scores on\n[OFF] Not on the main menu; the tables are kept all the same"
     }
   ]
 }

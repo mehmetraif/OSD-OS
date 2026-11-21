@@ -6,7 +6,8 @@ import Components
 // - "passkey": a code to type on the device (a keyboard), then its Enter. The
 //   digits typed so far stand out, for a device that says.
 // - "pin": the same for an older device, which doesn't say.
-// - "confirm": does the device show the same code? YES / NO (answered).
+// - "confirm": does the device show the same code? CANCEL, under the cursor
+//   as it opens, or PAIR (answered).
 // Back gives the pairing up (canceled).
 FocusScope {
     id: promptRoot
@@ -59,7 +60,7 @@ FocusScope {
             if (event.key === Qt.Key_Up || event.key === Qt.Key_Down)
                 choiceIndex = 1 - choiceIndex
             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
-                answered(choiceIndex === 0)
+                answered(choiceIndex === 1)
         }
     }
 
@@ -68,7 +69,7 @@ FocusScope {
         kind: promptRoot.kind === "confirm" ? "question" : "notice"
         title: "Pairing"
         message: (promptRoot.prompt && promptRoot.prompt.name) || ""
-        choices: promptRoot.kind === "confirm" ? ["Yes", "No"] : []
+        choices: promptRoot.kind === "confirm" ? ["Cancel", "Pair"] : []
         currentIndex: promptRoot.choiceIndex
         onHovered: function(index) { promptRoot.choiceIndex = index }
         hint: promptRoot.kind === "confirm"
@@ -82,7 +83,7 @@ FocusScope {
             Text {
                 width: parent.width
                 text: promptRoot.kind === "confirm"
-                      ? "Does it show this code?"
+                      ? "Pair it if it shows this code"
                       : "Type this code on it, then press its Enter key"
                 color: root.primaryColor
                 font.family: root.globalFont

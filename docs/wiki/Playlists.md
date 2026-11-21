@@ -6,7 +6,7 @@ The module is in [modules/playlists](https://github.com/mehmetraif/OSD-OS/tree/m
 
 <table>
 <tr><th width="50%">Playlists</th><th width="50%">An offline playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlists.png" width="100%" alt="Playlists: New Online Playlist, New Offline Playlist, then Martial Arts Night 2/5 Offline, Anime Night 3/3 Offline and Sunday Matinee 6 Online" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist.png" width="100%" alt="The page of the offline playlist Martial Arts Night: Retry Downloads, Delete Playlist, then its videos, Ready, 29%, Queued or Not Allowed" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlists.png" width="100%" alt="Playlists: Martial Arts Night 2/5 Offline, Anime Night 3/3 Offline and Sunday Matinee 6 Online, then New Online Playlist and New Offline Playlist under the NEW heading" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist.png" width="100%" alt="The page of the offline playlist Martial Arts Night: Retry Downloads, Delete Playlist, then its videos, Ready, 29%, Queued or Not Allowed" /></td></tr>
 <tr><td>Online playlists, and offline ones with how many of their videos are on the device.</td><td>Each video downloads once, in the background.</td></tr>
 </table>
 
@@ -28,9 +28,9 @@ A playlist is one or the other from the moment you make it.
 
 ## Making a playlist
 
-1. Open **Playlists** from the main menu and select **New Online Playlist** or **New Offline Playlist**.
+1. Open **Playlists** from the main menu. It lists your playlists first, the cursor on the first, then under **New** select **New Online Playlist** or **New Offline Playlist**.
 2. Name it on the on-screen keyboard. Names are in capitals, up to 40 characters.
-3. The new playlist's page opens. Select **Add Videos** to fill it.
+3. The new playlist's page opens with the cursor on **Add Videos**: select it to fill the list. Any empty playlist's page opens there.
 
 A playlist can also be made from the **Add to playlist?** window ([below](#from-another-module)); the video goes straight on it.
 
@@ -45,7 +45,7 @@ Select a playlist to open its page.
 | **Add Videos** | Browse Local Files, YouTube, Jellyfin and Emby for videos to add ([below](#from-the-module-add-videos)) |
 | **Rename** | A new name, on the on-screen keyboard |
 | **Retry Downloads** | Shown while a download has failed: tries the failed downloads again |
-| **Delete Playlist** | Asks **Delete playlist?** On an offline list its downloads go too, unless another offline playlist has them |
+| **Delete Playlist** | Asks **Delete playlist?**, **Cancel** under the cursor, then **Delete**. On an offline list its downloads go too, unless another offline playlist has them |
 | **Videos** | The videos, in the list's order |
 
 Each video's line shows its title and a value:
@@ -77,7 +77,7 @@ Select on a video opens its choices:
 
 <table>
 <tr><th width="50%">Adding videos</th><th width="50%">Add to Playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist-add.png" width="100%" alt="Add to Martial Arts Night: Jellyfin's Continue Watching, Next Up and Movies, Movies open on its films" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for Mortal Kombat (1995).mp4: Martial Arts Night (Offline), Anime Night (Offline), Sunday Matinee, New Online Playlist, New Offline Playlist" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/playlist-add.png" width="100%" alt="Add to Martial Arts Night: Jellyfin's Continue Watching, Next Up and Movies, Movies open on its films" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? for Mortal Kombat (1995).mp4: Martial Arts Night (Offline), Anime Night (Offline), Sunday Matinee, a line, then New Online Playlist, New Offline Playlist below it" /></td></tr>
 <tr><td>Local Files, YouTube, Jellyfin and Emby in one tree. Select adds a video and stays, for the next.</td><td>From a module itself: a video's options (►), or ► on PLAY in Jellyfin and Emby.</td></tr>
 </table>
 
@@ -106,7 +106,7 @@ Select on a video opens its choices:
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/options.png" width="100%" alt="A Local Files file's options: Add to Favorites, Play at Startup, Add to Playlist" />
 
-- Each opens **Add to playlist?**: every playlist (an offline one marked `(Offline)`), then **New Online Playlist** and **New Offline Playlist**.
+- Each opens **Add to playlist?**: every playlist (an offline one marked `(Offline)`), the cursor on the first, then under a line **New Online Playlist** and **New Offline Playlist**.
 - The window then says **Added to <NAME>** (and **It downloads in the background, once** for an offline list), **Already on <NAME>**, or **Can't go on a playlist**.
 - These choices are offered only while the Playlists module is on.
 
@@ -124,7 +124,7 @@ Select **Play**, or **Play from Here** on a video.
 
 | Situation | What happens |
 |---|---|
-| **Play from Here** | Starts at that video. On a shuffled list that video comes first and the rest follow shuffled |
+| **Play from Here** | Starts at that video. On a shuffled list that video comes first and the rest follow shuffled. A video that can't play yet (not downloaded, its download failed, its file or server gone) plays nothing: the player says why |
 | **Play**, the list **In Order**, and it stopped part-way last time | **Resume playback?** `Resume video 3 at 12:34` / `Start from the beginning` |
 | **Play**, the list **In Order**, nothing to resume | From its first video |
 | **Play**, the list on **Shuffle** | In a new order each time, from the start |
@@ -134,7 +134,7 @@ Select **Play**, or **Play from Here** on a video.
 - **What can't play is left out**: a missing Local Files file, a server video while you are signed out, and on an offline list anything not downloaded yet.
 - **During a video**, the deck's menu (▲ or ▼) has **<** and **>** for the previous and next video. Page Up and Page Down, or a remote's Channel + and −, do the same.
 - **Loop Playback** starts the list again from its first video when it ends (`--loop-playlist=inf`).
-- **Subtitles** is Forced Only (the default), On or Off, for every video on the list. On shows a streamed YouTube video's in the YouTube module's **Subtitle Language**.
+- **Subtitles** is Off, Forced Only (the default) or On, for every video on the list. On shows a streamed YouTube video's in the YouTube module's **Subtitles In**.
 - A server's subtitles kept as separate files aren't fetched, and a downloaded YouTube video has none.
 - **YouTube videos on an online list** play with the YouTube module's **Advanced** settings, but always at normal speed.
 - **Still images** from Local Files show for Local Files' **Image Duration**.
@@ -158,13 +158,13 @@ Back during a video (with the deck's menu closed) opens the list's own menu:
 
 | Line | What it does |
 |---|---|
+| **Back to Playlists** | Back to the list's page |
+| **Stop, to Main Menu** | Stops the list and leaves Playlists for the main menu |
 | **Subtitles** | ◄ ► change the module setting; the video starts again where it is as you go back to it |
 | **Loop Playback**, **Scaling** | ◄ ► change it; with Transparent Background the playing list takes it at once |
-| **Browse Playlists** | Back to the list's page |
-| **Close Video** | Stops the list and leaves Playlists for the main menu |
 
 - Back in the menu returns to the video. A setting changed here is saved as the module's setting.
-- **After Browse Playlists** the main menu leads with a row for the list, `► <NAME>`. That row, or **Play** on the list's page, takes the list back.
+- **After Back to Playlists** the main menu leads with a row for the list, `► <NAME>`. That row, or **Play** on the list's page, takes the list back.
 - **With Transparent Background** the list plays on behind the menus, and comes back full screen where it is.
 - **Without it** the list stops for the menu. It starts again at the video it was on, without asking; a shuffled list starts shuffled afresh.
 
@@ -180,7 +180,7 @@ Back during a video (with the deck's menu closed) opens the list's own menu:
 
 ### Where they go
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker, here for Local Files' Media Directory: Use This Folder at the top of each folder" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker, here for Local Files' Media Folder: Use This Folder at the top of each folder" />
 
 **Settings → TV / Movie → Playlists → Download Folder** names the folder, on the folder picker: **Use This Folder** picks the folder open, **Default Folder** the default. The default is a **Playlists** folder in Local Files' media folder:
 
@@ -204,12 +204,12 @@ Each source has a folder of its own, and each file carries the video's id in bra
 
 - Characters exFAT forbids (`\ / : * ? " < > |`) are replaced, and the title is cut at 80 characters (YouTube: 80 bytes).
 - The default folder is inside Local Files' media folder, so Local Files lists it too. A video copied into it by hand isn't on any list.
-- Changing the Download Folder affects what downloads next; files already downloaded stay where they are.
+- Changing the Download Folder affects what downloads next; files already downloaded stay where they are. What a download cut short left in the old folder is deleted there once it starts again in the new one, or once no list has the video.
 - The folder must be writable. On the OSD/OS image USB drives are mounted read-only, so they can't take downloads.
 
 ### YouTube videos
 
-- YouTube videos download with yt-dlp, in the YouTube module's **Advanced** settings: **Playback Resolution**, **Video Codec**, **Max Frame Rate** and **Audio Language** ([YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube)).
+- YouTube videos download with yt-dlp, in the YouTube module's **Advanced** settings: **Max Resolution**, **Video Codec**, **Max Frame Rate** and **Audio Language** ([YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube)).
 - If you are signed in to YouTube, the download uses that sign-in (`--cookies-from-browser`).
 - yt-dlp is looked for in `<data folder>/bin/yt-dlp` first (the image's, updated after each boot and daily), then beside the app, then on the `PATH`.
 - **ffmpeg** joins picture and sound, which YouTube sends separately above 360p. The image has it; elsewhere install it (`sudo apt install ffmpeg`, `brew install ffmpeg`).
@@ -278,7 +278,7 @@ Settings → TV / Movie → Playlists.
 |---|---|---|---|---|
 | ENABLED | ON, OFF | ON | Shows Playlists on the main menu, and Add to Playlist in the other modules | `modules.com.osdos.playlists.enabled` |
 | Download Folder | Default, or a folder | Default | Where offline playlists' videos are downloaded | `modules.com.osdos.playlists.download_folder` |
-| Subtitles | Forced Only, On, Off | Forced Only | Whether a video's subtitles show as it starts ([Playing](#playing)) | `modules.com.osdos.playlists.subtitles` |
+| Subtitles | Off, Forced Only, On | Forced Only | Whether a video's subtitles show as it starts ([Playing](#playing)) | `modules.com.osdos.playlists.subtitles` |
 | Loop Playback | ON, OFF | OFF | When a playlist ends, start it again from its first video | `modules.com.osdos.playlists.loop_playback` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Playlists | `modules.com.osdos.playlists.video_scaling` |
 
@@ -328,7 +328,7 @@ Written whole each time anything changes.
 | `playlists[].order` | `"inorder"` or `"shuffle"` |
 | `playlists[].items` | Its videos, in order: each an `id` (a UUID of its own), the `module` it comes from, its `key`, its `title` and its `source` (`path` for Local Files, `videoId` and `channel` for YouTube, `itemId` for Jellyfin and Emby) |
 | `playlists[].resume` | Where it stopped: the item's `id` (`itemId`) and `positionMs`. Absent once it has played out |
-| `downloads` | By key: `{ "path", "state": "done", "bytes" }` for a finished download, `{ "state": "failed", "reason" }` for a failed one. A video not downloaded yet has no entry |
+| `downloads` | By key: `{ "path", "state": "done" }` for a finished download (one an older version wrote has its `bytes` too, which is ignored), `{ "state": "failed", "reason", "folder" }` for a failed one, `folder` being the download folder it ran in, where what it left is cleared. A video not downloaded yet has no entry |
 
 A video's **key** names it whatever list it is on, and so names its download: `local:<path>`, `youtube:<videoId>`, `jellyfin:<itemId>` or `emby:<itemId>`.
 
@@ -342,7 +342,6 @@ An offline playlist of two videos, as OSD/OS writes it:
             "state": "failed"
         },
         "jellyfin:5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b": {
-            "bytes": 734003200,
             "path": "/media/OSD-OS/Movies/Playlists/Jellyfin/Kickboxer (1989) [5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b].mkv",
             "state": "done"
         }

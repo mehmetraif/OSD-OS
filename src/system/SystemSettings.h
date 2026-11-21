@@ -5,22 +5,26 @@
 
 #include <optional>
 
-// Settings → System's Time Zone and Keyboard.
+// Settings → System's Time Zone, Keyboard and SSH.
 // - What the system has is read from its files (system/SystemLocale.h):
-//   /etc/localtime's zone, and /etc/default/keyboard's layout, the console's,
-//   in which a name and a password are typed at Exit to Terminal.
+//   /etc/localtime's zone, /etc/default/keyboard's layout, the console's,
+//   in which a name and a password are typed at Exit to Terminal, and
+//   whether systemd starts ssh.service.
 // - On the OSD/OS image a new one goes to osdos-system.socket, where
 //   osdos-stop (scripts/install.sh) sets it as root (launcher API 10):
-//   "time-zone <zone>" or "keyboard <layout>" on a line, "ok" or why not back.
-//   Elsewhere the rows only show what the system has.
+//   "time-zone <zone>", "keyboard <layout>", "ssh on" or "ssh off" on a
+//   line, "ok" or why not back. Elsewhere the rows only show what the
+//   system has, and SSH is off.
 // - timeZones is every zone the system's time zone database lists by country
 //   (zone.tab) and UTC, by name: [{ name, region }], the region what stands
 //   before the first slash. keyboards is OSD/OS Setup's list of layouts
 //   (schema-extra.json, built into the app), those the system has:
 //   [{ name, code }].
+// - SSH only runs or doesn't from here: the password, the keys and whether a
+//   password logs in are OSD/OS Setup's alone.
 class SystemSettings : public QObject {
     Q_OBJECT
-    // The two can be changed from here: osdos-system.socket is there.
+    // They can be changed from here: osdos-system.socket is there.
     Q_PROPERTY(bool available READ available CONSTANT)
     Q_PROPERTY(QString timeZone READ timeZone NOTIFY changed)
     Q_PROPERTY(QString keyboard READ keyboard NOTIFY changed)
@@ -28,7 +32,13 @@ class SystemSettings : public QObject {
     Q_PROPERTY(QString keyboardName READ keyboardName NOTIFY changed)
     Q_PROPERTY(QVariantList timeZones READ timeZones CONSTANT)
     Q_PROPERTY(QVariantList keyboards READ keyboards CONSTANT)
-    // A new zone or layout on its way.
+    // The SSH service enabled (on the image only).
+    Q_PROPERTY(bool ssh READ ssh NOTIFY changed)
+    // Why nobody could sign in yet although SSH is on, in a line, or empty:
+    // the app's user has no key in ~/.ssh/authorized_keys and, as the helper
+    // said when SSH was turned on here, no password.
+    Q_PROPERTY(QString sshNote READ sshNote NOTIFY changed)
+    // A change on its way.
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     // How the last change went, in a line, for the help line.
     Q_PROPERTY(QString message READ message NOTIFY messageChanged)
@@ -41,6 +51,8 @@ public:
     QString keyboardName() const;
     QVariantList timeZones() const;
     QVariantList keyboards() const;
+    bool ssh() const { return m_ssh; }
+    QString sshNote() const { return m_sshNote; }
     bool busy() const { return m_busy; }
     QString message() const { return m_message; }
 
@@ -51,6 +63,10 @@ public:
     // one the system has already.
     Q_INVOKABLE bool setTimeZone(const QString &zone);
     Q_INVOKABLE bool setKeyboard(const QString &code);
+    // SSH on (enabled and started) or off (disabled and stopped), sent to
+    // the helper. False when it isn't sent: not available, another on its
+    // way, or as the system has it already.
+    Q_INVOKABLE bool setSsh(bool on);
     Q_INVOKABLE void clearMessage();
 
 signals:
@@ -60,7 +76,9 @@ signals:
 
 private:
     friend class SystemSettingsTest;
-    bool send(const QString &what, const QString &value, const QString &shown);
+    // done and notDone head the message: "Time zone set", "Time zone not
+    // set: <why>".
+    bool send(const QString &what, const QString &value, const QString &done, const QString &notDone);
     void setMessage(const QString &text);
 
     bool m_available;
@@ -68,6 +86,11 @@ private:
     QString m_keyboardsFile;
     QString m_timeZone;
     QString m_keyboard;
+    bool m_ssh = false;
+    QString m_sshNote;
+    // The helper said, as SSH was last turned on here, that the app's user
+    // has no password to log in with.
+    bool m_sshNoPassword = false;
     bool m_busy = false;
     QString m_message;
     mutable std::optional<QVariantList> m_timeZones;

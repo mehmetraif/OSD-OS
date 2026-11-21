@@ -77,6 +77,9 @@ public:
     QString addAccessPoint(const QString &ssid, int strength, Security security,
                            const QString &password = QString(), Hidden hidden = Hidden::No);
     void setStrength(const QString &accessPoint, int strength);
+    // Its frequency in MHz: by default channel 1, 6 or 11 at 2.4 GHz for the
+    // odd-numbered ones, one at 5 GHz for the others.
+    void setFrequency(const QString &accessPoint, uint mhz);
     void removeAccessPoint(const QString &accessPoint);
     // A connection saved for ssid, joined as the access point of that name
     // says (a WPA one without it, given a password; open without one).

@@ -100,7 +100,7 @@ They are drawn behind the menus.
 | **Checkered Flag** | A racing flag of 16-art-pixel squares, waving |
 | **Plasma** | An old demo's plasma, dithered and drifting slowly ([its shader](https://github.com/mehmetraif/OSD-OS/wiki/Shaders#plasmafrag-a-background)) |
 
-- **In the window** (all six): with OSD Background: Window, inside the window's frame, which is the skin's `border` wide. With Full or Off, the whole screen.
+- **In the window** (all six): with OSD Background: Box, inside the window's frame, which is the skin's `border` wide. With Full or Off, the whole screen.
 - **Along the foot** (`"area": "foot"`, for a theme's own shader): from the window's top down to the screen's foot ([Shaders](https://github.com/mehmetraif/OSD-OS/wiki/Shaders#a-background-effects-shader)).
 - **On art pixels**: one pixel per art pixel, a pixel of a 240-line picture, scaled up without smoothing. A dialog's ground draws the same picture in the same place.
 

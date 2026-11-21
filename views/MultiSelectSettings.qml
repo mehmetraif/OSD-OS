@@ -26,6 +26,8 @@ FocusScope {
     property string settingKey: navParams.settingKey || ""
     property string settingLabel: navParams.settingLabel || ""
     property string moduleName: navParams.moduleName || moduleId.split(".").pop().toUpperCase()
+    // The row's help, on every choice's line.
+    property string help: navParams.help || ""
 
     property var options: []         // [{id, label, default}], and [{label, heading}]
     property var enabledMap: ({})    // id -> bool, as the page shows them
@@ -38,9 +40,9 @@ FocusScope {
                               : [{ note: true, label: answered ? "No Choices" : "Loading…" }]
 
     function buildEnabledMap() {
-        var allSettings = appCore.get_settings()
-        var moduleConfig = (allSettings.modules && allSettings.modules[moduleId]) ? allSettings.modules[moduleId] : {}
-        saved = moduleConfig[settingKey] || {}
+        // Through get_setting(), which reads a key in dot-notation as it
+        // is saved.
+        saved = appCore.get_setting(moduleId, settingKey) || {}
         var map = {}
         for (var i = 0; i < options.length; i++) {
             var option = options[i]
@@ -77,7 +79,6 @@ FocusScope {
         saved = kept
     }
 
-    // Receive dynamic options from backend via appCore
     Connections {
         target: appCore
         function onDynamicOptionsReady(mid, key, items) {
@@ -92,8 +93,6 @@ FocusScope {
     }
 
     Component.onCompleted: {
-        // Request the options list from the backend
-        // Find the options_slot for this setting key
         // The setting may sit in a submenu ("type": "submenu").
         var find = function(list) {
             for (var i = 0; i < list.length; i++) {
@@ -108,7 +107,6 @@ FocusScope {
             appCore.invoke_module_action(moduleId, setting.options_slot)
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
@@ -149,19 +147,28 @@ FocusScope {
         }
     }
 
-    // What a heading does, on its line; or why there are no choices, which
-    // is said whatever Settings' Help Line is: it is all the page has to say.
+    // What a heading does, on its line, and the row's own help on a
+    // choice's; or why there are no choices, which is said whatever
+    // Settings' Help Line is: it is all the page has to say.
     HelpLine {
+        objectName: "helpLine"
         readonly property var currentRow: multiSelectRoot.options[optionsList.currentIndex]
         readonly property bool heading: !!(currentRow && currentRow.heading)
-        visible: heading || multiSelectRoot.problem !== ""
-        always: !heading
-        text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
+        visible: text !== ""
+        always: multiSelectRoot.problem !== ""
+        text: multiSelectRoot.problem !== "" ? multiSelectRoot.problem
+              : heading ? "Turns all of the choices under it on or off"
+              : currentRow ? multiSelectRoot.help : ""
     }
 
-    // --- FOOTER ---
+    // ◄ ► and select alike flip the choice under the cursor, or a heading's
+    // whole group; Loading… and No Choices offer only the way back.
     HintBar {
         id: footer
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE"])
+        objectName: "hintBar"
+        readonly property var currentRow: multiSelectRoot.options[optionsList.currentIndex]
+        text: !currentRow ? root.hintLine(["back:BACK"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE"]) + " " + root.hints.change + "/"
+                + root.hintLine([currentRow.heading ? "select:CHANGE ALL" : "select:CHANGE"])
     }
 }

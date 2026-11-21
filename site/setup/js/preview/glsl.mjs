@@ -31,8 +31,8 @@ export function fromQt(source) {
     return "#version 300 es\nprecision highp float;\nprecision highp int;\n" + body;
 }
 
-// The uniforms a shader declares, by name: what its ShaderEffect in Main.qml
-// sets by the same names.
+// The uniforms a shader declares, by name: what its ShaderEffect (Main.qml's,
+// BackgroundFx.qml's or WindowChange.qml's) sets by the same names.
 export function uniformsOf(source) {
     return [...fromQt(source).matchAll(/^\s*uniform\s+\w+\s+(\w+)\s*;/gm)].map(m => m[1]);
 }

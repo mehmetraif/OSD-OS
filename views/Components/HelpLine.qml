@@ -15,6 +15,15 @@ Rectangle {
     id: help
 
     property string text: ""
+    // The value now on the row, as the row shows it (the one being changed,
+    // in a value's second step). A row's help is written "First sentence
+    // [VALUE] what it does  [OTHER] what that does": with a value, the line
+    // is the part before the first [ and the value's own [ ] alone, the
+    // others' left out, and follows the value as ◄ ► change it. A key's
+    // bracket ([ENTER], [►], as root.hints names them) says what the key
+    // does and stays. With no value, or a text with no [ ], the text shows
+    // whole.
+    property string value: ""
     property bool always: false
     // The frame's own, which draws; a view's is handed to the frame.
     property bool ofFrame: false
@@ -32,7 +41,34 @@ Rectangle {
     property bool framed: true
     readonly property bool shown: always || root.helpLine
 
-    readonly property string line: text.split("\n")
+    // A value's [ ] is its name as the row shows it, in any case: "Theme"
+    // [THEME]; one shown with a note after it in ( ) is its name before them
+    // or the note ("Theme (Glow)" [THEME], "USB Audio (Unplugged)"
+    // [UNPLUGGED]).
+    function cut(all, now) {
+        var start = all.indexOf("[")
+        if (now === "" || start < 0)
+            return all
+        var norm = function(s) { return String(s).toUpperCase().replace(/\s+/g, " ").trim() }
+        var name = norm(now)
+        var noted = name.match(/^(.*\S)\s*\(([^()]*)\)$/)
+        var names = noted ? [name, noted[1], noted[2]] : [name]
+        var hints = root.hints || {}
+        var keys = Object.keys(hints).map(function(k) { return norm(hints[k]) })
+        var kept = []
+        var part = /\[([^\]]+)\]([^\[]*)/g
+        var rest = all.substring(start)
+        var m
+        while ((m = part.exec(rest)) !== null) {
+            var bracket = norm(m[1])
+            if (names.indexOf(bracket) >= 0 || keys.indexOf("[" + bracket + "]") >= 0)
+                kept.push("[" + m[1] + "] " + m[2].trim())
+        }
+        var head = all.substring(0, start).trim()
+        return kept.length === 0 ? head : head === "" ? kept.join("  ") : head + "\n" + kept.join("  ")
+    }
+    readonly property string shownText: cut(text, value)
+    readonly property string line: shownText.split("\n")
         .map(function(part) { return part.trim() })
         .filter(function(part) { return part !== "" })
         .join("  •  ")

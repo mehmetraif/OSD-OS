@@ -1,12 +1,16 @@
 -- Screen saver for OSD/OS: bounces the OSD/OS logo across a solid black
 -- background when the video has been paused longer than the configured timeout.
 --
--- Loaded by --script= only when screensaver_timeout != "OFF".
+-- Loaded by --script= only when screensaver_timeout is a number of seconds,
+-- not "OFF".
 -- Uses the same ASS-overlay technique as mpv-media-keys.lua's volume bar.
 -- Dismiss keys are consumed, matching the app-shell overlay: the first press
 -- only wakes the screen saver, the next press acts normally.
 
 local assdraw = require("mp.assdraw")
+-- The key flushing the OSD/OS scripts share, from this file's own folder
+-- (see osdos-osd.lua for why so).
+local osd = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "") .. "osdos-osd.lua")
 
 -- Raw script-opts key (same convention as mpv-osc.lua's transcode-offset);
 -- mp.options.read_options would instead expect a "screensaver-" prefix.
@@ -51,8 +55,8 @@ local ss_active   = false
 local paused_sec  = 0
 local x, y   = 20, 20
 local vx, vy = SPEED, SPEED
--- Set at activation: logo sized to 5% of OSD width (matching the QML overlay's
--- sourceSize of root.sw * 0.05), drawing pre-scaled to pixels.
+-- Set at activation: logo sized to a tenth of the OSD's width, drawing
+-- pre-scaled to pixels.
 local logo_w, logo_h = 0, 0
 local logo_path = ""
 
@@ -105,16 +109,9 @@ local DISMISS_KEYS = {
     "VOLUME_UP", "VOLUME_DOWN", "MUTE",
 }
 
--- A script's key bindings reach mpv's input from an idle handler, after the
--- callback that added or removed them returns. Flushed here instead, so that
--- OSD/OS is told the saver is up (osdos-screensaver shown, on which it sends
--- back to mpv for the saver to take) only once the keys are the saver's, and
--- told it is down only once they are given back; a key in between would have
--- gone where it shouldn't (mpv 0.35 and later; older ones apply bindings at
--- once).
-local function flush_keybindings()
-    if mp.flush_keybindings then mp.flush_keybindings() end
-end
+-- OSD/OS is told the saver is up only once the keys are the saver's, and
+-- down only once they are given back (osd.flush_keybindings).
+local flush_keybindings = osd.flush_keybindings
 
 activate = function()
     if ss_active then return end

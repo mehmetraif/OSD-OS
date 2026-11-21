@@ -89,8 +89,7 @@ Item {
                     fillMode: Image.PreserveAspectFit
                     visible: source != ""
                     source: modelData.iconName
-                        ? "image://osdicon/" + root.primaryColor.toString().replace("#", "") + "/"
-                          + Qt.resolvedUrl("../../assets/images/wx/" + modelData.iconName + ".svg")
+                        ? root.iconUrl(root.primaryColor, Qt.resolvedUrl("../../assets/images/wx/" + modelData.iconName + ".svg"))
                         : ""
                 }
 

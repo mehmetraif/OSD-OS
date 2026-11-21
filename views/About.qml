@@ -1,10 +1,8 @@
 import QtQuick
 import Components
 
-// ABOUT, from Settings: the wordmark with its tagline, then System
-// Information, this device's name its value, which opens its page
-// (views/SystemInfo.qml; back from it, the cursor on its line again), then
-// what OSD/OS is made of, who makes it and under which licence, as menu lines
+// ABOUT, from Settings: the wordmark with its tagline, then what OSD/OS is
+// made of, who makes it and under which license, as menu lines
 // whose help line carries each one's detail (it stays whatever Settings' HELP
 // LINE says: these lines are the page); then, under ARCADE, the free software
 // the games play in and read with, and the sites they are read from. Behind
@@ -34,18 +32,11 @@ FocusScope {
     readonly property string upstreamAuthor: "Anthony Caccese"
     readonly property string upstreamUrl: "github.com/anthonycaccese/240-MP"
     readonly property string year: "2026"
-    // Context properties read null while the Loader tears this view down.
-    readonly property string deviceName: systemInfo ? systemInfo.deviceName : ""
 
     // The lines, which nothing changes while the page is up: a new list
-    // would take the cursor back to the first line, System Information, which
-    // select opens. A description's {select} is the select key's hint, put in
+    // would take the cursor back to the first line. A description's {select} is the select key's hint, put in
     // as the help line shows it (keyboard or gamepad).
     readonly property var rows: [
-        { key: "system_info", label: "System Information", page: "views/SystemInfo.qml",
-          description: "This device's name, which tells it apart from others on the network • {select}"
-                       + " What it is: its model, OS, memory, storage and temperature, and each network connection's"
-                       + " IP and MAC addresses" },
         { key: "build", label: "Build", value: root.appBuild,
           description: "Version " + root.appVersion + " • The commit this build was made from, and the day"
                        + " • A VCR-style smart TV experience for CRTs: films, streams and arcade games with high"
@@ -192,7 +183,7 @@ FocusScope {
                        + " published the games" },
         { key: "arcadedb", label: "ArcadeDB", value: "adb.arcadeitalia.net",
           description: "Arcade Database by motoschifo, adb.arcadeitalia.net, whose scraper service gives progetto-SNAPS'"
-                       + " pictures of a set on request, as Pictures From allows, one request at a time • Names and"
+                       + " pictures of a set on request, as Game Pictures' Source allows, one request at a time • Names and"
                        + " images for informational purposes only, under fair use; all copyrights and trademarks"
                        + " belong to their holders" }
     ]
@@ -210,12 +201,8 @@ FocusScope {
         + " without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
         + " See the GNU General Public License below for more details, or at gnu.org/licenses/gpl-3.0.html."
 
-    // The device's name read again as the page opens, as System Information
-    // reads it, in case it was changed outside OSD/OS; back from that page, the
-    // cursor on its line again.
+    // Back from a licence's page, the cursor on its line again.
     Component.onCompleted: {
-        if (systemInfo)
-            systemInfo.refresh()
         if (navListState.currentIndex !== undefined) {
             list.currentIndex = Math.min(navListState.currentIndex, rows.length - 1)
             list.show(list.currentIndex)
@@ -253,8 +240,7 @@ FocusScope {
             height: root.sh * 0.075 //36
             width: implicitWidth
             sourceSize.height: height
-            source: "image://osdicon/" + root.primaryColor.toString().replace("#", "")
-                    + "/" + Qt.resolvedUrl("../assets/images/logo-wordmark.svg")
+            source: root.iconUrl(root.primaryColor, Qt.resolvedUrl("../assets/images/logo-wordmark.svg"))
         }
         // The slash over the letters' own, in its colours: the same frame.
         Image {
@@ -303,9 +289,7 @@ FocusScope {
             height: root.menuRowHeight
             heading: modelData.type === "section"
             label: modelData.label
-            // The device's name read here, so that a new one doesn't make the
-            // lines anew.
-            value: modelData.key === "system_info" ? aboutRoot.deviceName : (modelData.value || "")
+            value: modelData.value || ""
             // A line that leads to a page, or a licence's text, ends in a ►.
             opens: !!(modelData.page || modelData.license)
             selected: list.currentIndex === index
@@ -398,6 +382,7 @@ FocusScope {
 
         Rectangle {
             id: page
+            objectName: "licenseBox"
             x: aboutRoot.monitor ? root.paneX + root.sw * 0.009375 : root.sw * 0.125 //80
             y: root.listY //120
             width: aboutRoot.monitor ? root.paneWidth - root.sw * 0.01875 : root.sw * 0.75 //480
@@ -412,49 +397,140 @@ FocusScope {
             border.color: root.primaryColor
             antialiasing: false
 
-            Flickable {
-                id: flick
+            // The text's room in the box. Only whole lines show in it, at
+            // every scroll position (`window`): a strip for the ▲ at its top
+            // only while there are lines above, for the ▼ at its foot only
+            // while there are lines below, each as tall as a mark and its
+            // gap (ScrollMarks: four pixels, three off the text).
+            Item {
+                id: room
+                readonly property real markRoom: root.px * 7
                 anchors.fill: parent
                 anchors.margins: root.sw * 0.009375 //6
-                contentHeight: column.height
-                clip: true
 
-                // A page at a time, with a little of the last one kept.
-                function scrollBy(direction) {
-                    var step = height * 0.8
-                    var maxY = Math.max(0, contentHeight - height)
-                    contentY = Math.max(0, Math.min(maxY, contentY + direction * step))
-                }
+                Item {
+                    id: window
+                    objectName: "licenseWindow"
+                    // The whole lines, in the room's terms.
+                    readonly property var span: (flick.contentY, flick.contentHeight, flick.height,
+                                                 room.markRoom, flick.shownSpan())
+                    y: span.top
+                    width: parent.width
+                    height: span.bottom - span.top
+                    clip: true
 
-                Column {
-                    id: column
-                    width: flick.width
-                    spacing: root.sh * 0.0291667 //14
+                    Flickable {
+                        id: flick
+                        objectName: "licenseFlick"
+                        y: -window.y
+                        width: room.width
+                        height: room.height
+                        contentHeight: column.height
+                        interactive: false
 
-                    Text {
-                        width: parent.width
-                        text: licensePage.notice
-                        textFormat: Text.PlainText
-                        color: root.primaryColor
-                        font.family: root.globalFont
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                        font.pixelSize: root.sh * 0.0333333 //16
-                    }
-                    Text {
-                        width: parent.width
-                        text: licensePage.text
-                        textFormat: Text.PlainText
-                        color: root.primaryColor
-                        font.family: root.globalFont
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                        font.pixelSize: root.sh * 0.0291667 //14
+                        // Each line's top and foot in the text, by its
+                        // pitch: the notice's, then the license's.
+                        function lines() {
+                            var all = []
+                            var add = function(text) {
+                                for (var i = 0; i < text.lineCount; i++)
+                                    all.push({ top: text.y + i * text.pitch, bottom: text.y + (i + 1) * text.pitch })
+                            }
+                            add(noticeText)
+                            add(licenseText)
+                            return all
+                        }
+                        // Where the whole lines in the room begin and end:
+                        // those wholly between the strips the marks need now.
+                        function shownSpan() {
+                            var top = contentY
+                            var bottom = contentY + height
+                            var from = top + (top > 0.5 ? room.markRoom : 0)
+                            var to = bottom - (bottom < contentHeight - 0.5 ? room.markRoom : 0)
+                            var first = -1
+                            var last = -1
+                            var all = lines()
+                            for (var i = 0; i < all.length; i++) {
+                                if (all[i].top >= from - 0.5 && all[i].bottom <= to + 0.5) {
+                                    if (first < 0)
+                                        first = all[i].top
+                                    last = all[i].bottom
+                                }
+                            }
+                            return first < 0 ? { top: 0, bottom: 0 } : { top: first - top, bottom: last - top }
+                        }
+
+                        // A page at a time, with a little of the last one
+                        // kept, the top line whole under the ▲'s strip.
+                        function scrollBy(direction) {
+                            var maxY = Math.max(0, contentHeight - height)
+                            var target = Math.max(0, Math.min(maxY, contentY + direction * height * 0.8))
+                            if (target > 0 && target < maxY) {
+                                var all = lines()
+                                for (var i = 0; i < all.length; i++) {
+                                    if (all[i].top >= target + room.markRoom - 0.5) {
+                                        target = Math.min(maxY, all[i].top - room.markRoom)
+                                        break
+                                    }
+                                }
+                            }
+                            contentY = target
+                        }
+
+                        Column {
+                            id: column
+                            width: flick.width
+                            spacing: root.sh * 0.0291667 //14
+
+                            Text {
+                                id: noticeText
+                                // Each line the same height, a whole number
+                                // of pixels, so where each is is known.
+                                readonly property real pitch: Math.ceil(noticeMetrics.height)
+                                width: parent.width
+                                text: licensePage.notice
+                                textFormat: Text.PlainText
+                                color: root.primaryColor
+                                font.family: root.globalFont
+                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                                font.pixelSize: root.sh * 0.0333333 //16
+                                lineHeightMode: Text.FixedHeight
+                                lineHeight: pitch
+                                FontMetrics {
+                                    id: noticeMetrics
+                                    font: noticeText.font
+                                }
+                            }
+                            Text {
+                                id: licenseText
+                                readonly property real pitch: Math.ceil(licenseMetrics.height)
+                                width: parent.width
+                                text: licensePage.text
+                                textFormat: Text.PlainText
+                                color: root.primaryColor
+                                font.family: root.globalFont
+                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                                font.pixelSize: root.sh * 0.0291667 //14
+                                lineHeightMode: Text.FixedHeight
+                                lineHeight: pitch
+                                FontMetrics {
+                                    id: licenseMetrics
+                                    font: licenseText.font
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
+        // In the box, over the strips the text leaves them while they show.
         ScrollMarks {
+            objectName: "licenseMarks"
             anchors.fill: page
+            anchors.margins: room.anchors.margins
+            anchors.topMargin: room.anchors.margins + room.markRoom
+            anchors.bottomMargin: room.anchors.margins + room.markRoom
             list: flick
         }
 

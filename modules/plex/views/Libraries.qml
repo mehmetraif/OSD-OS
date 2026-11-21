@@ -42,9 +42,13 @@ FocusScope {
             }
         }
 
+        // Its own only while it waits for the libraries: one that comes
+        // once they are shown (a request of a page left, failing late) is
+        // not drawn over them.
         function onErrorOccurred(msg) {
             console.log("[Library] Error: " + msg)
-            browseRoot.errorMsg = msg
+            if (!browseRoot.loaded)
+                browseRoot.errorMsg = msg
         }
 
         // The 401-recovery retry re-runs the user switch, which can turn out to

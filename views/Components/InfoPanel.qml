@@ -20,8 +20,9 @@ FocusScope {
     // the entry's own name and a "loading…" story.
     property var details: ({})
     property bool loading: false
-    // The hint for right; "" when the host has no options.
-    property string optionsHint: root.hints.browse + ":OPTIONS"
+    // The hint for right, a part of root.hintLine()'s; "" when the host
+    // has no options.
+    property string optionsHint: "browse:OPTIONS"
 
     signal playRequested(var item)
     signal optionsRequested(var item)
@@ -65,15 +66,14 @@ FocusScope {
             if (info.optionsHint !== "" && !event.isAutoRepeat) info.optionsRequested(info.item)
             return
         case Qt.Key_Left:
-        case Qt.Key_Escape:
-        case Qt.Key_Backspace:
-        case Qt.Key_Back:
         case Qt.Key_Space:
         case Qt.Key_Info:
         case Qt.Key_I:
             if (!event.isAutoRepeat) info.close()
             return
         }
+        if (root.isBack(event) && !event.isAutoRepeat)
+            info.close()
     }
 
     readonly property string title: details.title || (item ? (item.title || item.name || "") : "")
@@ -115,8 +115,10 @@ FocusScope {
             width: root.sw * 0.75 - root.sw * 0.1875 - top.spacing //336
             spacing: root.sh * 0.0166667 //8
 
+            // The catalogue's words, as they are written.
             Text {
                 width: parent.width
+                textFormat: Text.PlainText
                 text: info.title
                 color: root.primaryColor
                 font.family: root.globalFont
@@ -128,6 +130,7 @@ FocusScope {
             Text {
                 width: parent.width
                 visible: text !== ""
+                textFormat: Text.PlainText
                 text: info.facts
                 color: root.primaryColor
                 font.family: root.globalFont
@@ -167,8 +170,6 @@ FocusScope {
     }
 
     HintBar {
-        text: root.hints.back + ":BACK " + root.hints.navigate + ":NAVIGATE "
-              + (info.optionsHint !== "" ? info.optionsHint + " " : "")
-              + root.hints.select + ":PLAY"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", info.optionsHint, "select:PLAY"])
     }
 }

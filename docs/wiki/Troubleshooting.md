@@ -15,7 +15,7 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
 | The AppImage | The terminal it was started from | `./OSD-OS-linux-x86_64.AppImage` |
 | Windows | `osdos.log` in the data folder, the run before's in `osdos-previous.log` | Open `%APPDATA%\OSD-OS\osdos.log` in Notepad |
 
-**The logs on the card: Settings → Quit → Save Logs.** On the image it copies the logs to the card's **OSD-OS** partition, which a computer shows as a drive, into `Logs\<date_time>\`:
+**The logs on the card: Settings → Power → Save Logs** (Settings → Quit off the image). On the image it copies the logs to the card's **OSD-OS** partition, which a computer shows as a drive, into `Logs\<date_time>\`:
 
 | File | What it holds |
 |---|---|
@@ -39,13 +39,13 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
   osdos 2>&1 | tee ~/osdos.log
   ```
 
-- Settings → Quit → **Exit to Terminal** stops the app without `sudo` and leaves a login shell on the TV. `sudo systemctl start osdos`, or a reboot, brings the service back.
+- Settings → Power → **Exit to Terminal** stops the app without `sudo` and leaves a login shell on the TV. `sudo systemctl start osdos`, or a reboot, brings the service back.
 - An image built without a password has no `sudo` ([The user, its password and sudo](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-user-its-password-and-sudo)).
 
 <table>
 <tr><th width="50%">Settings → Quit, run by hand</th><th width="50%">The boot screen (the image)</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="The quit question: Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the cassette and a line per service" /></td></tr>
-<tr><td>Run by hand: Yes, Save Logs (on the image) and No. Started by the service: Power Off, Restart, Exit to Terminal, Save Logs and Cancel.</td><td><code>[ OK ]</code> once a service is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="The quit question: No selected, then Yes and Save Logs" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the cassette and a line per service" /></td></tr>
+<tr><td>Run by hand: No, Yes and Save Logs (on the image). Started by the service: Cancel, Power Off, Restart, Exit to Terminal and Save Logs.</td><td><code>[ OK ]</code> once a service is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
 </table>
 
 ### When it crashes or freezes: the reports
@@ -223,7 +223,7 @@ The catalogue comes from TMDB. A title plays in the service's own web player, in
 
 | What you see | Cause | Fix |
 |---|---|---|
-| **No TMDB API key: type one in Settings, in the module's TMDB Key (free from themoviedb.org, Settings, API)** | No key | Type a TMDB v3 key in Settings → TV / Movie → NETFLIX or PRIME VIDEO → TMDB Key. A v4 read access token (it starts `eyJ`) is too long to type: put it on the first line of `tmdb_api_key.txt` |
+| **No TMDB API key: type one in this module's settings, TMDB Key (free from themoviedb.org, Settings, API)** | No key | Select (`[ENTER]:SETTINGS`) opens the module's settings on **TMDB Key**: type a TMDB v3 key there (Settings → TV / Movie → NETFLIX or PRIME VIDEO → TMDB Key). A v4 read access token (it starts `eyJ`) is too long to type: put it on the first line of `tmdb_api_key.txt` |
 | **TMDB turned the API key down: check the TMDB Key in Settings** | TMDB answered 401 | The key was copied short, or shares its line with something else |
 | **Could not reach TMDB: check the network** | No network, or TMDB unreachable | Check the network |
 | **Chromium is not installed** | No Chromium or Chrome on the `PATH` | `sudo apt install chromium libwidevinecdm0 cage wtype` on Raspberry Pi OS (the image has it). Not on Windows; on a Mac it plays in Chrome |
@@ -246,12 +246,12 @@ More in [Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netf
 | Jellyfin: **QUICK CONNECT NOT ENABLED ON SERVER** as Quick Connect starts | The server answered 401 to Quick Connect: it is turned off there | Turn Quick Connect on in the server's settings, then enter the code at `<server>/web/#quickconnect` |
 | Jellyfin or Emby: **CONNECTION FAILED: …**, or nothing | The server URL lacks the scheme or the port | Type the whole URL (`http://192.168.1.20:8096`). A self-signed certificate on your own server is accepted; an expired one isn't |
 | Signed out by itself | `Token rejected — signing out`: a password changed, or the device was removed | Sign in again |
-| A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → TV / Movie → Plex → Video Quality to one of its Mbps choices, or read the server's log |
+| A Plex film fails, then plays after a while | Plex retries with a transcode when mpv can't play the file directly | Set Settings → TV / Movie → Plex → Video Quality to 1080p, 720p or 480p, or read the server's log |
 | Plex: **LOADING...** for half a minute, then an error such as **LOAD LIBRARY FAILED: …** | The server stopped answering (a NAS asleep, the Wi-Fi dropped) | Wake the server or check the network, then open the list again |
 | A film's page without its details, a show's without its seasons or a season's without its episodes | The server didn't answer, or answered with an error. The log says which item, from which server and why: `[Jellyfin] the seasons of show … could not be loaded from nas.local: HTTP 404 Not Found` (`[Plex]`, `[Emby]` likewise; `Connection refused` and the like when nothing answered) | Check that the server is on and reachable, go back and open the page again. `the server has nothing of it to play` (Plex) means the file is gone from the server |
 | **Not Allowed** on an offline playlist's video | The Jellyfin or Emby user may not download | Allow downloads for that user on the server, then Retry Downloads |
 
-Each module's settings has **Sign out**. The sign-ins are in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
+Each module's settings has **Sign Out**. The sign-ins are in the data folder: `plex_auth.json` (with `plex_key.pem`), `jellyfin_auth.json`, `emby_auth.json`. More in [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex), [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) and [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby).
 
 ## Arcade
 
@@ -265,6 +265,8 @@ A problem with the list shows under the tree, or on the screen itself when there
 | A game under **Not Recognized** | Its file isn't named as MAME names the game (`pacman.zip`, not `Pac-Man.zip`), or neither this MAME nor FinalBurn Neo plays it | Use a set made for this MAME (the image's is 0.276), or one FinalBurn Neo has |
 | `Missing …, looked for in …` | The set lacks files this MAME needs: a clone's parent set, or a BIOS set such as `neogeo.zip` | Put the sets it names in the games folder; a BIOS set there or in its `bios` folder |
 | `MAME stopped: …` about OpenGL, video or a window, or `MAME closed unexpectedly` | MAME couldn't draw the way it was asked, or crashed | Try another **Settings → Arcade → Emulator Video → MAME Video** |
+| A pad's Game Buttons are back on Auto or Engine's, or a game doesn't play the buttons chosen | In earlier releases the settings went by SDL's whole ID for the pad, which on Windows changes with its XInput slot, its driver (XInput, Raw Input) and its connection (USB, Bluetooth) | Update OSD/OS: settings saved before are found again. The log says what each pad was found as (`[input] controller added: … settings found; Game Buttons …`) and what each player played with as a game started (`[Arcade] game starts in …`); include both lines when you report it |
+| On Windows, a lone pad plays a FinalBurn Neo game as player 2, on RetroArch's own buttons | Earlier releases kept the pad for player 1 by a name SDL gives none (`*`) | Update OSD/OS. The log's `[Arcade] game starts in FinalBurn Neo` line names the device kept for each player |
 | Coin and Start don't bring you back | They count together, on one player's controller | Press them together on a controller that Settings → Controls gives a player, or Esc on a keyboard |
 | After a game the LOADING screen or a black screen stays; a keyboard's 5 and 1 do nothing in a FinalBurn Neo game | Defects of an older release | Update OSD/OS. If the screen still stays: wait a minute, switch the Pi off and on, then Quit → Save Logs |
 | On Windows: `This game is known but one of your romsets is missing files for THIS VERSION of FBNeo … None of those archives was found in your paths` for a set that plays on the Pi, or `… fbneo-arcade.dat could not be put in place` | Defects of an older release | Update OSD/OS. With a reason after the second message (`Access is denied`), close RetroArch and download again |
@@ -275,10 +277,16 @@ A problem with the list shows under the tree, or on the screen itself when there
 | `This OSD/OS has no core of its own for the local network: OSD/OS's packages bring it` | A build from source without OSD/OS's own FinalBurn Neo core | Install a release's package, or build the core ([BUILDING.md → FinalBurn Neo's cores](https://github.com/mehmetraif/OSD-OS/blob/main/BUILDING.md#finalburn-neos-cores)) |
 | `Hosting it over the network needs … of memory, and this machine has …` (or `Joining it`), or a game missing from Playable Online, Online Games or LAN Games | The game needs more memory over the network than this machine has: Cave's CV1000 games online | Play it on the local network or alone ([Online play](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#online-play)) |
 | A LAN game's picture skips and its sound breaks up on every machine, with a Raspberry Pi 4 in the game or over Wi-Fi | **LAN Sync** is **Responsive** on the host, or the host's OSD/OS is old | On the host, set **Settings → Arcade → LAN Sync** to **Smooth**, and update OSD/OS on every machine. Then try a cable, and a 60 Hz mode on every screen ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)) |
+| In a LAN game on **Smooth**, the picture slows or hitches on every machine at once | The host can't keep up, or its link waits: a Raspberry Pi 4, or a machine on Wi-Fi, hosting | Host on the fastest machine, on a cable: the PC, then a Raspberry Pi 5 ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)) |
+| A network game stutters, and it isn't clear why | | Turn on **Settings → Arcade → Show Ping**, play, then **Quit → Save Logs** and look for the `arcade: network game:` line: the players' ping, the players who left, CRC mismatches and desyncs, and RetroAchievements' hardcore lines ([How a game went](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#how-a-game-went)) |
 | On a machine that joined a LAN game, the buttons answer late | **LAN Sync** is **Smooth** on the host | With machines of the same speed on cables, set **LAN Sync** to **Responsive** on the host and host again; or let the player who needs the fastest buttons host |
 | The Orb theme's Arcade screen is drawn flat on a Raspberry Pi, and the log says `the Orb look needs Qt Quick 3D` | The system lacks Qt Quick 3D; Update never changes system packages | Install `qml6-module-qtquick3d` and `qml6-module-qtquick3d-helpers` and restart, or run `install.sh` again |
 | Back does nothing on the Arcade screen, and the main menu can't be reached | Settings → Startup → **Cabinet Lock** is on | Hold the unlock buttons together for three seconds. If they are forgotten or gone, turn the lock off from outside ([Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock)) |
 | The Arcade screen moves from game to game by itself | Settings → Arcade → **Attract Mode** is on | Any button or key ends it; set Attract Mode to Off |
+
+A game that stutters on a Raspberry Pi: after each game the log has a line of what the Pi did during it, its CPU governor, its clock, its throttling, its highest temperature and, in a network game over Wi-Fi, the band, the signal and the radio's scans (`journalctl -u osdos -b | grep 'arcade: system during the game'`; [The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). Throttling there with a temperature near 80 °C asks for a heatsink or a fan; `under-voltage`, for a power supply made for the Pi. The screen after such a game says so once.
+
+A USB stick or pad that drops out, repeats or stops answering on the OSD/OS image, though it works on a computer: the image polls USB joysticks every millisecond (`usbhid.jspoll=1` in `cmdline.txt`), which a rare device doesn't take. Take ` usbhid.jspoll=1` out of `cmdline.txt` on the boot partition (**bootfs**, from any computer, keeping the rest on its one line) and restart the Pi.
 
 The module's and MAME's lines: `journalctl -u osdos -b | grep -E 'Arcade|Scripts|DisplayHandoff'`. RetroArch's log of the last FinalBurn Neo game is `~/.local/share/OSD-OS/arcade/retroarch/last.log`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
 
@@ -324,7 +332,7 @@ Settings → Network → **Wi-Fi** joins a network ([Settings](https://github.co
 | **wrong password?** | The password, or a network whose password changed | Select it: **New Password**, or Forget it and join it again |
 | **it gave no address (DHCP)** | The router answered but gave no address | Restart the router; check how many devices it lets in |
 | **it is out of reach** | The network isn't heard, or doesn't say its name | Search again, or join it with **Network Not Listed** |
-| A LAN game stutters, a stream's buffer runs dry, SSH pauses, or Wi-Fi drops after a while | The Wi-Fi radio's power saving is on (`iw dev wlan0 get power_save` says `on`) | A current image keeps the radio awake. Elsewhere add `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` with the two lines `[connection]` and `wifi.powersave = 2`, then `sudo systemctl restart NetworkManager`. Should a Bluetooth pad stop connecting after it, take the file out |
+| A LAN game stutters, a stream's buffer runs dry, SSH pauses, or Wi-Fi drops after a while | The Wi-Fi radio's power saving is on (`iw dev wlan0 get power_save` says `on`) | A current image keeps the radio awake, and so does `install.sh` run again. Elsewhere add `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` with the two lines `[connection]` and `wifi.powersave = 2`, then `sudo systemctl restart NetworkManager`. Should a Bluetooth pad stop connecting after it, take the file out |
 
 To join from a shell (it needs `sudo`, so an image built with a password):
 
@@ -336,7 +344,7 @@ Setting Wi-Fi before the first boot is in [Installation → Wi-Fi by hand](https
 
 ## Two OSD/OS on one network
 
-Every OSD/OS image starts as `osdos`, so two of them share a name on the network and in LAN Play. Give each a name: select on **Device Name** in **Settings → System → About → System Information** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation.
+Every OSD/OS image starts as `osdos`, so two of them share a name on the network and in LAN Play. Give each a name: select on **Device Name** in **Settings → System → System Information** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation.
 
 | What you see | Cause | Fix |
 |---|---|---|
@@ -365,7 +373,7 @@ A video on a drive that was pulled out drops out of Recently Watched and Favorit
 | No **OSD-OS** drive on the card | The first boot keeps 8 GiB for the system and makes the rest the exFAT **OSD-OS** partition. A card with less than 2 GiB to spare gets none | Use a bigger card |
 | No **OSD-OS** drive after a first boot that was cut short | The partition was made but not yet formatted | Switch the Pi on again: the next boot formats it |
 | Windows offers to format a drive | It can't read the system's partition | Always **Cancel**: formatting it erases the system |
-| Films copied on, not in Local Files | Local Files opens the partition's **Movies** folder (`/media/OSD-OS/Movies`), unless its Media Directory names another | Move them into **Movies**, or choose Settings → TV / Movie → Local Files → Media Directory → Default Folder |
+| Films copied on, not in Local Files | Local Files opens the partition's **Movies** folder (`/media/OSD-OS/Movies`), unless its Media Folder names another | Move them into **Movies**, or choose Settings → TV / Movie → Local Files → Media Folder → Default Folder |
 | Offline playlists fail, naming the folder | A card flashed with an old image mounts the partition read-only (`ro` in `/etc/fstab`) | Flash the current image, or change `ro` to `rw,noexec,nosuid,nodev` and the line's last `0` to `2` |
 
 The partition is checked with `fsck.exfat` at every boot. More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card).
@@ -438,15 +446,15 @@ Nothing in `mpv.conf` reaches the menu music's mpv. More in [Menu music](https:/
 
 ## Rows dimmed in Settings
 
-Settings never hides a row. One that can't be used is dimmed, a checkerboard over it, and its help line starts with why.
+Settings never hides a row. One that can't be used is dimmed, a checkerboard over it, and its help line starts with why. A page opens on its first row that can be used.
 
 | Row | Can be used when |
 |---|---|
 | Transparent Background (TV / Movie) | libmpv is found (`libmpv2` on Raspberry Pi OS, part of Homebrew's mpv) and the build has libmpv's headers. Else the log says `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable` |
 | 1080p Playback (TV / Movie) | On a Raspberry Pi 3 |
 | Logo Image (TV / Movie) | Channel Logo isn't Off |
-| Orb Fog (Look) | The theme has the Arcade screen's Orb look |
-| Window Frame (Look) | OSD Background is Window |
+| Orb Fog (Look → Effects) | The theme has the Arcade screen's Orb look |
+| OSD Frame (Look) | OSD Background is Box |
 | Text Effect, Background Effect, Screen Effect (Look → Effects) | The build has Qt Shader Tools and Qt draws on a GPU, not with its software renderer. Without them Transition lists no Ripple, Wave or Drop |
 | Selector Effect, and Fade and Cube (Look → Effects) | Always |
 | Display Output (Screen) | On the OSD/OS image, started by its service, on a Pi with more than one output |
@@ -455,7 +463,8 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | Music File, Music Volume (Sound) | Menu Music is File; Menu Music isn't Off |
 | Wi-Fi (Network) | On Linux, in a build with Qt D-Bus, with NetworkManager running |
 | Bluetooth (Network) | On Linux, in a build with Qt D-Bus, with BlueZ running |
-| Startup From (Startup) | A favourite is set to Play at Startup |
+| Network (the first screen) | Wi-Fi or Bluetooth can be used |
+| Play From (Startup) | A favourite is set to Play at Startup |
 | Paste OSD/OS Setup (System) | There is a clipboard: on a computer, not on the image's console |
 
 A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Tools not found — the shader effects will be unavailable` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#qt-shader-tools)). More in [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects).
@@ -475,7 +484,7 @@ A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Too
 | What the log says | Cause | Fix |
 |---|---|---|
 | `…/Main.qml: No such file or directory`, then `[main] QML engine failed to load Main.qml` | OSD/OS's own files aren't where it looks: `APP_ROOT`, the binary's folder, or `share/osdos` beside it | From source, start it with `APP_ROOT=$(pwd)` in the repository's folder. On Windows, keep `osdos.exe` in its folder with `Main.qml` beside it |
-| `module "…" is not installed` | A QML module is missing | `sudo apt install qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window`, or run `install.sh` |
+| `module "…" is not installed` | A QML module is missing | `sudo apt install qml6-module-qtquick qml6-module-qtquick-window`, or run `install.sh` |
 | `This application failed to start because no Qt platform plugin could be initialized.` | Qt's platform plugin is missing, or the wrong one is asked for | Without a desktop use `QT_QPA_PLATFORM=eglfs`, which the launcher sets; on a desktop, `xcb` or `wayland`. The AppImage needs X11, or Wayland with XWayland |
 | EGLFS errors about the DRM device, such as `drmModeGetResources failed` | On a Pi 5 Qt can take the GPU's render node for the display's card | Start it through the launcher (`/usr/local/bin/osdos`), or `scripts/rpi-run-local.sh` for a build of your own |
 | Nothing on screen when started over SSH | The service holds the screen | `sudo systemctl stop osdos` first |

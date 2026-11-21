@@ -63,7 +63,7 @@ FocusScope {
             event.accepted = true
         } else if (event.key === Qt.Key_Right) {
             // Right, not Space: a USB remote reliably has a d-pad but often no
-            // space key. Matches the YouTube module's watch-later save/remove.
+            // space key.
             toggleFavorite()
             event.accepted = true
         }
@@ -93,7 +93,7 @@ FocusScope {
             font.pixelSize: root.sh * 0.05 //24
         }
         Text {
-            text: "Please add .sh files to the scripts directory"
+            text: "Add .sh files to the scripts folder"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -200,7 +200,8 @@ FocusScope {
             var s = itemsRoot.currentScript
             if (!s) return ""
             var flags = []
-            if (s.favorite) flags.push("FAVORITE")
+            // The * before its mode: a row of its own on the main menu.
+            if (s.favorite) flags.push("ON MAIN MENU")
             if (s.confirm)  flags.push("CONFIRM")
             return [s.basename].concat(flags).join("\n")
         }
@@ -284,11 +285,14 @@ FocusScope {
         onCanceled: confirmOverlay.dismiss()
     }
 
-    // Footer
+    // Footer: with no script, back alone. ► puts the script on the main
+    // menu as a row of its own (its sidecar's favorite), or takes it off.
     HintBar {
         id: footer
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             "browse:" + (itemsRoot.currentScript && itemsRoot.currentScript.favorite ? "UNFAVORITE" : "FAVORITE"),
-                             "select:RUN"])
+        text: !itemsRoot.currentScript
+              ? root.hintLine(["back:BACK"])
+              : root.hintLine(["back:BACK", scriptList.count > 1 ? "navigate:NAVIGATE" : "",
+                               "browse:" + (itemsRoot.currentScript.favorite ? "OFF MAIN MENU" : "ON MAIN MENU"),
+                               "select:RUN"])
     }
 }

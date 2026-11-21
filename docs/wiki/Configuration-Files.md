@@ -52,7 +52,7 @@ Each is also read under its 240-MP name, `MP240_<NAME>`, when the `OSDOS_` one i
 | Variable | Set by | What it does |
 |---|---|---|
 | `OSDOS_AUTOSTART` | The autostart service (`Environment=OSDOS_AUTOSTART=1`) | Set to anything: OSD/OS runs as the system's app. Quit offers Power Off, Restart and Exit to Terminal (and Save Logs with `OSDOS_MEDIA_DIR`), and Display Output can be offered |
-| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`10`) | What the launcher can do, each level adding to those below. Set at all, with the app in `/opt/osdos`: in-app updates. `2`: Restart in Quit. `3`: Display Output. `4`: JAMMA 240p 15 kHz (720x240). `5`: Switch and Power Off, At Next Start. `6`: the JAMMA board's other modes. `7`: Wi-Fi. `8`: renaming the device. `9`: JAMMA 480i 15 kHz (640x480) |
+| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`11`) | What the launcher can do, each level adding to those below. Set at all, with the app in `/opt/osdos`: in-app updates. `2`: Restart in Quit. `3`: Display Output. `4`: JAMMA 720x240. `5`: Switch and Power Off, At Next Start. `6`: the JAMMA board's other modes. `7`: Wi-Fi. `8`: renaming the device. `9`: JAMMA 640x480i. `10`: the time zone and the keyboard. `11`: an arcade game's CPU governor |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | The launcher, on a Pi 5, from the display preset's `# osdos-output:` and `# osdos-mode:` lines | The output OSD/OS draws on and mpv plays on: `--drm-device`, `--drm-connector` and, when set, `--drm-mode` ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
 | `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | The folder the media go in; else `media` in the data folder. Default folders there: Local Files' `Movies`, Playlists' `Movies/Playlists`, the Arcade's `Games/Arcade` |
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
@@ -115,7 +115,7 @@ Other variables:
 ├── jellyfin_auth.json          the Jellyfin sign-in        (owner-only)
 ├── emby_auth.json              the Emby sign-in            (owner-only)
 ├── tmdb_api_key.txt            you write it, if you like: the TMDB key, where Settings' TMDB Key is empty
-├── weather_location.txt        you write it, if you like: Weather's places, beside Settings' Location and Other Places
+├── weather_location.txt        you write it, if you like: Weather's places, beside Settings' Location and Other Locations
 ├── weather_music.txt           you write it, if you like: Weather's music
 ├── custom_color_schemes.json   you write it, if you like: color schemes of your own
 ├── custom_color_scheme.json    you write it, if you like: the scheme called Custom
@@ -150,7 +150,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `local_files_history.json`, `nfc_reader_history.json` | `{ "<path>": { "pos": <ms>, "plPos": <video in a playlist, or -1>, "lastPlayed": <ms since 1970> } }`, the 1000 most recently played |
 | `youtube_history.json` | By video id: `{ "pos", "title", "channelName", "lastPlayed" }` |
 | `playlists/` | Each m3u is owner-only, as it may hold a server's token |
-| `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | Sign-ins and tokens, owner-only. Sign out deletes a module's own |
+| `plex_auth.json`, `plex_key.pem`, `jellyfin_auth.json`, `emby_auth.json` | Sign-ins and tokens, owner-only. Sign Out deletes a module's own |
 | `tmdb_api_key.txt` | Its first line that isn't empty or a `#` comment: a TMDB v3 API key, or a v4 read access token |
 | `input.cfg`, `gamecontrollerdb.txt` | Gamepad remapping, read again when it changes; extra SDL mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
 | `display-output.json` | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted afterwards |
@@ -161,8 +161,8 @@ A file or folder appears only once something needs it. A module's own files are 
 | `bin/yt-dlp` | Found first, before one beside the `osdos` binary and one on `PATH`. On the image a timer updates it after each boot and once a day |
 | `bin/mame` | Found first, before `mame` on `PATH` and `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
 | `arcade/`, `highscores/` | Listed in [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps) and [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps) |
-| `<service>/browser/` | A Chromium profile per service, with its sign-in. Sign out deletes it |
-| `updates/` | The downloaded release with `staged.json` and `staged.sha256` (written at Apply), unfinished `*.part` downloads, and on an AppImage or a Mac the helper script and its `apply.log` |
+| `<service>/browser/` | A Chromium profile per service, with its sign-in. Sign Out deletes it |
+| `updates/` | The downloaded release with `staged.json` and `staged.sha256` (written at Apply), `staged.sha256.failed` (why the launcher couldn't put it in place, told once on the Software Update page), unfinished `*.part` downloads, and on an AppImage or a Mac the helper script and its `apply.log` |
 
 ## config.json
 
@@ -280,23 +280,23 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `color_scheme`, `skin`, `text_effect`, `background_effect`, `selector_effect`, `screen_effect`, `transition`, `menu_music` | The theme's parts | string: `""` for THEME, `"Off"`, or a name (`skin` takes a folder name) |
 | `menu_music_file` | Music File | string: a full path, `""` for none |
 | `menu_music_volume` | Music Volume | number, 0 to 100 |
-| `osd_background`, `osd_frame` | OSD Background, Window Frame | string |
+| `osd_background`, `osd_frame` | OSD Background, OSD Frame | string |
 | `menu_layout` | Menu Layout | string: `"Standard"`, `"Camcorder"`, `"Studio Monitor"`, `"Broadcast"`, `"Flat Panel"` |
-| `startup_module` | Start on Module | string: a module id, or `"None"` |
+| `startup_module` | Start On | string: a module id, or `"None"` |
 | `startup_favorite` | Play at Startup | object `{ "module", "path", "name" }`, or `""` |
-| `startup_from` | Startup From | string: `"Resume"` or `"Beginning"` |
+| `startup_from` | Play From | string: `"Resume"` or `"Beginning"` |
 | `cabinet_lock` | Cabinet Lock | string: `"On"` or `"Off"` |
 | `unlock_buttons` | Cabinet Lock → Unlock Buttons | array of one to four `{ "input", "name" }`. `input`: a pad's button by its player (`"p1/start"`, `"p2/dpup"`), or a key by its Qt key code (`"key/49"` for 1). `name`: what the page shows (`"P1 START"`) |
-| `monitor` | Monitor | string: `"Horizontal"`, `"Turned Right"`, `"Turned Left"` |
+| `monitor` | Rotation | string: `"Horizontal"`, `"Turned Right"`, `"Turned Left"` |
 | `smooth_playback` | 1080p Playback (Pi 3) | string: `"On"` or `"Off"` |
 | `video_scaling` | Scaling | string: `"Letterbox"`, `"14:9"`, `"Pan & Scan"`, `"Anamorphic"` |
 | `transparent_background` | Transparent Background | number, 0 to 100, or the string `"Off"`. `"On"` and `"Dim"` read as 0 and 60 |
 | `video_output_levels` | Video Levels | string: `"Auto"`, `"Limited"`, `"Full"` |
 | `loading_effect`, `hint_bar`, `help_line`, `status_icons` | Loading Effect, Hint Bar, Help Line, Status Icons | string: `"On"` or `"Off"` |
-| `loading_colors`, `boot_colors` | Loading Screen Colors, Boot Screen Colors | string: `"Theme"` (when unset) or `"Default"` |
+| `loading_colors`, `boot_colors` | Loading Colors, Boot Colors | string: `"Theme"` (when unset), shown Menu, or `"Default"`, shown Blue |
 | `video_logo` | Channel Logo | string: `"off"`, `"tl"`, `"tr"`, `"bl"`, `"br"`, `"all"` |
 | `video_logo_image` | Logo Image | string: a full path, `""` for OSD/OS's logo |
-| `screensaver_timeout` | Screen Saver | string: `"OFF"`, `"30"`, `"60"`, `"120"` |
+| `screensaver_timeout` | Screen Saver | string: `"OFF"`, or seconds: `"60"`, `"120"`, `"300"` (when unset), `"600"`; `"30"` saved by an older OSD/OS is read as it is, shown as 1 min |
 | `mouse_pointer` | Mouse Pointer | string: `"off"`, `"2"`, `"5"`, `"10"`, `"30"`, `"always"` |
 | `window_mode` | Window Mode | string: `"Off"` or `"On"`. Windows and Linux or BSD desktops only |
 | `info_screen` | Info Screen | string: `"off"`, `"key"`, `"1"`, `"2"`, `"3"`, `"5"` |
@@ -350,7 +350,7 @@ When each part is read:
 | What | When it is read |
 |---|---|
 | The look, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver, Audio Output, Controls, Cabinet Lock, the modules' folders | At start, then at each change made in Settings |
-| `display_index`, Start on Module, Play at Startup, Startup From | At start |
+| `display_index`, Start On, Play at Startup, Play From | At start |
 | Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts; Scaling and Video Levels also at once on a video playing behind the menus |
 | A module's other settings | When the module needs them: most as a video starts or a list opens |
 
@@ -359,7 +359,7 @@ A change made by hand while OSD/OS runs reaches the per-video settings at the ne
 ## Editing by hand
 
 1. **Stop OSD/OS.**
-   - Under the autostart service, over SSH: `sudo systemctl stop osdos`. This leaves the Pi on; Settings → Quit would power it off.
+   - Under the autostart service, over SSH: `sudo systemctl stop osdos`. This leaves the Pi on; Settings → Power would power it off.
    - Run by hand, or on a Mac: Settings → Quit, or Ctrl+Q.
 2. **Edit**, for example `nano ~/.local/share/OSD-OS/config.json`. One missing comma makes the file unreadable.
 3. **Check it** before starting. An error names the line and the column:
@@ -447,7 +447,7 @@ OSD/OS carries over what a 240-MP install left:
 - **The data folder.** At its first start, when `OSD-OS` doesn't exist or is empty, OSD/OS moves `~/.local/share/240-MP` to `~/.local/share/OSD-OS` (on a Mac, in `~/Library/Application Support`). The log says `[legacy] moved the 240-MP data folder … to …`. Should the move fail, it uses the 240-MP folder where it is.
 - **Module ids.** At every start, keys and values beginning `com.240mp.` in the data folder's `.json` files, `nfc_tags` included, are renamed `com.osdos.`.
 - **Environment variables.** Every `OSDOS_<NAME>` is read as `MP240_<NAME>` when unset. `web-player.sh` reads `MP240_WEB_PLAYER_UA`, and `scripts/rpi-run-local.sh` `MP240_BIN`.
-- **Old settings.** `app.theme` is read while `app.skin` is unset, and `app.auto_crop` while `app.video_scaling` is. The `true`/`false` values of Local Files' Shuffle Playback and Auto Show Subtitles still read.
+- **Old settings.** `app.theme` is read while `app.skin` is unset, and `app.auto_crop` while `app.video_scaling` is. The `true`/`false` values of Local Files' Shuffle Playback and Subtitles still read.
 - **The install.** `install.sh` removes a 240-MP install (`240mp.service`, `/opt/240mp`, `/usr/local/bin/240mp`) first. An app still running from `/opt/240mp` can't update itself: run the installer once ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
 
 ## The cache folder

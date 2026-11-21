@@ -10,7 +10,7 @@ export const SETUP_VERSION = 1;
 export const SETUP_FILE = "osdos-setup.json";
 export const ARCADE_MODULE = "com.osdos.arcade";
 
-// --- The device's name, as Settings → System → About → System Information makes one
+// --- The device's name, as Settings → System → System Information makes one
 // (SystemInfo::hostnameFor): small letters, spaces and underscores as
 // hyphens, then RFC 1123's letters, digits and hyphens, 63 at most, no hyphen
 // at either end.
@@ -601,9 +601,28 @@ export function listLines(text, row = {}) {
     return lines;
 }
 
+// A choice row's value saved before its choices were what they are now, as
+// the device shows it (a row marked "nearest", Screen Saver): one of its
+// choices as it is; else a number of seconds as the nearest of its choices
+// that are numbers, the earlier of two as near (an old 30 as 1 min), and
+// anything else as its first choice (Off): Settings' own rule
+// (views/SettingsPages.js), which Export to OSD/OS Setup follows too.
+export function nearestChoice(row, value) {
+    const values = row.options.map(([, v]) => String(v));
+    if (values.includes(String(value)))
+        return value;
+    const seconds = parseInt(value, 10);
+    const numbers = values.filter(v => /^\d+$/.test(v));
+    if (!(seconds > 0) || numbers.length === 0)
+        return values[0];
+    return numbers.reduce((best, v) => Math.abs(Number(v) - seconds) < Math.abs(Number(best) - seconds) ? v : best);
+}
+
 // What of a file read back this page has: a board it knows, an output that
 // board has, a country, a time zone and a keyboard it offers, and the
-// settings on its form. The rest left out, named.
+// settings on its form. The rest left out, named. A setting saved as a
+// choice the form no longer offers is read as the device shows it
+// (nearestChoice()).
 export function fitImport(read, schema) {
     const state = { ...read };
     const dropped = [];
@@ -629,10 +648,11 @@ export function fitImport(read, schema) {
     }
     const config = {};
     const source = isPlainObject(state.config) ? state.config : {};
-    const appKeys = new Set(schema.app.flatMap(group => group.settings.map(row => row.key)).filter(Boolean));
+    const appRows = new Map(schema.app.flatMap(group => group.settings.map(row => [row.key, row])).filter(([key]) => key));
     for (const [key, value] of Object.entries(isPlainObject(source.app) ? source.app : {})) {
-        if (appKeys.has(key))
-            setPath(config, ["app", key], value);
+        const row = appRows.get(key);
+        if (row)
+            setPath(config, ["app", key], row.nearest && Array.isArray(row.options) ? nearestChoice(row, value) : value);
         else
             dropped.push(`app.${key}`);
     }

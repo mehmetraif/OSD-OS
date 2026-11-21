@@ -13,6 +13,7 @@
 #include <functional>
 
 #include "../modules/playlists/MediaServer.h"
+#include "KeptLists.h"
 
 class AppCore;
 
@@ -61,7 +62,10 @@ public:
     // nor reports a playback the server would show as playing.
     Q_INVOKABLE void cancel_playback_url();
     Q_INVOKABLE void load_next_episode(const QString &currentItemId);
-    Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool isPaused);
+    // Where the item has got to, as it plays (MediaServerPlayer, every ten
+    // seconds). Always as playing (IsPaused false): the player doesn't follow
+    // whether mpv is paused.
+    Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks);
     Q_INVOKABLE void report_playback_stopped(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool failed = false);
 
     // URL helpers for QML
@@ -77,6 +81,9 @@ public:
     Q_INVOKABLE void getLibraries();
     Q_INVOKABLE virtual void getVideoQualities();
     Q_INVOKABLE void get_resume_playback_options();
+    // SIGN IN's value: dynamicOptionsReady("sign_in", [{ id, label }]), the
+    // user signed in as, or [] while no one is.
+    Q_INVOKABLE void get_account();
     Q_INVOKABLE void load_server_preferences();
 
     Q_INVOKABLE int get_last_audio_lang_idx() const;
@@ -97,7 +104,11 @@ signals:
     void upNextLoaded(const QVariant &items);
     // Resume-or-next-unwatched episode for a series (empty map if none)
     void seriesNextUpReady(const QVariantMap &detail);
-    void streamUrlReady(const QString &url);
+    // The stream get_playback_url asked for: its URL, how it plays
+    // ("DirectPlay" or "Transcode"), and whether a text subtitle comes as a
+    // file beside it (its subUrl, handed to mpv) rather than burnt into the
+    // picture, as subtitleProfiles() asked the server for it.
+    void streamUrlReady(const QString &url, const QString &playMethod, bool subtitlesBeside);
     void dynamicOptionsReady(const QString &key, const QVariant &options);
     void segmentsReady(const QString &itemId, const QVariantList &segments);
     void errorOccurred(const QString &message);
@@ -146,8 +157,9 @@ protected:
     void notifyAuthState();
     void loadAuthState();
     void saveAuthState();
-    // The sign-in forgotten, its file too, and a new device id made for the
-    // next: a backend forgets what else it knew of the server.
+    // The sign-in forgotten, its file too, the tracks its user chose last,
+    // and a new device id made for the next: a backend forgets what else it
+    // knew of the server.
     virtual void clearAuthState();
     // The token revoked on the server as the user signs out (logout()),
     // while it is still known: /Sessions/Logout.
@@ -188,7 +200,7 @@ protected:
     // last, the user having moved on: a reply to an older one is dropped, not
     // shown in the view after it. read makes the rows of the reply, away from
     // the screen's thread (a whole library is megabytes of JSON). A list given
-    // a keep key is kept a while (kListKeepMs), so going back to it (from a
+    // a keep key is kept a while (KeptLists), so going back to it (from a
     // film's detail screen) shows it without asking the server again; a
     // playback ending forgets them all, its played state having changed.
     void loadList(void (EmbyApiBackend::*answer)(const QVariant &), const QString &keep,
@@ -197,7 +209,7 @@ protected:
 
     // The playback get_playback_url() resolved, told to the server as it starts.
     void report_playback_start(const QString &itemId, const QString &mediaSourceId, const QString &audioStreamId,
-                               const QString &subtitleStreamId, qint64 startPositionTicks = 0);
+                               const QString &subtitleStreamId);
 
     // get_playback_url(), with sdrCap: an otherwise uncapped transcode held
     // to 1080p and 20 Mbps (Emby's Dolby Vision source, transcoded to SDR).
@@ -212,6 +224,9 @@ protected:
     // How each subtitle format reaches mpv, for Direct Play or a transcode:
     // the server's own (Jellyfin's and Emby's differ).
     virtual QJsonArray subtitleProfiles(bool directPlay) const = 0;
+    // Whether those profiles have the server send a text subtitle as a file
+    // beside the stream (External), for streamUrlReady.
+    bool subtitlesBeside(bool directPlay) const;
     // The source PlaybackInfo answered with for Direct Play, before it is
     // played: true where the backend has asked for a transcode of it
     // instead (Emby's Dolby Vision sources), and it is not played.
@@ -279,9 +294,7 @@ protected:
     int m_episodesRequest = 0;
     int m_nextUpRequest = 0;
 
-    struct KeptList { QVariantList rows; qint64 at = 0; };
-    QHash<QString, KeptList> m_keptLists;
-    QStringList m_keptOrder;    // oldest first
+    KeptLists m_keptLists;
     int m_listRequest = 0;
 
 private:

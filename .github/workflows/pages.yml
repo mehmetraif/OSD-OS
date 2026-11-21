@@ -12,7 +12,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'site/**'
       - 'docs/images/theme-*.gif'
       - 'docs/images/theme-*.mp4'
@@ -33,7 +33,7 @@ on:
       - 'views/SettingsPages.js'
       - 'Main.qml'
       - 'shaders/**'
-      - 'src/display/DisplayOutput.cpp'
+      - 'os/stage-osdos/03-boot/files/display-presets.json'
       - 'os/stage-osdos/03-boot/files/**'
       - 'assets/themes/**'
       - 'assets/skins/**'
@@ -42,35 +42,7 @@ on:
       - 'assets/images/app-icon/**'
       - '.github/workflows/pages.yml'
   pull_request:
-    paths:
-      - 'site/**'
-      - 'docs/images/theme-*.gif'
-      - 'docs/images/theme-*.mp4'
-      - 'docs/images/tour.mp4'
-      - 'docs/images/osdos-on-a-crt.jpg'
-      - 'docs/images/osdos-logo.svg'
-      - 'docs/screenshots/arcade-list-3d-curved.png'
-      - 'docs/screenshots/arcade-screen-lan.png'
-      - 'scripts/build-site.py'
-      - 'tests/site/**'
-      - 'modules/*/manifest.json'
-      - 'modules/local_files/iso639-1.json'
-      - 'modules/arcade/views/orb/**'
-      - 'modules/arcade/views/OrbLook.qml'
-      - 'INSTALL.md'
-      - '.github/workflows/release.yml'
-      - 'views/Settings.qml'
-      - 'views/SettingsPages.js'
-      - 'Main.qml'
-      - 'shaders/**'
-      - 'src/display/DisplayOutput.cpp'
-      - 'os/stage-osdos/03-boot/files/**'
-      - 'assets/themes/**'
-      - 'assets/skins/**'
-      - 'assets/fonts/**'
-      - 'assets/images/logo.svg'
-      - 'assets/images/app-icon/**'
-      - '.github/workflows/pages.yml'
+    paths: *paths
   workflow_dispatch:
   # A release published: the download buttons lead to its files.
   workflow_run:

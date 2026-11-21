@@ -127,6 +127,10 @@ FocusScope {
             return
         if (navListState.currentIndex !== undefined)
             list.currentIndex = Math.min(navListState.currentIndex, rows.length - 1)
+        // An empty list (one just made): on ADD VIDEOS, as PLAY has
+        // nothing to play.
+        else if ((playlist.items || []).length === 0 && !navParams.resumePlayer)
+            list.currentIndex = rows.findIndex(function(r) { return r.type === "add" })
         // The list playing behind the menus: on to its player, back from
         // which lands here.
         else if (navParams.resumePlayer)

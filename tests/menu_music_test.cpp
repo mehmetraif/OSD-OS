@@ -8,6 +8,7 @@
 #include "audio/MenuMusic.h"
 #include "modules/ambient_mode/AmbientModeBackend.h"
 #include "modules/weather/WeatherBackend.h"
+#include "util/MpvSocket.h"
 #include "util/RuntimeFiles.h"
 #include <QCoreApplication>
 #include <QDir>
@@ -276,6 +277,25 @@ private slots:
         QCOMPARE(renders().size(), 1);
     }
 
+    // What can't play here says why, for Music File's help line: a MIDI
+    // file without FluidSynth; nothing for one that can, or a recording.
+    void missingFor() {
+        const QString midi = m_dir.path() + QStringLiteral("/said.mid");
+        QVERIFY(writeFile(midi, "MThd"));
+        QVERIFY(writeFile(m_dir.path() + QStringLiteral("/said.sf2"), "sfbk"));
+        QCOMPARE(m_music->missingFor(midi), QString());
+        QCOMPARE(m_music->missingFor(m_tune), QString());
+        QCOMPARE(m_music->missingFor(QString()), QString());
+        const QByteArray path = qgetenv("PATH");
+        const QString none = m_dir.path() + QStringLiteral("/nothing");
+        QVERIFY(QDir().mkpath(none));
+        qputenv("PATH", none.toUtf8());
+        const QString why = m_music->missingFor(midi);
+        qputenv("PATH", path);
+        QVERIFY2(why.contains(QStringLiteral("FluidSynth")), qPrintable(why));
+        QCOMPARE(m_music->missingFor(m_tune), QString());
+    }
+
     // No SoundFont beside it: the first in the data folder's soundfonts.
     void dataFolderSoundFont() {
         const QString fonts = m_dir.path() + QStringLiteral("/data/soundfonts");
@@ -518,6 +538,38 @@ private slots:
         mpv.end(true);
         QVERIFY(!lastAlive());
         QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+    }
+
+    // The control connection all the app's mpvs are reached by
+    // (util/MpvSocket): tried until mpv has made its socket, then a command
+    // a line of mpv's JSON; none written while it isn't connected, and none
+    // tried once it is told to stop.
+    void mpvSocket() {
+        const QString path = runtimefiles::path(QStringLiteral("osdos-test-socket.sock"));
+        QLocalServer::removeServer(path);
+        MpvSocket socket(nullptr, 20);
+        QVERIFY(!socket.command({ QStringLiteral("quit") }));
+        socket.connectTo(path);
+        QTest::qWait(100);
+        QCOMPARE(socket.state(), QLocalSocket::UnconnectedState);
+
+        // mpv's socket, made a moment after it started.
+        QLocalServer control;
+        QVERIFY(control.listen(path));
+        QTRY_COMPARE_WITH_TIMEOUT(socket.state(), QLocalSocket::ConnectedState, 3000);
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 3000);
+        QLocalSocket *mpv = control.nextPendingConnection();
+        QVERIFY(socket.command({ QStringLiteral("set_property"), QStringLiteral("volume"), 40 }));
+        QTRY_VERIFY_WITH_TIMEOUT(mpv->bytesAvailable() > 0, 3000);
+        QCOMPARE(mpv->readAll(), QByteArray("{\"command\":[\"set_property\",\"volume\",40]}\n"));
+
+        // Gone, and not asked for again: left unconnected.
+        socket.abort();
+        socket.connectTo(path);
+        socket.stopConnecting();
+        QTest::qWait(100);
+        QCOMPARE(socket.state(), QLocalSocket::UnconnectedState);
+        QVERIFY(!control.hasPendingConnections());
     }
 };
 

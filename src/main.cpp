@@ -17,7 +17,6 @@
 #include <QScreen>
 #include <QTimer>
 #include <locale.h>
-#include <csignal>
 #include <cstdio>
 #include <cstring>
 
@@ -59,6 +58,7 @@
 #include "util/Diagnostics.h"
 #include "util/ExitCodes.h"
 #include "util/LogFile.h"
+#include "util/TermSignals.h"
 #include "util/SetupFile.h"
 #include "util/SetupExporter.h"
 #ifdef Q_OS_MAC
@@ -163,17 +163,6 @@ static int compileQml(const QString &appRoot) {
     return 0;
 }
 
-// Terminating signals must unwind normally rather than killing the process where
-// it stands. Without this, `systemctl stop`, `pkill`, or a shutdown can leave mpv
-// or another process running and with the scripts module (takeover specifically), it
-// could also leave a headless Pi on a blank VT with DRM master dropped, because
-// ~DisplayHandoff never got the chance to put the display back.
-//
-// Async-signal-safe: only records the signal. A 100 ms timer in main() polls it and
-// exits from the event loop, where destructors run properly.
-static volatile std::sig_atomic_t g_termSignal = 0;
-extern "C" void osdosHandleTerm(int sig) { g_termSignal = sig; }
-
 int main(int argc, char *argv[]) {
 #if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     // What it logs goes to osdos.log in the data folder as well, the run
@@ -243,26 +232,14 @@ int main(int argc, char *argv[]) {
 
     setlocale(LC_NUMERIC, "C");
 
-    std::signal(SIGTERM, osdosHandleTerm);
-    std::signal(SIGINT,  osdosHandleTerm);
-#ifdef SIGHUP // not on Windows
-    std::signal(SIGHUP,  osdosHandleTerm);
-#endif
-    QTimer termPoll;
-    termPoll.setInterval(100);
-    QObject::connect(&termPoll, &QTimer::timeout, &app, [&app]() {
-        if (g_termSignal) {
-            qInfo("[main] Termination signal received — shutting down cleanly");
-            // 128 + signal number, the shell convention for "ended by a signal".
-            // It lets the autostart service's stop helper (osdos-stop) tell a
-            // `systemctl stop`/`restart` apart from the user choosing Quit
-            // (exit 0), the only exit that powers the Pi off, and the service
-            // count it as no failure (SuccessExitStatus=), not one to start
-            // the app again after (util/ExitCodes.h).
-            app.exit(exitcode::bySignal(g_termSignal));
-        }
+    // Terminating signals unwind from the event loop (util/TermSignals), so
+    // that destructors run: mpv and the display put back as they should be.
+    termsignals::install(&app, [&app](int sig) {
+        qInfo("[main] Termination signal received — shutting down cleanly");
+        // Ended by a signal, not by Quit: what osdos-stop and the service
+        // make of that is util/ExitCodes.h's.
+        app.exit(exitcode::bySignal(sig));
     });
-    termPoll.start();
 
     // Once, before anything looks for or spawns mpv / yt-dlp: the locators are
     // pure queries and deliberately do not touch the environment themselves.
@@ -326,8 +303,8 @@ int main(int argc, char *argv[]) {
     appCore.setSetupNotice(setupfile::noticeTitle(setup, setupfile::Taken::AtStart), setup.lines.join(QLatin1Char('\n')));
 
     // Which physical display the UI launches on. App-level "display_index"
-    // (0 = primary screen, the previous hardcoded behaviour). Lets the UI open
-    // on a secondary display without making it the OS primary. Applied on
+    // (0 = primary screen). Lets the UI open on a secondary display without
+    // making it the OS primary. Applied on
     // macOS and desktop Linux (xcb/wayland); on single-display platforms
     // (Pi EGLFS, Steam Deck gaming mode under gamescope) the clamp below
     // resolves to 0 and everything stays a no-op.
@@ -404,7 +381,9 @@ int main(int argc, char *argv[]) {
     MenuMusic           menuMusic(dataRoot);     // Settings → Sound → Menu Music, or a theme's
     BluetoothManager    bluetoothManager;  // Settings → Network → Bluetooth (BlueZ on Linux)
     WifiManager         wifiManager;       // Settings → Network → Wi-Fi (NetworkManager on Linux)
-    // Settings → System → About → System Information, the films' drive Local Files'
+    // The Arcade's LAN games warn of 2.4 GHz Wi-Fi beside Bluetooth pads.
+    arcadeBackend.setLinkSources(&wifiManager, &bluetoothManager);
+    // Settings → System → System Information, the films' drive Local Files'
     // folder's.
     SystemInfo          systemInfo(dataRoot, [&localFiles] { return localFiles.mediaRoot(); });
     SystemSettings      systemSettings;
@@ -421,7 +400,7 @@ int main(int argc, char *argv[]) {
           displayOutput.current().isEmpty() ? "none" : qPrintable(displayOutput.current()),
           tube ? "a TV's tube, drawn 4:3" : "square pixels");
     mpvController.setScreen(tube, screenPixels);
-    arcadeBackend.setScreen(tube, screenPixels);
+    arcadeBackend.setScreen(tube, screenPixels, targetScreen ? targetScreen->refreshRate() : 0);
 
     // When the Qt window is inactive (fullscreen mpv has OS focus on macOS),
     // gamepad actions bypass QML and drive mpv directly over IPC; the media

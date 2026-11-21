@@ -48,7 +48,8 @@ Five principles from CONTRIBUTING.md:
 | `icon` | | Its logo, relative to the module's folder |
 | `entry_point_qml` | Yes | Its router, relative to the module's folder: `views/Root.qml` |
 | `settings` | | Its settings, in the order Settings shows them. A module with none isn't listed in Settings |
-| `settings_group` | | Where Settings lists the page: `"tv"` under **Modules** on the **TV / Movie** page; `"arcade"` on the **Arcade** page, under the module's name as a heading; left out, under **Modules** on the **System** page |
+| `settings_group` | | Where Settings lists the page: `"tv"` under **Modules** on the **TV / Movie** page; `"arcade"` on the **Arcade** page, under the module's name as a heading; left out, under **Modules** on the **System** page. It is also the module's group on the main menu: TV / Movie's modules first, then Arcade's, then the rest |
+| `menu_order` | | A number: the module's place in its group on the main menu, lower first. The app's own go in tens (Local Files 10, Playlists 20, Plex 30 … Ambient:Mode 110; Arcade 10, High Scores 20; Scripts 10), so a number between two puts yours between them. Without one, the module comes after those with one, by name |
 
 A manifest that isn't JSON is skipped, with `[AppCore] Bad manifest.json in <folder>: <error>` in the log. One without `id` or `entry_point_qml` is skipped with `[AppCore] Skipping <folder>: manifest missing 'id' or 'entry_point_qml'`.
 
@@ -61,18 +62,20 @@ Each setting is an object:
 | `type` | Every type | One of the types below |
 | `default` | `toggle`, `list_single`, `slider` | What the row shows while nothing is saved: `"ON"` or `"OFF"`, one of the options, or a slider's number. OSD/OS doesn't write it: your code must read an unset key as this default too |
 | `description` | Every type | The help line while the row is selected. Lines split with `\n` are joined with `•`. By convention `[WORD]` explains one choice |
-| `options` | `list_single` | The choices, saved as written |
+| `options` | `list_single` | The choices, saved as written; or each `{ "id": "60 SEC", "label": "1 min" }`, the label shown over the id saved |
 | `options_source`, `options_slot` | `list_single`, `multiselect_submenu` | `"dynamic"`, and the backend slot that sends the choices ([part 3](#part-3-a-c-backend)) |
 | `apply_slot` | `list_single` with dynamic choices | A backend slot called after each change |
 | `action_slot` | `action` | The backend slot select calls |
 | `done` | `action` | What the help line says once the slot has been called, in a few words (`"Scripts folder read again"`), until the cursor moves. Without it, the label and `done` |
-| `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Yes or No, with No under the cursor. The row's `description` is shown under it |
+| `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Cancel, under the cursor as it opens, then the row's verb. The row's `description` is shown under it |
+| `verb` | `action` | The question's second answer, the action's own word (`"Delete"`), also on the hint bar on the row. Without it, the label (`Sign Out`) |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
+| `account` | `module_view` | `true` on the module's SIGN IN row: it shows who is signed in, the one choice its `options_slot` sends (`dynamicOptionsReady("sign_in", [{ "id", "label" }])`), else SIGNED IN, or SIGNED OUT while `get_auth_state()` is `"none"`; rows with `requires_auth` then say `Sign in first (SIGN IN above)` |
 | `settings` | `submenu` | Its own rows, in this same format |
 | `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |
 | `requires_auth` | Every type | Usable only while the backend's `get_auth_state()` is neither `""` nor `"none"`. Dimmed until then (`Only once signed in`) |
-| `requires_capability` | Every type | Usable only while the backend's choices for `_capabilities` name it. Dimmed otherwise (`Not offered by the server`) |
-| `shown_with` | Every type | Usable only while another row has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`. A toggle's value is `"ON"` or `"OFF"`; an unset row counts as its `default`. A list of them holds while any holds. Dimmed otherwise; a dimmed row keeps what was saved |
+| `requires_capability` | Every type | Usable only while the backend's choices for `_capabilities` name it. Dimmed otherwise (`Not offered by the server`). As `{ "name", "slot", "reason" }`, the page asks the backend's `slot` for it as it opens, and the help line gives `reason` while it is missing (Arcade's rows that do something only on a Raspberry Pi) |
+| `shown_with` | Every type | Usable only while another row has a value as the page shows it: `{ "key": "screen", "value": "Arcade" }`. A toggle's value is `"ON"` or `"OFF"`; an unset row counts as its `default`. A list of them holds while any holds. Or an app setting's value: `{ "app": "startup_module", "value": "com.osdos.scripts", "reason": "Only with Start On on Scripts (Settings > Startup)" }`, the help line opening with its `reason`. Dimmed otherwise; a dimmed row keeps what was saved |
 
 The types, as Settings shows and saves them:
 
@@ -490,9 +493,10 @@ FocusScope {
         playbackStarted = false
         startMs = fromMs
         var loop = !!appCore.get_setting(moduleRoot.moduleId, "loop_playback")
-        // url, start (s), audio track (0: mpv's choice), subtitles (-2: off),
-        // subtitle files, subtitle languages, loop.
-        mpvController.loadAndPlay(filePath, fromMs / 1000.0, 0, -2, [], [], loop)
+        // What plays, from where (s), subtitles off (-2), and loop; every
+        // field left out has its default.
+        mpvController.loadAndPlay({ url: filePath, startSeconds: fromMs / 1000.0,
+                                    subTrack: -2, loop: loop })
         // With Transparent Background, how the main menu's first row takes
         // the video back once it plays behind the menus.
         mpvController.noteSession({ module: moduleRoot.moduleId, title: itemTitle,
@@ -560,7 +564,7 @@ sequenceDiagram
     participant P as Player.qml
     participant C as mpvController
     participant M as mpv
-    P->>C: loadAndPlay(file, start, 0, -2, [], [], loop)
+    P->>C: loadAndPlay({ url, startSeconds, subTrack, loop })
     P->>C: noteSession({ module, title, params })
     C->>M: starts it (an mpv process, or libmpv in the window)
     M-->>C: time-pos, duration
@@ -573,22 +577,22 @@ sequenceDiagram
 
 ### loadAndPlay
 
-`mpvController.loadAndPlay()` takes the video and how to play it. Everything after the first four arguments has a default:
+`mpvController.loadAndPlay()` takes one request: the video and how to play it, as named fields. Every field but `url` has a default, and one left out has it (a name it doesn't know is a warning in the log):
 
-| # | Argument | Hello Channel passes | What it is |
-|---|---|---|---|
-| 1 | `url` | the file's path | A file, a playlist (`.m3u`) or a stream's URL |
-| 2 | `startSeconds` | the saved position | Where to start; under half a second, from the beginning |
-| 3 | `audioTrack` | `0` | `0` for mpv's choice, else a track's number |
-| 4 | `subTrack` | `-2` | `-2` subtitles off, `0` on, `-1` forced only (needs mpv 0.38 or newer), above 0 a track's number |
-| 5, 6 | `subFiles`, `subLangs` | `[]`, `[]` | Subtitle files to load; preferred subtitle languages |
-| 7 | `loop` | Loop Playback | Over and over (`--loop-playlist=inf`) |
-| 8 | `playlistStart` | | Where in a playlist to start, `-1` for its start |
-| 12 | `oscMode` | | `"ambient"` for Ambient:Mode's own on-screen controls |
-| 13 | `shuffle` | | A playlist in random order |
-| 15, 16 | `imageDurationSec`, `imageContent` | | For pictures: how long each shows |
-| 17 | `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
-| 19 | `extraUrls` | | More files after the first, one playlist |
+| Field | Hello Channel passes | What it is |
+|---|---|---|
+| `url` | the file's path | A file, a playlist (`.m3u`) or a stream's URL |
+| `startSeconds` | the saved position | Where to start; under half a second, from the beginning |
+| `audioTrack` | | `0` or less (the default) for mpv's choice, else a track's number |
+| `subTrack` | `-2` | `-2` subtitles off, `0` on, `-1` forced only (the default; needs mpv 0.38 or newer), above 0 a track's number |
+| `subFiles`, `subLangs` | | Subtitle files to load; preferred subtitle languages |
+| `loop` | Loop Playback | Over and over (`--loop-playlist=inf`) |
+| `playlistStart` | | Where in a playlist to start, `-1` (the default) for its start |
+| `oscMode` | | `"ambient"` for Ambient:Mode's own on-screen controls |
+| `shuffle` | | A playlist in random order |
+| `imageDurationSec`, `imageContent` | | For pictures: how long each shows |
+| `extraArgs` | | mpv options of the module's own: YouTube passes `--ytdl=yes`, with its yt-dlp options |
+| `extraUrls` | | More files after the first, one playlist |
 
 The app adds the rest: the board's decoder and output, Scaling, Video Levels, Audio Output, the channel logo and the IPC socket ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 
@@ -1013,19 +1017,12 @@ QTEST_GUILESS_MAIN(HelloChannelTest)
 #include "hello_channel_test.moc"
 ```
 
-Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and what it needs:
+Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and what it needs (`osdos_test_core`):
 
 ```cmake
 # Hello Channel's backend, and registerModule's wiring of it (AppCore).
-add_executable(hello_channel_test
-    hello_channel_test.cpp
-    ../src/AppCore.cpp
-    ../src/util/SetupFile.cpp
-    ../src/util/LegacyNames.cpp
-    ../src/modules/hello_channel/HelloChannelBackend.cpp)
-target_include_directories(hello_channel_test PRIVATE ../src)
-target_link_libraries(hello_channel_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
-add_test(NAME hello_channel COMMAND hello_channel_test)
+osdos_cpp_test(hello_channel SOURCES ../src/modules/hello_channel/HelloChannelBackend.cpp
+    LIBRARIES osdos_test_core Qt6::Network Qt6::Qml)
 ```
 
 and run it:
@@ -1088,10 +1085,12 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |
 | `LoadingScreen`, `PlayerMenu`, `PlaybackNotice` | The tape loading while a video starts, a video's own menu, the notice for a video that couldn't be played |
+| `PlayerSession` | What OSD/OS's own players share as a video plays: where it is, the keys sent on to mpv, the way into and out of a player's menu |
 | `MpvKeys` | mpv's names for the keys a player sends on as its video plays (`MpvKeys.name(event.key)`) |
 | `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |
+| `CatalogBrowser` | A catalogue in a `TreeBrowser` with search, MORE, an info screen and options on what plays (YouTube's list and `WebPlayerBrowse` are one), given what it browses |
 | `WebPlayerBrowse`, `WebPlayerLaunch` | A streaming service's catalogue and its web player |
 | `MediaServerLibraries`, `MediaServerItems`, `MediaServerItem`, `MediaServerPlayer`… | A Jellyfin-style server's libraries, lists, item pages and player (Jellyfin's and Emby's), given the module's backend |
 

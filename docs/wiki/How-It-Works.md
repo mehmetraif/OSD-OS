@@ -55,7 +55,7 @@ From a source tree, run `APP_ROOT=$(pwd) ./build/osdos`. The full rules, and wha
 - **The settings** become the module's page in Settings, saved under `modules.<id>` in `config.json` ([manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
 - **`settings_group`** places that page: `"tv"` on the TV / Movie page, `"arcade"` on the Arcade page, none on the System page.
 - **Enabled or not**: `enabled` in `config.json`, else the manifest's default for `enabled`, else on.
-- **The main menu** (`views/ModuleList.qml`) gets the enabled modules from `scan_for_modules()`. A backend may add rows of its own (`get_menu_entries()`).
+- **The main menu** (`views/ModuleList.qml`) gets the enabled modules from `scan_for_modules()`, in groups (TV / Movie, Arcade, the rest) and within a group by each manifest's `menu_order`. A backend may add rows of its own (`get_menu_entries()`).
 
 ### A backend, in one line
 
@@ -127,7 +127,7 @@ A view never loads another itself. It emits `navigateTo(path, params, listState)
 - **Back from a module's first view** returns to the main menu. Back on the main menu opens Settings.
 - **`replaceWith(path, params)`** loads a view in place of every one before it, so back from it leaves the module (a sign-in done); **`replaceCurrent(path, params)`** in place of the one shown, back skipping it.
 - **`root.changeWindow(loader, source, properties)`** changes every view and plays the Transition. None plays into or out of a video's views, or while the effects rest.
-- **At start**, `openStartupModule()` opens Start on Module's module with `navParams.fromAppStartup`, or Play at Startup's favourite with `navParams.startupPlay`.
+- **At start**, `openStartupModule()` opens Start On's module with `navParams.fromAppStartup`, or Play at Startup's favourite with `navParams.startupPlay`.
 
 [ARCHITECTURE.md → QML View Patterns](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#qml-view-patterns) has the router and view templates.
 
@@ -232,7 +232,7 @@ sequenceDiagram
     participant M as MpvController
     participant MM as MenuMusic
     participant X as mpv
-    V->>M: loadAndPlay(url, start, tracks, …)
+    V->>M: loadAndPlay({ url, startSeconds, tracks, … })
     M->>MM: hold("video"): the music stops
     M->>M: build the command line, retire the old mpv
     Note over M: 50 ms later, once the loading screen is drawn
@@ -247,7 +247,7 @@ sequenceDiagram
 ```
 
 1. **The command line** comes from `sessionArgs()`. What plays comes last, after `--`.
-2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), `mpv-media-keys.lua` (media keys, the VOLUME bar), `mpv-logo.lua` (the channel logo), `mpv-screensaver.lua`, and for photos `mpv-slideshow-redraw.lua`.
+2. **Its scripts**: the deck's menu (`scripts/mpv-osc.lua`, or Ambient:Mode's own), `mpv-media-keys.lua` (media keys, the VOLUME bar), `mpv-logo.lua` (the channel logo), `mpv-screensaver.lua`, and for photos `mpv-slideshow-redraw.lua`. The menus, the bar and the saver draw with `osdos-osd.lua`, which they load from their own folder.
 3. **The old player** is told to quit (SIGTERM), killed a second later, and given up on after five seconds. The new one waits until it is gone.
 4. **The socket.** `MpvController` sends JSON commands over `osdos-mpv.sock`, in a folder only OSD/OS's user can open (`/tmp/runtime-pi` on the image; [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)). `osdos-input.conf` beside it maps Escape and Backspace to `script-message osdos-menu` (back) and Enter to pause.
 5. **The end.** `playbackEnded(finalPos, finalDur, reason)` comes once mpv has exited and, on a Pi, the screen is the app's again:
@@ -293,10 +293,10 @@ stateDiagram-v2
     FullScreen --> Behind: back
     FullScreen --> PlayerMenu: back, in Local Files or YouTube
     PlayerMenu --> FullScreen: back
-    PlayerMenu --> Behind: Browse
+    PlayerMenu --> Behind: Back to the module
     Behind --> FullScreen: chosen again, or its row on the main menu
     FullScreen --> [*]: it plays out
-    PlayerMenu --> [*]: Close Video
+    PlayerMenu --> [*]: Stop, to Main Menu
     Behind --> [*]: play/pause on the main menu, another video, a hand-off, the setting off
 ```
 

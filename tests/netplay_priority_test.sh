@@ -3,8 +3,9 @@
 # the rules nft reads and the unit that has it read them): the port marked
 # is the one the Arcade module hosts LAN games on, only the private
 # networks' addresses are marked, the unit reads the file where the stage
-# puts it and the stage enables the unit; and, where nft is here and may ask
-# the kernel (root), the rules themselves are ones it takes.
+# puts it and the stage enables the unit; each interface answering only for
+# its own address (osdos-arp.conf); and, where nft is here and may ask the
+# kernel (root), the rules themselves are ones it takes.
 #   netplay_priority_test.sh <os/stage-osdos/02-system> <src/modules/arcade/Libretro.h>
 set -u
 
@@ -41,6 +42,17 @@ grep -q 'install -m 644 files/osdos-netplay-priority.service "${ETC}/systemd/sys
     || fail "00-run.sh doesn't install the unit"
 grep -q 'osdos-netplay-priority.service' "$STAGE/01-run-chroot.sh" || fail "01-run-chroot.sh doesn't enable the unit"
 grep -qx 'nftables' "$STAGE/00-packages-nr" || fail "the stage doesn't name nftables"
+
+# With a cable and Wi-Fi both up, each interface answers only for its own
+# address: the sysctl file, and the stage installing it where systemd-sysctl
+# reads it.
+ARP="$STAGE/files/osdos-arp.conf"
+grep -qx 'net.ipv4.conf.all.arp_ignore = 1' "$ARP" || fail "arp_ignore isn't 1"
+grep -qx 'net.ipv4.conf.all.arp_announce = 2' "$ARP" || fail "arp_announce isn't 2"
+[ "$(grep -vc '^\(#.*\)\?$' "$ARP")" = 2 ] || fail "osdos-arp.conf sets more than the two"
+# shellcheck disable=SC2016
+grep -q 'install -D -m 644 files/osdos-arp.conf "${ETC}/sysctl.d/90-osdos-arp.conf"' "$STAGE/00-run.sh" \
+    || fail "00-run.sh doesn't install osdos-arp.conf into sysctl.d"
 
 # The rules themselves, where nft can be asked: a check that changes nothing.
 if command -v nft > /dev/null 2>&1 && [ "$(id -u)" = 0 ] && nft list tables > /dev/null 2>&1; then

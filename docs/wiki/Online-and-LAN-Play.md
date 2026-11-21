@@ -4,7 +4,7 @@ Every OSD/OS machine plays FinalBurn Neo's arcade games with the others: over th
 
 <table>
 <tr><th width="50%">LAN Games</th><th width="50%">RetroArch Lobby</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-lan.png" width="100%" alt="The Arcade screen's LAN Games filter: Final Fight and Cadillacs and Dinosaurs hosted on the network; in the box on the right, Final Fight's room: its file, hosted by Cabinet at 192.168.50.20, OSD/OS's LAN core, its version and RetroArch marked as yours, Linux 64-bit, no password, over the LAN" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-lobby.png" width="100%" alt="The Arcade screen's RetroArch Lobby filter: DoDonPachi with a lock, Garou with ▶, Metal Slug, The King of Fighters, Sonic the Hedgehog 2 and Super Mario World; in the box on the right, Garou's room: its ROM and CRC, FinalBurn Neo and its version marked as yours, hosted by nightowl in Spain, straight to the host, one player, 4 minutes ago, can be joined" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-lan.png" width="100%" alt="The Arcade screen's LAN Games filter: Final Fight and Cadillacs and Dinosaurs hosted on the network; in the box on the right, Final Fight's room: its file, hosted by Cabinet at 192.168.50.20, OSD/OS's LAN core, its version and RetroArch marked as yours, Linux 64-bit, no password, over the LAN" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen-lobby.png" width="100%" alt="The Arcade screen's RetroArch Lobby filter: DoDonPachi with a lock, Garou, Metal Slug and The King of Fighters with ▶, Sonic the Hedgehog and Super Mario World; in the box on the right, Garou's room: its ROM and CRC, FinalBurn Neo and its version marked as yours, hosted by nightowl in Spain, straight to the host, one player, 4 minutes ago, can be joined" /></td></tr>
 <tr><td>The games hosted on your network that you have. Select joins one.</td><td>Every game hosted in RetroArch's lobby: ▶ on those you can join, a lock on those with a password.</td></tr>
 </table>
 
@@ -64,6 +64,7 @@ Up to six players play across the machines, in the games that take them, seated 
 - A controller no one plays holds no player.
 - Each controller of a machine takes a channel as the machine comes in, up to six in all: three for a machine on the 6-Button Panel layout. A machine given none watches.
 - A player who left keeps their place for whoever comes in on the same channel.
+- A machine that leaves gives its channels back to the host. If that message is lost, or the machine crashed or lost its Wi-Fi, the host frees them once RetroArch has no connection from that machine (at the latest 45 seconds after it asked, for one that never connected), so the next machine to join still gets them.
 
 The host's button layout holds for every machine:
 
@@ -71,6 +72,8 @@ The host's button layout holds for every machine:
 |---|---|
 | A cabinet, in a game of up to four players | Its 6-Button Panel on every port. A pad joining has Y, X and LB above B, A and RB |
 | A pad; a game of five or six players; a room joined through the lobby; a host that isn't OSD/OS | FinalBurn Neo's usual pad layout: the cabinet's buttons 1 to 6 are the game's first six by number |
+
+A host's pad with Game Buttons chosen by hand counts as a cabinet here. A pad on **Auto**, as a pad SDL knows by its kind starts, counts as a pad: two machines whose pads are all on Auto play FinalBurn Neo's usual pad layout, as on Engine's.
 
 An OSD/OS joining a game another RetroArch hosts brings its player 1 alone.
 
@@ -95,18 +98,70 @@ Cave's CV1000 games (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu, Espgal
 
 **Settings → Arcade → LAN Sync** chooses how a game you host keeps its machines together. Every machine joining takes the host's choice.
 
-| LAN Sync | How it plays | For |
-|---|---|---|
-| **Smooth** (the default) | The host's machine plays the game and the others follow it. A slow machine or a wait on Wi-Fi holds no one else up. A joining player's buttons answer a few frames later than the host's. Over Wi-Fi, a tap shorter than two frames can now and then go unseen | Machines of different speeds, a Raspberry Pi 4 among them; Wi-Fi; three players and more |
-| **Responsive** | Every machine plays ahead on a guess of the others' buttons, with a frame of input latency. A machine that can't keep up takes up to three frames more. Every player's buttons answer alike, but a slow machine is felt on every machine | Two machines of the same speed on cables |
+| LAN Sync | How it plays | For | Who hosts |
+|---|---|---|---|
+| **Smooth** (the default) | The host's machine plays the game and the others follow it. A slow machine joining or a wait on its Wi-Fi holds no one else up. A joining player's buttons answer a few frames later than the host's. Over Wi-Fi, a tap shorter than two frames can now and then go unseen | Machines of different speeds, a Raspberry Pi 4 among them; Wi-Fi; three players and more | The fastest machine, on a cable: the PC, then a Raspberry Pi 5. A Pi 4, or a machine on Wi-Fi, joins |
+| **Responsive** | Every machine plays ahead on a guess of the others' buttons, with a frame of input latency. A machine that can't keep up takes up to three frames more. Every player's buttons answer alike, but a slow machine is felt on every machine | Two machines of the same speed on cables | Either |
 
-Online, a game plays ahead with no latency, and a machine that can't keep up takes up to four frames.
+**Why the host matters in Smooth.** Every machine joining plays only the frames the host sends it, so the host's speed and its link are everyone's:
+
+- The host plays the game, keeps RetroArch's snapshot of it at every frame, and sends each frame to every machine joining, up to five. A host that can't keep up slows every screen, where a machine joining that can't is slow alone.
+- Every wait on the host's own link, a Wi-Fi radio busy or out of reach for a moment, reaches every machine joining at once.
+- The host's own player answers with no delay at all: host on the machine whose player that suits.
+
+On a Pi that hosts over Wi-Fi, `iw dev wlan0 station dump | grep -E 'tx retries|tx failed|signal'` shows how often what it sends has to go again.
+
+**What Smooth costs**, beside a joining player's buttons coming a few frames late:
+
+- **The machines joining also wait on the host's screen.** The host plays at its own screen's rate and the others play the frames it sends. A host whose screen runs at 59.94 Hz, as many TVs and CRTs do, sends a frame fewer every 17 seconds or so than a joiner at 60 Hz plays, and the joiner waits for it. Screens of one rate on every machine, the host's above all, keep that from happening.
+- **Not every frame comes in time even so.** In OSD/OS's own measurement, six machines of mixed speeds following their host for 18 seconds had 57 frames come late, against 1440 with every machine playing ahead with no input latency and 252 with a frame of it.
+- **A Raspberry Pi 4 on composite is slower** as a whole than on HDMI: Raspberry Pi's documentation has composite on a Pi 4 hold a clock others depend on, which slows the whole system a little, and the image's raised graphics clock (`gpu_freq`) may not hold there. Let such a Pi join rather than host. `vcgencmd measure_clock core` and `vcgencmd measure_clock v3d` on composite and on HDMI show the clocks it runs at ([Display Output → Composite](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#composite-the-av-jack-or-a-pi-5s-tv-pads)).
+
+Online, a game OSD/OS hosts plays ahead with two frames of input latency, which every machine joining takes from it, and a machine that can't keep up takes up to four frames more. Over the internet a press comes some frames late: without that latency every such press has each machine play several frames again, more than a Raspberry Pi 4 has the time for. A room of the lobby another RetroArch hosts plays with its host's latency.
+
+Under **Smooth** the host's machine sets everyone's speed: a hitch of its own, or of its link, reaches every screen. Host on the fastest machine on a cable (the PC, then a Raspberry Pi 5), and let a Raspberry Pi 4 or a machine on Wi-Fi join. **Host LAN Game** says so on a Pi 4, or on a machine whose way to the network is Wi-Fi: `The fastest machine on a cable should host`, under a game's options while the cursor is on Host LAN Game, and again on the page shown as the game is hosted.
 
 For a smooth game:
 
 - **Screens of 60 Hz.** A screen of 50 Hz (Display Output's 288p and 576i modes, and PAL) is slower than most arcade games. Choose a mode of 60 Hz in **Settings → Screen → Display Output** on every machine.
-- **A cable, or Wi-Fi kept awake.** A radio that saves power stutters the game. The OSD/OS image keeps its Wi-Fi awake ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)); a computer joining over Wi-Fi may need the same.
-- **Bluetooth controllers** on a Raspberry Pi share an aerial with its 2.4 GHz Wi-Fi: use a 5 GHz network or a cable.
+- **A cable, or Wi-Fi kept awake.** A radio that saves power stutters the game. The OSD/OS image keeps its Wi-Fi awake ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)); a Windows PC is set by hand ([A Windows PC](#a-windows-pc)).
+- **A network game's packets ahead on Wi-Fi.** The OSD/OS image's Pis mark what they send in a LAN game so that Wi-Fi sends it ahead of other traffic ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)). A Windows PC marks nothing until an administrator sets a QoS policy once: [INSTALL.md → On Windows](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64) gives the command, the one that removes it, and how to see on a Pi that the PC's packets arrive marked.
+- **Bluetooth controllers** on a Raspberry Pi share an aerial with its 2.4 GHz Wi-Fi: use a 5 GHz network or a cable. The Pi's radio serves the two in turn at 2.4 GHz, so the game's packets wait while the pads are served.
+  - A router that gives both its bands one name lets the Pi pick either, and a Pi behind a TV may pick 2.4 GHz. Giving the 5 GHz band a name of its own, and joining that one, keeps it there.
+  - A Pi whose Wi-Fi country isn't set to where it is may not hear the router's 5 GHz channel at all: **Settings → Network → Wi-Fi → Country**.
+  - OSD/OS says so where you choose: a Pi on 2.4 GHz Wi-Fi with a Bluetooth pad connected has `Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable` first on the line under a room of LAN Games (in the tree and on the Arcade screen), under the options on Host LAN Game, and on the page shown while it hosts, the advice on who should host after it. **Settings → Network → Wi-Fi** shows the band of each network, and of the one joined in the title bar.
+  - To see the band a Pi is on: the app's log has `[Wi-Fi] On 2437 MHz (2.4 GHz) through wlan0` each time it changes, and on the Pi, `iw dev wlan0 link` gives `freq` (below 3000 is 2.4 GHz), `iw reg get` the country the radio keeps to, and `bluetoothctl devices Connected` the Bluetooth devices connected.
+- **Each machine's own settings**, in **Settings → Arcade**, left on their defaults unless a game says otherwise:
+  - **CPU at Full Speed** (EMULATORS, ON): a Pi's CPU at its full clock for the length of the game. Only on a Raspberry Pi.
+  - **Sound Buffer** (EMULATORS, Auto): 48 ms of FinalBurn Neo's sound held, on a Pi 4 RetroArch's 64 ms with a lighter resampler; **RetroArch's** if the sound crackles.
+  - **Frame Buffers** (Emulator Video, Auto): on a Pi 5's console, two frames queued for the screen rather than RetroArch's three, each frame a refresh sooner. Only on a Raspberry Pi.
+  - **MAME Vsync** (Emulator Video, Auto): for MAME's games played alone, each frame held for the screen's refresh on a Pi 4 or 5.
+
+#### A Windows PC
+
+Windows leaves its own Wi-Fi and power settings to you. Each of these is set once, and each has a way to check it, in a Command Prompt or PowerShell:
+
+| Set | What it does | To check |
+|---|---|---|
+| **A cable**, or else a 5 GHz network | A cable has no air to wait for. At 2.4 GHz the PC shares the band with every other network and device around | `netsh wlan show interfaces`: **Band** (`5 GHz`), **Channel** and **Signal**. No Wi-Fi interface listed while a cable is in is the cable |
+| **The Wi-Fi adapter's power saving at Maximum Performance**: Control Panel → Power Options → **Change plan settings** → **Change advanced power settings** → **Wireless Adapter Settings** → **Power Saving Mode**, both On battery and Plugged in | An adapter that saves power sleeps between packets and wakes late for the next | `powercfg /query SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1`: both **Power Setting Index** values `0x00000000` are Maximum Performance |
+| **The power mode at Best performance**: Settings → System → **Power & battery** → **Power mode** (on a PC that offers plans instead, the **High performance** plan) | The processor holds its speed rather than stepping down between frames | `powercfg /getactivescheme` names the plan in force |
+| **The Wi-Fi list closed during a game** (the network list of the taskbar's Quick Settings) | Windows searches for networks while the list is open, which takes the radio off its channel for a moment | `ping -t <the Pi's address>` with the list open, then closed: the times jump while it is open |
+
+The PC's packets also go ahead on Wi-Fi only under a QoS policy ([INSTALL.md → On Windows](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64)).
+
+### How a game went
+
+To tell whether a change (LAN Sync, a cable, another host) helped:
+
+- **Settings → Arcade → Show Ping**, ON, shows each player's ping on RetroArch's screen during the game. It is under ONLINE AND LAN, after Online Name, usable while Online Play or LAN Play is On, and off by default.
+- As a game over the network ends, the app's log has one line on it, which **Quit → Save Logs** carries:
+
+  `arcade: network game: sf2, joined on the LAN, 12 min 40 s; peers: the host 12 ms; left 1; stalls 0, catch-ups 0, savestates 0, CRC mismatches 0, desyncs 0, pauses 0, netplay errors 0; achievements: signed in`
+
+  It says how the game was played, how long, each player's ping as they joined, the players who left, RetroArch's netplay errors and its lines on CRC mismatches, desyncs and savestates, and what RetroAchievements said: whether the account signed in, and any line saying hardcore was paused or disabled.
+- RetroArch 1.20 writes nothing in its log of stalls, catch-ups and the savestates it resends; those counts read 0 until a RetroArch that logs them. A CRC mismatch is logged only as RetroArch's warning, with its check frames off.
+- Another line, `arcade: system during the game:`, says how the machine itself fared.
 
 ### Coming back, and the host leaving
 
@@ -151,7 +206,7 @@ A room's page says why it can't be joined: another core's, a host whose connecti
 | Setting | What it is |
 |---|---|
 | **Online Name** | The name the others see. Unset: the RetroAchievements account's, else OSD-OS; never the device's name |
-| **Relay Server** | Where a game you host goes through: New York (the default), Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest |
+| **Relay Server** | Where a game you host goes through: New York, Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest. Unset, the nearest to the time zone of **Settings → System → Time Zone**: Madrid for Europe and Africa, São Paulo for South America, New York for the rest of the Americas, Chuncheon for Korea and Japan, Singapore for the rest of Asia and Oceania. The row shows that one until a relay is chosen; a relay chosen is kept |
 
 ### A game too big for the machine's memory
 

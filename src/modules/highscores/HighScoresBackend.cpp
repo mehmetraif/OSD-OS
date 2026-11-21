@@ -1,6 +1,7 @@
 #include "HighScoresBackend.h"
 #include "../arcade/Mame.h"
 #include "../../util/AtomicFile.h"
+#include "../../util/FileText.h"
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -51,8 +52,7 @@ void link(const QString &target, const QString &path) {
 
 // A file as a game's stamp has it: its name, size and time.
 QString stampOf(const QFileInfo &info) {
-    return info.fileName() + QLatin1Char(':') + QString::number(info.size()) + QLatin1Char(':')
-           + QString::number(info.lastModified().toMSecsSinceEpoch());
+    return info.fileName() + QLatin1Char(':') + mame::stampOf(info);
 }
 
 // What a file holds, not when it was written: an update that brings the
@@ -66,12 +66,6 @@ QString digestOf(const QString &path) {
     return QString::fromLatin1(hash.result().toHex());
 }
 
-QString identityOf(const QString &path) {
-    const QFileInfo info(path);
-    if (!info.exists())
-        return QString();
-    return QString::number(info.size()) + QLatin1Char(':') + QString::number(info.lastModified().toMSecsSinceEpoch());
-}
 
 // A game with no table, its fields alone (a best score, as Solar Fox
 // keeps): a line each, lined up as a table of two columns.
@@ -98,11 +92,14 @@ QVariantList fieldEntries(const scores::Game &game) {
 // (arcade/games.json), where it has them.
 QHash<QString, QString> namesOf(const QString &gamesJson, const QStringList &sets) {
     QHash<QString, QString> names;
-    QFile file(gamesJson);
-    if (!file.open(QIODevice::ReadOnly))
+    QJsonObject cache;
+    QString why;
+    if (!filetext::readJsonObject(gamesJson, &cache, &why)) {
+        if (!why.isEmpty())
+            qWarning("[HighScores] %s: %s", qPrintable(gamesJson), qPrintable(why));
         return names;
-    const QJsonObject machines = QJsonDocument::fromJson(file.readAll()).object()
-                                     .value(QStringLiteral("machines")).toObject();
+    }
+    const QJsonObject machines = cache.value(QStringLiteral("machines")).toObject();
     for (const QString &set : sets) {
         const QString name = machines.value(set).toObject().value(QStringLiteral("description")).toString();
         if (!name.isEmpty())
@@ -261,17 +258,45 @@ QHash<QString, HighScoresBackend::Source> HighScoresBackend::listSources() const
     return sources;
 }
 
+QString HighScoresBackend::readRoot() const {
+    return m_links ? m_home + QStringLiteral("/mame") : m_arcade;
+}
+
 void HighScoresBackend::prepareRoot() const {
-    const QString root = m_home + QStringLiteral("/mame");
+    const QString root = readRoot();
     QDir().mkpath(root + QStringLiteral("/plugins/hiscore"));
-    link(m_arcade + QStringLiteral("/hiscore"), root + QStringLiteral("/hiscore"));
-    link(m_arcade + QStringLiteral("/nvram"), root + QStringLiteral("/nvram"));
     const QString plugins = mame::pluginsFolder(mame::programPath(m_dataRoot));
     const QString dat = plugins.isEmpty() ? QString() : plugins + QStringLiteral("/hiscore/hiscore.dat");
-    if (!dat.isEmpty() && QFileInfo::exists(dat))
-        link(QFileInfo(dat).absoluteFilePath(), root + QStringLiteral("/plugins/hiscore/hiscore.dat"));
-    else
-        QFile::remove(root + QStringLiteral("/plugins/hiscore/hiscore.dat"));
+    const QString ours = root + QStringLiteral("/plugins/hiscore/hiscore.dat");
+    if (m_links) {
+        link(m_arcade + QStringLiteral("/hiscore"), root + QStringLiteral("/hiscore"));
+        link(m_arcade + QStringLiteral("/nvram"), root + QStringLiteral("/nvram"));
+        if (!dat.isEmpty() && QFileInfo::exists(dat))
+            link(QFileInfo(dat).absoluteFilePath(), ours);
+        else
+            QFile::remove(ours);
+        return;
+    }
+    // A copy, given MAME's file's time, so that one of another size or
+    // time is copied again (MAME updated) and the same is not, a megabyte
+    // at every refresh.
+    const QFileInfo from(dat);
+    if (dat.isEmpty() || !from.isFile()) {
+        QFile::remove(ours);
+        return;
+    }
+    const QFileInfo copy(ours);
+    if (copy.isFile() && copy.size() == from.size() && copy.lastModified() == from.lastModified())
+        return;
+    QFile source(dat);
+    if (!source.open(QIODevice::ReadOnly) || !writeFileAtomically(ours, source.readAll())) {
+        qWarning("[HighScores] can't copy %s to %s", qPrintable(dat), qPrintable(ours));
+        return;
+    }
+    QFile written(ours);
+    if (!written.open(QIODevice::ReadWrite)
+        || !written.setFileTime(from.lastModified(), QFileDevice::FileModificationTime))
+        qWarning("[HighScores] can't give %s its time", qPrintable(ours));
 }
 
 QString HighScoresBackend::definitionsIdentity() const {
@@ -279,8 +304,8 @@ QString HighScoresBackend::definitionsIdentity() const {
     // reads nothing again; digested (a megabyte of them) only when a file's
     // size or date has changed since the last asking, as this is asked at
     // every refresh (the Arcade screen opening, each game's end).
-    const QString dat = m_home + QStringLiteral("/mame/plugins/hiscore/hiscore.dat");
-    const QString stamp = identityOf(m_definitions) + QLatin1Char('|') + identityOf(dat);
+    const QString dat = readRoot() + QStringLiteral("/plugins/hiscore/hiscore.dat");
+    const QString stamp = mame::stampOf(QFileInfo(m_definitions)) + QLatin1Char('|') + mame::stampOf(QFileInfo(dat));
     if (stamp != m_definitionsStamp) {
         m_definitionsStamp = stamp;
         m_definitionsIdentity = QString::number(kCacheVersion) + QLatin1Char('|') + digestOf(m_definitions)
@@ -290,15 +315,19 @@ QString HighScoresBackend::definitionsIdentity() const {
 }
 
 QString HighScoresBackend::gamesJsonIdentity() const {
-    return identityOf(m_arcade + QStringLiteral("/games.json"));
+    return mame::stampOf(QFileInfo(m_arcade + QStringLiteral("/games.json")));
 }
 
 void HighScoresBackend::loadCache() {
     m_loaded = true;
-    QFile file(m_home + QStringLiteral("/scores.json"));
-    if (!file.open(QIODevice::ReadOnly))
+    const QString path = m_home + QStringLiteral("/scores.json");
+    QJsonObject cache;
+    QString why;
+    if (!filetext::readJsonObject(path, &cache, &why)) {
+        if (!why.isEmpty())
+            qWarning("[HighScores] %s: %s", qPrintable(path), qPrintable(why));
         return;
-    const QJsonObject cache = QJsonDocument::fromJson(file.readAll()).object();
+    }
     m_identity = cache.value(QStringLiteral("definitions")).toString();
     m_namesFrom = cache.value(QStringLiteral("namesFrom")).toString();
     const QJsonObject games = cache.value(QStringLiteral("games")).toObject();
@@ -383,7 +412,7 @@ void HighScoresBackend::refresh() {
 
     const QStringList sets = sources.keys();
     const QString definitions = m_definitions;
-    const QString root = m_home + QStringLiteral("/mame");
+    const QString root = readRoot();
     const QString gamesJson = m_arcade + QStringLiteral("/games.json");
     if (!toRead.isEmpty())
         qInfo("[HighScores] Reading %lld games' files", static_cast<long long>(toRead.size()));

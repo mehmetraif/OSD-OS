@@ -81,7 +81,7 @@ A video whose sound card couldn't be opened plays without sound. It ends as it p
 - [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) has every key and button.
 - **The deck menu** is drawn by mpv (`scripts/mpv-osc.lua`; Ambient:Mode has `mpv-osc-ambient.lua`). [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-decks-menu) lists its buttons.
 - `scripts/mpv-media-keys.lua` handles the media keys.
-- `scripts/mpv-screensaver.lua` puts the bouncing logo over a paused video, unless Settings → Screen → Screen Saver is OFF.
+- `scripts/mpv-screensaver.lua` puts the bouncing logo over a paused video, unless Settings → Screen → Screen Saver is Off.
 
 ### A full command line on a Pi 4
 
@@ -238,15 +238,15 @@ Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.jso
 
 | Module | What its player adds |
 |---|---|
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Subtitle Language `--slang`; Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua` |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from its Advanced settings; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*`, `write-auto-subs=` (With Auto) and, signed in, `cookies-from-browser=…`; `--speed=` for a Playback Speed other than 1x; `ytdl_hook-ytdl_path=` in the script options |
-| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Video Resolution; subtitles as Local Files |
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Subtitles In `--slang`; Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua` |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from its Advanced settings; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*`, `write-auto-subs=` (On+Auto Captions) and, signed in, `cookies-from-browser=…`; `--speed=` for a Playback Speed other than 1x; `ytdl_hook-ytdl_path=` in the script options |
+| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Resolution; subtitles as Local Files |
 | [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `--http-header-fields=X-Plex-Token:<token>`; `--aid`; `--sub-file`; `--tls-verify=no` for a server reached at `*.plex.direct` |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin), [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `--http-header-fields=Authorization:MediaBrowser Token="<token>"`; `--aid` and `--sub-file` for a file played whole. A transcode adds `--script-opts-append=transcode-sub=…`, `sub-cycle=…`, `transcode-audio=…` and `audio-cycle=…` |
 | [Ambient:Mode](https://github.com/mehmetraif/OSD-OS/wiki/Ambient-Mode) | `mpv-osc-ambient.lua`, `--loop-playlist=inf`, `--shuffle`; `--no-audio` when its own music plays, in a second mpv (`--no-video --loop-playlist=inf`) |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | An m3u in the data folder's `playlists/`; its Subtitles and Loop Playback; a YouTube video's flags as the YouTube module makes them |
 
-OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`.
+OSD/OS blanks every token out of what it logs: a URL's `ApiKey=`/`api_key=`, `X-Plex-Token`, and `Token="…"`. The tokens never reach mpv's command line, which any account on the machine can read: the headers, and Emby's addresses that hold its `api_key`, are handed to mpv in two files of the user's own in the run-time folder (`osdos-mpv-private.conf` through `--include`, `osdos-mpv-private.m3u` through `--playlist`), removed once the video ends.
 
 ## Scaling
 
@@ -274,11 +274,11 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 | Forced subtitles only (dialogue in another language) | `--subs-with-matching-audio=forced --subs-fallback-forced=always` |
 | Subtitles on | `--subs-with-matching-audio=yes --subs-fallback=yes`, and `--sid=auto` when no subtitle file is given |
 | Subtitles off (or burnt in by a transcode) | `--sid=no` |
-| A language first | `--slang=<code>`: Local Files' and the NFC Reader's Subtitle Language (Any adds nothing), YouTube's Subtitle Language |
+| A language first | `--slang=<code>`: Local Files' and the NFC Reader's Subtitles In (Any adds nothing), YouTube's Subtitles In |
 | Subtitles in files beside the stream | `--sub-file=<url>` for each: a Plex, Jellyfin or Emby server's |
 
-- **Module settings**: Auto Show Subtitles and Subtitle Language (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitle Language and Audio Language (YouTube). Each module's page has the values.
-- The forced-only flags need mpv 0.38 or later.
+- **Module settings**: Subtitles and Subtitles In (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitles In and Audio Language (YouTube). Each module's page has the values.
+- `--subs-with-matching-audio=forced` came with mpv 0.38, and an older mpv refuses to start with it. OSD/OS asks each mpv once (`mpv --list-options`) and gives one older than 0.38 `--subs-fallback-forced=always` alone, its nearest: a forced track in the audio's language, and nothing else.
 - A server's sidecar subtitles show their real names in the deck menu (`osdos-mpv-subinfo.json` in the run-time folder).
 - **How subtitles look** is mpv's: `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.
 
@@ -294,8 +294,8 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume: pick up where you left off, or start from the beginning" />
 
-- A module's Resume Playback is **Ask**, **Always** or, in Local Files and the NFC Reader, **Never**.
-- A favourite played at startup never asks: it starts where Settings → Startup → Startup From says.
+- A module's Resume Playback is **Ask**, **Always** or **Never**.
+- A favourite played at startup never asks: it starts where Settings → Startup → Play From says.
 - The point reaches mpv as `--start=<seconds>`, for the first video only: a looped video or the next in a playlist starts from the beginning.
 
 ## The loading screen
@@ -353,7 +353,7 @@ audio-device=alsa/default:CARD=Headphones
 
 ## Installing a modern mpv
 
-OSD/OS needs **mpv 0.38 or later**: an older mpv refuses to start with Forced Only subtitles' `--subs-with-matching-audio=forced`. Check with `mpv --version`.
+OSD/OS is made for **mpv 0.38 or later**. An older one plays, with Forced Only subtitles by `--subs-fallback-forced=always` alone (it has no `forced` choice for `--subs-with-matching-audio`, which OSD/OS then leaves out). Check with `mpv --version`.
 
 | System | mpv |
 |---|---|
@@ -400,7 +400,7 @@ A video that can't play ends on a **Playback failed** notice: the reason, mpv's 
 
 - **A Pi 4**: if you set `mpv_video_args`, delete it and try again.
 - **A Pi 3**: keep 1080p Playback **On** for 1080p.
-- **YouTube**: keep Video Codec on **H.264** and Playback Resolution at **480p**, and set Max Frame Rate to **30**. With **Any**, YouTube can send VP9 or AV1.
+- **YouTube**: keep Video Codec on **H.264** and Max Resolution at **480p**, and set Max Frame Rate to **30**. With **Any**, YouTube can send VP9 or AV1.
 - **Transparent Background**: check whether the log says the picture is drawn on the CPU.
 
 ### No hardware decoding
@@ -428,7 +428,7 @@ A video that can't play ends on a **Playback failed** notice: the reason, mpv's 
 
 - **A CRT**: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`). A tube whose picture still isn't right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` instead; adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
 - **A Pi 5's composite output** sometimes reports a narrow raster (704×432 rather than 720×480); the same setting makes up for it.
-- **A monitor turned on its side** (Settings → Screen → Monitor): an mpv process turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for left). Its subtitles and deck menu lie across the screen; inside the app they turn too ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
+- **A monitor turned on its side** (Settings → Screen → Rotation): an mpv process turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for left). Its subtitles and deck menu lie across the screen; inside the app they turn too ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
 - **Anamorphic** squeezes on purpose, for a TV set to 16:9: choose another Scaling.
 
 ### Washed-out or crushed colours

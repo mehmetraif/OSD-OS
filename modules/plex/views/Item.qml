@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "PlexPlay.js" as PlexPlay
 
 FocusScope {
     id: detailRoot
@@ -98,19 +99,11 @@ FocusScope {
     property int audioIdx: 0
     property int subtitleIdx: 0
 
-    // Session ID for the current playback instance. Regenerated on every play
-    // (see Keys.onReturnPressed): reusing one lets Plex hand back a stale
-    // transcode session built with the previously selected audio/subtitle.
-    property string sessionId: newSessionId()
+    // Session ID for the current playback instance, new on every play (see
+    // Keys.onReturnPressed, plexBackend.new_session_id()).
+    property string sessionId: ""
 
     property color baseColor: root.primaryColor
-
-    function newSessionId() {
-        var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        var id = ""
-        for (var i = 0; i < 12; i++) id += chars[Math.floor(Math.random() * chars.length)]
-        return id
-    }
 
     function durationStr(ms) {
         if (!ms) return ""
@@ -161,22 +154,10 @@ FocusScope {
             var subId = d.subtitleStreams && d.subtitleStreams[detailRoot.subtitleIdx]
                 ? d.subtitleStreams[detailRoot.subtitleIdx].id : "0"
 
-            detailRoot.navigateTo("Player.qml", {
-                streamUrl: url,
-                plexToken: plexToken,
-                ratingKey: d.ratingKey,
-                partKey: d.partKey,
-                partId: d.partId,
-                title: d.title,
-                viewOffset: d.viewOffset || 0,
-                duration: d.duration || 0,
-                audioStreams: d.audioStreams || [],
-                subtitleStreams: d.subtitleStreams || [],
+            detailRoot.navigateTo("Player.qml", PlexPlay.playerParams(d, url, plexToken, detailRoot.sessionId, {
                 selectedAudioId: audioId,
-                selectedSubtitleId: subId,
-                sessionId: detailRoot.sessionId,
-                isTranscoding: d.forceTranscode || false
-            }, {})
+                selectedSubtitleId: subId
+            }), {})
         }
 
         function onExtrasLoaded(items) {
@@ -262,16 +243,8 @@ FocusScope {
 
             // Fresh session per play so Plex builds a new transcode for this
             // exact selection instead of reusing the prior one.
-            sessionId = newSessionId()
-
-            if (detail.forceTranscode) {
-                // Always transcode from the start so the full timeline is seekable.
-                // The Player resumes by seeking mpv to viewOffset (see doStartPlayback),
-                // which lets the user rewind past the resume point.
-                plexBackend.request_transcode(detail.ratingKey, detail.partKey, sessionId, audioId, subId, 0)
-            } else {
-                plexBackend.build_stream_url(detail.ratingKey, detail.partKey, sessionId)
-            }
+            sessionId = plexBackend.new_session_id()
+            plexBackend.start_stream(detail, sessionId, audioId, subId)
         }
     }
     Keys.onPressed: function(event) {

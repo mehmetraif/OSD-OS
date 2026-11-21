@@ -207,8 +207,7 @@ Item {
         sourceSize.width: width
         sourceSize.height: height
         source: width > 0 && height > 0
-                ? "image://osdicon/" + cassette.ink.toString().replace("#", "")
-                  + "/" + Qt.resolvedUrl("../../assets/images/cassette-shell.png")
+                ? root.iconUrl(cassette.ink, Qt.resolvedUrl("../../assets/images/cassette-shell.png"))
                 : ""
     }
 

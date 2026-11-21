@@ -29,7 +29,9 @@ Text {
     Component.onCompleted: tellFrame()
     Component.onDestruction: if (root.chrome) root.chrome.shown(hint, false)
 
-    opacity: root.hintBar && !handed ? 1 : 0
+    // A bar with nothing to say (the start module's first view under Cabinet
+    // Lock, with nothing to choose) isn't drawn: an empty strip says nothing.
+    opacity: root.hintBar && !handed && text !== "" ? 1 : 0
 
     readonly property real largest: root.sh * 0.0375 //18
     readonly property real smallest: root.sh * 0.0291667 //14

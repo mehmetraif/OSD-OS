@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // Which buttons work the menus: a gamepad's Menu Buttons (from its page,
 // ControllerSettings.qml), and the same rows for a keyboard's or a remote's
@@ -60,12 +61,7 @@ FocusScope {
     // What the last choice or press did, in the help line until the cursor moves.
     property string notice: ""
 
-    // InputManager as the page opened, for its end: the context property may
-    // read null while the view Loader tears down.
-    property var manager: null
-
     Component.onCompleted: {
-        manager = inputManager
         refresh()
         // Back from its test: on that line.
         var state = navParams.navListState || {}
@@ -73,25 +69,9 @@ FocusScope {
         list.show(list.currentIndex)
         list.forceActiveFocus()
     }
-    // Leaving the page while it waits for a press: the controller acts again.
-    Component.onDestruction: {
-        if (manager)
-            manager.captureController("")
-    }
-
     Connections {
         target: inputManager
         function onControllersChanged() { pageRoot.refresh() }
-        // A tap: the answer.
-        function onControllerInputCaptured(key, input, label) {
-            if (pageRoot.capturing && key === pageRoot.key)
-                pageRoot.answer(input, label)
-        }
-        // Held: the way out.
-        function onCaptureHeld(key) {
-            if (pageRoot.capturing && key === pageRoot.key)
-                pageRoot.endCapture("Nothing changed")
-        }
     }
 
     function rowOf(action) {
@@ -166,19 +146,13 @@ FocusScope {
         notice = ""
         captureAction = action
         replacing = replace
-        inputManager.captureController(key)
-        prompt.visible = true
-        prompt.start(10)
-        prompt.forceActiveFocus()
+        prompt.begin()
     }
 
     // The wait over, with what to say of it.
     function endCapture(said) {
-        var hadKeys = prompt.activeFocus
+        var hadKeys = prompt.end()
         captureAction = ""
-        prompt.visible = false
-        if (inputManager)
-            inputManager.captureController("")
         notice = said
         if (hadKeys)
             list.forceActiveFocus()
@@ -209,7 +183,7 @@ FocusScope {
         else if (result.outcome === "cancel")
             notice = "Nothing changed"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     // Remove one: which, from a list.
@@ -237,7 +211,7 @@ FocusScope {
             notice = pad ? label + " is its only " + result.label + " button: it stays"
                          : label + " is the " + result.label + " in use: it stays"
         else if (result.outcome === "unsaved")
-            notice = "Not saved: the settings could not be written"
+            notice = ControlsText.notSaved
     }
 
     function activate(row) {
@@ -354,9 +328,10 @@ FocusScope {
         onActivated: function(action) {
             if (action !== "reset" || !inputManager)
                 return
-            inputManager.resetController(pageRoot.key)
+            if (!inputManager.resetController(pageRoot.key))
+                pageRoot.notice = ControlsText.notSaved
             // Away, it had nothing else: its line goes from the list too.
-            if (!pageRoot.present)
+            else if (!pageRoot.present)
                 pageRoot.goBack()
             else
                 pageRoot.notice = "No extra keys now"
@@ -368,6 +343,8 @@ FocusScope {
     PressPrompt {
         id: prompt
         objectName: "capturePrompt"
+        visible: pageRoot.capturing
+        controllerKeys: [pageRoot.key]
         keys: !pageRoot.pad
         title: (pageRoot.replacing ? "New " : "Another ") + pageRoot.noun
         message: {
@@ -375,6 +352,9 @@ FocusScope {
             var where = pageRoot.all ? "" : " on " + pageRoot.name
             return "Press the " + (pageRoot.replacing ? "new " : "") + pageRoot.noun + where + " for [" + now.label + "]"
         }
+        // A tap: the answer. Held: the way out.
+        onTapped: function(key, input, label) { pageRoot.answer(input, label) }
+        onHeld: pageRoot.endCapture("Nothing changed")
         onBackPressed: pageRoot.endCapture("Nothing changed")
         onTimedOut: pageRoot.endCapture("No press: nothing changed")
     }

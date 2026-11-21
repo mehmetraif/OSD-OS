@@ -37,7 +37,16 @@ inline const QString kPage = QStringLiteral("https://osdos.tv/setup/");
 struct Form {
     QHash<QString, QJsonValue> app;
     QHash<QString, QHash<QString, QJsonValue>> modules;
+    // The app's rows marked "nearest" (Screen Saver), by key: their choices'
+    // values, a value saved that is none of them sent as Settings shows it
+    // (nearestChoice()).
+    QHash<QString, QStringList> nearest;
 };
+// A value saved before a row's choices were these, as Settings shows it
+// (views/SettingsPages.js's Screen Saver): one of them as it is; a number of
+// seconds as the nearest of those that are numbers, the earlier of two as
+// near (an old 30 as "60"); anything else as the first (Off).
+QJsonValue nearestChoice(const QJsonValue &value, const QStringList &choices);
 // extra: schema-extra.json; manifests: each module's manifest, by its id.
 Form formOf(const QJsonObject &extra, const QHash<QString, QJsonObject> &manifests);
 

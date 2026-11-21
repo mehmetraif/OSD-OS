@@ -13,7 +13,7 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **Options** on an entry, with ►: **Favorites**, **Play at Startup** and **Add to Playlist**.
 - **Playlists** across modules, in order or shuffled, **online** (streamed) or **offline** (downloaded) ([Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists)).
 - **Transparent Background**: the menus over a video that plays on, from TRANSPARENT to SOLID. It needs libmpv ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
-- **A tape loading** while a video starts, with Loading Effect and Loading Screen Colors in Settings → TV / Movie ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
+- **A tape loading** while a video starts, with Loading Effect and Loading Colors in Settings → Look ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 - **The logo** in a corner of the picture: Channel Logo and Logo Image in Settings → TV / Movie ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 - **Scaling** for 16:9 pictures on a 4:3 screen: Letterbox, 14:9, Pan & Scan or Anamorphic ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv)).
 - **Netflix and Prime Video** catalogues from TMDB, played in the service's own player ([Netflix and Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video)).
@@ -34,7 +34,7 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **A remote, a keyboard or a gamepad**: the arrows, select and back on any of them. Settings → Controls sets each controller's buttons and labels and each player's pad, and learns unknown buttons ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
 - **A mouse pointer** that shows while the mouse moves and hides 5 seconds later (Settings → Screen → Mouse Pointer).
 - **Status icons** for Wi-Fi, Bluetooth and the arcade's HI, trophy, globe and network, turned off in Settings → Look → Status Icons ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#status-icons)).
-- **OSD Background** in Settings: Full, Off or Window, with Window Frame for the window ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
+- **OSD Background** in Settings: Full, Off or Box, with OSD Frame for the window ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 - **Themes** in Settings: the color scheme, the skin, the effects and the menu music at once. Nine come with it; a new one is a folder ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)).
 - **Effects**, never over a video: text, background, selector and screen effects, and transitions between windows ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
 - **Menu music** under the menus: the theme's, or your own recording, MIDI file or tracker module ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)).
@@ -50,6 +50,6 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **Audio Output** in Settings: the Pi's AV jack, HDMI or a USB sound card ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)).
 - **Wi-Fi** in Settings: the networks in reach, joined with the on-screen keyboard ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)).
 - **Bluetooth** in Settings: search for a keyboard, gamepad or remote and pair it ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
-- **System Information** in Settings → System → About: the device's name, model, memory, storage, temperature and network addresses ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
+- **System Information** in Settings → System: the device's name, model, memory, storage, temperature and network addresses ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
 - **Update** in Settings: a new release downloaded from GitHub and installed ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
 - **About** in Settings: what OSD/OS is, who makes it, and its license.

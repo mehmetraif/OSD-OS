@@ -9,8 +9,9 @@ import QtQuick
 // for a list in the order of its letters, the letters its rows are under go
 // down a column beside them (sortKey: A–Z, or "#", first): ► takes the keys
 // there, on the letter of the row the cursor is on, ▲ ▼ jump the rows to the
-// first under each letter, round the ends, and select, ◄ or back go back to
-// the rows. The side without the keys is dimmed the two-colour way (Dither).
+// first under each letter, round the ends, as the mouse over a letter does,
+// and select, ◄ or back go back to the rows. The side without the keys is
+// dimmed the two-colour way (Dither).
 // Select on a row is the host's (chosen), and back on the rows.
 //
 //     LetterList {
@@ -156,6 +157,9 @@ FocusScope {
         width: root.paneWidth - (letterListRoot.letters ? root.sw * 0.096875 : 0) //430 or 492
         height: root.tallListHeight //252
         marks: false
+        // ▲ ▼ glide the rows after the cursor (MenuList's glides); a letter's
+        // jump and the rows put back (restore()) land at once.
+        glides: true
         focus: true
 
         onMoved: function(delta) { letterListRoot.follow(delta) }
@@ -252,6 +256,15 @@ FocusScope {
             }
             letterListRoot.jumpToLetter()
         }
+        // The mouse over a letter (Hover.js), which follows the letters only
+        // while the keys are in them: the rows jump to it, as ▲ ▼ take them.
+        function hoverRow(index, list) {
+            if (index === currentIndex)
+                return
+            currentIndex = index
+            letterListRoot.jumpToLetter()
+        }
+
         Keys.onReturnPressed: letterListRoot.leaveLetters()
         Keys.onLeftPressed: letterListRoot.leaveLetters()
         Keys.onPressed: function(event) {

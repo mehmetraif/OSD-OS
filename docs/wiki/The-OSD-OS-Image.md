@@ -10,7 +10,7 @@ On a Raspberry Pi, OSD/OS can be the whole system: one image, flashed to an SD c
 
 ## An operating system, not an app
 
-Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)), OSD/OS runs on a system that is already set up. The image is the system itself: it boots into OSD/OS, with no splash, boot text, login prompt or desktop. The boot screen is in the theme's colours, or white on blue with Settings → Look → Boot Screen Colors → Default.
+Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)), OSD/OS runs on a system that is already set up. The image is the system itself: it boots into OSD/OS, with no splash, boot text, login prompt or desktop. The boot screen is in the theme's colours, or white on blue with Settings → Look → Boot Colors → Default.
 
 ### What it is built on
 
@@ -77,6 +77,7 @@ The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. 
 | The RetroAchievements account | `~/.local/share/OSD-OS/arcade/retroachievements-setup.json`. RetroArch signs in once the network is up, tried every 30 seconds, ten times at most |
 
 - SSH password login needs `pi`'s password set in the same file. SSH is not turned on without a key or that password.
+- Settings → System → SSH turns the service on or off later on the device, and leaves the card's password login and keys as they are; the next card's SSH setting wins over it.
 - A file that can't be read is deleted, and the log says why.
 - The file can also go on a card that has already started.
 - Until the card takes it, the file holds the Wi-Fi and RetroAchievements passwords as typed.
@@ -98,7 +99,7 @@ OSD/OS starts as soon as systemd reaches `basic.target`. Wi-Fi, Bluetooth, the l
 ### Step by step
 
 1. **Firmware**: no splash (`disable_splash=1`), no pause (`boot_delay=0`).
-2. **Kernel**: quiet, logging to `tty3`: `console=tty3 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0` in `cmdline.txt`.
+2. **Kernel**: quiet, logging to `tty3`: `console=tty3 quiet loglevel=3 logo.nologo vt.global_cursor_default=0 consoleblank=0` in `cmdline.txt`, and `usbhid.jspoll=1`, which polls USB joysticks and pads the HID driver reads (an arcade stick's encoder) every millisecond rather than at the 8 or 10 ms many ask for. `cat /sys/module/usbhid/parameters/jspoll` says `1`.
 3. **`basic.target`**: `osdos.service` starts. `wait-for-display` holds it, five seconds at most, until the display driver has a connector.
 4. **The launcher** (`/usr/local/bin/osdos`) applies a staged update, picks the display, and starts the app.
 5. **The first frame**: the app writes `/run/osdos/ready`, after five seconds at the latest.
@@ -180,7 +181,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) |
 | `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
 | `osdos-setup-app.service`, `osdos-setup.service` | Run only with an `osdos-setup.json` on the boot partition |
-| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day |
+| `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, unless an arcade game plays |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
 | `osdos-media-folders.service` | Makes **Movies** on the film partition as it is mounted |
 | `osdos-netplay-priority.service` | Enabled. Marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](#wi-fi)) |
@@ -188,12 +189,13 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-display.socket` | Enabled. Display Output's At Next Start |
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
-| `osdos-system.socket` | Enabled. The time zone and the keyboard |
+| `osdos-system.socket` | Enabled. The time zone, the keyboard and SSH on or off |
+| `osdos-game.socket` | Enabled. An arcade game's CPU governor, and the flag the timers wait on ([The game's socket](#the-games-socket)) |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
 | `udisks2.service` | Masked |
-| `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `cron.service` | Disabled |
+| `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `fstrim.timer`, `cron.service` | Disabled. To trim the card by hand: `sudo fstrim -av` |
 | `rpi-connect-lite` | Purged |
 
 ### The service
@@ -222,6 +224,7 @@ Environment=OSDOS_AUTOSTART=1
 Environment=OSDOS_BOOT_UNITS_FILE=/etc/osdos/boot-units
 Environment=OSDOS_READY_FILE=/run/osdos/ready
 RuntimeDirectory=osdos
+LimitNICE=-5
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStartPre=-/usr/lib/osdos/wait-for-display
 ExecStart=/usr/local/bin/osdos
@@ -241,6 +244,7 @@ WantedBy=multi-user.target
 ```
 
 - **`OSDOS_AUTOSTART=1`**: Quit offers Power Off, Restart and Exit to Terminal, and Settings offers Display Output.
+- **`LimitNICE=-5`**: an arcade game's RetroArch or MAME runs at nice -5, ahead of OSD/OS itself and the system's services, so that a busy moment of theirs (NetworkManager, the journal) waits for the game rather than the other way round. No real-time priority, which could starve them. The `osdos.service` `install.sh` writes has it too; without it the game runs at OSD/OS's own priority and the log says so (`runs at the app's priority`). `ps -o pid,ni,cls,rtprio,comm -C retroarch` shows it during a game.
 - **A crash** starts OSD/OS again after five seconds. When the third start in two minutes fails too, a login prompt comes up (`osdos-terminal.service`). The Pi stays on.
 - **The drop-in** `/etc/systemd/system/osdos.service.d/osdos-media.conf` sets `OSDOS_MEDIA_DIR=/media/OSD-OS`. Local Files then opens **Movies** there and the Arcade module **Games/Arcade**, while their folder settings are unset.
 
@@ -295,10 +299,10 @@ The Playlists module downloads into a **Playlists** folder in **Movies** (its Do
 
 ### Copying films onto it
 
-1. Quit OSD/OS (Settings → Quit → Power Off) and take the card out.
+1. Quit OSD/OS (Settings → Power → Power Off) and take the card out.
 2. In a computer the card shows up as two drives, **bootfs** and **OSD-OS**. Copy films into **Movies** on **OSD-OS**.
 3. If Windows offers to format the system's partition, choose **Cancel**: formatting erases the system.
-4. Put the card back. Local Files opens `/media/OSD-OS/Movies` until its Media Directory setting names another folder.
+4. Put the card back. Local Files opens `/media/OSD-OS/Movies` until its Media Folder setting names another folder.
 
 Arcade games go in **Games/Arcade** beside **Movies** ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)).
 
@@ -350,7 +354,7 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 
 - **In OSD/OS**: Settings → Network → Wi-Fi ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). The polkit rule `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` lets OSD/OS's user use NetworkManager.
 - **The country**: Raspberry Pi OS keeps Wi-Fi off until it is set. Settings → Network → Wi-Fi asks for it. An image built with `WPA_COUNTRY` has it, and in `network-config` it is `regulatory-domain`.
-- **Power saving is off**: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` holds `wifi.powersave = 2` under `[connection]`. `iw dev wlan0 get power_save` says `off` once connected.
+- **Power saving is off**: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` holds `wifi.powersave = 2` under `[connection]`. `iw dev wlan0 get power_save` says `off` once connected. `install.sh` writes the same file, and the marking below, on Raspberry Pi OS.
 - **A network game's packets go first**: `osdos-netplay-priority.service` has nftables read `/usr/lib/osdos/netplay-priority.nft`. Its table, `inet osdos_netplay`, marks TCP to and from RetroArch's port 55435 at private network addresses as CS4, which Wi-Fi sends from its video queue.
 - **To see or remove that marking**: `sudo nft list table inet osdos_netplay` shows the rules, and `sudo systemctl disable --now osdos-netplay-priority.service` removes them.
 - **Before the first boot**: add the network to `network-config` on **bootfs** ([Installation → Wi-Fi by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config)).
@@ -363,7 +367,8 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 ### The local network
 
 - The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`.
-- Settings → System → About → System Information renames the device. Give each OSD/OS on one network its own name.
+- **A cable and Wi-Fi both up**: each answers only for its own address (`/etc/sysctl.d/90-osdos-arp.conf`: `net.ipv4.conf.all.arp_ignore = 1`, `arp_announce = 2`), so another machine sends a game meant for the cable over the cable, not to the Pi's Wi-Fi. `ip neigh show <the Pi's cable address>` on another Linux machine (`arp -a` on Windows) shows the cable's MAC address, as `ip -br link` on the Pi names it.
+- Settings → System → System Information renames the device. Give each OSD/OS on one network its own name.
 - Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
 
 ### Bluetooth
@@ -381,9 +386,10 @@ Settings → Network → Bluetooth pairs and connects keyboards, gamepads and re
 
 ## SSH
 
-SSH is off on the image as it comes (`ENABLE_SSH=0`). Three ways to have it:
+SSH is off on the image as it comes (`ENABLE_SSH=0`). Four ways to have it:
 
 - **OSD/OS Setup** turns it on, with password login or keys only.
+- **Settings → System → SSH** turns the service on or off on the device ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)). It changes nothing else: someone signs in with the password or the keys OSD/OS Setup (or the image's build) gave `pi`.
 - **Raspberry Pi Imager's customisation** enables it, with the user it creates.
 - **An image built with `ENABLE_SSH=1`** has it. `PUBKEY_SSH_FIRST_USER` adds a public key for `pi`, and `PUBKEY_ONLY_SSH=1` turns password logins off.
 
@@ -412,19 +418,19 @@ For `sudo` on an image built without a password, give `pi` a password on OSD/OS 
 
 <table>
 <tr><th width="50%">Quit</th><th width="50%">Update</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with No selected, then Yes and Save Logs" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
 <tr><td>Settings → Quit, run by hand. On the image it offers the choices below.</td><td>Settings → System → Update.</td></tr>
 </table>
 
-Settings → **Quit** on the image asks **Really quit?** with:
+Settings → **Power** on the image (Quit's row there, with the power symbol in Camcorder's column) asks **Power off?** with **Cancel** under the cursor:
 
 | Choice | OSD/OS exits with | Then |
 |---|---|---|
+| **Cancel** | | Back to Settings |
 | **Power Off** | 0 | The Pi powers off |
 | **Restart** | 12 | The Pi reboots |
 | **Exit to Terminal** | 10 | A login shell on the screen (`tty1`); the Pi stays on |
 | **Save Logs** | | The logs are copied to the film partition's `Logs` folder (offered with that partition) |
-| **Cancel** | | Back to Settings |
 
 Ctrl+Q on a keyboard quits at once, as Power Off does.
 
@@ -453,15 +459,16 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | set at all | Staged updates: Settings → System → Update installs them |
 | 2 | Exit 12: Quit offers Restart |
 | 3 | Exits 20 to 29: Settings offers Display Output |
-| 4 | Exit 30: JAMMA 240p 15 kHz (720x240) |
+| 4 | Exit 30: JAMMA 720x240 |
 | 5 | Exits 40 to 50 and `osdos-display.socket`: Switch and Power Off, At Next Start |
 | 6 | Exits 31 to 38 and 51 to 58: the JAMMA board's other modes |
 | 7 | The polkit rule and `osdos-wifi.socket`: Settings offers Wi-Fi |
 | 8 | `osdos-name.socket`: System Information renames the device |
 | 9 | Exits 39 and 59: JAMMA 480i at 640 across |
 | 10 | `osdos-system.socket`: Settings → System sets the time zone and the keyboard |
+| 11 | `osdos-game.socket`: an arcade game has the CPU at full speed |
 
-The image's launcher is level 10, as `install.sh`'s is.
+The image's launcher is level 11, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -481,18 +488,43 @@ journalctl -u 'osdos-wifi@*' -b    # what setting the Wi-Fi country did
 
 ### The device name's socket
 
-Settings → System → About → System Information renames the device through `osdos-name.socket` (`/run/osdos-name.sock`) and `osdos-stop device-name` ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)). The name is the hostname, and the name LAN Play's games are hosted under: letters, digits and hyphens, 63 at most, neither end a hyphen. `hostnamectl set-hostname` sets it, and avahi-daemon restarts.
+Settings → System → System Information renames the device through `osdos-name.socket` (`/run/osdos-name.sock`) and `osdos-stop device-name` ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)). The name is the hostname, and the name LAN Play's games are hosted under: letters, digits and hyphens, 63 at most, neither end a hyphen. `hostnamectl set-hostname` sets it, and avahi-daemon restarts.
 
 ```sh
 journalctl -u 'osdos-name@*' -b    # what renaming the device did
 ```
 
-### The time zone's and the keyboard's socket
+### The time zone's, the keyboard's and SSH's socket
 
-Settings → System → **Time Zone** and **Keyboard** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
+Settings → System → **Time Zone**, **Keyboard** and **SSH** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
+
+For SSH it takes `ssh on` or `ssh off` and nothing else. On is `systemctl enable ssh.service`, then `systemctl start ssh.service` (enabled again only for as long as it starts: one that doesn't is disabled again); off is `systemctl disable ssh.service`, then `systemctl stop ssh.service`. It never touches `pi`'s password, `~/.ssh/authorized_keys` or `/etc/ssh/sshd_config.d/00-osdos-setup.conf`: whether a password logs in stays as OSD/OS Setup left it, and the next card's SSH setting wins over the row. Turned on, it answers `ok no-password` where the user OSD/OS runs as (`osdos.service`'s `User=`) has no password in `/etc/shadow` (none, or locked), which the row shows as **Set a password or a key with OSD/OS Setup first** when that user has no key either; nothing else of the password leaves it.
 
 ```sh
-journalctl -u 'osdos-system@*' -b    # what setting the time zone or the keyboard did
+journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard or SSH did
+systemctl is-enabled ssh             # enabled, or disabled
+systemctl is-active ssh              # active, or inactive
+```
+
+### The game's socket
+
+While a game of the Arcade module plays in RetroArch or MAME, OSD/OS holds a connection to `osdos-game.socket` (`/run/osdos-game.sock`), behind which `osdos-stop game` runs as root for the length of the game:
+
+- **The CPU at full speed.** Each CPU frequency policy's governor is set to `performance`, and the one it had is kept in `/run/osdos-game/governors`. An emulator's load sits where the default governor moves the clock up and down, and a frame late on one machine is a wait or a rollback for all of them in a network game. **Settings → Arcade → CPU at Full Speed**, OFF (`cpu_full_speed`, `false` in `config.json` under `modules.com.osdos.arcade`), turns it off. A Pi already at 75 °C or more, or throttled by its firmware as the game starts, keeps its governor, since the clock at full speed only brings its throttling sooner: the journal and OSD/OS's log say why (`CPU governor for the game kept at …`).
+- **The flag** `/run/osdos-game/playing`, there for the length of the game: the yt-dlp update skips its run while it is there.
+- **What the Pi did during the game**, read every two seconds from the kernel's files (the CPU's temperature, its clock, and the firmware's throttling bits; every ten seconds through `vcgencmd` on a kernel without `get_throttled`), and in a network game on Wi-Fi the radio's scans and roams (`iw event`) with the band and the signal at the start and the end (`iw dev wlan0 link`). At the game's end OSD/OS's log has one line of it:
+
+  ```
+  arcade: system during the game: governor performance, clock 1800 MHz, throttling none, highest 61.2 °C, Wi-Fi wlan0 5 GHz (5180 MHz), signal -58 dBm at the start, -61 dBm at the end, 0 scans, 0 roams, roamoff 1
+  ```
+
+  The throttling is what the firmware saw during the game: under-voltage, the clock capped, throttled, the soft temperature limit. When the Pi ran short of power or slowed itself down during a game, the screen after it says so, the first time each happens after OSD/OS starts. The radio's firmware may also scan by itself without telling the kernel, which the count can't see.
+- **Everything put back** as the game ends, and also when OSD/OS's connection closes without its end (the app gone), when the request's unit is stopped (a shutdown), and when `osdos.service` stops (its `ExecStopPost`, `osdos-stop`, puts back what a helper killed outright left).
+
+```sh
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor   # performance during a game
+journalctl -u 'osdos-game@*' -b                              # what each game's request did
+journalctl -u osdos -b | grep 'arcade: system during the game'  # what the Pi did in each game
 ```
 
 ### Exit to Terminal
@@ -520,7 +552,7 @@ Settings → System → **Update** installs a newer release ([Installation → U
 The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt-dlp`. `osdos-yt-dlp-update.timer` replaces it with the newest build two minutes after each boot and once a day.
 
 - A run is skipped unless the YouTube module is on, or a playlist holds a YouTube video.
-- It is also skipped without a connection within five minutes.
+- It is also skipped without a connection within five minutes, and while an arcade game plays (`/run/osdos-game/playing`, [The game's socket](#the-games-socket)).
 - The YouTube module starts the update itself the first time it opens.
 - `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
 

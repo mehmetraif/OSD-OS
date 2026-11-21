@@ -1,25 +1,16 @@
 import QtQuick
 import Components
 
-// Settings → Arcade → Favorites: how many games are favourites, Export, which
+// Settings → Arcade → Favorites: Export, which
 // writes them to osdos-favorites.txt in the games folder (a game's set a
 // line, its title after a #: on an OSD/OS card the OSD-OS partition, which a
 // computer opens), and Import, which adds those such a file names that
 // aren't favourites yet, as many as the list holds
-// (ArcadeBackend::exportFavorites(), importFavorites()). The help line says
-// how the last one went, the file named.
-FocusScope {
+// (ArcadeBackend::exportFavorites(), importFavorites()), then how many games
+// are favorites. The help line says how the last one went, the file named.
+KeyedPage {
     id: favoritesRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "Favorites"
 
     // Read again after an export or an import.
     property int revision: 0
@@ -28,7 +19,11 @@ FocusScope {
     // How the last export or import went.
     property string message: ""
 
-    readonly property var keys: ["count", "export", "import"]
+    // Export and Import first, the cursor on Export; how many there are
+    // under them.
+    keys: ["export", "import", "count"]
+    keepValue: false
+    onCurrentIndexChanged: message = ""
 
     function labelOf(key) {
         switch (key) {
@@ -55,53 +50,17 @@ FocusScope {
         return ""
     }
 
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "Favorites"
+    function selectWord(key) {
+        return key === "export" ? "EXPORT" : key === "import" ? "IMPORT" : ""
     }
-
-    MenuList {
-        id: list
-        model: favoritesRoot.keys
-        focus: true
-        onCurrentIndexChanged: favoritesRoot.message = ""
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: favoritesRoot.labelOf(modelData)
-            value: favoritesRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-        }
-
-        Keys.onReturnPressed: {
-            var key = favoritesRoot.keys[currentIndex]
-            if (!arcadeBackend)
-                return
-            var done = key === "export" ? arcadeBackend.exportFavorites()
-                     : key === "import" ? arcadeBackend.importFavorites() : null
-            if (!done)
-                return
-            favoritesRoot.message = done.message || ""
-            favoritesRoot.revision++
-        }
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                favoritesRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        text: favoritesRoot.descriptionOf(favoritesRoot.keys[list.currentIndex])
-    }
-
-    HintBar {
-        readonly property string key: favoritesRoot.keys[list.currentIndex] || ""
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             key === "export" ? "select:EXPORT" : key === "import" ? "select:IMPORT" : ""])
+    function choose(key) {
+        if (!arcadeBackend)
+            return
+        var done = key === "export" ? arcadeBackend.exportFavorites()
+                 : key === "import" ? arcadeBackend.importFavorites() : null
+        if (!done)
+            return
+        message = done.message || ""
+        revision++
     }
 }

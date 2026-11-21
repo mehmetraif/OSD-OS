@@ -144,6 +144,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 - The file can also go on a card that has already been started.
 - The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is deleted from the card once applied.
 - A display output chosen for another kind of Pi is not applied, and the log says so.
+- SSH stays as the card set it until Settings → System → **SSH** turns it off or on; the password and the keys stay the card's either way, and a later card's SSH setting wins again.
 
 [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied. A computer takes part of the settings too ([below](#osdos-setup-on-a-computer)).
 
@@ -215,11 +216,11 @@ Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and 
 
 ### The user, the password and SSH
 
-The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Quit) or SSH.
+The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Power) or SSH.
 
 - **The password.** A release image's `pi` has the password of the repository secret `OS_FIRST_USER_PASS`, if the release was built with one. Without one, Exit to Terminal logs `pi` in by itself, without `sudo`.
 - **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`.
-- **SSH** is off on a release image. Turn it on on OSD/OS Setup, or from a shell with `sudo`:
+- **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a password or a key to log in with; then Settings → System → **SSH** turns it off and on again on the device. Or from a shell with `sudo`:
 
   ```sh
   sudo systemctl enable --now ssh
@@ -412,14 +413,15 @@ On the OSD/OS image it asks neither, and keeps the image's own service. The inst
 
 | Step | What |
 |---|---|
-| Packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd`, and `qml6-module-qtquick3d qml6-module-qtquick3d-helpers` where the system has them |
+| Packages | `libqt6quick6 libqt6qml6 libqt6opengl6 libqt6network6 libqt6svg6 qt6-svg-plugins qt6-wayland qml6-module-qtquick qml6-module-qtquick-window libsdl2-2.0-0 libpcsclite1 libmpv2 mpv fluidsynth timgm6mb-soundfont openmpt123 polkitd`, and `qml6-module-qtquick3d qml6-module-qtquick3d-helpers` where the system has them |
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0` |
 | The `bluetooth` group | Adds the user OSD/OS runs as |
 | A polkit rule | With a service: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, for Settings → Network → Wi-Fi |
+| The network, as the image has it | The image's own files at the release's tag: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` (Wi-Fi without power saving, from the next connection), and `osdos-netplay-priority.service` with `/usr/lib/osdos/netplay-priority.nft` and `nftables` (a network game's packets marked CS4 for Wi-Fi's video queue). A release without them, or GitHub not answering, leaves the system as it is, and says so |
 | The app | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against its SHA-256, into `/opt/osdos` (`bin`, `lib`, `share`), owned by the user OSD/OS runs as |
 | 240-MP | A 240-MP install (`/opt/240mp`, `240mp.service`) is removed. OSD/OS moves its data folder over on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland, X11, or straight on the screen (Qt's EGLFS) |
-| The service | After **y**: `/etc/systemd/system/osdos.service`, the login on `tty1` masked (`getty@tty1`, `autovt@`), and `/etc/systemd/logind.conf.d/osdos.conf`. With any service: `/usr/local/bin/osdos-stop`, `osdos-terminal.service`, and `osdos-display.socket`, `osdos-wifi.socket`, `osdos-name.socket` and `osdos-system.socket` with their `@.service` units |
+| The service | After **y**: `/etc/systemd/system/osdos.service`, the login on `tty1` masked (`getty@tty1`, `autovt@`), and `/etc/systemd/logind.conf.d/osdos.conf`. With any service: `/usr/local/bin/osdos-stop`, `osdos-terminal.service`, and `osdos-display.socket`, `osdos-wifi.socket`, `osdos-name.socket`, `osdos-system.socket` and `osdos-game.socket` with their `@.service` units |
 
 #### The autostart service
 
@@ -667,14 +669,18 @@ yt-dlp updates itself on the image (`osdos-yt-dlp-update.timer`).
 **On Raspberry Pi OS,** remove the service (if you installed it), then the app, its launcher and its udev rule, and last your settings:
 
 ```sh
-sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+sudo systemctl disable --now osdos.service osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket osdos-game.socket
 sudo systemctl unmask getty@tty1.service autovt@.service
 sudo rm -f /etc/systemd/system/osdos.service /etc/systemd/system/osdos-terminal.service /usr/local/bin/osdos-stop
 sudo rm -f /etc/systemd/system/osdos-display.socket /etc/systemd/system/osdos-display@.service
 sudo rm -f /etc/systemd/system/osdos-wifi.socket /etc/systemd/system/osdos-wifi@.service
 sudo rm -f /etc/systemd/system/osdos-name.socket /etc/systemd/system/osdos-name@.service
 sudo rm -f /etc/systemd/system/osdos-system.socket /etc/systemd/system/osdos-system@.service
+sudo rm -f /etc/systemd/system/osdos-game.socket /etc/systemd/system/osdos-game@.service
 sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
+sudo systemctl disable --now osdos-netplay-priority.service
+sudo rm -f /etc/systemd/system/osdos-netplay-priority.service /usr/lib/osdos/netplay-priority.nft
+sudo rm -f /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos
 sudo rm -f /usr/local/bin/osdos /etc/udev/rules.d/99-osdos-tty.rules

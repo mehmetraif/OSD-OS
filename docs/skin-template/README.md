@@ -22,7 +22,7 @@ A skin to copy and make your own. A skin dresses the window: it gives the shapes
 3. **Draw it**, either way:
    - in `make-pictures.py`: change the drawings and run `python3 make-pictures.py`, which writes the PNGs beside it. In a drawing `#` is light, `o` dark and `.` clear.
    - in any pixel editor, in white, black and transparent.
-4. **Pick it** in Settings → Look → Skin. A new folder is listed the next time Settings opens. The window's frame shows with OSD Background set to Window and Window Frame On or Shadow.
+4. **Pick it** in Settings → Look → Skin. A new folder is listed the next time Settings opens. The window's frame shows with OSD Background set to Box and OSD Frame On or Shadow.
 
 To see a picture you changed in a skin already in use, restart OSD/OS: a picture already shown stays in memory.
 

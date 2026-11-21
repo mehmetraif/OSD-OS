@@ -10,21 +10,13 @@ import Components
 // Signing in hands the password to ArcadeBackend for RetroArch to sign in
 // with, which swaps it for a token (RetroAchievements lets an emulator sign
 // in, not a launcher): at once, RetroArch running unseen for the moment it
-// takes, or else at the next game. The page says how that went
-// (achievementsState), and whether RetroAchievements took the key, which it
-// is asked about as it is typed and as the page opens.
-FocusScope {
+// takes, or else at the next game. The Account line says how that went
+// (achievementsState), and the key's whether RetroAchievements took it,
+// which it is asked about as it is typed and as the page opens. Sign Out and
+// Forget Web API Key ask first.
+KeyedPage {
     id: accountRoot
-    // In a monitor layout's frame, as Settings' own pages are (Root.qml's
-    // inFrame).
-    readonly property bool inFrame: true
-
-    signal navigateTo(string path, var params, var listState)
-    signal goBack()
-
-    property var navParams: ({})
-
-    focus: true
+    subtitle: "RetroAchievements"
 
     readonly property string user: arcadeBackend ? arcadeBackend.achievementsUser : ""
     readonly property string accountState: arcadeBackend ? arcadeBackend.achievementsState : "none"
@@ -38,16 +30,18 @@ FocusScope {
     // The keyboard is for: "user", "password" or "key".
     property string typing: ""
 
-    readonly property string stateText: accountState === "signedIn" ? "Signed In"
-                                      : accountState === "checking" ? "Checking"
-                                      : accountState === "pending" ? "At the Next Game"
-                                      : accountState === "failed" ? "Not Signed In" : "None"
-    // The page's lines, by key: the list is made again only when a line
-    // comes or goes (signed in, a key kept), the cursor kept on its line.
-    property var keys: []
-    readonly property string currentKey: keys[list.currentIndex] || ""
+    // The account in a line: who is signed in, or how far signing in has
+    // got.
+    readonly property string accountText: accountState === "signedIn" ? user
+                                        : accountState === "checking" ? "Signing In"
+                                        : accountState === "pending" ? "At the Next Game"
+                                        : "Not Signed In"
+    covered: keyboard.visible
+    // The page's lines, by key: signed in or not, a key kept or not. As the
+    // state changes, read from it then, not from a binding on it that may
+    // not have its new value yet.
     function updateKeys() {
-        var made = ["state", "status"]
+        var made = ["state"]
         if (accountState === "signedIn" || accountState === "pending" || accountState === "checking")
             made.push("signOut")
         else
@@ -55,13 +49,7 @@ FocusScope {
         made.push("key")
         if (keyKept)
             made.push("forgetKey")
-        if (JSON.stringify(made) === JSON.stringify(keys))
-            return
-        var at = keys[list.currentIndex]
-        keys = made
-        // The list made again, on the line it was on, or the first (a line
-        // gone: signed in).
-        list.currentIndex = Math.max(0, made.indexOf(at))
+        setKeys(made)
     }
     onAccountStateChanged: {
         updateKeys()
@@ -70,7 +58,7 @@ FocusScope {
         if (accountState === "failed") {
             if (typedUser === "")
                 typedUser = user
-            list.currentIndex = Math.max(0, keys.indexOf("password"))
+            currentIndex = Math.max(0, keys.indexOf("password"))
         }
     }
     onKeyKeptChanged: updateKeys()
@@ -83,9 +71,8 @@ FocusScope {
     function labelOf(key) {
         switch (key) {
         case "state": return "Account"
-        case "status": return "Status"
         case "signOut": return "Sign Out"
-        case "user": return "User"
+        case "user": return "User Name"
         case "password": return "Password"
         case "signIn": return "Sign In"
         case "key": return "Web API Key"
@@ -95,13 +82,16 @@ FocusScope {
     }
     function valueOf(key) {
         switch (key) {
-        case "state": return user !== "" ? user : "None"
-        case "status": return stateText
-        case "user": return typedUser !== "" ? typedUser : "None"
-        case "password": return typedPassword !== "" ? "*".repeat(typedPassword.length) : "None"
-        case "key": return !keyKept ? "None" : keyRefused ? "Refused" : keyWorks ? "Working" : "Kept"
+        case "state": return accountText
+        case "user": return typedUser !== "" ? typedUser : "Not Set"
+        case "password": return typedPassword !== "" ? "*".repeat(typedPassword.length) : "Not Set"
+        case "key": return !keyKept ? "Not Set" : keyRefused ? "Refused" : keyWorks ? "Working" : "Set"
         }
         return ""
+    }
+    // Sign In waits for both.
+    function offOf(key) {
+        return key === "signIn" && (typedUser === "" || typedPassword === "") ? "Type your user name and password first" : ""
     }
     function descriptionOf(key) {
         switch (key) {
@@ -112,20 +102,17 @@ FocusScope {
                  : accountState === "checking" ? "RetroArch is signing in as " + user + ", out of sight"
                  : accountState === "pending" ? (message !== "" ? message
                                                                 : "RetroArch signs in as " + user + " at the next game FinalBurn Neo plays")
-                 : accountState === "failed" ? message
+                 : accountState === "failed" && message !== "" ? message
                  : "No account: the games play without RetroAchievements"
-        case "status":
-            return "Online High Scores plays FinalBurn Neo's games in hardcore mode, as RetroAchievements' leaderboards take only those: no save states"
-        case "signOut": return "Forget the account: the games play without RetroAchievements"
-        case "user": return "Your RetroAchievements user name"
+        case "signOut": return "Forget the account and its token: the games play without RetroAchievements"
+        case "user": return "Your RetroAchievements user name, as you sign in on retroachievements.org"
         case "password":
             // Refused: why, where the cursor lands to type it again.
             if (accountState === "failed" && message !== "" && typedPassword === "")
                 return message
             return "Used once, by RetroArch, which keeps a token in its place. Debian's RetroArch sends it unencrypted: use one you use nowhere else"
         case "signIn":
-            return typedUser !== "" && typedPassword !== "" ? "RetroArch signs in now, out of sight, and the Status line says how it went"
-                                                            : "Type your user name and password first"
+            return "RetroArch signs in now, out of sight, and the Account line says how it went"
         case "key":
             return keyRefused ? "RetroAchievements refused the key: type it again from retroachievements.org, Settings, Keys"
                  : keyWorks ? "RetroAchievements takes the key: the games' pictures and leaderboards on the Arcade screen, and the achievements in Game Details"
@@ -141,7 +128,7 @@ FocusScope {
         switch (key) {
         case "user":
             typing = "user"
-            keyboard.title = "RetroAchievements User"
+            keyboard.title = "RetroAchievements User Name"
             keyboard.masked = false
             keyboard.open(typedUser)
             break
@@ -158,7 +145,7 @@ FocusScope {
             }
             break
         case "signOut":
-            arcadeBackend.signOutAchievements()
+            ask("Sign out of RetroAchievements?", user, "Sign Out", "signOut")
             break
         case "key":
             typing = "key"
@@ -167,53 +154,24 @@ FocusScope {
             keyboard.open("")
             break
         case "forgetKey":
-            arcadeBackend.setAchievementsKey("")
+            ask("Forget the Web API key?", "It is typed again from retroachievements.org, Settings, Keys",
+                "Forget", "forgetKey")
             break
         }
     }
-
-    AppBar {
-        iconSource: moduleRoot.moduleIcon
-        title: moduleRoot.moduleName
-        subtitle: "RetroAchievements"
+    // The answer to Sign Out's or Forget Web API Key's question.
+    function confirmed(action) {
+        if (!arcadeBackend)
+            return
+        if (action === "signOut")
+            arcadeBackend.signOutAchievements()
+        else if (action === "forgetKey")
+            arcadeBackend.setAchievementsKey("")
     }
 
-    MenuList {
-        id: list
-        model: accountRoot.keys
-        visible: !keyboard.visible
-        focus: !keyboard.visible
-
-        delegate: MenuRow {
-            width: list.width
-            height: root.menuRowHeight
-            label: accountRoot.labelOf(modelData)
-            value: accountRoot.valueOf(modelData)
-            selected: list.currentIndex === index
-            keepValue: true
-        }
-
-        Keys.onReturnPressed: accountRoot.choose(accountRoot.currentKey)
-        Keys.onPressed: function(event) {
-            if (root.isBack(event)) {
-                accountRoot.goBack()
-                event.accepted = true
-            }
-        }
-    }
-
-    HelpLine {
-        always: true
-        visible: !keyboard.visible
-        text: accountRoot.descriptionOf(accountRoot.currentKey)
-    }
-
-    HintBar {
-        readonly property string key: accountRoot.currentKey
-        visible: !keyboard.visible
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             key !== "" && key !== "state" && key !== "status"
-                             ? "select:" + (key === "user" || key === "password" || key === "key" ? "TYPE" : "SELECT") : ""])
+    function selectWord(key) {
+        return key === "user" || key === "password" || key === "key" ? "TYPE"
+             : key === "signIn" ? "SIGN IN" : key === "signOut" ? "SIGN OUT" : key === "forgetKey" ? "FORGET" : ""
     }
 
     OnScreenKeyboard {
@@ -229,11 +187,11 @@ FocusScope {
             else if (accountRoot.typing === "key" && arcadeBackend)
                 arcadeBackend.setAchievementsKey(text.trim())
             accountRoot.typing = ""
-            list.forceActiveFocus()
+            accountRoot.focusList()
         }
         onCanceled: {
             accountRoot.typing = ""
-            list.forceActiveFocus()
+            accountRoot.focusList()
         }
     }
 }

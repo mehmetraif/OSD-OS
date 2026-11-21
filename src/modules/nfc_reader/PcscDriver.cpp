@@ -31,8 +31,7 @@ namespace {
 // over a real NFC reader when both are plugged in.
 //
 // This is a ranking, not a filter: an unrecognised reader is still used when
-// it's the only one present, which is what generalizes this driver beyond the
-// ACR122U it originally hardcoded. "PICC" catches the contactless slot in the
+// it's the only one present. "PICC" catches the contactless slot in the
 // dual-interface naming convention (e.g. "... CL Reader PICC 00 00").
 const char *const kContactlessHints[] = {
     "ACR122", "ACR12", "ACR13", "ACS",     "SCL3711", "SCM Micro",

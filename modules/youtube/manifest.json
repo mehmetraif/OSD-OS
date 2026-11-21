@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.youtube",
   "name": "YouTube",
+  "menu_order": 60,
   "icon": "assets/images/logo.svg",
   "version": "1.0",
   "entry_point_qml": "views/Root.qml",
@@ -11,7 +12,16 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows YouTube on the main menu\nNeeds yt-dlp, on the OSD/OS image already; an account is optional (SIGN IN, below)"
+    },
+    {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "params": { "signIn": true },
+      "description": "Opens Google's sign-in page full screen, to sign in with a keyboard: YouTube then searches and plays as that account, with fewer bot checks\nYouTube can block an account used through yt-dlp: sign in with a spare one\nNeeds Chromium, or Google Chrome on a Mac"
     },
     {
       "key": "subscriptions",
@@ -28,18 +38,68 @@
       "description": "Your playlists, a line each: a playlist's link or its id, with a name and | before it if you like\nyoutube_playlists.txt in the data folder adds its own"
     },
     {
+      "key": "subtitles",
+      "label": "Subtitles",
+      "type": "list_single",
+      "options_source": "dynamic",
+      "options_slot": "get_subtitle_options",
+      "default": "Off",
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[ON] A video's own subtitles, in the language of Subtitles In where it has them\n[ON+AUTO CAPTIONS] Also YouTube's automatic captions"
+    },
+    {
+      "key": "subtitle_language",
+      "label": "Subtitles In",
+      "type": "list_single",
+      "options_source": "dynamic",
+      "options_slot": "get_subtitle_languages",
+      "default": "-",
+      "description": "The language subtitles are shown in, where a video has several\n[ANY] Whichever the video has; with automatic captions, those in its own language"
+    },
+    {
+      "key": "audio_language",
+      "label": "Audio Language",
+      "type": "list_single",
+      "options_source": "dynamic",
+      "options_slot": "get_audio_languages",
+      "default": "original",
+      "description": "The audio track of a video that has several\n[ORIGINAL] The one it was made in"
+    },
+    {
+      "key": "resume_playback",
+      "label": "Resume Playback",
+      "type": "list_single",
+      "options": ["Ask", "Always", "Never"],
+      "default": "Ask",
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
+    },
+    {
+      "key": "video_scaling",
+      "label": "Scaling",
+      "type": "list_single",
+      "options": ["Default", "Letterbox", "14:9", "Pan & Scan", "Anamorphic"],
+      "default": "Default",
+      "description": "How a 16:9 picture fills the 4:3 screen in this module\n[DEFAULT] As Settings' Scaling says"
+    },
+    {
+      "key": "display_shorts",
+      "label": "Show Shorts",
+      "type": "toggle",
+      "default": "ON",
+      "description": "Whether Shorts are listed in channels and search results\n[ON] Listed\n[OFF] Left out; playlists, Recently Watched and Watch Later still show them"
+    },
+    {
       "key": "advanced",
       "label": "Advanced",
       "type": "submenu",
-      "description": "Picture, sound, subtitles, speed and the rest of YouTube's settings",
+      "description": "Picture and speed: the most a video plays at, its codec and frame rate, and how fast it plays",
       "settings": [
         {
           "key": "playback_resolution",
-          "label": "Playback Resolution",
+          "label": "Max Resolution",
           "type": "list_single",
           "options": ["240p", "360p", "480p", "720p", "1080p", "1440p", "2160p"],
           "default": "480p",
-          "description": "The most a video plays at; lower where it has nothing this high\n[480P] Right for a CRT and a Pi  [1440P] [2160P] Need Video Codec ANY: YouTube has H.264 only up to 1080p"
+          "description": "The most a video plays at, lower where it has nothing this high\n[480P] Right for a CRT and a Pi\n[1440P] [2160P] Need Video Codec ANY: YouTube has H.264 only up to 1080p"
         },
         {
           "key": "video_codec",
@@ -47,7 +107,7 @@
           "type": "list_single",
           "options": ["H.264", "Any"],
           "default": "H.264",
-          "description": "[H.264] What a Pi decodes in hardware, wherever YouTube has it  [ANY] Whatever looks best, often VP9 or AV1, decoded in software"
+          "description": "The video format asked for\n[H.264] What a Pi decodes in hardware, wherever YouTube has it\n[ANY] Whatever looks best, often VP9 or AV1, decoded in software"
         },
         {
           "key": "max_frame_rate",
@@ -55,60 +115,15 @@
           "type": "list_single",
           "options": ["Any", "30"],
           "default": "Any",
-          "description": "[30] 30 fps where a video also has 60: lighter on a Pi"
-        },
-        {
-          "key": "video_scaling",
-          "label": "Scaling",
-          "type": "list_single",
-          "options": ["Default", "Letterbox", "14:9", "Pan & Scan", "Anamorphic"],
-          "default": "Default",
-          "description": "How a 16:9 picture fills the 4:3 screen in this module\n[DEFAULT] As Settings' Scaling says"
-        },
-        {
-          "key": "audio_language",
-          "label": "Audio Language",
-          "type": "list_single",
-          "options_source": "dynamic",
-          "options_slot": "get_audio_languages",
-          "default": "original",
-          "description": "The audio track of a video that has several\n[ORIGINAL] The one it was made in"
-        },
-        {
-          "key": "subtitles",
-          "label": "Subtitles",
-          "type": "list_single",
-          "options": ["Off", "On", "With Auto"],
-          "default": "Off",
-          "description": "[ON] A video's subtitles in Subtitle Language, where it has them  [WITH AUTO] Also YouTube's automatic captions"
-        },
-        {
-          "key": "subtitle_language",
-          "label": "Subtitle Language",
-          "type": "list_single",
-          "options_source": "dynamic",
-          "options_slot": "get_subtitle_languages",
-          "default": "en"
+          "description": "The most frames a second a video plays at\n[ANY] As it was made\n[30] 30 where a video also has 60: lighter on a Pi"
         },
         {
           "key": "playback_speed",
           "label": "Playback Speed",
           "type": "list_single",
           "options": ["0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"],
-          "default": "1x"
-        },
-        {
-          "key": "resume_playback",
-          "label": "Resume Playback",
-          "type": "list_single",
-          "options": ["Ask", "Always"],
-          "default": "Ask"
-        },
-        {
-          "key": "display_shorts",
-          "label": "Display Shorts",
-          "type": "toggle",
-          "default": "ON"
+          "default": "1x",
+          "description": "How fast a video plays\n[1X] As it was made"
         }
       ]
     },
@@ -118,6 +133,7 @@
       "type": "action",
       "action_slot": "delete_watch_later",
       "confirm": "Delete Watch Later?",
+      "verb": "Delete",
       "done": "Watch Later deleted",
       "description": "Empties Watch Later, the videos kept on this player to watch later"
     },
@@ -127,22 +143,17 @@
       "type": "action",
       "action_slot": "delete_history",
       "confirm": "Delete Recently Watched?",
+      "verb": "Delete",
       "done": "Recently Watched deleted",
       "description": "Empties Recently Watched, and forgets where each video was stopped"
     },
     {
-      "key": "sign_in",
-      "label": "Sign in",
-      "type": "module_view",
-      "params": { "signIn": true },
-      "description": "Opens Google's sign-in page full screen, to sign in with a keyboard: YouTube then searches and plays as that account, with fewer bot checks\nYouTube can block an account used through yt-dlp: sign in with a spare one\nNeeds Chromium, or Google Chrome on a Mac"
-    },
-    {
       "key": "sign_out",
-      "label": "Sign out",
+      "label": "Sign Out",
       "type": "action",
       "action_slot": "signOut",
       "confirm": "Sign out of YouTube?",
+      "requires_auth": true,
       "done": "Signed out of YouTube",
       "description": "Forgets the YouTube sign-in on this player"
     }

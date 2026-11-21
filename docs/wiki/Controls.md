@@ -325,7 +325,7 @@ A pad's **Game Buttons** say which of its buttons is each of an arcade cabinet's
 
 | Row | What it does |
 |---|---|
-| **Layout** | Select opens the list: **Engine's**, **Fighting 6**, **Neo Geo 4**, a console pad's (**NES**, **Mega Drive**, **SNES**, **Saturn**, **N64**) or **Custom**. Back leaves it as it was. The layout's name heads the ten buttons under it |
+| **Layout** | Select opens the list: **Auto**, **Engine's**, **Fighting 6**, **Neo Geo 4**, a console pad's (**NES**, **Mega Drive**, **SNES**, **Saturn**, **N64**) or **Custom**. Back leaves it as it was. The layout's name heads the ten buttons under it |
 | **Set One by One** | Asks for them in turn: Buttons 1 to 6, Coin, Start, then Buttons 7 and 8. It ends on all ten, to **Save**, **Do It Again** or **Cancel**. Saved, the layout is Custom |
 | **Button 1** to **Button 8**, **Coin**, **Start** | The button each is on this pad, or `NONE`. Select opens a list: **Press a button**, each input of the pad that no other line has, **None** (not for Coin and Start) and **Cancel**. A change makes the layout Custom |
 
@@ -340,6 +340,7 @@ The layouts, by the letters of a pad with A at the bottom (the page names a pad'
 
 | Layout | Buttons 1 to 8 | Coin, Start |
 |---|---|---|
+| **Auto** | By the game. A game of up to four buttons plays as **Neo Geo 4** (the ten lines show these); a game of five buttons or more, a six-button fighter, plays as **Fighting 6**, as the Layout line says. Online, as **Engine's** | BACK, START |
 | **Engine's** | None of OSD/OS's (`ENGINE'S`): MAME and FinalBurn Neo number a pad's buttons their own ways. On the JAMMA board's sticks, buttons 1 to 8 in order | BACK, START |
 | **Fighting 6** | Punches 1, 2, 3 on X, Y, RB; kicks 4, 5, 6 on A, B, RT; 7 and 8 on LB and LT. On a JAMMA board's stick, buttons 1 to 8 in order | BACK, START |
 | **Neo Geo 4** | A Neo Geo's A, B, C, D on A, B, X, Y; 5 to 8 on LB, RB, LT, RT | BACK, START |
@@ -356,6 +357,8 @@ The console layouts take a pad's buttons as SDL names that kind of pad. A button
 - **NES, N64**: A and B by their letters. An N64's C buttons are the right stick, its Z the left trigger.
 - **Mega Drive, Saturn**: A, B, X, Y by their letters, C the right trigger, Z the right shoulder. A Saturn's L and R are the left shoulder and trigger.
 
+A pad SDL knows by its kind (the big consoles' pads of the last generations and the like) starts on **Auto**: it plays every game with OSD/OS's own buttons out of the box. Any other pad, an arcade stick, a console replica or a pad SDL can't place, starts on **Engine's** and can be put on Auto here. A JAMMA board's sticks start on Engine's, their buttons in order. Which games have five buttons or more comes from MAME's own list, which OSD/OS carries; a game not in it plays as one of up to four.
+
 Rules:
 
 - **Custom is kept.** The buttons set by hand stay saved while another layout is chosen: choosing Custom again brings them back.
@@ -363,8 +366,8 @@ Rules:
 - **Coin and Start always have a button** (`BACK stays Coin: it needs a button`).
 - **What can be one**: the face buttons, shoulders, triggers, Back, Start, the stick buttons, Misc, the paddles, the touchpad, and the right stick pushed one way. Not Guide (`GUIDE shows MAME's menu, not a button`), nor the D-pad or left stick (`D-PAD ▲ is the joystick, not a button`).
 - **A pad away**: its layout and a line's list still change its buttons; a press and Set One by One wait until it is back.
-- **Online**, the host's layout holds for every player ([Arcade → Players and buttons](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)).
-- **Saved** in `config.json` as `app.controllers.<key>.arcade`, each input by `input.cfg`'s names (`""` for none). The Engine's layout isn't written, unless there are Custom's buttons to keep beside it (`"layout": "default"` with `custom`). Beside a preset they are `custom` too.
+- **Online**, the host's layout holds for every player ([Arcade → Players and buttons](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#players-and-buttons)). A pad on Auto plays there as on Engine's, and counts as no layout of its own when the host's is chosen: only a layout chosen by hand gives the host the panel's.
+- **Saved** in `config.json` as `app.controllers.<key>.arcade`, each input by `input.cfg`'s names (`""` for none). Nothing is written until a layout is chosen: the pad's kind decides. Auto and Engine's chosen are written as `"layout": "auto"` and `"layout": "default"`, without inputs, so Engine's chosen on a pad that would start on Auto stays. Custom's buttons are kept beside any layout as `custom`. The pad's kind is kept too (`sdl_type`), so a pad away shows the layout it has.
 
 ```json
 "arcade": {
@@ -458,16 +461,16 @@ In `config.json`, under `app.controllers`, by the controller's key:
 
 | Controller | Its key | Its `bindings` |
 |---|---|---|
-| A gamepad | `pad-` and SDL's GUID for it, in lower case | Its inputs by `input.cfg`'s names (`a`, `dpup`, `leftx-`, `lefttrigger+`), each with an action, or `none` |
+| A gamepad | `pad-` and the part of SDL's GUID for it that stays the same from one connection to the next, in lower case: its maker and product, whatever it is plugged into (USB or Bluetooth) and however Windows hears it (XInput, Raw Input); for a pad SDL knows by its name alone, that name | Its inputs by `input.cfg`'s names (`a`, `dpup`, `leftx-`, `lefttrigger+`), each with an action, or `none` |
 | A keyboard or a remote | `kbd-` and its connection, maker and product in hex: `kbd-0005-046d-b342` is a Bluetooth (`0005`) Logitech (`046d`) K380 (`b342`) | Its extra keys, by the numbers All Keyboards & Remotes saves them as, each with an action |
 
-Beside `bindings` come `labels` (`auto`, `a_below`, `a_right`, `shapes` or `numbers`), a pad's `arcade`, and `name` and `kind`. A controller with nothing of its own isn't written. A pad's key is in the log as it comes: `[input] controller added: 8BitDo Pro 2 (pad-…)`. Settings written by an earlier version are read as they are, the names it gave the four label styles too.
+Beside `bindings` come `labels` (`auto`, `a_below`, `a_right`, `shapes` or `numbers`), a pad's `arcade`, and `name` and `kind`. A controller with nothing of its own isn't written. A pad's key is in the log as it comes, with SDL's GUID for it, whether settings were found for it and the Game Buttons layout it plays with: `[input] controller added: 8BitDo Pro 2 (pad-00000000c82d00000360000000000000), SDL GUID 0300c9b8c82d00000360000000007801: settings found; Game Buttons Fighting 6, chosen`. A pad without settings of its own takes those of a pad of the same maker and name that has them, the same pad over another connection (`settings of the same pad over another connection`). Settings written by an earlier version are read as they are, the names it gave the four label styles too; a pad's, which that version kept under SDL's whole GUID, are read under its key now (`settings saved under its earlier key pad-…`) and written under it at the next change. As each arcade game starts, the log says what every player plays with: `[Arcade] game starts in FinalBurn Neo, joypad driver sdl2: P1 "8BitDo Pro 2" pad-…, layout Fighting 6, buttons 1-8, coin, start: 2 3 10 0 1 +5 9 +4 4 6, device "8BitDo Pro 2"`.
 
 ```json
 {
   "app": {
     "controllers": {
-      "pad-0300c9b8c82d00000360000000007801": {
+      "pad-00000000c82d00000360000000000000": {
         "name": "8BitDo Pro 2",
         "kind": "gamepad",
         "labels": "a_right",
@@ -488,7 +491,7 @@ Beside `bindings` come `labels` (`auto`, `a_below`, `a_right`, `shapes` or `numb
 |---|---|---|---|---|
 | A pad's Player | Auto, 1 to 6 | Auto | The player that pad is in games | `app.players.1` to `app.players.6`: `{ "key", "name" }`, the pad's key, `""` for Auto |
 | A pad's Button Names | Auto, A below, A right, Shapes, Numbers | Auto | What its buttons are called | `app.controllers.<key>.labels` |
-| A pad's Game Buttons | Engine's, Fighting 6, Neo Geo 4, NES, Mega Drive, SNES, Saturn, N64, Custom | Engine's | Which of its buttons is each of a cabinet's | `app.controllers.<key>.arcade` |
+| A pad's Game Buttons | Auto, Engine's, Fighting 6, Neo Geo 4, NES, Mega Drive, SNES, Saturn, N64, Custom | Auto for a pad SDL knows by its kind, else Engine's | Which of its buttons is each of a cabinet's | `app.controllers.<key>.arcade` |
 | A pad's Menu Buttons | Its buttons, for each of the seven actions | As every pad has them | Which of its buttons do the action | `app.controllers.<key>.bindings` |
 | A keyboard's or a remote's extra keys | Its keys, for each of the seven actions | None | More keys for that action, on that one | `app.controllers.<key>.bindings` |
 | All Keyboards & Remotes' extra keys | Keys, a remote's buttons, a mouse's buttons | None | More keys for that action, on every one | `app.remote_keymap.up`, `.down`, `.left`, `.right`, `.select`, `.back`, `.play_pause` |
@@ -504,7 +507,7 @@ On Linux OSD/OS reads each keyboard's and remote's device itself (`/dev/input/ev
 
 ## The hints at the foot of the screen
 
-The bar at the foot of every screen names the keys that work there (`[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT`). It shows a keyboard's names after a key, a gamepad's after a gamepad button.
+The bar at the foot of every screen names the keys that work there (`[ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE`). It shows a keyboard's names after a key, a gamepad's after a gamepad button.
 
 | Hint | Keyboard | A below | A right | Shapes | Numbers |
 |---|---|---|---|---|---|
@@ -543,12 +546,12 @@ Settings → Network → **Bluetooth** pairs a keyboard, gamepad or remote. It n
 3. Select the device. The line reads `PAIRING…`, then `CONNECTING…`.
 4. What happens next depends on the device:
    - **A keyboard** asks for a code: type the code shown on that keyboard, then its Enter. An older keyboard gets a PIN to type the same way.
-   - **A phone** shows a code of its own, and OSD/OS asks "Does it show this code?": answer **Yes** or **No**.
+   - **A phone** shows a code of its own, and OSD/OS asks you to pair it if it shows this code: **Pair**, or **Cancel** (under the cursor as it opens).
    - **A gamepad, a mouse or a remote** pairs without a question.
    - Back, on the code, gives the pairing up.
 5. Once paired, the device is trusted and connected. It comes back by itself after a restart, a keyboard at its first key press.
 
-Select on a **paired** device offers **Connect** (or **Disconnect**) and **Forget**, which unpairs it. Leaving the page stops a search and gives up a pairing.
+Select on a **paired** device offers **Connect** (or **Disconnect**) and **Forget**, which asks first (the cursor on **Cancel**) and unpairs it. Leaving the page stops a search and gives up a pairing.
 
 The help line says what went wrong:
 

@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.prime_video",
   "name": "Prime Video",
+  "menu_order": 80,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
@@ -10,7 +11,15 @@
       "label": "Enabled",
       "type": "toggle",
       "default": "OFF",
-      "description": "Browses what Prime Video carries, and plays it in Prime Video's own player full screen\nNeeds Chromium with Widevine (on the OSD/OS image already)"
+      "description": "Shows Prime Video on the main menu: what Prime Video carries, played in its own player full screen\nNeeds a Prime Video account, a free TMDB key (TMDB Key, below) and Chromium with Widevine, on the OSD/OS image already"
+    },
+    {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "params": { "signIn": true },
+      "description": "Opens Prime Video's sign-in page full screen, to sign in with a keyboard\nThis player stays signed in until Sign Out"
     },
     {
       "key": "tmdb_api_key",
@@ -20,37 +29,27 @@
       "default": "",
       "placeholder": "32 letters and digits",
       "max_length": 64,
-      "description": "The key the catalogue is read with: free from themoviedb.org, Settings, API\nOne key serves Netflix and Prime Video alike"
+      "description": "The key the catalog is read with: free from themoviedb.org, Settings, API\nOne key serves Netflix and Prime Video alike"
     },
     {
       "key": "region",
-      "label": "Catalogue Region",
+      "label": "Catalog Region",
       "type": "list_single",
-      "options": [
-        "TR",
-        "US",
-        "GB",
-        "DE",
-        "FR",
-        "NL",
-        "ES",
-        "IT",
-        "CA",
-        "AU"
-      ],
-      "default": "TR",
-      "description": "The country whose Prime Video catalogue to list\nTitles come from TMDB, which needs a free API key: TMDB Key, above\nThis product uses the TMDB API but is not endorsed or certified by TMDB\nStreaming data from JustWatch"
+      "options_source": "dynamic",
+      "options_slot": "get_regions",
+      "default": "US",
+      "description": "The country whose Prime Video catalog to list, the time zone's until one is chosen (else the USA)\nTitles come from TMDB, which needs a free API key: TMDB Key, above\nThis product uses the TMDB API but is not endorsed or certified by TMDB\nStreaming data from JustWatch"
     },
     {
       "key": "catalog_language",
-      "label": "Catalogue Language",
+      "label": "Catalog Language",
       "type": "list_single",
       "options": [
         "English",
         "Turkish"
       ],
       "default": "English",
-      "description": "The language of titles and genres in the catalogue"
+      "description": "The language of titles and genres in the catalog"
     },
     {
       "key": "video_scaling",
@@ -61,18 +60,12 @@
       "description": "How a 16:9 picture fills the 4:3 screen in this module\n[DEFAULT] As Settings' Scaling says"
     },
     {
-      "key": "sign_in",
-      "label": "Sign in",
-      "type": "module_view",
-      "params": { "signIn": true },
-      "description": "Opens Prime Video's sign-in page full screen, to sign in with a keyboard\nThis player stays signed in until Sign out"
-    },
-    {
       "key": "sign_out",
-      "label": "Sign out",
+      "label": "Sign Out",
       "type": "action",
       "action_slot": "signOut",
       "confirm": "Sign out of Prime Video?",
+      "requires_auth": true,
       "done": "Signed out of Prime Video",
       "description": "Forgets the Prime Video sign-in on this player\nThe next visit asks for it again"
     }

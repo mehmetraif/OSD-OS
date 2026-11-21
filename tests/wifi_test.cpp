@@ -4,9 +4,12 @@
 // and its state; the networks as the page lists them; Wi-Fi turned on and off
 // and the search; joining a network (new, saved, saved with a new password,
 // hidden, with a wrong password, in place of one on its way), leaving it and
-// forgetting it; and the country, read from a stand-in boot partition and set
+// forgetting it; the bands heard and joined, and the Arcade's line of
+// 2.4 GHz beside Bluetooth pads (linkadvice) on a stand-in routing table;
+// and the country, read from a stand-in boot partition and set
 // through a stand-in for osdos-wifi.socket. Skipped without dbus-daemon.
 #include "fake_networkmanager.h"
+#include "wifi/LinkAdvice.h"
 #include "wifi/WifiManager.h"
 
 #include <QDBusConnection>
@@ -71,6 +74,20 @@ QStringList lines(const QVariantList &networks) {
         out << line(network.toMap());
     return out;
 }
+
+// A route as /proc/net/route has it: the address's bytes, in the network's
+// order, printed as a number of this machine's, as the kernel prints them.
+QString routeHex(const char *address) {
+    quint32 raw = 0;
+    qToBigEndian(QHostAddress(QLatin1String(address)).toIPv4Address(), &raw);
+    return QStringLiteral("%1").arg(raw, 8, 16, QLatin1Char('0')).toUpper();
+}
+QString routeLine(const char *iface, const char *dest, const char *gateway, const char *mask, int metric) {
+    return QStringLiteral("%1\t%2\t%3\t0003\t0\t0\t%4\t%5\t0\t0\t0\n")
+        .arg(QLatin1String(iface), routeHex(dest), routeHex(gateway), QString::number(metric), routeHex(mask));
+}
+const QString kRouteHeader = QStringLiteral(
+    "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n");
 
 // A map as its "key=value" pairs, by key.
 QString describe(const QVariantMap &map) {
@@ -375,8 +392,78 @@ private slots:
 
         m_nm->join(m_nm->addSaved(QStringLiteral("Cafe"), QStringLiteral("espresso-42")));
         QTRY_COMPARE(wifi->state(), QStringLiteral("connected"));
-        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, bars=3, ssid=Cafe"));
+        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, band=2.4 GHz, bars=3, frequency=2437, interface=wlan0, ssid=Cafe"));
         QTRY_COMPARE(lines(wifi->networks()), QStringList{ "Cafe 3 wpa secured known heard active" });
+    }
+
+    // The bands: a network's from every access point heard by its name, the
+    // one joined from the access point it is on, and its change followed; a
+    // frequency below 3000 MHz is 2.4 GHz. With the route to the local
+    // network through wlan0 and a Bluetooth input device connected, the
+    // Arcade's line (linkadvice::warning()); none through a cable, at 5 GHz,
+    // off the network, or without the pads.
+    void bands() {
+        const QString home24 = m_nm->addAccessPoint(QStringLiteral("Home"), 70, Security::Wpa, QStringLiteral("home-password"));
+        const QString home5 = m_nm->addAccessPoint(QStringLiteral("Home"), 50, Security::Wpa, QStringLiteral("home-password"));
+        const QString loft = m_nm->addAccessPoint(QStringLiteral("Loft"), 60, Security::Sae, QStringLiteral("loft"));
+        const QString cafe = m_nm->addAccessPoint(QStringLiteral("Cafe"), 40, Security::Open);
+        m_nm->setFrequency(home24, 2412);
+        m_nm->setFrequency(home5, 5180);
+        m_nm->setFrequency(loft, 5975);
+        m_nm->setFrequency(cafe, 5500);
+        m_nm->addSaved(QStringLiteral("Beach House"), QStringLiteral("beach-password"));
+        m_nm->join(m_nm->addSaved(QStringLiteral("Home"), QStringLiteral("home-password")));
+        QVERIFY(m_nm->start(m_fakeBus));
+        auto wifi = makeWifi();
+        QVERIFY(loaded(*wifi));
+        QStringList bands;
+        for (const QVariant &network : wifi->networks())
+            bands << network.toMap().value(QStringLiteral("ssid")).toString() + QLatin1Char('=')
+                         + network.toMap().value(QStringLiteral("band")).toString();
+        QCOMPARE(bands, (QStringList{ "Home=2.4/5 GHz", "Beach House=", "Loft=6 GHz", "Cafe=5 GHz" }));
+        QCOMPARE(wifi->current().value(QStringLiteral("band")).toString(), QStringLiteral("2.4 GHz"));
+        QCOMPARE(wifi->current().value(QStringLiteral("frequency")).toUInt(), 2412u);
+        QCOMPARE(wifi->current().value(QStringLiteral("interface")).toString(), QStringLiteral("wlan0"));
+
+        // The route to the local network, and to a host on it.
+        const QString overWifi = kRouteHeader + routeLine("wlan0", "0.0.0.0", "192.168.1.1", "0.0.0.0", 600)
+                                 + routeLine("wlan0", "192.168.1.0", "0.0.0.0", "255.255.255.0", 600);
+        const QString cableToo = overWifi + routeLine("eth0", "0.0.0.0", "192.168.1.1", "0.0.0.0", 100)
+                                 + routeLine("eth0", "192.168.1.0", "0.0.0.0", "255.255.255.0", 100);
+        const QString cableAlone = kRouteHeader + routeLine("wlan0", "0.0.0.0", "192.168.1.1", "0.0.0.0", 600)
+                                   + routeLine("eth0", "192.168.50.0", "0.0.0.0", "255.255.255.0", 100);
+        QCOMPARE(linkadvice::routeInterface(overWifi), QStringLiteral("wlan0"));
+        QCOMPARE(linkadvice::routeInterface(cableToo), QStringLiteral("eth0"));
+        QCOMPARE(linkadvice::routeInterface(cableToo, QHostAddress(QStringLiteral("192.168.1.20"))), QStringLiteral("eth0"));
+        QCOMPARE(linkadvice::routeInterface(cableAlone, QHostAddress(QStringLiteral("192.168.50.2"))), QStringLiteral("eth0"));
+        QCOMPARE(linkadvice::routeInterface(cableAlone, QHostAddress(QStringLiteral("192.168.1.20"))), QStringLiteral("wlan0"));
+        QCOMPARE(linkadvice::routeInterface(kRouteHeader + routeLine("eth0", "192.168.50.0", "0.0.0.0", "255.255.255.0", 100)),
+                 QStringLiteral("eth0"));
+        QCOMPARE(linkadvice::routeInterface(QString()), QString());
+
+        const auto line = [&](const QString &table, bool pads) {
+            return linkadvice::warning(linkadvice::routeInterface(table), wifi->state(), wifi->current(), pads);
+        };
+        QCOMPARE(line(overWifi, true), QStringLiteral("Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable"));
+        QCOMPARE(line(overWifi, false), QString());
+        QCOMPARE(line(cableToo, true), QString());
+
+        // The access point moves to 5 GHz: the line goes.
+        m_nm->setFrequency(home24, 5200);
+        QTRY_COMPARE(wifi->current().value(QStringLiteral("band")).toString(), QStringLiteral("5 GHz"));
+        QCOMPARE(line(overWifi, true), QString());
+        m_nm->setFrequency(home24, 2437);
+        QTRY_COMPARE(wifi->current().value(QStringLiteral("band")).toString(), QStringLiteral("2.4 GHz"));
+        QVERIFY(!line(overWifi, true).isEmpty());
+        // Off the network, nothing.
+        wifi->disconnectNetwork();
+        QTRY_COMPARE(wifi->state(), QStringLiteral("disconnected"));
+        QCOMPARE(line(overWifi, true), QString());
+
+        QCOMPARE(linkadvice::bandOf(0), QString());
+        QCOMPARE(linkadvice::bandOf(2484), QStringLiteral("2.4 GHz"));
+        QCOMPARE(linkadvice::bandOf(5825), QStringLiteral("5 GHz"));
+        QCOMPARE(linkadvice::bandOf(6115), QStringLiteral("6 GHz"));
     }
 
     // The networks: a line a name, from its strongest access point; hidden
@@ -414,7 +501,7 @@ private slots:
         auto wifi = makeWifi();
         QVERIFY(loaded(*wifi));
         QCOMPARE(wifi->state(), QStringLiteral("connected"));
-        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, bars=2, ssid=Home"));
+        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, band=2.4 GHz, bars=2, frequency=2437, interface=wlan0, ssid=Home"));
         QCOMPARE(lines(wifi->networks()), (QStringList{
             "Home 2 wpa secured known heard active",
             "Office 4 wpa secured known heard",
@@ -573,14 +660,14 @@ private slots:
         QTRY_VERIFY(m_nm->isWaiting());
         QCOMPARE(m_nm->deviceState(), 30u);
         QTRY_COMPARE(wifi->state(), QStringLiteral("connecting"));
-        QCOMPARE(describe(wifi->current()), QStringLiteral("bars=3, ssid=Cafe"));
+        QCOMPARE(describe(wifi->current()), QStringLiteral("band=5 GHz, bars=3, frequency=5220, interface=wlan0, ssid=Cafe"));
         QTRY_COMPARE(lines(wifi->networks()), QStringList{ "Cafe 3 wpa secured known heard connecting" });
         QCOMPARE(wifi->message(), QString());
 
         m_nm->setHeld(false);
         QTRY_COMPARE(wifi->state(), QStringLiteral("connected"));
         QCOMPARE(wifi->message(), QStringLiteral("Connected to Cafe"));
-        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, bars=3, ssid=Cafe"));
+        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, band=5 GHz, bars=3, frequency=5220, interface=wlan0, ssid=Cafe"));
         QTRY_COMPARE(lines(wifi->networks()), QStringList{ "Cafe 3 wpa secured known heard active" });
         const QString added = call.reply.value(0).toString();
         QCOMPARE(m_nm->savedConnections(), QStringList{ added });
@@ -721,6 +808,33 @@ private slots:
         QTRY_COMPARE(lines(wifi->networks()), QStringList{ "Home 2 wpa secured known heard active" });
     }
 
+    // A saved network not heard (one that doesn't say its name, WPA3 alone)
+    // given a new password: added with the security and the hidden flag it
+    // was saved with, not as a WPA2 network that says its name.
+    void newPasswordForSavedNotHeard() {
+        m_nm->addAccessPoint(QStringLiteral("Attic"), 65, Security::Sae, QStringLiteral("new-attic-pass"), Hidden::Empty);
+        const QVariantMap connection{ { QStringLiteral("id"), QStringLiteral("Attic") },
+                                      { QStringLiteral("type"), QStringLiteral("802-11-wireless") } };
+        const QVariantMap wireless{ { QStringLiteral("ssid"), QByteArray("Attic") }, { QStringLiteral("hidden"), true } };
+        const QVariantMap security{ { QStringLiteral("key-mgmt"), QStringLiteral("sae") },
+                                    { QStringLiteral("psk"), QStringLiteral("old-attic-pass") } };
+        m_nm->addConnection({ { QStringLiteral("connection"), connection },
+                              { QStringLiteral("802-11-wireless"), wireless },
+                              { QStringLiteral("802-11-wireless-security"), security } });
+        QVERIFY(m_nm->start(m_fakeBus));
+        auto wifi = makeWifi();
+        QVERIFY(loaded(*wifi));
+        QCOMPARE(lines(wifi->networks()), QStringList{ "Attic 0 - known" });
+        m_nm->clearCalls();
+        wifi->connectTo(QStringLiteral("Attic"), QStringLiteral("new-attic-pass"));
+        QTRY_COMPARE(m_nm->calls(QStringLiteral("AddAndActivateConnection")).size(), 1);
+        const QVariantMap settings = m_nm->calls(QStringLiteral("AddAndActivateConnection")).first().args.at(0).toMap();
+        QCOMPARE(settings.value(QStringLiteral("802-11-wireless")).toMap().value(QStringLiteral("hidden")).toBool(), true);
+        const QVariantMap added = settings.value(QStringLiteral("802-11-wireless-security")).toMap();
+        QCOMPARE(added.value(QStringLiteral("key-mgmt")).toString(), QStringLiteral("sae"));
+        QCOMPARE(added.value(QStringLiteral("psk")).toString(), QStringLiteral("new-attic-pass"));
+    }
+
     // A network that doesn't say its name, joined by it: saved as hidden,
     // with no access point named, and listed once joined.
     void joinHidden() {
@@ -745,7 +859,7 @@ private slots:
         QCOMPARE(security.value(QStringLiteral("psk")).toString(), QStringLiteral("attic-pass"));
         QCOMPARE(added.first().args.at(2).toString(), QStringLiteral("/"));
         QTRY_COMPARE(wifi->state(), QStringLiteral("connected"));
-        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, bars=3, ssid=Attic"));
+        QCOMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, band=2.4 GHz, bars=3, frequency=2437, interface=wlan0, ssid=Attic"));
         QTRY_COMPARE(lines(wifi->networks()),
                      (QStringList{ "Attic 3 wpa secured known heard active", "Cafe 3 wpa secured heard" }));
         QCOMPARE(m_nm->settings(m_nm->savedConnections().value(0)).value(QStringLiteral("802-11-wireless")).toMap()
@@ -763,7 +877,7 @@ private slots:
         QCOMPARE(lines(wifi->networks()), (QStringList{ "Home 2 wpa secured known heard active", "Cafe 3 wpa secured heard" }));
         wifi->connectTo(QStringLiteral("Cafe"), QStringLiteral("espresso-42"));
         QTRY_COMPARE(wifi->message(), QStringLiteral("Connected to Cafe"));
-        QTRY_COMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, bars=3, ssid=Cafe"));
+        QTRY_COMPARE(describe(wifi->current()), QStringLiteral("address=192.168.1.23, band=5 GHz, bars=3, frequency=5220, interface=wlan0, ssid=Cafe"));
         QTRY_COMPARE(lines(wifi->networks()),
                      (QStringList{ "Cafe 3 wpa secured known heard active", "Home 2 wpa secured known heard" }));
     }

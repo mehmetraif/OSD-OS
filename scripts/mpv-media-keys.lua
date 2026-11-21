@@ -10,14 +10,17 @@
 -- mpv-osc.lua, which owns the legacy set_osd_ass surface.
 
 local assdraw = require 'mp.assdraw'
+-- The drawing, Scalings and key flushing the OSD/OS scripts share, from this
+-- file's own folder (see osdos-osd.lua for why so).
+local osd = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "") .. "osdos-osd.lua")
 
 local VOLUME_STEP    = 5     -- percentage points per Volume +/- press
 local SEEK_FORWARD   = 30    -- Fast Forward jump, seconds
 local SEEK_BACK      = 10    -- Rewind jump, seconds
 local BAR_TIMEOUT    = 1.5   -- seconds the volume bar stays on screen
 
-local C_WHITE   = "&HFFFFFF&"
-local A_OPAQUE  = "&H00&"
+local C_WHITE   = osd.C_WHITE
+local A_OPAQUE  = osd.A_OPAQUE
 local A_DIM     = "&HB0&"   -- ~30% opacity for the unfilled "dash" ticks
 
 local bar_overlay = mp.create_osd_overlay("ass-events")
@@ -32,22 +35,13 @@ end
 -- bar and the menu share the same spot, so we stand down.
 mp.register_script_message("osdos-osd-volume-hide", hide_bar)
 
--- Draw a filled rectangle (no border) at an absolute position.
-local function draw_rect(ass, x, y, w, h, colour, alpha)
-    ass:new_event()
-    ass:pos(x, y)
-    ass:append(string.format("{\\bord0\\shad0\\1c%s\\1a%s}", colour, alpha))
-    ass:draw_start()
-    ass:rect_cw(0, 0, w, h)
-    ass:draw_stop()
+-- A filled rectangle with no border, and a label, in white.
+local function draw_rect(ass, x, y, w, h, alpha)
+    osd.draw_rect(ass, x, y, w, h, C_WHITE, alpha, 0, C_WHITE)
 end
 
--- Draw a text label in VCR OSD Mono.
-local function draw_text(ass, x, y, anchor, text, fs, colour)
-    ass:new_event()
-    ass:append(string.format(
-        "{\\an%d\\pos(%.2f,%.2f)\\fnVCR OSD Mono\\fs%d\\1c%s\\1a%s\\shad0\\bord0}%s",
-        anchor, x, y, fs, colour, A_OPAQUE, text))
+local function draw_text(ass, x, y, anchor, text, fs)
+    osd.draw_text(ass, x, y, anchor, text, fs, C_WHITE, A_OPAQUE)
 end
 
 local function show_volume_bar()
@@ -65,9 +59,8 @@ local function show_volume_bar()
     local ticks    = math.max(1, math.floor(vol_max / VOLUME_STEP + 0.5))
     local filled   = math.max(0, math.min(math.floor(volume / VOLUME_STEP + 0.5), ticks))
 
-    local fs       = math.floor(wh * 0.0333333)
-    local lm       = math.floor(ww * 0.12)
-    local bar_w    = math.floor(ww * 0.88) - lm
+    local m        = osd.metrics(ww, wh)
+    local fs, lm, bar_w = m.fs, m.lm, m.bar_w
     local bar_h    = math.floor(fs * 2)
     local row1_y   = math.floor(wh * 0.7979166)   -- label row
     local bar_y    = math.floor(wh * 0.8333333)   -- bar row (nav menu's button row)
@@ -85,16 +78,16 @@ local function show_volume_bar()
     -- never overlaps the ticks below it. Label reflects mute state so a mute
     -- toggle (which leaves the volume ticks unchanged) is still legible.
     local label = mp.get_property_bool("mute", false) and "MUTE" or "VOLUME"
-    draw_text(ass, lm, row1_y, 1, label, label_fs, C_WHITE)
+    draw_text(ass, lm, row1_y, 1, label, label_fs)
 
     local x = lm
     for i = 1, ticks do
         if i <= filled then
-            draw_rect(ass, math.floor(x), bar_y, tick_w, bar_h, C_WHITE, A_OPAQUE)
+            draw_rect(ass, math.floor(x), bar_y, tick_w, bar_h, A_OPAQUE)
         else
             -- Dash centred vertically within the tick's slot.
             draw_rect(ass, math.floor(x), bar_y + math.floor((bar_h - dash_h) / 2),
-                      tick_w, dash_h, C_WHITE, A_DIM)
+                      tick_w, dash_h, A_DIM)
         end
         x = x + slot_w
     end

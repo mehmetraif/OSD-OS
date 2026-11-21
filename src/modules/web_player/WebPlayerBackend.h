@@ -85,6 +85,23 @@ public:
     // the service's sign-in lives.
     Q_INVOKABLE void signOut();
 
+    // "authed" while the browser keeps a profile for the service, where its
+    // sign-in lives (made by SIGN IN, or by a title played, which needs one),
+    // "none" once there is none: SIGN OUT is dimmed then, and SIGN IN reads
+    // SIGNED OUT. The browser keeps no name the app can read.
+    Q_INVOKABLE QString get_auth_state() const;
+
+    // manifest: region's options_slot. The countries whose catalogue can be
+    // listed, by name, each saved as its code: dynamicOptionsReady("region",
+    // [{ id: "GB", label: "UK" }, …]), the one an install that never chose
+    // starts from marked `default` (defaultRegion()).
+    Q_INVOKABLE void get_regions();
+    // The catalogue's country where none was chosen: the time zone's
+    // (Settings → System → Time Zone, systemlocale::timeZone() under
+    // SYSTEM_ROOT, else the system's own) when it is one of the regions
+    // offered, else US. `zone` for a given one, as the tests ask.
+    static QString defaultRegion(const QString &zone = QString());
+
 public slots:
     // The module's catalogue region and language (wired by registerModule).
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
@@ -92,6 +109,10 @@ public slots:
 signals:
     void runningChanged();
     void openedChanged();
+    // get_auth_state() may have changed: a run of the browser has ended, or
+    // signOut() deleted the profile.
+    void authStateChanged();
+    void dynamicOptionsReady(const QString &key, const QVariant &options);
     // Once per launch. reason: "ok" (the browser was closed), "failed",
     // "stopped" (close() had to stop it) or "failed_to_start".
     void finished(int exitCode, const QString &reason);

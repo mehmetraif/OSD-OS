@@ -25,17 +25,21 @@ FocusScope {
     Connections {
         target: jellyfinBackend
 
-        function onQuickConnectCodeReady(c, s) {
-            qcRoot.code = c
-            qcRoot.secret = s
-            pollTimer.restart()
-        }
-
         function onQuickConnectApproved() {
             pollTimer.stop()
             qcRoot.approved = true
             // Exchange the quick connect secret for an access token
             jellyfinBackend.quick_connect_authenticate(qcRoot.secret)
+        }
+
+        // TRY AGAIN's new code.
+        function onQuickConnectCodeReady(code, secret) {
+            qcRoot.code = code
+            qcRoot.secret = secret
+            qcRoot.failed = false
+            qcRoot.errorMsg = ""
+            qcRoot.pollCount = 0
+            pollTimer.restart()
         }
 
         function onQuickConnectFailed(msg) {
@@ -61,12 +65,19 @@ FocusScope {
             failed = true
             return
         }
-        // If code/secret already provided from Auth.qml, start polling
-        if (qcRoot.code !== "" && qcRoot.secret !== "") {
-            pollTimer.restart()
-            return
-        }
-        // Otherwise initiate a new quick connect
+        // Auth.qml asked for the code and opens this page with it.
+        pollTimer.restart()
+    }
+
+    // After a failure with a server to ask: a new code asked for.
+    readonly property bool canRetry: failed && serverUrl !== ""
+    function tryAgain() {
+        approved = false
+        failed = false
+        errorMsg = ""
+        code = ""
+        secret = ""
+        pollCount = 0
         jellyfinBackend.quick_connect_initiate(serverUrl)
     }
 
@@ -75,6 +86,9 @@ FocusScope {
         if (root.isBack(event)) {
             jellyfinBackend.quick_connect_cancel()
             goBack()
+            event.accepted = true
+        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && canRetry) {
+            tryAgain()
             event.accepted = true
         }
     }
@@ -197,6 +211,7 @@ FocusScope {
 
     // Footer
     HintBar {
-        text: failed ? root.hints.back + ":RETRY" : root.hints.back + ":CANCEL"
+        text: failed ? root.hintLine(["back:BACK", qcRoot.canRetry ? "select:TRY AGAIN" : ""])
+                     : root.hintLine(["back:CANCEL"])
     }
 }

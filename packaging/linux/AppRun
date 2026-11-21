@@ -2,8 +2,8 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # AppImage entry point for OSD/OS (Linux x86_64).
 #
-# Installed over the symlink linuxdeploy generates (see scripts/build-appimage.sh
-# step 8). Two jobs, both about surviving hosts that are not a normal desktop:
+# Installed over the symlink linuxdeploy generates (see scripts/build-appimage.sh,
+# its "Install the AppRun" step). Two jobs, both about surviving hosts that are not a normal desktop:
 #
 #   1. Wayland client libraries. The bundled SDL2 and mpv both hard-link
 #      libwayland-client/-cursor/-egl (Debian/Ubuntu build them with the Wayland

@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.plex",
   "name": "Plex",
+  "menu_order": 30,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
@@ -9,7 +10,17 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Plex on the main menu\nNeeds a Plex account and a Plex Media Server: sign in with SIGN IN, below"
+    },
+    {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "options_source": "dynamic",
+      "options_slot": "get_account",
+      "description": "Opens Plex to sign in: a code to enter at plex.tv/link, then a profile and a server\nSigned in, the profile in use"
     },
     {
       "key": "current_user_id",
@@ -18,14 +29,16 @@
       "options_source": "dynamic",
       "options_slot": "getUsers",
       "apply_slot": "applyCurrentUserSetting",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The Plex Home profile Plex plays as\nA profile with a PIN asks for it the next time Plex opens"
     },
     {
       "key": "auto_sign_in",
       "label": "Auto Sign In",
       "type": "toggle",
       "default": "OFF",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Whether Plex asks who is watching as it opens\n[ON] Opens as the profile chosen last, without Select User\n[OFF] Select User every time"
     },
     {
       "key": "server_machine_id",
@@ -34,7 +47,8 @@
       "options_source": "dynamic",
       "options_slot": "getServers",
       "apply_slot": "applyCurrentServerSetting",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The server Plex browses and plays from, of those the profile can use"
     },
     {
       "key": "libraries",
@@ -42,7 +56,8 @@
       "type": "multiselect_submenu",
       "options_source": "dynamic",
       "options_slot": "getLibraries",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Which of the server's libraries the home screen lists"
     },
     {
       "key": "video_quality",
@@ -50,7 +65,8 @@
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "getVideoQualities",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The most a video is sent at\n[DIRECT PLAY] The file as it is, no transcode\n[1080P] Transcoded where larger, at 8 Mbps at most\n[720P] Transcoded where larger, at 4 Mbps at most\n[480P] Transcoded where larger, at 2 Mbps at most"
     },
     {
       "key": "resume_playback",
@@ -59,14 +75,16 @@
       "options_source": "dynamic",
       "options_slot": "get_resume_playback_options",
       "default": "ask",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "autoplay_next_episode",
       "label": "Autoplay Next Episode",
       "type": "toggle",
       "default": "OFF",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "What follows an episode played to its end\n[ON] The next episode of the series\n[OFF] Back to its page"
     },
     {
       "key": "video_scaling",
@@ -78,7 +96,7 @@
     },
     {
       "key": "logout",
-      "label": "Sign out",
+      "label": "Sign Out",
       "type": "action",
       "action_slot": "logout",
       "confirm": "Sign out of Plex?",

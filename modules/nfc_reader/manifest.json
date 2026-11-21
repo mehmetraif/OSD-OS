@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.nfc_reader",
   "name": "NFC Reader",
+  "menu_order": 90,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
@@ -9,13 +10,15 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows NFC Reader on the main menu\nNeeds an NFC reader: a PN532 USB, or a PC/SC reader such as the ACR122U"
     },
     {
       "key": "tags_directory",
-      "label": "Tags Directory",
+      "label": "Cards Folder",
       "type": "directory_browser",
-      "default": ""
+      "default": "",
+      "description": "The folder of the cards' files, a text file a card, naming what it plays\n[DEFAULT] nfc_tags in the data folder"
     },
     {
       "key": "resume_playback",
@@ -23,36 +26,38 @@
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_resume_playback_options",
-      "default": "ask"
+      "default": "ask",
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "playback_resolution",
-      "label": "YouTube Video Resolution",
+      "label": "YouTube Resolution",
       "type": "list_single",
       "options": [
         "480p",
         "720p",
         "1080p"
       ],
-      "default": "480p"
+      "default": "480p",
+      "description": "The most a YouTube card's video plays at\n[480P] Right for a CRT and a Pi"
     },
     {
       "key": "auto_subtitles",
-      "label": "Auto Show Subtitles",
+      "label": "Subtitles",
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_auto_subtitles_options",
       "default": "forced",
-      "description": "Choose to automatically show subtitles when a video starts.\n[FORCED ONLY] displays for foreign dialogue only."
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language\n[ON] Shown, in the language of Subtitles In where the video has it"
     },
     {
       "key": "sub_lang",
-      "label": "Subtitle Language",
+      "label": "Subtitles In",
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_subtitle_languages",
       "default": "-",
-      "description": "Select which language to automatically load subtitles for.\n[Any] is the same as 'no preference'."
+      "description": "The language subtitles are shown in, where a video has several\n[ANY] Whichever the video has"
     },
     {
       "key": "video_scaling",

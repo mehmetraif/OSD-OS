@@ -3,7 +3,7 @@
 // read (readAll(): appSettings, installedModules) and what the app has
 // (appCore, root, displayOutput, audioOutput and the rest). Not a library:
 // imported into Settings.qml as Pages, it runs in the page's own scope, its
-// properties and ids, as the page's own functions did.
+// properties and ids, as the page's own functions do.
 
 // The first screen: a heading for each page, every row under one of them,
 // then Quit. TV / Movie's page is the videos' (this view again, group
@@ -12,32 +12,41 @@
 // names (ModuleSettings, alsoModules). A module's group is its
 // manifest's "settings_group"; the modules of no group are on System's.
 function firstRows(items) {
-    items.push(groupRow("tv", "The videos' settings: how a picture fills the screen, Transparent Background, the loading screen, the channel logo, the info screen, and each video module's own"))
+    items.push(groupRow("tv", "The videos' settings: how a picture fills the screen, Transparent Background, the info screen, each video module's own, and the channel logo"))
     var arcade = groupModules("arcade")
     if (arcade.length > 0) {
+        var also = arcade.slice(1).map(function(m) { return m.id })
         items.push({
             type: "submenu",
             key: "group_arcade",
             label: "Arcade",
             description: "The games' settings on one page: " + arcade.map(function(m) { return m.name }).join(", "),
             moduleId: arcade[0].id,
-            alsoModules: arcade.slice(1).map(function(m) { return m.id })
+            alsoModules: also,
+            page: "views/ModuleSettings.qml",
+            params: { moduleId: arcade[0].id, alsoModules: also }
         })
     }
-    items.push(groupRow("look", "The whole look: the theme, the color scheme, the skin, the effects, what the menus are drawn on and the bars around them"))
+    items.push(groupRow("look", "The whole look: the theme, the color scheme, the skin, the effects, what the menus are drawn on, the loading and boot screens and the bars around them"))
     items.push(groupRow("screen", "Where the picture goes and setting the screen up: Display Output, Test Patterns, the screen saver, the mouse pointer and Window Mode"))
     items.push(groupRow("sound", "Which sound card plays, and the music under the menus"))
     items.push({
         type: "submenu",
         key: "remap_controls",
+        page: "views/Controllers.qml",
         label: "Controls",
         description: "Every controller connected, each with its own buttons (and a pad's button labels), and extra keys for every keyboard and remote",
         moduleId: ""
     })
-    items.push(groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes"))
-    items.push(groupRow("startup", "What OSD/OS opens on: Start on Module, Play at Startup and Cabinet Lock"))
-    items.push(groupRow("system", "OSD/OS Setup's settings pasted, Update, About, and the settings of the modules of no group"))
-    items.push({ type: "quit", label: "Quit",
+    // Dimmed where neither of its rows can be used (a Mac, Windows), with
+    // why, as its rows are.
+    var network = groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes")
+    network.unavailable = networkOff()
+    items.push(network)
+    items.push(groupRow("startup", "What OSD/OS opens on: Start On, Play at Startup and Cabinet Lock"))
+    items.push(groupRow("system", "Update, System Information, the time zone and the keyboard layout, OSD/OS Setup, About, and the modules of no group, such as Scripts"))
+    // On the OSD/OS image (autostart) a power menu, and named so.
+    items.push({ type: "quit", label: settingsRoot.autostartSession ? "Power" : "Quit",
                  description: settingsRoot.autostartSession ? "Power off or restart the Pi, or leave OSD/OS for a terminal"
                                                             : "Leave OSD/OS" })
     // Broadcast's and Flat Panel's: Cabinet Lock as a monitor's Key
@@ -85,14 +94,14 @@ function statusRows(items) {
 // title unless given.
 function groupRow(group, description, label) {
     return { type: "submenu", key: "group_" + group, label: label || groupTitles[group],
-             description: description, moduleId: "" }
+             description: description, moduleId: "", page: "views/Settings.qml", params: { group: group } }
 }
 
 // THEME's row, Look's first, whose value STATUS shows too: the themes as
 // the page listed them (themes(), AppCore::themes()).
 function themeRow() {
     return lookRow("osd_theme", "Theme", "None", themes(),
-        "The whole look in one: the color scheme, the skin, the effects and the menu music\n[NONE] OSD/OS's own  Choosing one sets each row below back to the theme's  A new one is a folder in the data folder's themes, see the wiki")
+        "The whole look in one: the color scheme, the skin, the effects and the menu music, each row below set back to the theme's as one is chosen (a new one is a folder in the data folder's themes: see the wiki)\n[NONE] OSD/OS's own")
 }
 
 // LOOK: the theme and its parts, the effects on a page of their own, and
@@ -107,23 +116,9 @@ function lookRows(items) {
     // each is without one (Video 1, OSD/OS's own window, off).
     items.push(themeRow())
 
-    // Orb Fog — the fog behind the panels of the Arcade screen's Orb look
-    // (OrbLook.qml; Main.qml's orbFogLive), for a theme with that look:
-    // the rows are made again as one is chosen (themeChosen()).
-    items.push({
-        type: "list_single",
-        key: "orb_fog",
-        label: "Orb Fog",
-        options: ["Picture", "Live"],
-        value: appSettings["orb_fog"] === "Live" ? "Live" : "Picture",
-        description: "The fog drifting behind the Arcade screen's panels in the Orb look\n[PICTURE] A picture of fog, light on the GPU  [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU",
-        unavailable: root.theme && root.theme.arcade === "orb" ? "" : "Only with a theme in the Orb look",
-        moduleId: ""
-    })
-
     // Main.qml's schemes, the custom ones among them (root.allSchemes).
     items.push(partRow("color_scheme", "Color Scheme", Object.keys(root.allSchemes), false,
-        "The two colors everything is drawn in\n[THEME] The theme's, else Video 1  Please see the wiki for details on adding a custom one"))
+        "The two colors everything is drawn in (a custom one: see the wiki)\n[THEME] The theme's, else Video 1"))
 
     // Skin — how the window is dressed, apart from the colours: the
     // shapes of its frame, bars and selected line, and its icons, in the
@@ -132,7 +127,7 @@ function lookRows(items) {
     // A skin chosen before skins had their name was saved as app.theme.
     var skinSaved = appSettings["skin"] !== undefined ? appSettings["skin"] : (appSettings["theme"] || "")
     var skinRow = lookRow("skin", "Skin", "Theme", skins(),
-        "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors\n[THEME] The theme's  [NONE] OSD/OS's own  A new one is a folder in the data folder's skins, see the wiki",
+        "How the window is dressed: its frame, the title and hint bars, the selected line and the icons, in the color scheme's colors (a new one is a folder in the data folder's skins: see the wiki)\n[THEME] The theme's  [NONE] OSD/OS's own",
         skinSaved)
     skinRow.options.splice(1, 0, "None")
     skinRow.values.splice(1, 0, "Off")
@@ -144,6 +139,8 @@ function lookRows(items) {
     if (!appSettings["osd_theme"]) {
         skinRow.options.shift()
         skinRow.values.shift()
+    } else {
+        skinRow.themeValue = themeOwn("skin")
     }
     items.push(skinRow)
 
@@ -155,7 +152,7 @@ function lookRows(items) {
         type: "list_single",
         key: "menu_layout",
         label: "Menu Layout",
-        options: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"],
+        options: root.menuLayouts,
         value: root.menuLayoutOf(appSettings["menu_layout"]),
         description: "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time  [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column that stays in place, the rows of the one chosen beside it  [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first  [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select  [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps",
         moduleId: ""
@@ -168,40 +165,30 @@ function lookRows(items) {
         type: "list_single",
         key: "osd_background",
         label: "OSD Background",
-        options: ["Full", "Off", "Window"],
-        value: root.osdBackgroundOf(appSettings["osd_background"]),
-        description: "What the menus are drawn on\n[FULL] The color scheme's background, all over  [OFF] None, the menus on black like a deck's on-screen display  [WINDOW] A framed window of it behind the menus, black around it",
+        // Window shown as Box, saved as it was.
+        options: ["Full", "Off", "Box"],
+        values: ["Full", "Off", "Window"],
+        value: ({ Full: "Full", Off: "Off", Window: "Box" })[root.osdBackgroundOf(appSettings["osd_background"])],
+        description: "What the menus are drawn on\n[FULL] The color scheme's background, all over  [OFF] None, the menus on black like a deck's on-screen display  [BOX] A framed box of it behind the menus, black around it",
         moduleId: ""
     })
 
-    // Window Frame — the frame of OSD Background's window, for Window
+    // OSD Frame — the frame of OSD Background's box, for Box
     // alone (shownWith). Read in Main.qml, drawn by OsdGround.
     items.push({
         type: "list_single",
         key: "osd_frame",
-        label: "Window Frame",
+        label: "OSD Frame",
         options: ["On", "Off", "Shadow"],
         value: root.osdFrameOf(appSettings["osd_frame"]),
-        description: "The frame of the OSD Background's window\n[ON] A line in the color scheme's color  [OFF] None  [SHADOW] The line and a shadow below and to the right, like a DOS window's",
-        shownWith: { key: "osd_background", value: "Window" },
+        description: "The frame of the OSD Background's box\n[ON] A line in the color scheme's color  [OFF] None  [SHADOW] The line and a shadow below and to the right, like a DOS window's",
+        shownWith: { key: "osd_background", value: "Box" },
         moduleId: ""
     })
 
-    // BOOT SCREEN COLORS — the boot screen in the colours in force, as
-    // the loading screen's are (TV / Movie). Read in Main.qml
-    // (root.bootInk). The boot screen is the OSD/OS image's
-    // (BootProgress's available): elsewhere there is none to colour.
-    var bootScreen = typeof bootProgress !== "undefined" && !!bootProgress && bootProgress.available
-    items.push({
-        type: "list_single",
-        key: "boot_colors",
-        label: "Boot Screen Colors",
-        options: ["Theme", "Default"],
-        value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
-        description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
-        unavailable: bootScreen ? "" : "Only on the OSD/OS image, which has a boot screen",
-        moduleId: ""
-    })
+    // The loading screen and the boot screen, together: LOADING EFFECT,
+    // LOADING COLORS and BOOT COLORS.
+    loadingRows(items)
 
     // HINT BAR — the key hints on the bar at the foot of every screen
     // (Components/HintBar). Read in Main.qml.
@@ -241,6 +228,51 @@ function lookRows(items) {
     })
 }
 
+// The loading screen a video loads behind and the image's boot screen,
+// three rows of Look's.
+function loadingRows(items) {
+    // Loading Effect — the screen a video loads behind is a tape loading
+    // (Components/LoadingScreen): its noise and tracking bands, or, off,
+    // the deck's display alone on the plain background. Read in Main.qml.
+    items.push({
+        type: "list_single",
+        key: "loading_effect",
+        label: "Loading Effect",
+        options: ["On", "Off"],
+        value: appSettings["loading_effect"] === "Off" ? "Off" : "On",
+        description: "While a video loads, a tape's noise and tracking bands roll over its counters\n[OFF] The counters alone, on the plain background",
+        moduleId: ""
+    })
+    // LOADING COLORS and BOOT COLORS — the screen a video loads behind,
+    // and the boot screen, in the menus' colors, a theme's or a scheme's
+    // (Menu, saved as Theme, the default), or in OSD/OS's own whatever the
+    // look: Video 1's white on a VCR's blue (Blue, saved as Default). Read
+    // in Main.qml (root.loadingInk, root.bootInk). The boot screen is the
+    // OSD/OS image's (BootProgress's available): elsewhere there is none.
+    items.push({
+        type: "list_single",
+        key: "loading_colors",
+        label: "Loading Colors",
+        options: ["Menu", "Blue"],
+        values: ["Theme", "Default"],
+        value: appSettings["loading_colors"] === "Default" ? "Blue" : "Menu",
+        description: "The colors of the screen a video loads behind\n[MENU] The menus' own, a theme's or the color scheme's  [BLUE] White on blue",
+        moduleId: ""
+    })
+    var bootScreen = typeof bootProgress !== "undefined" && !!bootProgress && bootProgress.available
+    items.push({
+        type: "list_single",
+        key: "boot_colors",
+        label: "Boot Colors",
+        options: ["Menu", "Blue"],
+        values: ["Theme", "Default"],
+        value: appSettings["boot_colors"] === "Default" ? "Blue" : "Menu",
+        description: "The colors of the boot screen, with its cassette, on the OSD/OS image\n[MENU] The menus' own, a theme's or the color scheme's  [BLUE] White on blue",
+        unavailable: bootScreen ? "" : "Only on the OSD/OS image, which has a boot screen",
+        moduleId: ""
+    })
+}
+
 // LOOK / EFFECTS: the theme's effects (Main.qml; their names
 // root.*Presets), never on a video, nor while one loads or has its menu
 // open. Those the GPU draws need one that can.
@@ -251,7 +283,7 @@ function effectRows(items) {
     text.unavailable = noGpu
     items.push(text)
     var background = partRow("background_effect", "Background Effect", Object.keys(root.backgroundPresets), true,
-        "What goes on behind the menus, in the window, on the GPU\n[THEME] The theme's  [MATRIX] A rain of glyphs  [FIRE] Pixel flames burning up from under the window  [STARS] A starfield drifting by  [SNOW] Snow falling  [CHECKERED FLAG] A racing flag waving in the window  [PLASMA] An old demo's plasma drifting, dithered in pixels")
+        "What goes on behind the menus, in the window, on the GPU\n[THEME] The theme's  [MATRIX] A rain of glyphs  [FIRE] Pixel flames burning up from under the window  [STARS] A starfield drifting by  [SNOW] Snow falling  [FLAG] A racing flag waving in the window  [PLASMA] An old demo's plasma drifting, dithered in pixels")
     background.unavailable = noGpu
     items.push(background)
     items.push(partRow("selector_effect", "Selector Effect", root.selectorPresets, true,
@@ -262,6 +294,20 @@ function effectRows(items) {
     items.push(screenFx)
     items.push(partRow("transition", "Transition", root.transitionPresets.filter(root.transitionUsable), true,
         "How one window gives way to the next\n[THEME] The theme's  [FADE] The old fades away  [CUBE] The window turns over like a cube, the next on a face at random  [RIPPLE] The old ripples out as the new ripples in  [WAVE] A wave runs out from a corner and dies away, the new one behind it  [DROP] A drop falls in a corner, the new one inside its spreading ring"))
+
+    // Orb Fog, the last — the fog behind the panels of the Arcade screen's Orb look
+    // (OrbLook.qml; Main.qml's orbFogLive), for a theme with that look:
+    // the rows are made again as one is chosen (themeChosen()).
+    items.push({
+        type: "list_single",
+        key: "orb_fog",
+        label: "Orb Fog",
+        options: ["Picture", "Live"],
+        value: appSettings["orb_fog"] === "Live" ? "Live" : "Picture",
+        description: "The fog drifting behind the Arcade screen's panels in the Orb look\n[PICTURE] A picture of fog, light on the GPU  [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU",
+        unavailable: root.theme && root.theme.arcade === "orb" ? "" : "Only with a theme in the Orb look",
+        moduleId: ""
+    })
 }
 
 // Display Output's value, where the Pi has it (displayOutput.available):
@@ -286,6 +332,8 @@ function screenRows(items) {
         var nextLabel = displayOutput.nextLabel
         var currentLabel = displayOutput.currentLabel
         var later = displayOutput.nextStartAvailable || displayOutput.powerOffAvailable
+        // The one in force's line, as the chooser has it for each.
+        var inForce = (displayOutput.options || []).filter(function(o) { return o.id === displayOutput.current })[0]
         items.push({
             type: "display_output",
             label: "Display Output",
@@ -293,7 +341,8 @@ function screenRows(items) {
             description: (next !== "" ? "Now " + currentLabel + ", " + nextLabel + " from the next start • " : "")
                          + "Where the picture goes, among the outputs this Pi has: "
                          + (later ? "now, with a restart, or from the next start. " : "a change restarts OSD/OS. ")
-                         + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds\n[COMPOSITE] The AV jack (Pi 3, Pi 4) or TV pads (Pi 5)  [GPIO COMPOSITE] Pi 5's GPIO pins  [SCART RGB] A cable on the GPIO pins  [JAMMA] A Raspberry Pi to JAMMA board, in the modes of a 15 kHz monitor (240p at 720, 320 or 1920 across, 320 the games' own pixels and 1920 a super resolution; 288p at 720 or 1920; 480i at 720 or 640 and 576i on a Pi 4 or a Pi 3), or a 25 kHz or 31 kHz one's, each named with its rate and resolution",
+                         + "The new output stays only when you keep it on its screen, else the old one comes back in 30 seconds"
+                         + (inForce && inForce.help ? "\n[" + currentLabel + "] " + inForce.help : ""),
             moduleId: ""
         })
     } else {
@@ -306,7 +355,7 @@ function screenRows(items) {
             moduleId: ""
         })
     }
-    // DISPLAY — which of a computer's displays OSD/OS opens on, and mpv
+    // USE DISPLAY — which of a computer's displays OSD/OS opens on, and mpv
     // plays on (app.display_index, read as it starts: main.cpp). With
     // one display, as a Pi has, there is nothing to choose.
     var displays = Qt.application.screens
@@ -320,7 +369,7 @@ function screenRows(items) {
     items.push({
         type: "list_single",
         key: "display_index",
-        label: "Display",
+        label: "Use Display",
         options: displayOpts,
         values: displayVals,
         value: displayOpts[Math.max(0, displayAt)] || "",
@@ -328,17 +377,20 @@ function screenRows(items) {
         unavailable: displays.length > 1 ? "" : "Only with more than one display",
         moduleId: ""
     })
-    // MONITOR — a monitor turned on its side for vertical games (TATE):
+    // ROTATION — a monitor turned on its side for vertical games (TATE):
     // Main.qml turns what it draws to stand upright on it, MAME, RetroArch
     // and mpv their pictures, from the next game or video.
-    var monitorOpts = ["Horizontal", "Turned Right", "Turned Left"]
+    // ROTATION: shown None over the saved Horizontal.
+    var monitorVals = ["Horizontal", "Turned Right", "Turned Left"]
+    var monitorOpts = ["None", "Turned Right", "Turned Left"]
     items.push({
         type: "list_single",
         key: "monitor",
-        label: "Monitor",
+        label: "Rotation",
         options: monitorOpts,
-        value: monitorOpts.indexOf(appSettings["monitor"]) >= 0 ? appSettings["monitor"] : "Horizontal",
-        description: "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets, and the others lie across its middle. On a desktop, turn the screen in the system's display settings instead\n[TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left",
+        values: monitorVals,
+        value: monitorOpts[Math.max(0, monitorVals.indexOf(appSettings["monitor"]))],
+        description: "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets, and the others lie across its middle. On a desktop, turn the screen in the system's display settings instead\n[NONE] The monitor stands as monitors do  [TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left",
         moduleId: ""
     })
     // TEST PATTERNS — a picture to set a TV or monitor up by, its own
@@ -347,20 +399,40 @@ function screenRows(items) {
     items.push({
         type: "submenu",
         key: "test_patterns",
+        page: "views/TestPatterns.qml",
         label: "Test Patterns",
-        description: "Pictures to set up the screen by, with its own knobs or menu: size and position, geometry, convergence, focus, brightness, contrast and colour",
+        description: "Pictures to set up the screen by, with its own knobs or menu: size and position, geometry, convergence, focus, brightness, contrast and color",
         moduleId: ""
     })
 
-    // SCREEN SAVER — single control: OFF disables, a number sets the
-    // timeout for both menu idle and playback pause (handled inside mpv).
+    // SCREEN SAVER — single control: OFF disables, a number of seconds sets
+    // the timeout for both menu idle and playback pause (handled inside
+    // mpv); five minutes when never saved (Main.qml, MpvController). A
+    // number saved before these (30, 60, 120) is read as it is, shown as the
+    // nearest of them, and kept until another is chosen.
+    var saverVals = ["OFF", "60", "120", "300", "600"]
+    var saverOpts = ["Off", "1 min", "2 min", "5 min", "10 min"]
+    var saverSaved = appSettings["screensaver_timeout"]
+    var saverAt = saverVals.indexOf("300")
+    if (saverSaved !== undefined && saverSaved !== null && String(saverSaved) !== "") {
+        var saverSec = parseInt(saverSaved)
+        saverAt = 0
+        if (saverSec > 0) {
+            saverAt = 1
+            for (var sv = 2; sv < saverVals.length; sv++) {
+                if (Math.abs(parseInt(saverVals[sv]) - saverSec) < Math.abs(parseInt(saverVals[saverAt]) - saverSec))
+                    saverAt = sv
+            }
+        }
+    }
     items.push({
         type: "list_single",
         key: "screensaver_timeout",
         label: "Screen Saver",
-        options: ["OFF", "30", "60", "120"],
-        value: appSettings["screensaver_timeout"] || "OFF",
-        description: "Prevent CRT burn-in after seconds of inactivity or pause",
+        options: saverOpts,
+        values: saverVals,
+        value: saverOpts[saverAt],
+        description: "A picture moving over the screen after this long without a key, in the menus or on a paused video, against a CRT's burn-in\n[OFF] Never",
         moduleId: ""
     })
 
@@ -435,7 +507,7 @@ function soundRows(items) {
             options: [],
             value: "",
             description: "Which sound card plays: the AV jack, HDMI or a USB sound card",
-            unavailable: "Only where OSD/OS chooses among ALSA's sound cards, as on Linux",
+            unavailable: "Only on a Raspberry Pi or a Linux without a sound server: here the system's sound settings choose",
             moduleId: ""
         })
     }
@@ -446,6 +518,11 @@ function soundRows(items) {
     items.push(partRow("menu_music", "Menu Music", ["File"], true,
         "A tune under the menus, never while a video plays, loads or has its menu open\n[THEME] The theme's, if it has one  [FILE] A file of your own, below"))
     var musicFile = appSettings["menu_music_file"] || ""
+    // A file of a kind this system has no player for (a MIDI file without
+    // FluidSynth, MenuMusic::missingFor()): the help line opens with why.
+    // Nothing dimmed, the choice kept.
+    var music = typeof menuMusic !== "undefined" && menuMusic && menuMusic.missingFor ? menuMusic : null
+    var silent = music && musicFile !== "" ? music.missingFor(musicFile) : ""
     items.push({
         type: "file",
         key: "menu_music_file",
@@ -455,7 +532,7 @@ function soundRows(items) {
         picker: { mode: "file", types: ["ogg", "opus", "mp3", "flac", "wav", "m4a", "aac",
                                         "mid", "midi", "xm", "mod", "s3m", "it"],
                   defaultLabel: "No File" },
-        description: "The menu music's file, played over and over\n[ENTER] Pick it on the file browser: an MP3, WAV, OGG, FLAC, Opus or M4A, a MIDI file (played with a SoundFont), or a tracker's XM, MOD, S3M or IT",
+        description: (silent !== "" ? silent + "\n" : "") + "The menu music's file, played over and over\n[ENTER] Pick it on the file browser: an MP3, WAV, OGG, FLAC, Opus or M4A, a MIDI file (played with a SoundFont), or a tracker's XM, MOD, S3M or IT",
         shownWith: { key: "menu_music", value: "File" },
         moduleId: ""
     })
@@ -474,6 +551,16 @@ function soundRows(items) {
     })
 }
 
+// Why neither Wi-Fi nor Bluetooth can be used here, "" where one can: the
+// first screen's Network row's reason.
+function networkOff() {
+    if ((wifiManager && wifiManager.supported) || (bluetoothManager && bluetoothManager.supported))
+        return ""
+    return wifiManager && wifiManager.launcherTooOld
+           ? "Needs a newer launcher: run install.sh again, or put a newer OSD/OS image on the card"
+           : "Only where NetworkManager or BlueZ runs, as on the OSD/OS image"
+}
+
 // NETWORK: joining a Wi-Fi network (NetworkManager), pairing Bluetooth
 // (BlueZ); both Linux's.
 function networkRows(items) {
@@ -485,6 +572,7 @@ function networkRows(items) {
     items.push({
         type: "submenu",
         key: "wifi",
+        page: "views/Wifi.qml",
         label: "Wi-Fi",
         description: "The networks within reach: join one with its password, or one that doesn't say its name, and the country Wi-Fi keeps to the rules of",
         unavailable: wifi ? "" : oldLauncher ? "Needs a newer launcher: run install.sh again, or put a newer OSD/OS image on the card"
@@ -495,6 +583,7 @@ function networkRows(items) {
     items.push({
         type: "submenu",
         key: "bluetooth",
+        page: "views/Bluetooth.qml",
         label: "Bluetooth",
         description: "Pairing a keyboard, gamepad or remote, and the devices paired",
         unavailable: bluetooth ? "" : "Only where BlueZ runs, as on the OSD/OS image",
@@ -502,7 +591,7 @@ function networkRows(items) {
     })
 }
 
-// Start on Module's value: the name of the module it names while that one
+// Start On's value: the name of the module it names while that one
 // is turned on, else None. STATUS shows it too.
 function startModuleName() {
     var id = appSettings["startup_module"] || "None"
@@ -512,7 +601,7 @@ function startModuleName() {
 
 // STARTUP: what OSD/OS opens on, and keeping it there.
 function startupRows(items) {
-    // Start on Module — pick a module to auto-launch into on startup.
+    // Start On — pick a module to auto-launch into on startup.
     // Only present enabled modules as options so disabled ones won't display.
     // The setting is keyed by module id and the picker shows the display name
     // If the stored id isn't an enabled module, the display falls back to None.
@@ -526,7 +615,7 @@ function startupRows(items) {
     items.push({
         type: "list_single",
         key: "startup_module",
-        label: "Start on Module",
+        label: "Start On",
         options: moduleOpts,
         values: moduleVals,
         value: startModuleName(),
@@ -535,7 +624,7 @@ function startupRows(items) {
     })
 
     // Play at Startup — a favourite played straight after the boot screen,
-    // ahead of Start on Module. It is chosen in its module (right on it,
+    // ahead of Start On. It is chosen in its module (right on it,
     // OPTIONS, PLAY AT STARTUP); here it can only be turned off.
     var startupFav = appSettings["startup_favorite"]
     var favName = startupFav && startupFav.path ? (startupFav.name || "Favorite") : ""
@@ -546,7 +635,7 @@ function startupRows(items) {
         options: favName !== "" ? ["None", favName] : ["None"],
         values: favName !== "" ? ["", startupFav] : [""],
         value: favName !== "" ? favName : "None",
-        description: "A favourite played straight after the boot screen, instead of opening a module\nChoose one with right on it in its module: OPTIONS, PLAY AT STARTUP",
+        description: "A favorite played straight after the boot screen, instead of opening a module\nChoose one with right on it in its module: OPTIONS, PLAY AT STARTUP",
         moduleId: ""
     })
 
@@ -559,22 +648,22 @@ function startupRows(items) {
     items.push({
         type: "list_single",
         key: "startup_from",
-        label: "Startup From",
+        label: "Play From",
         options: ["Resume", "Beginning"],
         value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
-        description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
+        description: "Where the favorite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
         shownWith: { key: "startup_favorite", not: "None" },
         unavailable: favName !== "" && resumes.indexOf(startupFav.module) < 0
-                     ? "Only with a Local Files or YouTube favourite" : "",
+                     ? "Only with a Local Files or YouTube favorite" : "",
         moduleId: ""
     })
 
     items.push(cabinetLockRow())
 }
 
-// CABINET LOCK — OSD/OS kept on Start on Module, the main menu and
+// CABINET LOCK — OSD/OS kept on Start On, the main menu and
 // Settings opened with the unlock buttons alone (views/CabinetLock.qml).
-// On with no module to stay on (Start on Module set to None since, or
+// On with no module to stay on (Start On set to None since, or
 // its module turned off) it locks nothing (Main.qml's cabinetLocked()),
 // and the row says so.
 function cabinetLockRow() {
@@ -583,29 +672,52 @@ function cabinetLockRow() {
     return {
         type: "submenu",
         key: "cabinet_lock",
+        page: "views/CabinetLock.qml",
         label: "Cabinet Lock",
         value: !on ? "Off" : idle ? "On (No Module)" : "On",
-        description: (idle ? "Locks nothing now: there is no Start on Module to stay on\n" : "")
-                     + "Keeps OSD/OS on its Start on Module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
+        description: (idle ? "Locks nothing now: there is no Start On module to stay on\n" : "")
+                     + "Keeps OSD/OS on its Start On module, a cabinet's Arcade screen: the main menu, Settings and Quit open only with the unlock buttons held together for three seconds",
         moduleId: ""
     }
 }
-// Whether Start on Module names a module that is turned on, as
+// Whether Start On names a module that is turned on, as
 // AppCore::startupModuleEntryPoint() has it.
 function startModuleThere() {
     var id = appSettings["startup_module"] || "None"
     return installedModules.some(function(m) { return m.enabled && m.id === id })
 }
 
-// SYSTEM: OSD/OS Setup's settings, the update, About, and the modules
-// of no group, each a page.
+// SYSTEM: the update, this device's System Information, the system's
+// time zone and keyboard layout, OSD/OS Setup's settings, About, and the
+// modules of no group, each a page.
 function systemRows(items) {
+    items.push({
+        type: "submenu",
+        key: "software_update",
+        page: "views/Update.qml",
+        label: "Update",
+        description: "A newer OSD/OS, downloaded and installed",
+        moduleId: ""
+    })
+    // SYSTEM INFORMATION — this device: its name on the network (the row's
+    // value), what it is and its connections (views/SystemInfo.qml).
+    var info = typeof systemInfo !== "undefined" && systemInfo ? systemInfo : null
+    items.push({
+        type: "submenu",
+        key: "system_info",
+        page: "views/SystemInfo.qml",
+        label: "System Information",
+        value: info ? info.deviceName : "",
+        description: "This device's name, which tells it apart from others on the network, and what it is: its model, OS,"
+                     + " memory, storage and temperature, and each network connection's IP and MAC addresses",
+        moduleId: ""
+    })
     // TIME ZONE and KEYBOARD — the system's, as its files say
     // (systemSettings). On the OSD/OS image select opens the list to pick
     // another from, which its root helper sets (osdos-system.socket);
     // elsewhere they are the system's own settings' to change.
     var system = settingsRoot.system
-    var systemOff = system && system.available ? "" : "Only on the OSD/OS image, from its launcher at level 10: elsewhere, in the system's own settings"
+    var systemOff = system && system.available ? "" : "Only on the OSD/OS image"
     items.push({
         type: "submenu",
         key: "time_zone",
@@ -618,22 +730,31 @@ function systemRows(items) {
     items.push({
         type: "submenu",
         key: "keyboard",
-        label: "Keyboard",
+        label: "Keyboard Layout",
         value: !system ? "" : system.busy ? "Setting" : system.keyboardName !== "" ? system.keyboardName : "Not Set",
         description: "The keyboard's layout at Exit to Terminal, where a name and a password are typed: OSD/OS's own menus take any keyboard as it is",
         unavailable: systemOff,
         moduleId: ""
     })
-    // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
-    // set at once (pasteSetup(), AppCore::applySetupText()), where there
-    // is a clipboard to paste them from: a computer's.
+    // SSH — the image's SSH server on or off, as the system has it
+    // (systemSettings.ssh), set through its root helper (setSsh(), the
+    // row's toggle in Settings.qml's setChoice()): Setting while on its way,
+    // a refusal said as Time Zone's is. Its note, why no one could sign in
+    // yet (no password or key set), opens the help line while it is on. No
+    // password here: OSD/OS Setup sets it and the keys.
+    var sshOn = !!(system && system.ssh)
+    var sshNote = system && system.sshNote ? String(system.sshNote) : ""
     items.push({
-        type: "paste_setup",
-        label: "Paste OSD/OS Setup",
-        description: "The settings copied on OSD/OS Setup's page (osdos.tv/setup, Copy for a computer), set here at once:"
-                     + " OSD/OS's own and the RetroAchievements account. The device's name, Wi-Fi and the"
-                     + " rest are set on an OSD/OS card alone",
-        unavailable: settingsRoot.canPaste ? "" : "Only on a computer, from its clipboard; an OSD/OS card takes OSD/OS Setup's file",
+        type: "list_single",
+        key: "ssh",
+        systemSetting: true,
+        label: "SSH",
+        options: ["Off", "On"],
+        value: system && system.busy ? "Setting" : sshOn ? "On" : "Off",
+        description: (sshOn && sshNote !== "" ? sshNote + "\n" : "")
+                     + "Lets a computer on your network sign in to this device; its password and keys are set with OSD/OS Setup"
+                     + "\n[ON] SSH runs  [OFF] SSH is stopped",
+        unavailable: systemOff,
         moduleId: ""
     })
     // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
@@ -641,36 +762,58 @@ function systemRows(items) {
     items.push({
         type: "submenu",
         key: "export_setup",
+        page: "views/SetupExport.qml",
         label: "Export to OSD/OS Setup",
         description: "This device's settings as QR codes: a phone opens OSD/OS Setup's page (osdos.tv/setup) from"
                      + " them, filled in, passwords too, to change what you need and make a card's file of",
         moduleId: ""
     })
+    // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
+    // set once the question is answered (pasteSetup(),
+    // AppCore::applySetupText()), where there is a clipboard to paste them
+    // from: a computer's.
     items.push({
-        type: "submenu",
-        key: "software_update",
-        label: "Update",
-        description: "A newer OSD/OS, downloaded and installed",
+        type: "paste_setup",
+        label: "Paste OSD/OS Setup",
+        description: "The settings copied on OSD/OS Setup's page (osdos.tv/setup, Copy for a computer), set here once you say so:"
+                     + " OSD/OS's own and the RetroAchievements account. The device's name, Wi-Fi and the"
+                     + " rest are set on an OSD/OS card alone",
+        unavailable: settingsRoot.canPaste ? "" : "Only on a computer, from its clipboard; an OSD/OS card takes OSD/OS Setup's file",
         moduleId: ""
     })
-    // ABOUT — this device's System Information, then what OSD/OS is, who
-    // makes it, what it is made of and under which licence
-    // (views/About.qml).
+    // ABOUT — what OSD/OS is, who makes it, what it is made of and under
+    // which license (views/About.qml).
     items.push({
         type: "submenu",
         key: "about",
+        page: "views/About.qml",
         label: "About",
-        description: "This device's System Information, its name on the network first; what OSD/OS is, who makes it,"
-                     + " what it is made of and under which license",
+        description: "What OSD/OS is, who makes it, what it is made of and under which license",
         moduleId: ""
     })
     // The modules of no group with settings, a page each.
     moduleRows(items, groupModules(""))
 }
 
-// TV / Movie's page: the rows that are the videos' alone, then the video
-// modules' (manifest "settings_group": "tv").
+// TV / Movie's page: how a picture fills the screen, Transparent Background
+// and the info screen, then the video modules (manifest "settings_group":
+// "tv") under MODULES, then the rest of the videos' rows under VIDEO.
 function tvRows(items) {
+    var video = []
+    videoRows(video)
+    var first = ["video_scaling", "transparent_background", "info_screen"]
+    for (var f = 0; f < first.length; f++)
+        items.push(video.filter(function(row) { return row.key === first[f] })[0])
+    moduleRows(items, groupModules("tv"))
+    items.push({ type: "section", label: "Video" })
+    for (var v = 0; v < video.length; v++) {
+        if (first.indexOf(video[v].key) < 0)
+            items.push(video[v])
+    }
+}
+// The videos' own rows, the first three and then the VIDEO heading's in
+// their order.
+function videoRows(items) {
     // Scaling — how a picture of another shape fills the screen: a 16:9 film
     // on a 4:3 tube above all. Every video module's settings can override
     // it for that module. It replaces Auto Crop, whose ON reads as Pan &
@@ -678,13 +821,24 @@ function tvRows(items) {
     var scalingOpts = ["Letterbox", "14:9", "Pan & Scan", "Anamorphic"]
     var scaling = appSettings["video_scaling"]
                   || (appSettings["auto_crop"] === "On" ? "Pan & Scan" : "Letterbox")
+    // On a Raspberry Pi 3 (the decode profile whose smooth 1080p can't
+    // crop, mpvController.hasSmoothPlaybackTradeoff()) with 1080p Playback
+    // on, its default there, 14:9 and Pan & Scan show the whole picture:
+    // the help line says so, and what they need.
+    var cropOff = mpvController.hasSmoothPlaybackTradeoff() && appSettings["smooth_playback"] !== "Off"
+    var cropNote = cropOff ? "14:9 and Pan & Scan need 1080p Playback off" : ""
     items.push({
         type: "list_single",
         key: "video_scaling",
         label: "Scaling",
         options: scalingOpts,
         value: scalingOpts.indexOf(scaling) >= 0 ? scaling : "Letterbox",
-        description: "How a 16:9 picture fills the 4:3 screen, in every module that doesn't set its own\n[LETTERBOX] All of it, bars above and below  [14:9] A little of the sides cut, thinner bars  [PAN & SCAN] Fills it, the sides cut  [ANAMORPHIC] Fills it squeezed, for a TV set to 16:9",
+        description: "How a 16:9 picture fills the 4:3 screen, in every module that doesn't set its own"
+                     + (cropNote !== "" ? ". " + cropNote : "")
+                     + "\n[LETTERBOX] All of it, bars above and below  [14:9] A little of the sides cut, thinner bars"
+                     + (cropNote !== "" ? ": " + cropNote : "")
+                     + "  [PAN & SCAN] Fills it, the sides cut" + (cropNote !== "" ? ": " + cropNote : "")
+                     + "  [ANAMORPHIC] Fills it squeezed, for a TV set to 16:9",
         moduleId: ""
     })
 
@@ -748,32 +902,6 @@ function tvRows(items) {
         moduleId: ""
     })
 
-    // Loading Effect — the screen a video loads behind is a tape loading
-    // (Components/LoadingScreen): its noise and tracking bands, or, off,
-    // the deck's display alone on the plain background. Read in Main.qml.
-    items.push({
-        type: "list_single",
-        key: "loading_effect",
-        label: "Loading Effect",
-        options: ["On", "Off"],
-        value: appSettings["loading_effect"] === "Off" ? "Off" : "On",
-        description: "While a video loads, a tape's noise and tracking bands roll over its counters\n[OFF] The counters alone, on the plain background",
-        moduleId: ""
-    })
-
-    // LOADING SCREEN COLORS — the screen a video loads behind in the
-    // colours in force, a theme's or a scheme's (Theme, the default), or
-    // in OSD/OS's own whatever the look: Video 1's white on a VCR's blue.
-    // Read in Main.qml (root.loadingInk).
-    items.push({
-        type: "list_single",
-        key: "loading_colors",
-        label: "Loading Screen Colors",
-        options: ["Theme", "Default"],
-        value: appSettings["loading_colors"] === "Default" ? "Default" : "Theme",
-        description: "The colours of the screen a video loads behind\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
-        moduleId: ""
-    })
     // CHANNEL LOGO — OSD/OS's logo in a corner of the picture while a
     // video plays, drawn by mpv (scripts/mpv-logo.lua, loaded by
     // MpvController at each launch, so it applies from the next video).
@@ -813,7 +941,9 @@ function tvRows(items) {
     // once the cursor has rested on it that many seconds. One control, like
     // the screen saver's.
     var infoVals = ["off", "key", "1", "2", "3", "5"]
-    var infoOpts = ["Off", "Key", "1 sec", "2 sec", "3 sec", "5 sec"]
+    // With ►: ► as the controller in use names it (root.hints).
+    var withKey = "With " + String(root.hints.browse || "[►]").replace(/^\[|\]$/g, "")
+    var infoOpts = ["Off", withKey, "1 sec", "2 sec", "3 sec", "5 sec"]
     var infoIdx = infoVals.indexOf(appSettings["info_screen"] || "3")
     // Theirs alone: with none of the three turned on there is no tree
     // to show it in, and the row says so.
@@ -826,7 +956,7 @@ function tvRows(items) {
         options: infoOpts,
         values: infoVals,
         value: infoOpts[infoIdx < 0 ? infoVals.indexOf("3") : infoIdx],
-        description: "A film's details in Netflix, Prime Video and YouTube\n[KEY] With right on a film  [SEC] Also on its own once the cursor rests on it",
+        description: "A film's details in Netflix, Prime Video and YouTube: with right on a film, and with a time also on its own once the cursor has rested on the film that long\n[" + withKey + "] Only with right on a film  [OFF] Never",
         unavailable: infoRead ? "" : "Only with Netflix, Prime Video or YouTube enabled",
         moduleId: ""
     })
@@ -844,8 +974,6 @@ function tvRows(items) {
         description: "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for this device, such as --vo=gpu --hwdec=no. From the next video\n[DEFAULT] Nothing typed: OSD/OS's own",
         moduleId: ""
     })
-
-    moduleRows(items, groupModules("tv"))
 }
 
 // The installed modules with settings of a group ("" for none, as a
@@ -857,12 +985,21 @@ function groupModules(group) {
         return m.has_settings && own === group
     })
 }
+// Each says whether the module is on (its "enabled", which the main menu
+// and its backend follow), ◄ ► turning it on and off there (Settings.qml's
+// toggleModule()); select opens its settings. In AppCore's order.
 function moduleRows(items, modules) {
     if (modules.length === 0)
         return
     items.push({ type: "section", label: "Modules" })
     for (var i = 0; i < modules.length; i++)
-        items.push({ type: "submenu", label: modules[i].name, moduleId: modules[i].id })
+        items.push(moduleRow(modules[i]))
+}
+function moduleRow(m) {
+    return { type: "module", key: "enabled", label: m.name, moduleId: m.id,
+             on: !!m.enabled, value: m.enabled ? "On" : "Off",
+             description: "Shows " + m.name + " on the main menu\n[ENTER] Opens its settings",
+             page: "views/ModuleSettings.qml", params: { moduleId: m.id, alsoModules: [] } }
 }
 
 // A row choosing one of the themes or the skins there are (AppCore's
@@ -893,22 +1030,49 @@ function lookRow(key, label, none, looks, description, saved) {
 // is then. A saved value that isn't among the choices (a custom scheme
 // removed since, an effect this system can't draw) shows as what is
 // drawn in its place (partInForce()), not as the row's first choice.
+// A choice shown by a shorter name than it is saved by, so that its row
+// shows it whole beside its label in Camcorder's narrower lines.
+function shortName(name) {
+    return ({ "Checkered Flag": "Flag", "SMPTE ECR 1-1978": "SMPTE ECR" })[name] || name
+}
 function partRow(key, label, choices, off, description) {
     var themed = !!appSettings["osd_theme"]
-    var options = (themed ? ["Theme"] : []).concat(off ? ["Off"] : [], choices)
+    var options = (themed ? ["Theme"] : []).concat(off ? ["Off"] : [], choices.map(shortName))
     var values = (themed ? [""] : []).concat(off ? ["Off"] : [], choices)
     var saved = appSettings[key] === undefined ? "" : String(appSettings[key])
     var at = values.indexOf(saved)
     if (at < 0)
         at = values.indexOf(partInForce(key, saved))
     return { type: "list_single", key: key, label: label, options: options, values: values,
-             value: options[Math.max(0, at)], description: description, moduleId: "" }
+             value: options[Math.max(0, at)], description: description, moduleId: "",
+             themeValue: themed ? themeOwn(key) : undefined }
+}
+// What the theme in force (Main.qml's root.theme, AppCore::theme()) has for
+// one of its parts, as the help line says it while the row is on THEME
+// (Settings.qml's helpText: "Theme's: Glow"): a scheme's, a skin's or an
+// effect's name, the music's file; "its own" for one the theme draws
+// itself; "none" for none, as the theme is then drawn.
+function themeOwn(key) {
+    var theme = root.theme || {}
+    if (key === "color_scheme")
+        return typeof theme.colors === "string" ? theme.colors : theme.colors ? "its own" : "Video 1"
+    if (key === "skin")
+        return theme.skin && theme.skin.name ? theme.skin.name : theme.skin ? "its own" : "none"
+    if (key === "menu_music") {
+        var music = String(theme.music || "")
+        return music !== "" ? music.substring(music.lastIndexOf("/") + 1) : "none"
+    }
+    var kinds = { text_effect: "text", background_effect: "background", selector_effect: "selector",
+                  screen_effect: "screen", transition: "transition" }
+    var effect = (theme.effects || {})[kinds[key]]
+    return typeof effect === "string" ? effect : effect ? "its own" : "none"
 }
 // What Main.qml makes of a part's saved value that names nothing it has:
 // a scheme not there is Video 1 (root.scheme), an effect's unknown name
 // none (effectOf(), nameOf()), a transition this system can't play
-// (Ripple, Wave or Drop without a GPU) Fade (windowCaught()) and an
-// unknown one none. Menu Music's is the theme's, the row's first choice.
+// (Ripple, Wave or Drop without a GPU) Fade (WindowChange's caught(), by
+// root.transitionUsable()) and an unknown one none. Menu Music's is the
+// theme's, the row's first choice.
 function partInForce(key, saved) {
     if (key === "color_scheme")
         return "Video 1"

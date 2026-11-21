@@ -17,12 +17,14 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
+    paths: &paths
       - 'src/**'
       - 'shaders/**'
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
+      - 'os/stage-osdos/03-boot/files/display-presets.json'
+      - 'scripts/build-fbneo-cores.sh'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-make.sh'
@@ -31,19 +33,7 @@ on:
       - '.github/actions/fbneo-cores/**'
       - '.github/workflows/windows.yml'
   pull_request:
-    paths:
-      - 'src/**'
-      - 'shaders/**'
-      - 'thirdparty/**'
-      - 'cmake/**'
-      - 'CMakeLists.txt'
-      - 'scripts/build-fbneo.sh'
-      - 'scripts/build-fbneo-lan.sh'
-      - 'scripts/fbneo-make.sh'
-      - 'scripts/fbneo-lan.patch'
-      - 'scripts/engines.env'
-      - '.github/actions/fbneo-cores/**'
-      - '.github/workflows/windows.yml'
+    paths: *paths
 
 permissions:
   contents: read
@@ -142,6 +132,8 @@ jobs:
 
       - name: Configure
         shell: pwsh
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
         run: |
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
@@ -149,7 +141,7 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
             -DCMAKE_INSTALL_PREFIX="$env:GITHUB_WORKSPACE/install" `
-            -DAPP_VERSION="${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}"
+            -DAPP_VERSION="$env:VERSION"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build

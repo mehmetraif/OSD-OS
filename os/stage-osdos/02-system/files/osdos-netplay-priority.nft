@@ -13,9 +13,11 @@
 # which Wi-Fi sends from its video queue (RFC 8325): a shorter wait for the
 # air, ahead of best effort. The Pi's Wi-Fi driver reads the mark of what
 # this machine sends (brcmfmac, cfg80211_classify8021d()), and an access
-# point that of what the other machine sent, so with every machine marking,
-# both ways are ahead. A cable has no such queue to wait in, and a switch
-# passes the mark by.
+# point that of what the other machine sent. So a packet is ahead only when
+# the machine that sent it marks: a Windows PC marks only under a QoS policy
+# (INSTALL.md, On Windows), and without it what it sends a Pi waits as best
+# effort. A cable has no such queue to wait in, and a switch passes the mark
+# by.
 #
 # Only to the private networks' addresses, where LAN games are played
 # (ArcadeBackend takes rooms from no other): a game online, to an address on

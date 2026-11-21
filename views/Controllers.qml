@@ -1,5 +1,6 @@
 import QtQuick
 import Components
+import "ControlsText.js" as ControlsText
 
 // Settings → Controls: the gamepads connected first, the one used last on
 // top with the cursor on it and a ● on its line, each with the player it is
@@ -46,7 +47,6 @@ FocusScope {
     property string notice: ""
 
     onControllersChanged: buildRows()
-    onActiveChanged: buildRows()
     onPlayersChanged: buildRows()
     Component.onCompleted: {
         topKey = active
@@ -96,7 +96,7 @@ FocusScope {
             items.push({ type: "keys", key: allKeys, label: "All Keyboards & Remotes",
                          description: "Extra keys on every keyboard and remote" })
             present.filter(function(c) { return !isPad(c) }).forEach(function(c) {
-                items.push({ type: "keys", key: c.key, label: c.name, value: kindTitle(c.kind), last: c.key === active,
+                items.push({ type: "keys", key: c.key, label: c.name, value: kindTitle(c.kind),
                              description: "Extra keys on this one only" })
             })
         } else if (show === "away") {
@@ -112,7 +112,7 @@ FocusScope {
             pads.sort(function(a, b) { return (b.key === topKey ? 1 : 0) - (a.key === topKey ? 1 : 0) })
             pads.forEach(function(c) {
                 items.push({ type: "controller", key: c.key, label: c.name + (c.count > 1 ? " x" + c.count : ""),
-                             value: playerText(c), last: c.key === active,
+                             value: playerText(c),
                              description: "Its buttons, its player and its test" })
             })
             if (pads.length === 0) {
@@ -159,8 +159,8 @@ FocusScope {
         } else if (row.type === "keys") {
             navigateTo("views/MenuButtons.qml", { key: row.key }, listState(row))
         } else if (row.type === "players") {
-            inputManager.resetPlayers()
-            notice = "Every player is automatic now"
+            notice = inputManager.resetPlayers() ? "Every player is automatic now"
+                                                 : ControlsText.notSaved
         } else if (row.show === "keyboards"
                    && !controllers.some(function(c) { return c.present && !isPad(c) })) {
             // No keyboard listed apart: straight to every keyboard's keys.
@@ -199,13 +199,14 @@ FocusScope {
         }
 
         // Lines read like a camcorder's menu: "8BITDO PRO 2······PLAYER 1 ►",
-        // the one used last with a ● before the ►.
+        // the one used last with a ● before the ► (on the list of those away,
+        // none).
         delegate: MenuRow {
             width: list.width
             height: root.menuRowHeight
             label: modelData.label || ""
             value: modelData.value || ""
-            icons: modelData.last ? ["rec"] : []
+            icons: controllersRoot.show !== "away" && modelData.key === controllersRoot.active ? ["rec"] : []
             opens: controllersRoot.opens(modelData)
             // A long name is cut short, not what it is.
             keepValue: true

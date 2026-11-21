@@ -117,6 +117,7 @@ add_executable(osdos
     src/modules/arcade/Mame.cpp
     src/modules/arcade/Libretro.cpp
     src/modules/arcade/FbneoInstaller.cpp
+    src/modules/arcade/GameSystem.cpp
     src/modules/arcade/ProgramInstaller.cpp
     src/modules/arcade/RetroAchievements.cpp
     src/modules/arcade/RetroAchievementsAccount.cpp
@@ -142,6 +143,7 @@ add_executable(osdos
     src/util/FontconfigOverride.cpp
     src/util/Diagnostics.cpp
     src/util/LogFile.cpp
+    src/util/TermSignals.cpp
     src/util/SetupFile.cpp
     src/util/SetupExport.cpp
     src/util/SetupExporter.cpp
@@ -323,6 +325,10 @@ target_link_libraries(osdos PRIVATE osdos_lzma)
 include(cmake/qrcodegen.cmake)
 target_link_libraries(osdos PRIVATE osdos_qrcodegen)
 qt_add_resources(osdos "setup_schema" PREFIX "/setup" BASE "site/setup" FILES "site/setup/schema-extra.json")
+# The display presets' names, codes and boards (src/display/DisplayOutput),
+# as the image's setup helper and the website read them too.
+qt_add_resources(osdos "display_presets" PREFIX "/display" BASE "os/stage-osdos/03-boot/files"
+                 FILES "os/stage-osdos/03-boot/files/display-presets.json")
 
 target_include_directories(osdos PRIVATE
     src

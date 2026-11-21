@@ -8,6 +8,10 @@ Description=Update yt-dlp for OSD/OS's YouTube module
 [Service]
 Type=oneshot
 User=@FIRST_USER_NAME@
+# Not while an arcade game plays (the flag osdos-stop game keeps for its
+# length): Python started and a download over the network a game shares.
+# The run is skipped, not failed; the next is the timer's.
+ExecCondition=/usr/bin/test ! -e /run/osdos-game/playing
 # Only while something uses yt-dlp: the YouTube module, or a YouTube video on
 # a playlist. Otherwise the run is skipped, as on an arcade cabinet.
 ExecCondition=/usr/lib/osdos/yt-dlp-wanted

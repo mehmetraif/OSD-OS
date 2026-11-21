@@ -10,7 +10,7 @@
 //
 // Reads the card UID with the FF CA 00 00 00 "Get Data" pseudo-APDU, which is
 // PC/SC-standard rather than vendor-specific, so this works with any CCID
-// contactless reader — not only the ACR122U this module originally targeted.
+// contactless reader.
 //
 // SCARDCONTEXT is stored as uintptr_t so this header stays free of PC/SC
 // includes and can be included on builds without it.

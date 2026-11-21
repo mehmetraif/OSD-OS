@@ -94,17 +94,8 @@ FocusScope {
     }
 
     function playBestEpisodeFromList(epList) {
-        if (epList.length === 0) return
-        var target = null
-        for (var i = 0; i < epList.length; i++) {
-            if (epList[i].viewOffset > 0) { target = epList[i]; break }
-        }
-        if (!target) {
-            for (var j = 0; j < epList.length; j++) {
-                if (!epList[j].viewCount || epList[j].viewCount === 0) { target = epList[j]; break }
-            }
-        }
-        if (!target) target = epList[0]
+        var target = Episodes.best(epList, function(ep) { return ep.viewCount > 0 })
+        if (!target) return
         showRoot.navigateTo("Item.qml", { item: target, libraryName: libraryName }, {})
     }
 

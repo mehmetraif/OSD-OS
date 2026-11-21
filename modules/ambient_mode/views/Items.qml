@@ -16,7 +16,8 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
-    // Focus rows: 0=video track, 1=audio track, 2=start button
+    // Focus rows: 0=video track, 1=audio track, 2=start button. Select on
+    // any of them starts, with the video and audio the rows show.
     property int focusRow: 0
 
     property var videoFiles: []
@@ -53,7 +54,7 @@ FocusScope {
     Component.onCompleted: {
         videoFiles = ambientModeBackend.getVideoFiles()
         audioFiles = ambientModeBackend.getAudioFiles()
-        autoLaunch = !!appCore.get_setting(moduleRoot.moduleId, "auto_launch")
+        autoLaunch = root.settingOn(moduleRoot.moduleId, "auto_launch", false)
         // Back from the player: the picker where it was left, within the
         // files there are now.
         if (navListState.videoIndex !== undefined)
@@ -99,7 +100,7 @@ FocusScope {
                 audioIndex = (audioIndex + 1) % audioSlotCount
             event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            if (focusRow === 2 && videoFiles.length > 0)
+            if (videoFiles.length > 0)
                 launchPlayer(videoShuffleSelected, audioShuffleSelected)
             event.accepted = true
         }
@@ -132,7 +133,7 @@ FocusScope {
             font.pixelSize: root.sh * 0.05 //24
         }
         Text {
-            text: "Please add items in the ambient:mode media directory"
+            text: "Add videos to the Ambient:Mode media folder"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -209,7 +210,10 @@ FocusScope {
                 ScrolledText {
                     id: videoValueClip
                     width: Math.min(implicitWidth, root.sw * 0.35)
-                    height: parent.height
+                    // The track row's height, not the Row's: with one choice
+                    // and no arrows the Row is only this line, and its height
+                    // would come to nothing.
+                    height: videoTrackRow.height
                     on: focusRow === 0
                     elides: false
                     // The body is hidden with no videos, but still bound.
@@ -269,7 +273,7 @@ FocusScope {
                 ScrolledText {
                     id: audioValueClip
                     width: Math.min(implicitWidth, root.sw * 0.35)
-                    height: parent.height
+                    height: audioTrackRow.height
                     on: focusRow === 1
                     elides: false
                     text: audioShuffleSelected ? "SHUFFLE"
@@ -350,8 +354,14 @@ FocusScope {
         }
     }
 
+    // With nothing to play, back alone; else ◄ ► where the row has more
+    // than one value, and select starts from every row.
     HintBar {
         id: footer
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
+        readonly property bool changes: (itemsRoot.focusRow === 0 && itemsRoot.videoSlotCount > 1)
+                                        || (itemsRoot.focusRow === 1 && itemsRoot.audioSlotCount > 1)
+        text: itemsRoot.videoFiles.length === 0
+              ? root.hintLine(["back:BACK"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE", changes ? "change:CHANGE" : "", "select:START"])
     }
 }

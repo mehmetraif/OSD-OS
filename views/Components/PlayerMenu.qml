@@ -1,17 +1,20 @@
 import QtQuick
+import "Words.js" as Words
 
 // A video's own menu: back during playback opens it over the picture, which
 // goes on playing (Transparent Background; MpvController's player menu, see
 // noteSession's "menu"). Without Transparent Background the video ends for it
-// and its player starts it again where it was as it closes. Its lines are the
-// module's settings that matter while a video plays, taken from its manifest
-// by key, wherever they sit (YouTube keeps its own in ADVANCED): ◄ ► change
-// one and save it at once, as in the module's settings, and the host applies
-// it to the video (settingChanged).
-// Then the host's own lines (actions, acted on in activated), and last CLOSE
-// VIDEO (activated("close")). Back takes the picture back to full screen
-// (closed()). A key it has no use for goes on to its player, so play/pause
-// still pauses the video under it.
+// and its player starts it again where it was as it closes. Its two ways out
+// lead, each with a help line: BACK TO <MODULE> (activated("browse")), to the
+// module's lists, the video playing on behind them where it can, and STOP,
+// TO MAIN MENU (activated("close")). Under a gap come the module's settings
+// that matter while a video plays, taken from its manifest by key, wherever
+// they sit (YouTube keeps its own in ADVANCED): ◄ ► change one and save it at
+// once, as in the module's settings, and the host applies it to the video
+// (settingChanged). Then the host's own lines (actions, acted on in
+// activated). Back takes the picture back to full screen (closed()). A key it
+// has no use for goes on to its player, so play/pause still pauses the video
+// under it.
 //
 //     PlayerMenu {
 //         id: playerMenu
@@ -40,7 +43,7 @@ FocusScope {
     property string moduleName: ""
     // The settings it offers, by manifest key, in this order.
     property var keys: []
-    // The host's own lines, after them: [{ label, action }].
+    // The host's own lines, after the settings: [{ label, action }].
     property var actions: []
     property string title: ""
 
@@ -88,6 +91,18 @@ FocusScope {
         return null
     }
 
+    // The two ways out, as they are now: the video behind the menus (an
+    // embedded one, Transparent Background) plays on behind the module's
+    // lists; one that ended for the menu stays stopped.
+    function exits() {
+        var behind = typeof mpvController !== "undefined" && !!mpvController && mpvController.videoActive
+        return [{ type: "action", label: "Back to " + moduleName, action: "browse",
+                  description: behind ? "To " + Words.possessive(moduleName) + " lists, the video playing on behind them"
+                                      : "To " + Words.possessive(moduleName) + " lists. The video stops where it is" },
+                { type: "action", label: "Stop, to Main Menu", action: "close",
+                  description: "Ends the video and goes to the main menu" }]
+    }
+
     function build() {
         var schema = appCore ? appCore.get_module_settings_schema(moduleId) : []
         var found = []
@@ -103,9 +118,8 @@ FocusScope {
         }
         for (var a = 0; a < actions.length; a++)
             found.push({ type: "action", label: actions[a].label, action: actions[a].action })
-        found.push({ type: "action", label: "Close Video", action: "close" })
         values = current
-        rows = found
+        rows = found.length > 0 ? exits().concat([{ type: "gap", gap: true }]).concat(found) : exits()
     }
 
     // What a setting's line shows after the dots, as the module's settings do.
@@ -132,6 +146,11 @@ FocusScope {
             return raw || item.default || "---"
         }
         return ""
+    }
+
+    // A setting's line, which ◄ ► change; not an action's or the gap.
+    function changes(row) {
+        return !!row && (row.type === "list_single" || row.type === "toggle")
     }
 
     // One step of a setting toward -1 or 1, saved and handed to the host.
@@ -213,12 +232,12 @@ FocusScope {
 
         Keys.onLeftPressed: {
             var row = menuRoot.rows[currentIndex]
-            if (row && row.type !== "action")
+            if (row && menuRoot.changes(row))
                 menuRoot.change(row, -1)
         }
         Keys.onRightPressed: {
             var row = menuRoot.rows[currentIndex]
-            if (row && row.type !== "action")
+            if (row && menuRoot.changes(row))
                 menuRoot.change(row, 1)
         }
         Keys.onReturnPressed: menuRoot.select(currentIndex)
@@ -235,9 +254,10 @@ FocusScope {
         delegate: MenuRow {
             width: list.width
             height: root.menuRowHeight
+            visible: !modelData.gap
             label: modelData.label || ""
-            value: modelData.type === "action" ? "" : menuRoot.displayValue(modelData)
-            changes: modelData.type !== "action"
+            value: menuRoot.changes(modelData) ? menuRoot.displayValue(modelData) : ""
+            changes: menuRoot.changes(modelData)
             selected: list.currentIndex === index
         }
     }
@@ -248,7 +268,12 @@ FocusScope {
         text: (currentRow && currentRow.description) || ""
     }
 
+    // The keys that do something on the line under the cursor: ◄ ► on a
+    // setting's, select on an action's (and a toggle's).
     HintBar {
-        text: root.hintLine(["back:VIDEO", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
+        property var currentRow: menuRoot.rows[list.currentIndex]
+        text: root.hintLine(["back:VIDEO", "navigate:NAVIGATE",
+                             menuRoot.changes(currentRow) ? "change:CHANGE" : "",
+                             currentRow && currentRow.type === "action" ? "select:SELECT" : ""])
     }
 }

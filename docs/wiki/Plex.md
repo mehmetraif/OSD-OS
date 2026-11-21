@@ -23,7 +23,7 @@ The Plex module plays films and series from a [Plex Media Server](https://www.pl
 3. **Select User** lists the profiles. An account with one profile skips this step. A profile with a PIN asks for it ([below](#profiles)).
 4. **Select Server** lists the servers that profile can use. Choose one.
 
-- A code left unentered for long expires: **THE CODE EXPIRED: GO BACK AND TRY AGAIN**. Open Plex again for a fresh one.
+- A code left unentered for long expires: **THE CODE EXPIRED: TRY AGAIN FOR A NEW ONE**. Select (`[ENTER]:TRY AGAIN`) asks plex.tv for a fresh one, as it does after **PIN REQUEST FAILED**.
 - The device appears in your Plex account's authorized devices as **OSD/OS**. Removing it there signs OSD/OS out.
 
 ## Profiles
@@ -131,7 +131,7 @@ PLAY saves the track choice back to Plex, so every Plex app plays the file the s
 | Video Quality | What happens |
 |---|---|
 | **Direct Play** (the default) | The file is streamed as it is. A file mpv can't play is transcoded by itself |
-| **8 Mbps (1080p)**, **4 Mbps (720p)**, **2 Mbps (480p)** | The server re-encodes the video, capped at that bitrate, with the audio track you chose and the subtitle burned in. For a weak network |
+| **1080p**, **720p**, **480p** | The server re-encodes the video, capped at 8, 4 or 2 Mbps, with the audio track you chose and the subtitle burned in. For a weak network |
 
 ### Resume and Continue Watching
 
@@ -139,6 +139,7 @@ Resume points are Plex's own, shared with every Plex app.
 
 - **Resume Playback: Ask** (the default): a video with a resume point asks **Resume playback?** `Resume from 0:30` / `Start from the beginning`.
 - **Resume Playback: Always**: it carries on without asking.
+- **Resume Playback: Never**: it starts from the beginning without asking.
 
 ### Autoplay Next Episode
 
@@ -187,20 +188,21 @@ A card plays as whoever is signed in. It never signs in, switches profile or swi
 
 ## Settings
 
-Settings → TV / Movie → Plex. Everything but Enabled and Scaling shows only once you have signed in.
+Settings → TV / Movie → Plex. Until you have signed in, every row but Enabled, Sign In and Scaling is dimmed, its help line saying **Sign in first (SIGN IN above)**.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Plex on the main menu | `enabled` |
+| Sign In | the profile in use, or SIGNED OUT | | Opens Plex: its sign-in while signed out, else Select User | |
 | Current User | the account's Plex Home profiles | the one chosen at sign-in | Switches profile; a PIN is asked the next time you open Plex | `current_user_id` |
 | Auto Sign In | ON, OFF | OFF | ON opens Plex on the libraries as the current profile | `auto_sign_in` |
 | Server | the servers the profile can use | the one chosen at sign-in | The server Plex browses and plays from | `server_machine_id` |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
-| Video Quality | Direct Play, 8 Mbps (1080p), 4 Mbps (720p), 2 Mbps (480p) | Direct Play | Direct Play, or a transcode capped at that bitrate | `video_quality` |
-| Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
+| Video Quality | Direct Play, 1080p, 720p, 480p | Direct Play | Direct Play, or a transcode capped at 8, 4 or 2 Mbps | `video_quality` (`auto`, `8000`, `4000`, `2000`) |
+| Resume Playback | Ask, Always, Never | Ask | Whether a video with a resume point asks, carries on, or starts from the beginning | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the season's next episode when one ends | `autoplay_next_episode` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Plex; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign out | (an action) | | Signs out of Plex on this device | |
+| Sign Out | (an action) | | Asks first, then signs out of Plex on this device. Dimmed while signed out | |
 
 ### How the values are saved
 
@@ -213,7 +215,7 @@ The keys sit under `modules.com.osdos.plex`.
 | `server_machine_id` | the server's machine identifier |
 | `libraries` | an object of `"<machine id>_<library number>": true` or `false`; a library left out counts as ON |
 | `video_quality` | `"auto"` (Direct Play), `"8000"`, `"4000"` or `"2000"` (kbps). Unset means Direct Play |
-| `resume_playback` | `"ask"` or `"yes"` (Always) |
+| `resume_playback` | `"ask"`, `"yes"` (Always) or `"no"` (Never) |
 | `video_scaling` | the option's name, such as `"Pan & Scan"` |
 
 A `config.json` fragment (the ids are examples of their shape):
@@ -250,13 +252,13 @@ Two files in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `
 | `plex_key.pem` | A private key made for this device at sign-in. It renews the sign-in without your password |
 | `plex_auth.json` | The account's token, the profiles, the servers found at sign-in and the profile and server in use |
 
-**Sign out** asks plex.tv to forget the device, then deletes both files. Profile PINs and your Plex password are never stored.
+**Sign Out** asks plex.tv to forget the device, then deletes both files. Profile PINs and your Plex password are never stored.
 
 ## Troubleshooting
 
 | Problem | What to do |
 |---|---|
-| **Requesting Pin…** stays, or **PIN REQUEST FAILED: …** | The device can't reach plex.tv: check the network |
+| **Requesting Pin…** stays, or **PIN REQUEST FAILED: …** | The device can't reach plex.tv: check the network, then select (`[ENTER]:TRY AGAIN`) |
 | The code was entered but it still says **Waiting…** | The code may have expired. Back out, open Plex again and enter the fresh code |
 | **FAILED TO LOAD ACCOUNT: …** | plex.tv did not return the account's profiles; try again |
 | **Select Server** is empty | Check the server is running and signed in to the same account (or shared with it) |

@@ -4,13 +4,13 @@ The Emby module plays films, series and home videos from an [Emby](https://emby.
 
 <table>
 <tr><th width="50%">Emby</th><th width="50%">Resume</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/emby.png" width="100%" alt="Emby: Connect to Server, with Local Server or Emby Connect, Server URL, Username, Password and Sign In" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume playback? Resume from 1:12:34, or start from the beginning" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/emby.png" width="100%" alt="Emby: Connect to Server, with Your Server (marked) or Emby Connect, Server Address, Username, Password, Sign In, and the status line under the form" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume playback? Resume from 1:12:34, or start from the beginning" /></td></tr>
 </table>
 
 ## What you need
 
 - An Emby server the device can reach.
-- For **Local Server**: its address with the port (Emby's defaults are 8096 for HTTP, 8920 for HTTPS) and a user account on it.
+- For **Your Server**: its address with the port (Emby's defaults are 8096 for HTTP, 8920 for HTTPS) and a user account on it.
 - For **Emby Connect**: an emby.media account linked to the server.
 - No keyboard: select on a field opens the on-screen keyboard. A USB or Bluetooth keyboard works too.
 
@@ -20,19 +20,21 @@ The Emby module plays films, series and home videos from an [Emby](https://emby.
 
 ## Signing in
 
-Open **Emby** from the main menu. **Connect to Server** starts with **LOCAL SERVER** or **EMBY CONNECT**. ◄ ► choose one; Enter or ▼ moves into the form:
+Open **Emby** from the main menu. **Connect to Server** starts with **YOUR SERVER** (your own Emby server, at home or away, by its address) or **EMBY CONNECT** (your emby.media account, which finds the server). ◄ ► choose one (`[◄►]:CHOOSE`); Enter or ▼ moves into the form (`[ENTER]:NEXT`). Once the cursor leaves the row the one chosen is marked ►:
 
-| | Local Server | Emby Connect |
+| | Your Server | Emby Connect |
 |---|---|---|
-| **Server URL** | The server's address, with `http://` or `https://` and the port | (not asked) |
+| **Server Address** | The server's address, with `http://` or `https://` and the port | (not asked) |
 | **Username** / **Email** | Your username on that server | Your emby.media email (or user name) |
 | **Password** | Its password (empty for a user without one) | Your emby.media password |
 
 - ▲ ▼ (or Tab and Shift+Tab) move from row to row. Esc leaves the screen.
 - Select on a field opens the on-screen keyboard. For the password, **SHOW** shows what was typed and **HIDE** hides it.
 - OK goes on to the next field, then to **Sign In**. Select there signs in.
+- The rows go round: ▲ on the first goes to **Sign In**, ▼ there back to the first.
+- Back from the form and in again finds what you typed (the address, the user name, the method chosen) until OSD/OS quits. The password is typed again.
 
-### Local Server
+### Your Server
 
 The username and password go to the server only. The password is never stored. Use an `https://` address on a network you don't trust.
 
@@ -47,7 +49,7 @@ The username and password go to the server only. The password is never stored. U
 
 | Message | What it means |
 |---|---|
-| **PLEASE ENTER A SERVER URL**, **PLEASE ENTER A USERNAME**, **ENTER YOUR EMBY CONNECT EMAIL** | A field is empty |
+| **PLEASE ENTER THE SERVER'S ADDRESS**, **PLEASE ENTER A USERNAME**, **ENTER YOUR EMBY CONNECT EMAIL** | A field is empty |
 | **INCORRECT USERNAME OR PASSWORD** | The server refused them. Use the server's own account, not the emby.media one |
 | **SIGN IN FAILED (HTTP …)** | The server refused the sign-in with that status |
 | **CONNECTION FAILED: …** | Nothing answered: a typing slip, a missing `http://` or port, the server is off, or (Emby Connect) no internet |
@@ -55,13 +57,13 @@ The username and password go to the server only. The password is never stored. U
 | **INCORRECT EMBY CONNECT EMAIL OR PASSWORD** | emby.media refused them |
 | **EMBY CONNECT SIGN IN FAILED (HTTP …)**, **INVALID EMBY CONNECT RESPONSE** | emby.media refused or answered oddly |
 | **FAILED TO LOAD SERVERS: …** | The account's server list couldn't be fetched |
-| **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or use Local Server |
-| **SERVER EXCHANGE FAILED (HTTP …)**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account, or answered at neither of its addresses (HTTP 0). Pick another, or use Local Server |
+| **NO SERVERS LINKED TO THIS ACCOUNT** | Link the server to your emby.media account in the server's user settings, or use Your Server |
+| **SERVER EXCHANGE FAILED (HTTP …)**, **SERVER EXCHANGE FAILED: …**, **INVALID EXCHANGE RESPONSE** | The chosen server refused the account (its status), or answered at neither of its addresses (the network's word for it, such as `Connection refused`). Pick another, or use Your Server |
 | **INVALID SERVER SELECTION** | Emby Connect listed the server without an access key |
 
 ### Fill in the address beforehand
 
-For Local Server, type the address in Settings → TV / Movie → **EMBY** → **Server Address**. It can also go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
+For Your Server, type the address in Settings → TV / Movie → **EMBY** → **Server Address**. It can also go in `config.json` in the data folder (`~/.local/share/OSD-OS/` on Linux and the image, `~/Library/Application Support/OSD-OS/` on a Mac), with OSD/OS stopped:
 
 ```json
 {
@@ -89,8 +91,8 @@ These work as in the Jellyfin module, whose page has the detail:
 - [Browsing by letter](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#browsing-by-letter): ► to the letters in the Movies, Shows and Home Videos lists.
 - [Series and seasons](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#series-and-seasons): PLAY opens the next episode to watch.
 - [An item's page](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#an-items-page): **PLAY ►** / **RSUM ►**, **Audio** and **Subtitles**, ► on PLAY for a playlist.
-- [Video Quality](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#direct-play-and-transcoding): Direct Play, or a transcode at 480p (NTSC CRT), 576p (PAL CRT), 720p or 1080p (4, 4.5, 6 or 10 Mbps).
-- [Resume and Continue Watching](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#resume-continue-watching-and-next-up): the server's resume points; **Resume Playback** Ask or Always.
+- [Video Quality](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#direct-play-and-transcoding): Direct Play, or a transcode at 1080p, 720p, 576p (a PAL CRT's) or 480p (an NTSC CRT's) (10, 6, 4.5 or 4 Mbps).
+- [Resume and Continue Watching](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#resume-continue-watching-and-next-up): the server's resume points; **Resume Playback** Ask, Always or Never.
 - [Autoplay Next Episode](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#autoplay-next-episode): the next episode of the series, across seasons.
 - [With Transparent Background](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#with-transparent-background): back returns to the menus with the picture behind them.
 - [Putting a video on a playlist](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin#putting-a-video-on-a-playlist): ► on PLAY, online or offline.
@@ -103,7 +105,7 @@ These work as in the Jellyfin module, whose page has the detail:
 | Text subtitles in a transcode | Burned into the picture | Fetched as a file ([below](#subtitles)) |
 | Dolby Vision on Direct Play | As the server decides | An SDR transcode ([below](#dolby-vision)) |
 | Intro and credit skipping | The server's media segments; settings shown only when it has them | The server's chapter markers; settings always shown ([below](#intro-skip-and-credit-skip)) |
-| Sign out | Ends the session | Also removes the device from the server |
+| Sign Out | Ends the session | Also removes the device from the server |
 | The token | In a request header | Also in the stream's address (`api_key`): treat mpv's log as private |
 
 ## Subtitles
@@ -136,14 +138,15 @@ Settings → TV / Movie → Emby. Everything but Enabled and Scaling shows only 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Emby on the main menu | `enabled` |
+| Sign In | the user signed in as, or SIGNED OUT | | Opens Emby: its sign-in while signed out, else its libraries | |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
-| Video Quality | Direct Play, 480p (NTSC CRT), 576p (PAL CRT), 720p, 1080p | Direct Play | Direct Play, or a transcode capped at that size | `video_quality` |
-| Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
+| Video Quality | Direct Play, 1080p, 720p, 576p, 480p | Direct Play | Direct Play, or a transcode capped at that size (576p a PAL CRT's, 480p an NTSC CRT's) | `video_quality` |
+| Resume Playback | Ask, Always, Never | Ask | Whether a video with a resume point asks, carries on, or starts from the beginning | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the series' next episode when one ends | `autoplay_next_episode` |
 | Intro Skip | Off, Auto, Button | Off | What happens at a marked intro | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at marked credits | `outro_skip` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Emby; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign out | (an action) | | Removes this device from the server and forgets the sign-in | |
+| Sign Out | (an action) | | Asks first, then removes this device from the server and forgets the sign-in. Dimmed while signed out | |
 
 ### How the values are saved
 
@@ -154,7 +157,7 @@ The keys sit under `modules.com.osdos.emby`, nested as in the fragment [above](#
 | `enabled`, `autoplay_next_episode` | `true` or `false` |
 | `libraries` | an object of `"<library id>": true` or `false` (`"7": true`); a library left out counts as ON |
 | `video_quality` | `"auto"` (Direct Play), `"480p"`, `"576p"`, `"720p"` or `"1080p"` |
-| `resume_playback` | `"ask"` or `"always"` |
+| `resume_playback` | `"ask"`, `"always"` or `"never"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Letterbox"` |
 | `server_url` | the server address: Settings → TV / Movie → EMBY → Server Address, and the sign-in screen |
@@ -164,7 +167,7 @@ The keys sit under `modules.com.osdos.emby`, nested as in the fragment [above](#
 `emby_auth.json` in the data folder, readable by your user only (mode 600), holds the server's address, its token for this device and the user.
 
 - No password or Emby Connect token is stored.
-- **Sign out** deletes the file.
+- **Sign Out** deletes the file.
 - A self-signed certificate is accepted for the server's own address.
 
 ## Troubleshooting

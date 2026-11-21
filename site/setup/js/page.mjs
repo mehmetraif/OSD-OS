@@ -15,7 +15,7 @@ let preview = null;
 
 function fresh() {
     return {
-        // autoStartup: what Start on Module was before Arcade Cabinet set it
+        // autoStartup: what Start On was before Arcade Cabinet set it
         // ({ was }), which TV puts back; null once it is the user's own.
         kind: "tv", showTv: false, autoStartup: null,
         model: "pi4",
@@ -245,7 +245,7 @@ function network() {
     if (!named && !wifi)
         return null;
     const name = state.deviceName ? core.hostnameFor(state.deviceName) : null;
-    return section("Network", "The device's name tells it apart from others on the network (Settings → System → About → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
+    return section("Network", "The device's name tells it apart from others on the network (Settings → System → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
         named ? [
             line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshDeviceNameHelp(); markChanged("device-name", !!value); },
                                      { id: "device-name", placeholder: "osdos" }),
@@ -521,7 +521,7 @@ function moduleBlock(module) {
         el("summary", { text: `${module.name} ${enabled ? "· ON" : "· OFF"}` }),
         line("Enabled", toggle(enabled, on => setValue(scope, "enabled", on), { id: idFor(...scope, "enabled") }),
              { id: idFor(...scope, "enabled"), changed: enabledSet !== undefined, onReset: () => unset(scope, "enabled"),
-               help: startsOn && enabledSet === undefined ? "On: OSD/OS starts on it (Start on Module)." : "On the main menu, or not." }),
+               help: startsOn && enabledSet === undefined ? "On: OSD/OS starts on it (Start On)." : "On the main menu, or not." }),
         settingLines(scope, module.settings),
         favoritesLine(module),
         module.retroachievements && shows("logins") ? retroAchievements() : null);
@@ -649,7 +649,7 @@ function problems() {
     const startup = startupModule();
     if (startup && startup !== "None" && core.getPath(state.config, ["modules", startup, "enabled"]) === false) {
         const module = schema.modules.find(m => m.id === startup);
-        add(`Start on Module: ${module ? module.name : startup} is turned off`, "basic");
+        add(`Start On: ${module ? module.name : startup} is turned off`, "basic");
     }
     return out;
 }
@@ -773,7 +773,7 @@ function importText(textRead, name, { codes = false } = {}) {
                 notes.push(codes ? `They set ${what.join(", ")}: keep the file they make to yourself.`
                                  : `It sets ${what.join(", ")}: keep those only from a file of your own.`);
         } else {
-            // Its Start on Module the file's own, whatever the device.
+            // Its Start On the file's own, whatever the device.
             state.config = values.config;
             state.autoStartup = null;
             notes.push(`Read OSD/OS's settings from ${name}.`);

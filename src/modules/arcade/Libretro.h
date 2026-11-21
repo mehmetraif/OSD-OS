@@ -3,10 +3,13 @@
 #include <QDateTime>
 #include <QHash>
 #include <QList>
+#include <QSet>
 #include <QSize>
 #include <QString>
 #include <QStringList>
 #include <optional>
+
+#include "../../util/Board.h"
 
 class QHostAddress;
 namespace mame { struct Machine; }
@@ -110,7 +113,7 @@ inline constexpr int kHostStates = 124 + 2;
 // A state's size in bytes, over the network, of a game of the board whose
 // driver is sourceFile ("cave/cv1k.cpp", as FinalBurn Neo's list names it
 // without its "d_"), on FinalBurn Neo's core or, with lanCore, on OSD/OS's
-// own for CV1000 games; 0 for a board whose states are under 8 MiB, under
+// LAN core (lanCorePath()); 0 for a board whose states are under 8 MiB, under
 // 1 GiB in all even hosting. Measured on the arcade sets of FinalBurn Neo's
 // commit 2b0c1c0, each driver started on zero-filled ROMs and what
 // retro_serialize_size() scans in a rollback-netplay context added up:
@@ -168,13 +171,10 @@ inline constexpr char kDriverStarted[] = "[FBNeo] Driver successfully started";
 // starts, as MAME's script puts them in (mame::coinScript()): player 1's
 // coin, the RetroPad's Select (kRetroPadSelect, FinalBurn Neo's Coin),
 // pressed through RetroArch's network RetroPad (Launch::coinPort) once the
-// game runs (kDriverStarted in its log) and kCoinDelayMs more, past its
-// start-up checks; each held kCoinHoldMs and let go kCoinGapMs. coinDown():
-// whether it is down ms after the first, false with done once all are in.
+// game runs (kDriverStarted in its log) and mame::kCoinDelayMs more, timed
+// as MAME's are. coinDown(): whether it is down ms after the first, false
+// with done once all are in.
 inline constexpr int kRetroPadSelect = 2;
-inline constexpr int kCoinDelayMs = 5000;
-inline constexpr int kCoinHoldMs = 100;
-inline constexpr int kCoinGapMs = 200;
 bool coinDown(qint64 ms, int coins, bool *done);
 // RetroArch's message to its network RetroPad (struct remote_message in its
 // input/input_driver.h): a RetroPad button down or let go.
@@ -197,7 +197,7 @@ struct Launch {
     // core's on square ones; and its lines drawn whole where they fit.
     double  aspect = 0;
     bool    integerScale = false;
-    // Settings → Screen → Monitor on its side: the picture turned by so many
+    // Settings → Screen → Rotation on its side: the picture turned by so many
     // quarter turns anticlockwise (video_rotation) to stand upright on it,
     // 1 for a monitor turned right, 3 for one turned left; aspect is then
     // the turned picture's.
@@ -254,6 +254,25 @@ struct Launch {
     // (ports 0) leaves RetroArch to its own: one port, the first free.
     int     portsFrom = 0;
     int     ports = 0;
+    // Settings → Arcade → Emulator Video → Frame Buffers: how many frames
+    // RetroArch's console video (KMS) keeps queued for the screen
+    // (video_max_swapchain_images), 0 for RetroArch's own (3):
+    // swapchainImages().
+    int     swapchainImages = 0;
+    // Settings → Arcade → Sound Buffer: the sound's buffer in milliseconds
+    // (audio_latency) and its resampler's quality (audio_resampler_quality),
+    // 0 and -1 for RetroArch's own: soundTuning().
+    int     audioLatency = 0;
+    int     resamplerQuality = -1;
+    // On the console, the display mode the game asks for (gameMode()):
+    // video_fullscreen_x and _y, and the refresh its KMS context picks the
+    // closest mode of that size by (video_refresh_rate); none (an empty
+    // size) for the mode RetroArch takes by itself.
+    QSize   modeSize;
+    int     modeRefresh = 0;
+    // Settings → Arcade → Show Ping: over the network, each peer's ping on
+    // the screen (netplay_ping_show).
+    bool    pingShown = false;
     // Online, the controller types every port plays with. RetroArch gives
     // every machine the host's, port by port, and a machine's players find
     // their pads only among ports of one kind (its pad n drives the n-th of
@@ -277,14 +296,61 @@ constexpr bool hosts(Launch::Netplay netplay) {
 // known), where one machine may bring more than the Panel layout's ports
 // (kPanelPorts): Classic then, as without a panel.
 Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &arcade, int players);
+// Emulator Video → Frame Buffers (choice: "Auto", "Two", "Three"; "" is
+// Auto) for Launch::swapchainImages, on a console (KMS, Launch::console)
+// alone: RetroArch's own three queue a frame without waiting for the screen
+// to take the one before, so a frame is shown a refresh later than with
+// two. Auto is two on a Raspberry Pi 5, and RetroArch's own on a Pi 4 (whose
+// late frame would become a missed refresh with two) and on any other
+// machine; Two is two on any console; Three, and every desktop, RetroArch's
+// own (0).
+int swapchainImages(board::Family family, bool console, const QString &choice);
+// Sound Buffer (choice: "Auto", "RetroArch's"; "" is Auto) for
+// Launch::audioLatency and Launch::resamplerQuality: Auto is a 48 ms buffer
+// on a Raspberry Pi 5 and every other machine, 64 ms (RetroArch's own) and
+// the resampler's Lower quality (2, one below RetroArch's Normal on an
+// aarch64 build) on a Pi 4; RetroArch's leaves both to RetroArch, for a
+// machine whose sound crackles with Auto.
+struct SoundTuning {
+    int latency = 0;          // 0: RetroArch's own (64 ms)
+    int resamplerQuality = -1; // -1: RetroArch's own
+};
+SoundTuning soundTuning(board::Family family, const QString &choice);
+// The relay a game hosted online goes through when Relay Server has nothing
+// saved: the nearest of those RetroArch offers (Launch::relay's names) to the
+// IANA time zone the system is set to ("Europe/Madrid"): Europe and Africa
+// Madrid, South America São Paulo, the rest of the Americas New York, Korea
+// and Japan Chuncheon, the rest of Asia and Oceania Singapore; New York for a
+// zone that says no place (UTC) or none.
+QString relayForTimeZone(const QString &zone);
+// The advice Host LAN Game gives for this machine: under LAN Sync's Smooth
+// (follow), where the host plays the game for everyone and every hitch of
+// its own or of its link reaches every screen, a Raspberry Pi 4 or a machine
+// whose way to the local network is Wi-Fi (overWifi) is told that "The
+// fastest machine on a cable should host"; "" for any other, and under
+// Responsive.
+QString hostAdvice(bool follow, board::Family family, bool overWifi);
+// The display mode a game asks for on a Raspberry Pi's console (KMS) where
+// the one the app runs in is too big or too slow for it: a screen larger
+// than 1920x1080 (a 4K TV, where a Pi 5 would draw every frame at 2160p and
+// a Pi 4 may run at 30 Hz), or one of 1280x720 or more slower than 50 Hz,
+// whose connector lists 1920x1080 (connectorModes: its sysfs "modes" file's
+// lines, "1920x1080", "1920x1080i", "3840x2160"): 1920x1080 at 60 Hz.
+// Nothing for a tube's mode (a CRT's 240p, 480i or 576i, JAMMA, SCART),
+// a 1080p screen of 50 Hz or more, a size not known, or a connector without
+// that mode: the game takes the mode it takes today.
+struct GameMode {
+    QSize size;
+    int refresh = 0;
+};
+std::optional<GameMode> gameMode(const QSize &screen, double refresh, bool tube, const QStringList &connectorModes);
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
 QString configText(const Launch &launch);
 // RetroArch's arguments: the core, the config, the log and the game.
 QStringList arguments(const Launch &launch);
 // The remap file RetroArch loads with FinalBurn Neo from remapDir: the
-// core's own, by its name (lanCore, OSD/OS's for CV1000 games on the local
-// network: kLanCoreName's).
+// core's own, by its name (lanCore, OSD/OS's LAN core: kLanCoreName's).
 QString coreRemapPath(const QString &remapDir, bool lanCore = false);
 // Its text: off line, each player on an arcade panel, or with Arcade Buttons,
 // on FinalBurn Neo's 6-Button Panel, its controller type for such a panel;
@@ -344,7 +410,45 @@ QString coreInfoText(bool lanCore = false);
 // hosting or joining (hosting says which), netplayFailure is why RetroArch
 // couldn't, after which it played the game alone, and hostLeft that, joining,
 // it was connected and the host left the game (NetplayLog).
+// How a game over the network went, as RetroArch's log says it, for one line
+// in the app's log as it ends (ArcadeBackend: "arcade: network game: ..."):
+// the peers and their ping, as RetroArch logs each player joining ("ann has
+// joined as player 2 (ping: 14 ms)", "You have joined with input devices 2,
+// 3 (ping: 23 ms)": the host's, joining); the clients that left; the lines
+// on stalls, catch-ups and savestates (RetroArch 1.20 logs those only in a
+// debug build, so taken loosely, by those words, for a RetroArch that does),
+// CRC mismatches, desyncs, pauses and netplay errors; and RetroAchievements:
+// whether the account signed in, or why not, and its lines saying hardcore
+// was paused, disabled or not active (taken loosely, by those words on a line
+// of [RCHEEVOS] or of hardcore), three at most.
+class NetplaySummary {
+public:
+    void read(const QString &line);
+    QString text() const;
+    QStringList peers() const { return m_peers; }
+    int left() const { return m_left; }
+    int crcMismatches() const { return m_crc; }
+    int desyncs() const { return m_desync; }
+    QStringList hardcore() const { return m_hardcore; }
+
+private:
+    QStringList m_peers;
+    int m_left = 0;
+    int m_stalls = 0;
+    int m_catchUps = 0;
+    int m_savestates = 0;
+    int m_crc = 0;
+    int m_desync = 0;
+    int m_paused = 0;
+    int m_errors = 0;
+    bool m_achievementsSeen = false;
+    bool m_signedIn = false;
+    QString m_loginFailure;
+    QStringList m_hardcore;
+};
+
 struct Run {
+    NetplaySummary netplay;       // over the network: how it went
     bool logged = false;          // there was a log to read
     bool started = false;         // FinalBurn Neo started the game
     QStringList missing;          // files it needed and found none of
@@ -465,10 +569,12 @@ QList<Room> readLobby(const QByteArray &json);
 // The frames of input latency a game over the network plays with where its
 // machines play ahead on a guess (configText(), where why): on the local
 // network (Launch::LanSync::Predict) one for every machine and up to
-// kLanInputLatencyRange more for one that can't keep up otherwise; online
-// none, and up to kOnlineInputLatencyRange for such a machine.
+// kLanInputLatencyRange more for one that can't keep up otherwise; online,
+// hosted here (Launch::Netplay::Host), two, which the machines joining take
+// from the host, and up to kOnlineInputLatencyRange more for such a machine.
 inline constexpr int kLanInputLatencyFrames = 1;
 inline constexpr int kLanInputLatencyRange = 3;
+inline constexpr int kOnlineHostInputLatencyFrames = 2;
 inline constexpr int kOnlineInputLatencyRange = 4;
 
 // LAN Play, RetroArch's netplay on the local network: a host that isn't
@@ -494,15 +600,18 @@ bool isLanSender(const QHostAddress &address);
 // (Launch::portsFrom): the ports its players drive in order, its player 1
 // the first asked for. Online a host asks for ports 1 to its players' count
 // (localPorts(), one fewer than the game plays at once at most, so that a
-// machine joining has a port). On the local network every machine takes
-// one port, its player 1's, so that the players take the game's ports in
-// the order their machines come in; a machine can't take another once it
-// plays (RetroArch's host drops a machine already playing that asks for
-// more). There the host asks for port 1 and its OSD/OS keeps count of the
-// ports the machines joining take (PortClaims): each OSD/OS joining asks
-// it, at kLanClaimPort, for a port (claimQuery()) and is answered with it
-// (claimAnswer()), none when the game has none left; one leaving gives its
-// port back (claimRelease()). A host that doesn't answer, RetroArch alone
+// machine joining has a port). On the local network, on OSD/OS's LAN core
+// (lanCorePath()), every controller of every machine takes a port, and the
+// core seats a port's player as they first press COIN or START; on
+// FinalBurn Neo's own core every machine takes one port, its player 1's, so
+// that the players take the game's ports in the order their machines come
+// in, as a machine can't take another once it plays (RetroArch's host drops
+// a machine already playing that asks for more). There the host asks for
+// its ports from 1 and its OSD/OS keeps count of the ports the machines
+// joining take (PortClaims): each OSD/OS joining asks it, at kLanClaimPort,
+// for its ports (claimQuery()) and is answered with them (claimAnswer()),
+// none when the game has none left; one leaving gives its ports back
+// (claimRelease()). A host that doesn't answer, RetroArch alone
 // or an older OSD/OS, leaves a joiner to RetroArch's first free port.
 // Before the port, a host says the layout it plays with (claimLayout(),
 // Launch::layout), which an older OSD/OS doesn't: Classic then.
@@ -548,17 +657,32 @@ std::optional<Launch::Layout> readClaimLayout(const QByteArray &packet);
 
 // A host's count of the ports taken: its own, 1 to own, and each joiner's
 // by its address, within the game's ports (most), each joiner's players no
-// more than each (one, as OSD/OS hosts on the local network, whatever an
-// older OSD/OS joining asks for). A joiner is given the first run
+// more than each (on OSD/OS's LAN core as many as the layout takes of a
+// machine, mostPortsOn(); on FinalBurn Neo's own, one, whatever an older
+// OSD/OS joining asks for). A joiner is given the first run
 // of free ports that takes all its players, else the first free port and
 // what follows it; one asking again is given its ports anew, and one leaving
 // gives them up.
+// A joiner whose release is lost (a dropped datagram, a machine that
+// crashed or lost its Wi-Fi) gives nothing back, so the host also drops a
+// claim by what it sees of RetroArch's connections (expire()): one whose
+// address has been seen connected and no longer is, and one never seen
+// connected once it is grace old, the time a machine takes to start the
+// game and connect.
 class PortClaims {
 public:
     void reset(int own, int most = kMostPorts, int each = kMostPorts);
-    // The joiner's ports, none ({ 0, 0 }) when none is left (or no player).
-    PortRange claim(const QString &address, int players);
+    // The joiner's ports, none ({ 0, 0 }) when none is left (or no player),
+    // claimed at now (ms on any clock expire() is given too).
+    PortRange claim(const QString &address, int players, qint64 now = 0);
     void release(const QString &address);
+    // The claims dropped, by address, given the addresses RetroArch's
+    // netplay port has a connection from now (connected).
+    QStringList expire(const QSet<QString> &connected, qint64 now, qint64 grace);
+    // Whether a claim hasn't been seen connected yet: one expire() would
+    // drop once it is old enough.
+    bool awaiting() const;
+    bool empty() const { return m_claims.isEmpty(); }
     int own() const { return m_own; }
     int most() const { return m_most; }
     int each() const { return m_each; }
@@ -568,6 +692,8 @@ private:
         QString address;
         int first = 0;
         int players = 0;
+        qint64 since = 0;
+        bool seen = false;
     };
     bool taken(int port) const;
     int m_own = 0;
@@ -575,6 +701,18 @@ private:
     int m_each = kMostPorts;
     QList<Claim> m_claims;
 };
+
+// The IPv4 addresses with an established TCP connection to localPort on
+// this machine, from Linux's /proc/net/tcp or /proc/net/tcp6 (an IPv4
+// peer of an IPv6 socket as ::ffff:a.b.c.d), or from `netstat -an`'s
+// output on Windows, macOS and the BSDs ("192.168.1.5:55435" or
+// "192.168.1.5.55435" for the local address, the peer's after it).
+QSet<QString> procNetPeers(const QByteArray &table, quint16 localPort);
+QSet<QString> netstatPeers(const QByteArray &output, quint16 localPort);
+// Whether a line of a host's RetroArch log says a client has left
+// (netplay_hangup(): "\"<nick>\" has disconnected", or "A netplay client has
+// disconnected" for one without a name).
+bool isClientHangup(const QString &line);
 
 // A libretro core as it describes itself (retro_get_system_info): its name
 // and version ("v1.0.0.03 6e7c2a1"), the version the lobby says a room's

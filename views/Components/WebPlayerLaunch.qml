@@ -1,6 +1,6 @@
 import QtQuick
 
-// A web player module's one view (Netflix, Prime Video): opens the service
+// A web player module's player (Netflix, Prime Video): opens the service
 // full screen and says how to come back. The service runs as its own web
 // player in Chromium (see WebPlayerBackend), which has the screen until it is
 // closed: with Ctrl+W, or by holding BACK here, since this view keeps
@@ -222,8 +222,10 @@ FocusScope {
             }
         }
 
+        // A title's name is the catalogue's: as it is written.
         Text {
             width: parent.width
+            textFormat: Text.PlainText
             text: launchRoot.signIn && (launchRoot.phase === "ready" || launchRoot.phase === "opening")
                     ? "Sign in to " + launchRoot.serviceName
                 : launchRoot.phase === "opening" ? "Opening " + launchRoot.opening
@@ -288,6 +290,7 @@ FocusScope {
         Text {
             visible: launchRoot.phase === "error" || launchRoot.phase === "failed"
             width: parent.width
+            textFormat: Text.PlainText
             text: launchRoot.message
             color: root.primaryColor
             font.family: root.globalFont

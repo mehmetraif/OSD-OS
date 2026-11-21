@@ -30,9 +30,9 @@ class DisplayOutput : public QObject {
     Q_PROPERTY(bool powerOffAvailable READ powerOffAvailable CONSTANT)
     Q_PROPERTY(bool nextStartAvailable READ nextStartAvailable CONSTANT)
     Q_PROPERTY(QString boardModel READ boardModel CONSTANT)
-    // [{ id, label, warning }]: the outputs this board has, in the menu's
-    // order; warning, said as one is chosen (a scan rate only some monitors
-    // take), or "".
+    // [{ id, label, help, warning }]: the outputs this board has, in the
+    // menu's order; help, the chooser's line for it; warning, said as one is
+    // chosen (a scan rate only some monitors take), or "".
     Q_PROPERTY(QVariantList options READ options CONSTANT)
     // The preset in force, "" when osdos-display.txt is none of them.
     Q_PROPERTY(QString current READ current CONSTANT)

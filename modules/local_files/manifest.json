@@ -1,19 +1,21 @@
 {
   "id": "com.osdos.local_files",
   "name": "Local Files",
+  "menu_order": 10,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "ON"
+      "default": "ON",
+      "description": "Shows Local Files on the main menu: the videos, music and pictures in its folder, below"
     },
     {
       "key": "media_directory",
-      "label": "Media Directory",
+      "label": "Media Folder",
       "type": "directory_browser",
       "default": "",
       "description": "The folder Local Files shows\n[DEFAULT] On the OSD/OS image, the Movies folder on the card's OSD-OS partition, where films copied onto the card from a computer go; elsewhere Movies in a media folder in the data folder"
@@ -22,7 +24,8 @@
       "key": "loop_playback",
       "label": "Loop Playback",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "What happens when the last video of a folder or a playlist ends\n[ON] It starts again from the first\n[OFF] Playback stops"
     },
     {
       "key": "shuffle_playback",
@@ -31,7 +34,7 @@
       "options_source": "dynamic",
       "options_slot": "get_shuffle_playback_options",
       "default": "ask",
-      "description": "Play playlists in random order.\n[ASK] lets you choose each time a playlist starts."
+      "description": "The order a playlist file plays in\n[ASK] Asks as the playlist starts\n[ALWAYS] Shuffled\n[NEVER] In order"
     },
     {
       "key": "resume_playback",
@@ -39,25 +42,26 @@
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_resume_playback_options",
-      "default": "ask"
+      "default": "ask",
+      "description": "Where a video stopped part-way starts again\n[ASK] Asks: from where it stopped, or from the beginning\n[ALWAYS] From where it stopped\n[NEVER] From the beginning"
     },
     {
       "key": "auto_subtitles",
-      "label": "Auto Show Subtitles",
+      "label": "Subtitles",
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_auto_subtitles_options",
       "default": "forced",
-      "description": "Choose to automatically show subtitles when a video starts.\n[FORCED ONLY] displays for foreign dialogue only."
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language\n[ON] Shown, in the language of Subtitles In where the video has it"
     },
     {
       "key": "sub_lang",
-      "label": "Subtitle Language",
+      "label": "Subtitles In",
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_subtitle_languages",
       "default": "-",
-      "description": "Select which language to automatically load subtitles for.\n[Any] is the same as 'no preference'."
+      "description": "The language subtitles are shown in, where a video has several\n[ANY] Whichever the video has"
     },
     {
       "key": "image_duration",
@@ -66,14 +70,14 @@
       "options_source": "dynamic",
       "options_slot": "get_image_duration_options",
       "default": "5",
-      "description": "How long an image is shown before advancing.\nApplies to images in folders and playlists."
+      "description": "How long a picture stays up before the next, in a folder or a playlist"
     },
     {
       "key": "hide_extensions",
       "label": "Hide File Extensions",
       "type": "toggle",
       "default": "ON",
-      "description": "Hide file extensions when browsing."
+      "description": "Whether the files' names show their type, as .mkv, in the folders\n[ON] Without it\n[OFF] With it"
     },
     {
       "key": "video_scaling",

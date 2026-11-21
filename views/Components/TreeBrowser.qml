@@ -104,8 +104,42 @@ FocusScope {
             if (!refreshed.pending)
                 remembered[path] = Math.max(0, Math.min(remembered[path], refreshed.items.length - 1))
         }
+        // Its branch is laid out again once for every folder that came in in
+        // this turn of the event loop (several load at once), not once each.
         if (branched)
+            branchesLater()
+    }
+
+    // A layout of the branches asked for, to be made as the event loop
+    // turns: any layout made before then (relayout(), the cursor coming to
+    // rest) is of the latest state and takes its place.
+    property bool branchesDue: false
+    function branchesLater() {
+        if (branchesDue) return
+        branchesDue = true
+        Qt.callLater(tree.branchesNow)
+    }
+    function branchesNow() {
+        if (!branchesDue) return
+        branchesDue = false
+        // Branches cleared since (the cursor moved) come back with the
+        // cursor at rest, the latest entries in them.
+        if (ready && branched)
             layoutBranches(true)
+    }
+
+    // Every folder still on its way asked for again: for a host whose source
+    // dropped the reads under way (Local Files' as a drive comes or goes),
+    // whose answers would never come. Folders that have come in stay as
+    // they are.
+    function refreshPending() {
+        var waiting = []
+        for (var p in listings) {
+            if (listings[p].pending)
+                waiting.push(p)
+        }
+        for (var i = 0; i < waiting.length; ++i)
+            refresh(waiting[i])
     }
 
     // The cursor of an open folder put on its entry at entryPath: for a host
@@ -168,8 +202,8 @@ FocusScope {
     // layout's (SelectionBox), which in Studio Monitor and Broadcast is a
     // mark before the row and wants its room there.
     readonly property bool monitor: root.monitorFramed === true
-    readonly property bool windowed: monitor && root.menuLayout === "Studio Monitor"
-    readonly property real cursorRoom: monitor && root.menuLayout !== "Flat Panel" ? root.chrome.gutter : pad
+    readonly property bool windowed: monitor && root.studioLayout
+    readonly property real cursorRoom: monitor && !root.flatLayout ? root.chrome.gutter : pad
     // The tree's sides: the pane's (Main.qml's), beside a layout's column
     // where the view is in its frame, else where every view's content is.
     readonly property real leftEdge: root.paneX + cursorRoom //80
@@ -282,8 +316,8 @@ FocusScope {
             var leaf = true
             // No wider than the tree's own room is ever asked of it (width
             // and placeColumns()'s use of fullWidth both stop there), so the
-            // names are measured only until one fills it: a list of
-            // thousands was measured name by name at every first look.
+            // names are measured only until one fills it, not a list of
+            // thousands name by name at every first look.
             var most = Math.max(maxColumnWidth, rightEdge - leftEdge)
             for (var i = 0; i < items.length; ++i) {
                 if (w < most)
@@ -309,15 +343,25 @@ FocusScope {
 
     // Places the columns side by side. The one with the cursor, when nothing
     // in it branches, takes the room up to the right edge for long names.
+    // With expandedFolderPreviews a folder's column keeps to a third of the
+    // room, for the branches to its right; but the one beside a last column
+    // of files, which draws no branch, has what those files leave it, so a
+    // long name (RECENTLY WATCHED) shows whole where there is room for it.
     function placeColumns() {
         var xs = []
         var ws = []
         var x = 0
+        var whole = rightEdge - leftEdge
+        var last = trail.count > 0 ? listing(trail.get(trail.count - 1).path) : null
+        var lastNeeds = last && last.leaf ? Math.min(last.fullWidth, whole) : -1
         for (var i = 0; i < trail.count; ++i) {
             var l = listing(trail.get(i).path)
             var w = l.width
-            if (expandedFolderPreviews && !l.leaf)
-                w = Math.min(w, (rightEdge - leftEdge - 2 * branchGap) / 3)
+            if (expandedFolderPreviews && !l.leaf) {
+                var third = (whole - 2 * branchGap) / 3
+                w = Math.min(w, i === trail.count - 2 && lastNeeds >= 0
+                                ? Math.max(third, whole - pad - gap - lastNeeds) : third)
+            }
             if (i === trail.count - 1 && l.leaf) {
                 // The cursor's box reaches a pad past the column.
                 var room = rightEdge - leftEdge - pad - (i > 0 ? ws[i - 1] + gap : 0)
@@ -511,6 +555,7 @@ FocusScope {
     // it is (the cursor moved, or a branch's entries came in), rather than
     // being placed again for these branches.
     function layoutBranches(stripFixed) {
+        branchesDue = false
         var col = trail.get(active)
         var items = listing(col.path).items
         var colX = columnX[active]
@@ -734,13 +779,10 @@ FocusScope {
                 return
             if (!openFolder()) activate()
             break
-        case Qt.Key_Escape:
-        case Qt.Key_Backspace:
-        case Qt.Key_Back:
-            if (!closeFolder()) leaveRequested()
-            break
         default:
-            return
+            if (!root.isBack(event))
+                return
+            if (!closeFolder()) leaveRequested()
         }
         event.accepted = true
     }

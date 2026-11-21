@@ -127,8 +127,17 @@ FocusScope {
         root.changeWindow(internalLoader, prev.source, { "navParams": restored })
     }
 
+    // The module's settings page over the module, on the app's own stack
+    // (the shell's navigateTo), as Settings opens it, the cursor on the row
+    // of this key (focusKey, which the page finds among its rows): a page
+    // that names a setting takes you to it. Back comes back to the module,
+    // which starts again with the setting as it is now.
+    function openSettings(key) {
+        navigateTo("views/ModuleSettings.qml", { moduleId: moduleId, alsoModules: [], focusKey: key || "" }, {})
+    }
+
     // Leaves the module at once, whatever views are on the stack: a
-    // player's CLOSE VIDEO, to the main menu.
+    // player's STOP, TO MAIN MENU, to the main menu.
     function leaveModule() {
         moduleRouter.goBack()
     }
@@ -145,13 +154,18 @@ FocusScope {
         Connections {
             target: internalLoader.item
             ignoreUnknownSignals: true
+            // Not while the old window is being caught (root.windowCatching):
+            // the view asking is the one leaving, and a second select would
+            // put it on the way back twice.
             function onNavigateTo(path, params, listState) {
+                if (root.windowCatching)
+                    return
                 if (!moduleRouter.opensOwn || !moduleRouter.opensOwn(path, params, listState))
                     moduleRouter.navigateToView(path, params, listState)
             }
             function onReplaceWith(path, params) { moduleRouter.replaceWith(path, params) }
             function onReplaceCurrent(path, params) { moduleRouter.replaceCurrent(path, params) }
-            function onGoBack() { moduleRouter.navigateBack() }
+            function onGoBack() { if (!root.windowCatching) moduleRouter.navigateBack() }
             function onUpdateBackItem(item) { moduleRouter.updateBackItem(item) }
         }
     }

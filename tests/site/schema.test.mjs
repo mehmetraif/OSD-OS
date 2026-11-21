@@ -259,6 +259,31 @@ test("the looks offered are the app's", () => {
     assert.match(settingsQml, /key: "orb_fog",[\s\S]*?options: \["Picture", "Live"\]/);
 });
 
+test("YouTube's everyday rows come before its Advanced heading, their keys as saved", () => {
+    const youtube = schema.modules.find(m => m.id === "com.osdos.youtube");
+    const rows = youtube.settings.map(r => r.type === "heading" ? `# ${r.label}` : r.key);
+    assert.deepEqual(rows, ["subscriptions", "playlists", "subtitles", "subtitle_language", "audio_language",
+                            "resume_playback", "video_scaling", "display_shorts", "# Advanced",
+                            "playback_resolution", "video_codec", "max_frame_rate", "playback_speed"]);
+});
+
+test("a manifest's choice with a label shows it over the value saved", () => {
+    const weather = schema.modules.find(m => m.id === "com.osdos.weather");
+    const row = weather.settings.find(r => r.key === "screen_time");
+    assert.deepEqual(row.options, [["10 sec", "10 SEC"], ["30 sec", "30 SEC"], ["1 min", "60 SEC"]]);
+    assert.equal(row.default, "10 SEC");
+});
+
+test("a manifest's condition on an app setting is passed over, the row shown whatever is set", () => {
+    const manifest = JSON.parse(readFileSync(join(root, "modules/ambient_mode/manifest.json"), "utf8"));
+    const inManifest = manifest.settings.find(r => r.key === "auto_launch");
+    assert.equal(inManifest.shown_with.app, "startup_module");
+    const ambient = schema.modules.find(m => m.id === "com.osdos.ambient_mode");
+    const row = ambient.settings.find(r => r.key === "auto_launch");
+    assert.ok(row, "Auto-Launch Playback is on the page");
+    assert.equal(row.shown_with, undefined);
+});
+
 test("the rows of the page's Basic and Logins views", () => {
     const rows = [...appRows.map(r => ["app", r]), ...schema.modules.flatMap(m => m.settings.map(r => [m.id, r]))];
     for (const [scope, row] of rows)
@@ -317,7 +342,106 @@ test("each module's rows are its manifest's, with values it takes", () => {
     }
     const startOn = valuesOf(appRows.find(r => r.key === "startup_module")).filter(v => v !== "None");
     for (const id of startOn)
-        assert.ok(manifests.has(id), `Start on Module's ${id}`);
+        assert.ok(manifests.has(id), `Start On's ${id}`);
+});
+
+// The modules in the main menu's order, as AppCore makes it: by group (TV /
+// Movie, Arcade, the rest), then by each manifest's menu_order. Setup's page,
+// its preview's main menu and Start On's choices take them so.
+test("the modules in the main menu's order", () => {
+    const menu = ["local_files", "playlists", "plex", "jellyfin", "emby", "youtube", "netflix", "prime_video",
+                  "nfc_reader", "weather", "ambient_mode", "arcade", "highscores", "scripts"]
+        .map(name => `com.osdos.${name}`);
+    assert.deepEqual(schema.modules.map(m => m.id), menu);
+    const startOn = valuesOf(appRows.find(r => r.key === "startup_module")).filter(v => v !== "None");
+    assert.deepEqual(startOn, menu);
+});
+
+test("Arcade's rows without the headings Settings groups them under, each shown as the app has it", () => {
+    const arcade = schema.modules.find(m => m.id === "com.osdos.arcade").settings;
+    // The manifest's "section" rows are the device's headings alone.
+    assert.ok(arcade.every(r => r.key !== undefined || r.type === "heading"));
+    assert.ok(!arcade.some(r => ["Games", "Arcade Screen", "Online and LAN"].includes(r.label)));
+    const attract = arcade.find(r => r.key === "attract_after");
+    assert.deepEqual(attract.shown_with, { key: "screen", value: "Arcade" });
+    assert.deepEqual(attract.shown_unless, { key: "attract_mode", value: "Off" });
+    // Its times written as the menus write them, over the values saved.
+    assert.deepEqual(attract.options, [["30 sec", "30 Seconds"], ["1 min", "1 Minute"], ["2 min", "2 Minutes"],
+                                       ["5 min", "5 Minutes"]]);
+    assert.equal(attract.default, "1 Minute");
+    // A condition on the theme isn't passed on.
+    assert.equal(arcade.find(r => r.key === "list_style").shown_unless, undefined);
+    // Game Pictures' own setting, by its names over the values saved.
+    const pictures = arcade.find(r => r.key === "pictures_source");
+    // Named Source, short enough beside RetroAchievements in Camcorder.
+    assert.equal(pictures.label, "Source");
+    assert.deepEqual(pictures.options.map(([name]) => name), ["Both", "RetroAchievements", "progetto-SNAPS", "Off"]);
+    assert.deepEqual(pictures.options[0], ["Both", "RetroAchievements, then progetto-SNAPS"]);
+    assert.equal(pictures.default, "RetroAchievements, then progetto-SNAPS");
+
+    // On the device, Enabled and then the groups' headings, in order, with
+    // High Scores' own row named so, and a help line on every row.
+    const read = dir => JSON.parse(readFileSync(join(root, "modules", dir, "manifest.json"), "utf8")).settings;
+    const rows = read("arcade");
+    assert.equal(rows[0].key, "enabled");
+    assert.deepEqual(rows.filter(r => r.type === "section").map(r => r.label),
+                     ["Games", "Arcade Screen", "Playing", "Scores and Pictures", "Online and LAN", "Emulators"]);
+    assert.equal(read("highscores")[0].label, "High Scores");
+    const walk = list => list.flatMap(r => [r, ...walk(r.settings || [])]);
+    for (const row of walk(rows).concat(read("highscores")).filter(r => r.type !== "section"))
+        assert.ok(row.description, `${row.key} has a help line`);
+});
+
+// The rows for how the emulators play and how a game over the network is
+// shown, in their groups on the device, each with the default the backend
+// takes while nothing is saved (ArcadeBackend::applySetting(), GameSystem).
+test("Arcade's emulator and network rows in their groups, with the backend's defaults", () => {
+    const rows = JSON.parse(readFileSync(join(root, "modules/arcade/manifest.json"), "utf8")).settings;
+    const groupOf = key => {
+        let group = "";
+        for (const row of rows) {
+            if (row.type === "section")
+                group = row.label;
+            if (row.key === key || (row.settings || []).some(r => r.key === key))
+                return row.settings ? `${group} / ${row.label}` : group;
+        }
+        return "";
+    };
+    assert.equal(groupOf("show_ping"), "Online and LAN");
+    assert.equal(rows[rows.findIndex(r => r.key === "online_name") + 1].key, "show_ping");
+    assert.equal(groupOf("sound_buffer"), "Emulators");
+    assert.equal(groupOf("cpu_full_speed"), "Emulators");
+    assert.equal(groupOf("mame_vsync"), "Emulators / Emulator Video");
+    assert.equal(groupOf("frame_buffers"), "Emulators / Emulator Video");
+
+    const arcade = schema.modules.find(m => m.id === "com.osdos.arcade").settings;
+    const row = key => arcade.find(r => r.key === key);
+    assert.deepEqual([row("show_ping").type, row("show_ping").default], ["toggle", false]);
+    assert.deepEqual(row("show_ping").shown_with, [{ key: "online_play", value: "On" }, { key: "lan_play", value: "On" }]);
+    assert.deepEqual([row("cpu_full_speed").type, row("cpu_full_speed").default], ["toggle", true]);
+    assert.deepEqual(valuesOf(row("mame_vsync")), ["Auto", "On", "Off"]);
+    assert.deepEqual(valuesOf(row("frame_buffers")), ["Auto", "Two", "Three"]);
+    assert.deepEqual(valuesOf(row("sound_buffer")), ["Auto", "RetroArch's"]);
+    for (const key of ["mame_vsync", "frame_buffers", "sound_buffer"])
+        assert.equal(row(key).default, "Auto", key);
+    // Online Name's help names where the device's name is seen: System
+    // Information, a row of System's own.
+    const onlineName = rows.find(r => r.key === "online_name").description;
+    assert.match(onlineName, /\(Settings → System → System Information\)/);
+    assert.ok(settingsQml.includes('label: "System Information"'));
+    // Vertical Games' help names Screen's row by the name it has, Rotation.
+    const vertical = rows.flatMap(r => [r, ...(r.settings || [])]).find(r => r.key === "vertical_monitor");
+    assert.match(vertical.description, /Settings > Screen > Rotation/);
+    assert.ok(settingsQml.includes('label: "Rotation"'));
+    // LAN Sync's help on Smooth says which machine should host, in the part
+    // the help line shows with Smooth on the row.
+    const lanSync = rows.find(r => r.key === "lan_sync").description;
+    const smooth = lanSync.slice(lanSync.indexOf("[SMOOTH]"), lanSync.indexOf("[RESPONSIVE]"));
+    assert.match(smooth, /the fastest machine on a cable should host/);
+    // Relay Server's choices come from the backend on the device (the one
+    // nearest the time zone marked): the page keeps the same five.
+    assert.equal(rows.find(r => r.key === "relay_server").options_slot, "relayServerOptions");
+    assert.deepEqual(valuesOf(row("relay_server")), ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"]);
 });
 
 test("defaults are among the values, and rows show with rows that are there", () => {

@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as core from "../../site/setup/js/core.mjs";
@@ -221,6 +221,32 @@ test("a file of someone else's, as far as this page has it", () => {
     assert.deepEqual(far.dropped, ["wifi.country", "system.timezone"]);
     assert.equal(far.state.wifiCountry, undefined);
     assert.equal(far.state.keyboard, "tr");
+});
+
+// Screen Saver saved as a time no longer offered (an older OSD/OS's 30
+// seconds) reads as the device shows it, the nearest time it offers, 1 min;
+// what it offers stays as it is, and what is no time at all is Off.
+test("a Screen Saver saved before its times were these reads as the device shows it", () => {
+    const saver = { key: "screensaver_timeout", type: "choice", default: "300", nearest: true,
+                    options: [["Off", "OFF"], ["1 min", "60"], ["2 min", "120"], ["5 min", "300"], ["10 min", "600"]] };
+    const read = value => core.fitImport({ config: { app: { screensaver_timeout: value } } },
+                                         { presets: [], countries: [], zones: [], keyboards: [],
+                                           app: [{ title: "General", settings: [saver] }], modules: [] })
+                             .state.config.app.screensaver_timeout;
+    assert.equal(read("30"), "60");
+    assert.equal(read(30), "60");
+    assert.equal(read("90"), "60", "as near 1 min as 2 min: the earlier");
+    assert.equal(read("200"), "120");
+    assert.equal(read("1800"), "600");
+    assert.equal(read("300"), "300");
+    assert.equal(read("OFF"), "OFF");
+    assert.equal(read("0"), "OFF");
+    assert.equal(read("never"), "OFF");
+    // The site's own row is marked so.
+    const extra = JSON.parse(readFileSync(new URL("../../site/setup/schema-extra.json", import.meta.url), "utf8"));
+    const row = extra.app.flatMap(group => group.settings).find(r => r.key === "screensaver_timeout");
+    assert.equal(row.nearest, true);
+    assert.equal(core.nearestChoice(row, "30"), "60");
 });
 
 test("the RetroAchievements account as the card takes it", () => {

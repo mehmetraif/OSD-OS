@@ -14,8 +14,9 @@
 # (--connect), it logs what RetroArch does as netplay fails, the port not
 # bound or the host not reached, and plays on until it is stopped, as
 # RetroArch would. With $RA_HOST_LEAVES set, joining, it logs what RetroArch
-# does as it is connected to the host, an error that ends nothing, and a
-# second later the host gone, and plays on alone until it is stopped.
+# does as it is connected to the host (its ping, a CRC mismatch), an error
+# that ends nothing, and a second later the host gone, and plays on alone
+# until it is stopped.
 #
 # Started with OSD/OS's sign-in core, to check a sign-in, it says on its
 # output what RetroArch's log does as it signs in, its token in the config
@@ -123,7 +124,8 @@ game=$(basename "$content"); game="${game%.*}"
 	if [ -n "${RA_HOST_LEAVES:-}" ]; then
 		echo "[INFO] [Netplay] Connecting to netplay host 127.0.0.1:55435."
 		echo "[INFO] [Netplay] Connected to: \"ann\""
-		echo "[INFO] [Netplay] You have joined as player 3"
+		echo "[INFO] [Netplay] You have joined as player 3 (ping: 12 ms)"
+		echo "[WARN] [Netplay] Netplay CRCs mismatch!"
 		echo "[ERROR] [Netplay] NETPLAY_CMD_INPUT received an unexpected payload size."
 	fi
 } > "$log"

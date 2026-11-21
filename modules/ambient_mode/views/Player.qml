@@ -20,19 +20,12 @@ FocusScope {
 
     focus: true
 
-    // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats: mpv
-    // holds the key down for them, and lets it go as the key is
-    // (Keys.onReleased).
-    Keys.onPressed: function(event) {
-        var key = MpvKeys.name(event.key)
-        if (key !== "") {
-            mpvController.sendKey(key, event.isAutoRepeat)
-            event.accepted = true
-        }
-    }
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onPressed: function(event) { session.forwardKey(event) }
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    PlayerSession {
+        id: session
+        player: playerRoot
     }
 
     Connections {
@@ -72,9 +65,8 @@ FocusScope {
         // the url, the rest as extra playlist entries.
         var first = shuffleVideo ? videoPaths[0] : videoPath
         var rest  = shuffleVideo ? videoPaths.slice(1) : []
-        mpvController.loadAndPlay(first, 0.0, 0, -1, [], [], true, -1, 0.0, "",
-                                  hasCustomAudio, "ambient", shuffleVideo, [], 0.0,
-                                  false, [], "", rest)
+        mpvController.loadAndPlay({ url: first, subTrack: -1, loop: true, muteAudio: hasCustomAudio,
+                                    oscMode: "ambient", shuffle: shuffleVideo, extraUrls: rest })
 
         // Companion audio is a second, independent mpv process — it does its own
         // shuffling and looping (see AmbientModeBackend::startAudio).

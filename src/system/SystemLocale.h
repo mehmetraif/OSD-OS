@@ -1,10 +1,13 @@
 #pragma once
+#include "util/FileText.h"
+
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QString>
+#include <QStringList>
 
-// The system's time zone and keyboard layout, as the files say: read by
+// The system's time zone, keyboard layout and SSH, as the files say: read by
 // Settings → System's rows (SystemSettings) and by the export to OSD/OS Setup
 // (util/SetupExport). `root` stands before every path, for tests.
 namespace systemlocale {
@@ -34,6 +37,37 @@ inline QString keyboard(const QString &root = QString()) {
         return QString();
     const QRegularExpressionMatch layout = kLayout.match(QString::fromUtf8(file.read(64 * 1024)));
     return layout.hasMatch() ? layout.captured(1) : QString();
+}
+
+// SSH: -1 where it isn't there to be turned on (no ssh.service), else 1
+// when systemd starts it (enabled: its link in multi-user.target.wants, as
+// systemctl enable makes it), 0 when it doesn't.
+inline int ssh(const QString &root = QString()) {
+    const bool installed = QFileInfo::exists(root + QStringLiteral("/usr/lib/systemd/system/ssh.service"))
+                           || QFileInfo::exists(root + QStringLiteral("/lib/systemd/system/ssh.service"));
+    if (!installed)
+        return -1;
+    const QFileInfo wanted(root + QStringLiteral("/etc/systemd/system/multi-user.target.wants/ssh.service"));
+    return wanted.exists() || wanted.isSymLink() ? 1 : 0;
+}
+
+// The public keys in home's ~/.ssh/authorized_keys that log in, each as its
+// line has it, once: a type, then its key, as the card's setup takes one
+// (public_key() in osdos-setup).
+inline QStringList sshKeys(const QString &home) {
+    static const QRegularExpression kKey(
+        QStringLiteral("^(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\\.com)"
+                       "\\s+[A-Za-z0-9+/]+={0,3}(\\s.*)?$"));
+    QStringList keys;
+    const QStringList lines =
+        QString::fromUtf8(filetext::readText(home + QStringLiteral("/.ssh/authorized_keys"), 256 * 1024))
+            .split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        const QString key = line.trimmed();
+        if (kKey.match(key).hasMatch() && !keys.contains(key))
+            keys << key;
+    }
+    return keys;
 }
 
 } // namespace systemlocale

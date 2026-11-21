@@ -4,7 +4,7 @@ The Jellyfin module plays films, series and home videos from a [Jellyfin](https:
 
 <table>
 <tr><th width="50%">Jellyfin</th><th width="50%">Add to Playlist</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/jellyfin.png" width="100%" alt="Jellyfin: Connect to Server, with the Server URL field and the Quick Connect button" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? The playlists, then New Online Playlist and New Offline Playlist" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/jellyfin.png" width="100%" alt="Jellyfin: Connect to Server, with the Server Address field and the Quick Connect button" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/add-to-playlist.png" width="100%" alt="Add to playlist? The playlists first, then a line and New Online Playlist, New Offline Playlist below it" /></td></tr>
 </table>
 
 ## What you need
@@ -20,8 +20,8 @@ The Jellyfin module plays films, series and home videos from a [Jellyfin](https:
 
 ## Signing in with Quick Connect
 
-1. Open **Jellyfin** from the main menu. **Connect to Server** has a **Server URL** field and a **Quick Connect** button.
-2. Select on the field opens the on-screen keyboard. Enter the server's address with its port, as `http://192.168.1.20:8096`. OK goes on to **Quick Connect**.
+1. Open **Jellyfin** from the main menu. **Connect to Server** has a **Server Address** field and a **Quick Connect** button.
+2. ▲ ▼ go between the field and the button, round the ends. Select on the field opens the on-screen keyboard. Enter the server's address with its port, as `http://192.168.1.20:8096`. OK goes on to **Quick Connect**.
 3. Select on **Quick Connect**. The code fills the screen, with **Enter the above code at:** and an address ending `/web/#quickconnect`.
 4. On your other device, open that address, enter the code and authorize it.
 5. The screen reads **Approved** and the libraries open.
@@ -30,12 +30,12 @@ Back on the code screen cancels. OSD/OS appears in the server's list of devices 
 
 | Message | What it means |
 |---|---|
-| **Please enter a server URL** | The Server URL field is empty |
+| **Please enter the server's address** | The Server Address field is empty |
 | **CONNECTION FAILED: …** | Nothing answered at that address: a typing slip, a missing `http://` or port, or the server is off or on another network |
 | **QUICK CONNECT NOT ENABLED ON SERVER** | Quick Connect is off: turn it on in the Jellyfin dashboard |
 | **SERVER ERROR (HTTP …)** | Something at that address answered with an error of that status: often another web server (404), or a proxy whose Jellyfin isn't running (502, 503) |
 | **INVALID RESPONSE FROM SERVER** | Something answered, but not a Jellyfin server |
-| **CODE EXPIRED** | Two minutes passed without approval; a connection lost meanwhile is tried again until then. Back (`[ESC]:RETRY`) returns to the first screen for a new code |
+| **CODE EXPIRED** | Two minutes passed without approval; a connection lost meanwhile is tried again until then. Select (`[ENTER]:TRY AGAIN`) asks the server for a new code there; back returns to the first screen |
 | **CODE EXPIRED — RETRY** | The server no longer knows the code. Back for a new one |
 | **AUTH FAILED (HTTP …)**, **AUTH FAILED: …** or **INVALID AUTH RESPONSE**, after **Approved** | The sign-in failed after approval: the server refused it with that status, didn't answer, or answered something else. Go back and start again |
 
@@ -55,7 +55,7 @@ Type the server's address in Settings → TV / Movie → **JELLYFIN** → **Serv
 ```
 
 - Merge it into the `modules` part of the file you have.
-- **Connect to Server** then opens with the address filled in, and select starts Quick Connect.
+- **Connect to Server** then opens with the address filled in, and select starts Quick Connect. An address typed there is kept too, until OSD/OS quits, whether or not it signed in.
 - On the image: `sudo systemctl stop osdos` before editing, `sudo systemctl start osdos` after.
 - Check the file with `python3 -m json.tool ~/.local/share/OSD-OS/config.json`. A file that isn't valid JSON is read as empty.
 
@@ -123,10 +123,10 @@ The page shows **PLAY ►** (**RSUM ►** with a resume point), the name, year, 
 | Video Quality | What happens |
 |---|---|
 | **Direct Play** (the default) | The file is streamed as it is. A file the server can't send directly, or mpv can't play, comes as a transcode |
-| **480p (NTSC CRT)** | A transcode, at most 480 lines and 4 Mbps |
-| **576p (PAL CRT)** | A transcode, at most 576 lines and 4.5 Mbps |
-| **720p** | A transcode, at most 720 lines and 6 Mbps |
 | **1080p** | A transcode, at most 1080 lines and 10 Mbps |
+| **720p** | A transcode, at most 720 lines and 6 Mbps |
+| **576p** | A transcode, at most 576 lines (a PAL CRT's) and 4.5 Mbps |
+| **480p** | A transcode, at most 480 lines (an NTSC CRT's) and 4 Mbps |
 
 A transcode carries the audio track you chose, with the subtitle you chose burned in.
 
@@ -136,6 +136,7 @@ Resume points are the server's, shared with every Jellyfin app.
 
 - **Resume Playback: Ask** (the default): a video with a resume point asks **Resume playback?** `Resume from 0:30` / `Start from the beginning`.
 - **Resume Playback: Always**: it carries on without asking.
+- **Resume Playback: Never**: it starts from the beginning without asking.
 
 ### Autoplay Next Episode
 
@@ -174,19 +175,20 @@ With the [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) module
 
 ## Settings
 
-Settings → TV / Movie → Jellyfin. Everything but Enabled and Scaling shows only once you have signed in.
+Settings → TV / Movie → Jellyfin. Until you have signed in, every row but Enabled, Sign In, Server Address and Scaling is dimmed, its help line saying **Sign in first (SIGN IN above)**.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Jellyfin on the main menu | `enabled` |
+| Sign In | the user signed in as, or SIGNED OUT | | Opens Jellyfin: its sign-in while signed out, else its libraries | |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
-| Video Quality | Direct Play, 480p (NTSC CRT), 576p (PAL CRT), 720p, 1080p | Direct Play | Direct Play, or a transcode capped at that size | `video_quality` |
-| Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
+| Video Quality | Direct Play, 1080p, 720p, 576p, 480p | Direct Play | Direct Play, or a transcode capped at that size (576p a PAL CRT's, 480p an NTSC CRT's) | `video_quality` |
+| Resume Playback | Ask, Always, Never | Ask | Whether a video with a resume point asks, carries on, or starts from the beginning | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the series' next episode when one ends | `autoplay_next_episode` |
 | Intro Skip | Off, Auto, Button | Off | What happens at an intro segment | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at a credits segment | `outro_skip` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Jellyfin; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign out | (an action) | | Revokes the token on the server and forgets it here | |
+| Sign Out | (an action) | | Asks first, then revokes the token on the server and forgets it here. Dimmed while signed out | |
 
 ### How the values are saved
 
@@ -197,7 +199,7 @@ The keys sit under `modules.com.osdos.jellyfin`, nested as in the fragment [abov
 | `enabled`, `autoplay_next_episode` | `true` or `false` |
 | `libraries` | an object of `"<library id>": true` or `false`; a library left out counts as ON |
 | `video_quality` | `"auto"` (Direct Play), `"480p"`, `"576p"`, `"720p"` or `"1080p"` |
-| `resume_playback` | `"ask"` or `"always"` |
+| `resume_playback` | `"ask"`, `"always"` or `"never"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Pan & Scan"` |
 | `server_url` | the server address: Settings → TV / Movie → JELLYFIN → Server Address, and the sign-in screen |
@@ -207,7 +209,7 @@ The keys sit under `modules.com.osdos.jellyfin`, nested as in the fragment [abov
 `jellyfin_auth.json` in the data folder, readable by your user only (mode 600), holds the server's address, the access token and the user.
 
 - Your password is never asked for.
-- **Sign out** deletes the file.
+- **Sign Out** deletes the file.
 - A self-signed certificate is accepted for the server's own address.
 
 ## Troubleshooting
@@ -221,7 +223,7 @@ Sign-in messages are listed [above](#signing-in-with-quick-connect).
 | The home screen stays on **LOADING...** | The server didn't answer (the log has `LOAD LIBRARIES FAILED`), or no library is ON in Settings → TV / Movie → Jellyfin → Libraries |
 | No Continue Watching or Next Up | They show only when they have something |
 | No Intro Skip or Credit Skip rows | The server has no media segments (install the Intro Skipper plugin), or you aren't signed in |
-| A video stutters | Choose a CRT tier in Video Quality |
+| A video stutters | Choose 576p or 480p in Video Quality |
 | Changing subtitles restarts the video | It is a transcode; Direct Play switches without a restart |
 | Offline playlist says **Not Allowed** | An administrator must allow your Jellyfin user to download media. Then **Retry Downloads** on the playlist's page |
 

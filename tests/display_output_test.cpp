@@ -9,6 +9,7 @@
 // display_output_pi3 as a Pi 3, whose outputs are a Pi 4's).
 #include "display/DisplayOutput.h"
 #include "util/Board.h"
+#include "util/ExitCodes.h"
 
 #include <QDir>
 #include <QFile>
@@ -142,7 +143,7 @@ private slots:
         const QStringList offered = ids(api4.options());
         QCOMPARE(offered.last(), QStringLiteral("jamma-240p"));
         QCOMPARE(api4.options().last().toMap().value(QStringLiteral("label")).toString(),
-                 QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
+                 QStringLiteral("JAMMA 720x240"));
         // Beside the board's own: a Pi 5's GPIO composite, a Pi 4's 240p SCART.
         QCOMPARE(offered.contains(QStringLiteral("crt-gpio-ntsc")), pi5());
         QCOMPARE(offered.contains(QStringLiteral("scart-rgb-240p")), !pi5());
@@ -186,7 +187,7 @@ private slots:
             if (id == QLatin1String("jamma-480i-640")) {
                 QCOMPARE(resolutionOf(m_boot.filePath(QStringLiteral("osdos-display-jamma-480i-640.txt"))),
                          QStringLiteral("640x480"));
-                QCOMPARE(m.value("label").toString(), QStringLiteral("JAMMA 480i 15 kHz (640x480)"));
+                QCOMPARE(m.value("label").toString(), QStringLiteral("JAMMA 640x480i"));
             }
         }
         if (!pi5())
@@ -199,15 +200,21 @@ private slots:
             if (m.value("id") == "jamma-25k") warning25 = m.value("warning").toString();
             if (m.value("id") == "jamma-31k") warning31 = m.value("warning").toString();
             if (m.value("id") == "jamma-240p") warning240 = m.value("warning").toString();
-            // Each names its scan rate, then its preset's resolution.
+            // Each has its line for the chooser.
+            QVERIFY2(!m.value("help").toString().isEmpty(), qPrintable(m.value("id").toString()));
+            // Each named by what tells it apart first: a 15 kHz mode by its
+            // preset's resolution (an i after an interlaced one's), the 25
+            // and 31 kHz ones by their rate.
             const QString id = m.value("id").toString();
             if (!id.startsWith(QLatin1String("jamma-")))
                 continue;
-            const QString rate = id == "jamma-25k" ? "25 kHz" : id == "jamma-31k" ? "31 kHz" : "15 kHz";
             const QString resolution = resolutionOf(m_boot.filePath(QStringLiteral("osdos-display-%1.txt").arg(id)));
             QVERIFY2(!resolution.isEmpty(), qPrintable(id));
-            QVERIFY2(m.value("label").toString().endsWith(rate + " (" + resolution + ")"),
-                     qPrintable(id + ": " + m.value("label").toString()));
+            const bool interlaced = id.contains(QLatin1String("480i")) || id.contains(QLatin1String("576i"));
+            const QString expected = id == "jamma-25k" ? QStringLiteral("JAMMA 25 kHz")
+                                     : id == "jamma-31k" ? QStringLiteral("JAMMA 31 kHz")
+                                     : "JAMMA " + resolution + (interlaced ? "i" : "");
+            QCOMPARE(m.value("label").toString(), expected);
         }
         QVERIFY(warning25.contains(QLatin1String("25 kHz")) && warning25.contains(QLatin1String("15 kHz")));
         QVERIFY(warning31.contains(QLatin1String("31 kHz")) && warning31.contains(QLatin1String("15 kHz")));
@@ -217,7 +224,7 @@ private slots:
         inForce(QStringLiteral("jamma-31k"));
         DisplayOutput on31(m_data.path());
         QCOMPARE(on31.current(), QStringLiteral("jamma-31k"));
-        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz (640x480)"));
+        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz"));
         QVERIFY(DisplayOutput::isTube(on31.current(), QSize(640, 480)));
     }
 
@@ -226,7 +233,7 @@ private slots:
         qputenv("OSDOS_LAUNCHER_API", "4");
         DisplayOutput output(m_data.path());
         QCOMPARE(output.current(), QStringLiteral("jamma-240p"));
-        QCOMPARE(output.currentLabel(), QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
+        QCOMPARE(output.currentLabel(), QStringLiteral("JAMMA 720x240"));
     }
 
     // These before any test that switches: QCoreApplication::exit(),
@@ -251,7 +258,7 @@ private slots:
         QVERIFY(!output.busy());
         QCOMPARE(output.current(), QStringLiteral("hdmi"));
         QCOMPARE(output.next(), QStringLiteral("jamma-240p"));
-        QCOMPARE(output.nextLabel(), QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
+        QCOMPARE(output.nextLabel(), QStringLiteral("JAMMA 720x240"));
         QCOMPARE(state().value(QStringLiteral("from")).toString(), QStringLiteral("HDMI"));
         QCOMPARE(state().value(QStringLiteral("to")).toString(), QStringLiteral("jamma-240p"));
 
@@ -336,7 +343,7 @@ private slots:
         QFile state(m_data.filePath(QStringLiteral("display-output.json")));
         QVERIFY(state.open(QIODevice::ReadOnly));
         const QJsonObject o = QJsonDocument::fromJson(state.readAll()).object();
-        QCOMPARE(o.value(QStringLiteral("from")).toString(), QStringLiteral("SCART RGB NTSC"));
+        QCOMPARE(o.value(QStringLiteral("from")).toString(), QStringLiteral("SCART RGB 480i"));
         QCOMPARE(o.value(QStringLiteral("to")).toString(), QStringLiteral("jamma-240p"));
         state.close();
         QFile::remove(state.fileName());
@@ -384,9 +391,55 @@ private slots:
         QVERIFY(!DisplayOutput::isTube(QStringLiteral("jamma-240p"), QSize()));
     }
 
+    // Every preset, by name, on the boards that have its output: composite
+    // from GPIO on a Pi 5 alone, the AV jack's and the TV pads' composite on
+    // none of the keyboard models, SCART RGB's 240p and 288p and JAMMA's
+    // interlaced modes not on a Pi 5.
+    void presetsOnTheirBoards() {
+        qputenv("OSDOS_LAUNCHER_API", "9");
+        inForce(QStringLiteral("hdmi"));
+        const QList<QPair<QString, QString>> all{
+            { "hdmi", "HDMI" },
+            { "crt-ntsc", "Composite NTSC" },
+            { "crt-pal", "Composite PAL" },
+            { "crt-gpio-ntsc", "GPIO NTSC" },
+            { "crt-gpio-pal", "GPIO PAL" },
+            { "scart-rgb-ntsc", "SCART RGB 480i" },
+            { "scart-rgb-pal", "SCART RGB 576i" },
+            { "scart-rgb-240p", "SCART RGB 240p" },
+            { "scart-rgb-288p", "SCART RGB 288p" },
+            { "jamma-240p", "JAMMA 720x240" },
+            { "jamma-240p-native", "JAMMA 320x240" },
+            { "jamma-240p-super", "JAMMA 1920x240" },
+            { "jamma-288p", "JAMMA 720x288" },
+            { "jamma-288p-super", "JAMMA 1920x288" },
+            { "jamma-480i", "JAMMA 720x480i" },
+            { "jamma-480i-640", "JAMMA 640x480i" },
+            { "jamma-576i", "JAMMA 720x576i" },
+            { "jamma-25k", "JAMMA 25 kHz" },
+            { "jamma-31k", "JAMMA 31 kHz" },
+        };
+        const QStringList notPi5{ "scart-rgb-240p", "scart-rgb-288p", "jamma-480i", "jamma-480i-640", "jamma-576i" };
+        QStringList expected;
+        for (const auto &[id, label] : all) {
+            if (id.startsWith(QLatin1String("crt-gpio-")) ? !pi5() : pi5() && notPi5.contains(id))
+                continue;
+            if (board::isKeyboard() && (id == QLatin1String("crt-ntsc") || id == QLatin1String("crt-pal")))
+                continue;
+            expected << id + QLatin1Char('=') + label;
+        }
+        QStringList offered;
+        for (const QVariant &o : DisplayOutput(m_data.path()).options()) {
+            const QVariantMap m = o.toMap();
+            offered << m.value("id").toString() + QLatin1Char('=') + m.value("label").toString();
+        }
+        QCOMPARE(offered, expected);
+    }
+
     // Each preset offered exits with the code osdos-stop (scripts/install.sh)
-    // writes it on: its place in DISPLAY_PRESETS, counted from 20, and 20
-    // more to power off after it.
+    // writes it on: its place in DISPLAY_PRESETS, counted from the first of
+    // the range util/ExitCodes.h names, none of them the one back, and
+    // kDisplayThenPowerOff more to power off after it.
     void exitCodesAreOsdosStops() {
         QFile script(QStringLiteral(INSTALL_SH));
         QVERIFY(script.open(QIODevice::ReadOnly));
@@ -394,22 +447,25 @@ private slots:
                                                  .match(QString::fromUtf8(script.readAll()));
         QVERIFY(list.hasMatch());
         const QStringList order = list.captured(1).split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-        QCOMPARE(order.indexOf(QStringLiteral("previous")), 9);  // 29: back to the output before
+        QCOMPARE(int(order.indexOf(QStringLiteral("previous"))),
+                 exitcode::kDisplayRevert - exitcode::kDisplayPresetFirst);  // back to the output before
         qputenv("OSDOS_LAUNCHER_API", "9");
         inForce(QStringLiteral("hdmi"));
         const QStringList offered = ids(DisplayOutput(m_data.path()).options());
         QVERIFY(offered.contains(QStringLiteral("jamma-31k")));
         QCOMPARE(offered.contains(QStringLiteral("jamma-480i-640")), !pi5());
         for (const QString &id : offered) {
-            const int code = 20 + int(order.indexOf(id));
-            QVERIFY2(code >= 20, qPrintable(id + QStringLiteral(" isn't osdos-stop's")));
+            const int code = exitcode::kDisplayPresetFirst + int(order.indexOf(id));
+            QVERIFY2(code >= exitcode::kDisplayPresetFirst && code <= exitcode::kDisplayPresetLast
+                         && code != exitcode::kDisplayRevert,
+                     qPrintable(id + QStringLiteral(" isn't osdos-stop's")));
             for (const bool off : { false, true }) {
                 inForce(id == QLatin1String("hdmi") ? QStringLiteral("jamma-240p") : QStringLiteral("hdmi"));
                 DisplayOutput output(m_data.path());
                 QTest::ignoreMessage(QtInfoMsg, QRegularExpression(
                     QStringLiteral("-> %1%2: exit %3 for osdos-stop$")
                         .arg(QRegularExpression::escape(id), off ? QStringLiteral(", then off") : QString())
-                        .arg(code + (off ? 20 : 0))));
+                        .arg(code + (off ? exitcode::kDisplayThenPowerOff : 0))));
                 QVERIFY(off ? output.applyAndPowerOff(id) : output.apply(id));
             }
         }

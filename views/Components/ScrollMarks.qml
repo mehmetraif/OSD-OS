@@ -30,7 +30,7 @@ Item {
     PixelIcon {
         name: "up"
         color: marks.color
-        visible: marks.moreAbove && !pager.paging
+        visible: marks.moreAbove && !pager.paged
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.top
         anchors.bottomMargin: marks.gap
@@ -38,7 +38,7 @@ Item {
     PixelIcon {
         name: "down"
         color: marks.color
-        visible: marks.moreBelow && !pager.paging
+        visible: marks.moreBelow && !pager.paged
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.bottom
         anchors.topMargin: marks.gap

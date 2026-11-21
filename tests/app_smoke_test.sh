@@ -13,7 +13,7 @@
 # Menu Layout: Camcorder, Studio Monitor, Broadcast, Flat Panel); after a
 # module's folder, that module opened in it, in the layout's frame. With
 # --monitor=<name>, the Arcade module's screen on a monitor turned on its
-# side (Settings → Screen → Monitor: Turned Right, Turned Left), drawn in its
+# side (Settings → Screen → Rotation: Turned Right, Turned Left), drawn in its
 # tall layout and turned with the rest.
 #   app_smoke_test.sh <osdos> <repository> <Qt's QML folder> [module folder [--layout=<name>] | --setup | --layout=<name> | --monitor=<name>]
 # Skipped (77) without the app, which is built apart from the tests (build/),

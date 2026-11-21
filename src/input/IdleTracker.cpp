@@ -14,8 +14,17 @@ IdleTracker::IdleTracker(int thresholdSec, QObject *parent)
     // App-wide event filter catches all keyboard and gamepad-synthesised key
     // events before they reach QML, so we reset the idle counter on any input.
     QCoreApplication::instance()->installEventFilter(this);
+}
 
-    m_timer.start();
+// The tick runs only while it counts: the saver on, nothing holding it off
+// and not up already. Each second counts as before, as long as it runs.
+void IdleTracker::followCounting()
+{
+    const bool counting = m_enabled && !blocked() && !m_active;
+    if (counting && !m_timer.isActive())
+        m_timer.start();
+    else if (!counting)
+        m_timer.stop();
 }
 
 void IdleTracker::setThreshold(int seconds)
@@ -37,6 +46,7 @@ void IdleTracker::setEnabled(bool on)
         m_active = false;
         emit activeChanged();
     }
+    followCounting();
 }
 
 // A session that owns the screen (mpv, a script, a view of its own) coming
@@ -53,6 +63,7 @@ void IdleTracker::setBlocker(bool &blocker, bool active, void (IdleTracker::*cha
         m_active = false;
         emit activeChanged();
     }
+    followCounting();
 }
 
 void IdleTracker::setMpvActive(bool active)
@@ -77,6 +88,7 @@ void IdleTracker::resetActivity()
     m_active = false;
     if (wasActive)
         emit activeChanged();
+    followCounting();
 }
 
 bool IdleTracker::eventFilter(QObject *obj, QEvent *event)
@@ -103,5 +115,6 @@ void IdleTracker::tick()
         m_active = true;
         emit activeChanged();
     }
+    followCounting();
 }
 

@@ -7,7 +7,8 @@
 //
 // Installs a global QEventFilter that resets on any KeyPress (real keyboard
 // and gamepad-synthesized events both reach it). A 1-second tick timer
-// increments m_idleSeconds while no activity is detected.
+// increments m_idleSeconds while no activity is detected; it runs only while
+// it counts (enabled, nothing blocking it, not active yet).
 //
 // Exposed to QML as a context property "idleTracker".
 class IdleTracker : public QObject {
@@ -42,6 +43,8 @@ public:
     bool isMpvActive()    const { return m_mpvActive;    }
     bool isScriptActive() const { return m_scriptActive; }
     bool isViewActive()   const { return m_viewActive;   }
+    // Whether its second's tick runs (followCounting()).
+    bool counting()       const { return m_timer.isActive(); }
 
     void setThreshold(int seconds);
     void setEnabled(bool on);
@@ -71,6 +74,7 @@ private:
     // Any external session that owns the screen suppresses the saver.
     bool blocked() const { return m_mpvActive || m_scriptActive || m_viewActive; }
     void setBlocker(bool &blocker, bool active, void (IdleTracker::*changed)());
+    void followCounting();
 
     QTimer m_timer;
     int    m_threshold;

@@ -1,15 +1,17 @@
 {
   "id": "com.osdos.playlists",
   "name": "Playlists",
+  "menu_order": 20,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "ON"
+      "default": "ON",
+      "description": "Shows Playlists on the main menu: your own lists of videos from Local Files, YouTube and the media servers"
     },
     {
       "key": "download_folder",
@@ -22,9 +24,9 @@
       "key": "subtitles",
       "label": "Subtitles",
       "type": "list_single",
-      "options": ["Forced Only", "On", "Off"],
+      "options": ["Off", "Forced Only", "On"],
       "default": "Forced Only",
-      "description": "Whether a video's subtitles show as it starts\n[FORCED ONLY] Only for dialogue in another language. [ON] A YouTube video's in the YouTube module's Subtitle Language"
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language; none on a YouTube video\n[ON] Shown: a YouTube video's in the language of the YouTube module's Subtitles In"
     },
     {
       "key": "loop_playback",

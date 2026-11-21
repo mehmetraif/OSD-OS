@@ -49,6 +49,20 @@ StandInRoot {
         property string attractMode: "Off"
         property int attractAfter: 60
         property var playing: null
+        function missingProgram(message) {
+            return message === "MAME is not installed" ? "mame"
+                 : message === "RetroArch is not installed" ? "retroarch" : ""
+        }
+        readonly property string problem: arcadeBackend.problem
+        readonly property bool mameMissing: missingProgram(problem) === "mame"
+        readonly property string problemLine: mameMissing ? problem + ". " + appCore.installHint("mame") : problem
+        readonly property string gamesFolder: arcadeBackend.gamesFolder()
+        readonly property bool folderReadable: arcadeBackend.folderReadable
+        readonly property bool scanning: arcadeBackend.scanning
+        property int mameRevision: 0
+        readonly property bool canDownloadMame: (mameRevision, mameMissing && arcadeBackend.mameInfo().canDownload)
+        readonly property bool downloadingMame: arcadeBackend.mameDownloading
+        readonly property bool away: (!!arcadeBackend && arcadeBackend.running) || root.screenSaverActive
         function addCredit() {
             if (!freePlay)
                 credits = Math.min(maxCredits, credits + 1)
@@ -231,6 +245,17 @@ StandInRoot {
         }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        // The Favorites page: how many there are, the file, and what
+        // Export and Import were asked.
+        property int favoriteCount: 2
+        property var favoriteFiles: []
+        function favoritesCount() { return favoriteCount }
+        function favoritesFile() { return "/media/OSD-OS/Games/Arcade/osdos-favorites.txt" }
+        function exportFavorites() { favoriteFiles = favoriteFiles.concat(["export"]); return { message: "2 written" } }
+        function importFavorites() { favoriteFiles = favoriteFiles.concat(["import"]); favoriteCount = 3; return { message: "1 added" } }
+        // Back to OSD/OS's Version, as many times as it was asked for.
+        property int ownFbneos: 0
+        function useOwnFbneo() { ownFbneos++ }
         function downloadRetroArch() {
             retroarchDownloads++; retroarchDownloading = true; retroarchProgress = 35; fbneoChanged()
         }
@@ -270,6 +295,15 @@ StandInRoot {
         property int lanReads: 0
         function canHostLan(set) { return lanHostable.indexOf(set) >= 0 }
         function refreshLanRooms() { lanReads++ }
+        // The warning of this machine's link to the network, by the room
+        // asked of (-1 hosting), and Host LAN Game's advice: "" for none.
+        property string linkWarning: ""
+        property var linkAsked: []
+        property string advice: ""
+        function lanLinkWarning(room) { linkAsked = linkAsked.concat([room]); return linkWarning }
+        function hostAdvice() { return advice }
+        // The layout a game hosted plays with: RetroArch's own.
+        function onlineLayout(set, hosting) { return "classic" }
         // What LAN Games says while it has no game, and what any other filter
         // says with nothing on it (filterStatus(): LAN Games as lanStatus()).
         property var lanState: ({})
@@ -421,7 +455,16 @@ StandInRoot {
             lastAdded = entry
         }
         function list_contains(module, list, path) { return false }
-        function get_setting(module, key) { return undefined }
+        function get_setting(module, key) { return saved[key] }
+        // The module's settings as its manifest has them, the rows the
+        // views read of it: Game Pictures' own, Source.
+        property var schema: [{ key: "game_pictures", type: "module_view", settings: [
+            { key: "pictures_source", label: "Source", type: "list_single",
+              options: [["Both", "RetroAchievements, then progetto-SNAPS"], ["RetroAchievements", "RetroAchievements"],
+                        ["progetto-SNAPS", "progetto-SNAPS"], ["Off", "Off"]],
+              default: "RetroAchievements, then progetto-SNAPS",
+              description: "Where a game's pictures are downloaded from\n[BOTH] RetroAchievements' first  [RETROACHIEVEMENTS] Its own alone  [OFF] None downloaded" }] }]
+        function get_module_settings_schema(id) { return id === "com.osdos.arcade" ? schema : [] }
         function save_setting(module, key, value) {
             var all = Object.assign({}, saved)
             all[key] = value
@@ -431,6 +474,12 @@ StandInRoot {
         function is_module_enabled(id) { return false }
         // How to put a program on, for the system (util/InstallHint.h).
         function installHint(program) { return "On Test OS: install " + program }
+    }
+
+    // The router's own: MAME's state read again as it changes.
+    Connections {
+        target: arcadeBackend
+        function onMameChanged() { moduleRoot.mameRevision++ }
     }
 
     Loader {
@@ -443,8 +492,8 @@ StandInRoot {
     Connections {
         target: loader.item
         ignoreUnknownSignals: true
-        function onNavigateTo(path, params, listState) {
-            root.navigations = root.navigations.concat([{ path: path, params: params, listState: listState }])
+        function onNavigateTo(path, params) {
+            root.navigations = root.navigations.concat([{ path: path, params: params }])
         }
         function onGoBack() { root.backs++ }
     }
@@ -498,6 +547,9 @@ StandInRoot {
             arcadeBackend.fbneoProgress = 0
             arcadeBackend.fbneoMessage = ""
             arcadeBackend.downloads = 0
+            arcadeBackend.ownFbneos = 0
+            arcadeBackend.favoriteCount = 2
+            arcadeBackend.favoriteFiles = []
             arcadeBackend.retroarchDownloading = false
             arcadeBackend.retroarchProgress = 0
             arcadeBackend.retroarchMessage = ""
@@ -529,6 +581,9 @@ StandInRoot {
             arcadeBackend.roomReads = 0
             arcadeBackend.lobbyStore = { data: { state: "loading", problem: "", rooms: [] } }
             arcadeBackend.lanHostable = []
+            arcadeBackend.linkWarning = ""
+            arcadeBackend.linkAsked = []
+            arcadeBackend.advice = ""
             arcadeBackend.lanJoined = []
             arcadeBackend.lanHosted = []
             arcadeBackend.lanReads = 0
@@ -570,10 +625,13 @@ StandInRoot {
             appCore.saved = {}
             root.navigations = []
             root.backs = 0
+            root.changesDeferred = false
         }
 
         function cleanup() {
             loader.source = ""
+            root.menuLayout = "Standard"
+            root.leavingBarred = false
             moduleRoot.attractMode = "Off"
             moduleRoot.attractAfter = 60
         }
@@ -613,8 +671,47 @@ StandInRoot {
             compare(nav.path, "Play.qml")
             compare(nav.params.game, "pacman")
             compare(nav.params.title, "Pac-Man (Midway)")
-            // Back from the game lands where it was chosen.
-            compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
+            // The tree, under the game, still on it.
+            verify(findText(games, "1980") !== null)
+        }
+
+        // Under Cabinet Lock, with the Arcade the start module, back from
+        // its first view goes nowhere: neither screen offers it there, the
+        // tree still in a folder, where back goes up.
+        function test_cabinetLockBack() {
+            root.leavingBarred = true
+            var screen = openScreen()
+            tryVerify(function() { return screen.currentSet === "sf2" })
+            verify(findText(screen, "[5]:COIN [ENTER]:PLAY HOLD:OPTIONS", true) !== null)
+            compare(findText(screen, ":BACK"), null)
+            loader.source = ""
+            var games = open("Games.qml")
+            verify(findText(games, ":NAVIGATE") !== null)
+            compare(findText(games, ":BACK"), null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // All Games
+            keyClick(Qt.Key_Right)  // into it
+            verify(findText(games, "[ESC]:BACK ") !== null)
+            loader.source = ""
+            // No games: nothing to say, and no bar drawn for it (not an
+            // empty strip).
+            var listed = arcadeBackend.filterList
+            arcadeBackend.filterList = []
+            screen = openScreen()
+            verify(findText(screen, "No games found") !== null)
+            var bar = null
+            for (var i = 0; i < screen.children.length; i++) {
+                if (screen.children[i].frameRole === "hints")
+                    bar = screen.children[i]
+            }
+            verify(bar !== null)
+            compare(bar.text, "")
+            compare(bar.opacity, 0)
+            loader.source = ""
+            arcadeBackend.filterList = listed
+            root.leavingBarred = false
+            games = open("Games.qml")
+            verify(findText(games, "[ESC]:BACK ") !== null)
         }
 
         // What stands in the way comes first in the line under the tree,
@@ -685,9 +782,30 @@ StandInRoot {
             tryVerify(function() { return root.navigations.length === 1 })
             var nav = root.navigations[0]
             compare(nav.params.game, "pacman")
-            compare(nav.listState.trail[1].path, "favorites")
-            // The tree there as it plays, its line on the game.
+            // The tree there as it plays, in Favorites, its line on the game.
+            verify(findText(games, "Favorites", true) !== null)
             verify(findText(games, "1980") !== null)
+            // With Online Play and LAN Play on, their folders come first:
+            // Favorites is wherever the backend lists it, not the second row.
+            loader.source = ""
+            root.navigations = []
+            arcadeBackend.entries["top"] = [{ name: "Online Games", path: "online", isFolder: true },
+                                            { name: "LAN Games", path: "lan", isFolder: true }]
+                                           .concat(arcadeBackend.entries["top"])
+            games = open("Games.qml", { startupPlay: { name: "Pac-Man (Midway)", path: "game:pacman" } })
+            tryVerify(function() { return root.navigations.length === 1 })
+            nav = root.navigations[0]
+            compare(nav.params.game, "pacman")
+            verify(findText(games, "1980") !== null)
+            // The tree itself on Favorites' row, under the game.
+            var tree = null
+            for (var i = 0; i < games.children.length && !tree; ++i) {
+                if (games.children[i].trailState !== undefined)
+                    tree = games.children[i]
+            }
+            var trail = tree.trailState()
+            compare(trail[0].sel, 3)
+            compare(trail[1].path, "favorites")
         }
 
         // While the folder is read, the startup favourite waits for it, on
@@ -756,6 +874,28 @@ StandInRoot {
             compare(root.backs, 0)
             verify(findText(play, "Missing sp-s2.sp1") !== null)
             verify(findText(play, "NOT FOUND (tried in mslug neogeo)") !== null)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+        }
+
+        // A game joined over the network that was played, and stopped as its
+        // host left: its name and that, not that it could not be played, nor
+        // what RetroArch printed.
+        function test_stopped() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { room: 7, host: "RYU" } })
+            tryCompare(play, "phase", "running")
+            compare(arcadeBackend.joined, [7])
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "stopped", "The host left the game")
+            compare(play.phase, "stopped")
+            verify(!findChild(play, "gameLoading").visible)
+            verify(findText(play, "Street Fighter II", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, "The host left the game", true) !== null)
+            compare(findText(play, "NOT FOUND"), null)
+            compare(findText(play, "Press"), null)
+            verify(findText(play, "[ESC]:BACK", true) !== null)
+            compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }
@@ -952,8 +1092,8 @@ StandInRoot {
             compare(nav.path, "Play.qml")
             compare(nav.params.game, "sf2")
             compare(nav.params.title, "Street Fighter II: The World Warrior (World 910522)")
-            compare(nav.listState.filter, "all")
-            compare(nav.listState.set, "sf2")
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }
@@ -1003,6 +1143,36 @@ StandInRoot {
             verify(!screen.attractable)
         }
 
+        // Where Attract Mode can begin the screen saver waits from the first
+        // moment, not only once the screen goes through its games: with a
+        // time shorter than Attract After it came up first, took the keys,
+        // and Attract Mode never began. Not where it can't begin (a filter
+        // of one game, the options up), nor with Attract Mode off.
+        function test_screenAttractHoldsSaver() {
+            moduleRoot.attractMode = "In Order"
+            moduleRoot.attractAfter = 60
+            var screen = openScreen()
+            verify(screen.attractable)
+            tryVerify(function() { return idleTracker.resets > 0 }, 1000)
+            verify(!screen.attracting)
+            var hold = findChild(screen, "attractHold")
+            verify(hold.running)
+            verify(hold.interval < 30000)
+            keyClick(Qt.Key_Left)   // 6 Players, a game
+            compare(screen.count, 1)
+            verify(!hold.running)
+            keyClick(Qt.Key_Right)
+            verify(hold.running)
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            verify(!hold.running)
+            keyClick(Qt.Key_Escape)
+            verify(hold.running)
+            moduleRoot.attractMode = "Off"
+            verify(!hold.running)
+        }
+
         // A game FinalBurn Neo plays takes credits bought (COIN) as MAME's
         // do, and shows them; its options offer its engine, Auto naming
         // FinalBurn Neo, and MAME chosen there is saved for it.
@@ -1040,6 +1210,25 @@ StandInRoot {
             compare(findText(screen, "Engine:"), null)
         }
 
+        // A game's options act on the game they were opened for, though the
+        // list moves under them (the folder read again): Play, Game Details
+        // and what is set for it.
+        function test_screenOptionsKeepTheirGame() {
+            arcadeBackend.difficultySettings = { "sf2": ["Normal", "Easy", "Hard"] }
+            var screen = openScreen()
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            compare(screen.currentSet, "sf2")
+            screen.selected = 1
+            compare(screen.currentSet, "1942")
+            verify(findText(screen, "Difficulty: Normal") !== null)
+            keyClick(Qt.Key_Return)     // Play
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params.game, "sf2")
+            compare(root.navigations[0].params.title, "Street Fighter II: The World Warrior (World 910522)")
+        }
+
         // A game's options: Play first, a line the cursor passes over, then
         // what is set for it: a vertical game's monitor, which it is played
         // and hosted with, and a MAME game's difficulty from its DIP switch,
@@ -1051,7 +1240,7 @@ StandInRoot {
             tryVerify(function() { return findText(screen, "Add to Favorites") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             compare(screen.currentSet, "sf2")
-            compare(findText(screen, "Monitor:"), null)      // not vertical
+            compare(findText(screen, "Vertical Games:"), null)      // not vertical
             compare(findText(screen, "Difficulty:"), null)   // no switch
             keyClick(Qt.Key_Escape)
             keyClick(Qt.Key_Down)
@@ -1073,7 +1262,11 @@ StandInRoot {
             keyPress(Qt.Key_Return)
             tryVerify(function() { return findText(screen, "Difficulty: Normal") !== null }, 1500)
             keyRelease(Qt.Key_Return)
-            verify(findText(screen, "Monitor: Default (Horizontal)") !== null)
+            // The game's turn under the name Emulator Video gives the same
+            // three, its line whole.
+            verify(findText(screen, "Vertical Games: Default", true) !== null)
+            verify(!findText(screen, "Vertical Games: Default", true).truncated)
+            compare(findText(screen, "Monitor:"), null)
             // The last of them, round from Play: Difficulty, then Monitor.
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Return)
@@ -1094,22 +1287,25 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.monitors["1942"], "Turned Left")
             keyPress(Qt.Key_Return)
-            tryVerify(function() { return findText(screen, "Monitor: Turned Left") !== null }, 1500)
+            tryVerify(function() { return findText(screen, "Vertical Games: Turned Left") !== null }, 1500)
             keyRelease(Qt.Key_Return)
             keyClick(Qt.Key_Escape)
             compare(root.navigations.length, 0)
         }
 
         // FinalBurn Neo's page: RetroArch there, the core not; Download
-        // starts it and shows how far it has got; once it is in, the core's
-        // date and its games, its licence left to About.
+        // first, the cursor on it, starts it and shows how far it has got;
+        // once it is in, the core's date and its games, its license left to
+        // About.
         function test_fbneoPage() {
             var page = open("Fbneo.qml")
             verify(findText(page, "Not Installed") !== null)
             verify(findText(page, "Download", true) !== null)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
+            compare(page.keys, ["download", "retroarch", "core", "games"])
+            compare(page.currentKey, "download")
+            // One spelling, the labels' (LICENSE), in the help line too.
+            verify(findText(page, "its license (some 35 MB)") !== null)
+            compare(findText(page, "licence"), null)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.downloads, 1)
             tryVerify(function() { return findText(page, "40%") !== null }, 1000)
@@ -1124,8 +1320,41 @@ StandInRoot {
             tryVerify(function() { return findText(page, "Downloaded 2026-10-17") !== null }, 1000)
             verify(findText(page, "9123") !== null)
             verify(findText(page, "Download Again") !== null)
-            compare(page.keys, ["retroarch", "core", "games", "download"])
+            compare(page.keys, ["download", "retroarch", "core", "games"])
             compare(findText(page, "freely use, modify"), null)
+
+            // The latest downloaded over OSD/OS's own: Back to OSD/OS's
+            // Version under Download, which asks first, Cancel under the
+            // cursor; Cancel and back keep the download, Go Back goes back.
+            arcadeBackend.fbneo = { retroarch: "/usr/bin/retroarch", core: "/data/arcade/retroarch/cores/fbneo_libretro.so",
+                                    coreDate: "2026-10-17", latest: true, hasPackaged: true, version: "1.0.0.03",
+                                    games: 9123, canDownload: true, retroarchDownloadVersion: "1.20.0" }
+            arcadeBackend.fbneoChanged()
+            tryVerify(function() { return JSON.stringify(page.keys)
+                                   === JSON.stringify(["download", "own", "retroarch", "core", "games"]) }, 1000)
+            page.currentIndex = 1
+            var question = findChild(page, "question")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            verify(findText(question, "Go back to OSD/OS's version?") !== null)
+            verify(findText(question, "The download is deleted") !== null)
+            compare(question.choiceIndex, 0)
+            compare(question.choices.map(function(c) { return c.label }), ["Cancel", "Go Back"])
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.ownFbneos, 0)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.ownFbneos, 0)
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.ownFbneos, 1)
+            page.currentIndex = 0
 
             // On Windows without RetroArch: Download RetroArch under
             // RetroArch's line, select starting it and the line saying how
@@ -1137,12 +1366,12 @@ StandInRoot {
                                     canDownload: true, canDownloadRetroarch: true, retroarchDownloadVersion: "1.20.0",
                                     retroarchDownloaded: false }
             arcadeBackend.fbneoChanged()
-            tryVerify(function() { return keysAre(["retroarch", "retroarch_download", "core", "games", "download"]) }, 1000)
+            tryVerify(function() { return keysAre(["download", "retroarch", "retroarch_download", "core", "games"]) }, 1000)
             verify(findText(page, "Download RetroArch") !== null)
-            // The cursor stayed on Download: up to the new line.
-            keyClick(Qt.Key_Up)
-            keyClick(Qt.Key_Up)
-            keyClick(Qt.Key_Up)
+            // The cursor stayed on Download: down to the new line.
+            compare(page.currentKey, "download")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.retroarchDownloads, 1)
             tryVerify(function() { return findText(page, "35%") !== null }, 1000)
@@ -1165,7 +1394,7 @@ StandInRoot {
                                     games: 0, license: "", canDownload: true, canDownloadRetroarch: true,
                                     retroarchDownloadVersion: "1.20.0", retroarchDownloaded: false }
             arcadeBackend.fbneoChanged()
-            tryVerify(function() { return keysAre(["retroarch", "core", "games", "download"]) }, 1000)
+            tryVerify(function() { return keysAre(["download", "retroarch", "core", "games"]) }, 1000)
             verify(findText(page, "Installed") !== null)
             // The package's own (the Linux arm64 one's, built with TLS):
             // said so, with what it is for in place of its path.
@@ -1174,6 +1403,7 @@ StandInRoot {
                                     retroarchDownloadVersion: "", retroarchDownloaded: false, retroarchPackaged: true }
             arcadeBackend.fbneoChanged()
             tryVerify(function() { return findText(page, "With OSD/OS") !== null }, 1000)
+            page.currentIndex = page.keys.indexOf("retroarch")
             verify(findText(page, "over https") !== null)
             verify(findText(page, "/opt/osdos/lib/osdos/retroarch") === null)
 
@@ -1226,19 +1456,42 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
-        // The Game Pictures page: the games with a picture of all, each
-        // source as Pictures From and the key have it, and Download Pictures
+        // The Game Pictures page: Source first, by its names over
+        // the values saved (Both for the old long one), ◄ ► changing and
+        // saving it; Download Pictures under it, the cursor opening on it,
         // starting the look, whose way the row shows as it goes and how it
-        // ended; back closes the page.
+        // ended; then the games with a picture of all and each source as
+        // Source and the key have it; back closes the page.
         function test_picturesPage() {
             arcadeBackend.pictureInfo = { games: 120, withPictures: 45, achievements: true, snaps: true, key: "none",
                                           writable: true }
             var page = open("Pictures.qml")
+            compare(page.keys, ["source", "download", "games", "achievements", "snaps"])
+            compare(page.currentKey, "download")
             verify(findText(page, "45/120") !== null)
-            verify(findText(page, "No Web API Key") !== null)
-            compare(page.keys, ["games", "achievements", "snaps", "download"])
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
+            // Short enough beside its label in Camcorder (about 24 letters
+            // in all), the help line saying which key.
+            verify(findText(page, "No Key", true) !== null)
+            verify(page.labelOf("achievements").length + page.valueOf("achievements").length <= 24)
+            verify(page.descriptionOf("achievements").indexOf("No Web API key: none is set in Settings → Arcade → RetroAchievements Account") === 0)
+            // Unset, the default's name; its help line the first sentence
+            // and the bracket of the value on the row.
+            compare(page.labelOf("source"), "Source")
+            compare(page.shownValue("source", 0), "Both")
+            keyClick(Qt.Key_Up)
+            compare(page.currentKey, "source")
+            verify(findText(page, "[BOTH] RetroAchievements' first") !== null)
+            compare(findText(page, "[OFF]"), null)
+            keyClick(Qt.Key_Right)
+            compare(appCore.saved.pictures_source, "RetroAchievements")
+            compare(page.shownValue("source", 0), "RetroAchievements")
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(appCore.saved.pictures_source, "Off")
+            verify(findText(page, "Off", true) !== null)
+            keyClick(Qt.Key_Right)
+            compare(appCore.saved.pictures_source, "RetroAchievements, then progetto-SNAPS")
+            compare(page.shownValue("source", 0), "Both")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.pictureDownloads, 1)
@@ -1257,26 +1510,72 @@ StandInRoot {
                                           writable: true }
             arcadeBackend.gamesChanged()
             tryVerify(function() { return findText(page, "117/120") !== null }, 1000)
-            verify(findText(page, "Key Refused") !== null)
+            verify(findText(page, "Refused", true) !== null)
+            verify(page.labelOf("achievements").length + page.valueOf("achievements").length <= 24)
+            verify(page.descriptionOf("achievements").indexOf("Web API key refused") === 0)
             verify(findText(page, "Off") !== null)
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+
+            // Saved as a value no longer offered, the default's name; saved
+            // as one, its name.
+            loader.source = ""
+            appCore.saved = { pictures_source: "progetto-SNAPS" }
+            page = open("Pictures.qml")
+            compare(page.shownValue("source", 0), "progetto-SNAPS")
+            loader.source = ""
+            appCore.saved = { pictures_source: "Somewhere" }
+            page = open("Pictures.qml")
+            compare(page.shownValue("source", 0), "Both")
         }
 
-        // The Check ROMs page: nothing checked yet, the check started by
+        // Source in Broadcast and Flat Panel: select starts a change,
+        // ▲ ▼ step it with nothing saved, select saves it, back leaves it as
+        // it was; in Flat Panel ◄ is back.
+        function test_picturesPageTwoStep_data() {
+            return [{ tag: "Broadcast", layout: "Broadcast" }, { tag: "Flat Panel", layout: "Flat Panel" }]
+        }
+        function test_picturesPageTwoStep(data) {
+            root.menuLayout = data.layout
+            var page = open("Pictures.qml")
+            verify(root.twoStep)
+            page.currentIndex = 0
+            keyClick(Qt.Key_Right)
+            compare(appCore.saved.pictures_source, undefined)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(page.shownValue("source", 0), "RetroAchievements")
+            compare(page.currentIndex, 0)
+            compare(appCore.saved.pictures_source, undefined)
+            keyClick(Qt.Key_Escape)
+            compare(page.editIndex, -1)
+            compare(root.backs, 0)
+            compare(page.shownValue("source", 0), "Both")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, -1)
+            compare(appCore.saved.pictures_source, "progetto-SNAPS")
+            keyClick(Qt.Key_Left)
+            compare(root.backs, data.layout === "Flat Panel" ? 1 : 0)
+        }
+
+        // The Check ROMs page: Check ROMs first, the cursor on it, started by
         // select alone and its way shown as it goes (waiting for a game, the
-        // stage and how far), how it ended, and the counts read again then;
-        // back closes the page.
+        // stage and how far), how it ended, and the counts under it read
+        // again then; back closes the page.
         function test_romCheckPage() {
             arcadeBackend.romInfo = { checked: "", games: 40, complete: 0, fbneoOnly: 0, mameOnly: 0, incomplete: 0,
                                       unchecked: 40 }
             var page = open("RomCheck.qml")
+            compare(page.keys[0], "check")
+            compare(page.currentKey, "check")
             verify(findText(page, "Never") !== null)
             verify(findText(page, "40") !== null)
             compare(arcadeBackend.romChecks, 0)
-            for (var i = 0; i < page.keys.length - 1; ++i)
-                keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.romChecks, 1)
             tryVerify(function() { return findText(page, "Starting") !== null }, 1000)
@@ -1298,76 +1597,137 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
-        // The account's page: the user and password typed (the password a
-        // star a letter, both cases kept), Sign In hands them over, and Sign
-        // Out brings them back; the key asked about as the page opens.
+        // The Favorites page: Export and Import first, the cursor on Export,
+        // how many there are under them; each says how it went.
+        function test_favoritesPage() {
+            var page = open("Favorites.qml")
+            compare(page.keys, ["export", "import", "count"])
+            compare(page.currentKey, "export")
+            verify(findText(page, "2 Games") !== null)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.favoriteFiles, ["export"])
+            verify(findText(page, "2 written") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.favoriteFiles, ["export", "import"])
+            tryVerify(function() { return findText(page, "3 Games") !== null }, 1000)
+        }
+
+        // The account's page: one Account line, what is still to type
+        // Not Set (never None), Sign In dimmed with why until both are
+        // typed; the user and password typed (the password a star a letter,
+        // both cases kept), Sign In hands them over; Sign Out and Forget Web
+        // API Key ask first, Cancel under the cursor; the key asked about as
+        // the page opens. Fake values only.
         function test_accountPage() {
             var page = open("Account.qml")
-            verify(findText(page, "None") !== null)
+            compare(page.keys, ["state", "user", "password", "signIn", "key"])
+            verify(findText(page, "Not Signed In", true) !== null)
+            compare(findText(page, "None", true), null)
+            compare(page.valueOf("user"), "Not Set")
+            compare(page.valueOf("password"), "Not Set")
+            compare(page.valueOf("key"), "Not Set")
             compare(arcadeBackend.keyChecks, 1)
+            // Sign In dimmed, the help line saying why, select doing nothing.
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)   // User
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(page.currentKey, "signIn")
+            verify(findText(page, "Type your user name and password first") !== null)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return findText(page, "RetroAchievements User") !== null }, 1000)
+            compare(arcadeBackend.signIns, [])
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)     // User Name
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "RetroAchievements User Name") !== null }, 1000)
             for (var i = 0; i < "Player".length; ++i)
                 keyClick("Player"[i])
             keyClick(Qt.Key_Return)
             tryVerify(function() { return findText(page, "Player", true) !== null }, 1000)
+            compare(page.offOf("signIn"), "Type your user name and password first")
             keyClick(Qt.Key_Down)   // Password
             keyClick(Qt.Key_Return)
             for (var j = 0; j < "Se".length; ++j)
                 keyClick("Se"[j])
             verify(findText(page, "**", true) !== null)
             keyClick(Qt.Key_Return)
+            compare(page.offOf("signIn"), "")
             keyClick(Qt.Key_Down)   // Sign In
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.signIns, ["Player:Se"])
             tryVerify(function() { return findText(page, "At the Next Game") !== null }, 1000)
-            verify(findText(page, "Sign Out", true) !== null)
-            // Sign In gone, the cursor on the account's first line; the
-            // password gone from the page.
-            compare(page.keys, ["state", "status", "signOut", "key"])
+            tryVerify(function() { return findText(page, "Sign Out", true) !== null }, 1000)
+            compare(page.keys, ["state", "signOut", "key"])
             compare(page.typedPassword, "")
             // The key, kept by the backend and never shown; refused, the
-            // page says so; forgotten, its line goes.
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
+            // page says so.
+            page.currentIndex = page.keys.indexOf("key")
             keyClick(Qt.Key_Return)
             tryVerify(function() { return findText(page, "Web API Key") !== null }, 1000)
             keyClick("A")
             keyClick("b")
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.keyGiven, "Ab")
-            tryVerify(function() { return findText(page, "Kept", true) !== null }, 1000)
+            tryVerify(function() { return findText(page, "Set", true) !== null }, 1000)
             compare(findText(page, "Ab", true), null)
-            // RetroAchievements took it.
             arcadeBackend.achievementsKeyWorks = true
             tryVerify(function() { return findText(page, "Working", true) !== null }, 1000)
             arcadeBackend.achievementsKeyWorks = false
-            compare(page.keys, ["state", "status", "signOut", "key", "forgetKey"])
+            compare(page.keys, ["state", "signOut", "key", "forgetKey"])
             arcadeBackend.achievementsKeyRefused = true
             tryVerify(function() { return findText(page, "Refused", true) !== null }, 1000)
             verify(findText(page, "refused the key") !== null)
+            // Forget Web API Key asks, Cancel under the cursor: Cancel, and
+            // back, keep it; Forget forgets it, and its line goes.
+            var question = findChild(page, "question")
+            keyClick(Qt.Key_Down)
+            compare(page.currentKey, "forgetKey")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            verify(findText(question, "Forget the Web API key?") !== null)
+            compare(question.choiceIndex, 0)
+            compare(question.choices[0].label, "Cancel")
+            compare(question.choices[1].label, "Forget")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.keyGiven, "Ab")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.keyGiven, "Ab")
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.keyGiven, "")
-            tryVerify(function() { return page.keys.length === 4 }, 1000)
-            compare(page.keys[3], "key")
-            // Its line gone, the cursor on the first; signed out, the lines
-            // to sign in again.
-            keyClick(Qt.Key_Down)
+            tryVerify(function() { return page.keys.length === 3 }, 1000)
+            compare(page.keys[2], "key")
+            // Sign Out asks the same way; signed out, the lines to sign in
+            // again.
+            page.currentIndex = page.keys.indexOf("signOut")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            verify(findText(question, "Sign out of RetroAchievements?") !== null)
+            compare(question.choiceIndex, 0)
+            compare(question.choices[1].label, "Sign Out")
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.achievementsState, "pending")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return page.keys.length === 6 }, 1000)
-            compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
-            // Signed in again, RetroArch signing in at once: the page says
-            // so; refused, it says why, the user kept and the cursor on the
-            // password, to type it again.
+            tryVerify(function() { return page.keys.length === 5 }, 1000)
+            compare(page.keys, ["state", "user", "password", "signIn", "key"])
+            verify(findText(page, "Not Signed In", true) !== null)
+            // Signed in again, RetroArch signing in at once: the Account
+            // line says so; refused, it says why, the user kept and the
+            // cursor on the password, to type it again.
             arcadeBackend.achievementsUser = "Player"
             arcadeBackend.achievementsState = "checking"
-            tryVerify(function() { return findText(page, "Checking", true) !== null }, 1000)
-            compare(page.keys, ["state", "status", "signOut", "key"])
+            tryVerify(function() { return findText(page, "Signing In", true) !== null }, 1000)
+            compare(page.keys, ["state", "signOut", "key"])
             page.typedUser = ""
             arcadeBackend.achievementsMessage = "Invalid User/Password combination. Please try again"
             arcadeBackend.achievementsState = "failed"
@@ -1375,6 +1735,9 @@ StandInRoot {
             compare(page.currentKey, "password")
             compare(page.typedUser, "Player")
             verify(findText(page, "Invalid User/Password combination") !== null)
+            // Signed in: the Account line is the user's name.
+            arcadeBackend.achievementsState = "signedIn"
+            tryVerify(function() { return findText(page, "Player", true) !== null }, 1000)
         }
 
         // Pictures of the repository's, as a game's: a screenshot (4:3) and
@@ -1526,8 +1889,8 @@ StandInRoot {
             verify(arcadeBackend.picturesWanted.indexOf("1942") >= 0)
         }
 
-        // A game's options offer its Game Details, which open on it; back
-        // from them lands where it was, as from playing it. The tree's too.
+        // A game's options offer its Game Details, which open on it, the
+        // list under them as it was. The tree's too.
         function test_gameDetailsOption() {
             var screen = openScreen()
             keyPress(Qt.Key_Return)
@@ -1540,8 +1903,8 @@ StandInRoot {
             compare(root.navigations[0].path, "Details.qml")
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.title, "Street Fighter II: The World Warrior (World 910522)")
-            compare(root.navigations[0].listState.set, "sf2")
-            compare(root.navigations[0].listState.filter, "all")
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
             loader.source = ""
             root.navigations = []
             var games = open("Games.qml")
@@ -1550,13 +1913,14 @@ StandInRoot {
             keyClick(Qt.Key_Right)  // into it, on Galaga
             keyClick(Qt.Key_Right)  // its options
             verify(findText(games, "Game Details", true) !== null)
-            // A vertical game's monitor among what is set for it.
-            verify(findText(games, "Monitor: Default (Horizontal)", true) !== null)
+            // A vertical game's turn among what is set for it, under the
+            // name Emulator Video gives it, the default whole on its line.
+            verify(findText(games, "Vertical Games: Default", true) !== null)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Details.qml")
             compare(root.navigations[0].params.game, "galaga")
-            compare(root.navigations[0].listState.trail[root.navigations[0].listState.trail.length - 1].path, "all")
+            verify(findText(games, "1981") !== null)
         }
 
         // Game Details: what the game is; while its achievements are read,
@@ -1633,16 +1997,30 @@ StandInRoot {
         // Why there are none: no key, a key refused, RetroAchievements not
         // reached, a game it has none of; with no user to say which were
         // earned, all under one heading, each badge in colour.
+        // Without a key, or with one refused, ► goes to the page it is typed
+        // on (and the hint bar says so), select still plays; with neither,
+        // ► does nothing and the hint names no such key.
         function test_detailsWithout() {
-            var cases = [["nokey", "No Web API key: Settings, Arcade, RetroAchievements Account"],
-                         ["refused", "RetroAchievements refused the Web API key"],
-                         ["failed", "RetroAchievements could not be reached"],
-                         ["none", "RetroAchievements has no achievements for this game"]]
+            var cases = [["nokey", "Achievements need a Web API key", true],
+                         ["refused", "RetroAchievements refused the Web API key", true],
+                         ["failed", "RetroAchievements could not be reached", false],
+                         ["none", "RetroAchievements has no achievements for this game", false]]
             var details
             for (var i = 0; i < cases.length; ++i) {
                 arcadeBackend.achievementsData = { sf2: { state: cases[i][0] } }
+                root.navigations = []
                 details = open("Details.qml", { game: "sf2", title: "Street Fighter II" })
                 verify(findText(details, cases[i][1], true) !== null, cases[i][0])
+                compare(findText(details, "[►]:SET KEY") !== null, cases[i][2], cases[i][0])
+                keyClick(Qt.Key_Right)
+                if (cases[i][2]) {
+                    compare(root.navigations.length, 1, cases[i][0])
+                    compare(root.navigations[0].path, "Account.qml")
+                    compare(root.navigations[0].params.backTo.path, "Details.qml")
+                    compare(root.navigations[0].params.backTo.params.game, "sf2")
+                } else {
+                    compare(root.navigations.length, 0, cases[i][0])
+                }
                 loader.source = ""
             }
             arcadeBackend.achievementsData = { sf2: { state: "ready", progress: false, achievements: [
@@ -1862,9 +2240,7 @@ StandInRoot {
             keyPress(Qt.Key_Return)
             keyRelease(Qt.Key_Return)
             compare(root.navigations[0].params.online.room, 11)
-            compare(root.navigations[0].listState.room, 11)
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[0].listState })
+            // The screen under the game, still on the room.
             compare(screen.current.room, 11)
             // The room gone: the game's other one.
             arcadeBackend.filterList[0].rows = arcadeBackend.filterList[0].rows.slice(0, 1)
@@ -1996,14 +2372,12 @@ StandInRoot {
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.online.room, 11)
             compare(root.navigations[0].params.online.host, "ann")
-            compare(root.navigations[0].listState.room, 11)
+            // The page under the game, still on the room.
+            compare(page.room.id, 11)
             keyClick(Qt.Key_Escape)
+            compare(page.roomId, 11)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
-            // Back from a game: on its room.
-            loader.source = ""
-            page = open("Lobby.qml", { navListState: { room: 16 } })
-            tryVerify(function() { return findText(page, "this one is Snes9x's") !== null }, 1000)
             // Not reached: why.
             arcadeBackend.setLobby({ state: "failed", problem: "RetroArch's lobby can't be reached: Connection refused",
                                      rooms: [] })
@@ -2342,6 +2716,16 @@ StandInRoot {
             compare(findText(screen, "FinalBurn Neo Not Installed"), null)
         }
 
+        // A host's name ending in s takes the apostrophe alone.
+        function test_playJoinsANameEndingInS() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (james)",
+                                          online: { room: 1, host: "james", lan: true } })
+            verify(findText(play, "Joining james' game on this network") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+        }
+
         // A room on the local network joined from the game's screen says
         // whose game it is and joins it at its host; a game hosted there
         // says so and hosts it; and with Start Info Screen off, the router
@@ -2379,6 +2763,104 @@ StandInRoot {
             compare(arcadeBackend.lanHosted, ["sf2", "sf2"])
             compare(arcadeBackend.hosted, [])
             compare(arcadeBackend.started, [])
+        }
+
+        // Where a player decides on a game over the local network, the
+        // backend's warning of this machine's link (2.4 GHz Wi-Fi with
+        // Bluetooth pads) and its advice on which machine should host: the
+        // original screen's line and the Arcade screen's on a room there,
+        // the warning before what is said of the room; Host LAN Game's line
+        // under the options, and the page shown while hosting, the warning
+        // first, then the advice, each a line of its own. With neither,
+        // each says what it said before.
+        function test_lanAdvice() {
+            var warning = "Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable"
+            var advice = "The fastest machine on a cable should host"
+            var detail = "Hosted by ann at 192.168.1.20 on this network • sf2.zip"
+            arcadeBackend.linkWarning = warning
+            arcadeBackend.advice = advice
+            arcadeBackend.entries = Object.assign({}, arcadeBackend.entries, {
+                "top": [{ name: "LAN Games", path: "lan", isFolder: true }].concat(arcadeBackend.entries.top),
+                "lan": [{ name: "Street Fighter II (ann)", path: "lan:1", isFolder: false, kind: "room", game: "sf2",
+                          room: 1, host: "ann", lan: true, detail: detail }]
+            })
+            arcadeBackend.lanHostable = ["pacman"]
+            var games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            var line = null
+            tryVerify(function() {
+                line = findText(games, detail)
+                return line !== null
+            }, 1000)
+            compare(line.text, warning + "\n" + detail)
+            verify(arcadeBackend.linkAsked.indexOf(1) >= 0)
+            // Host LAN Game, under the cursor: the warning, then the advice.
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
+            var note = findChild(games, "choiceNote")
+            verify(note !== null && note.visible)
+            compare(note.text, warning + "\n" + advice)
+            verify(arcadeBackend.linkAsked.indexOf(-1) >= 0)
+            // Another choice: nothing to say.
+            keyClick(Qt.Key_Down)
+            compare(note.text, "")
+            verify(note.visible)
+            keyClick(Qt.Key_Escape)
+            loader.source = ""
+
+            // Nothing to say: the room's own line, and no line for the choice.
+            arcadeBackend.linkWarning = ""
+            arcadeBackend.advice = ""
+            games = open("Games.qml")
+            keyClick(Qt.Key_Right)
+            tryVerify(function() {
+                line = findText(games, detail)
+                return line !== null
+            }, 1000)
+            compare(line.text, detail)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return findText(games, "Host LAN Game") !== null }, 1000)
+            verify(!findChild(games, "choiceNote").visible)
+            keyClick(Qt.Key_Escape)
+            loader.source = ""
+
+            // The Arcade screen's line on a room: the warning first.
+            arcadeBackend.linkWarning = warning
+            arcadeBackend.advice = advice
+            arcadeBackend.filterList = [{ id: "lan", name: "LAN Games", sets: ["sf2"],
+                                          rows: [{ set: "sf2", name: "Street Fighter II (ann)", favorite: false, room: 1,
+                                                   host: "ann", lan: true, detail: detail,
+                                                   info: lanRoom(1, "Street Fighter II", "ann", {}) }] }]
+                                        .concat(arcadeBackend.filterList)
+            moduleRoot.startFilter = "lan"
+            var screen = openScreen()
+            compare(screen.about.split("\n").slice(0, 2), [warning, detail])
+            loader.source = ""
+
+            // Hosting: under what is hosted, the warning, then the advice;
+            // hosting online or joining, neither.
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            verify(findText(play, "Hosting on this network: others join from LAN Games\n" + warning + "\n" + advice) !== null)
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true } })
+            compare(findText(play, advice), null)
+            loader.source = ""
+            arcadeBackend.linkWarning = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            verify(findText(play, "Hosting on this network: others join from LAN Games\n" + advice) !== null)
+            arcadeBackend.advice = ""
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", online: { hosting: true, lan: true } })
+            compare(findText(play, "Hosting on this network: others join from LAN Games").text,
+                    "Hosting on this network: others join from LAN Games")
         }
 
         // Select plays the game as it is let go; held, it opens the game's
@@ -2817,9 +3299,7 @@ StandInRoot {
             keyClick(Qt.Key_Space)
             var played = root.navigations[root.navigations.length - 1]
             compare(played.path, "Play.qml")
-            compare(played.listState.row, 7)
-            loader.source = ""
-            screen = openScreen({ navListState: played.listState })
+            // The screen under the game, still on it in its row.
             compare(screen.currentSet, "galaga")
             compare(screen.selectedRow, 7)
             moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 0, right: 0 }
@@ -2865,6 +3345,21 @@ StandInRoot {
             compare(screen.filterId, "all")
             compare(screen.selected, 0)
             compare(findText(screen, "Lobby Not Reachable"), null)
+        }
+
+        // The room under the list for the hint bar and the help line, in the
+        // design's lines, as OSD/OS Setup's preview has it (arcadeLayout()):
+        // with both, the hint bar alone, the help line alone, neither; the
+        // help line on the hint bar.
+        function test_screenFootRoom() {
+            var screen = openScreen()
+            var cases = [[true, true, 93], [true, false, 41], [false, true, 53], [false, false, 1]]
+            for (var i = 0; i < cases.length; ++i) {
+                root.hintBar = cases[i][0]
+                root.helpLine = cases[i][1]
+                compare(screen.areaBottom - screen.listBottom, cases[i][2])
+            }
+            compare(screen.hintBarHeight, 39)
         }
 
         // Border OFF: no frame round the picture or the box under it, the
@@ -2985,8 +3480,7 @@ StandInRoot {
             compare(findText(screen, "No games found"), null)
         }
 
-        // Start Filter's, or back from a game, the filter and the game it was
-        // on; a filter that isn't there, All Games.
+        // Start Filter's; a filter that isn't there, All Games.
         function test_screenOpensOn() {
             moduleRoot.startFilter = "genres/Fighting"
             var screen = openScreen()
@@ -2995,10 +3489,6 @@ StandInRoot {
             moduleRoot.startFilter = "genres/Nothing"
             screen = openScreen()
             compare(screen.filterId, "all")
-            loader.source = ""
-            screen = openScreen({ navListState: { filter: "favorites", set: "sf2" } })
-            compare(screen.filterId, "favorites")
-            compare(screen.currentSet, "sf2")
         }
 
         // A Start Filter with no games once MAME has answered gives way to
@@ -3084,13 +3574,53 @@ StandInRoot {
             compare(screen.currentSet, "galaga")
         }
 
+        // A game the cursor was moved to that the filter shown next doesn't
+        // have isn't kept: that filter opens on its first game, in the top
+        // row on the wheel, not on whichever game has the cursor's old
+        // place. So for Start Filter's come at last behind the lists, and
+        // for the first filter as the one shown goes with the game.
+        function test_screenFilterWithoutKeptGame_data() {
+            return [{ tag: "arc", style: "Curved" }, { tag: "wheel", style: "3D Curved" }]
+        }
+        function test_screenFilterWithoutKeptGame(data) {
+            moduleRoot.listStyle = data.style
+            var shmups = ["1942", "1943", "aerofgt", "batsugun", "dodonpa", "esprade", "gunbird", "mmatrix",
+                          "raiden", "rtype", "strikers", "zerowing"]
+            var all = arcadeBackend.filterList.concat([{ id: "genres/Shmup", name: "Shmup", sets: shmups }])
+            moduleRoot.startFilter = "genres/Shmup"
+            arcadeBackend.scanning = true
+            arcadeBackend.filterList = all.filter(function(f) { return f.id === "favorites" })
+            var screen = openScreen()
+            compare(screen.filterId, "favorites")
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selected, 1)
+            arcadeBackend.scanning = false
+            arcadeBackend.filterList = all
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "genres/Shmup")
+            verify(screen.count >= screen.perPage)
+            compare(screen.selected, 0)
+            compare(screen.currentSet, "1942")
+            compare(screen.selectedRow, 0)
+            // On its sixth game as the filter goes, and the game with it.
+            for (var i = 0; i < 5; ++i)
+                keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "esprade")
+            arcadeBackend.filterList = all.filter(function(f) { return f.id !== "genres/Shmup" })
+            arcadeBackend.gamesChanged()
+            compare(screen.filterId, "all")
+            compare(screen.selected, 0)
+            compare(screen.currentSet, "sf2")
+            compare(screen.selectedRow, 0)
+        }
+
         // The startup favourite plays at once, as if chosen in Favorites.
         function test_screenStartup() {
             var screen = openScreen({ startupPlay: { name: "Street Fighter II", path: "game:sf2" } })
             tryVerify(function() { return root.navigations.length === 1 })
             var nav = root.navigations[0]
             compare(nav.params.game, "sf2")
-            compare(nav.listState.filter, "favorites")
             // The screen there as it plays.
             compare(screen.filterId, "favorites")
             compare(screen.currentSet, "sf2")
@@ -3174,12 +3704,25 @@ StandInRoot {
             play = open("Play.qml", { game: "mslug", title: "Metal Slug", failed: true,
                                       message: "Missing sp-s2.sp1", output: "sp-s2.sp1 NOT FOUND" })
             compare(play.phase, "failed")
+            verify(findText(play, "Could not play Metal Slug") !== null)
             verify(findText(play, "Missing sp-s2.sp1") !== null)
             verify(findText(play, "sp-s2.sp1 NOT FOUND") !== null)
             wait(3500)
             compare(arcadeBackend.started, [])
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+            // One that was played and stopped, its host gone: that, under
+            // its name.
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II", failed: true, reason: "stopped",
+                                      message: "The host left the game", output: "sp-s2.sp1 NOT FOUND" })
+            compare(play.phase, "stopped")
+            verify(findText(play, "Street Fighter II", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, "The host left the game", true) !== null)
+            compare(findText(play, "NOT FOUND"), null)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 2)
         }
 
         // On, from the Arcade screen, every game waits for it to be read.
@@ -3263,6 +3806,10 @@ StandInRoot {
             compare(arcadeBackend.started, [])
             var loading = findChild(router, "gameLoading")
             verify(loading.visible)
+            // The list kept under it, not drawn: on a monitor turned on its
+            // side it would show round the loading screen.
+            verify(router.viewCovered)
+            verify(!screen.visible)
             verify(findText(loading, "Street Fighter II: The World Warrior", true) !== null)
             verify(findText(loading, "(World 910522)", true) !== null)
             var line = findText(loading, "Loading...", true)
@@ -3278,6 +3825,7 @@ StandInRoot {
             compare(router.playing.game, "sf2")
             verify(router.gameUp)
             verify(loading.visible)
+            verify(!screen.visible)
             verify(root.effectsResting)
             tryVerify(function() { return idleTracker.resets > 0 })
             keyClick(Qt.Key_Down)
@@ -3293,6 +3841,7 @@ StandInRoot {
             verify(!loading.visible)
             verify(!root.effectsResting)
             compare(shown(router), screen)
+            verify(screen.visible)
             compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
@@ -3311,6 +3860,60 @@ StandInRoot {
             compare(shown(router), games)
             arcadeBackend.finished(0, "ok", "")
             compare(router.playing, null)
+        }
+
+        // A game played out whose end has something to say (the Pi ran short
+        // of power or throttled during it, GameSystem's notice) says it
+        // under the game's name before the list, as one stopped does, from
+        // Start Info Screen's page and from the list alike; one with nothing
+        // to say goes straight back, as before.
+        function test_noticeAfterAGame() {
+            var throttled = "The Raspberry Pi slowed itself down during the game: it was too hot"
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "running", 3000)
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", throttled)
+            compare(play.phase, "stopped")
+            compare(root.backs, 0)
+            verify(!findChild(play, "gameLoading").visible)
+            verify(findText(play, "Street Fighter II", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, throttled, true) !== null)
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
+            loader.source = ""
+            play = open("Play.qml", { game: "sf2", title: "Street Fighter II" })
+            tryCompare(play, "phase", "running", 3000)
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(root.backs, 2)
+            loader.source = ""
+
+            arcadeBackend.started = []
+            var router = openRoot({ screen: "Arcade", start_info: false })
+            var screen = shown(router)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return arcadeBackend.started.length === 1 })
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", throttled)
+            compare(router.playing, null)
+            play = shown(router)
+            verify(play !== screen)
+            compare(play.phase, "stopped")
+            verify(findText(play, "1942 (Revision B)", true) !== null)
+            verify(findText(play, throttled, true) !== null)
+            compare(findText(play, "Could not play"), null)
+            keyClick(Qt.Key_Escape)
+            compare(shown(router), screen)
+            compare(screen.currentSet, "1942")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return arcadeBackend.started.length === 2 })
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+            compare(router.playing, null)
+            compare(shown(router), screen)
+            compare(root.backs, 2)
         }
 
         // A game MAME ended with an error, or one that never started, says
@@ -3335,6 +3938,20 @@ StandInRoot {
             var screen = shown(router)
             compare(screen.currentSet, "1942")
             compare(root.backs, 0)
+            // A game stopped as its host left the game was played: its name
+            // and that, not that it could not be played.
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return arcadeBackend.started.length === 2 })
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "stopped", "The host left the game")
+            play = shown(router)
+            compare(play.phase, "stopped")
+            verify(findText(play, "1942 (Revision B)", true) !== null)
+            compare(findText(play, "Could not play"), null)
+            verify(findText(play, "The host left the game", true) !== null)
+            compare(findText(play, "NOT FOUND"), null)
+            keyClick(Qt.Key_Escape)
+            compare(shown(router), screen)
             arcadeBackend.playResult = false
             arcadeBackend.error = "MAME is not installed"
             keyClick(Qt.Key_Return)
@@ -3343,9 +3960,10 @@ StandInRoot {
             compare(router.playing, null)
             verify(!findChild(router, "gameLoading").visible)
             verify(findText(play, "On Test OS: install mame", true) !== null)
-            // On Recently Played: the game MAME started, not the one it
-            // couldn't.
-            compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"]])
+            // On Recently Played: the game as MAME started it, both times,
+            // not as it couldn't.
+            compare(appCore.added, [["com.osdos.arcade", "recent", "game:1942"],
+                                    ["com.osdos.arcade", "recent", "game:1942"]])
         }
 
         // Start Info Screen on: how to come back first. The game goes on
@@ -3395,6 +4013,65 @@ StandInRoot {
             compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
+            compare(root.backs, 0)
+        }
+
+        // Game Details over the list, and back from it, at once or with a
+        // window transition on, the change made a moment later (the
+        // stand-in's changesDeferred, as WindowChange makes it): once the
+        // page has gone the list has the keys again, and Attract Mode its
+        // turn.
+        function test_rootPageBack_data() {
+            return [{ tag: "at once", deferred: false }, { tag: "with a transition", deferred: true }]
+        }
+        function test_rootPageBack(data) {
+            root.changesDeferred = data.deferred
+            var router = openRoot({ screen: "Arcade", attract_mode: "In Order" })
+            var screen = shown(router)
+            var page = findChild(router, "pageLayer")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Down)   // Game Details
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return page.item !== null })
+            verify(page.item.activeFocus)
+            verify(!screen.visible)
+            verify(!screen.attractable)
+            keyClick(Qt.Key_Escape)
+            tryCompare(page, "item", null)
+            verify(screen.visible)
+            verify(screen.activeFocus)
+            verify(screen.attractable)
+            keyClick(Qt.Key_Down)
+            compare(screen.currentSet, "1942")
+            compare(root.backs, 0)
+        }
+
+        // Game Details without a Web API key: ► opens the RetroAchievements
+        // Account page over the list in its place, and back from it is Game
+        // Details again, for the same game; back from that, the list.
+        function test_rootDetailsToAccount() {
+            arcadeBackend.achievementsData = { sf2: { state: "nokey" } }
+            var router = openRoot({ screen: "Arcade" })
+            var screen = shown(router)
+            var page = findChild(router, "pageLayer")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Down)   // Game Details
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return page.item !== null && String(page.source).indexOf("Details.qml") >= 0 })
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return String(page.source).indexOf("Account.qml") >= 0 })
+            tryVerify(function() { return page.item !== null && page.item.activeFocus })
+            verify(findText(page.item, "Not Signed In", true) !== null)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return String(page.source).indexOf("Details.qml") >= 0 })
+            tryVerify(function() { return page.item !== null && page.item.game === "sf2" })
+            keyClick(Qt.Key_Escape)
+            tryCompare(page, "item", null)
+            verify(screen.visible)
             compare(root.backs, 0)
         }
 
@@ -3476,12 +4153,14 @@ StandInRoot {
             compare(screen.filterId, "all")
             compare(marks(screen), ["heart", "heart"])
             loader.source = ""
-            screen = openScreen({ navListState: { filter: "favorites", set: "sf2" } })
+            moduleRoot.startFilter = "favorites"
+            screen = openScreen()
             compare(screen.filterId, "favorites")
             compare(screen.count, 2)
             compare(marks(screen), [])
             loader.source = ""
-            screen = openScreen({ navListState: { filter: "genres/Fighting", set: "kinst" } })
+            moduleRoot.startFilter = "genres/Fighting"
+            screen = openScreen()
             compare(screen.filterId, "genres/Fighting")
             compare(marks(screen), ["heart"])
         }
@@ -3561,8 +4240,8 @@ StandInRoot {
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.online.room, 11)
             compare(root.navigations[0].params.online.host, "ann")
-            compare(root.navigations[0].listState.filter, "lobby")
-            compare(root.navigations[0].listState.room, 11)
+            compare(screen.filterId, "lobby")
+            compare(screen.lobbyRoom.id, 11)
             // One with a password: its page, nothing to join.
             keyClick(Qt.Key_Down)
             compare(screen.lobbyRoom.id, 14)
@@ -3574,7 +4253,7 @@ StandInRoot {
             compare(root.navigations.length, 2)
             compare(root.navigations[1].path, "Lobby.qml")
             compare(root.navigations[1].params.room, 14)
-            compare(root.navigations[1].listState.room, 14)
+            compare(screen.lobbyRoom.id, 14)
             // Another core's, of no game of the folder: no picture either,
             // the box saying its game as its host has it, its core, marked as
             // not yours, and that it can't be joined.
@@ -3601,14 +4280,13 @@ StandInRoot {
             compare(root.navigations[2].path, "Lobby.qml")
             compare(root.navigations[2].params.room, 11)
             compare(root.navigations.length, 3)
-            // Back from a room's page: on it.
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[1].listState })
+            // Under a room's page, still on it.
             compare(screen.filterId, "lobby")
-            compare(screen.lobbyRoom.id, 14)
+            compare(screen.lobbyRoom.id, 11)
             // The cursor kept on one of a game not in the folder as the lobby
-            // is read again; back from its page, on it, and on it still as
-            // the lobby read again puts a room before it.
+            // is read again; under its page, on it, and on it still as the
+            // lobby read again puts a room before it.
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             arcadeBackend.gamesChanged()
             compare(screen.lobbyRoom.id, 16)
@@ -3616,8 +4294,6 @@ StandInRoot {
             keyRelease(Qt.Key_Return)
             compare(root.navigations.length, 4)
             compare(root.navigations[3].params.room, 16)
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[3].listState })
             compare(screen.lobbyRoom.id, 16)
             // The rooms changed under the screen, as the backend's do, until
             // it says so: roomsChanged(), then gamesChanged().
@@ -3779,11 +4455,7 @@ StandInRoot {
             keyRelease(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].params.game, "sf2")
-            compare(root.navigations[0].listState.filter, "search")
-            // Back from it: the words kept, on the game.
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[0].listState })
-            keys = findChild(screen, "searchKeys")
+            // Under it, the words kept, on the game.
             compare(screen.filterId, "search")
             compare(screen.currentSet, "sf2")
             compare(arcadeBackend.searches[arcadeBackend.searches.length - 1], "STR")

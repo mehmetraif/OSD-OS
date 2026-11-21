@@ -16,7 +16,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
+    paths: &paths
+      - 'scripts/build-fbneo-cores.sh'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-make.sh'
@@ -25,14 +26,7 @@ on:
       - '.github/actions/fbneo-cores/**'
       - '.github/workflows/fbneo.yml'
   pull_request:
-    paths:
-      - 'scripts/build-fbneo.sh'
-      - 'scripts/build-fbneo-lan.sh'
-      - 'scripts/fbneo-make.sh'
-      - 'scripts/fbneo-lan.patch'
-      - 'scripts/engines.env'
-      - '.github/actions/fbneo-cores/**'
-      - '.github/workflows/fbneo.yml'
+    paths: *paths
 
 permissions:
   contents: read

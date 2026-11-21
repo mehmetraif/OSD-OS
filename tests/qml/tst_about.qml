@@ -2,10 +2,9 @@ import QtQuick
 import QtTest
 import OSDOS.Testing
 
-// About, views/About.qml, against stand-ins for AppCore's licence files,
-// ArcadeBackend's FinalBurn Neo licence and SystemInfo's device name: System
-// Information first, the device's name its value, select opening its page and
-// back from it on its line again; OSD/OS's own lines, then the arcade's under
+// About, views/About.qml, against stand-ins for AppCore's license files and
+// ArcadeBackend's FinalBurn Neo license: Build first (System Information is
+// System's own row now); OSD/OS's own lines, then the arcade's under
 // its heading, which the cursor steps over; select on a line with a licence
 // opens it, OSD/OS's under the GPL's notice, another's under its name,
 // FinalBurn Neo's as it was installed or what to do without it; back closes
@@ -20,9 +19,11 @@ StandInRoot {
     QtObject {
         id: appCore
         property var asked: []
+        // OSD/OS's own, LICENSE's.
+        property string gpl: "GNU GENERAL PUBLIC LICENSE Version 3"
         function licenseText(file) {
             asked = asked.concat([file])
-            return file === "" ? "GNU GENERAL PUBLIC LICENSE Version 3"
+            return file === "" ? gpl
                  : file === "assets/licenses/GPL-2.0.txt" ? "GNU GENERAL PUBLIC LICENSE Version 2"
                  : file === "assets/licenses/zlib.txt" ? "zlib text" : ""
         }
@@ -61,6 +62,7 @@ StandInRoot {
             root.backs = 0
             root.navigations = []
             appCore.asked = []
+            appCore.gpl = "GNU GENERAL PUBLIC LICENSE Version 3"
             arcadeBackend.license = "You may freely use, modify, and distribute FB Neo."
             systemInfo.deviceName = "den-tv"
             systemInfo.refreshes = 0
@@ -118,25 +120,15 @@ StandInRoot {
             compare(cursor(page), label)
         }
 
-        // System Information first, the device's name its value; its page
-        // opens on select, and nothing else does.
-        function test_systemInfo() {
+        // Build first: System Information is a row of System's own, and no
+        // line here leads to its page.
+        function test_noSystemInfo() {
             var page = open()
-            compare(systemInfo.refreshes, 1)
-            compare(cursor(page), "System Information")
-            compare(shown(page, 0), "den-tv")
-            verify(hintOf(page).indexOf("[ENTER]:OPEN") >= 0)
-            verify(helpOf(page).indexOf("tells it apart from others on the network") >= 0)
-            keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 1)
-            compare(root.navigations[0].path, "views/SystemInfo.qml")
-            compare(root.navigations[0].listState.currentIndex, 0)
-            compare(findText(page, "This program is free software"), null)
-            keyClick(Qt.Key_Down)
             compare(cursor(page), "Build")
+            verify(page.rows.every(function(r) { return r.page !== "views/SystemInfo.qml" }))
             compare(hintOf(page).indexOf("[ENTER]:OPEN"), -1)
             keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 1)
+            compare(root.navigations.length, 0)
         }
 
         // A line that leads to a page, or holds a licence, ends in a ►, and ►
@@ -144,15 +136,10 @@ StandInRoot {
         function test_rightOpens() {
             var page = open()
             var list = childOf(childOf(childOf(page, "shownTop"), "topCut"), "highlightMoveDuration")
-            verify(list.itemAtIndex(0).opens)       // System Information
-            verify(!list.itemAtIndex(1).opens)      // Build
+            verify(!list.itemAtIndex(0).opens)      // Build
             verify(!list.itemAtIndex(0).changes)
             keyClick(Qt.Key_Right)
-            compare(root.navigations.length, 1)
-            compare(root.navigations[0].path, "views/SystemInfo.qml")
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Right)
-            compare(root.navigations.length, 1)
+            compare(root.navigations.length, 0)
             downTo(page, "License")
             verify(list.itemAtIndex(list.currentIndex).opens)
             keyClick(Qt.Key_Right)
@@ -161,23 +148,15 @@ StandInRoot {
             compare(findText(page, "This program is free software"), null)
         }
 
-        // Back from System Information, on its line again, wherever the list
-        // was; a new name on its line in place, the cursor where it is.
-        function test_backFromSystemInfo() {
-            var page = open({ currentIndex: 0 })
-            compare(cursor(page), "System Information")
-            cleanup()
-            page = open({ currentIndex: 5 })
-            compare(cursor(page), page.rows[5].label)
-            systemInfo.deviceName = "attic-tv"
-            compare(shown(page, 0), "attic-tv")
-            compare(cursor(page), page.rows[5].label)
+        // Back to the page, on the line it was left on.
+        function test_backToItsLine() {
+            var page = open({ currentIndex: 4 })
+            compare(cursor(page), page.rows[4].label)
         }
 
         // A gamepad pressed after the keyboard changes the select key's hint
         // in the help line and the hint bar, not the lines: the cursor stays
-        // where it was, and select does what it did (not System Information,
-        // the first line).
+        // where it was, and select does what it did (not the first line's).
         function test_hintsChange() {
             var page = open()
             downTo(page, "License")
@@ -209,7 +188,7 @@ StandInRoot {
         function test_lines() {
             var page = open()
             var labels = page.rows.map(function(r) { return (r.type === "section" ? "# " : "") + r.label })
-            compare(labels.slice(0, 2), ["System Information", "Build"])
+            compare(labels.slice(0, 2), ["Build", "Developer"])
             var at = labels.indexOf("# Arcade")
             verify(at > labels.indexOf("Data"))
             compare(labels.slice(at + 1), ["MAME", "RetroArch", "FinalBurn Neo", "openhi2txt", "hi2txt", "RapidXML",
@@ -220,6 +199,92 @@ StandInRoot {
             compare(cursor(page), "MAME")
             keyClick(Qt.Key_Up)
             compare(cursor(page), "Data")
+        }
+
+        // A licence's page longer than its box, in every Menu Layout: at
+        // every scroll position only whole lines show, none cut by the box,
+        // a strip, or a mark; the ▲ and the ▼ are inside the box, clear of
+        // the text and of the hint bar under it, and their strips are there
+        // only while they are: at the top the text starts at the box's top.
+        // Long wrapped lines among them, so the lines aren't the box's.
+        function test_licenseShowsWholeLines_data() {
+            return root.menuLayouts.map(function(layout) { return { tag: layout, layout: layout } })
+        }
+        function test_licenseShowsWholeLines(data) {
+            root.menuLayout = data.layout
+            appCore.gpl = "GNU GENERAL PUBLIC LICENSE Version 3"
+                          + new Array(40).join("\nA line of the license's text, long enough that it wraps once or twice in the box")
+            var page = open()
+            downTo(page, "License")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "This program is free software") !== null }, 1000)
+            var box = findChild(page, "licenseBox")
+            var window = findChild(page, "licenseWindow")
+            var flick = findChild(page, "licenseFlick")
+            var marks = findChild(page, "licenseMarks")
+            verify(box && window && flick && marks)
+            var room = window.parent
+            // The lines where the page says they are: each text as tall as
+            // its lines at their pitch.
+            var texts = []
+            var findTexts = function(item) {
+                if (item.pitch !== undefined && item.lineCount !== undefined)
+                    texts.push(item)
+                for (var i = 0; i < item.children.length; i++)
+                    findTexts(item.children[i])
+            }
+            findTexts(flick.contentItem)
+            compare(texts.length, 2)
+            for (var t = 0; t < texts.length; t++)
+                fuzzyCompare(texts[t].height, texts[t].lineCount * texts[t].pitch, 1)
+            var markOf = function(name) {
+                for (var i = 0; i < marks.children.length; i++) {
+                    if (marks.children[i].name === name)
+                        return marks.children[i]
+                }
+                return null
+            }
+            var yOf = function(item) { return item.mapToItem(root, 0, 0).y }
+            var check = function(where) {
+                var top = yOf(window)
+                var bottom = top + window.height
+                var lines = flick.lines()
+                for (var i = 0; i < lines.length; i++) {
+                    var lt = yOf(flick.contentItem) + lines[i].top
+                    var lb = lt + (lines[i].bottom - lines[i].top)
+                    var inside = lt >= top - 0.5 && lb <= bottom + 0.5
+                    var outside = lb <= top + 0.5 || lt >= bottom - 0.5
+                    verify(inside || outside, where + ": line " + i + " cut")
+                }
+                verify(window.height > 0, where)
+                var b = { top: yOf(box) + root.px, bottom: yOf(box) + box.height - root.px }
+                for (var name of ["up", "down"]) {
+                    var mark = markOf(name)
+                    if (!mark.visible)
+                        continue
+                    var m = { top: yOf(mark), bottom: yOf(mark) + mark.height }
+                    verify(m.top >= b.top && m.bottom <= b.bottom, where + ": " + name + " in the box")
+                    verify(m.bottom <= top + 0.5 || m.top >= bottom - 0.5, where + ": " + name + " clear of the text")
+                }
+                // No strip at an end with no mark.
+                if (!markOf("up").visible)
+                    fuzzyCompare(top, yOf(room), 0.5)
+            }
+            tryVerify(function() { return marks.moreBelow }, 1000, "longer than its box")
+            check("the top")
+            compare(markOf("up").visible, false)
+            var steps = 0
+            while (marks.moreBelow && steps < 40) {
+                keyClick(Qt.Key_Down)
+                check("down " + ++steps)
+            }
+            verify(!marks.moreBelow && marks.moreAbove, "to its end")
+            while (marks.moreAbove && steps < 80) {
+                keyClick(Qt.Key_Up)
+                check("up " + ++steps)
+            }
+            compare(flick.contentY, 0)
+            root.menuLayout = "Standard"
         }
 
         // OSD/OS's licence under the GPL's notice; MAME's, the GPL v2's text

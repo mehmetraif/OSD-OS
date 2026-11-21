@@ -118,7 +118,7 @@ FocusScope {
                                : achievements.length + (achievements.length === 1 ? " Achievement • " : " Achievements • ")
                                  + points + pointsWord
         case "loading": return "Reading RetroAchievements…"
-        case "nokey": return "No Web API key: Settings, Arcade, RetroAchievements Account"
+        case "nokey": return "Achievements need a Web API key"
         case "refused": return "RetroAchievements refused the Web API key"
         case "failed": return "RetroAchievements could not be reached"
         }
@@ -148,6 +148,17 @@ FocusScope {
 
     function play() {
         detailsRoot.navigateTo("Play.qml", { game: game, title: title }, {})
+    }
+
+    // Without a Web API key, or with one RetroAchievements refused, ►
+    // opens the page it is typed on (Settings → Arcade → RetroAchievements
+    // Account), over the list as this page is, and back from it comes back
+    // here (Root.qml's pageLayer), the achievements read again with it. Not
+    // while Cabinet Lock keeps Settings shut.
+    readonly property bool needsKey: (progress.state === "nokey" || progress.state === "refused")
+                                     && !(typeof root.cabinetLocked === "function" && root.cabinetLocked())
+    function openAccount() {
+        detailsRoot.navigateTo("Account.qml", { backTo: { path: "Details.qml", params: navParams } }, {})
     }
 
     Connections {
@@ -283,6 +294,10 @@ FocusScope {
             if (!event.isAutoRepeat)
                 detailsRoot.play()
         }
+        Keys.onRightPressed: function(event) {
+            if (!event.isAutoRepeat && detailsRoot.needsKey)
+                detailsRoot.openAccount()
+        }
         Keys.onPressed: function(event) {
             if (root.isBack(event)) {
                 if (!event.isAutoRepeat)
@@ -297,6 +312,7 @@ FocusScope {
     }
 
     HintBar {
-        text: root.hintLine(["back:BACK", detailsRoot.rows.length > 0 ? "navigate:NAVIGATE" : "", "select:PLAY"])
+        text: root.hintLine(["back:BACK", detailsRoot.rows.length > 0 ? "navigate:NAVIGATE" : "",
+                             detailsRoot.needsKey ? "browse:SET KEY" : "", "select:PLAY"])
     }
 }

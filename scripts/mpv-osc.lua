@@ -1,5 +1,8 @@
 local assdraw = require 'mp.assdraw'
 local mp_utils = require 'mp.utils'
+-- The drawing, Scalings and key flushing the OSD/OS scripts share, from this
+-- file's own folder (see osdos-osd.lua for why so).
+local osd = dofile((debug.getinfo(1, "S").source:match("^@(.*[/\\])") or "") .. "osdos-osd.lua")
 
 -- Optional map of external sub-file URL -> friendly track name, written by the app
 -- so the OSC can show a real subtitle name instead of mpv's URL-derived title
@@ -28,11 +31,8 @@ local skip_active = false
 local SEEK_SECONDS = 10
 local MENU_TIMEOUT = 5
 
--- Colors (ABGR format for ASS)
-local C_WHITE = "&HFFFFFF&"
-local C_BLACK = "&H000000&"
-local A_OPAQUE = "&H00&"
-local A_TRANS  = "&HFF&"
+local C_WHITE, C_BLACK = osd.C_WHITE, osd.C_BLACK
+local A_OPAQUE, A_TRANS = osd.A_OPAQUE, osd.A_TRANS
 local A_DIM    = "&H99&"  -- 40% opacity for unfocused seek fill
 
 local function get_audio_str()
@@ -95,31 +95,7 @@ local sub_cycle   = mp.get_opt("sub-cycle") == "1"
 -- the AUDIO button asks the module to re-request rather than cycling locally.
 local audio_cycle = mp.get_opt("audio-cycle") == "1"
 
--- The four Scalings of Settings (MpvController::sessionArgs), which CROP steps
--- through live: how a 16:9 picture fills the 4:3 tube. Their values are
--- MpvController::scalingProperties()'s, the app's one place for them: this
--- table runs inside mpv, so it keeps a copy.
-local SCALINGS = {
-    { name = "LETTERBOX",  panscan = 0,    keepaspect = true  },
-    { name = "14:9",       panscan = 0.43, keepaspect = true  },
-    { name = "PAN & SCAN", panscan = 1,    keepaspect = true  },
-    { name = "ANAMORPHIC", panscan = 0,    keepaspect = false },
-}
-
--- The one in force, read off mpv, so CROP carries on from the Scaling the
--- video started with.
-local function current_scaling()
-    if mp.get_property_bool("keepaspect", true) == false then return 4 end
-    local p = mp.get_property_number("panscan", 0) or 0
-    if p > 0.7 then return 3 elseif p > 0.2 then return 2 end
-    return 1
-end
-
-local function next_scaling()
-    local s = SCALINGS[current_scaling() % #SCALINGS + 1]
-    mp.set_property_bool("keepaspect", s.keepaspect)
-    mp.set_property_number("panscan", s.panscan)
-end
+local SCALINGS, current_scaling, next_scaling = osd.SCALINGS, osd.current_scaling, osd.next_scaling
 
 local btn_actions = {
     function()
@@ -206,37 +182,15 @@ local function format_time(seconds)
     end
 end
 
--- Draw a filled rectangle with an optional border.
--- Uses ass:pos() (no \an tag) to match mpv's expected drawing coordinate origin.
-local function draw_rect(ass, x, y, w, h, fc, fa, bs, bc)
-    ass:new_event()
-    ass:pos(x, y)
-    ass:append(string.format(
-        "{\\bord%d\\3c%s\\3a&H00&\\1c%s\\1a%s\\shad0}",
-        bs, bc, fc, fa))
-    ass:draw_start()
-    ass:rect_cw(0, 0, w, h)
-    ass:draw_stop()
-end
-
--- Draw a text label using VCR OSD Mono.
-local function draw_text(ass, x, y, anchor, text, fs, fc, fa)
-    ass:new_event()
-    ass:append(string.format(
-        "{\\an%d\\pos(%.2f,%.2f)\\fnVCR OSD Mono\\fs%d\\1c%s\\1a%s\\shad0\\bord0}%s",
-        anchor, x, y, fs, fc, fa, text))
-end
+local draw_rect, draw_text = osd.draw_rect, osd.draw_text
 
 local function draw_menu()
     local ass = assdraw.ass_new()
     local ww, wh = mp.get_osd_size()
     if ww == 0 or wh == 0 then return end
 
-    -- Layout constants
-    local fs      = math.floor(wh * 0.0333333)   -- font size
-    local lm      = math.floor(ww * 0.12)    -- left margin
-    local rm      = math.floor(ww * 0.88)    -- right margin
-    local bar_w   = rm - lm
+    local m       = osd.metrics(ww, wh)
+    local fs, lm, rm, bar_w = m.fs, m.lm, m.rm, m.bar_w
     local border  = 2
 
     -- Heights derived from fs so they scale consistently with the font
@@ -321,16 +275,9 @@ local function draw_menu()
     mp.set_osd_ass(ww, wh, ass.text)
 end
 
--- A script's key bindings reach mpv's input from an idle handler, after the
--- callback that added or removed them returns. Flushed here instead, so that
--- OSD/OS is told the menu is up (osdos-osd-menu shown, on which it sends back
--- to mpv for the menu to close) only once the keys are the menu's, and told
--- it is down only once they are given back: a key in between went to
--- input.conf (back ended the video instead of closing the menu) or moved a
--- menu that was gone (mpv 0.35 and later; older ones apply bindings at once).
-local function flush_keybindings()
-    if mp.flush_keybindings then mp.flush_keybindings() end
-end
+-- OSD/OS is told the menu is up only once the keys are the menu's, and down
+-- only once they are given back (osd.flush_keybindings).
+local flush_keybindings = osd.flush_keybindings
 
 -- The menu off the screen and its keys given back. OSD/OS is told each way
 -- (osdos-osd-menu shown / hidden): while the menu is up, back closes it
@@ -349,9 +296,8 @@ end
 
 -- The buttons on the left of the bar, as wide as it is now.
 local function left_buttons()
-    local ww, _ = mp.get_osd_size()
-    local bar_w = math.floor(ww * 0.88) - math.floor(ww * 0.12)
-    return build_left_btns(has_subtitle_tracks(), has_playlist(), bar_w)
+    local ww, wh = mp.get_osd_size()
+    return build_left_btns(has_subtitle_tracks(), has_playlist(), osd.metrics(ww, wh).bar_w)
 end
 
 local function reset_idle_timer()
@@ -447,7 +393,9 @@ end)
 mp.add_forced_key_binding("UP",   "open_menu_up",   toggle_menu)
 mp.add_forced_key_binding("DOWN", "open_menu_down", toggle_menu)
 
--- ESC / BS quit when the menu is not visible. When the menu opens it adds
+-- ESC / BS quit when the menu is not visible and input.conf leaves them
+-- unbound: mpv lets input.conf win over these, and the one OSD/OS gives mpv
+-- sends them to OSD/OS as osdos-menu instead. When the menu opens it adds
 -- forced bindings for these keys that take priority automatically; when it
 -- closes those forced bindings are removed and these become active again.
 mp.add_key_binding("ESC", "bg-esc", function() mp.command("quit") end)

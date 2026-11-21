@@ -5,7 +5,8 @@ import QtQuick
 // the tape is: ◄ ► move the ▼ between the two ends, and stand beyond them.
 // The bar takes whole lines under its own, so every line keeps to the list's
 // rule as it scrolls; while the bar isn't shown (a slider that is off, or
-// dimmed) its lines stay, empty. In a monitor layout's frame (Settings → Look
+// dimmed) it takes no lines, and the row is its line alone, as no empty
+// line is left for the cursor to pass. In a monitor layout's frame (Settings → Look
 // → Menu Layout) a slider is its line alone, its value a number ("60%", the
 // host's), and the line is drawn the layout's way (MenuRow's MonitorRow):
 // every row one line.
@@ -40,7 +41,8 @@ Item {
     // In a monitor layout's frame, where a slider is its line alone.
     readonly property bool monitor: root.monitorFramed === true
     readonly property real lineHeight: root.menuRowHeight
-    readonly property int barLines: slider && !monitor ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
+    readonly property int barLines: slider && !monitor && barShown
+                                    ? Math.ceil((tape.height + 2 * root.px) / lineHeight) : 0
     height: lineHeight * (1 + barLines)
 
     MenuRow {

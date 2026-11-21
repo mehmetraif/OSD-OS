@@ -627,6 +627,14 @@ void FakeNetworkManager::setStrength(const QString &accessPoint, int strength) {
     change(accessPoint, kAccessPoint, { { QStringLiteral("Strength"), QVariant::fromValue(uchar(qBound(0, strength, 100))) } });
 }
 
+void FakeNetworkManager::setFrequency(const QString &accessPoint, uint mhz) {
+    const auto ap = m_aps.find(accessPoint);
+    if (ap == m_aps.end())
+        return;
+    ap->frequency = mhz;
+    change(accessPoint, kAccessPoint, { { QStringLiteral("Frequency"), mhz } });
+}
+
 void FakeNetworkManager::removeAccessPoint(const QString &accessPoint) {
     if (!m_aps.contains(accessPoint))
         return;

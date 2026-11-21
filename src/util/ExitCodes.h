@@ -10,8 +10,9 @@
 // it (OSDOS_LAUNCHER_API, the launcher's notes in scripts/install.sh).
 namespace exitcode {
 
-// Quit → Power Off (Qt.quit(), or Ctrl+Q): osdos-stop powers the Pi off.
-constexpr int kPowerOff = 0;
+// Quit → Power Off (Qt.quit(), or Ctrl+Q) exits 0, as a Qt app does: osdos-stop
+// powers the Pi off.
+//
 // Quit → Exit to Terminal: osdos-stop starts osdos-terminal.service, a
 // login prompt on tty1, in the app's place.
 constexpr int kTerminal = 10;

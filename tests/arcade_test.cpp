@@ -3,7 +3,9 @@
 #include "input/ControllerProfile.h"
 #include "modules/arcade/ArcadeBackend.h"
 #include "modules/arcade/FbneoInstaller.h"
+#include "modules/arcade/GameSystem.h"
 #include "modules/arcade/Http.h"
+#include "modules/arcade/LanRooms.h"
 #include "modules/arcade/Libretro.h"
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/RecordFile.h"
@@ -97,7 +99,8 @@ class ArcadeTest : public QObject {
     // display card and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
     // slowgame takes a second, as does asking about a_slowlist half of one;
     // any other game takes $MAME_SECONDS, and -listxml exits $MAME_LIST_LINGER
-    // seconds after its answer.
+    // seconds after its answer, -verifyroms $MAME_VERIFY_LINGER after its
+    // verdicts.
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
@@ -147,6 +150,7 @@ if [ "$1" = "-rompath" ] && [ "$3" = "-verifyroms" ]; then
 		esac
 	done
 	echo "$# romsets found"
+	[ -n "$MAME_VERIFY_LINGER" ] && sleep "$MAME_VERIFY_LINGER"
 	[ "$bad" = 1 ] && exit 2
 	exit 0
 fi
@@ -242,6 +246,27 @@ exit 0
         f.write(data);
     }
 
+    // The Arcade module's list of the games of five buttons or more, as it
+    // ships in modules/arcade (scripts/make-five-button-sets.py): a stand-in
+    // in the app's folder, before its ArcadeBackend first plays.
+    void writeFiveButtonSets(const QString &appRoot, const QByteArray &sets) {
+        writeFile(appRoot + QStringLiteral("/modules/arcade/five-button-sets.txt"), "# MAME 0.000: a stand-in\n" + sets);
+    }
+    // A player on Game Buttons' Auto, as InputManager gives one: Neo Geo
+    // 4's row (A B X Y LB RB LT RT) and Fighting 6's (X Y RB over A B RT),
+    // on a pad whose triggers are axes.
+    static controllers::ArcadeBinds autoBinds() {
+        controllers::ArcadeBinds binds;
+        binds.automatic = true;
+        binds.mame = QStringList({ "BUTTON1", "BUTTON2", "BUTTON3", "BUTTON4", "BUTTON5", "BUTTON6",
+                                   "SLIDER1_NEG_SWITCH", "SLIDER2_NEG_SWITCH", "SELECT", "START" });
+        binds.retroarch = QStringList({ "0", "1", "2", "3", "9", "10", "+4", "+5", "4", "6" });
+        binds.mameMany = QStringList({ "BUTTON3", "BUTTON4", "BUTTON6", "BUTTON1", "BUTTON2",
+                                       "SLIDER2_NEG_SWITCH", "BUTTON5", "SLIDER1_NEG_SWITCH", "SELECT", "START" });
+        binds.retroarchMany = QStringList({ "2", "3", "10", "0", "1", "+5", "9", "+4", "4", "6" });
+        return binds;
+    }
+
     static QByteArray contents(const QString &path) {
         QFile f(path);
         return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
@@ -277,7 +302,6 @@ exit 0
         return list;
     }
 
-    // Asked about the folder, and done asking MAME.
     // The folder read, or looked at and found as it was (lookAtNames()),
     // and MAME asked about what it hadn't been.
     static void refreshed(ArcadeBackend &arcade) {
@@ -960,6 +984,8 @@ private slots:
     // A game started as MAME is to have it, and back.
     void play() {
         QFile::remove(m_log);
+        writeFiveButtonSets(m_data.path(), "sf2\nsf2ce\n");
+        const auto noSets = qScopeGuard([this] { QFile::remove(m_data.path() + QStringLiteral("/modules/arcade/five-button-sets.txt")); });
         ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
         refreshed(arcade);
         // Players 1 and 2 on two pads, player 3 on one of player 1's model.
@@ -1018,6 +1044,29 @@ private slots:
         QVERIFY(withArcade.contains(QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START"
                                                    " OR JOYCODE_2_BUTTON6 JOYCODE_2_START OR JOYCODE_3_SELECT JOYCODE_3_START")));
         QVERIFY(!withArcade.contains(QStringLiteral("P1_BUTTON1")));
+        // Player 2 on Auto: a game of up to four buttons (Pac-Man, not in
+        // the module's list) on Neo Geo 4's row, Button 1 its A and Button 4
+        // its Y; one of five or more (Street Fighter II, in it, which the
+        // stand-in MAME doesn't play: its controller file is written all the
+        // same) on Fighting 6's, Button 1 its X and Button 4 its A.
+        controllers::setPlayerArcade({ {}, autoBinds() });
+        const auto joycodes = [&home](const char *port) {
+            const QRegularExpression re(QStringLiteral("<port type=\"%1\">\\s*<newseq type=\"standard\">[^<]*"
+                                                       "(JOYCODE_2_[A-Z0-9_]+)</newseq>").arg(QLatin1String(port)));
+            const QRegularExpressionMatch m = re.match(QString::fromUtf8(contents(home + QStringLiteral("/ctrlr/osdos.cfg"))));
+            return m.hasMatch() ? m.captured(1) : QStringLiteral("<no port>");
+        };
+        QFile::remove(m_log);
+        QCOMPARE(played(arcade, QStringLiteral("pacman")).at(1).toString(), QStringLiteral("ok"));
+        QCOMPARE(joycodes("P2_BUTTON1"), QStringLiteral("JOYCODE_2_BUTTON1"));
+        QCOMPARE(joycodes("P2_BUTTON4"), QStringLiteral("JOYCODE_2_BUTTON4"));
+        QCOMPARE(joycodes("COIN2"), QStringLiteral("JOYCODE_2_SELECT"));
+        QFile::remove(m_log);
+        played(arcade, QStringLiteral("sf2"));
+        QCOMPARE(joycodes("P2_BUTTON1"), QStringLiteral("JOYCODE_2_BUTTON3"));
+        QCOMPARE(joycodes("P2_BUTTON4"), QStringLiteral("JOYCODE_2_BUTTON1"));
+        QCOMPARE(joycodes("P2_BUTTON6"), QStringLiteral("JOYCODE_2_SLIDER2_NEG_SWITCH"));
+        QCOMPARE(joycodes("COIN2"), QStringLiteral("JOYCODE_2_SELECT"));
         controllers::setPlayerArcade({});
 
         // The module's settings: MAME's picture drawn another way, and no
@@ -1035,6 +1084,55 @@ private slots:
         // No players: no controller of theirs, still a way out.
         QVERIFY(!logLines().join(QLatin1Char('\n')).contains(QStringLiteral("mapdevice")));
         QVERIFY(logLines().join(QLatin1Char('\n')).contains(QStringLiteral("UI_CANCEL")));
+        // MAME Vsync on Auto: each frame waits for the screen on a Pi 4 or 5
+        // drawing through KMS (the test runs without a desktop), never
+        // -syncrefresh; elsewhere as before, unless turned on; off where
+        // turned off.
+        const auto vsync = [&](board::Family family, const QVariant &choice) {
+            arcade.setBoard(family);
+            arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("mame_vsync"), choice);
+            QFile::remove(m_log);
+            played(arcade, QStringLiteral("galaga"));
+            const QString line = logLines(QStringLiteral("play")).value(0);
+            return !line.contains(QStringLiteral("-syncrefresh"))
+                   && line.endsWith(QStringLiteral(" -video soft -waitvsync"));
+        };
+        QVERIFY(vsync(board::Family::Pi4, QVariant()));
+        QVERIFY(vsync(board::Family::Pi5, QStringLiteral("Auto")));
+        QVERIFY(!vsync(board::Family::Pi5, QStringLiteral("Off")));
+        QVERIFY(!vsync(board::Family::Other, QStringLiteral("Auto")));
+        QVERIFY(vsync(board::Family::Other, QStringLiteral("On")));
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("mame_vsync"), QStringLiteral("Off"));
+        // A Pi on a 4K TV at 30 Hz whose HDMI lists 1920x1080: MAME asks for
+        // it at 60 Hz, and says so in the log; on a 1080p60 screen, or off
+        // the Pis, nothing.
+        QTemporaryDir drm;
+        QDir().mkpath(drm.path() + QStringLiteral("/card0-Composite-1"));
+        QDir().mkpath(drm.path() + QStringLiteral("/card1-HDMI-A-1"));
+        writeFile(drm.path() + QStringLiteral("/card0-Composite-1/status"), "disconnected\n");
+        writeFile(drm.path() + QStringLiteral("/card0-Composite-1/modes"), "720x480i\n");
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/status"), "connected\n");
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/modes"), "3840x2160\n1920x1080\n1920x1080i\n");
+        arcade.setDrmFolder(drm.path());
+        const auto resolution = [&](board::Family family, const QSize &size, double hz) {
+            arcade.setBoard(family);
+            arcade.setScreen(false, size, hz);
+            QFile::remove(m_log);
+            played(arcade, QStringLiteral("galaga"));
+            const QString line = logLines(QStringLiteral("play")).value(0);
+            return line.section(QStringLiteral(" -resolution "), 1).section(QLatin1Char(' '), 0, 0);
+        };
+        {
+            QTest::ignoreMessage(QtInfoMsg, "arcade: the screen is 3840x2160 at 30 Hz: the game asks for 1920x1080 at 60 Hz");
+            QCOMPARE(resolution(board::Family::Pi4, QSize(3840, 2160), 30), QStringLiteral("1920x1080@60"));
+        }
+        QCOMPARE(resolution(board::Family::Pi5, QSize(1920, 1080), 60), QString());
+        QCOMPARE(resolution(board::Family::Other, QSize(3840, 2160), 30), QString());
+        writeFile(drm.path() + QStringLiteral("/card1-HDMI-A-1/modes"), "3840x2160\n");
+        QCOMPARE(resolution(board::Family::Pi5, QSize(3840, 2160), 30), QString());
+        arcade.setScreen(false, QSize());
+        arcade.setBoard(board::Family::Other);
+        arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("mame_vsync"), QVariant());
     }
 
     // Settings → Arcade → Emulator Video and the screen OSD/OS is on: on a
@@ -1105,7 +1203,7 @@ private slots:
     // cfg file for the game as it starts, the rest of the file kept, and kept
     // in games.json; and a vertical game's monitor (its options' Monitor),
     // which it plays with, Emulator Video → Vertical Games named as its
-    // default, Settings → Screen → Monitor turned going before it.
+    // default, Settings → Screen → Rotation turned going before it.
     void difficultyAndMonitor() {
         const QString module = QStringLiteral("com.osdos.arcade");
         const QString cfg = m_data.path() + QStringLiteral("/arcade/cfg/pacman.cfg");
@@ -1152,7 +1250,22 @@ private slots:
     </system>
 </mameconfig>
 )");
-        QCOMPARE(played(arcade, QStringLiteral("pacman")).value(1).toString(), QStringLiteral("ok"));
+        // MAME's own file, with the keys and switches set in its menus: it
+        // comes in whole under its name, never written to under it, where
+        // the power going would leave it cut short and those lost.
+        {
+            const FolderWatch watch(QFileInfo(cfg).absolutePath());
+            QCOMPARE(played(arcade, QStringLiteral("pacman")).value(1).toString(), QStringLiteral("ok"));
+            if (watch.fd >= 0) {
+                QStringList cameIn;
+                QStringList writtenTo;
+                watch.read(cameIn, writtenTo);
+                QVERIFY2(cameIn.contains(QStringLiteral("pacman.cfg")), qPrintable(cameIn.join(QLatin1Char(' '))));
+                QVERIFY2(!writtenTo.contains(QStringLiteral("pacman.cfg")), qPrintable(writtenTo.join(QLatin1Char(' '))));
+            } else {
+                qWarning("the cfg folder can't be watched here (inotify): that the file comes in whole isn't checked");
+            }
+        }
         QByteArray written = contents(cfg);
         QVERIFY2(written.contains(R"(<port tag=":DSW1" type="DIPSWITCH" mask="64" defvalue="64" value="0"/>)"), written.constData());
         QCOMPARE(written.count("mask=\"64\""), 1);
@@ -1160,10 +1273,42 @@ private slots:
         QVERIFY(written.contains("KEYCODE_W"));
         QVERIFY(written.contains(R"(mask="3" defvalue="1" value="0")"));
         QVERIFY(written.contains(R"(<coins index="0" number="3"/>)"));
+        // As MAME writes it back when the game ends, the switch as chosen
+        // in it already: left as it is, not written again at every start.
+        const QByteArray asMame = R"(<?xml version="1.0"?>
+<!-- This file is autogenerated; comments and unknown tags will be stripped -->
+<mameconfig version="10">
+    <system name="pacman">
+        <input>
+            <port tag=":IN0" type="P1_JOYSTICK_UP" mask="1" defvalue="1">
+                <newseq type="standard">KEYCODE_W</newseq>
+            </port>
+            <port tag=":DSW1" type="DIPSWITCH" mask="64" defvalue="64" value="0" />
+        </input>
+    </system>
+</mameconfig>
+)";
+        writeFile(cfg, asMame);
+        played(arcade, QStringLiteral("pacman"));
+        QCOMPARE(contents(cfg), asMame);
         // Back to the board's own.
         arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Normal") } });
         played(arcade, QStringLiteral("pacman"));
         QVERIFY(contents(cfg).contains(R"(mask="64" defvalue="64" value="64")"));
+        QVERIFY(contents(cfg).contains("KEYCODE_W"));
+        // The board's own in a file with no port of the switch, as MAME
+        // keeps one left at its default: nothing to set, the file as it is;
+        // and none made where MAME had none.
+        QByteArray atDefault = asMame;
+        atDefault.replace(R"(            <port tag=":DSW1" type="DIPSWITCH" mask="64" defvalue="64" value="0" />
+)", "");
+        QVERIFY(!atDefault.contains("DIPSWITCH"));
+        writeFile(cfg, atDefault);
+        played(arcade, QStringLiteral("pacman"));
+        QCOMPARE(contents(cfg), atDefault);
+        QFile::remove(cfg);
+        played(arcade, QStringLiteral("pacman"));
+        QVERIFY(!QFileInfo::exists(cfg));
         // A new file where MAME had none.
         QFile::remove(cfg);
         arcade.onSettingChanged(module, QStringLiteral("difficulties"), QVariantMap{ { QStringLiteral("pacman"), QStringLiteral("Hard") } });
@@ -1291,6 +1436,33 @@ private slots:
                 startup << choice.toMap().value(QStringLiteral("label")).toString();
         }
         QVERIFY2(startup.contains(QStringLiteral("Killer Instinct")), qPrintable(startup.join(QStringLiteral(" | "))));
+
+        // A list that couldn't be saved (a lists.json that isn't JSON is
+        // never written over): the import says so, not how many it added,
+        // and OSD/OS Setup's file is kept for the next start, when it is
+        // taken.
+        const QString lists = m_data.path() + QStringLiteral("/lists.json");
+        writeFile(lists, "{ not JSON");
+        writeFile(file, "galaga\nmslug\n");
+        QSignalSpy changed(&again, &ArcadeBackend::gamesChanged);
+        done = again.importFavorites();
+        QVERIFY(!done.value(QStringLiteral("ok")).toBool());
+        QCOMPARE(done.value(QStringLiteral("message")).toString(),
+                 QStringLiteral("The favorites couldn't be saved: none added from ") + file);
+        QVERIFY(changed.isEmpty());
+        QCOMPARE(contents(lists), QByteArray("{ not JSON"));
+        writeFile(setup, R"({"favorites": ["galaga"]})");
+        again.afterReadTakeSetupFavorites();
+        QVERIFY(QFileInfo::exists(setup));
+        QVERIFY(QFile::remove(lists));
+        again.afterReadTakeSetupFavorites();
+        QVERIFY(!QFileInfo::exists(setup));
+        QCOMPARE(again.favoriteSets(), QStringList({ QStringLiteral("galaga") }));
+        // One that names only games there already has nothing to save.
+        writeFile(lists, "{ not JSON");
+        writeFile(setup, R"({"favorites": []})");
+        again.afterReadTakeSetupFavorites();
+        QVERIFY(!QFileInfo::exists(setup));
     }
 
     // MAME's cfg file with a DIP switch set: as MAME writes one, in place of
@@ -1329,6 +1501,35 @@ private slots:
         }
         QVERIFY(!check.hasError());
         QCOMPARE(systems, 1);
+        // A file that says so already is given back as it is, byte for byte:
+        // the switch's port with the value, as MAME lays its file out, or no
+        // port of it for its default, which is how MAME keeps a switch left
+        // alone (and no file at all then). One set otherwise is set, to the
+        // default too.
+        const QByteArray set4 = R"(<?xml version="1.0"?>
+<mameconfig version="10">
+    <system name="1942">
+        <input>
+            <port tag=":DSW" type="DIPSWITCH" mask="12" defvalue="12" value="4" />
+            <port tag=":DSW" type="DIPSWITCH" mask="3" defvalue="3" value="1" />
+        </input>
+    </system>
+</mameconfig>
+)";
+        QCOMPARE(mame::withDip(set4, QStringLiteral("1942"), dip, 4), set4);
+        const QByteArray back = mame::withDip(set4, QStringLiteral("1942"), dip, 12);
+        QVERIFY2(back.contains(R"(mask="12" defvalue="12" value="12"/>)") && back.contains(R"(mask="3" defvalue="3" value="1"/>)"),
+                 back.constData());
+        QCOMPARE(back.count("mask=\"12\""), 1);
+        QByteArray unset = set4;
+        unset.replace(R"(            <port tag=":DSW" type="DIPSWITCH" mask="12" defvalue="12" value="4" />
+)", "");
+        QCOMPARE(mame::withDip(unset, QStringLiteral("1942"), dip, 12), unset);
+        QVERIFY(mame::withDip(unset, QStringLiteral("1942"), dip, 8).contains(R"(mask="12" defvalue="12" value="8"/>)"));
+        QCOMPARE(mame::withDip(QByteArray(), QStringLiteral("1942"), dip, 12), QByteArray());
+        // The switch of another system's alone doesn't count as this one's.
+        QVERIFY(mame::withDip(R"(<mameconfig version="10"><system name="1943"><input><port tag=":DSW" type="DIPSWITCH" mask="12" defvalue="12" value="8"/></input></system></mameconfig>)",
+                              QStringLiteral("1942"), dip, 8).contains(R"(<system name="1942">)"));
     }
 
     // What a game that didn't play says.
@@ -1346,7 +1547,7 @@ private slots:
         const QVariantList fatal = played(arcade, QStringLiteral("sf2"));
         QCOMPARE(fatal.at(0).toInt(), 3);
         QCOMPARE(fatal.at(2).toString(), QStringLiteral("MAME stopped: Fatal error: Could not create OpenGL context\n"
-                                                        "Try another Video in the Arcade module's settings"));
+                                                        "Try another MAME Video in Settings → Arcade → Emulator Video"));
 
         // MAME killed by a signal says nothing of why.
         writeFile(m_games + QStringLiteral("/crash.zip"));
@@ -1355,7 +1556,7 @@ private slots:
         QCOMPARE(played(arcade, QStringLiteral("crash")),
                  QVariantList({ 11, QStringLiteral("failed"),
                                 QStringLiteral("MAME closed unexpectedly (signal 11)\n"
-                                               "Try another Video in the Arcade module's settings") }));
+                                               "Try another MAME Video in Settings → Arcade → Emulator Video") }));
         QFile::remove(m_games + QStringLiteral("/crash.zip"));
 
         QVERIFY(!arcade.play(QStringLiteral("gone")));
@@ -1378,8 +1579,8 @@ private slots:
 
     // MAME leaving a process of its own running as it exits (a sound server
     // its sound library started): the game ends as MAME does, and what it
-    // left is ended, where the screen used to wait for it for good, the
-    // game's last frame up and nothing answering.
+    // left is ended, where the screen would wait for it for good, the game's
+    // last frame up and nothing answering.
     void aGameLeavingAProcessBehindEnds() {
 #ifndef Q_OS_LINUX
         QSKIP("Process groups are followed on Linux");
@@ -1675,6 +1876,22 @@ private slots:
                                               QStringLiteral("Xbox 360 Controller"), false),
                      QStringLiteral("Xbox 360 Controller"));
         }
+        // On Windows SDL maps a pad its own drivers know (XInput's 'x', Raw
+        // Input's 'r', HIDAPI's 'h') with a mapping it names "*", and names
+        // the pad by the pad's own name: that name, never "*", which no pad
+        // RetroArch sees is called, and which would leave a lone pad on the
+        // first port kept for no one (player 2's, without its Game Buttons).
+        {
+            controllers::setPadMappings({ QStringLiteral("030000005e040000130b000009057200,*,a:b0,b:b1"),
+                                          QStringLiteral("030000005e0400008e02000000007801,*,a:b0,b:b1") });
+            const auto noMappings = qScopeGuard([] { controllers::setPadMappings({}); });
+            QCOMPARE(libretro::reservedDevice(QStringLiteral("03001e8f5e040000130b000009057200"),
+                                              QStringLiteral("Wireless Pad Pro"), false),
+                     QStringLiteral("Wireless Pad Pro"));
+            QCOMPARE(libretro::reservedDevice(QStringLiteral("0300a1b25e0400008e02000000007801"),
+                                              QStringLiteral("Wired Pad"), false),
+                     QStringLiteral("Wired Pad"));
+        }
 
         libretro::Launch launch;
         launch.core = QStringLiteral("/cores/fbneo_libretro.so");
@@ -1742,6 +1959,102 @@ private slots:
             QVERIFY(!quiet.contains(QStringLiteral("audio_driver = \"alsa\"")));
         }
         launch.sound = true;
+        // RetroArch's own display queue and sound buffer unless a machine's
+        // are given: two frames queued on the console of a Pi 5 (Frame
+        // Buffers on Auto), RetroArch's three on a Pi 4 and everywhere else,
+        // two on any console asked for Two, and none of it on a desktop.
+        QVERIFY(!config.contains(QStringLiteral("video_max_swapchain_images")));
+        QVERIFY(!config.contains(QStringLiteral("audio_latency")));
+        QVERIFY(!config.contains(QStringLiteral("audio_resampler_quality")));
+        using board::Family;
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, true, QString()), 2);
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, true, QStringLiteral("Auto")), 2);
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, true, QStringLiteral("Three")), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Pi4, true, QStringLiteral("Auto")), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Pi4, true, QStringLiteral("Two")), 2);
+        QCOMPARE(libretro::swapchainImages(Family::Other, true, QString()), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Pi5, false, QStringLiteral("Two")), 0);
+        QCOMPARE(libretro::swapchainImages(Family::Other, false, QStringLiteral("Two")), 0);
+        launch.swapchainImages = 2;
+        QVERIFY(libretro::configText(launch).split(QLatin1Char('\n'))
+                    .contains(QStringLiteral("video_max_swapchain_images = \"2\"")));
+        launch.console = false;
+        QVERIFY(!libretro::configText(launch).contains(QStringLiteral("video_max_swapchain_images")));
+        launch.console = true;
+        launch.swapchainImages = 0;
+        // Sound Buffer on Auto: 48 ms on a Pi 5 and any other machine; on a
+        // Pi 4 RetroArch's 64 ms and a cheaper resampler; RetroArch's own
+        // for both where asked.
+        const auto sound = [](Family family, const char *choice) {
+            const libretro::SoundTuning t = libretro::soundTuning(family, QLatin1String(choice));
+            return QStringLiteral("%1/%2").arg(t.latency).arg(t.resamplerQuality);
+        };
+        QCOMPARE(sound(Family::Pi5, ""), QStringLiteral("48/-1"));
+        QCOMPARE(sound(Family::Other, "Auto"), QStringLiteral("48/-1"));
+        QCOMPARE(sound(Family::Pi4, "Auto"), QStringLiteral("0/2"));
+        QCOMPARE(sound(Family::Pi4, "RetroArch's"), QStringLiteral("0/-1"));
+        QCOMPARE(sound(Family::Pi5, "RetroArch's"), QStringLiteral("0/-1"));
+        launch.audioLatency = 48;
+        launch.resamplerQuality = 2;
+        for (bool console : { true, false }) {
+            launch.console = console;
+            const QStringList lines = libretro::configText(launch).split(QLatin1Char('\n'));
+            QVERIFY(lines.contains(QStringLiteral("audio_latency = \"48\"")));
+            QVERIFY(lines.contains(QStringLiteral("audio_resampler_quality = \"2\"")));
+        }
+        launch.console = true;
+        launch.audioLatency = 0;
+        launch.resamplerQuality = -1;
+        // The relay nearest the time zone, of those RetroArch offers.
+        for (const auto &[zone, relay] : std::initializer_list<std::pair<const char *, const char *>>{
+                 { "Europe/Istanbul", "madrid" }, { "Africa/Lagos", "madrid" }, { "Atlantic/Canary", "madrid" },
+                 { "America/Sao_Paulo", "saopaulo" }, { "America/Argentina/Cordoba", "saopaulo" },
+                 { "America/Bogota", "saopaulo" }, { "America/Chicago", "nyc" }, { "America/Mexico_City", "nyc" },
+                 { "America/Indiana/Indianapolis", "nyc" }, { "Asia/Seoul", "chuncheon" }, { "Asia/Tokyo", "chuncheon" },
+                 { "Asia/Kolkata", "singapore" }, { "Asia/Dubai", "singapore" }, { "Australia/Perth", "singapore" },
+                 { "Pacific/Auckland", "singapore" }, { "Pacific/Honolulu", "nyc" }, { "UTC", "nyc" },
+                 { "Etc/UTC", "nyc" }, { "", "nyc" } })
+            QCOMPARE(libretro::relayForTimeZone(QLatin1String(zone)), QLatin1String(relay));
+        // A 4K screen, or a 1080p one at 30 Hz, whose connector has
+        // 1920x1080: the game asks for it at 60 Hz. A tube's 240p and 480i,
+        // a 1080p60 screen, 50 Hz, a connector without the mode, or only its
+        // interlaced one: nothing.
+        const QStringList tv{ QStringLiteral("3840x2160"), QStringLiteral("1920x1080"), QStringLiteral("1920x1080i"),
+                              QStringLiteral("1280x720") };
+        const auto mode = [](const QSize &screen, double hz, bool tube, const QStringList &modes) {
+            const std::optional<libretro::GameMode> m = libretro::gameMode(screen, hz, tube, modes);
+            return m ? QStringLiteral("%1x%2@%3").arg(m->size.width()).arg(m->size.height()).arg(m->refresh) : QString();
+        };
+        QCOMPARE(mode(QSize(3840, 2160), 30, false, tv), QStringLiteral("1920x1080@60"));
+        QCOMPARE(mode(QSize(3840, 2160), 60, false, tv), QStringLiteral("1920x1080@60"));
+        QCOMPARE(mode(QSize(1920, 1080), 30, false, tv), QStringLiteral("1920x1080@60"));
+        QCOMPARE(mode(QSize(1920, 1080), 60, false, tv), QString());
+        QCOMPARE(mode(QSize(1920, 1080), 50, false, tv), QString());
+        QCOMPARE(mode(QSize(720, 240), 60, true, tv), QString());
+        QCOMPARE(mode(QSize(720, 480), 30, true, tv), QString());
+        QCOMPARE(mode(QSize(720, 480), 30, false, tv), QString());
+        QCOMPARE(mode(QSize(720, 576), 25, true, { QStringLiteral("720x576i") }), QString());
+        QCOMPARE(mode(QSize(3840, 2160), 30, false, { QStringLiteral("3840x2160"), QStringLiteral("1920x1080i") }),
+                 QString());
+        QCOMPARE(mode(QSize(), 30, false, tv), QString());
+        // Written on the console alone, as RetroArch's KMS context takes it.
+        QVERIFY(!config.contains(QStringLiteral("video_fullscreen_x")));
+        QVERIFY(!config.contains(QStringLiteral("video_refresh_rate")));
+        launch.modeSize = QSize(1920, 1080);
+        launch.modeRefresh = 60;
+        {
+            const QStringList lines = libretro::configText(launch).split(QLatin1Char('\n'));
+            for (const char *line : { "video_fullscreen_x = \"1920\"", "video_fullscreen_y = \"1080\"",
+                                      "video_refresh_rate = \"60.000000\"" })
+                QVERIFY2(lines.contains(QLatin1String(line)), line);
+            launch.console = false;
+            QVERIFY(!libretro::configText(launch).contains(QStringLiteral("video_fullscreen_x")));
+            launch.console = true;
+        }
+        launch.modeSize = QSize();
+        launch.modeRefresh = 0;
+        // The ping on the screen only over the network, off unless asked.
+        QVERIFY(!config.contains(QStringLiteral("netplay_ping_show")));
         // That file, by the core's name: its states deterministic, the same
         // on every machine, without which RetroArch neither hosts nor joins
         // a game with it.
@@ -2056,11 +2369,22 @@ private slots:
                                   "game_specific_options = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         // Online, each machine plays ahead on a guess, as any RetroArch
-        // does: no input latency to start with, and up to four frames of it
-        // for a machine that can't play its frames again in time.
-        for (const char *line : { "netplay_require_slaves = \"false\"", "netplay_input_latency_frames_min = \"0\"",
-                                  "netplay_input_latency_frames_range = \"4\"" })
+        // does: hosted here, two frames of input latency to start with,
+        // which the machines joining take, and up to four more for a machine
+        // that can't play its frames again in time; the ping off the screen
+        // unless asked for.
+        for (const char *line : { "netplay_require_slaves = \"false\"", "netplay_input_latency_frames_min = \"2\"",
+                                  "netplay_input_latency_frames_range = \"4\"", "netplay_ping_show = \"false\"" })
             QVERIFY2(has(QLatin1String(line)), line);
+        launch.pingShown = true;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("netplay_ping_show = \"true\"")));
+        launch.pingShown = false;
+        launch.netplay = libretro::Launch::Netplay::Join;
+        config = libretro::configText(launch);
+        QVERIFY(has(QStringLiteral("netplay_input_latency_frames_min = \"0\"")));
+        launch.netplay = libretro::Launch::Netplay::Host;
+        config = libretro::configText(launch);
 
         QCOMPARE(libretro::arguments(launch),
                  QStringList({ QStringLiteral("-L"), QStringLiteral("/cores/fbneo_libretro.so"), QStringLiteral("--config"),
@@ -2260,8 +2584,8 @@ private slots:
         QCOMPARE(given("a", 4), QStringLiteral("2+3"));
         QCOMPARE(given("b", 4), QStringLiteral("5+2"));
         QCOMPARE(given("a", 1), QStringLiteral("2+1"));
-        // One each, as OSD/OS hosts on the local network: one port whatever
-        // a machine asks for.
+        // One each, as OSD/OS hosts on the local network on FinalBurn Neo's
+        // own core: one port whatever a machine asks for.
         claims.reset(1, 6, 1);
         QCOMPARE(given("a", 2), QStringLiteral("2+1"));
         QCOMPARE(given("b", 4), QStringLiteral("3+1"));
@@ -2270,6 +2594,159 @@ private slots:
         QCOMPARE(claims.each(), 1);
         claims.reset(1);
         QCOMPARE(claims.each(), libretro::kMostPorts);
+        // A claim kept while its address is connected, or until it is grace
+        // old; dropped once its connection is gone, or never came. One
+        // claimed again (a joiner rejoining from the same address) is given
+        // its time anew.
+        claims.reset(1, 6, 1);
+        QCOMPARE(claims.claim(QStringLiteral("a"), 1, 0).first, 2);
+        QCOMPARE(claims.claim(QStringLiteral("b"), 1, 0).first, 3);
+        QVERIFY(claims.awaiting());
+        QCOMPARE(claims.expire({ QStringLiteral("a") }, 1000, 5000), QStringList());
+        QVERIFY(claims.awaiting());
+        QCOMPARE(claims.expire({ QStringLiteral("a") }, 5000, 5000), QStringList({ QStringLiteral("b") }));
+        QVERIFY(!claims.awaiting());
+        QCOMPARE(claims.claim(QStringLiteral("c"), 1, 5000).first, 3);
+        QCOMPARE(claims.expire({}, 6000, 5000), QStringList({ QStringLiteral("a") }));
+        QCOMPARE(claims.claim(QStringLiteral("a"), 1, 6000).first, 2);
+        QCOMPARE(claims.expire({ QStringLiteral("c") }, 7000, 5000), QStringList());
+        QCOMPARE(claims.expire({ QStringLiteral("c") }, 10999, 5000), QStringList());
+        QCOMPARE(claims.expire({ QStringLiteral("c") }, 11000, 5000), QStringList({ QStringLiteral("a") }));
+        QVERIFY(!claims.empty());
+        claims.release(QStringLiteral("c"));
+        QVERIFY(claims.empty());
+        // The connections to RetroArch's port as Linux's tables have them
+        // (IPv4, and an IPv4 peer of an IPv6 socket), and as netstat does
+        // on Windows, macOS and the BSDs: established ones alone.
+        const QByteArray tcp =
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+            "   0: 00000000:D88B 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 1 1\n"
+            "   1: 0501A8C0:D88B 1401A8C0:C35A 01 00000000:00000000 00:00000000 00000000  1000        0 2 1\n"
+            "   2: 0501A8C0:D88B 1501A8C0:C35B 06 00000000:00000000 00:00000000 00000000  1000        0 3 1\n"
+            "   3: 0501A8C0:1F90 1601A8C0:C35C 01 00000000:00000000 00:00000000 00000000  1000        0 4 1\n"
+            "   4: 0000000000000000FFFF00000501A8C0:D88B 0000000000000000FFFF00001701A8C0:C35D 01 0:0 0:0 0 1000 0 5 1\n";
+        QCOMPARE(libretro::procNetPeers(tcp, libretro::kLanPort),
+                 QSet<QString>({ QStringLiteral("192.168.1.20"), QStringLiteral("192.168.1.23") }));
+        const QByteArray windows =
+            "  Proto  Local Address          Foreign Address        State\n"
+            "  TCP    0.0.0.0:55435          0.0.0.0:0              LISTENING\n"
+            "  TCP    192.168.1.5:55435      192.168.1.20:51234     ESTABLISHED\n"
+            "  TCP    192.168.1.5:8080       192.168.1.22:51236     ESTABLISHED\n"
+            "  TCP    [::ffff:192.168.1.5]:55435  [::ffff:192.168.1.21]:51235  ESTABLISHED\n";
+        QCOMPARE(libretro::netstatPeers(windows, libretro::kLanPort),
+                 QSet<QString>({ QStringLiteral("192.168.1.20"), QStringLiteral("192.168.1.21") }));
+        const QByteArray bsd =
+            "tcp4       0      0  192.168.1.5.55435      192.168.1.20.51234     ESTABLISHED\n"
+            "tcp4       0      0  *.55435                *.*                    LISTEN\n"
+            "tcp4       0      0  192.168.1.5.55435      192.168.1.24.51240     TIME_WAIT\n";
+        QCOMPARE(libretro::netstatPeers(bsd, libretro::kLanPort), QSet<QString>({ QStringLiteral("192.168.1.20") }));
+        // And as this machine's kernel writes them: a connection made here
+        // found by its port, over IPv4 and over IPv6 to a dual-stack socket.
+        for (const QHostAddress &listen : { QHostAddress(QHostAddress::LocalHost), QHostAddress(QHostAddress::Any) }) {
+            QTcpServer server;
+            QVERIFY(server.listen(listen, 0));
+            QTcpSocket client;
+            client.connectToHost(QHostAddress::LocalHost, server.serverPort());
+            QVERIFY(client.waitForConnected(3000));
+            QTRY_VERIFY(server.hasPendingConnections() || server.waitForNewConnection(100));
+            QByteArray table;
+            for (const char *path : { "/proc/net/tcp", "/proc/net/tcp6" }) {
+                QFile file{ QString::fromLatin1(path) };
+                if (file.open(QIODevice::ReadOnly))
+                    table += file.readAll() + '\n';
+            }
+            QVERIFY2(libretro::procNetPeers(table, server.serverPort()).contains(QStringLiteral("127.0.0.1")),
+                     table.constData());
+        }
+        // RetroArch's host's words for a client gone, named or not.
+        QVERIFY(libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] \"ann\" has disconnected")));
+        QVERIFY(libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] A netplay client has disconnected")));
+        QVERIFY(!libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] Netplay disconnected")));
+        QVERIFY(!libretro::isClientHangup(QStringLiteral("\"ann\" has disconnected")));
+
+        // A network game's summary, from RetroArch 1.20's own lines (and,
+        // loosely, a later one's on stalls, catch-ups and savestates); the
+        // account signed in, and hardcore paused or disabled as rcheevos and
+        // RetroArch say it.
+        {
+            libretro::NetplaySummary summary;
+            for (const char *line : {
+                     "[INFO] [RCHEEVOS]: player logged in successfully",
+                     "[INFO] [Netplay] Got connection from: \"ann\"",
+                     "[INFO] [Netplay] ann has joined as player 2 (ping: 14 ms)",
+                     "[INFO] [Netplay] bob (2) has joined with input devices 3, 4 (ping: 31 ms)",
+                     "[INFO] [Netplay] eve has joined as player 5",
+                     "[WARN] [Netplay] Netplay CRCs mismatch!",
+                     "[ERROR] [Netplay] Netplay savestate loading failed: Prepare for desync!",
+                     "[INFO] [Netplay] Netplay peer \"ann\" paused",
+                     "[INFO] [Netplay] Stalled waiting for a peer, catching up",
+                     "[INFO] [Netplay] \"ann\" has disconnected",
+                     "[INFO] [Netplay] A netplay client has disconnected",
+                     "[INFO] [RCHEEVOS]: Hardcore paused. Setting not allowed: fbneo-allow-patched-romsets=enabled",
+                     "[INFO] [RCHEEVOS]: Game 123 loaded, hardcore disabled",
+                     "[INFO] [RCHEEVOS]: Game 123 loaded, hardcore disabled",
+                     "[INFO] [RCHEEVOS]: Hardcore enabled",
+                     "[libretro INFO] [FBNeo] Driver successfully started" })
+                summary.read(QLatin1String(line));
+            QCOMPARE(summary.text(),
+                     QStringLiteral("peers: ann 14 ms, bob (2) 31 ms, eve; left 2; stalls 1, catch-ups 1, savestates 1, "
+                                    "CRC mismatches 1, desyncs 1, pauses 1, netplay errors 1; achievements: signed in, "
+                                    "\"Hardcore paused. Setting not allowed: fbneo-allow-patched-romsets=enabled\", "
+                                    "\"Game 123 loaded, hardcore disabled\""));
+            libretro::NetplaySummary joined;
+            for (const char *line : { "[INFO] [Netplay] You have joined with input devices 2, 3 (ping: 23 ms)",
+                                      "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server",
+                                      "[INFO] [Netplay] Netplay disconnected" })
+                joined.read(QLatin1String(line));
+            QCOMPARE(joined.text(), QStringLiteral("peers: the host 23 ms; left 1; stalls 0, catch-ups 0, savestates 0, "
+                                                   "CRC mismatches 0, desyncs 0, pauses 0, netplay errors 0; achievements: "
+                                                   "not signed in (No response from server)"));
+            QCOMPARE(libretro::NetplaySummary().text(),
+                     QStringLiteral("peers: none logged; left 0; stalls 0, catch-ups 0, savestates 0, CRC mismatches 0, "
+                                    "desyncs 0, pauses 0, netplay errors 0; achievements: nothing logged"));
+        }
+
+        // The host's OSD/OS: a claim never followed by a connection given up
+        // once it is old enough, said in the log.
+        {
+            LanRooms lan;
+            QUdpSocket probe;
+            QVERIFY(probe.bind(QHostAddress::LocalHost, 0));
+            const quint16 claimPort = probe.localPort();
+            probe.close();
+            lan.setClaimPort(claimPort);
+            QSet<QString> connected;
+            lan.setPeerSource([&connected] { return std::optional<QSet<QString>>(connected); });
+            lan.setClaimGrace(300);
+            lan.setClaimCheckInterval(50);
+            QVERIFY(lan.startClaims(1, 6, 1, libretro::Launch::Layout::Classic));
+            QUdpSocket joiner;
+            QVERIFY(joiner.bind(QHostAddress::LocalHost, 0));
+            const auto ask = [&] {
+                joiner.writeDatagram(libretro::claimQuery(1), QHostAddress::LocalHost, claimPort);
+                for (int waited = 0; waited < 3000; waited += 20) {
+                    while (joiner.hasPendingDatagrams()) {
+                        if (const auto r = libretro::readClaimAnswer(joiner.receiveDatagram().data()))
+                            return r->first;
+                    }
+                    QTest::qWait(20);
+                }
+                return -1;
+            };
+            QCOMPARE(ask(), 2);
+            // Connected: kept past the grace.
+            connected = { QStringLiteral("127.0.0.1") };
+            QTest::qWait(500);
+            // Gone: freed at the next look, as at once after a client left.
+            connected.clear();
+            QTest::ignoreMessage(QtInfoMsg, "[Arcade] 127.0.0.1 has no connection to the game: its ports are free again");
+            lan.clientLeft();
+            // Rejoining from the same address: its port again, and its time.
+            QCOMPARE(ask(), 2);
+            QTest::ignoreMessage(QtInfoMsg, "[Arcade] 127.0.0.1 has no connection to the game: its ports are free again");
+            QTest::qWait(600);
+            lan.stopClaims();
+        }
 
         // A host's answer to the query on the local network: its game, who
         // hosts it, what it plays in, and where it is joined, at the address
@@ -2311,7 +2788,7 @@ private slots:
         QVERIFY(!lan->joinable);
         QVERIFY(!libretro::readLanAnswer(lanAnswer("cy", "sf2", 55435, 0, "1.22.2", 0, "Snes9x"),
                                          QStringLiteral("10.0.0.5"))->joinable);
-        // OSD/OS's own core for CV1000 games: joined, with it.
+        // OSD/OS's LAN core: joined, with it.
         QVERIFY(libretro::readLanAnswer(lanAnswer("cy", "akatana", 55435, 0, "1.22.2", 0, "OSD-OS LAN Core"),
                                         QStringLiteral("10.0.0.5"))->joinable);
         QVERIFY(!libretro::readLanAnswer(lanAnswer("di", "N/A", 55435), QStringLiteral("10.0.0.5"))->joinable);
@@ -2577,6 +3054,31 @@ private slots:
         QVERIFY(libretro::achievementsHash(QStringLiteral("SF2.zip")) != libretro::achievementsHash(QStringLiteral("sf2.zip")));
     }
 
+    // The Arcade module's list of the games of five buttons or more, as it
+    // ships (modules/arcade/five-button-sets.txt, made from MAME's -listxml
+    // by scripts/make-five-button-sets.py): the MAME it was made from named
+    // first, then the sets one a line, sorted, each once; the six-button
+    // fighters in it, parents and clones, and the games of four buttons or
+    // fewer not.
+    void fiveButtonSets() {
+        QFile file(QStringLiteral(TESTS_DIR "/../modules/arcade/five-button-sets.txt"));
+        QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+        QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+        QVERIFY(lines.takeFirst().startsWith(QStringLiteral("# MAME 0.")));
+        QCOMPARE(lines.takeLast(), QString());
+        QVERIFY(lines.size() > 1000);
+        QStringList sorted = lines;
+        sorted.sort();
+        sorted.removeDuplicates();
+        QCOMPARE(lines, sorted);
+        for (const QString &set : std::as_const(lines))
+            QVERIFY2(!set.isEmpty() && set == set.trimmed() && !set.startsWith(QLatin1Char('#')), qPrintable(set));
+        for (const char *set : { "sf2", "sf2ce", "ssf2t", "mk", "mk2", "kinst", "sfa3" })
+            QVERIFY2(lines.contains(QLatin1String(set)), set);
+        for (const char *set : { "pacman", "mslug", "kof98", "galaga", "dino" })
+            QVERIFY2(!lines.contains(QLatin1String(set)), set);
+    }
+
     // The second engine: a set FinalBurn Neo has plays in it while Online
     // High Scores or Online Play is on, or as its options choose, with the
     // players' controllers kept for them and the BIOS sets linked where it
@@ -2612,6 +3114,7 @@ private slots:
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("030000005e0400008e02000014010000") } });
         writeFile(data.path() + QStringLiteral("/gamecontrollerdb.txt"), "# none\n");
+        writeFiveButtonSets(data.path(), "sf2\n");
 
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         refreshed(arcade);
@@ -2808,6 +3311,26 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
                  QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\"") }));
+        controllers::setPlayerArcade({});
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!QFileInfo::exists(remap));
+        // On Auto: Street Fighter II, in the module's list of the games of
+        // five buttons or more, on Fighting 6's row (X Y RB over A B RT);
+        // Galaga, not in it, on Neo Geo 4's (A B X Y on Button 1 to 4: the
+        // 6-Button Panel's Y X L B slots).
+        controllers::setPlayerArcade({ autoBinds() });
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_y_btn = \"2\"", "input_player1_l_btn = \"10\"",
+                                  "input_player1_b_btn = \"0\"", "input_player1_r_axis = \"+5\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(arcade.engineOf(QStringLiteral("galaga")), QStringLiteral("fbneo"));
+        played(arcade, QStringLiteral("galaga"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_y_btn = \"0\"", "input_player1_x_btn = \"1\"",
+                                  "input_player1_l_btn = \"2\"", "input_player1_b_btn = \"3\"",
+                                  "input_player1_r_btn = \"10\"", "input_player1_r_axis = \"nul\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
         controllers::setPlayerArcade({});
         played(arcade, QStringLiteral("sf2"));
         QVERIFY(!QFileInfo::exists(remap));
@@ -3597,6 +4120,42 @@ private slots:
         QVERIFY(verdicts.value(QStringLiteral("galaga")).good);
     }
 
+    // A check held (a game starting) as MAME has answered for the last of
+    // its sets and has only to exit, then let go: done, with what MAME said.
+    // MAME isn't asked again with no set to check, which would have it check
+    // every machine it knows.
+    void romCheckLetGoWithNothingLeft() {
+        RomCheck::Job job;
+        job.mame = mamePath();
+        job.rompath = m_games;
+        job.workDir = m_data.path();
+        job.mameFrom = QStringLiteral("a mame");
+        job.mameSets = QStringList{ QStringLiteral("pacman"), QStringLiteral("sf2") };
+        qputenv("MAME_VERIFY_LINGER", "5");
+        const auto linger = qScopeGuard([] { qunsetenv("MAME_VERIFY_LINGER"); });
+        QFile::remove(m_log);
+        RomCheck check;
+        QSignalSpy done(&check, &RomCheck::done);
+        check.start(job, false);
+        const auto progress = [&check](const char *key) { return check.progress().value(QLatin1String(key)); };
+        QTRY_VERIFY_WITH_TIMEOUT(progress("stage").toString() == QLatin1String("MAME") && progress("done").toInt() == 2,
+                                 10000);
+        QVERIFY(check.active());
+        check.pause();
+        QVERIFY(check.active());
+        QVERIFY(progress("held").toBool());
+        QVERIFY(done.isEmpty());
+        check.resume();
+        QVERIFY(!check.active());
+        QCOMPARE(progress("result").toString(), QStringLiteral("Done"));
+        QCOMPARE(done.size(), 1);
+        const romcheck::Results results = done.first().first().value<romcheck::Results>();
+        QCOMPARE(results.sets.value(QStringLiteral("pacman")).mame, 1);
+        QCOMPARE(results.sets.value(QStringLiteral("sf2")).mame, -1);
+        QCOMPARE(logLines(QStringLiteral("verifyroms")),
+                 QStringList({ QStringLiteral("verifyroms ") + m_games, QStringLiteral("verifyroms pacman sf2") }));
+    }
+
     // The pictures' records (RecordFile): read by folder, written whole off
     // the GUI thread, their names in order, only once they have changed and
     // only where there is a folder.
@@ -3922,6 +4481,83 @@ private slots:
             // indexOf() takes an exact match.
             QVERIFY(lines.indexOf(QRegularExpression(QStringLiteral("verifyroms .*"))) > ended);
         }
+        // Started before the folder has been read, or while MAME is still
+        // asked about its sets (slow to answer for a_slowlist, with no
+        // games.json to know them from): it waits for both, saying so, and
+        // then checks every game, not the part of them known as it was asked
+        // for.
+        writeFile(games + QStringLiteral("/a_slowlist.zip"));
+        for (const bool beforeRead : { true, false }) {
+            QThreadPool::globalInstance()->waitForDone();
+            QFile::remove(data.path() + QStringLiteral("/arcade/games.json"));
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            const auto progress = [&arcade](const char *key) {
+                return arcade.romCheckProgress().value(QLatin1String(key));
+            };
+            QFile::remove(m_log);
+            arcade.refresh();
+            if (!beforeRead)
+                QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("listxml")).size(), 1, 5000);
+            QSignalSpy changed(&arcade, &ArcadeBackend::romCheckChanged);
+            arcade.checkRoms();
+            QVERIFY(!changed.isEmpty());
+            QVERIFY(progress("active").toBool());
+            QVERIFY(progress("held").toBool());
+            QVERIFY(progress("result").toString().isEmpty());
+            QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("listxml")).size(), 1, 5000);
+            QVERIFY(arcade.scanning());
+            QVERIFY(progress("active").toBool());
+            QVERIFY(progress("held").toBool());
+            QVERIFY(logLines(QStringLiteral("verifyroms")).isEmpty());
+            // Asked for again meanwhile, it is the one check.
+            arcade.checkRoms();
+            QTRY_VERIFY_WITH_TIMEOUT(!progress("active").toBool(), 10000);
+            QCOMPARE(progress("result").toString(), QStringLiteral("Done"));
+            QVERIFY(!arcade.scanning());
+            const QStringList lines = logLines();
+            QCOMPARE(lines.filter(QRegularExpression(QStringLiteral("^(listxml |verifyroms |answered$)"))),
+                     QStringList({ QStringLiteral("listxml a_slowlist galaga mslug pacman s1945 sf2"),
+                                   QStringLiteral("answered"),
+                                   QStringLiteral("verifyroms %1;%1/bios").arg(games),
+                                   QStringLiteral("verifyroms galaga mslug pacman s1945 sf2") }));
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
+        }
+        QVERIFY(QFile::remove(games + QStringLiteral("/a_slowlist.zip")));
+        // A clone takes its BIOS set's ROMs through its parent, and what was
+        // found of it is held against that set too: found without a BIOS
+        // ROM, it is no longer so once the bios folder's set has changed.
+        {
+            QThreadPool::globalInstance()->waitForDone();
+            const QByteArray cloneRom("MSLX");
+            const QByteArray sfixRom("SFIX");
+            writeFile(games + QStringLiteral("/mslugx.zip"), zipOf({ { "x-p1.p1", cloneRom } }));
+            QString withClone = dat;
+            withClone.replace(QStringLiteral("</datafile>"),
+                              QStringLiteral("<game name=\"mslugx\" cloneof=\"mslug\" romof=\"mslug\">"
+                                             "<description>Metal Slug (clone)</description>"
+                                             "<rom name=\"x-p1.p1\" size=\"4\" crc=\"%1\"/>"
+                                             "<rom name=\"sfix.sfix\" merge=\"sfix.sfix\" size=\"4\" crc=\"%2\"/></game>"
+                                             "</datafile>").arg(crc(cloneRom), crc(sfixRom)));
+            writeFile(libretro::downloadedDat(data.path()), withClone.toUtf8());
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            refreshed(arcade);
+            arcade.checkRoms();
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.romCheckProgress().value(QStringLiteral("active")).toBool(), 10000);
+            QCOMPARE(romsOf(arcade, "mslugx"), QStringLiteral("1 File Missing"));
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
+            QTest::qWait(20);
+            writeFile(games + QStringLiteral("/bios/neogeo.zip"),
+                      zipOf({ { "sp-s2.sp1", biosRom }, { "sfix.sfix", sfixRom } }));
+            arcade.markChanged();
+            refreshed(arcade);
+            // mslug, and its clone.
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 2);
+            QCOMPARE(romsOf(arcade, "mslugx"), QString());
+            arcade.checkRoms();
+            QTRY_VERIFY_WITH_TIMEOUT(!arcade.romCheckProgress().value(QStringLiteral("active")).toBool(), 10000);
+            QCOMPARE(arcade.romCheckInfo().value(QStringLiteral("unchecked")).toInt(), 0);
+            QCOMPARE(romsOf(arcade, "mslugx"), QString());
+        }
     }
 
     // Settings → Arcade → FinalBurn Neo's download from a stand-in server:
@@ -3966,7 +4602,14 @@ private slots:
             return !parts.hasNext();
         };
 
+        // What a download stopped by the app closing left goes when the app
+        // starts again, before anything is downloaded.
+        for (const QString &path : { core + QStringLiteral(".zip.part"), libretro::downloadedDat(data.path()) + QStringLiteral(".part"),
+                                     libretro::downloadedLicense(data.path()) + QStringLiteral(".part") })
+            writeFile(path, "half a download");
+        QVERIFY(!noParts());
         FbneoInstaller installer(data.path());
+        QVERIFY(noParts());
         QSignalSpy finished(&installer, &FbneoInstaller::finished);
         installer.start(source("/core.zip", "/fbneo.dat"));
         QVERIFY(installer.running());
@@ -4720,6 +5363,37 @@ private slots:
         QCOMPARE(download(QStringLiteral("/Badge/250337_lock.png")), png("locked"));
     }
 
+    // The numbered pictures read with the folder: a set's in turn from 1,
+    // past a few numbers the user deleted and those that are sets of the
+    // folder, but not another machine's snap a pack names <set>_<n> far
+    // past them (Data East's TMNT pinball, tmnt_101 to tmnt_104, beside
+    // Konami's tmnt), with pictures of the set's own before it or not.
+    void numberedPicturesInTurn() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString snap = dir.path() + QStringLiteral("/snap");
+        for (const char *name : { "tmnt.png", "tmnt_101.png", "tmnt_103.png", "tmnt_104.png", "sf2_2.png",
+                                  "sf2_4.png", "sf2_8.jpg", "sf2_8.png", "sf2_13.png", "mk_1.png", "mk_101.png" })
+            writeFile(snap + QLatin1Char('/') + QLatin1String(name), png(name));
+        const QHash<QString, QString> sets{ { QStringLiteral("tmnt"), QStringLiteral("tmnt.zip") },
+                                            { QStringLiteral("sf2"), QStringLiteral("sf2.zip") },
+                                            { QStringLiteral("sf2_6"), QStringLiteral("sf2_6.zip") },
+                                            { QStringLiteral("mk"), QStringLiteral("mk.zip") } };
+        const auto in = [&snap](std::initializer_list<const char *> names) {
+            QStringList paths;
+            for (const char *name : names)
+                paths << snap + QLatin1Char('/') + QLatin1String(name);
+            return paths;
+        };
+        ArcadePictures::Found found = ArcadePictures::read(snap, dir.path() + QStringLiteral("/titles"),
+                                                           dir.path() + QStringLiteral("/shots"), sets);
+        QVERIFY2(!found.numbered.contains(QStringLiteral("tmnt")), qPrintable(found.numbered.value("tmnt").join(' ')));
+        QCOMPARE(found.snaps.value(QStringLiteral("tmnt")), snap + QStringLiteral("/tmnt.png"));
+        // 1 and 3 deleted, 5 and 7 missing and 6 a set's; 9 to 12 missing.
+        QCOMPARE(found.numbered.value(QStringLiteral("sf2")), in({ "sf2_2.png", "sf2_4.png", "sf2_8.png", "sf2_8.jpg" }));
+        QCOMPARE(found.numbered.value(QStringLiteral("mk")), in({ "mk_1.png" }));
+    }
+
     // RetroAchievements' pictures of a game as it is shown, with a key kept:
     // saved in the games folder's snap folder as <set>_<n> in the first
     // numbers free, never over the user's own (whatever its suffix's case)
@@ -5089,7 +5763,7 @@ private slots:
     // never over a file there and each whole as it comes into the folder
     // (RetroAchievements' too), and notes in .arcadedb.json what ArcadeDB had
     // of each set, so that none is asked about again; a game shown is asked
-    // about by itself, after RetroAchievements; Pictures From can keep
+    // about by itself, after RetroAchievements; Game Pictures' Source can keep
     // either source out; the look's marker goes once every picture is had.
     void picturesFromArcadeDb() {
         QTemporaryDir data;
@@ -5262,7 +5936,7 @@ private slots:
         QTest::qWait(200);
         QVERIFY(standIn.asked.isEmpty());
 
-        // Pictures From RetroAchievements alone: ArcadeDB isn't asked about a
+        // Game Pictures' Source on RetroAchievements alone: ArcadeDB isn't asked about a
         // game still without a picture (one RetroAchievements hasn't); Off:
         // neither is.
         const QString module = QStringLiteral("com.osdos.arcade");
@@ -5712,14 +6386,16 @@ private slots:
             controllers::setPlayerEnvironment({});
         });
         const QByteArray lobby = fixture("lobby.json");
-        // big: an answer far bigger than a list of rooms. hold: the request
-        // kept unanswered (held) until answer() is called for it.
+        // big: an answer far bigger than a list of rooms. none: a lobby with
+        // no room. hold: the request kept unanswered (held) until answer()
+        // is called for it.
         bool big = false;
+        bool none = false;
         bool hold = false;
         QPointer<QTcpSocket> held;
         int asked = 0;
-        const auto answer = [&lobby, &big](QTcpSocket *socket) {
-            const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : lobby;
+        const auto answer = [&lobby, &big, &none](QTcpSocket *socket) {
+            const QByteArray body = big ? QByteArray(5 * 1024 * 1024, ' ') : none ? QByteArray("[]") : lobby;
             socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
                           + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
@@ -6110,7 +6786,50 @@ private slots:
         // online name; the cabinet's layout on every port, the file left by
         // the game off line replaced by it.
         arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Mehmet "));
+        // Relay Server with nothing saved: the nearest to the system's time
+        // zone, as the row shows it; one saved kept, whatever the zone.
+        arcade.setTimeZone(QStringLiteral("Asia/Tokyo"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Chuncheon"));
+        arcade.setTimeZone(QStringLiteral("America/Argentina/Buenos_Aires"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("São Paulo"));
+        arcade.setTimeZone(QString());
+        QCOMPARE(arcade.relayServer(), QStringLiteral("New York"));
+        arcade.setTimeZone(QStringLiteral("Europe/Istanbul"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Madrid"));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Singapore"));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Singapore"));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QVariant());
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Madrid"));
+        arcade.setTimeZone(QStringLiteral("Australia/Sydney"));
         arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Madrid"));
+        // Host LAN Game's advice under Smooth: a Pi 4, or a machine on
+        // Wi-Fi, told the fastest machine on a cable should host; a Pi 5 or
+        // a PC on a cable, and Responsive, nothing.
+        const QString fastest = QStringLiteral("The fastest machine on a cable should host");
+        arcade.setOverWifi(false);
+        arcade.setBoard(board::Family::Pi4);
+        QCOMPARE(arcade.hostAdvice(), fastest);
+        arcade.setBoard(board::Family::Pi5);
+        QCOMPARE(arcade.hostAdvice(), QString());
+        arcade.setOverWifi(true);
+        QCOMPARE(arcade.hostAdvice(), fastest);
+        arcade.setBoard(board::Family::Other);
+        QCOMPARE(arcade.hostAdvice(), fastest);
+        arcade.onSettingChanged(module, QStringLiteral("lan_sync"), QStringLiteral("Responsive"));
+        QCOMPARE(arcade.hostAdvice(), QString());
+        arcade.onSettingChanged(module, QStringLiteral("lan_sync"), QVariant());
+        arcade.setOverWifi(false);
+        QCOMPARE(arcade.hostAdvice(), QString());
+        // This machine's own network read, whatever it is.
+        arcade.setOverWifi(std::nullopt);
+        QVERIFY(arcade.hostAdvice().isEmpty() || arcade.hostAdvice() == fastest);
+        QCOMPARE(libretro::hostAdvice(true, board::Family::Pi4, false), fastest);
+        QCOMPARE(libretro::hostAdvice(false, board::Family::Pi4, true), QString());
+        // A Pi 5's console (the test runs without a desktop): two frames
+        // queued for the screen, the 48 ms sound buffer, and the ping shown
+        // where asked.
+        arcade.setBoard(board::Family::Pi5);
+        arcade.onSettingChanged(module, QStringLiteral("show_ping"), QStringLiteral("ON"));
         QFile::remove(m_log);
         writeFile(remap, leftOver);
         QCOMPARE(ended([&arcade] { return arcade.hostGame(QStringLiteral("sf2")); }).value(1).toString(),
@@ -6118,8 +6837,13 @@ private slots:
         QVERIFY(logLines(QStringLiteral("retroarch ")).value(0).contains(QStringLiteral(" --host ")));
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
-                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"" })
+                                  "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "netplay_input_latency_frames_min = \"2\"", "netplay_ping_show = \"true\"",
+                                  "video_max_swapchain_images = \"2\"", "audio_latency = \"48\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
+        QVERIFY(!config.contains(QStringLiteral("audio_resampler_quality")));
+        arcade.setBoard(board::Family::Other);
+        arcade.onSettingChanged(module, QStringLiteral("show_ping"), QVariant());
         QVERIFY2(onPanel(config), qPrintable(config));
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")).size(), 6);
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
@@ -6134,6 +6858,27 @@ private slots:
         QVERIFY(!arcade.joinRoom(99));
         QCOMPARE(arcade.lastError(), QStringLiteral("The game is no longer in RetroArch's lobby"));
         QVERIFY(!arcade.hostGame(QStringLiteral("pacman")));
+
+        // A lobby read for the first time that has no room to join: the
+        // Online Games folder, asked for before it was read, is told so and
+        // lists that no one hosts a game, rather than wait on for rooms.
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("Off"));
+        arcade.onSettingChanged(module, QStringLiteral("online_play"), QStringLiteral("On"));
+        none = true;
+        ready.clear();
+        QVERIFY(!arcade.requestEntries(QStringLiteral("online")).isValid());
+        QVERIFY(roomsRead.wait(5000));
+        none = false;
+        QVERIFY(arcade.rooms().isEmpty());
+        QCOMPARE(ready.count(QVariantList{ QStringLiteral("online") }), 1);
+        const QVariantList noRooms = arcade.requestEntries(QStringLiteral("online")).toList();
+        QCOMPARE(names(noRooms), QStringList({ QStringLiteral("No Games Online"), QStringLiteral("RetroArch Lobby") }));
+        // Read again and found the same: nothing listed anew.
+        none = true;
+        arcade.refreshRooms();
+        QVERIFY(roomsRead.wait(5000));
+        none = false;
+        QCOMPARE(ready.count(QVariantList{ QStringLiteral("online") }), 1);
 
         // An answer far bigger than a list of rooms isn't read whole.
         big = true;
@@ -6261,6 +7006,7 @@ private slots:
                     lanAnswer("di", "smw", 55439, 0, "1.22.2", 0, "Snes9x"), QByteArray("RANS, not an answer"),
                     ann, eve };
 
+        writeFiveButtonSets(data.path(), "sf2\n");
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
         arcade.setLanListenTime(150);
@@ -6503,6 +7249,10 @@ private slots:
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
         QCOMPARE(claimed.first(), libretro::claimQuery(1));
         QVERIFY(!arcade.running());
+        // Given back twice, a moment apart, in case one is lost.
+        QTRY_COMPARE(claimed.count(libretro::claimRelease()), qsizetype(2));
+        QTest::qWait(LanRooms::kReleaseAgainMs + 100);
+        QCOMPARE(claimed.count(libretro::claimRelease()), qsizetype(2));
         // The host's answer once more, late (asked twice, it answers twice),
         // with the game already started on the first: the ports this machine
         // plays on stay its until its game ends, and go back then.
@@ -6597,8 +7347,22 @@ private slots:
         const qint64 playedBefore = arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong();
         qputenv("RA_HOST_LEAVES", "1");
         QFile::remove(m_log);
+        static QStringList logged;
+        logged.clear();
+        const QtMessageHandler previous = qInstallMessageHandler(
+            [](QtMsgType, const QMessageLogContext &, const QString &message) { logged << message; });
         const QVariantList left = ended([&arcade] { return arcade.joinLanRoom(1); });
+        qInstallMessageHandler(previous);
         qunsetenv("RA_HOST_LEAVES");
+        // And the app's log says how it went, in one line, from RetroArch's.
+        const QStringList summary = logged.filter(QStringLiteral("arcade: network game: "));
+        QCOMPARE(summary.size(), 1);
+        QVERIFY2(summary.first().startsWith(QStringLiteral("arcade: network game: sf2, joined on the LAN, 0 min ")),
+                 qPrintable(summary.first()));
+        QVERIFY2(summary.first().endsWith(QStringLiteral(
+                     "; peers: the host 12 ms; left 1; stalls 0, catch-ups 0, savestates 0, CRC mismatches 1, desyncs 0, "
+                     "pauses 0, netplay errors 1; achievements: nothing logged")),
+                 qPrintable(summary.first()));
         QCOMPARE(left.value(1).toString(), QStringLiteral("stopped"));
         QCOMPARE(left.value(2).toString(), QStringLiteral("The host left the game"));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());
@@ -6671,10 +7435,11 @@ private slots:
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // X-Men's six players, hosted with the same two: on Classic, the
-        // stick's buttons by number and no remap file. On the local network
-        // one port a machine, so that the players take the ports in the
-        // order their machines come in: this machine's first on port 1
-        // alone, and a machine joining with four given port 2 alone.
+        // stick's buttons by number and no remap file. On the local network,
+        // on FinalBurn Neo's own core, one port a machine, so that the players
+        // take the ports in the order their machines come in: this machine's
+        // first on port 1 alone, and a machine joining with four given port 2
+        // alone.
         QCOMPARE(arcade.onlineLayout(QStringLiteral("xmen6p"), true), QStringLiteral("classic"));
         QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("panel"));
         QCOMPARE(arcade.onlineLayout(QStringLiteral("dino"), true), QStringLiteral("panel"));
@@ -6690,6 +7455,40 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
+        // Two pads on Game Buttons' Auto, no stick among them: the host's
+        // layout is what it is with both on Engine's, Classic, which it
+        // tells the machines joining, and its players play RetroArch's own
+        // binds, not Auto's rows (the remap file none); a layout chosen by
+        // hand makes it the panel's, as before.
+        const Players twoPads = { { QStringLiteral("OSDOS_PLAYER1_GUID"), QStringLiteral("0600bbbb") },
+                                  { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
+                                  { QStringLiteral("OSDOS_PLAYER2_GUID"), QStringLiteral("0600cccc") },
+                                  { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("Xbox 360 Controller") } };
+        controllers::setPlayerEnvironment(twoPads);
+        controllers::setPlayerArcade({});
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("classic"));
+        controllers::setPlayerArcade({ autoBinds(), autoBinds() });
+        const auto noArcade = qScopeGuard([] { controllers::setPlayerArcade({}); });
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("classic"));
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("galaga"), true), QStringLiteral("classic"));
+        QFile::remove(m_log);
+        hostEnded.clear();
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QCOMPARE(asking(libretro::claimQuery(1), 2000),
+                 libretro::claimLayout(libretro::Launch::Layout::Classic) + " / " + libretro::claimAnswer({ 2, 1 }));
+        QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
+        QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
+        QVERIFY(!QFile::exists(hostRemap));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY2(!config.contains(QStringLiteral("input_player1_r_axis = \"+5\"")), qPrintable(config));
+        QVERIFY(!config.contains(QStringLiteral("input_player1_y_btn = \"0\"")));
+        controllers::ArcadeBinds chosen = autoBinds();
+        chosen.automatic = false;
+        controllers::setPlayerArcade({ chosen });
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("panel"));
+        controllers::setPlayerArcade({});
+        controllers::setPlayerEnvironment(twoPlayers);
+
         // Cadillacs and Dinosaurs, whose players aren't known: the panel's
         // layout kept, this machine on port 1 alone, and a machine joining
         // with four given port 2 alone. Hosted with LAN Sync on Responsive:
@@ -7372,14 +8171,50 @@ private slots:
         QCOMPARE(logLines(QStringLiteral("listxml")), QStringList({ QStringLiteral("listxml newgame") }));
     }
 
+    // A set that comes into the folder while MAME is asked about the others
+    // is asked about as that asking ends, not left for the next time the
+    // list opens.
+    void scanAsksSetsNewToTheFolder() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        QVERIFY(QFile::setPermissions(data.path() + QStringLiteral("/bin/mame"),
+                                      QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        writeFile(games + QStringLiteral("/pacman.zip"));
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        // MAME answers at once and takes its time to exit: the asking is
+        // still under way while the folder is read again.
+        qputenv("MAME_LIST_LINGER", "3");
+        const auto linger = qScopeGuard([] { qunsetenv("MAME_LIST_LINGER"); });
+        QFile::remove(m_log);
+        arcade.refresh();
+        QTRY_COMPARE_WITH_TIMEOUT(logLines(QStringLiteral("answered")).size(), 1, 5000);
+        QVERIFY(arcade.scanning());
+        writeFile(games + QStringLiteral("/galaga.zip"));
+        QSignalSpy reading(&arcade, &ArcadeBackend::readingChanged);
+        arcade.refresh();
+        QTRY_VERIFY_WITH_TIMEOUT(reading.size() >= 2 && !arcade.reading(), 5000);
+        QVERIFY(arcade.scanning());
+        QCOMPARE(logLines(QStringLiteral("listxml")), QStringList({ QStringLiteral("listxml pacman") }));
+        qunsetenv("MAME_LIST_LINGER");
+        QTRY_VERIFY_WITH_TIMEOUT(!arcade.looking() && !arcade.scanning(), 10000);
+        QCOMPARE(logLines(QStringLiteral("listxml")),
+                 QStringList({ QStringLiteral("listxml pacman"), QStringLiteral("listxml galaga") }));
+        QVERIFY(arcade.gameDetails(QStringLiteral("galaga")).contains(QStringLiteral("year")));
+    }
+
     // Nor is MAME run beside its own download, which puts its MAME in the
     // folder it runs from (Windows renames no folder a program runs from):
-    // Check ROMs started meanwhile holds its part, a FinalBurn Neo game that
+    // Check ROMs started meanwhile is held, a FinalBurn Neo game that
     // ends meanwhile starts neither it nor the asking the download stopped,
     // a game of MAME's is refused, and both go on once the download has
     // ended. A game started while a
     // check waits only for an asking that has answered, but not exited,
-    // doesn't let the check's part go for the moment before it starts.
+    // doesn't let the check go for the moment before it starts.
     void mameNotBesideItsDownload() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -7447,9 +8282,8 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(asked, 5000);
         QVERIFY(arcade.scanning());
 
-        // Check ROMs: MAME's part held.
+        // Check ROMs: held, MAME having still to answer for a set.
         arcade.checkRoms();
-        QTRY_COMPARE_WITH_TIMEOUT(progress(arcade, "stage").toString(), QStringLiteral("MAME"), 10000);
         QVERIFY(progress(arcade, "active").toBool());
         QVERIFY(progress(arcade, "held").toBool());
 
@@ -7486,8 +8320,8 @@ private slots:
                                        QStringLiteral("verifyroms") }));
 
         // A game started while a check waits for an asking that has answered
-        // for its set and has still to exit: the asking stopped, the check's
-        // part held from then until the game has ended, never let go between.
+        // for its set and has still to exit: the asking stopped, the check
+        // held from then until the game has ended, never let go between.
         writeFile(games + QStringLiteral("/mspacman.zip"));
         qputenv("MAME_LIST_LINGER", "5");
         QFile::remove(m_log);
@@ -7495,8 +8329,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(arcade.gameDetails(QStringLiteral("mspacman")).contains(QStringLiteral("year")), 5000);
         QVERIFY(arcade.scanning());
         arcade.checkRoms();
-        QTRY_VERIFY_WITH_TIMEOUT(progress(arcade, "active").toBool()
-                                     && progress(arcade, "stage").toString() == QLatin1String("MAME"), 10000);
+        QVERIFY(progress(arcade, "active").toBool());
         QVERIFY(progress(arcade, "held").toBool());
         bool letGo = false;
         const QMetaObject::Connection watched =
@@ -7974,7 +8807,7 @@ private slots:
         QCOMPARE(standIn.asked.size(), 1);
     }
 
-    // Settings → Arcade → Hide Hacks and Bootlegs: the sets MAME calls a
+    // Settings → Arcade → Hide Bootlegs: the sets MAME calls a
     // bootleg or a hack, in their name's parentheses or as their maker, leave
     // every list and filter, Favorites and Recently Played too, as it is
     // turned on, and are back as it is turned off; Not Recognized is as it
@@ -8064,6 +8897,116 @@ private slots:
     // one name, a country as its region, one the list doesn't name as Others,
     // and none in a title, a maker, a version or a longer word. OSD/OS Setup
     // offers the same choices.
+    // Settings → Arcade → Online Name's value on its row: the name the
+    // others see (nickname()), on the local network while LAN Play is on;
+    // sent again as a name is typed and as LAN Play changes, so the row
+    // follows its page.
+    void onlineNameRow() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        const auto sent = [&options](int at) {
+            QStringList got{ options.at(at).at(0).toString() };
+            for (const QVariant &v : options.at(at).at(1).toList())
+                got << v.toMap().value(QStringLiteral("id")).toString() + QLatin1Char('=')
+                           + v.toMap().value(QStringLiteral("label")).toString();
+            return got;
+        };
+        arcade.onlineNameOptions();
+        QCOMPARE(options.size(), 1);
+        QCOMPARE(sent(0), QStringList({ "online_name", "OSD-OS=OSD-OS" }));
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("On"));
+        QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "garage-cab=garage-cab" }));
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QStringLiteral(" Ann "));
+        QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "Ann=Ann" }));
+        arcade.onSettingChanged(module, QStringLiteral("online_name"), QString());
+        arcade.onSettingChanged(module, QStringLiteral("lan_play"), QStringLiteral("Off"));
+        QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "OSD-OS=OSD-OS" }));
+    }
+
+    // Settings → Arcade → Relay Server's choices: the five relays in the
+    // row's order, saved by their names, the one nearest the time zone
+    // marked as the row's while nothing is saved, whatever is saved. OSD/OS
+    // Setup lists the same.
+    void relayServerRow() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        const auto sent = [&options] {
+            QStringList got{ options.last().at(0).toString() };
+            for (const QVariant &v : options.last().at(1).toList()) {
+                const QVariantMap choice = v.toMap();
+                // Shown by the name it is saved under.
+                if (choice.value(QStringLiteral("id")) != choice.value(QStringLiteral("label")))
+                    got << QStringLiteral("label differs");
+                got << choice.value(QStringLiteral("id")).toString()
+                           + (choice.value(QStringLiteral("default")).toBool() ? QStringLiteral(" *") : QString());
+            }
+            return got;
+        };
+        arcade.setTimeZone(QStringLiteral("Asia/Tokyo"));
+        arcade.relayServerOptions();
+        QCOMPARE(sent(), QStringList({ "relay_server", "New York", "Madrid", "São Paulo", "Singapore",
+                                       "Chuncheon *" }));
+        arcade.setTimeZone(QStringLiteral("Europe/Istanbul"));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Singapore"));
+        arcade.relayServerOptions();
+        QCOMPARE(sent(), QStringList({ "relay_server", "New York", "Madrid *", "São Paulo", "Singapore",
+                                       "Chuncheon" }));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Singapore"));
+        arcade.setTimeZone(QString());
+        arcade.relayServerOptions();
+        QCOMPARE(sent().filter(QStringLiteral(" *")), QStringList({ "New York *" }));
+
+        QFile extra(QStringLiteral(TESTS_DIR "/../site/setup/schema-extra.json"));
+        QVERIFY(extra.open(QIODevice::ReadOnly));
+        const QJsonArray listed = QJsonDocument::fromJson(extra.readAll()).object().value(QLatin1String("modules"))
+                                      .toObject().value(module).toObject().value(QLatin1String("options"))
+                                      .toObject().value(QLatin1String("relay_server")).toArray();
+        QCOMPARE(listed.toVariantList(), QVariantList({ "New York", "Madrid", "São Paulo", "Singapore", "Chuncheon" }));
+    }
+
+    // What the machine is, for Settings → Arcade's rows that do something
+    // only on a Raspberry Pi (CPU at Full Speed, Frame Buffers): the
+    // manifest's slot for them answers with the capability on any Pi and
+    // none elsewhere, and is the one those rows name.
+    void machineCapabilities() {
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        for (const auto &[family, expected] : { std::pair{ board::Family::Pi3, QStringList{ "raspberry_pi" } },
+                                                std::pair{ board::Family::Pi4, QStringList{ "raspberry_pi" } },
+                                                std::pair{ board::Family::Pi5, QStringList{ "raspberry_pi" } },
+                                                std::pair{ board::Family::Other, QStringList{} } }) {
+            arcade.setBoard(family);
+            options.clear();
+            QVERIFY(QMetaObject::invokeMethod(&arcade, "machineCapabilities"));
+            QCOMPARE(options.size(), 1);
+            QCOMPARE(options.at(0).at(0).toString(), QStringLiteral("_capabilities"));
+            QCOMPARE(options.at(0).at(1).toStringList(), expected);
+        }
+        QFile file(QStringLiteral(TESTS_DIR "/../modules/arcade/manifest.json"));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QStringList named;
+        std::function<void(const QJsonArray &)> walk = [&](const QJsonArray &rows) {
+            for (const QJsonValue &v : rows) {
+                const QJsonObject row = v.toObject();
+                const QJsonObject need = row.value(QLatin1String("requires_capability")).toObject();
+                if (need.value(QLatin1String("name")).toString() == QLatin1String("raspberry_pi")) {
+                    QCOMPARE(need.value(QLatin1String("slot")).toString(), QStringLiteral("machineCapabilities"));
+                    QCOMPARE(need.value(QLatin1String("reason")).toString(), QStringLiteral("Only on a Raspberry Pi"));
+                    named << row.value(QLatin1String("key")).toString();
+                }
+                walk(row.value(QLatin1String("settings")).toArray());
+            }
+        };
+        walk(QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("settings")).toArray());
+        QCOMPARE(named, QStringList({ "cpu_full_speed", "frame_buffers" }));
+        QCOMPARE(QString::fromLatin1(GameSystem::kFullSpeedKey), QStringLiteral("cpu_full_speed"));
+    }
+
     void regionsOfNames() {
         QStringList ids, names;
         for (const mame::Region &region : mame::regions()) {
@@ -8390,8 +9333,6 @@ private slots:
         QVERIFY(!logLines(QStringLiteral("play")).last().contains(QStringLiteral("autoboot")));
     }
 
-    // How long each game has been played, kept for the next start; not a
-    // game MAME refused.
     // The module opened again reads nothing while the games folder is as it
     // was: a look at its names says so, and the list stays as it is. A game
     // put in it, or taken out, is found by that look and the folder read.
@@ -8423,6 +9364,8 @@ private slots:
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1944.zip")));
     }
 
+    // How long each game has been played, kept for the next start; not a
+    // game MAME refused.
     void playTime() {
         QFile::remove(m_data.path() + QStringLiteral("/arcade/playtime.json"));
         {
@@ -8525,6 +9468,61 @@ private slots:
         QCOMPARE(logLines(QStringLiteral("listxml")),
                  QStringList({ QStringLiteral("listxml acefruit galaga kinst mslug neogeo notagame pacman sf2 xmen6p") }));
         QCOMPARE(arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("system")).toString(), QStringLiteral("CPS-1"));
+    }
+
+    // lanLinkWarning(): Host LAN Game's line of the link, against stand-ins
+    // for Settings → Network's Wi-Fi and Bluetooth (objects with their
+    // properties) and for /proc/net/route (OSDOS_PROC_NET_DIR). The line
+    // with the route through Wi-Fi at 2.4 GHz and a Bluetooth input device
+    // connected, written to the log once; nothing at 5 GHz, through a cable,
+    // without the pads, without the sources, or for a room no longer there.
+    void lanLinkWarning() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const auto hex = [](const char *address) {
+            quint32 raw = 0;
+            qToBigEndian(QHostAddress(QLatin1String(address)).toIPv4Address(), &raw);
+            return QStringLiteral("%1").arg(raw, 8, 16, QLatin1Char('0')).toUpper();
+        };
+        const auto routes = [&](const char *iface) {
+            writeFile(data.path() + QStringLiteral("/route"),
+                      QStringLiteral("Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n"
+                                     "%1\t00000000\t%2\t0003\t0\t0\t600\t00000000\t0\t0\t0\n")
+                          .arg(QLatin1String(iface), hex("192.168.1.1")).toUtf8());
+        };
+        routes("wlan0");
+        qputenv("OSDOS_PROC_NET_DIR", data.path().toUtf8());
+        const auto restore = qScopeGuard([] { qunsetenv("OSDOS_PROC_NET_DIR"); });
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+
+        QObject wifi;
+        QObject bluetooth;
+        wifi.setProperty("state", QStringLiteral("connected"));
+        wifi.setProperty("current", QVariantMap{ { QStringLiteral("interface"), QStringLiteral("wlan0") },
+                                                 { QStringLiteral("frequency"), 2437u },
+                                                 { QStringLiteral("band"), QStringLiteral("2.4 GHz") } });
+        bluetooth.setProperty("inputConnected", true);
+        arcade.setLinkSources(&wifi, &bluetooth);
+        const QString line = QStringLiteral("Wi-Fi is on 2.4 GHz with Bluetooth pads: use 5 GHz or a cable");
+        QTest::ignoreMessage(QtInfoMsg, qPrintable(QStringLiteral("[Arcade] LAN game over wlan0 at 2437 MHz with a "
+                                                                  "Bluetooth input device connected: ") + line));
+        QCOMPARE(arcade.lanLinkWarning(), line);
+        QCOMPARE(arcade.lanLinkWarning(), line);   // logged once
+        QCOMPARE(arcade.lanLinkWarning(7), QString());   // no such room
+
+        bluetooth.setProperty("inputConnected", false);
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+        bluetooth.setProperty("inputConnected", true);
+        wifi.setProperty("current", QVariantMap{ { QStringLiteral("interface"), QStringLiteral("wlan0") },
+                                                 { QStringLiteral("frequency"), 5180u } });
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+        wifi.setProperty("current", QVariantMap{ { QStringLiteral("interface"), QStringLiteral("wlan0") },
+                                                 { QStringLiteral("frequency"), 2412u } });
+        routes("eth0");
+        QCOMPARE(arcade.lanLinkWarning(), QString());
+        QFile::remove(data.path() + QStringLiteral("/route"));
+        QCOMPARE(arcade.lanLinkWarning(), QString());
     }
 };
 

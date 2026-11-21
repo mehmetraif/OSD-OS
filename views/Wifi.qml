@@ -35,12 +35,11 @@ FocusScope {
     readonly property string message: wifiManager ? wifiManager.message : ""
 
     // The lines: { type: "power" | "country" | "search" | "hidden" | "section" | "note" | "network", … }.
-    property var rows: []
-    // The lines the list is made of, given it anew only as lines come, go or
-    // change places: one whose value, icons or help change (a signal, a
-    // join under way, a search) is changed where it is, from rows, so a
+    // The list is given them anew only as lines come, go or change places
+    // (MenuList's take()): one whose value, icons or help change (a signal,
+    // a join under way, a search) is changed where it is, from rows, so a
     // scan's answers don't make every line again each time.
-    property var shownRows: []
+    property var rows: []
     // The network whose options are open.
     property var optionsNetwork: null
     // What the keyboard is typing: "password" (for typingFor), "hiddenName",
@@ -87,17 +86,27 @@ FocusScope {
         return icons
     }
 
+    // A network's band opens its line where the Wi-Fi manager knows it
+    // ("2.4 GHz", "5 GHz", "6 GHz"): a game over the network plays better on
+    // 5 GHz, and nothing else on the page tells the two apart.
     function networkDescription(n) {
         if (n.active)
-            return (current.address ? "Connected, its address " + current.address + ". " : "")
+            return (current.address ? "Connected, its address " + current.address
+                                      + (current.band ? ", on " + current.band : "") + ". " : "")
                    + "Select to disconnect or forget it"
+        var band = n.band ? "On " + n.band + ". " : ""
         if (n.known)
-            return n.heard ? "Saved: select to connect, give it a new password or forget it"
-                           : "Saved, but not heard here: select to connect, give it a new password or forget it"
+            return band + (n.heard ? "Saved: select to connect, give it a new password or forget it"
+                                   : "Saved, but not heard here: select to connect, give it a new password or forget it")
         if (n.security === "enterprise")
-            return "It wants a user name too (WPA Enterprise), which can't be typed here"
-        return n.secured ? "Select to type its password and join it" : "Open: select to join it, no password wanted"
+            return band + "It wants a user name too (WPA Enterprise), which can't be typed here"
+        return band + (n.secured ? "Select to type its password and join it"
+                                 : "Open: select to join it, no password wanted")
     }
+
+    // The title bar's note: the address on the network joined, and its band.
+    readonly property string headerNote: current.address
+        ? current.address + (current.band ? " • " + current.band : "") : ""
 
     function networkRow(n) {
         return { type: "network", label: n.ssid, value: networkValue(n), icons: networkIcons(n), network: n,
@@ -105,11 +114,6 @@ FocusScope {
     }
 
     function buildRows() {
-        // The cursor stays on its line as lines come and go: a network by its
-        // name (it moves from NETWORKS to SAVED once joined), the others by
-        // type.
-        var at = list.currentIndex
-        var current = rows[at]
         var items = []
         if (!available) {
             items.push({ type: "note", label: "No Wi-Fi",
@@ -152,31 +156,14 @@ FocusScope {
             }
         }
         rows = items
-
-        // The same lines in the same places: the list and its cursor are
-        // left as they are.
-        var same = items.length === shownRows.length
-        for (var s = 0; s < items.length && same; s++)
-            same = items[s].type === shownRows[s].type && items[s].label === shownRows[s].label
-        if (same)
-            return
-        shownRows = items
-
-        var index = -1
-        if (current) {
-            for (var k = 0; k < items.length && index < 0; k++) {
-                if (current.type === "network" ? (items[k].type === "network" && items[k].network.ssid === current.network.ssid)
-                                               : items[k].type === current.type && current.type !== "section" && current.type !== "note")
-                    index = k
-            }
-        }
-        // Its line gone (a network forgotten, Wi-Fi turned off): the one now
-        // in its place.
-        if (index < 0)
-            index = list.selectableFrom(Math.min(Math.max(at, 0), items.length - 1), 1)
-        list.currentIndex = index
-        list.show(index)
+        list.take(items, lineId)
     }
+
+    // Which line a row is, whatever it says now: the cursor stays on it as
+    // lines come and go, a network by its name (it moves from NETWORKS to
+    // SAVED once joined), else the one now in its place (a network
+    // forgotten, Wi-Fi turned off).
+    function lineId(row) { return row.type + ":" + (row.type === "network" ? row.network.ssid : row.label) }
 
     function askPassword(ssid) {
         typing = "password"
@@ -205,13 +192,13 @@ FocusScope {
             // and while one is being set there is nothing to choose.
             if (!wifiOn && country === "" && countryAvailable) {
                 if (!countryBusy)
-                    countries.open()
+                    countries.openOnCountry()
             } else {
                 wifiManager.setEnabled(!wifiOn)
             }
         } else if (row.type === "country") {
             if (countryAvailable && !countryBusy)
-                countries.open()
+                countries.openOnCountry()
         } else if (row.type === "search") {
             if (searching)
                 wifiManager.stopSearch()
@@ -247,6 +234,30 @@ FocusScope {
         }
     }
 
+    // What select does on a line, for the hint bar: "" where it does
+    // nothing (a note, a network busy joining).
+    function selectHint(row) {
+        if (!row)
+            return ""
+        if (row.type === "power")
+            return !wifiOn && country === "" && countryAvailable
+                   ? (countryBusy ? "" : "select:SET COUNTRY")
+                   : "select:" + (wifiOn ? "TURN OFF" : "TURN ON")
+        if (row.type === "country")
+            return countryAvailable && !countryBusy ? "select:CHOOSE" : ""
+        if (row.type === "search")
+            return "select:" + (searching ? "STOP" : "SEARCH")
+        if (row.type === "hidden")
+            return "select:TYPE NAME"
+        if (row.type === "network") {
+            var n = row.network
+            if (n.busy !== "")
+                return ""
+            return "select:" + (n.active || n.known ? "OPTIONS" : "JOIN")
+        }
+        return ""
+    }
+
     // A line's work under way (searching, connecting…) trails dots that come
     // and go.
     Timer {
@@ -256,11 +267,11 @@ FocusScope {
         onTriggered: wifiRoot.dots = wifiRoot.dots % 3 + 1
     }
 
-    // Header: the address the Pi has on the network joined.
+    // Header: the address the Pi has on the network joined, and its band.
     AppBar {
         iconSource: "../../assets/images/wifi.svg"
         title: "Wi-Fi"
-        subtitle: wifiRoot.current.address || ""
+        subtitle: wifiRoot.headerNote
         // The address is no step of the way here.
         path: ["Wi-Fi"]
     }
@@ -268,7 +279,6 @@ FocusScope {
     MenuList {
         id: list
         visible: !keyboard.visible
-        model: wifiRoot.shownRows
         focus: true
         onMoved: if (wifiManager) wifiManager.clearMessage()
 
@@ -295,7 +305,7 @@ FocusScope {
         // and signal, and the groups' headings like Settings': "SAVED ─────".
         // A network's name gives way to its value and icons.
         delegate: MenuRow {
-            // The line as it is now (rows), which the list's own (shownRows)
+            // The line as it is now (rows), which the list's own (its model)
             // may be behind.
             readonly property var row: wifiRoot.rows[index] || modelData
             readonly property string trail: row.busy ? ".".repeat(wifiRoot.dots) : ""
@@ -321,9 +331,14 @@ FocusScope {
         visible: text !== "" && !keyboard.visible
     }
 
+    // The keys that do something on the line under the cursor: select's
+    // word is what it does there, and nothing but back with no line to go
+    // to (no Wi-Fi).
     HintBar {
         visible: !keyboard.visible
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+        text: root.hintLine(["back:BACK",
+                             wifiRoot.rows.filter(function(r) { return list.selectable(r) }).length > 1 ? "navigate:NAVIGATE" : "",
+                             wifiRoot.selectHint(wifiRoot.rows[list.currentIndex])])
     }
 
     // A saved network's options, the one joined's, or whether one not
@@ -357,7 +372,28 @@ FocusScope {
             else if (action === "disconnect")
                 wifiManager.disconnectNetwork()
             else if (action === "forget")
-                wifiManager.forget(n.ssid)
+                forgetQuestion.ask(n)
+        }
+        onClosed: list.forceActiveFocus()
+    }
+
+    // Forget is asked first, the cursor on Cancel: a password forgotten
+    // has to be typed again with a remote to join the network.
+    ChoiceOverlay {
+        id: forgetQuestion
+        objectName: "forgetQuestion"
+        anchors.fill: parent
+        property string ssid: ""
+        promptText: "Forget " + ssid + "?"
+        subtitleText: "Its password has to be typed again to join it"
+        choices: [{ label: "Cancel", action: "cancel" }, { label: "Forget", action: "forget" }]
+        function ask(network) {
+            ssid = network.ssid
+            open()
+        }
+        onActivated: function(action) {
+            if (action === "forget" && wifiManager)
+                wifiManager.forget(ssid)
         }
         onClosed: list.forceActiveFocus()
     }
@@ -405,93 +441,24 @@ FocusScope {
 
     // The country the Pi is used in, from the time zone database's list by
     // name, starting on the one set, else the system time zone's: ▲ ▼ one at a
-    // time, ◄ ► from letter to letter.
-    FocusScope {
+    // time, ◄ ► from letter to letter. Its lines are made as it first opens:
+    // most visits to the page never choose a country.
+    ListPicker {
         id: countries
-        anchors.fill: parent
-        visible: false
-        // Hidden, it lets go of the keys: an item only hidden would keep them.
-        enabled: visible
+        title: "Wi-Fi Country"
+        message: "The country the Pi is used in: Wi-Fi keeps to its rules"
+        groupName: "LETTER"
+        entries: made && wifiManager ? wifiManager.countries.map(function(c) {
+            return { label: c.name, value: c.code, group: c.letter }
+        }) : []
 
-        readonly property var entries: wifiManager ? wifiManager.countries : []
-        property int index: 0
-        // Its window, a line for every country there is, is made as it
-        // first opens: most visits to the page never choose a country.
-        property bool made: false
-
-        function open() {
-            var code = wifiRoot.country !== "" ? wifiRoot.country : (wifiManager ? wifiManager.suggestedCountry : "")
-            index = 0
-            for (var i = 0; i < entries.length; i++) {
-                if (entries[i].code === code)
-                    index = i
-            }
-            made = true
-            visible = true
-            forceActiveFocus()
+        function openOnCountry() {
+            open(wifiRoot.country !== "" ? wifiRoot.country : (wifiManager ? wifiManager.suggestedCountry : ""))
         }
-        function close() {
-            visible = false
-            list.forceActiveFocus()
-        }
-        // To the first country of the next letter (step 1), or of the one
-        // before (step -1), round.
-        function jump(step) {
-            var n = entries.length
-            if (n === 0)
-                return
-            var letter = entries[index].letter
-            var i = index
-            if (step > 0) {
-                while (i < n && entries[i].letter === letter)
-                    i++
-                index = i < n ? i : 0
-            } else {
-                while (i >= 0 && entries[i].letter === letter)
-                    i--
-                if (i < 0)
-                    i = n - 1
-                while (i > 0 && entries[i - 1].letter === entries[i].letter)
-                    i--
-                index = i
-            }
-        }
-
-        Keys.onPressed: function(event) {
-            // Ctrl+Q and the rest go on to Main.qml.
-            if (event.modifiers & Qt.ControlModifier)
-                return
-            event.accepted = true
-            var n = entries.length
-            if (root.isBack(event)) {
-                close()
-            } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && n > 0) {
-                var code = entries[index].code
-                close()
-                if (wifiManager)
-                    wifiManager.setCountry(code)
-            } else if (event.key === Qt.Key_Up && n > 0) {
-                index = (index - 1 + n) % n
-            } else if (event.key === Qt.Key_Down && n > 0) {
-                index = (index + 1) % n
-            } else if (event.key === Qt.Key_Left) {
-                jump(-1)
-            } else if (event.key === Qt.Key_Right) {
-                jump(1)
-            }
-        }
-
-        Loader {
-            anchors.fill: parent
-            active: countries.made
-            sourceComponent: PromptScreen {
-                title: "Wi-Fi Country"
-                message: "The country the Pi is used in: Wi-Fi keeps to its rules"
-                choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
-                currentIndex: countries.index
-                onHovered: function(index) { countries.index = index }
-                hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:LETTER", "select:SELECT"])
-            }
+        onClosed: list.forceActiveFocus()
+        onPicked: function(code) {
+            if (wifiManager)
+                wifiManager.setCountry(code)
         }
     }
 }

@@ -8,12 +8,17 @@ import Components
 // too, drawn a moment before: on a headless Pi nothing is drawn while MAME
 // runs, and what the screen showed just before the hand-off stays there
 // while MAME starts. A game that couldn't start, or that MAME ended with an
-// error, says why here: with Start Info Screen off a game starts from the
-// list itself (Root.qml's playGame), and this view opens only for that, with
-// navParams.error (it never started) or navParams.failed (MAME ended with an
-// error: message and output). Root.qml starts the game, with the credits
-// bought, and puts it on Recently Played once it has started (startGame()),
-// and keeps the screen saver off while it runs.
+// error, says why here, and so does one that was played and stopped (over
+// the network, as its host left the game), and one played out that has
+// something to say (the Pi short of power or throttled during it); one
+// played out with nothing to say goes straight back. With Start Info Screen
+// off a game starts from the list itself (Root.qml's playGame), and this
+// view opens only for that, with navParams.error (it never started) or
+// navParams.failed (it ended any other way than played out, or played out
+// with a notice: reason, message and output).
+// Root.qml starts the game, with the credits bought, and puts it on Recently
+// Played once it has started (startGame()), and keeps the screen saver off
+// while it runs.
 //
 // From the Arcade screen (ArcadeScreen.qml) it has that screen's bar, says
 // how many credits go in, and takes COIN (another credit: MAME's 5, which a
@@ -45,7 +50,7 @@ FocusScope {
 
     // "opening", "loading" (the loading screen drawn, the game about to be
     // started), "running", "error" (never started), "failed" (MAME ended with
-    // an error) or "canceled".
+    // an error), "stopped" (played, and ended from outside) or "canceled".
     property string phase: "opening"
     property string message: ""
     property string output: ""
@@ -74,6 +79,13 @@ FocusScope {
     // The finer print: in the Arcade screen's look, no smaller than its own
     // letters (the hint bar's).
     readonly property real smallText: arcade ? root.sh * 0.0375 : root.sh * 0.0291667 //18, or 14
+    // Hosting on the local network: the warning of this machine's link to
+    // the network (2.4 GHz Wi-Fi with Bluetooth pads), then the advice on
+    // which machine should host, as Host LAN Game gave them, those there
+    // are; read as the page opens.
+    readonly property var hostingNote: !!online && !!online.hosting && !!online.lan && arcadeBackend
+                                       ? [arcadeBackend.lanLinkWarning(-1), arcadeBackend.hostAdvice()].filter(Boolean)
+                                       : []
 
     // The loading screen first, the game a moment later (start()).
     function launch() {
@@ -88,6 +100,19 @@ FocusScope {
             playRoot.message = arcadeBackend ? arcadeBackend.lastError() : ""
         }
     }
+    // A game that ended any other way than played out, by ArcadeBackend's
+    // finished(): its reason, what to tell the player (notice) and what the
+    // engine printed. One "stopped" was played, and ended from outside (over
+    // the network, as its host left the game): its name and the notice. One
+    // "ok" that has a notice (the Pi ran short of power or slowed itself
+    // down during it, GameSystem) says it the same way. Any other
+    // ("failed", "failed_to_start") could not be played, and says so with
+    // the engine's own lines.
+    function ended(reason, notice, printed) {
+        playRoot.phase = reason === "stopped" || reason === "ok" ? "stopped" : "failed"
+        playRoot.message = notice || ""
+        playRoot.output = playRoot.phase === "failed" ? printed || "" : ""
+    }
 
     Component.onCompleted: {
         // Why a game played from the list didn't (Root.qml's playGame).
@@ -95,9 +120,7 @@ FocusScope {
             phase = "error"
             message = navParams.error
         } else if (navParams.failed) {
-            phase = "failed"
-            message = navParams.message || ""
-            output = navParams.output || ""
+            ended(navParams.reason, navParams.message, navParams.output)
         }
         var players = inputManager ? inputManager.players : []
         var key = players.length > 0 ? players[0].playing : ""
@@ -134,14 +157,14 @@ FocusScope {
         function onFinished(exitCode, reason, notice) {
             if (playRoot.phase !== "running")
                 return
-            // Back to the list, as after a video.
-            if (reason === "ok") {
+            // Back to the list, as after a video, unless the game played out
+            // has something to say (the Pi ran short of power or throttled
+            // during it): then it is said here first.
+            if (reason === "ok" && !notice) {
                 playRoot.goBack()
                 return
             }
-            playRoot.phase = "failed"
-            playRoot.message = notice
-            playRoot.output = arcadeBackend.output()
+            playRoot.ended(reason, notice, arcadeBackend.output())
         }
     }
 
@@ -168,7 +191,7 @@ FocusScope {
         if (playRoot.phase === "opening") {
             playRoot.phase = "canceled"
             playRoot.goBack()
-        } else if (playRoot.phase === "error" || playRoot.phase === "failed") {
+        } else if (playRoot.phase === "error" || playRoot.phase === "failed" || playRoot.phase === "stopped") {
             playRoot.goBack()
         }
     }
@@ -184,7 +207,8 @@ FocusScope {
         title: moduleRoot.moduleName
     }
 
-    // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't.
+    // The Arcade screen's bar: PLAY ▶, or STOP ■ for a game that didn't, or
+    // was stopped.
     ArcadeBar {
         visible: playRoot.arcade
         text: playRoot.before ? "Play" : "Stop"
@@ -261,14 +285,18 @@ FocusScope {
             }
         }
 
-        // Online: whose game it joins, or that it is hosted.
+        // Online: whose game it joins, or that it is hosted; hosting on the
+        // local network, under it the warning of this machine's link to the
+        // network, then the advice on which machine should host, each where
+        // there is one (hostingNote()).
         Text {
             visible: !!playRoot.online && playRoot.before
             width: parent.width
             text: !playRoot.online ? ""
-                  : playRoot.online.hosting ? (playRoot.online.lan ? "Hosting on this network: others join from LAN Games"
+                  : playRoot.online.hosting ? (playRoot.online.lan ? ["Hosting on this network: others join from LAN Games"]
+                                                                     .concat(playRoot.hostingNote).join("\n")
                                                                    : "Hosting online: others join from RetroArch's lobby")
-                  : "Joining " + (playRoot.online.host || "a player") + "'s game "
+                  : "Joining " + Words.possessive(playRoot.online.host || "a player") + " game "
                     + (playRoot.online.lan ? "on this network" : "online")
             textFormat: Text.PlainText
             color: root.primaryColor
@@ -294,9 +322,10 @@ FocusScope {
             wrapMode: Text.WordWrap
         }
 
-        // Why it didn't play, and what MAME said: as it is, markup and all.
+        // Why it didn't play, or why it stopped, and what MAME said: as it
+        // is, markup and all.
         Text {
-            visible: playRoot.phase === "error" || playRoot.phase === "failed"
+            visible: playRoot.phase === "error" || playRoot.phase === "failed" || playRoot.phase === "stopped"
             width: parent.width
             text: playRoot.message
             textFormat: Text.PlainText
@@ -307,10 +336,9 @@ FocusScope {
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
         }
         // How to put the engine on, for this system (AppCore::installHint()),
-        // under "MAME is not installed" or "RetroArch is not installed".
+        // under the backend's sentence that it is missing.
         Text {
-            readonly property string program: playRoot.message === "MAME is not installed" ? "mame"
-                                              : playRoot.message === "RetroArch is not installed" ? "retroarch" : ""
+            readonly property string program: moduleRoot.missingProgram(playRoot.message)
             visible: playRoot.phase === "error" && program !== ""
             width: parent.width
             text: program !== "" ? appCore.installHint(program) : ""

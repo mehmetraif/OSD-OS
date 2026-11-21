@@ -23,10 +23,7 @@ FocusScope {
     // On unless Hide File Extensions was turned off (the manifest's default
     // is ON, which get_setting doesn't know: a setting never saved reads as
     // nothing).
-    readonly property bool hideExtensions: {
-        var v = appCore ? appCore.get_setting(moduleRoot.moduleId, "hide_extensions") : true
-        return v === undefined || v === null || v === true || v === "ON"
-    }
+    readonly property bool hideExtensions: appCore ? root.settingOn(moduleRoot.moduleId, "hide_extensions", true) : true
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -93,7 +90,7 @@ FocusScope {
             font.pixelSize: root.sh * 0.05 //24
         }
         Text {
-            text: "Please add items in the local files media directory"
+            text: "Add files to the Local Files media folder"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase
@@ -150,25 +147,29 @@ FocusScope {
         function onEntriesReady(path) { tree.refresh(path) }
         // A drive plugged in or taken out: the top of the tree lists it or
         // not, folders open on one taken out close, and the two lists show
-        // its files again or leave them out.
+        // its files again or leave them out. The backend let go of the reads
+        // under way, so the folders waiting on one ask again.
         function onDrivesChanged(gone) {
             for (var i = 0; i < gone.length; ++i)
                 tree.leave(gone[i])
+            tree.refreshPending()
             tree.refresh(itemsRoot.rootPath, true)
             tree.refresh("recent", true)
             tree.refresh("favorites", true)
         }
     }
 
-    // Footer
     HintBar {
         id: footer
+        objectName: "hintBar"
         visible: !osk.visible && !options.visible
         // Select opens a folder and plays a file, and right on a file offers
-        // its options rather than moving.
+        // its options rather than moving. With nothing in the media folder,
+        // back alone: there is nothing to move to or open.
         readonly property var entry: tree.currentEntry
         readonly property bool onFile: !!entry && !entry.isFolder && !entry.kind
-        text: root.hints.back + ":BACK "
+        text: tree.rootEmpty ? root.hints.back + ":BACK"
+              : root.hints.back + ":BACK "
               + (onFile ? String(root.hints.navigate).replace("]", "◄]") + ":NAVIGATE "
                           + root.hints.browse + ":OPTIONS "
                         : root.hints.arrows + ":NAVIGATE ")

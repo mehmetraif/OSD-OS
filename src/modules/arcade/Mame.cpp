@@ -12,11 +12,6 @@ namespace mame {
 
 namespace {
 
-// How far into the game the credits go in (coinScript()): past the start-up
-// checks most boards run (Galaga's RAM and ROM test, the Neo-Geo BIOS's), in
-// the game's own time, so a game MAME warns about first waits for it.
-constexpr int kCoinDelaySeconds = 5;
-
 // MAME's own keys (and mouse and gun buttons) for players 1 to 4's buttons 1
 // to 8, coin and start, its inpttype.ipp's: kept beside a pad's Arcade
 // Buttons, which take the place of MAME's whole sequence. Players 5 and 6
@@ -401,13 +396,15 @@ void ListXmlReader::read() {
 }
 
 QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip, int value) {
+    const int wanted = value & dip.mask;
+    const bool atDefault = wanted == (dip.defaultValue & dip.mask);
     const auto port = [&](QXmlStreamWriter &w) {
         w.writeEmptyElement(QStringLiteral("port"));
         w.writeAttribute(QStringLiteral("tag"), dip.tag);
         w.writeAttribute(QStringLiteral("type"), QStringLiteral("DIPSWITCH"));
         w.writeAttribute(QStringLiteral("mask"), QString::number(dip.mask));
         w.writeAttribute(QStringLiteral("defvalue"), QString::number(dip.defaultValue));
-        w.writeAttribute(QStringLiteral("value"), QString::number(value & dip.mask));
+        w.writeAttribute(QStringLiteral("value"), QString::number(wanted));
     };
     const auto fresh = [&] {
         QByteArray made;
@@ -424,8 +421,9 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
         w.writeEndDocument();
         return made;
     };
+    // No file, and the board's own setting: none is needed for it.
     if (cfg.trimmed().isEmpty())
-        return fresh();
+        return atDefault ? cfg : fresh();
 
     QByteArray out;
     QXmlStreamWriter w(&out);
@@ -438,6 +436,10 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
     int depth = 0;
     bool inSystem = false, inInput = false, written = false;
     int skipping = 0;   // within a port of the switch's, left out
+    // The switch's ports the file had, and what the last sets it to: -1 for
+    // one MAME wouldn't take (no value, or another default than the board's).
+    int ports = 0;
+    int had = -1;
     while (!r.atEnd()) {
         const QXmlStreamReader::TokenType token = r.readNext();
         if (r.hasError())
@@ -460,6 +462,10 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
                      && a.value(QLatin1String("tag")) == dip.tag
                      && a.value(QLatin1String("type")) == QLatin1String("DIPSWITCH")
                      && a.value(QLatin1String("mask")).toInt() == dip.mask) {
+                ++ports;
+                had = a.hasAttribute(QLatin1String("value"))
+                              && (a.value(QLatin1String("defvalue")).toInt() & dip.mask) == (dip.defaultValue & dip.mask)
+                          ? a.value(QLatin1String("value")).toInt() & dip.mask : -1;
                 --depth;
                 skipping = 1;
                 continue;
@@ -493,15 +499,22 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
         }
         w.writeCurrentToken(r);
     }
-    return written ? out : fresh();
+    if (!written)
+        return fresh();
+    // The file as it is, to the byte, where it says so already: the
+    // switch's one port with this value, or no port of it for the board's
+    // own, which is how MAME keeps a switch left alone.
+    if (ports == 1 ? had == wanted : (ports == 0 && atDefault))
+        return cfg;
+    return out;
 }
 
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill,
                             const QString &monitor) {
     QStringList args;
-    const bool turned = monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left");
+    const bool turned = isTurned(monitor);
     if (turned)
-        args << (monitor == QLatin1String("Turned Right") ? QStringLiteral("-rol") : QStringLiteral("-ror"));
+        args << (monitor == kTurnedRight ? QStringLiteral("-rol") : QStringLiteral("-ror"));
     if (fill)
         return args << QStringLiteral("-nokeepaspect");
     if (!shape.isEmpty())
@@ -514,6 +527,12 @@ QStringList screenArguments(const Machine &machine, int screenLines, const QStri
     if (integer && lines > 0 && lines <= screenLines)
         args << QStringLiteral("-nounevenstretch") << QStringLiteral("-unevenstretchx");
     return args;
+}
+
+QString stampOf(const QFileInfo &file) {
+    if (!file.exists())
+        return QString();
+    return QStringLiteral("%1:%2").arg(file.size()).arg(file.lastModified().toMSecsSinceEpoch());
 }
 
 bool isShortName(const QString &name) {
@@ -844,19 +863,16 @@ QHash<QString, QString> readGenres(const QString &path) {
 }
 
 QString coinScript(int coins) {
-    // Each coin held down a tenth of a second, a fifth between them, as a
-    // coin mech's switch would be: games read it once a frame, and some count
-    // a coin only once it has been there a few frames. Timed by the game's
-    // own clock, which stands still while MAME shows a warning first. MAME
-    // runs the script again at every reset of the game (F3, a watchdog),
-    // keeping its globals: the credits go in once.
+    // Timed by the game's own clock, which stands still while MAME shows a
+    // warning first. MAME runs the script again at every reset of the game
+    // (F3, a watchdog), keeping its globals: the credits go in once.
     return QStringLiteral(
                "-- Written by OSD/OS as the game starts: the credits bought on its\n"
                "-- Arcade screen, player 1's coin pressed once for each.\n"
                "if osdos_coins_run then return end\n"
                "osdos_coins_run = true\n"
                "local left = %1\n"
-               "local nextAt, hold, gap = %2, 0.1, 0.2\n"
+               "local nextAt, hold, gap = %2, %3, %4\n"
                "local coin = manager.machine.ioport:token_to_input_type(\"COIN1\")\n"
                "local field\n"
                "for _, port in pairs(manager.machine.ioport.ports) do\n"
@@ -882,7 +898,10 @@ QString coinScript(int coins) {
                "    down = not down\n"
                "  end)\n"
                "end\n")
-        .arg(coins).arg(kCoinDelaySeconds);
+        .arg(coins)
+        .arg(kCoinDelayMs / 1000.0)
+        .arg(kCoinHoldMs / 1000.0)
+        .arg(kCoinGapMs / 1000.0);
 }
 
 QString controllerConfig(const QStringList &playerGuids, const QList<QStringList> &arcade) {

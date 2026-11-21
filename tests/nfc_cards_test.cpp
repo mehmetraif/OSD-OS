@@ -37,6 +37,18 @@ private slots:
         QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Alien"), QStringLiteral("/films/alien.mkv"), QString()));
         QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.txt") }));
         QCOMPARE(nfc.mappedTitleForUid(m_uid), QStringLiteral("Alien"));
+
+        // A file named by hand with its extension in capitals: mapped again,
+        // it is the one replaced, under its own name for the same title, so
+        // no second file claims the card.
+        QVERIFY(QFile::rename(tags() + QStringLiteral("/Alien.txt"), tags() + QStringLiteral("/Alien.TXT")));
+        nfc.reloadMapping();
+        QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Alien"), QStringLiteral("/films/aliens.mkv"), QString()));
+        QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.TXT") }));
+        QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Aliens"), QStringLiteral("/films/aliens.mkv"), QString()));
+        QCOMPARE(entries(), QStringList({ QStringLiteral("Aliens.txt") }));
+        QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Alien"), QStringLiteral("/films/alien.mkv"), QString()));
+        QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.txt") }));
 #ifdef Q_OS_UNIX
         // A full card: nothing more can be written, so the new file can't be,
         // and the card plays what it did. (A file size limit, which holds for
@@ -62,6 +74,25 @@ private slots:
         QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.txt") }));
         QVERIFY(QDir(tags() + QStringLiteral("/Alien.txt")).removeRecursively());
 #endif
+    }
+
+    // The format a YouTube card hands yt-dlp, character for character: H.264
+    // first at the resolution's height, 480 lines for one it doesn't offer.
+    void youtubeFormat() {
+        NfcReaderBackend nfc(m_data.path(), m_data.path(), nullptr);
+        const auto format = [](int height) {
+            return QStringLiteral("bestvideo[height<=?%1][vcodec^=avc1]+bestaudio/bestvideo[height<=?%1]+bestaudio/"
+                                  "best[height<=?%1]/best").arg(height);
+        };
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("480p")), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("720p")), format(720));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("1080p")), format(1080));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("360p")), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("2160p")), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QString()), format(480));
+        QCOMPARE(nfc.ytdlFormatForResolution(QStringLiteral("720p")),
+                 QStringLiteral("bestvideo[height<=?720][vcodec^=avc1]+bestaudio/bestvideo[height<=?720]+bestaudio/"
+                                "best[height<=?720]/best"));
     }
 
     void longTitle() {
@@ -93,8 +124,13 @@ private slots:
         QCOMPARE(options.size(), 1);
         QCOMPARE(options.first().at(0).toString(), QStringLiteral("auto_subtitles"));
         QHash<QString, QVariant> old;
-        for (const QVariant &option : options.first().at(1).toList())
+        QStringList order;
+        for (const QVariant &option : options.first().at(1).toList()) {
             old.insert(option.toMap().value("id").toString(), option.toMap().value("old"));
+            order << option.toMap().value("label").toString();
+        }
+        // In the order every module's Subtitles has.
+        QCOMPARE(order, QStringList({ "Off", "Forced Only", "On" }));
         QCOMPARE(old.value("on"), QVariant(true));
         QCOMPARE(old.value("forced"), QVariant(false));
         QVERIFY(!old.value("off").isValid());

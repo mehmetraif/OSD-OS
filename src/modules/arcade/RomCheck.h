@@ -13,6 +13,8 @@
 #include <QVariantMap>
 #include <functional>
 
+struct ProcessEnd;
+
 // Settings → Arcade → Check ROMs: whether each game's files are whole for
 // the engines that play it. The user starts it, as it reads every archive of
 // the folder (minutes on a Pi); nothing starts it by itself. FinalBurn Neo's
@@ -49,10 +51,6 @@ Contents contentsOf(const QString &archive, bool *ok);
 QStringList missingRoms(const QString &set, const QHash<QString, DatSet> &dat,
                         const std::function<QString(const QString &)> &archiveOf,
                         QHash<QString, Contents> *cache, bool *unreadable);
-
-// A file's stamp as a set's result is kept against: its size and when it
-// was last written; "" for none.
-QString stampOf(const QFileInfo &file);
 
 // MAME's -verifyroms, read as it comes: each set's verdict ("romset pacman
 // is good", "romset sf2ua [sf2] is best available", "romset mslug [neogeo]
@@ -105,8 +103,8 @@ QByteArray toJson(const Results &results);
 
 // A check under way, a stage at a time: the archives first (their stamps
 // and FinalBurn Neo's CRCs, off the app's thread), then MAME's -verifyroms,
-// a batch of sets at a time. MAME's batches stop while a game or MAME's
-// -listxml runs (pause()), and go on after (resume()).
+// a batch of sets at a time. MAME's batches stop while a game, MAME's
+// download or MAME's -listxml runs (pause()), and go on after (resume()).
 class RomCheck : public QObject {
     Q_OBJECT
 public:
@@ -134,10 +132,11 @@ public:
     ~RomCheck() override;
 
     bool active() const { return m_active; }
-    // Starts one, held from the start (held: a game or MAME's -listxml
-    // running) till resume(). Nothing while one is under way.
+    // Starts one, held from the start (held: a game or MAME's download
+    // under way) till resume(). Nothing while one is under way.
     void start(const Job &job, bool held);
-    // MAME's batch stopped where it had got to, the rest asked after resume().
+    // MAME's batch stopped where it had got to, the rest asked after
+    // resume(), which ends the check where none is left to ask.
     void pause();
     void resume();
     // { active, stage ("Archives" or "MAME"), done, total, held, result
@@ -152,7 +151,7 @@ private:
     void archivesRead();
     void verifyNext();
     void verifyRead();
-    void verifyFinished(int exitCode, QProcess::ExitStatus status);
+    void verifyFinished(const ProcessEnd &end);
     void stopProcess();
     void finish(const QString &result);
 

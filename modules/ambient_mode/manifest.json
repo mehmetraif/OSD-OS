@@ -1,28 +1,33 @@
 {
   "id": "com.osdos.ambient_mode",
   "name": "Ambient:Mode",
+  "menu_order": 110,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Ambient:Mode on the main menu: a video on a loop, with your music if you like, from its folder below"
     },
     {
       "key": "media_directory",
-      "label": "Media Directory",
+      "label": "Media Folder",
       "type": "directory_browser",
-      "default": ""
+      "default": "",
+      "description": "The folder of the clips, and of any music, Ambient:Mode plays\n[DEFAULT] ambient in the data folder"
     },
     {
       "key": "auto_launch",
       "label": "Auto-Launch Playback",
       "type": "toggle",
       "default": "OFF",
-      "description": "Starts playing, shuffled, when OSD/OS starts on this module\nSet START ON MODULE to Ambient:Mode in app settings"
+      "shown_with": { "app": "startup_module", "value": "com.osdos.ambient_mode",
+                      "reason": "Only with Start On on Ambient:Mode (Settings > Startup)" },
+      "description": "Starts playing, shuffled, as OSD/OS starts on Ambient:Mode (Start On, in Settings > Startup)"
     },
     {
       "key": "video_scaling",

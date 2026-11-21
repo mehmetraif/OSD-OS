@@ -30,6 +30,10 @@ Environment=OSDOS_AUTOSTART=1
 Environment=OSDOS_BOOT_UNITS_FILE=/etc/osdos/boot-units
 Environment=OSDOS_READY_FILE=/run/osdos/ready
 RuntimeDirectory=osdos
+# An arcade game's RetroArch or MAME runs at nice -5, ahead of the app and
+# the system's services: the lowest nice the app may give (ScriptLauncher).
+# No real-time priority, which could starve the rest.
+LimitNICE=-5
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStartPre=-/usr/lib/osdos/wait-for-display
 ExecStart=/usr/local/bin/osdos

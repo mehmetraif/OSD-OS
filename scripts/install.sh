@@ -56,7 +56,6 @@ sudo apt-get install -y \
     qt6-svg-plugins \
     qt6-wayland \
     qml6-module-qtquick \
-    qml6-module-qtquick-controls \
     qml6-module-qtquick-window \
     libsdl2-2.0-0 \
     libpcsclite1 \
@@ -152,9 +151,15 @@ fi
 # The app, stopped below for the release's swap, starts again as the script
 # ends, however it ends: on the new release, or on the one before.
 echo "Downloading ${TARBALL}..."
+# The release's folders unpacked for the swap go too, should the script end
+# before the swap begins: the launcher, which runs as the app's user, finds
+# none left in its way.
 TMP_DIR=$(mktemp -d)
 APP_WAS_RUNNING=""
-trap 'rm -rf "$TMP_DIR"; if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
+UNPACKED=""
+trap 'rm -rf "$TMP_DIR"
+      if [ -n "$UNPACKED" ]; then sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" || true; fi
+      if [ -n "$APP_WAS_RUNNING" ]; then sudo systemctl start osdos.service; fi' EXIT
 
 curl -fsSL -o "${TMP_DIR}/${TARBALL}" "${DOWNLOAD_URL}"
 # Checked against the SHA-256 GitHub keeps for it before anything changes; a
@@ -178,6 +183,15 @@ esac
 # from .old, never on half of each; and a file a release dropped (a module's
 # folder) doesn't live on under the new one. The app, if it runs, stops for the
 # swap rather than run on as half of each.
+# It is a copy of the launcher's, apart from it where root is needed: the
+# leftovers of a swap cut short are cleared whoever owns them (the launcher
+# can only say it can't); the folders are made, and the whole of
+# $INSTALL_DIR given, to the app's user, who may not own it yet; a tarball
+# without bin/osdos ends the script rather than being noted in
+# staged.sha256.failed; the tarball is the download checked against GitHub's
+# digest, not a stage; and the service is stopped and started around it.
+# The launcher is written after the release is in place, so it isn't there
+# to be called for it.
 echo "Extracting to ${INSTALL_DIR}..."
 if [ -f "${SYSTEMD_SERVICE}" ]; then
     if systemctl is-active --quiet osdos.service; then
@@ -197,18 +211,27 @@ if [ -d "${INSTALL_DIR}/.old" ]; then
     done
 fi
 sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
-sudo mkdir "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
-sudo tar -xzf "${TMP_DIR}/${TARBALL}" --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new"
+# The swap's folders the user's the app runs as from the start, and the
+# release unpacked into them as that user: an install cut short as it
+# unpacks (a power cut) leaves nothing the launcher, which applies in-app
+# updates as that user, can't clear. The tarball is read by this script, in
+# a folder of its own.
+UNPACKED=1
+sudo install -d -o "${OWNER_USER}" -g "$(id -gn "${OWNER_USER}")" "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
+sudo -u "${OWNER_USER}" tar -xzf - --strip-components=3 --no-same-owner -C "${INSTALL_DIR}/.new" \
+    < "${TMP_DIR}/${TARBALL}"
 if [ ! -x "${INSTALL_DIR}/.new/bin/osdos" ]; then
-    sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.old"
     echo "Error: ${TARBALL} has no bin/osdos; nothing was installed." >&2
     exit 1
 fi
-# All of it the user's the app runs as, the release there and the swap's
-# folders too: the launcher swaps in staged in-app updates without root, and
-# puts the release before back should the swap below be cut short.
+# All of it the user's the app runs as, the release there too: the launcher
+# swaps in staged in-app updates without root, and puts the release before
+# back should the swap below be cut short.
 sudo chown -R "${OWNER_USER}:" "${INSTALL_DIR}"
 sync -f "${INSTALL_DIR}" 2> /dev/null || sync
+# From here .old holds the release before, which the launcher puts back
+# should the swap be cut short: kept.
+UNPACKED=""
 for d in "${INSTALL_DIR}"/.new/*; do
     name=$(basename "$d")
     if [ -e "${INSTALL_DIR}/${name}" ]; then
@@ -219,6 +242,12 @@ done
 sudo mv "${INSTALL_DIR}/.old" "${INSTALL_DIR}/.discard"
 sync -f "${INSTALL_DIR}" 2> /dev/null || sync
 sudo rm -rf "${INSTALL_DIR}/.new" "${INSTALL_DIR}/.discard"
+# An in-app update the app had staged and armed goes, with what the launcher
+# said of one before: the launcher would otherwise put it in place over this
+# release at the next start. The app sweeps its download.
+OWNER_UPDATES="$(getent passwd "${OWNER_USER}" | cut -d: -f6)/.local/share/OSD-OS/updates"
+sudo -u "${OWNER_USER}" rm -f "${OWNER_UPDATES}/staged.sha256" "${OWNER_UPDATES}/staged.json" \
+    "${OWNER_UPDATES}/staged.sha256.failed"
 if ! sudo -u "${OWNER_USER}" test -w "${INSTALL_DIR}"; then
     echo "Warning: ${OWNER_USER} can't write ${INSTALL_DIR}, so in-app updates won't apply." >&2
 fi
@@ -267,12 +296,14 @@ INSTALL_DIR="/opt/osdos"
 #    sets the Wi-Fi country through osdos-wifi.socket, so Settings offers
 #    Wi-Fi.
 # 8: osdos-stop also names the device through osdos-name.socket, so Settings
-#    → About → System Information can rename it.
+#    → System Information can rename it.
 # 9: osdos-stop also writes JAMMA 480i at 640 across on exit 39 (and powers
 #    off after it on 59), so Display Output offers it.
 # 10: osdos-stop also sets the time zone and the keyboard through
 #    osdos-system.socket, so Settings → System offers Time Zone and Keyboard.
-export OSDOS_LAUNCHER_API=10
+# 11: osdos-stop also sets the CPU's governor for an arcade game and puts it
+#    back after, through osdos-game.socket, so the Arcade module asks for it.
+export OSDOS_LAUNCHER_API=11
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -299,8 +330,23 @@ fi
 if [ -w "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"
 fi
+# One this user can't clear (left by an installer of old, cut short as it
+# unpacked as root): said, and no stage tried over it, which would fail
+# each time and be offered again for ever. The installer, run again,
+# clears it.
+STUCK=""
+for d in "$INSTALL_DIR/.new" "$INSTALL_DIR/.old" "$INSTALL_DIR/.discard"; do
+    if [ -e "$d" ] && [ -w "$INSTALL_DIR" ]; then
+        STUCK="$d"
+        echo "osdos: $d, left by an install cut short, can't be cleared; run the installer again" >&2
+    fi
+done
 
-if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
+if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -n "$STUCK" ]; then
+    echo "$STUCK, left by an install cut short, can't be cleared; run the installer again" \
+        > "$UPDATES_DIR/staged.sha256.failed"
+    rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
+elif [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
     if ( cd "$UPDATES_DIR" && sha256sum -c --status staged.sha256 ); then
         STAGED_TARBALL=$(awk '{print $2}' "$UPDATES_DIR/staged.sha256")
         rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
@@ -330,13 +376,16 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
             # staged.json: with that left, the app would offer an Install
             # that applies nothing, until the next boot discarded the stage
             # (above). The app offers the update again, downloaded afresh;
-            # .failed says what became of this one.
+            # .failed says why this one wasn't put in place, which the app
+            # tells on its Software Update page.
             rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
-            mv -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.sha256.failed" 2>/dev/null
-            rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
+            echo "its release didn't unpack in full" > "$UPDATES_DIR/staged.sha256.failed"
+            rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
         fi
     else
-        # Corrupt/partial stage — discard; the app re-offers the update.
+        # Corrupt/partial stage — discard, saying why; the app re-offers the
+        # update.
+        echo "the download didn't match its checksum" > "$UPDATES_DIR/staged.sha256.failed"
         rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
     fi
 fi
@@ -360,11 +409,14 @@ else
     # ("# osdos-mode: WxH") if the connector has it: a Pi 5 may keep HDMI on
     # beside a CRT, and there a composite mode's lines make PAL or NTSC. mpv
     # plays on it too (OSDOS_DRM_*). A Pi 4 has one output on at a time.
-    KMS_CARD=""; KMS_OUTPUT=""; KMS_MODE=""
+    # A preset with a mode and no output (HDMI's, "# osdos-mode: 1920x1080@60")
+    # asks it of the display connected, if that is HDMI and has the mode's
+    # size, progressive: otherwise the display's own choice, as before.
+    KMS_CARD=""; KMS_OUTPUT=""; KMS_MODE=""; want=""; mode=""
     PRESET=/boot/firmware/osdos-display.txt
     if [ -r "$PRESET" ] && tr -d '\0' 2>/dev/null < /proc/device-tree/model | grep -q '^Raspberry Pi 5'; then
         want=$(sed -n 's/^# osdos-output: *\([A-Za-z-]*\).*/\1/p' "$PRESET" | head -n1)
-        mode=$(sed -n 's/^# osdos-mode: *\([0-9]*x[0-9]*\).*/\1/p' "$PRESET" | head -n1)
+        mode=$(sed -n 's/^# osdos-mode: *\([0-9]*x[0-9]*\(@[0-9]*\)\{0,1\}\).*/\1/p' "$PRESET" | head -n1)
         # Composite and DPI come from the RP1's drivers, which may register
         # their connector after vc4's HDMI has: waited for, up to ten seconds,
         # rather than taking HDMI for the boot and leaving the CRT dark.
@@ -380,11 +432,23 @@ else
         for d in /sys/class/drm/card*-"${want:-none}"-*; do
             [ -e "$d" ] || continue
             n=$(basename "$d"); KMS_CARD="${n%%-*}"; KMS_OUTPUT="${n#*-}"
-            if [ -n "$mode" ] && grep -qE "^${mode}i?\$" "$d/modes" 2>/dev/null; then
+            if [ -n "$mode" ] && grep -qE "^${mode%@*}i?\$" "$d/modes" 2>/dev/null; then
                 KMS_MODE="$mode"
             fi
             break
         done
+        # HDMI's preset: the display connected, in the mode asked if it has
+        # the size (the modes file lists sizes alone, 1920x1080i apart).
+        if [ -z "$want" ] && [ -n "$mode" ]; then
+            for s in /sys/class/drm/card*-HDMI-A-*/status; do
+                [ -e "$s" ] && [ "$(cat "$s")" = connected ] || continue
+                d=$(dirname "$s")
+                if grep -qx "${mode%@*}" "$d/modes" 2>/dev/null; then
+                    n=$(basename "$d"); KMS_CARD="${n%%-*}"; KMS_OUTPUT="${n#*-}"; KMS_MODE="$mode"
+                fi
+                break
+            done
+        fi
     fi
 
     # Point Qt EGLFS at the DRM card that has a real display pipeline. Render-
@@ -409,19 +473,38 @@ else
         done
     fi
     if [ -n "$KMS_CARD" ] && [ -e "/dev/dri/$KMS_CARD" ]; then
-        KMS_CONF="${XDG_RUNTIME_DIR:-/tmp}/osdos-kms.json"
         if [ -n "$KMS_OUTPUT" ]; then
             # Qt names an output by its type and number: HDMI-A-1 is HDMI1.
             qt_name="${KMS_OUTPUT%-*}"
             qt_name="${qt_name%-[AB]}${KMS_OUTPUT##*-}"
-            printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }\n' \
-                "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}" > "$KMS_CONF"
+            kms_json=$(printf '{ "device": "/dev/dri/%s", "outputs": [ { "name": "%s", "primary": true%s } ] }' \
+                "$KMS_CARD" "$qt_name" "${KMS_MODE:+, \"mode\": \"$KMS_MODE\"}")
+            # mpv's DRM output gets the size alone: it would refuse to play
+            # on a display without the refresh asked, which the launcher can't
+            # read from sysfs; of the modes of that size it takes the first,
+            # the highest refresh. Qt takes the refresh, or the display's own
+            # choice without it.
             export OSDOS_DRM_DEVICE="/dev/dri/$KMS_CARD" OSDOS_DRM_CONNECTOR="$KMS_OUTPUT" \
-                OSDOS_DRM_MODE="$KMS_MODE"
+                OSDOS_DRM_MODE="${KMS_MODE%@*}"
         else
-            printf '{ "device": "/dev/dri/%s" }\n' "$KMS_CARD" > "$KMS_CONF"
+            kms_json=$(printf '{ "device": "/dev/dri/%s" }' "$KMS_CARD")
         fi
-        export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
+        # Qt's KMS configuration in a folder of this user's alone, the
+        # service's run-time folder (RuntimeDirectory=) or the session's,
+        # else in a file of its own made in the temp folder, never a name
+        # there anyone could have made first; and given to Qt only once it is
+        # written.
+        kms_dir="${RUNTIME_DIRECTORY:-${XDG_RUNTIME_DIR:-}}"
+        if [ -n "$kms_dir" ] && [ -d "$kms_dir" ] && [ -w "$kms_dir" ] && [ -O "$kms_dir" ]; then
+            KMS_CONF="$kms_dir/osdos-kms.json"
+        else
+            KMS_CONF=$(mktemp "${TMPDIR:-/tmp}/osdos-kms.XXXXXX" 2> /dev/null) || KMS_CONF=""
+        fi
+        if [ -n "$KMS_CONF" ] && printf '%s\n' "$kms_json" > "$KMS_CONF"; then
+            export QT_QPA_EGLFS_KMS_CONFIG="$KMS_CONF"
+        else
+            echo "osdos: Qt's KMS configuration couldn't be written; Qt picks the display itself" >&2
+        fi
     fi
 fi
 
@@ -433,6 +516,42 @@ exec "${INSTALL_DIR}/bin/osdos" "$@"
 LAUNCHER_SCRIPT
 
 sudo chmod +x "${LAUNCHER}"
+
+# ── The image's network settings for games and streams ────────────────────────
+# Wi-Fi without power saving (NetworkManager's osdos-wifi-powersave.conf), and
+# a network game's packets marked CS4 for Wi-Fi's video queue
+# (osdos-netplay-priority.service, with the rules nft reads), as the OSD/OS
+# image has them: the image's own files, os/stage-osdos/02-system/files at
+# this release's tag, never a copy of their text here. On a desktop Pi too,
+# which then keeps its Wi-Fi awake as well. A release from before them, or no
+# answer from GitHub, leaves the system as it is, and says so.
+# NETWORK_FILES_BEGIN
+IMAGE_FILES="https://raw.githubusercontent.com/${REPO}/${VERSION}/os/stage-osdos/02-system/files"
+NETWORK_DIR="${TMP_DIR}/image-files"
+mkdir -p "${NETWORK_DIR}"
+network_file() {
+    curl -fsSL --retry 3 -o "${NETWORK_DIR}/$1" "${IMAGE_FILES}/$1" && [ -s "${NETWORK_DIR}/$1" ]
+}
+if network_file osdos-wifi-powersave.conf; then
+    # From the next connection, or the next start.
+    sudo install -D -m 644 "${NETWORK_DIR}/osdos-wifi-powersave.conf" \
+        /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
+    echo "Wi-Fi's power saving is off from the next connection."
+else
+    echo "Warning: osdos-wifi-powersave.conf couldn't be read from ${VERSION}: Wi-Fi's power saving is left as it is." >&2
+fi
+if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priority.service; then
+    sudo apt-get install -y nftables || echo "Warning: nftables couldn't be installed: network games' packets go unmarked." >&2
+    sudo install -D -m 644 "${NETWORK_DIR}/osdos-netplay-priority.nft" /usr/lib/osdos/netplay-priority.nft
+    sudo install -m 644 "${NETWORK_DIR}/osdos-netplay-priority.service" /etc/systemd/system/osdos-netplay-priority.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable osdos-netplay-priority.service
+    sudo systemctl restart osdos-netplay-priority.service \
+        || echo "Warning: osdos-netplay-priority.service didn't start: network games' packets go unmarked (journalctl -u osdos-netplay-priority)." >&2
+else
+    echo "Warning: the network game's marking couldn't be read from ${VERSION}: its packets go unmarked." >&2
+fi
+# NETWORK_FILES_END
 
 # ── Optional: systemd autostart ───────────────────────────────────────────────
 # The service is written when it is asked for, never over the OSD/OS image's
@@ -459,6 +578,13 @@ Environment=QT_QPA_EGLFS_ALWAYS_SET_MODE=1
 Environment=QT_QPA_EGLFS_KMS_ATOMIC=1
 Environment=QML2_IMPORT_PATH=/usr/lib/aarch64-linux-gnu/qt6/qml
 Environment=OSDOS_AUTOSTART=1
+# The app's user's own folder for what the launcher writes for a run (Qt's KMS
+# configuration): /run/osdos.
+RuntimeDirectory=osdos
+# An arcade game's RetroArch or MAME runs at nice -5, ahead of the app and
+# the system's services: the lowest nice the app may give. No real-time
+# priority, which could starve the rest.
+LimitNICE=-5
 ExecStartPre=+-/usr/bin/systemctl stop osdos-terminal.service
 ExecStart=${LAUNCHER}
 Restart=on-failure
@@ -506,9 +632,10 @@ if [ -n "${SERVICE_USER}" ]; then
 # exit code, or to the signal name if a signal killed it. Called with
 # next-start, by osdos-display.socket instead: Display Output's At Next Start;
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
-# device-name, by osdos-name.socket: Settings → System → About → System Information's
+# device-name, by osdos-name.socket: Settings → System → System Information's
 # Device Name; with system-setting, by osdos-system.socket: Settings → System's
-# Time Zone and Keyboard.
+# Time Zone, Keyboard and SSH; with game, by osdos-game.socket: an arcade
+# game's CPU governor, for the length of the game.
 
 # What comes in is read as the C locale reads it, whatever the system's
 # language: under en_GB.UTF-8, Raspberry Pi OS's own, a range such as A-Z
@@ -545,7 +672,7 @@ display_output() {
     # hold the answer back.
     sync -f "$boot/osdos-display.txt" /etc/modprobe.d
 }
-# The app's codes for them (src/display/DisplayOutput.cpp): keep the two in step.
+# The app's codes for them (os/stage-osdos/03-boot/files/display-presets.json): keep the two in step.
 DISPLAY_PRESETS=(hdmi crt-ntsc crt-pal crt-gpio-ntsc crt-gpio-pal
                  scart-rgb-ntsc scart-rgb-pal scart-rgb-240p scart-rgb-288p previous
                  jamma-240p jamma-240p-native jamma-240p-super jamma-288p jamma-288p-super
@@ -605,7 +732,7 @@ wifi_country() {
     echo ok
 }
 
-# Settings → System → About → System Information's Device Name: a name on a line from
+# Settings → System → System Information's Device Name: a name on a line from
 # the app, through the socket, and "ok" back, or why not. Only a name the
 # network takes (RFC 1123, as the app has it too: letters, digits and
 # hyphens, 63 at most, neither end a hyphen), never echoed. hostnamectl sets
@@ -675,7 +802,7 @@ device_name() {
     echo ok
 }
 
-# Settings → System's Time Zone and Keyboard: a line from the app, through the
+# Settings → System's Time Zone, Keyboard and SSH: a line from the app, through the
 # socket, "time-zone Europe/Istanbul" or "keyboard tr", and "ok" back, or why
 # not. A time zone only as the time zone database names one (letters, digits,
 # _ + and -, two slashes at most) and has one, a keyboard only as XKB names a
@@ -683,8 +810,26 @@ device_name() {
 # every start after, and raspi-config the keyboard, the console's, where a
 # name and a password are typed at Exit to Terminal: as OSD/OS Setup's file
 # has them set. What they say goes to the journal, not into the answer.
+# And SSH, "ssh on" or "ssh off" and nothing else: the service enabled and
+# started, or disabled and stopped, now and for every start after. Only
+# whether it runs: the password, the keys and whether a password logs in
+# (/etc/ssh/sshd_config.d/00-osdos-setup.conf) stay as OSD/OS Setup's file
+# left them. Turned on, the answer is "ok no-password" where the app's user
+# (osdos.service's) has no password to log in with, for the app to say that
+# nobody can yet without a key; never the password, nor anything of it.
 ZONES=/usr/share/zoneinfo
 LAYOUTS=/usr/share/X11/xkb/symbols
+SHADOW=/etc/shadow
+# Whether the app's user has a password: its field of /etc/shadow neither
+# empty nor locked (! or *). Taken as yes where the user or the file can't
+# be told, so that nothing is said for want of knowing.
+app_user_has_password() {
+    local user
+    user="$(systemctl show --property=User --value osdos.service < /dev/null 2> /dev/null)"
+    [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] && [ -r "$SHADOW" ] || return 0
+    awk -F: -v user="$user" '$1 == user { found = 1; usable = $2 != "" && $2 !~ /^[!*]/ }
+                             END { exit !(usable || !found) }' "$SHADOW"
+}
 system_setting() {
     local line what value
     IFS= read -r -t 5 -n 96 line || [ -n "$line" ] || { refuse "nothing named"; return; }
@@ -704,6 +849,27 @@ system_setting() {
             raspi-config nonint do_configure_keyboard "$value" < /dev/null >&2 \
                 || { refuse "raspi-config couldn't set it"; return; }
             ;;
+        ssh)
+            case "$value" in
+                on)
+                    systemctl enable ssh.service < /dev/null >&2 || { refuse "systemctl couldn't enable it"; return; }
+                    # Not left enabled for the next start when it can't run now.
+                    if ! systemctl start ssh.service < /dev/null >&2; then
+                        systemctl disable ssh.service < /dev/null >&2
+                        refuse "it didn't start"
+                        return
+                    fi
+                    ;;
+                off)
+                    systemctl disable ssh.service < /dev/null >&2 || { refuse "systemctl couldn't disable it"; return; }
+                    systemctl stop ssh.service < /dev/null >&2 || { refuse "it didn't stop"; return; }
+                    ;;
+                *)
+                    refuse "SSH is only on or off"
+                    return
+                    ;;
+            esac
+            ;;
         *)
             refuse "nothing this sets"
             return
@@ -711,7 +877,266 @@ system_setting() {
     esac
     # On the card before the answer: the root file system only.
     sync -f /etc
+    if [ "$what" = ssh ] && [ "$value" = on ] && ! app_user_has_password; then
+        echo "ok no-password"
+        return
+    fi
     echo ok
+}
+
+# A game in the Arcade module, through osdos-game.socket: the app connects
+# as RetroArch or MAME starts and holds the connection for the whole game.
+# Its first line says what it wants, from fixed words only, never echoed:
+# "start full-speed" (the CPU's governor at performance) or "start as-is"
+# (Settings turned that off), "network" after either for a network game.
+# Answered "ok" and the governor the game plays under, the flag the system's
+# timers look for (GAME_FLAG) is up, and the old governors are kept in
+# GAME_RUN. Meanwhile, every two seconds, the Pi's temperature, clock and
+# throttling are read, and in a network game over Wi-Fi the radio's scans
+# and roams counted (iw event). "end" from the app is answered with one line
+# of what the Pi did during the game ("notice=" what is worth saying on
+# screen, none, power, throttled or power,throttled, then the rest), which
+# the journal has too. "end", the connection closing (the app gone), this
+# unit stopped, or the app's service stopped (osdos-stop's ExecStopPost
+# below) puts everything back and takes the flag down.
+GAME_RUN=/run/osdos-game
+GAME_FLAG=/run/osdos-game/playing
+CPUFREQ=/sys/devices/system/cpu/cpufreq
+THERMAL=/sys/class/thermal
+FIRMWARE=/sys/devices/platform
+NET=/sys/class/net
+MODULES=/sys/module
+# Hotter than this at the start (millidegrees Celsius), a Pi keeps its
+# governor: performance would only bring the firmware's throttling at 80 °C
+# (85 °C on a Pi 5) sooner.
+GAME_HOT=75000
+
+# The governors kept put back, and the flag taken down. Run more than once,
+# by the game's own request and by ExecStopPost, it does no more.
+game_undo() {
+    # Its own IFS: run by the trap below, it may run in the middle of a read
+    # with IFS= set for it.
+    local policy governor IFS=$' \t\n'
+    if [ -f "$GAME_RUN/governors" ]; then
+        while read -r policy governor; do
+            [[ "$policy" =~ ^policy[0-9]+$ && "$governor" =~ ^[a-z0-9_]+$ ]] || continue
+            echo "$governor" > "$CPUFREQ/$policy/scaling_governor" 2> /dev/null \
+                || echo "osdos-stop game: $policy's governor couldn't be put back to $governor" >&2
+        done < "$GAME_RUN/governors"
+    fi
+    rm -rf "${GAME_RUN:?}"
+}
+
+# Where the Pi's numbers are, found once: GAME_ZONE, the CPU's thermal zone,
+# and GAME_THROTTLE_FILE, the firmware's get_throttled (gone from kernel
+# 6.12 on, where vcgencmd asks the firmware instead).
+game_find() {
+    local zone file
+    GAME_ZONE=""
+    for zone in "$THERMAL"/thermal_zone*; do
+        [ "$(cat "$zone/type" 2> /dev/null)" = cpu-thermal ] && { GAME_ZONE=$zone; break; }
+    done
+    GAME_THROTTLE_FILE=""
+    for file in "$FIRMWARE"/soc*/*firmware/get_throttled; do
+        [ -r "$file" ] && { GAME_THROTTLE_FILE=$file; break; }
+    done
+    GAME_VCGENCMD=""
+    command -v vcgencmd > /dev/null && GAME_VCGENCMD=1
+}
+# What the Pi is at: GAME_TEMP (millidegrees, "" without a CPU thermal
+# zone), GAME_CLOCK (kHz, "" without CPU frequency scaling) and, with
+# "throttling", GAME_THROTTLED, the firmware's get_throttled bits (0 where
+# it can't be asked). Files are read by the shell itself: no program is
+# started for them, every two seconds through the game.
+game_look() {
+    local value
+    GAME_TEMP=""
+    [ -n "$GAME_ZONE" ] && read -r GAME_TEMP 2> /dev/null < "$GAME_ZONE/temp"
+    [[ "$GAME_TEMP" =~ ^[0-9]+$ ]] || GAME_TEMP=""
+    GAME_CLOCK=""
+    read -r GAME_CLOCK 2> /dev/null < "$CPUFREQ/policy0/scaling_cur_freq"
+    [[ "$GAME_CLOCK" =~ ^[0-9]+$ ]] || GAME_CLOCK=""
+    [ "${1:-}" = throttling ] || return 0
+    GAME_THROTTLED=0
+    if [ -n "$GAME_THROTTLE_FILE" ]; then
+        read -r value 2> /dev/null < "$GAME_THROTTLE_FILE"
+    elif [ -n "$GAME_VCGENCMD" ]; then
+        value=$(vcgencmd get_throttled 2> /dev/null)
+        value=${value#throttled=0x}
+    fi
+    [[ "${value:-}" =~ ^[0-9a-fA-F]+$ ]] && GAME_THROTTLED=$((16#$value))
+    return 0
+}
+# The highest temperature, the clock's lowest and highest, and the
+# throttling bits seen now (0 to 3) during the game, from one look.
+game_note() {
+    [ -n "$GAME_TEMP" ] && { [ -z "$TEMP_MAX" ] || [ "$GAME_TEMP" -gt "$TEMP_MAX" ]; } && TEMP_MAX=$GAME_TEMP
+    if [ -n "$GAME_CLOCK" ]; then
+        { [ -z "$CLOCK_MIN" ] || [ "$GAME_CLOCK" -lt "$CLOCK_MIN" ]; } && CLOCK_MIN=$GAME_CLOCK
+        { [ -z "$CLOCK_MAX" ] || [ "$GAME_CLOCK" -gt "$CLOCK_MAX" ]; } && CLOCK_MAX=$GAME_CLOCK
+    fi
+    [ "${1:-}" = throttling ] && SEEN=$((SEEN | (GAME_THROTTLED & 0xf)))
+    return 0
+}
+game_degrees() {
+    printf '%d.%d °C' $(($1 / 1000)) $((($1 % 1000) / 100))
+}
+# get_throttled's bits by name: under-voltage, the clock capped, throttled,
+# the soft temperature limit.
+game_bits() {
+    local names=""
+    (($1 & 1)) && names+=", under-voltage"
+    (($1 & 2)) && names+=", clock capped"
+    (($1 & 4)) && names+=", throttled"
+    (($1 & 8)) && names+=", soft temperature limit"
+    printf '0x%x (%s)' "$1" "${names#, }"
+}
+# The Wi-Fi link: "<frequency in MHz> <signal in dBm>" as iw has it, or "".
+game_link() {
+    iw dev "$1" link 2> /dev/null | awk '
+        $1 == "freq:"   { f = int($2) }
+        $1 == "signal:" { s = $2 }
+        END { if (f != "") print f, s }'
+}
+game_band() {
+    if [ "$1" -lt 3000 ]; then echo 2.4 GHz
+    elif [ "$1" -lt 5925 ]; then echo 5 GHz
+    else echo 6 GHz; fi
+}
+
+game() {
+    local line want words word network="" policy now kept="" governor
+    local dev="" link_start="" link_end="" iw_pid="" scans roams roamoff wifi="" during
+    local TEMP_MAX="" CLOCK_MIN="" CLOCK_MAX="" SEEN=0 start_bits end_bits samples=0 flags summary
+    IFS= read -r -t 5 -n 64 line || [ -n "$line" ] || { refuse "nothing asked"; return; }
+    read -r -a words <<< "$line"
+    [ "${words[0]:-}" = start ] || { refuse "nothing this does"; return; }
+    want="${words[1]:-}"
+    [ "$want" = full-speed ] || [ "$want" = as-is ] || { refuse "nothing this does"; return; }
+    for word in "${words[@]:2}"; do
+        [ "$word" = network ] || { refuse "nothing this does"; return; }
+        network=1
+    done
+    # A game before this one that was never put back (its helper killed):
+    # put back first, so that what is kept is the system's own.
+    [ -d "$GAME_RUN" ] && game_undo
+    mkdir -p "$GAME_RUN" && : > "$GAME_FLAG" || { refuse "$GAME_RUN couldn't be written"; return; }
+    trap 'game_undo; exit 0' TERM INT HUP
+    game_find
+    game_look throttling
+    start_bits=$GAME_THROTTLED
+    now=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
+    if [ -z "$now" ]; then
+        kept="no CPU frequency scaling"
+    elif [ "$want" = as-is ]; then
+        kept="$now, as Settings asks"
+    elif [ -n "$GAME_TEMP" ] && [ "$GAME_TEMP" -ge "$GAME_HOT" ]; then
+        kept="$now, as the Pi was at $(game_degrees "$GAME_TEMP") at the start"
+    elif [ $((GAME_THROTTLED & 0xe)) -ne 0 ]; then
+        kept="$now, as the Pi was throttled at the start ($(printf '0x%x' "$GAME_THROTTLED"))"
+    else
+        for policy in "$CPUFREQ"/policy*; do
+            [ -w "$policy/scaling_governor" ] || continue
+            echo "${policy##*/} $(cat "$policy/scaling_governor")" >> "$GAME_RUN/governors"
+            echo performance > "$policy/scaling_governor" \
+                || echo "osdos-stop game: ${policy##*/} couldn't be set to performance" >&2
+        done
+    fi
+    governor=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
+    if [ -n "$kept" ]; then
+        echo "osdos-stop game: the governor kept at $kept" >&2
+        echo "ok kept $kept"
+    else
+        echo "ok ${governor:-performance}"
+    fi
+    # A network game: the interface of the default route, and on Wi-Fi its
+    # link and the radio's events, to count the scans and roams it makes
+    # mid-game (those its firmware makes by itself, without telling the
+    # kernel, can't be seen this way).
+    if [ -n "$network" ]; then
+        dev=$(ip -o -4 route show default 2> /dev/null | awk '{ for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+        if [ -z "$dev" ]; then
+            wifi="network: no default route"
+        elif [ ! -d "$NET/$dev/wireless" ]; then
+            wifi="network over $dev"
+        elif ! command -v iw > /dev/null; then
+            wifi="Wi-Fi $dev not measured (no iw)"
+        else
+            link_start=$(game_link "$dev")
+            iw event -t < /dev/null > "$GAME_RUN/wifi-events" 2> /dev/null &
+            iw_pid=$!
+        fi
+    fi
+    game_look
+    game_note
+    # Then the game, until "end" or the connection's end (read fails), the
+    # Pi looked at every two seconds; the throttling every ten where only
+    # vcgencmd can say it.
+    while :; do
+        if IFS= read -r -t 2 -n 64 line; then
+            [ "$line" = end ] && break
+        elif [ $? -le 128 ]; then
+            line=""
+            break
+        else
+            samples=$((samples + 1))
+            if [ -n "$GAME_THROTTLE_FILE" ] || [ $((samples % 5)) -eq 0 ]; then
+                game_look throttling
+                game_note throttling
+            else
+                game_look
+                game_note
+            fi
+        fi
+    done
+    game_look throttling
+    game_note throttling
+    end_bits=$GAME_THROTTLED
+    # What happened during the game: the bits seen now, and the "since
+    # boot" bits (16 to 19) the game set.
+    during=$((SEEN | (((end_bits & ~start_bits) >> 16) & 0xf)))
+    if [ -n "$iw_pid" ]; then
+        kill "$iw_pid" 2> /dev/null
+        wait "$iw_pid" 2> /dev/null
+        link_end=$(game_link "$dev")
+        scans=$(grep -c "^[0-9.]*: $dev (.*): scan started" "$GAME_RUN/wifi-events")
+        roams=$(grep -ci "^[0-9.]*: $dev (.*): .*roam" "$GAME_RUN/wifi-events")
+        roamoff=$(cat "$MODULES/brcmfmac/parameters/roamoff" 2> /dev/null)
+        if [ -n "$link_start" ]; then
+            wifi="Wi-Fi $dev $(game_band "${link_start%% *}") (${link_start%% *} MHz), signal ${link_start#* } dBm at the start"
+            if [ -n "$link_end" ]; then
+                wifi+=", ${link_end#* } dBm at the end"
+            else
+                wifi+=", not connected at the end"
+            fi
+        else
+            wifi="Wi-Fi $dev not connected at the start"
+        fi
+        wifi+=", $scans scans, $roams roams${roamoff:+, roamoff $roamoff}"
+    fi
+    game_undo
+    trap - TERM INT HUP
+    flags=none
+    (( during & 1 )) && flags=power
+    (( during & 0xe )) && { [ "$flags" = none ] && flags=throttled || flags+=,throttled; }
+    summary="governor ${governor:-none}"
+    if [ -n "$CLOCK_MIN" ]; then
+        if [ "$CLOCK_MIN" = "$CLOCK_MAX" ]; then
+            summary+=", clock $((CLOCK_MAX / 1000)) MHz"
+        else
+            summary+=", clock $((CLOCK_MIN / 1000))-$((CLOCK_MAX / 1000)) MHz"
+        fi
+    fi
+    if [ "$during" -eq 0 ]; then
+        summary+=", throttling none"
+    else
+        summary+=", throttling $(game_bits "$during")"
+    fi
+    [ -n "$TEMP_MAX" ] && summary+=", highest $(game_degrees "$TEMP_MAX")"
+    [ -n "$wifi" ] && summary+=", $wifi"
+    echo "osdos-stop game: the game ended, the system as it was: $summary" >&2
+    # Answered only to "end": a connection that closed has no one to read it.
+    [ "$line" = end ] && echo "notice=$flags $summary"
 }
 
 MODE="${1:-}"
@@ -720,7 +1145,12 @@ case "$MODE" in
     wifi-country)   wifi_country;   exit 0 ;;
     device-name)    device_name;    exit 0 ;;
     system-setting) system_setting; exit 0 ;;
+    game)           game;           exit 0 ;;
 esac
+
+# The app's service stopped, or the app gone, mid-game: what the game's
+# request changed put back, should its own helper not have done it.
+[ -d "$GAME_RUN" ] && game_undo
 
 case "${EXIT_STATUS:-}" in
     0)  systemctl poweroff ;;  # Quit → Power Off, or Ctrl+Q
@@ -738,15 +1168,36 @@ esac
 STOP_HELPER
     sudo chmod +x /usr/local/bin/osdos-stop
 
-    # Display Output's At Next Start, while the app runs: it writes a preset's
-    # name to this socket, which only its user may, and osdos-stop next-start,
-    # as root, writes that preset for the next start and answers.
-    sudo tee /etc/systemd/system/osdos-display.socket > /dev/null << 'DISPLAY_SOCKET'
+    # The app's requests of root while it runs, each through a socket only its
+    # user may write to, behind which osdos-stop, as root, does it and answers:
+    # Display Output's At Next Start (next-start: a preset's name, written for
+    # the next start), Settings → Network → Wi-Fi's country (wifi-country: a
+    # two-letter code, which raspi-config sets), Settings → System → About →
+    # System Information's Device Name (device-name), Settings → System's
+    # Time Zone and Keyboard (system-setting: which, and its value) and an
+    # arcade game's CPU governor (game: held for the length of the game,
+    # everything put back as it ends). os/build.sh writes the image's units
+    # from these lines too.
+    # ROOT_REQUESTS_BEGIN
+    # name|osdos-stop's mode|what it sets|where in Settings
+    ROOT_REQUESTS=(
+        "display|next-start|display output for the next start|Settings → Screen → Display Output"
+        "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
+        "name|device-name|device name|Settings → System → System Information"
+        "system|system-setting|time zone and keyboard|Settings → System"
+        "game|game|CPU governor for a game|Arcade"
+    )
+    # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is
+    # the app's user's group.
+    root_request_socket() {
+        local name mode what where
+        IFS='|' read -r name mode what where <<< "$1"
+        cat << SOCKET
 [Unit]
-Description=OSD/OS display output for the next start (Settings → Screen → Display Output)
+Description=OSD/OS ${what} (${where})
 
 [Socket]
-ListenStream=/run/osdos-display.sock
+ListenStream=/run/osdos-${name}.sock
 SocketUser=root
 SocketGroup=@OSDOS_GROUP@
 SocketMode=0660
@@ -755,138 +1206,58 @@ MaxConnections=1
 
 [Install]
 WantedBy=sockets.target
-DISPLAY_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-display.socket
-    sudo tee /etc/systemd/system/osdos-display@.service > /dev/null << 'DISPLAY_SERVICE'
+SOCKET
+    }
+    # The unit a request behind it runs, osdos-<name>@.service.
+    root_request_service() {
+        local name mode what where
+        IFS='|' read -r name mode what where <<< "$1"
+        cat << SERVICE
 [Unit]
-Description=OSD/OS display output for the next start, one request
+Description=OSD/OS ${what}, one request
 # One unit a request: gone once it has run, however it ended.
 CollectMode=inactive-or-failed
 
 [Service]
-ExecStart=/usr/local/bin/osdos-stop next-start
+ExecStart=/usr/local/bin/osdos-stop ${mode}
 StandardInput=socket
 StandardOutput=socket
 StandardError=journal
 NoNewPrivileges=yes
-PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-DISPLAY_SERVICE
-
-    # Settings → Network → Wi-Fi's country, while the app runs: it writes a two-letter
-    # code to this socket, which only its user may, and osdos-stop
-    # wifi-country, as root, has raspi-config set it and answers.
-    sudo tee /etc/systemd/system/osdos-wifi.socket > /dev/null << 'WIFI_SOCKET'
-[Unit]
-Description=OSD/OS Wi-Fi country (Settings → Network → Wi-Fi)
-
-[Socket]
-ListenStream=/run/osdos-wifi.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-WIFI_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-wifi.socket
-    sudo tee /etc/systemd/system/osdos-wifi@.service > /dev/null << 'WIFI_SERVICE'
-[Unit]
-Description=OSD/OS Wi-Fi country, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop wifi-country
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+SERVICE
+        case "${name}" in
+            wifi) cat << 'NETWORK' ;;
 # No PrivateNetwork=, unlike the display output's: raspi-config sets the Wi-Fi's
 # regulatory domain over the kernel's nl80211 (iw reg set), and the Wi-Fi
 # device is in the host's network namespace, not one of the unit's own.
-PrivateTmp=yes
-ProtectHome=yes
-WIFI_SERVICE
-
-    # Settings → System → About → System Information's Device Name, while the app
-    # runs: it writes a name to this socket, which only its user may, and
-    # osdos-stop device-name, as root, sets it and answers.
-    sudo tee /etc/systemd/system/osdos-name.socket > /dev/null << 'NAME_SOCKET'
-[Unit]
-Description=OSD/OS device name (Settings → System → About → System Information)
-
-[Socket]
-ListenStream=/run/osdos-name.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-NAME_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-name.socket
-    sudo tee /etc/systemd/system/osdos-name@.service > /dev/null << 'NAME_SERVICE'
-[Unit]
-Description=OSD/OS device name, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop device-name
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+NETWORK
+            name) cat << 'NETWORK' ;;
 # hostnamectl and systemctl talk to their daemons over D-Bus, whose socket is
 # a file's: the unit itself has no network of its own.
 PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-NAME_SERVICE
-
-    # Settings → System's Time Zone and Keyboard, while the app runs: it writes
-    # which and its value to this socket, which only its user may, and
-    # osdos-stop system-setting, as root, sets it and answers.
-    sudo tee /etc/systemd/system/osdos-system.socket > /dev/null << 'SYSTEM_SOCKET'
-[Unit]
-Description=OSD/OS time zone and keyboard (Settings → System)
-
-[Socket]
-ListenStream=/run/osdos-system.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-SYSTEM_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-system.socket
-    sudo tee /etc/systemd/system/osdos-system@.service > /dev/null << 'SYSTEM_SERVICE'
-[Unit]
-Description=OSD/OS time zone and keyboard, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop system-setting
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+NETWORK
+            game) cat << 'NETWORK' ;;
+# No PrivateNetwork=: in a network game it reads the route and the Wi-Fi
+# link (ip, iw) of the host's network, not one of the unit's own.
+NETWORK
+            system) cat << 'NETWORK' ;;
 # timedatectl talks to its daemon over D-Bus, whose socket is a file's: the
 # unit itself has no network of its own.
 PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-SYSTEM_SERVICE
+NETWORK
+            *) echo "PrivateNetwork=yes" ;;
+        esac
+        printf 'PrivateTmp=yes\nProtectHome=yes\n'
+    }
+    # ROOT_REQUESTS_END
+    ROOT_SOCKETS=()
+    for request in "${ROOT_REQUESTS[@]}"; do
+        ROOT_SOCKETS+=("osdos-${request%%|*}.socket")
+        root_request_socket "${request}" | sudo tee "/etc/systemd/system/osdos-${request%%|*}.socket" > /dev/null
+        sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" "/etc/systemd/system/osdos-${request%%|*}.socket"
+        root_request_service "${request}" \
+            | sudo tee "/etc/systemd/system/osdos-${request%%|*}@.service" > /dev/null
+    done
 
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
@@ -909,7 +1280,10 @@ Restart=no
 TERMINAL_UNIT
 
     sudo systemctl daemon-reload
-    sudo systemctl enable --now osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+    # Restarted, not only started: one already listening keeps the group it
+    # was made with until then, and the service's user may be another now.
+    sudo systemctl enable "${ROOT_SOCKETS[@]}"
+    sudo systemctl restart "${ROOT_SOCKETS[@]}"
     # A service kept as it was stays enabled or not, as it was left, and the
     # login on tty1 with it.
     if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then

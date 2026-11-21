@@ -1,7 +1,7 @@
 import QtQuick
 import Components
 
-// A module's text_list row (YouTube's Subscriptions, Weather's Other Places):
+// A module's text_list row (YouTube's Subscriptions, Weather's Other Locations):
 // the lines typed for it, one a row, and ADD under them. Select on ADD types a
 // new line on the on-screen keyboard; select on a line asks whether to change
 // it or take it out. The row is saved whole at every change, as a list of
@@ -31,9 +31,9 @@ FocusScope {
     readonly property bool full: lines.length >= maxLines
 
     function read() {
-        var all = appCore.get_settings()
-        var config = (all.modules && all.modules[moduleId]) ? all.modules[moduleId] : {}
-        var saved = config[settingKey]
+        // Through get_setting(), which reads a key in dot-notation as it
+        // is saved.
+        var saved = appCore.get_setting(moduleId, settingKey)
         var out = []
         if (saved && saved.length !== undefined && typeof saved !== "string") {
             for (var i = 0; i < saved.length; i++) {
@@ -96,11 +96,14 @@ FocusScope {
         subtitle: moduleName + " / " + settingLabel
     }
 
-    // The lines, then ADD: dimmed once the list is full.
+    // The lines, then ADD: dimmed once the list is full. The cursor stops on
+    // every row: ADD's is an empty line, which MenuList's own rule would
+    // take for no row and step over.
     MenuList {
         id: list
         objectName: "lines"
         model: textListRoot.lines.concat([""])
+        rule: function(row) { return true }
         focus: true
         readonly property bool onAdd: currentIndex === count - 1
 
@@ -140,8 +143,12 @@ FocusScope {
         text: list.onAdd && textListRoot.full ? "The list is full: take a line out first" : textListRoot.help
     }
 
+    // Select (or ►) on a line asks what to do with it, on ADD types a new
+    // one; ADD dimmed, the list full, offers only the way on and back.
     HintBar {
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
+        objectName: "hintBar"
+        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
+                             !list.onAdd ? "select:CHANGE" : textListRoot.full ? "" : "select:ADD"])
     }
 
     // What to do with a line.

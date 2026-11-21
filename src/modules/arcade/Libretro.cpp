@@ -404,7 +404,7 @@ qint64 netplayStateSize(const QString &sourceFile, bool lanCore) {
     // The boards whose states are 8 MiB or more, at their largest set's:
     // - Cave's CV1000: 136.75 to 144.75 MiB on FinalBurn Neo's core, its
     //   128 MiB of video memory among them, and 8.75 to 16.75 MiB on
-    //   OSD/OS's own, which plays its games alone, without it.
+    //   OSD/OS's LAN core, which plays them without it.
     // - Killer Instinct's: its 8.5 MiB of RAM and, under 64 KiB, its CPUs'
     //   and sound's, as its driver's DrvScan() has them, since it doesn't
     //   start on zero-filled ROMs to be measured.
@@ -530,9 +530,9 @@ double viewportAspect(double gameAspect, const QSize &screen, double screenAspec
 }
 
 bool coinDown(qint64 ms, int coins, bool *done) {
-    const qint64 each = kCoinHoldMs + kCoinGapMs;
+    const qint64 each = mame::kCoinHoldMs + mame::kCoinGapMs;
     *done = ms >= qint64(coins) * each;
-    return ms >= 0 && !*done && ms % each < kCoinHoldMs;
+    return ms >= 0 && !*done && ms % each < mame::kCoinHoldMs;
 }
 
 QByteArray remotePadMessage(int button, bool down) {
@@ -551,10 +551,12 @@ QByteArray remotePadMessage(int button, bool down) {
 QString reservedDevice(const QString &guid, const QString &name, bool byVendor) {
     if (!byVendor) {
         // The mappings are kept without the GUID's checksum (mappingWithoutCrc()).
+        // One SDL makes for a pad its own driver knows (XInput's, Raw
+        // Input's, HIDAPI's) is named "*": SDL names that pad by its own name.
         const QString key = controllers::mappingWithoutCrc(guid + QLatin1Char(','));
         for (const QString &mapping : controllers::padMappings()) {
             const QString mapped = mapping.section(QLatin1Char(','), 1, 1);
-            if (mapping.startsWith(key) && !mapped.isEmpty())
+            if (mapping.startsWith(key) && !mapped.isEmpty() && mapped != QLatin1String("*"))
                 return mapped;
         }
         return name;
@@ -598,6 +600,19 @@ QString configText(const Launch &launch) {
         // play sound through (Debian's defaults are a desktop's).
         set("video_driver", QStringLiteral("gl"));
         set("video_context_driver", QStringLiteral("kms"));
+        // Emulator Video → Frame Buffers (swapchainImages()): two, so that
+        // each frame is flipped onto the screen at the next refresh rather
+        // than queued behind the one before; RetroArch's own three otherwise.
+        if (launch.swapchainImages > 0)
+            set("video_max_swapchain_images", QString::number(launch.swapchainImages));
+        // A screen too big or too slow for a game (gameMode()): the mode of
+        // this size whose refresh is nearest, as RetroArch's KMS context
+        // picks one (drm_ctx.c's gfx_ctx_drm_set_video_mode()).
+        if (!launch.modeSize.isEmpty()) {
+            set("video_fullscreen_x", QString::number(launch.modeSize.width()));
+            set("video_fullscreen_y", QString::number(launch.modeSize.height()));
+            set("video_refresh_rate", QString::number(launch.modeRefresh, 'f', 6));
+        }
         set("input_driver", QStringLiteral("udev"));
         // Without a card that can play (a USB sound adapter showing only its
         // volume buttons until a cable is in its jack), ALSA fails to start
@@ -626,6 +641,13 @@ QString configText(const Launch &launch) {
     set("libretro_info_path", launch.infoDir);
     set("core_info_cache_enable", on(false));
     set("audio_enable", on(launch.sound));
+    // Sound Buffer (soundTuning()): a shorter buffer, so that the sound
+    // trails the picture by fewer frames, and a cheaper resampler where the
+    // machine has little time to spare; RetroArch's own where none is given.
+    if (launch.audioLatency > 0)
+        set("audio_latency", QString::number(launch.audioLatency));
+    if (launch.resamplerQuality >= 0)
+        set("audio_resampler_quality", QString::number(launch.resamplerQuality));
     // Fit to Screen: the whole screen, whatever the game's shape
     // (aspect_ratio_index 24, Full). Otherwise the picture in its shape on a
     // screen whose pixels aren't square (20, Config: the ratio as it is).
@@ -789,15 +811,25 @@ QString configText(const Launch &launch) {
         //    (RetroArch measures that itself, netplay_frontend.c's
         //    input_latency_frames).
         //  - Online, where any RetroArch joins over a link of many frames'
-        //    delay, as RetroArch has it: no latency to start with, and up to
-        //    four frames for a machine that can't keep up.
+        //    delay: two frames of latency to start with where OSD/OS hosts,
+        //    so that a remote press of up to two frames' delay is there before
+        //    its frame is played rather than played again over three to nine
+        //    frames, which a Pi 4 can't; and up to four more for a machine
+        //    that can't keep up. A room of the lobby joined plays with its
+        //    host's, as RetroArch hands them on.
         // A host's are the game's: RetroArch hands them to every machine
         // that joins.
         const bool lan = launch.netplay == Launch::Netplay::LanHost || launch.netplay == Launch::Netplay::LanJoin;
         const bool follow = lan && launch.lanSync == Launch::LanSync::Follow;
         set("netplay_allow_slaves", on(true));
         set("netplay_require_slaves", on(follow));
-        set("netplay_input_latency_frames_min", QString::number(lan && !follow ? kLanInputLatencyFrames : 0));
+        // Show Ping: each peer's ping on the screen, to tell how the link
+        // plays.
+        set("netplay_ping_show", on(launch.pingShown));
+        set("netplay_input_latency_frames_min",
+            QString::number(lan && !follow                       ? kLanInputLatencyFrames
+                            : launch.netplay == Launch::Netplay::Host ? kOnlineHostInputLatencyFrames
+                                                                      : 0));
         set("netplay_input_latency_frames_range",
             QString::number(follow ? 0 : lan ? kLanInputLatencyRange : kOnlineInputLatencyRange));
     }
@@ -1066,6 +1098,84 @@ void NetplayLog::read(const QString &line) {
     m_failure = netplayFailure(m_errors, m_hosting);
 }
 
+void NetplaySummary::read(const QString &line) {
+    const QString lower = line.toLower();
+    if (line.contains(QLatin1String("[RCHEEVOS]")) || lower.contains(QLatin1String("hardcore"))) {
+        m_achievementsSeen = m_achievementsSeen || line.contains(QLatin1String("[RCHEEVOS]"));
+        // rc_client's "<name> logged in successfully", RetroArch's
+        // "RetroAchievements: Logged in as ...".
+        if (lower.contains(QLatin1String("logged in")) && !lower.contains(QLatin1String("not logged in")))
+            m_signedIn = true;
+        if (const std::optional<QString> failure = loginFailure(line))
+            m_loginFailure = *failure;
+        static const QRegularExpression paused(QStringLiteral("hardcore.*(paus|disabl|not allowed|not active|netplay)|"
+                                                              "(paus|disabl)\\w* hardcore"),
+                                               QRegularExpression::CaseInsensitiveOption);
+        if (paused.match(line).hasMatch()) {
+            QString said = line.section(QLatin1String("[RCHEEVOS]:"), -1).trimmed();
+            if (said.size() > 100)
+                said = said.left(99) + QChar(0x2026);
+            if (!m_hardcore.contains(said) && m_hardcore.size() < 3)
+                m_hardcore << said;
+        }
+        return;
+    }
+    if (!line.contains(QLatin1String("[Netplay]")))
+        return;
+    // netplay_announce_play_spectate(): a player in, with the ping the
+    // handshake measured.
+    static const QRegularExpression joined(QStringLiteral("\\[Netplay\\] (?:(.+) has|You have) joined (?:as player \\d+|with input devices .*?)"
+                                                          "(?: \\(ping: (-?\\d+) ms\\))?\\s*$"));
+    const QRegularExpressionMatch join = joined.match(line);
+    if (join.hasMatch()) {
+        // "You have joined": a machine joining, the ping its host's.
+        QString who = join.captured(1).trimmed();
+        if (who.isEmpty())
+            who = QStringLiteral("the host");
+        who = who.left(32);
+        const QString ping = join.captured(2);
+        m_peers << (ping.isEmpty() || ping.startsWith(QLatin1Char('-')) ? who : who + QLatin1Char(' ') + ping + QStringLiteral(" ms"));
+        return;
+    }
+    if (isClientHangup(line) || line.contains(QLatin1String("[Netplay] Netplay disconnected")))
+        ++m_left;
+    if (lower.contains(QLatin1String("stall")))
+        ++m_stalls;
+    if (lower.contains(QLatin1String("catch")))
+        ++m_catchUps;
+    if (lower.contains(QLatin1String("savestate")) || lower.contains(QLatin1String("state load")))
+        ++m_savestates;
+    if (lower.contains(QLatin1String("crc")) && (lower.contains(QLatin1String("mismatch")) || lower.contains(QLatin1String("differ"))))
+        ++m_crc;
+    if (lower.contains(QLatin1String("desync")))
+        ++m_desync;
+    if (lower.contains(QLatin1String("paused")))
+        ++m_paused;
+    if (netplayError(line))
+        ++m_errors;
+}
+
+QString NetplaySummary::text() const {
+    QStringList parts;
+    parts << QStringLiteral("peers: ") + (m_peers.isEmpty() ? QStringLiteral("none logged") : m_peers.join(QStringLiteral(", ")));
+    parts << QStringLiteral("left %1").arg(m_left);
+    parts << QStringLiteral("stalls %1, catch-ups %2, savestates %3, CRC mismatches %4, desyncs %5, pauses %6, netplay errors %7")
+                 .arg(m_stalls).arg(m_catchUps).arg(m_savestates).arg(m_crc).arg(m_desync).arg(m_paused).arg(m_errors);
+    QString achievements = QStringLiteral("achievements: ");
+    if (!m_achievementsSeen && m_hardcore.isEmpty())
+        achievements += QStringLiteral("nothing logged");
+    else if (m_signedIn)
+        achievements += QStringLiteral("signed in");
+    else if (!m_loginFailure.isEmpty())
+        achievements += QStringLiteral("not signed in (") + m_loginFailure + QLatin1Char(')');
+    else
+        achievements += QStringLiteral("no sign-in logged");
+    for (const QString &said : m_hardcore)
+        achievements += QStringLiteral(", \"") + said + QLatin1Char('"');
+    parts << achievements;
+    return parts.join(QStringLiteral("; "));
+}
+
 Run readLog(const QString &path, bool hosting) {
     Run run;
     QFile file(path);
@@ -1089,6 +1199,7 @@ Run readLog(const QString &path, bool hosting) {
         }
         if (const std::optional<QString> failure = loginFailure(line))
             run.loginFailure = *failure;
+        run.netplay.read(line);
         netplay.read(line);
         if (line.contains(QLatin1String("[ERROR]")))
             run.error = line.section(QLatin1String("[ERROR]"), 1).trimmed();
@@ -1292,7 +1403,7 @@ std::optional<Room> readLanAnswer(const QByteArray &packet, const QString &addre
     room.password = passwords & 1;
     room.spectatePassword = passwords & 2;
     room.joinAddress = joinAddressOf(address, static_cast<int>(number(8)), QString());
-    // FinalBurn Neo, or OSD/OS's own for a CV1000 game (lanCorePath()).
+    // FinalBurn Neo, or OSD/OS's LAN core (lanCorePath()).
     room.joinable = (room.core == kCoreName || room.core == kLanCoreName) && !room.game.isEmpty()
                     && !room.joinAddress.isEmpty();
     return room;
@@ -1313,8 +1424,8 @@ static_assert(kMostPorts == controllers::kPlayers, "a port for each player the m
 
 namespace {
 // The claims' packets: a query for so many ports, an answer giving the
-// first and how many, and a release, each a line of ASCII with its numbers
-// after it.
+// first and how many, a release, and the host's layout, each a line of
+// ASCII with its numbers or its word after it.
 const char kClaimQueryHead[] = "OSDOS PORTS? ";
 const char kClaimAnswerHead[] = "OSDOS PORTS ";
 const char kClaimReleaseText[] = "OSDOS PORTS FREE";
@@ -1417,6 +1528,86 @@ Launch::Layout hostLayout(const QList<bool> &panels, const QList<QStringList> &a
     return Launch::Layout::Classic;
 }
 
+QString hostAdvice(bool follow, board::Family family, bool overWifi) {
+    if (!follow || (family != board::Family::Pi4 && !overWifi))
+        return QString();
+    return QStringLiteral("The fastest machine on a cable should host");
+}
+
+int swapchainImages(board::Family family, bool console, const QString &choice) {
+    // RetroArch's DRM context (gfx/drivers_context/drm_ctx.c) flips without
+    // waiting from three images on, and waits for each flip with two.
+    if (!console || choice == QLatin1String("Three"))
+        return 0;
+    if (choice == QLatin1String("Two"))
+        return 2;
+    return family == board::Family::Pi5 ? 2 : 0;
+}
+
+SoundTuning soundTuning(board::Family family, const QString &choice) {
+    if (choice == QLatin1String("RetroArch's"))
+        return {};
+    // RetroArch's resampler qualities (audio_resampler.h): 1 lowest, 2
+    // lower, 3 normal, its default where it isn't built for NEON, as no
+    // aarch64 build is (its sinc resampler's NEON code is arm32's).
+    if (family == board::Family::Pi4)
+        return { 0, 2 };
+    return { 48, -1 };
+}
+
+QString relayForTimeZone(const QString &zone) {
+    const QString area = zone.section(QLatin1Char('/'), 0, 0);
+    const QString place = zone.section(QLatin1Char('/'), 1);
+    // South America's zones (zone.tab's for its countries, and the older
+    // names that link to them).
+    static const QStringList southAmerica = {
+        QStringLiteral("Argentina"), QStringLiteral("Buenos_Aires"), QStringLiteral("Catamarca"),
+        QStringLiteral("Cordoba"), QStringLiteral("Jujuy"), QStringLiteral("Mendoza"), QStringLiteral("Rosario"),
+        QStringLiteral("Sao_Paulo"), QStringLiteral("Araguaina"), QStringLiteral("Bahia"), QStringLiteral("Belem"),
+        QStringLiteral("Boa_Vista"), QStringLiteral("Campo_Grande"), QStringLiteral("Cuiaba"),
+        QStringLiteral("Eirunepe"), QStringLiteral("Fortaleza"), QStringLiteral("Maceio"), QStringLiteral("Manaus"),
+        QStringLiteral("Noronha"), QStringLiteral("Porto_Velho"), QStringLiteral("Recife"),
+        QStringLiteral("Rio_Branco"), QStringLiteral("Santarem"), QStringLiteral("Porto_Acre"),
+        QStringLiteral("Santiago"), QStringLiteral("Punta_Arenas"), QStringLiteral("Lima"), QStringLiteral("Bogota"),
+        QStringLiteral("Caracas"), QStringLiteral("La_Paz"), QStringLiteral("Asuncion"),
+        QStringLiteral("Montevideo"), QStringLiteral("Guayaquil"), QStringLiteral("Cayenne"),
+        QStringLiteral("Paramaribo"), QStringLiteral("Guyana") };
+    if (area == QLatin1String("America"))
+        return southAmerica.contains(place.section(QLatin1Char('/'), 0, 0)) ? QStringLiteral("saopaulo")
+                                                                            : QStringLiteral("nyc");
+    if (area == QLatin1String("Brazil") || area == QLatin1String("Chile")
+        || zone == QLatin1String("Atlantic/Stanley") || zone == QLatin1String("Atlantic/South_Georgia")
+        || zone == QLatin1String("Pacific/Easter") || zone == QLatin1String("Pacific/Galapagos"))
+        return QStringLiteral("saopaulo");
+    if (area == QLatin1String("US") || area == QLatin1String("Canada") || area == QLatin1String("Mexico")
+        || zone == QLatin1String("Atlantic/Bermuda") || zone == QLatin1String("Pacific/Honolulu"))
+        return QStringLiteral("nyc");
+    if (area == QLatin1String("Europe") || area == QLatin1String("Africa") || area == QLatin1String("Atlantic")
+        || area == QLatin1String("Arctic"))
+        return QStringLiteral("madrid");
+    if (zone == QLatin1String("Asia/Seoul") || zone == QLatin1String("Asia/Pyongyang")
+        || zone == QLatin1String("Asia/Tokyo") || zone == QLatin1String("Japan") || zone == QLatin1String("ROK"))
+        return QStringLiteral("chuncheon");
+    if (area == QLatin1String("Asia") || area == QLatin1String("Australia") || area == QLatin1String("Pacific")
+        || area == QLatin1String("Indian"))
+        return QStringLiteral("singapore");
+    return QStringLiteral("nyc");
+}
+
+std::optional<GameMode> gameMode(const QSize &screen, double refresh, bool tube, const QStringList &connectorModes) {
+    static const QSize hd(1920, 1080);
+    if (tube || screen.isEmpty())
+        return std::nullopt;
+    const bool bigger = screen.width() > hd.width() || screen.height() > hd.height();
+    const bool slow = refresh > 0 && refresh < 49.0 && screen.height() >= 720;
+    if (!bigger && !slow)
+        return std::nullopt;
+    // sysfs lists a mode as its size, an interlaced one with an "i" after.
+    if (!connectorModes.contains(QStringLiteral("1920x1080")))
+        return std::nullopt;
+    return GameMode{ hd, 60 };
+}
+
 void PortClaims::reset(int own, int most, int each) {
     m_most = std::clamp(most, 1, kMostPorts);
     m_own = std::clamp(own, 0, m_most);
@@ -1430,7 +1621,7 @@ bool PortClaims::taken(int port) const {
     });
 }
 
-PortRange PortClaims::claim(const QString &address, int players) {
+PortRange PortClaims::claim(const QString &address, int players, qint64 now) {
     release(address);
     if (players < 1)
         return {};
@@ -1445,19 +1636,116 @@ PortRange PortClaims::claim(const QString &address, int players) {
         while (run < players && first + run <= m_most && !taken(first + run))
             ++run;
         if (run == players) {
-            m_claims.append({ address, first, players });
+            m_claims.append({ address, first, players, now, false });
             return { first, players };
         }
         if (some.first == 0)
             some = { first, run };
     }
     if (some.first > 0)
-        m_claims.append({ address, some.first, some.players });
+        m_claims.append({ address, some.first, some.players, now, false });
     return some;
 }
 
 void PortClaims::release(const QString &address) {
     m_claims.removeIf([&address](const Claim &c) { return c.address == address; });
+}
+
+QStringList PortClaims::expire(const QSet<QString> &connected, qint64 now, qint64 grace) {
+    QStringList dropped;
+    for (auto it = m_claims.begin(); it != m_claims.end();) {
+        if (connected.contains(it->address)) {
+            it->seen = true;
+            ++it;
+        } else if (it->seen || now - it->since >= grace) {
+            // Gone since it was seen, or never come in the time it is given.
+            dropped << it->address;
+            it = m_claims.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    return dropped;
+}
+
+bool PortClaims::awaiting() const {
+    return std::any_of(m_claims.cbegin(), m_claims.cend(), [](const Claim &c) { return !c.seen; });
+}
+
+QSet<QString> procNetPeers(const QByteArray &table, quint16 localPort) {
+    // "sl local_address rem_address st ...": each address its hex number
+    // (an IPv6 one four of them), as the machine holds it, then ":" and the
+    // port's; st 01 is TCP_ESTABLISHED.
+    const auto ipv4 = [](const QByteArray &hex) -> std::optional<quint32> {
+        bool ok = false;
+        const quint32 word = hex.toUInt(&ok, 16);
+        if (!ok)
+            return std::nullopt;
+        // The address's bytes in network order in memory, read as a number
+        // of this machine's order.
+        return Q_BYTE_ORDER == Q_LITTLE_ENDIAN ? qbswap(word) : word;
+    };
+    QSet<QString> peers;
+    for (const QByteArray &line : table.split('\n')) {
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        if (fields.size() < 4 || fields.at(3) != "01")
+            continue;
+        const QList<QByteArray> local = fields.at(1).split(':');
+        const QList<QByteArray> remote = fields.at(2).split(':');
+        bool ok = false;
+        if (local.size() != 2 || remote.size() != 2 || local.at(1).toUInt(&ok, 16) != localPort || !ok)
+            continue;
+        const QByteArray &address = remote.at(0);
+        std::optional<quint32> number;
+        if (address.size() == 8)
+            number = ipv4(address);
+        else if (address.size() == 32 && address.left(16) == "0000000000000000"
+                 && (address.mid(16, 8) == "FFFF0000" || address.mid(16, 8) == "0000FFFF"))
+            number = ipv4(address.mid(24, 8));
+        if (number)
+            peers.insert(QHostAddress(*number).toString());
+    }
+    return peers;
+}
+
+QSet<QString> netstatPeers(const QByteArray &output, quint16 localPort) {
+    const QByteArray port = QByteArray::number(localPort);
+    // An address and its port: "a.b.c.d:port", "[::ffff:a.b.c.d]:port", or
+    // the BSDs' "a.b.c.d.port".
+    const auto split = [](QByteArray endpoint) -> std::pair<QByteArray, QByteArray> {
+        endpoint.replace('[', "").replace(']', "");
+        qsizetype at = endpoint.lastIndexOf(':');
+        if (at < 0 || endpoint.count('.') == 4)
+            at = endpoint.lastIndexOf('.');
+        if (at < 0)
+            return {};
+        QByteArray address = endpoint.left(at);
+        if (address.startsWith("::ffff:"))
+            address = address.mid(7);
+        return { address, endpoint.mid(at + 1) };
+    };
+    QSet<QString> peers;
+    for (const QByteArray &line : output.split('\n')) {
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        if (!fields.contains("ESTABLISHED"))
+            continue;
+        for (qsizetype i = 0; i + 1 < fields.size(); ++i) {
+            const auto [address, localOne] = split(fields.at(i));
+            if (localOne != port)
+                continue;
+            const QHostAddress peer(QString::fromLatin1(split(fields.at(i + 1)).first));
+            if (peer.protocol() == QAbstractSocket::IPv4Protocol)
+                peers.insert(peer.toString());
+            break;
+        }
+    }
+    return peers;
+}
+
+bool isClientHangup(const QString &line) {
+    return line.contains(QLatin1String("[Netplay]"))
+           && (line.contains(QLatin1String("\" has disconnected"))
+               || line.contains(QLatin1String("A netplay client has disconnected")));
 }
 
 CoreInfo loadCoreInfo(const QString &path, QString *error) {

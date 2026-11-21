@@ -1,7 +1,6 @@
 #pragma once
 #include <QDateTime>
 #include <QElapsedTimer>
-#include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QMap>
@@ -30,12 +29,14 @@ class DisplayHandoff;
 class FbneoInstaller;
 class LanRooms;
 class ProgramInstaller;
+struct ProcessEnd;
 class RetroAchievements;
 class RetroAchievementsAccount;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QUdpSocket;
 class ScriptLauncher;
+class GameSystem;
 class QTimer;
 
 // The Arcade module: the arcade games in its folder, played in MAME (the
@@ -58,7 +59,8 @@ class QTimer;
 //   Arcade screen lists them a filter at a time (filters(), filterGames()):
 //   All Games, Favorites, Recently Played, RetroAchievements (the games it
 //   has achievements or leaderboards of), Playable Online (those that can be
-//   played online, madeSets()), each genre
+//   played online), Vertical Games (those whose screen stood upright,
+//   madeSets()), each genre
 //   (made from catver.ini's categories, in the games folder or in
 //   <data>/arcade), each number of players, each decade and each publisher,
 //   and Not Recognized, as
@@ -97,18 +99,13 @@ class ArcadeBackend : public QObject, private ArcadePictures::Catalog {
     // read.
     Q_PROPERTY(bool played READ played NOTIFY playedChanged)
     // The RetroAchievements account RetroArch plays FinalBurn Neo's games under
-    // (Online High Scores): its user ("" for none), and its state: "none",
-    // "checking" (RetroArch signing in with it now, with the sign-in core:
-    // RetroAchievementsAccount::checkSignIn()), "pending" (RetroArch to take
-    // the password at the next game and swap it for a token;
-    // achievementsMessage says why not now, when it was tried), "signedIn" (a
-    // token), or "failed" (achievementsMessage says why).
+    // (Online High Scores): RetroAchievementsAccount's user(), state() and
+    // message().
     Q_PROPERTY(QString achievementsUser READ achievementsUser NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsState READ achievementsState NOTIFY achievementsChanged)
     Q_PROPERTY(QString achievementsMessage READ achievementsMessage NOTIFY achievementsChanged)
     // A Web API key is kept, for the leaderboards, the pictures and the
-    // achievements; RetroAchievements refused it; it took it (an answer came
-    // with it).
+    // achievements; RetroAchievementsAccount::keyRefused() and keyWorks().
     Q_PROPERTY(bool achievementsKey READ achievementsKey NOTIFY achievementsChanged)
     Q_PROPERTY(bool achievementsKeyRefused READ achievementsKeyRefused NOTIFY achievementsChanged)
     Q_PROPERTY(bool achievementsKeyWorks READ achievementsKeyWorks NOTIFY achievementsChanged)
@@ -138,9 +135,9 @@ class ArcadeBackend : public QObject, private ArcadePictures::Catalog {
     Q_PROPERTY(QVariantMap picturesProgress READ picturesProgress NOTIFY picturesProgressChanged)
     // Check ROMs (checkRoms()): { active (under way), stage ("Archives":
     // their tables read, FinalBurn Neo's side; "MAME": its -verifyroms),
-    // done and total (the stage's sets), held (waiting for a game or MAME's
-    // reading of the folder to end), result ("" for none yet, "Done", or why
-    // it stopped) }.
+    // done and total (the stage's sets), held (waiting for the folder to be
+    // read and MAME to answer for its sets, or for a game or MAME's download
+    // to end), result ("" for none yet, "Done", or why it stopped) }.
     Q_PROPERTY(QVariantMap romCheckProgress READ romCheckProgress NOTIFY romCheckChanged)
     // The status icons the module adds (AppCore's statusIcons): "hiscore"
     // while Save High Scores is on, "trophy" while Online High Scores plays
@@ -161,8 +158,14 @@ public:
     // (DisplayOutput::isTube()), and its size in pixels. Emulator Video's
     // Auto goes by it: on a tube MAME and RetroArch are told it is 4:3,
     // whatever its pixels are, and draw a game's lines whole where they fit
-    // (mame::screenArguments(), libretro::viewportAspect()).
-    void setScreen(bool tube, const QSize &size);
+    // (mame::screenArguments(), libretro::viewportAspect()). Its refresh in
+    // Hz (0 where not known): on a Raspberry Pi's console a screen too big
+    // or too slow for a game has it ask for 1920x1080 at 60 Hz
+    // (libretro::gameMode(), gameMode()).
+    void setScreen(bool tube, const QSize &size, double refresh = 0);
+    // Where the display connectors' modes are read (<dir>/cardN-<name>/modes,
+    // /sys/class/drm), or a test's folder.
+    void setDrmFolder(const QString &dir) { m_drmFolder = dir; }
 
     // Where the games are: the module's Games Folder, else Games/Arcade in
     // the media folder, beside Local Files' Movies (on the image, the card's
@@ -192,8 +195,8 @@ public:
     // hosts a game), "online" (Online Games, with Online Play on, even
     // while no one in the lobby hosts a game of the folder's), "lobby"
     // (RetroArch Lobby: every room of it, with Online Play on, even while it
-    // has none), "achievements" and "netplay" (RetroAchievements and
-    // Playable Online, with a game on them), "genres/<genre>",
+    // has none), "achievements", "netplay" and "vertical" (RetroAchievements,
+    // Playable Online and Vertical Games, with a game on them), "genres/<genre>",
     // "players/<n>", "years/<decade>" ("years/unknown"),
     // "makers/<publisher>", "unknown" (Not Recognized), and last "search"
     // (Search: its own row, then the games setSearch()'s words find); all
@@ -237,7 +240,7 @@ public:
     // to do, a line each) }; {} for a set not in the folder.
     Q_INVOKABLE QVariantMap gameDetails(const QString &set);
     // A set's pictures downloaded as the game is shown (the Arcade screen, Game
-    // Details), as Settings → Arcade → Pictures From allows: those
+    // Details), as Settings → Arcade → Game Pictures → Source allows: those
     // RetroAchievements has of its game, or its parent's, with a Web API key
     // kept, into the snap folder (once, unless they have been, are being,
     // RetroAchievements has none this run, a try failed less than ten minutes
@@ -247,14 +250,14 @@ public:
     Q_INVOKABLE void wantPictures(const QString &set);
     // What Settings → Arcade → Game Pictures shows: { games (the folder's),
     // withPictures (those with a picture of any kind), achievements and
-    // snaps (whether Pictures From has each source on), key ("none",
+    // snaps (whether Game Pictures' Source has each source on), key ("none",
     // "refused", "works" or "given": the Web API key's state), writable (the
     // snap folder can be written in), snapFolder, titlesFolder }.
     Q_INVOKABLE QVariantMap picturesInfo() const;
     QVariantMap picturesProgress() const;
     // manifest: download_pictures (action), and the Game Pictures page's
     // Download Pictures: every game's pictures looked for, from the sources
-    // Pictures From allows (ArcadePictures::startPictureSweep()); one under way
+    // Game Pictures' Source allows (ArcadePictures::startPictureSweep()); one under way
     // starts anew.
     Q_INVOKABLE void downloadPictures();
     // Settings → Arcade → Check ROMs: whether every game's files are whole,
@@ -266,6 +269,8 @@ public:
     // isn't chosen where the other has them all (engineOf()), the game says
     // so in its details, and Hide Incomplete Games leaves out those whole in
     // neither. One under way goes on; MAME's part waits while a game plays.
+    // Asked for before the folder has been read, or while MAME is still
+    // asked about its sets, it starts once both are done, held until then.
     Q_INVOKABLE void checkRoms();
     // What the Check ROMs page shows: { checked (when, "" for never), games
     // (those it checks), complete, fbneoOnly (whole for FinalBurn Neo, not
@@ -340,7 +345,8 @@ public:
     // The favourites' sets, in the list's order.
     QStringList favoriteSets() const;
     // The sets added to the favourites, those not there yet, as many as
-    // fit: { added, there, full } (full: those that didn't fit).
+    // fit: { added, there, full, saved } (full: those that didn't fit;
+    // saved: false where the list couldn't be written, and none was added).
     QVariantMap addFavorites(const QStringList &sets);
     // The file's text of the sets, a title after each; and the sets a file
     // names (anything after a # left out, a line's set alone, MAME's names
@@ -412,6 +418,22 @@ public:
     // Games and LAN Games leave out the others, the lobby says why of a room
     // of one, and starting one says why.
     void setMemory(qint64 bytes);
+    // The Raspberry Pi this is (board::family()), which Emulator Video's
+    // Frame Buffers and MAME Vsync and Sound Buffer go by on Auto; a test's.
+    void setBoard(board::Family family) { m_board = family; }
+    // The system's time zone, as Settings → System has it
+    // (systemlocale::timeZone(), else Qt's), which Relay Server goes by while
+    // it has nothing saved; a test's ("" for none).
+    void setTimeZone(const QString &zone) { m_timeZone = zone; }
+    // Settings → Arcade → Relay Server as it is in force: the one saved, else
+    // the nearest to the system's time zone (libretro::relayForTimeZone()), by
+    // the row's name ("Madrid"), for the row to show while nothing is saved.
+    Q_INVOKABLE QString relayServer() const;
+    // manifest: relay_server's choices (dynamicOptionsReady): the five
+    // relays by the row's names, saved as they are named, the one nearest
+    // the time zone marked default: true, so that the row shows it while
+    // nothing is saved, without saving it.
+    Q_INVOKABLE void relayServerOptions();
 
     // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
     // the local network, found by a query broadcast there that each host
@@ -448,6 +470,11 @@ public:
     Q_INVOKABLE bool hostLanGame(const QString &set);
     // canHost() for LAN Play.
     Q_INVOKABLE bool canHostLan(const QString &set) const;
+    // The one line of advice Host LAN Game gives on this machine, or "" for
+    // none (libretro::hostAdvice()): read as it is shown, as LAN Sync and the
+    // network may have changed. setOverWifi() for a test's network.
+    Q_INVOKABLE QString hostAdvice() const;
+    void setOverWifi(std::optional<bool> overWifi) { m_overWifi = overWifi; }
     // The controller types set plays with online hosted from here, "panel"
     // (FinalBurn Neo's 6-Button Panel on every port, with an arcade panel's
     // players among this machine's, in a game of up to four players) or
@@ -455,13 +482,9 @@ public:
     // "classic" until its host says, which comes with the ports, after the
     // Play screen.
     Q_INVOKABLE QString onlineLayout(const QString &set, bool hosting) const;
-    // Where the query goes: broadcast to every network's hosts at
-    // RetroArch's port, or a stand-in's address and port (a test's).
+    // LanRooms::setDiscovery(), setListenTime() and setClaimPort().
     void setLanDiscovery(const QString &address, quint16 port);
-    // How long the answers are listened for: a second, or a test's.
     void setLanListenTime(int ms);
-    // Where a host's OSD/OS gives the machines joining their ports
-    // (libretro::kLanClaimPort), or a test's port.
     void setLanClaimPort(quint16 port);
     // What says a core's name and version (libretro::readCoreInfo()), the
     // core's path given last: a copy of the app run with --core-info, or a
@@ -475,22 +498,14 @@ public:
     // ArcadeDB's scraper service, progetto-SNAPS' pictures' way here: its
     // own, or a stand-in's.
     void setPictureServer(const QUrl &arcadeDb);
-    // How long the look through the games for pictures waits between two steps
-    // (ArcadePictures::sweepPictures()): a second, or a test's; and how long
-    // after a look that couldn't have every picture the next is made: ten
-    // minutes, or a test's.
+    // ArcadePictures::setSweepInterval() and setRetryInterval().
     void setPictureSweepInterval(int ms);
     void setPictureRetryInterval(int ms);
     // Whether that look is under way.
     bool sweepingPictures() const;
 
-    // Account page (Settings → Arcade → RetroAchievements Account). The
-    // password is kept in memory only, for RetroArch to sign in with
-    // (RetroAchievements' own way: a launcher may not), never written but into
-    // the config of the RetroArch it goes to, which goes as it ends: at once,
-    // with the sign-in core (RetroAchievementsAccount::checkSignIn()), or else
-    // at the next game. OSD/OS Setup's alone is on disk until then
-    // (takeSetupAccount()).
+    // Account page (Settings → Arcade → RetroAchievements Account):
+    // RetroAchievementsAccount::signIn() and signOut().
     Q_INVOKABLE void signInAchievements(const QString &user, const QString &password);
     Q_INVOKABLE void signOutAchievements();
     // The account's Web API key (RetroAchievements' settings page), for
@@ -499,11 +514,8 @@ public:
     Q_INVOKABLE void setAchievementsKey(const QString &key);
     // The kept key asked about, while neither is known (the page opens).
     Q_INVOKABLE void checkAchievementsKey();
-    // The sign-in core RetroArch checks a sign-in with: osdos_signin_libretro
-    // beside the app, or a stand-in's.
+    // RetroAchievementsAccount::setSignInCore() and setSetupRetryInterval().
     void setSignInCore(const QString &path);
-    // How long after OSD/OS Setup's account couldn't be checked it is
-    // checked again: 30 s, or a test's.
     void setSetupRetryInterval(int ms);
     // Where catver.ini is downloaded from when neither folder has one
     // (downloadGenres()): progettosnaps' own, OSDOS_GENRES_URL's (none when
@@ -563,6 +575,22 @@ public:
     // What MAME printed in the last game's run.
     Q_INVOKABLE QString output() const;
 
+    // The link a LAN game goes over: Settings → Network's Wi-Fi and
+    // Bluetooth (WifiManager and BluetoothManager, read by their
+    // properties: Wi-Fi's state and current, Bluetooth's inputConnected),
+    // given once by main.cpp; none, as in a test that gives none, warns of
+    // nothing.
+    void setLinkSources(QObject *wifi, QObject *bluetooth);
+    // The one line Host LAN Game (room -1) and a LAN Games room (its id)
+    // show of the link to the local network, or "": "Wi-Fi is on 2.4 GHz
+    // with Bluetooth pads: use 5 GHz or a cable" when the route to the room's
+    // host (hosting: to the local network) goes through the Wi-Fi device on
+    // a frequency below 3000 MHz while a Bluetooth input device is connected
+    // (linkadvice::warning()). The route is the kernel's (/proc/net/route,
+    // OSDOS_PROC_NET_DIR standing in for /proc/net); elsewhere than on Linux
+    // there is none, and nothing is said. Written to the log when it changes.
+    Q_INVOKABLE QString lanLinkWarning(int room = -1) const;
+
     // manifest: rescan (action): MAME asked about every set again; then
     // every game's pictures looked for (ArcadePictures::startPictureSweep()).
     Q_INVOKABLE void rescan();
@@ -583,6 +611,18 @@ public:
     Q_INVOKABLE void regionOptions();
     // manifest: play_at_startup's: None and the favorites.
     Q_INVOKABLE void startupGameOptions();
+    // manifest: online_name's value on its row (dynamicOptionsReady, its one
+    // choice, as an account module's SIGN IN has it): the name in force,
+    // nickname()'s, on the local network while LAN Play is on: the one
+    // typed, else the default. The default isn't marked so: "(default)"
+    // beside a device's name doesn't fit the row in Camcorder.
+    Q_INVOKABLE void onlineNameOptions();
+    // manifest: what this machine is, for the rows that do something only
+    // on one (requires_capability's slot): dynamicOptionsReady's
+    // "_capabilities", ["raspberry_pi"] on a Raspberry Pi (setBoard()), for
+    // CPU at Full Speed and Emulator Video's Frame Buffers; [] elsewhere,
+    // where the page dims them.
+    Q_INVOKABLE void machineCapabilities();
 
     // The sets played last, newest first: the High Scores module's Recently
     // Played, as main.cpp hands them over.
@@ -652,9 +692,7 @@ signals:
     void leaderboardReady(const QString &set);
     void gameAchievementsReady(const QString &set);
     void badgesReady();
-    // A game's pictures have changed: one of RetroAchievements' or
-    // progetto-SNAPS' is in. set: the one it is named after, the game's or
-    // its parent's.
+    // ArcadePictures::picturesChanged().
     void picturesChanged(const QString &set);
     void picturesProgressChanged();
     void romCheckChanged();
@@ -669,7 +707,8 @@ signals:
     void mameChanged();
     void mameProgressChanged();
     // reason: "ok", "failed", "stopped" or "failed_to_start" (ScriptLauncher's);
-    // notice: what to tell the player when it isn't "ok", else "".
+    // notice: what to tell the player, else "": why it isn't "ok", and after
+    // any end the Pi short of power or throttled during it (GameSystem).
     void finished(int exitCode, const QString &reason, const QString &notice);
     void dynamicOptionsReady(const QString &key, const QVariant &options);
 
@@ -703,7 +742,7 @@ private:
         QSet<QString> folders;
         QHash<QString, QString> otherFolders;
         // Each archive's stamp by its set's name, its bios folder's too
-        // (romcheck::stampOf()).
+        // (mame::stampOf()).
         QHash<QString, QString> stamps;
         // romcheck.json, read with games.json (cacheAsked).
         romcheck::Results roms;
@@ -762,7 +801,7 @@ private:
     // it hadn't answered for are asked about first once the game has ended.
     void pauseScan();
     void takeMachines();
-    void onScanFinished(int exitCode, QProcess::ExitStatus status);
+    void onScanFinished(const ProcessEnd &end);
     // Every set asked about: games.json saved, and the views told.
     void finishScan();
     // entriesReady for every folder asked for since the last time, and
@@ -848,8 +887,9 @@ private:
     const QStringList &searchRows() const;
     // A filter's made from what each game is now: RetroAchievements', the
     // games, by name, that achievements or a leaderboard's scores can be had
-    // in, and Playable Online's, those that can be played online; kept until
-    // the filters may hold other games.
+    // in, Playable Online's, those that can be played online, and Vertical
+    // Games', those whose screen stood upright; kept until the filters may
+    // hold other games.
     QStringList madeSets(const QString &filter) const;
     // Why a set is under Not Recognized, and what to do.
     QString unknownDetail(const QString &set) const;
@@ -891,13 +931,35 @@ private:
     // On, Off, Auto on a tube.
     QString screenShape() const;
     bool integerScale() const;
+    // Whether this machine's games draw through KMS, on a Linux console
+    // rather than a desktop; and whether MAME is given -waitvsync (MAME
+    // Vsync: Auto on a Raspberry Pi 4 or 5 on the console).
+    static bool onConsole();
+    // The mode a game asks for on a Raspberry Pi's console (libretro::
+    // gameMode(), by the connector the launcher found for the display preset,
+    // OSDOS_DRM_DEVICE and OSDOS_DRM_CONNECTOR, else the first with a screen
+    // plugged in), said in the log as it is asked for; nothing elsewhere.
+    std::optional<libretro::GameMode> gameMode() const;
+    QStringList connectorModes() const;
+    bool mameVsync() const;
+    // The relay a game hosted online goes through, by RetroArch's name: the
+    // one saved, else relayForTimeZone()'s.
+    QString relay() const;
+    // relayForTimeZone()'s, whatever is saved.
+    QString zoneRelay() const;
+    // The line the app's log has of a network game as it ends, after
+    // "arcade: network game: ": the set, how it was played (hosted or
+    // joined, online through which relay, or on the LAN with which LAN
+    // Sync), how long, and what RetroArch's log said of it
+    // (libretro::NetplaySummary).
+    QString networkGameLine(const libretro::NetplaySummary &summary) const;
     // The monitor a game is played on, "Turned Right" or "Turned Left" for
     // one on its side, which its picture is turned against: Settings →
-    // Screen → Monitor, a monitor that stays turned; else the game's own,
+    // Screen → Rotation, a monitor that stays turned; else the game's own,
     // from its options (monitorChoices()); else, for a vertical game,
     // Emulator Video → Vertical Games, a monitor turned for it.
     QString monitorFor(const QString &set) const;
-    // Settings → Screen → Monitor turned ("Turned Right", "Turned Left"), a
+    // Settings → Screen → Rotation turned ("Turned Right", "Turned Left"), a
     // monitor that stays turned; "" for Horizontal.
     QString screenMonitor() const;
     // A game's shape on the glass, its width over its height: FinalBurn
@@ -946,6 +1008,12 @@ private:
     // How many players set plays at once, as MAME says (up to
     // libretro::kMostPorts); 0 for a game MAME doesn't know.
     int gamePlayers(const QString &set) const;
+    // Whether set has five buttons or more, by MAME's own list of them
+    // (modules/arcade/five-button-sets.txt, scripts/make-five-button-sets.py),
+    // read once as it is first asked: on Game Buttons' Auto, the game plays
+    // on Fighting 6's row, else Neo Geo 4's (controllers::ArcadeBinds). A
+    // set not in it, a clone too, has four buttons or fewer for this.
+    bool manyButtons(const QString &set) const;
     // The ports this machine's players take hosting set online: up to the
     // last player with a controller (libretro::localPorts()), but one fewer
     // than the game plays at once, so that a machine joining has a port
@@ -965,7 +1033,7 @@ private:
         QString game;
         QString joinAddress;
         QString host;
-        // Hosted with OSD/OS's own core for CV1000 games (libretro::kLanCoreName).
+        // Hosted with OSD/OS's LAN core (libretro::kLanCoreName).
         bool lanCore = false;
     };
     // layout: the host's, as it said before the ports (Classic for none).
@@ -985,6 +1053,10 @@ private:
     // The Online Games folder's entries: the rooms, or a line saying why
     // there are none.
     QVariantList roomEntries() const;
+    // What Online Games says of the lobby while it lists no game, as
+    // filterStatus(): still being read, why it couldn't be, or that no one
+    // there hosts a game of the folder's.
+    QVariantMap lobbyStatus() const;
     // The LAN Games folder listed again, and the Arcade screen's filter with
     // it, once its entries (the rooms, their lines, or why there are none)
     // are other than they were.
@@ -1052,12 +1124,23 @@ private:
     // What a game lacks, for its Game Details: "" when nothing is known
     // missing.
     QString romsDetail(const QString &set) const;
+    // The check asked for (checkRoms()), once the folder has been read and
+    // MAME has answered for every set of it; nothing before then, or with
+    // none asked for.
+    void startRomCheck();
     // MAME's part of a check goes on once nothing else of MAME's, nor a
-    // game, is running (mameMayRun()).
+    // game, is running (mameMayRun()); one that waited for MAME's answers
+    // starts.
     void resumeRomCheck();
+    // MAME let run again after a game, MAME's download or a game that didn't
+    // start: the sets it was still to be asked about, held meanwhile, then a
+    // check's. Neither while MAME may not run (mameMayRun()), which goes on
+    // with both once that ends.
+    void resumeMame();
     void romCheckDone(const romcheck::Results &results);
     // The favourites OSD/OS Setup brought ({ "favorites": [sets] }), added
-    // once the games have been read, then gone (takeSetupFavorites()).
+    // once the games have been read, then gone (takeSetupFavorites()); kept
+    // for the next start where the list couldn't be saved.
     QString setupFavoritesPath() const { return m_home + QStringLiteral("/favorites-setup.json"); }
     void takeSetupFavorites();
 public:
@@ -1085,8 +1168,11 @@ private:
     QString m_appRoot;
     QString m_dataRoot;
     QString m_home;               // <data>/arcade: MAME's keeping
+    mutable std::optional<QSet<QString>> m_fiveButtonSets;   // manyButtons()
     AppCore *m_appCore = nullptr;
     ScriptLauncher *m_launcher = nullptr;
+    // The system around a game: its CPU governor (GameSystem.h).
+    GameSystem *m_gameSystem = nullptr;
 
     // Settings.
     QString m_gamesFolder;
@@ -1101,6 +1187,8 @@ private:
     QString m_verticalMonitor;    // Vertical Games: "Turned Right", "Turned Left"; "" for Horizontal
     bool    m_tube = false;       // setScreen()'s
     QSize   m_screenSize;
+    double  m_screenRefresh = 0;
+    QString m_drmFolder = QStringLiteral("/sys/class/drm");
     QVariantMap m_menuFilters;    // Menu Filters: filter id → shown
     bool    m_achievements = false;   // Online High Scores: RetroAchievements
     bool    m_onlinePlay = false;
@@ -1108,7 +1196,17 @@ private:
     QVariantMap m_difficulties;   // set → its difficulty's setting, as its options chose
     QVariantMap m_monitors;       // set → "Turned Right" or "Turned Left", as its options chose
     QString m_onlineName;         // the name the others see ("" for nickname()'s own)
-    QString m_relay = QStringLiteral("nyc");   // the relay a hosted game goes through
+    QString m_relay;              // the relay a hosted game goes through, as saved ("" for relay()'s own)
+    // Emulator Video → Frame Buffers ("Auto", "Two", "Three"), Sound Buffer
+    // ("Auto", "RetroArch's"), Show Ping, and MAME Vsync ("Auto", "On",
+    // "Off"); "" for nothing saved, Auto.
+    QString m_frameBuffers;
+    QString m_soundBuffer;
+    bool    m_showPing = false;
+    QString m_mameVsync;
+    board::Family m_board = board::family();   // setBoard()
+    std::optional<QString> m_timeZone;         // setTimeZone()
+    std::optional<bool> m_overWifi;            // setOverWifi()
     bool    m_lanPlay = false;
     // Settings → Arcade → LAN Sync: a game hosted here has the machines
     // joining follow this one (Smooth), or each play ahead (Responsive).
@@ -1149,8 +1247,8 @@ private:
     QString m_retroarchVersionOf;
     QString m_coreVersion;
     QString m_coreVersionOf;
-    // OSD/OS's own core for CV1000 games, which LAN Games' rooms of it are
-    // matched against (libretro::lanCorePath()).
+    // OSD/OS's LAN core, which LAN Games' rooms of it are matched against
+    // (libretro::lanCorePath()).
     QString m_lanCoreVersion;
     QString m_lanCoreVersionOf;
     qint64 m_memory = -1;  // setMemory()
@@ -1200,9 +1298,11 @@ private:
     // set → its game, as FinalBurn Neo's list describes it (its shape too).
     QHash<QString, mame::Machine> m_fbneoMachines;
     QString m_fbneoFrom;          // the list of them read: its path, size and time
-    // Check ROMs: the one under way, what the last found, and each archive's
-    // stamp now, which what it found is held against.
+    // Check ROMs: the one under way, one asked for that waits for the folder
+    // and MAME's answers (startRomCheck()), what the last found, and each
+    // archive's stamp now, which what it found is held against.
     RomCheck *m_romCheck = nullptr;
+    bool m_romCheckWanted = false;
     romcheck::Results m_roms;
     QHash<QString, QString> m_stamps;
     mutable Index m_index;
@@ -1250,6 +1350,8 @@ private:
     QString m_playing;
     QString m_playingEngine;      // "mame" or "fbneo"
     libretro::Launch::Netplay m_playingNetplay = libretro::Launch::Netplay::None;   // FinalBurn Neo's, hosted or joined
+    libretro::Launch::LanSync m_playingLanSync = libretro::Launch::LanSync::Follow;  // and how, and through which relay
+    QString m_playingRelay;
     // Over the network, RetroArch's log read as it grows (watchNetplay()):
     // how far, the line cut off at its end, and what its lines so far say.
     QTimer     *m_netplayWatch = nullptr;
@@ -1270,4 +1372,8 @@ private:
     QElapsedTimer m_coinClock;
     QElapsedTimer m_playClock;    // since the game playing started
     bool    m_played = false;
+    // setLinkSources()'s, and the last line lanLinkWarning() logged.
+    QPointer<QObject> m_linkWifi;
+    QPointer<QObject> m_linkBluetooth;
+    mutable QString m_linkWarningLogged;
 };

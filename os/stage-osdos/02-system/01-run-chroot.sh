@@ -3,7 +3,9 @@
 # Runs inside the image. Which services run at all: the app, and nothing an
 # appliance plugged into a TV doesn't need.
 
-systemctl enable osdos.service osdos-cloud-init-once.service osdos-jamma.service osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket \
+# The sockets the app asks root through (00-run.sh): all of them.
+sockets=(/etc/systemd/system/osdos-*.socket)
+systemctl enable osdos.service osdos-cloud-init-once.service osdos-jamma.service "${sockets[@]##*/}" \
 	osdos-setup-app.service osdos-setup.service osdos-netplay-priority.service
 
 # Built without a password (os/build.sh): the app still runs as this user, but
@@ -36,8 +38,11 @@ fi
 
 # Periodic jobs that wake the CPU and the SD card at random times, mid-movie
 # included. Updating the system is the image's business, not a timer's.
+# fstrim.timer too: its weekly trim, caught up soon after a boot that missed
+# it (Persistent=true), can hold the card's writes for seconds, as a game
+# starts; `sudo fstrim -av` trims by hand.
 for unit in apt-daily.timer apt-daily-upgrade.timer man-db.timer \
-            e2scrub_all.timer dpkg-db-backup.timer cron.service; do
+            e2scrub_all.timer dpkg-db-backup.timer fstrim.timer cron.service; do
 	# is-enabled works offline in the chroot; it fails for a unit that isn't installed.
 	if systemctl is-enabled "${unit}" > /dev/null 2>&1; then
 		systemctl disable "${unit}"

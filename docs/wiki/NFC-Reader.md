@@ -77,7 +77,7 @@ Settings → TV / Movie → **NFC Reader** → **Enabled**: On. NFC Reader then 
 
 ## How cards map to videos
 
-Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/.local/share/OSD-OS/nfc_tags/` on Linux and the image, `~/Library/Application Support/OSD-OS/nfc_tags/` on a Mac), or the folder **Tags Directory** names.
+Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/.local/share/OSD-OS/nfc_tags/` on Linux and the image, `~/Library/Application Support/OSD-OS/nfc_tags/` on a Mac), or the folder **Cards Folder** names.
 
 | Part of the file | What it is |
 |---|---|
@@ -98,7 +98,7 @@ Each card has a text file in the tags folder: `nfc_tags` in the data folder (`~/
 | A relative path: `films/Fireplace.mp4` | That file in OSD/OS's own folder, otherwise in the data folder. |
 | A playlist file: `/media/OSD-OS/Movies/Rambo Marathon.m3u` | The list. Resume remembers which video it was on. |
 | A stream URL: `http://…` or `https://…` | That stream. |
-| A YouTube URL: `https://www.youtube.com/watch?v=Eg8tK1LpLS8` | The video, through yt-dlp, at YouTube Video Resolution. A playlist URL (`https://www.youtube.com/playlist?list=…`) plays the playlist. |
+| A YouTube URL: `https://www.youtube.com/watch?v=Eg8tK1LpLS8` | The video, through yt-dlp, at YouTube Resolution. A playlist URL (`https://www.youtube.com/playlist?list=…`) plays the playlist. |
 | A Plex guid: `plex://movie/…`, `plex://show/…`, `plex://season/…`, `plex://episode/…` | Handed to the Plex module. See [Card hand-off](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#card-hand-off-to-another-module). |
 | A Plex set: `plex://collection/<ratingKey>`, `plex://playlist/<ratingKey>` | Handed to Plex, which plays the collection or playlist as a queue. |
 
@@ -163,7 +163,7 @@ With the NFC Reader module enabled and a reader connected, Plex offers **WRITE N
 1. Select it. The screen says **TAP A CARD FOR…** and the title.
 2. Touch a card to the reader.
 3. Choose how it plays: **Write card**, or for a show, season, collection or playlist, in order or shuffled ([Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex#writing-an-nfc-card) lists the choices).
-4. If the card already plays something: **THIS CARD PLAYS "…". CHANGE TO…** → **Change this card** or **Cancel**.
+4. If the card already plays something: **THIS CARD PLAYS "…". CHANGE TO…** → **Cancel** (under the cursor) or **Change Card**.
 5. **CARD WRITTEN FOR…**: select to finish.
 
 It writes an ordinary tag file in the tags folder, which you can rename afterwards:
@@ -201,18 +201,18 @@ Settings → TV / Movie → **NFC Reader**. The keys sit under `modules.com.osdo
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows NFC Reader on the main menu and polls the reader. | `enabled` |
-| Tags Directory | A folder, or Default Folder | Default | Where the tag files are. Default is `nfc_tags` in the data folder. | `tags_directory` (`""` for the default) |
+| Cards Folder | A folder, or Default Folder | Default | Where the tag files are. Default is `nfc_tags` in the data folder. | `tags_directory` (`""` for the default) |
 | Resume Playback | Ask, Always, Never | Ask | See [Resume](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#resume). | `resume_playback` (`ask`, `yes`, `no`) |
-| YouTube Video Resolution | 480p, 720p, 1080p | 480p | The most a YouTube card plays at. | `playback_resolution` |
-| Auto Show Subtitles | Forced Only, On, Off | Forced Only | **Forced Only**: subtitles only for foreign dialogue. **On**: always. **Off**: never. | `auto_subtitles` (`forced`, `on`, `off`) |
-| Subtitle Language | Any, or a language | Any | The subtitle language to prefer. | `sub_lang` (`-` for Any, else an ISO 639-1 code: `en`, `tr` …) |
+| YouTube Resolution | 480p, 720p, 1080p | 480p | The most a YouTube card plays at. | `playback_resolution` |
+| Subtitles | Off, Forced Only, On | Forced Only | **Off**: never. **Forced Only**: subtitles only for foreign dialogue. **On**: always. | `auto_subtitles` (`off`, `forced`, `on`) |
+| Subtitles In | Any, or a language | Any | The subtitle language to prefer. | `sub_lang` (`-` for Any, else an ISO 639-1 code: `en`, `tr` …) |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in this module. Default follows Settings → TV / Movie → Scaling. | `video_scaling` |
 
 ## Files and config keys
 
 | File | What it is |
 |---|---|
-| `nfc_tags/*.txt` (or the Tags Directory) | One tag file per card |
+| `nfc_tags/*.txt` (or the Cards Folder) | One tag file per card |
 | `nfc_reader_history.json` | Resume points, the 1000 most recently played: `{ "<mapped path>": { "pos": <ms>, "plPos": <playlist index or -1>, "lastPlayed": <ms since 1970> } }` |
 
 ```json
@@ -254,7 +254,7 @@ Read the log with `sudo journalctl -u osdos -f`.
 | **Reader not connected**, with a PN532 plugged in | Run the commands below. The device should belong to `dialout` (or `uucp`) with `rw` for the group, and `id` should list that group. If not, run the [setup script](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#linux) and log in again. Otherwise set `OSDOS_NFC_DEBUG=1`: an id not on the list needs `OSDOS_NFC_SERIAL_DEVICE`. |
 | **Reader not connected**, with a PC/SC reader plugged in | `systemctl status pcscd` should say it is running and `pcsc_scan` should list the reader. If not, run the setup script, then unplug and replug the reader. |
 | **Connect a PN532 USB reader** (without "or PC/SC") | This build has no PC/SC support: use a PN532. |
-| **Card not matched** | No file holds this UID, or the file has no second line. Compare the UID on screen with the files (`grep -ril "04:A2:3B" ~/.local/share/OSD-OS/nfc_tags`). Check Tags Directory. For a Plex card, check the Plex module is on. |
+| **Card not matched** | No file holds this UID, or the file has no second line. Compare the UID on screen with the files (`grep -ril "04:A2:3B" ~/.local/share/OSD-OS/nfc_tags`). Check Cards Folder. For a Plex card, check the Plex module is on. |
 | **Playback failed: Check the mapped path or URL (YouTube links require yt-dlp)** | The file isn't there (paths are case-sensitive on Linux), or a YouTube URL failed: see [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#troubleshooting). Select retries. With mpv missing it says **mpv is not installed**. |
 | A Plex card shows an error | See [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex#writing-an-nfc-card). |
 

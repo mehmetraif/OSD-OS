@@ -69,6 +69,32 @@ FocusScope {
     function valuesOf(item) {
         return item._module ? (alsoValues[item._module] || {}) : currentValues
     }
+    // A row's saved value, and the values with a new one, by its key: one
+    // in dot-notation ("libraries.somekey") is the somekey of libraries, as
+    // AppCore saves and reads it (putSetting(), get_setting()).
+    function savedIn(values, key) {
+        var parts = String(key).split(".")
+        if (parts.length !== 2)
+            return values[key]
+        var sub = values[parts[0]]
+        return sub && typeof sub === "object" ? sub[parts[1]] : undefined
+    }
+    function savedOf(item) {
+        return savedIn(valuesOf(item), item.key)
+    }
+    function withSaved(values, key, value) {
+        var updated = Object.assign({}, values)
+        var parts = String(key).split(".")
+        if (parts.length !== 2) {
+            updated[key] = value
+            return updated
+        }
+        var sub = updated[parts[0]]
+        sub = Object.assign({}, sub && typeof sub === "object" ? sub : {})
+        sub[parts[1]] = value
+        updated[parts[0]] = sub
+        return updated
+    }
 
     // The submenu row with this key, at any depth.
     function findSubmenu(list, key) {
@@ -180,13 +206,24 @@ FocusScope {
         }
     }
 
-    // Whether any of these rows wants to know who is signed in.
+    // Whether any of these rows wants to know who is signed in: one usable
+    // only then, or the module's SIGN IN, which shows it ("account").
     function needsAuth(schema) {
         for (var n = 0; n < schema.length; n++) {
-            if (schema[n].requires_auth)
+            if (schema[n].requires_auth || schema[n].account)
                 return true
         }
         return false
+    }
+    function signedOut(state) {
+        return state === "none" || state === ""
+    }
+    // Why a row waits for a sign-in: where to sign in, the menu's SIGN IN
+    // row ("Sign in first (SIGN IN above)") where it has one.
+    function authReason(schema) {
+        var row = Array.from(schema || []).filter(function(r) { return r.account })[0]
+        return row ? "Sign in first (" + String(row.label || "Sign In").toUpperCase() + " above)"
+                   : "Only once signed in"
     }
 
     // A menu's rows on the page (another module's, `mid`, marked as its), all
@@ -201,11 +238,11 @@ FocusScope {
         for (var i = 0; i < schema.length; i++) {
             var item = schema[i]
             var off = "", by = ""
-            if (item.requires_auth && (state === "none" || state === "")) {
-                off = "Only once signed in"
+            if (item.requires_auth && signedOut(state)) {
+                off = authReason(schema)
                 by = "auth"
-            } else if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) {
-                off = "Not offered by the server"
+            } else if (capabilityOf(item) && caps.indexOf(capabilityOf(item).name) < 0) {
+                off = capabilityOf(item).reason
                 by = "capability"
             } else if (item.shown_with && !shownWith(item.shown_with, mid)) {
                 off = shownWithReason(item.shown_with, mid)
@@ -220,11 +257,35 @@ FocusScope {
         return rows
     }
 
+    // What a row's "requires_capability" asks of the backend, as { name,
+    // slot, reason }: the capability, the backend's slot that reports it
+    // as the page opens ("" for a backend that reports it of itself, as
+    // Jellyfin's mediasegments comes with its choices), and the help line's
+    // reason while it isn't there. The manifest names it alone
+    // ("mediasegments": "Not offered by the server") or as { "name", "slot",
+    // "reason" }, as Arcade's rows that do something only on a Raspberry Pi:
+    // { "name": "raspberry_pi", "slot": "machineCapabilities", "reason":
+    // "Only on a Raspberry Pi" }.
+    function capabilityOf(item) {
+        var need = item.requires_capability
+        if (!need)
+            return null
+        if (typeof need === "object")
+            return { name: String(need.name), slot: String(need.slot || ""),
+                     reason: String(need.reason || "Not offered by the server") }
+        return { name: String(need), slot: "", reason: "Not offered by the server" }
+    }
+
     // What a row's "shown_with" waits for, in words: "Only with Screen on
     // Arcade", an on or off one's "Only with Online Play on", several "… or
     // …".
     function shownWithReason(cond, mid) {
-        var parts = conditions(cond).map(function(one) { return conditionWords(one, mid) })
+        var all = conditions(cond)
+        // One condition in its own words ("reason"), as an app setting's
+        // has them: where it is changed.
+        if (all.length === 1 && all[0].reason)
+            return String(all[0].reason)
+        var parts = all.map(function(one) { return conditionWords(one, mid) })
         return "Only with " + parts.join(" or ")
     }
     // What a row's "shown_unless" is kept back by, in words: the first of
@@ -242,6 +303,8 @@ FocusScope {
         var value = String(one.value)
         if (one.theme !== undefined)
             return "the theme's " + one.theme + " " + value
+        if (one.app !== undefined)
+            return one.reason ? String(one.reason) : "the app's " + one.app + " on " + value
         var row = findRow(mid !== "" ? (alsoSchemas[mid] || []) : fullSchema, one.key)
         var label = row ? (row.label || one.key) : one.key
         var lower = value.toLowerCase()
@@ -264,8 +327,14 @@ FocusScope {
     // and what it is, such as its look for the Arcade screen ("arcade":
     // "orb"). "shown_unless" is the same turned round: its row can't be used
     // while a condition holds (the Arcade screen's List Style in the Orb
-    // look, which lays the list out itself).
+    // look, which lays the list out itself). Or on an app setting:
+    // { "app", "value", "reason" }, one of the app's keys (app.<key> in
+    // config.json) and the value it is saved as, such as Settings → Startup's
+    // Start On naming the module ("startup_module": "com.osdos.scripts"),
+    // followed as it changes (onAppSettingChanged).
     function shownWith(cond, mid, depth) {
+        if (cond.app !== undefined)
+            return String(appValue(cond.app)) === String(cond.value)
         if (cond.theme !== undefined) {
             var part = (root.theme || {})[cond.theme]
             return String(part === undefined || part === null ? "" : part) === String(cond.value)
@@ -288,14 +357,36 @@ FocusScope {
     // one, or a list of them, which from the manifest is a sequence rather
     // than a JS Array.
     function conditions(cond) {
-        return !cond ? [] : cond.key !== undefined || cond.theme !== undefined ? [cond] : Array.from(cond)
+        return !cond ? [] : cond.key !== undefined || cond.theme !== undefined || cond.app !== undefined
+                           ? [cond] : Array.from(cond)
+    }
+
+    // The app settings the rows' conditions ask for, by key: read once, and
+    // as AppCore says one has changed. "" for one not saved.
+    property var appValues: ({})
+    function appValue(key) {
+        if (appValues[key] === undefined) {
+            var saved = appCore.get_setting("", key)
+            appValues[key] = saved === undefined || saved === null ? "" : saved
+        }
+        return appValues[key]
+    }
+    // Whether a row of the page waits on this app setting.
+    function followsApp(key) {
+        var rows = [menuSchema].concat(alsoModules.map(function(mid) { return alsoSchemas[mid] || [] }))
+        return rows.some(function(list) {
+            return Array.from(list).some(function(row) {
+                return conditions(row.shown_with).concat(conditions(row.shown_unless))
+                           .some(function(one) { return one.app === key })
+            })
+        })
     }
 
     // A row's value as the page shows it: a toggle's "ON" or "OFF", a list's
     // choice, a slider's 0 to 100, an unset one's default (a dynamic list's
     // first choice).
     function valueOf(item) {
-        var saved = valuesOf(item)[item.key]
+        var saved = savedOf(item)
         if (item.type === "slider") {
             var n = parseInt(saved)
             if (isNaN(n))
@@ -306,13 +397,66 @@ FocusScope {
             if (saved === undefined || saved === null) saved = (item.default === "ON")
             return (saved === true || saved === "ON") ? "ON" : "OFF"
         }
+        // A dynamic list's choice, once its choices are in (chosenIndex());
+        // until then, what is saved.
+        if (item.options_source === "dynamic") {
+            var at = chosenIndex(item)
+            if (at >= 0)
+                return dynamicOptions[rowId(item)][at].id
+        }
         if (saved !== undefined && saved !== null && saved !== "")
             return saved
-        if (item.options_source === "dynamic") {
-            var opts = dynamicOptions[rowId(item)] || []
-            return opts.length > 0 ? opts[0].id : ""
+        return item.options_source === "dynamic" ? "" : item.default || ""
+    }
+
+    // A list's own choices (manifest "options") as { id, label }: each a
+    // string, saved and shown as written, or { "id", "label" }, the label
+    // shown over the id saved (Weather's Time per Screen: "1 min" over
+    // "60 SEC"), as a dynamic list's are.
+    function staticChoices(item) {
+        return Array.from(item.options || []).map(function(o) {
+            return o !== null && typeof o === "object"
+                   ? { id: String(o.id), label: String(o.label !== undefined ? o.label : o.id) }
+                   : { id: String(o), label: String(o) }
+        })
+    }
+    // Where a list of its own choices is: the one saved (or its default),
+    // -1 where no choice is that.
+    function staticIndex(item, choices) {
+        var value = String(valueOf(item))
+        for (var i = 0; i < choices.length; i++) {
+            if (choices[i].id === value)
+                return i
         }
-        return item.default || ""
+        return -1
+    }
+
+    // Which of its choices a dynamic list is on, the one rule for what the
+    // row shows, what ◄ ► step from and what the rows that go with it follow:
+    // the choice saved, by its id; for a row that was a toggle once and is
+    // still saved as true or false, the choice that form is now (its `old`),
+    // as the module's player takes it (util/PlaybackOptions.h's chosen());
+    // with nothing saved, or a choice no longer offered, the one the backend
+    // marks as where an install starts from (`default`: true, as Catalog
+    // Region's time zone's country), else the row's own default by its id,
+    // else the first. -1 while it has no choices.
+    function chosenIndex(item) {
+        var opts = dynamicOptions[rowId(item)] || []
+        var saved = savedOf(item)
+        var toggle = typeof saved === "boolean"
+        for (var i = 0; i < opts.length; i++) {
+            if (toggle ? opts[i].old === saved : opts[i].id === saved)
+                return i
+        }
+        for (i = 0; i < opts.length; i++) {
+            if (opts[i].default === true)
+                return i
+        }
+        for (i = 0; item.default !== undefined && i < opts.length; i++) {
+            if (opts[i].id === item.default)
+                return i
+        }
+        return opts.length > 0 ? 0 : -1
     }
 
     // The row with this key, at any depth.
@@ -338,14 +482,22 @@ FocusScope {
 
     // Asks the backend for the choices of the dynamic rows it hasn't been
     // asked for yet (a row a sign-in or a capability no longer keeps back),
-    // or of all of them again (a sign-in changes them). A multi-select row's
-    // are its own page's, which asks for them as it opens.
+    // or of all of them again (a sign-in changes them). A multi-select
+    // row's too, for how many of them are on (multiValue()); its own page
+    // asks again as it opens. And, once a page, for the capabilities a row
+    // waits on whose backend reports them when asked (capabilityOf()'s slot).
     property var askedOptions: ({})
     function requestOptions(again) {
         for (var i = 0; i < schemaItems.length; i++) {
             var item = schemaItems[i]
             var id = rowId(item)
-            if (item.options_source === "dynamic" && item.options_slot && item.type !== "multiselect_submenu"
+            var cap = capabilityOf(item)
+            var capId = cap && cap.slot !== "" ? optionKey(item._module || "", "_capabilities") + ":" + cap.slot : ""
+            if (capId !== "" && !askedOptions[capId]) {
+                askedOptions[capId] = true
+                appCore.invoke_module_action(moduleOf(item), cap.slot)
+            }
+            if (item.options_source === "dynamic" && item.options_slot
                 && item._offBy !== "auth" && item._offBy !== "capability"
                 && (again || (dynamicOptions[id] === undefined && !askedOptions[id]))) {
                 askedOptions[id] = true
@@ -357,11 +509,10 @@ FocusScope {
     // A backend that sends a row's choices again may have put its value back
     // (a profile switch that failed): the saved value is read again.
     function readAgain(mid, own, key) {
-        var saved = ((appCore.get_settings().modules || {})[mid] || {})[key]
+        var saved = appCore.get_setting(mid, key)
         var shown = own === "" ? currentValues : (alsoValues[own] || {})
-        if (saved === undefined || shown[key] === saved) return
-        var values = Object.assign({}, shown)
-        values[key] = saved
+        if (saved === undefined || savedIn(shown, key) === saved) return
+        var values = withSaved(shown, key, saved)
         if (own === "") {
             currentValues = values
         } else {
@@ -377,10 +528,52 @@ FocusScope {
         return item ? rowId(item) : undefined
     }
 
-    // Rows that show their current value after the dots.
+    // Rows that show their current value after the dots: a module_view row
+    // too where its options_slot sends it (sentValue()).
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
-               || item.type === "text" || item.type === "text_list"
+               || item.type === "text" || item.type === "text_list" || item.type === "multiselect_submenu"
+               || !!item.account || sendsValue(item)
+    }
+
+    // A module_view row's value, where its page holds it: the label of the
+    // one choice its options_slot sends (Arcade's Online Name, the name in
+    // force), "" until it has come.
+    function sendsValue(item) {
+        return item.type === "module_view" && item.options_source === "dynamic" && !!item.options_slot
+    }
+    function sentValue(item) {
+        var opts = dynamicOptions[rowId(item)] || []
+        return opts.length > 0 && opts[0].label ? String(opts[0].label) : ""
+    }
+
+    // SIGN IN's value ("account": true, a module_view row): who is signed
+    // in, the name its options_slot sends as its one choice (the backend's
+    // get_account(), sentValue()), else Signed In; Signed Out while the
+    // module's sign-in state says no one is (get_module_auth_state()).
+    function accountValue(item) {
+        if (signedOut(item._module ? (alsoAuthStates[item._module] || "") : authState))
+            return "Signed Out"
+        return sentValue(item) || "Signed In"
+    }
+
+    // A multi-select row's value: All, None or "3 of 4", its choices on as
+    // its page shows them (saved, else as their default says, else on).
+    // Before its choices are in, or with none, what is saved can say only
+    // how many are off ("2 Off"); with nothing off saved, nothing.
+    function multiValue(item) {
+        var saved = savedOf(item)
+        saved = saved && typeof saved === "object" ? saved : {}
+        var opts = dynamicOptions[rowId(item)]
+        var choices = opts ? Array.from(opts).filter(function(o) { return !o.heading && o.id !== undefined }) : []
+        if (choices.length === 0) {
+            var offs = Object.keys(saved).filter(function(id) { return saved[id] === false }).length
+            return offs > 0 ? offs + " Off" : ""
+        }
+        var on = choices.filter(function(o) {
+            return saved[o.id] !== undefined ? saved[o.id] === true : o.default !== false
+        }).length
+        return on === choices.length ? "All" : on === 0 ? "None" : on + " of " + choices.length
     }
 
     function currentDisplayValue(item) {
@@ -392,34 +585,42 @@ FocusScope {
 
         if (type === "list_single") {
             if (item.options_source === "dynamic") {
-                var opts = dynamicOptions[rowId(item)] || []
-                var storedId = valuesOf(item)[key] || null
-                for (var i = 0; i < opts.length; i++) {
-                    if (opts[i].id === storedId || (storedId !== null && opts[i].old === storedId)) return opts[i].label
-                }
-                return opts.length > 0 ? opts[0].label : "---"
+                var at = chosenIndex(item)
+                return at >= 0 ? dynamicOptions[rowId(item)][at].label : "---"
             }
-            return valueOf(item) || "---"
+            // Its choice's name; a value no choice is (saved by an older
+            // version) as it is.
+            var choices = staticChoices(item)
+            var own = staticIndex(item, choices)
+            return own >= 0 ? choices[own].label : (valueOf(item) || "---")
         }
 
         if (type === "directory_browser") {
-            var saved = valuesOf(item)[key] || ""
+            var saved = savedOf(item) || ""
             return saved !== "" ? saved : "Default"
         }
 
         // A line typed on the on-screen keyboard: what was typed, or that
         // something was (a key or a password, "secret", is never shown).
         if (type === "text") {
-            var typed = String(valuesOf(item)[key] || "")
+            var typed = String(savedOf(item) || "")
             return typed === "" ? "Not Set" : item.secret ? "Set" : typed
         }
 
         // A list of typed lines (its own page): how many there are.
         if (type === "text_list") {
-            var lines = valuesOf(item)[key]
+            var lines = savedOf(item)
             var count = lines && lines.length !== undefined && typeof lines !== "string" ? lines.length : 0
             return count === 0 ? "None" : String(count)
         }
+
+        if (type === "multiselect_submenu")
+            return multiValue(item)
+
+        if (item.account)
+            return accountValue(item)
+        if (sendsValue(item))
+            return sentValue(item)
 
         return ""
     }
@@ -435,8 +636,7 @@ FocusScope {
                          : appCore.save_setting(moduleOf(item), item.key, value)
         if (!saved)
             return false
-        var updated = Object.assign({}, valuesOf(item))
-        updated[item.key] = value
+        var updated = withSaved(valuesOf(item), item.key, value)
         if (item._module) {
             var all = Object.assign({}, alsoValues)
             all[item._module] = updated
@@ -450,8 +650,8 @@ FocusScope {
     // Broadcast and Flat Panel (Settings → Look → Menu Layout, Main.qml's
     // twoStep) change a value in two steps, as Settings does there: select
     // on a toggle, a list or a slider starts it (editIndex), ▲ ▼ step it
-    // with nothing saved (editSteps, the value it would take shown:
-    // steppedValue()), select saves it through cycleValue(), and back, or
+    // with nothing saved (stepEdit(): editSteps, the value it would take
+    // shown, steppedValue()), select saves it through cycleValue(), and back, or
     // the cursor moved by the mouse, leaves it as it was. ◄ ► change nothing
     // there.
     property int editIndex: -1
@@ -465,20 +665,21 @@ FocusScope {
         if (item.type === "slider")
             return Math.max(0, Math.min(100, valueOf(item) + steps * (item.step || 10))) + "%"
         var dynamic = item.options_source === "dynamic"
-        var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : (item.options || [])
+        var opts = dynamic ? (dynamicOptions[rowId(item)] || []) : staticChoices(item)
         if (opts.length === 0)
             return currentDisplayValue(item)
-        var at = 0
-        if (dynamic) {
-            var storedId = valuesOf(item)[item.key] || null
-            for (var i = 0; i < opts.length; i++) {
-                if (opts[i].id === storedId) { at = i; break }
-            }
-        } else {
-            at = Math.max(0, opts.indexOf(valueOf(item) || opts[0]))
-        }
-        var next = opts[((at + steps) % opts.length + opts.length) % opts.length]
-        return dynamic ? next.label : next
+        var at = dynamic ? chosenIndex(item) : Math.max(0, staticIndex(item, opts))
+        return opts[((at + steps) % opts.length + opts.length) % opts.length].label
+    }
+    // ▲ (1) or ▼ (-1) on the value being changed. A slider's step past an
+    // end, which leaves it where it is, isn't counted: the first step back
+    // then moves it, as in Settings.
+    function stepEdit(direction) {
+        var item = schemaItems[editIndex]
+        if (item && item.type === "slider"
+                && steppedValue(item, editSteps + direction) === steppedValue(item, editSteps))
+            return
+        editSteps += direction
     }
     function confirmEdit() {
         var index = editIndex, steps = editSteps
@@ -503,23 +704,17 @@ FocusScope {
             if (item.options_source === "dynamic") {
                 opts = dynamicOptions[rowId(item)] || []
                 if (opts.length === 0) return
-                var storedId = valuesOf(item)[item.key] || null
-                var curIdx = 0
-                for (var i = 0; i < opts.length; i++) {
-                    if (opts[i].id === storedId) { curIdx = i; break }
-                }
+                var curIdx = chosenIndex(item)
                 var newIdx = ((curIdx + direction) % opts.length + opts.length) % opts.length
                 if (store(item, opts[newIdx].id) && item.apply_slot) {
                     appCore.invoke_module_action(moduleOf(item), item.apply_slot)
                 }
             } else {
-                opts = item.options || []
+                opts = staticChoices(item)
                 if (opts.length === 0) return
                 // From the value shown: an unset one shows its default.
-                var curVal = valueOf(item) || opts[0]
-                var ci = opts.indexOf(curVal)
-                if (ci < 0) ci = 0
-                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length])
+                var ci = Math.max(0, staticIndex(item, opts))
+                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length].id)
             }
             settingsList.forceLayout()
         } else if (item.type === "slider") {
@@ -557,7 +752,8 @@ FocusScope {
     // words ("done": "Watch Later deleted"), else its label and "done", or
     // that it wasn't done where the backend has no such slot. A row that
     // deletes or signs out carries "confirm", a question asked first in the
-    // standard window: Yes or No, No under the cursor, and back is No.
+    // standard window: Cancel, under the cursor as it opens, then the row's
+    // own verb (verbOf()); back is Cancel.
     property string notice: ""
     property var asking: null
     function activateAction(item) {
@@ -568,7 +764,12 @@ FocusScope {
         }
         asking = item
         confirmPrompt.open()
-        confirmPrompt.choiceIndex = 1
+    }
+    // What a question's second answer, and the hint on an action row, say:
+    // the row's "verb" ("Delete" for Delete Watch Later), else its label
+    // ("Sign Out").
+    function verbOf(item) {
+        return item ? String(item.verb || item.label || "OK") : ""
     }
     function runAction(item) {
         var called = appCore.invoke_module_action(moduleOf(item), item.action_slot)
@@ -608,6 +809,15 @@ FocusScope {
         target: appCore
         ignoreUnknownSignals: true
         function onSettingsNotSaved() { moduleSettingsRoot.loadSettings(moduleSettingsRoot.currentKey()) }
+        // An app setting a row waits on, changed (Settings → Startup's Start
+        // On): the rows dimmed or not anew, in place.
+        function onAppSettingChanged(key, value) {
+            if (!moduleSettingsRoot.followsApp(key))
+                return
+            moduleSettingsRoot.appValues[key] = value
+            moduleSettingsRoot.followRows()
+            moduleSettingsRoot.requestOptions(false)
+        }
     }
 
     // A slider's steps wait to be written until they rest: leaving the page
@@ -618,12 +828,14 @@ FocusScope {
 
     Component.onCompleted: {
         core = appCore
-        loadSettings()
+        // Opened on a row (ModuleRouter.openSettings(): a page that names a
+        // setting), the cursor on it, by its key, wherever the page puts
+        // it among its headings; back on the page, where it was left.
+        loadSettings(navListState.currentIndex === undefined && navParams.focusKey ? navParams.focusKey : undefined)
         // Kick off loading dynamic option lists for any dynamic settings
         requestOptions(true)
     }
 
-    // Header
     AppBar {
         iconSource: "../../assets/images/settings.svg"
         title: "Settings"
@@ -644,7 +856,8 @@ FocusScope {
                     moduleId: mid,
                     moduleName: mid === moduleSettingsRoot.moduleId ? moduleName : (moduleNames[mid] || mid),
                     settingKey: item.key,
-                    settingLabel: item.label
+                    settingLabel: item.label,
+                    help: item.description || ""
                 }, { currentIndex: settingsList.currentIndex })
             } else if (item.type === "submenu") {
                 moduleSettingsRoot.navigateTo("views/ModuleSettings.qml", {
@@ -678,13 +891,13 @@ FocusScope {
                 keyboard.title = item.label || ""
                 keyboard.maxLength = item.max_length || 64
                 keyboard.masked = !!item.secret
-                keyboard.open(String(moduleSettingsRoot.valuesOf(item)[item.key] || ""))
+                keyboard.open(String(moduleSettingsRoot.savedOf(item) || ""))
             } else if (item.type === "directory_browser") {
                 // Picked on the file picker's tree; "" is the module's own.
                 moduleSettingsRoot.navigateTo("views/FilePicker.qml", {
                     moduleId: moduleSettingsRoot.moduleOf(item),
                     settingKey: item.key,
-                    currentPath: moduleSettingsRoot.valuesOf(item)[item.key] || "",
+                    currentPath: moduleSettingsRoot.savedOf(item) || "",
                     defaultLabel: "Default Folder",
                     label: item.label
                 }, { currentIndex: settingsList.currentIndex })
@@ -694,12 +907,12 @@ FocusScope {
         // A value being changed in two steps: the cursor stays, ▲ ▼ step
         // the value (▲ on, ▼ back, as in Settings).
         held: moduleSettingsRoot.editIndex >= 0
-        onHeldStep: function(delta) { moduleSettingsRoot.editSteps -= delta }
+        onHeldStep: function(delta) { moduleSettingsRoot.stepEdit(-delta) }
 
         Keys.onLeftPressed: {
             if (root.twoStep) {
                 // Flat Panel: ◄ is back, and leaves a value being changed.
-                if (root.menuLayout === "Flat Panel") {
+                if (root.flatLayout) {
                     if (moduleSettingsRoot.editIndex >= 0)
                         moduleSettingsRoot.editIndex = -1
                     else
@@ -804,31 +1017,57 @@ FocusScope {
         always: moduleSettingsRoot.notice !== ""
         text: moduleSettingsRoot.notice !== "" ? moduleSettingsRoot.notice
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
+        // The value on the row, or the one being chosen in the two-step
+        // layouts: the line shows the row's first sentence and that value's
+        // [ ] alone, as Settings' does.
+        value: moduleSettingsRoot.notice !== "" || !currentRow || !moduleSettingsRoot.hasValue(currentRow) ? ""
+               : moduleSettingsRoot.editIndex === settingsList.currentIndex
+                 ? moduleSettingsRoot.steppedValue(currentRow, moduleSettingsRoot.editSteps)
+                 : moduleSettingsRoot.currentDisplayValue(currentRow)
     }
 
-    // --- FOOTER ---
+    // The keys that do something on the row under the cursor, and what:
+    // ◄ ► change a toggle's, a list's or a slider's value (select, in the
+    // two-step layouts, starts that); select or ► opens a line that leads
+    // to a page; select on an action does it, in its own verb. A dimmed
+    // row offers nothing but the way on and the way back.
+    function hintParts(item, editing, twoStep) {
+        if (editing)
+            return ["back:CANCEL", "navigate:CHANGE", "select:CONFIRM"]
+        var parts = ["back:BACK", "navigate:NAVIGATE"]
+        if (!item || item._off || item.type === "section")
+            return parts
+        if (stepped(item))
+            return parts.concat([twoStep ? "select:CHANGE" : "change:CHANGE"])
+        if (opens(item))
+            return parts.concat(["select:OPEN"])
+        if (item.type === "action")
+            return parts.concat(["select:" + verbOf(item).toUpperCase()])
+        return parts
+    }
+
     HintBar {
         id: footer
-        text: moduleSettingsRoot.editIndex >= 0
-              ? root.hintLine(["back:CANCEL", "navigate:CHANGE", "select:CONFIRM"])
-              : root.twoStep
-              ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:SELECT"])
-              : root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHANGE", "select:SELECT"])
+        objectName: "hintBar"
+        property var currentRow: (moduleSettingsRoot.revision, moduleSettingsRoot.schemaItems[settingsList.currentIndex])
+        text: root.hintLine(moduleSettingsRoot.hintParts(currentRow, moduleSettingsRoot.editIndex >= 0, root.twoStep))
     }
 
-    // An action row's question (its "confirm"), what it does under it. The
-    // answer is taken once the window has closed and the list has the keys
-    // again; back, or No, does nothing.
+    // An action row's question (its "confirm"), what it does under it, and
+    // the answers: Cancel first, under the cursor, then the action's verb.
+    // The answer is taken once the window has closed and the list has the
+    // keys again; back, or Cancel, does nothing.
     ChoiceOverlay {
         id: confirmPrompt
         objectName: "confirmPrompt"
         anchors.fill: parent
         promptText: moduleSettingsRoot.asking ? String(moduleSettingsRoot.asking.confirm) : ""
         subtitleText: moduleSettingsRoot.asking ? (moduleSettingsRoot.asking.description || "") : ""
-        choices: [{ label: "Yes", action: "yes" }, { label: "No", action: "no" }]
+        choices: [{ label: "Cancel", action: "cancel" },
+                  { label: moduleSettingsRoot.verbOf(moduleSettingsRoot.asking), action: "do" }]
         onActivated: function(action) {
             var item = moduleSettingsRoot.asking
-            if (action === "yes" && item)
+            if (action === "do" && item)
                 moduleSettingsRoot.runAction(item)
         }
         onClosed: settingsList.forceActiveFocus()

@@ -19,9 +19,16 @@ FocusScope {
     signal navigateTo(string path, var params, var listState)
     signal goBack()
 
-    property string serverUrl: appCore.get_setting(moduleRoot.moduleId, "server_url") || ""
-    property string username: ""
+    // What was typed here before, while the app runs (TypedFields), else the
+    // address signed in at last. The password is always typed again.
+    readonly property var kept: TypedFields.get(moduleRoot.moduleId)
+    property string serverUrl: kept.server !== undefined ? kept.server
+                               : (appCore.get_setting(moduleRoot.moduleId, "server_url") || "")
+    property string username: kept.user || ""
     property string password: ""
+    onServerUrlChanged: TypedFields.keep(moduleRoot.moduleId, { server: serverUrl })
+    onUsernameChanged: TypedFields.keep(moduleRoot.moduleId, { user: username })
+    onMethodChanged: TypedFields.keep(moduleRoot.moduleId, { method: method })
     property bool waiting: false
     property string errorMsg: ""
 
@@ -31,7 +38,7 @@ FocusScope {
     // server URL at all (connect_authenticate ignores it — the server is
     // resolved from the account). Asking for credentials before the method is
     // known meant the field could only be labelled for one of the two.
-    property int method: 0   // 0 = Direct to Server, 1 = Emby Connect
+    property int method: kept.method === 1 ? 1 : 0   // 0 = Your Server, 1 = Emby Connect
 
     // Focus order, which shifts because Connect drops the server URL row:
     //   Direct : 0 method, 1 server URL, 2 username, 3 password, 4 Sign In
@@ -150,7 +157,7 @@ FocusScope {
     function typeField(index) {
         typing = index
         keyboard.masked = index === idxPass
-        keyboard.title = index === idxServer ? "Server URL"
+        keyboard.title = index === idxServer ? "Server Address"
                        : index === idxPass ? "Password"
                        : method === 1 ? "Email" : "Username"
         keyboard.open(index === idxServer ? (serverUrl !== "" ? serverUrl : "http://")
@@ -183,7 +190,7 @@ FocusScope {
     function submit() {
         if (waiting) return
         if (serverUrl === "") {
-            errorMsg = "Please enter a server URL"
+            errorMsg = "Please enter the server's address"
             return
         }
         if (username === "") {
@@ -221,15 +228,15 @@ FocusScope {
     }
 
     Column {
+        id: form
         anchors.top: parent.top
-        // Tightened from the pre-method-row values (134 / 36): the extra
-        // method row made the form tall enough that the Sign In button ran
-        // into the footer hints.
-        anchors.topMargin: authRoot.paned ? root.paneTop : root.sh * 0.25 //120
+        // Close enough to the title bar, with the method row, for the Sign
+        // In button to stay clear of the footer hints, and for three lines
+        // of the status line under it.
+        anchors.topMargin: root.paneTop //100
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.horizontalCenterOffset: authRoot.paned ? root.paneX + root.paneWidth / 2 - root.sw / 2 : 0
-        // Closer together in a frame's pane, which is shorter.
-        spacing: authRoot.paned ? root.sh * 0.0333333 : root.sh * 0.05 //16 : 24
+        spacing: root.sh * 0.0333333 //16
         // Not under the on-screen keyboard, whose ground starts below the
         // title bar, above the pane's top. Drawn transparent rather than
         // hidden, so the field the keyboard gives the keys back to can take
@@ -289,7 +296,9 @@ FocusScope {
 
         // One of the two sign-in methods. Selecting is what focusing does — the
         // row is a single focus stop and Left/Right move between the options,
-        // so there is no separate "confirm" step to forget.
+        // so there is no separate "confirm" step to forget. The one chosen is
+        // filled while the cursor is on the row, and marked ► once it leaves,
+        // so the form always shows which one SIGN IN will use.
         component MethodOption: Rectangle {
             id: opt
             property string label: ""
@@ -305,7 +314,7 @@ FocusScope {
 
             Text {
                 anchors.centerIn: parent
-                text: opt.label
+                text: (opt.selected && !opt.rowFocused ? "► " : "") + opt.label
                 color: opt.selected && opt.rowFocused ? root.surfaceColor
                      : root.primaryColor
                 font.family: root.globalFont
@@ -325,7 +334,7 @@ FocusScope {
 
                 Row {
                     spacing: root.sw * 0.025 //16
-                    MethodOption { label: "Local Server"; value: 0 }
+                    MethodOption { label: "Your Server"; value: 0 }
                     Text {
                         text: "OR"
                         color: root.primaryColor
@@ -348,7 +357,7 @@ FocusScope {
                 Field {
                     id: serverField
                     visible: authRoot.method === 0
-                    label: "Server URL:"
+                    label: "Server Address:"
                     index: authRoot.idxServer
                     text: authRoot.serverUrl
                     width: authRoot.formWidth //460
@@ -389,31 +398,13 @@ FocusScope {
             }
         }
 
-        // Group 2 — actions (status line + Sign In / Emby Connect buttons)
+        // Group 2 — the Sign In button, the status line under it.
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: root.sh * 0.025 //16
 
-            // status line: connecting > error > guidance for the current step
-            Text {
-                text: waiting ? "CONNECTING..."
-                    : (errorMsg !== "" ? errorMsg
-                    : (focusIndex === idxMethod ? "CHOOSE HOW TO SIGN IN"
-                    : (method === 1 ? "EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL"
-                    : "SIGN IN WITH YOUR SERVER ACCOUNT")))
-                color: root.primaryColor
-                font.family: root.globalFont
-                font.capitalization: Font.AllUppercase
-                horizontalAlignment: Text.AlignHCenter
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: root.sw * 0.5
-                elide: Text.ElideRight
-                maximumLineCount: 1
-                font.pixelSize: root.sh * 0.0291667 //14
-            }
-
             // Single submit — the method row above already decided which flow
-            // this runs, so two competing action buttons are no longer needed.
+            // this runs.
             Rectangle {
                 width: root.sw * 0.1875 //120
                 height: root.sh * 0.0583333 //28
@@ -434,10 +425,43 @@ FocusScope {
         }
     }
 
-    // Footer
+    // The status line, under the form: connecting > error > what the row
+    // under the cursor is for. As many lines as it needs, across the form's
+    // width (a server's address is one long name, broken where the line
+    // ends), down to the hint bar and no further.
+    Text {
+        id: statusLine
+        readonly property real limit: root.monitorFramed === true ? root.paneBottom : hintBar.y
+        anchors.top: form.bottom
+        anchors.topMargin: root.sh * 0.025 //12
+        anchors.horizontalCenter: form.horizontalCenter
+        width: authRoot.formWidth
+        height: Math.max(font.pixelSize * 1.3, limit - y - root.sh * 0.0125)
+        opacity: keyboard.visible ? 0 : 1
+        text: waiting ? "CONNECTING..."
+            : (errorMsg !== "" ? errorMsg
+            : (focusIndex === idxMethod
+               ? (method === 1 ? "Emby Connect: your emby.media account finds your server"
+                               : "Your server, at home or away: sign in by its address")
+            : (method === 1 ? "EMBY CONNECT USES YOUR EMBY.MEDIA EMAIL"
+            : "SIGN IN WITH YOUR SERVER ACCOUNT")))
+        color: root.primaryColor
+        font.family: root.globalFont
+        font.capitalization: Font.AllUppercase
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignTop
+        wrapMode: Text.Wrap
+        maximumLineCount: Math.max(1, Math.floor(height / (font.pixelSize * 1.2)))
+        elide: Text.ElideRight
+        clip: true
+        font.pixelSize: root.sh * 0.0291667 //14
+    }
+
+    // Footer: on the method row ◄ ► choose and select goes on to the form.
     HintBar {
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE",
-                             "select:" + (focusIndex === idxMethod ? "CHOOSE" : focusIndex === idxSubmit ? "SIGN IN" : "TYPE")])
+        id: hintBar
+        text: focusIndex === idxMethod ? root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:CHOOSE", "select:NEXT"])
+              : root.hintLine(["back:BACK", "navigate:NAVIGATE", "select:" + (focusIndex === idxSubmit ? "SIGN IN" : "TYPE")])
     }
 
     OnScreenKeyboard {

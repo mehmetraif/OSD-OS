@@ -14,6 +14,9 @@ FocusScope {
 
     property var users: navParams.users || []
     property string errorMsg: ""
+    // The users asked for and not come yet: the backend has them kept, or
+    // asks plex.tv for the account a sign-in was left without.
+    property bool loading: false
 
     function titleFor(userId) {
         for (var i = 0; i < users.length; i++)
@@ -25,6 +28,7 @@ FocusScope {
         target: plexBackend
 
         function onUsersLoaded(loadedUsers) {
+            userSelectRoot.loading = false
             userSelectRoot.users = loadedUsers
         }
 
@@ -52,13 +56,16 @@ FocusScope {
 
         function onErrorOccurred(msg) {
             console.log("[UserSelect] Error: " + msg)
+            userSelectRoot.loading = false
             userSelectRoot.errorMsg = msg
         }
     }
 
     Component.onCompleted: {
-        // If users weren't passed via navParams, load from cache
+        // If users weren't passed via navParams, load from cache: answered
+        // at once with the users kept, later when plex.tv has to be asked.
         if (!navParams.users || navParams.users.length === 0) {
+            loading = true
             plexBackend.load_users_from_cache()
         }
         if (users.length > 0) userList.currentIndex = 0
@@ -81,6 +88,12 @@ FocusScope {
         iconSource: moduleRoot.moduleIcon
         title: moduleRoot.moduleName
         subtitle: "Select User"
+    }
+
+    // Loading Indicator
+    PaneMessage {
+        visible: userSelectRoot.loading && users.length === 0
+        text: "LOADING..."
     }
 
     // Body

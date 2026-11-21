@@ -1,5 +1,6 @@
 #include "ServerDownload.h"
 
+#include "../../util/ServerLog.h"
 #include "../../util/SslErrors.h"
 
 #include <QFile>
@@ -122,7 +123,10 @@ private:
             }
             finalPath = m_finalPath;
         } else {
-            reason = (status == 401 || status == 403) ? QStringLiteral("not allowed") : m_reply->errorString();
+            // The status, or the network's own word: never Qt's errorString(),
+            // which names the whole address, the server and the item's id in
+            // it, and the reason is shown, saved and logged.
+            reason = (status == 401 || status == 403) ? QStringLiteral("not allowed") : serverlog::why(m_reply);
             mayPass = status < 400 || status >= 500;
         }
         if (!m_writeError.isEmpty()) {

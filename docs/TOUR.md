@@ -39,13 +39,13 @@ Every screen below is the app itself, running at 640×480. The film and YouTube 
 <table>
 <tr><th width="33%">Resume</th><th width="33%">Loading</th><th width="33%">Deck menu</th></tr>
 <tr><td><img src="screenshots/resume.png" width="100%" alt="Resume" /></td><td><img src="screenshots/loading.png" width="100%" alt="Loading" /></td><td><img src="screenshots/playback-menu.png" width="100%" alt="Deck menu" /></td></tr>
-<tr><td>Pick up where you left off, or start from the beginning.</td><td>While a video starts, a tape loads: live VHS noise in the theme's colours, the tracking band rolling through, and a dubbing deck's display, TAPE A at where the video is and TAPE B LOADING with its length once known. Settings → TV / Movie → Loading Effect turns the noise off, and Loading Screen Colors keeps it white on blue whatever the theme.</td><td>▲ or ▼ during playback opens the deck's menu: the position bar, audio and subtitle tracks, crop (the four Scalings in turn) and stop.</td></tr>
+<tr><td>Pick up where you left off, or start from the beginning.</td><td>While a video starts, a tape loads: live VHS noise in the theme's colours, the tracking band rolling through, and a dubbing deck's display, TAPE A at where the video is and TAPE B LOADING with its length once known. Settings → Look → Loading Effect turns the noise off, and Loading Colors on Blue keeps it white on blue whatever the theme.</td><td>▲ or ▼ during playback opens the deck's menu: the position bar, audio and subtitle tracks, crop (the four Scalings in turn) and stop.</td></tr>
 </table>
 
 <table>
 <tr><th width="33%">The video's menu</th><th width="33%">Back to the menus</th><th width="33%">Main menu</th></tr>
 <tr><td><img src="screenshots/player-menu.png" width="100%" alt="The video's menu" /></td><td><img src="screenshots/menus-over-video.png" width="100%" alt="Back to the menus" /></td><td><img src="screenshots/main-menu-over-video.png" width="100%" alt="Main menu" /></td></tr>
-<tr><td>With Transparent Background, back during a Local Files, YouTube or Playlists video opens its menu over the picture, which plays on, here at 40% solid. ◄ ► change its module's settings for it, at once or as you go back to it. Close Video goes to the main menu; back, to the video.</td><td>Browse in that menu, or back from any other module's video, returns to the module's menus, the video playing on behind them. Choose it again to watch it full screen from where it is.</td><td>For a Local Files, YouTube or Playlists video, the main menu leads with it, the cursor on it: select takes it back to full screen where it is. Play/pause stops it (<code>[SPACE]:STOP</code>), and playing anything else replaces it.</td></tr>
+<tr><td>With Transparent Background, back during a Local Files, YouTube or Playlists video opens its menu over the picture, which plays on, here at 40% solid. ◄ ► change its module's settings for it, at once or as you go back to it. Its first two lines are the ways out: Back to the module, and Stop, to Main Menu; back goes to the video.</td><td>Back to the module in that menu, or back from any other module's video, returns to the module's menus, the video playing on behind them. Choose it again to watch it full screen from where it is.</td><td>For a Local Files, YouTube or Playlists video, the main menu leads with it, the cursor on it: select takes it back to full screen where it is. Play/pause stops it (<code>[SPACE]:STOP</code>), and playing anything else replaces it.</td></tr>
 </table>
 
 ### Netflix, Prime Video and YouTube
@@ -79,7 +79,7 @@ Every screen below is the app itself, running at 640×480. The film and YouTube 
 <table>
 <tr><th width="33%">Plex</th><th width="33%">Jellyfin</th><th width="33%">Emby</th></tr>
 <tr><td><img src="screenshots/plex-sign-in.png" width="100%" alt="Plex" /></td><td><img src="screenshots/jellyfin.png" width="100%" alt="Jellyfin" /></td><td><img src="screenshots/emby.png" width="100%" alt="Emby" /></td></tr>
-<tr><td>Sign in with a code at plex.tv/link.</td><td>Connect to a server with Quick Connect.</td><td>A server on your network, or Emby Connect.</td></tr>
+<tr><td>Sign in with a code at plex.tv/link.</td><td>Connect to a server with Quick Connect.</td><td>Your own server, at home or away, or Emby Connect.</td></tr>
 </table>
 
 Once signed in, each opens on the server's Continue Watching and its libraries. See [Modules](https://github.com/mehmetraif/OSD-OS/wiki/Modules) for everything they do.
@@ -143,7 +143,7 @@ Once signed in, each opens on the server's Continue Watching and its libraries. 
 <table>
 <tr><th>On a monitor turned on its side</th></tr>
 <tr><td><img src="screenshots/arcade-tate.png" width="360" alt="The Arcade screen on a monitor turned on its side: the game's picture, upright and 3:4, at the top left beside the box of its high scores and details, the bar and the games under them across the screen's width" /></td></tr>
-<tr><td>Settings → Screen → Monitor turned right or left, for vertical games (TATE): the Arcade screen takes the whole tall screen, the menus and the games are turned to stand upright on it, and a shmup fills it with its own lines.</td></tr>
+<tr><td>Settings → Screen → Rotation turned right or left, for vertical games (TATE): the Arcade screen takes the whole tall screen, the menus and the games are turned to stand upright on it, and a shmup fills it with its own lines.</td></tr>
 </table>
 
 ### The Orb look
@@ -182,7 +182,7 @@ Settings → Arcade → **LAN Play** and **Online Play**: up to six players acro
 
 <table>
 <tr><th width="50%">Check ROMs</th><th width="50%">Cabinet Lock</th></tr>
-<tr><td><img src="screenshots/check-roms.png" width="100%" alt="Settings → Arcade → Check ROMs: Last Check, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row" /></td><td><img src="screenshots/cabinet-lock.png" width="100%" alt="Settings → Startup → Cabinet Lock: the lock and the buttons that open it" /></td></tr>
+<tr><td><img src="screenshots/check-roms.png" width="100%" alt="Settings → Arcade → Check ROMs: the Check ROMs row first with the cursor on it, then Last Check and the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games" /></td><td><img src="screenshots/cabinet-lock.png" width="100%" alt="Settings → Startup → Cabinet Lock: the lock and the buttons that open it" /></td></tr>
 <tr><td>Started only from here: whether every game's files are whole, for MAME and for FinalBurn Neo. Each game then plays in the engine that has its files.</td><td>Settings → Startup → Cabinet Lock keeps a cabinet on the Arcade screen for the players; the menus open only with up to four buttons of your choosing held together.</td></tr>
 </table>
 
@@ -238,7 +238,7 @@ Settings → Arcade → **LAN Play** and **Online Play**: up to six players acro
 
 <table>
 <tr><th width="50%">Dimmed rows</th><th width="50%">Look</th></tr>
-<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with dimmed rows, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, OSD Background, Window Frame, Boot Screen Colors" /></td></tr>
+<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with a dimmed row, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, Menu Layout, OSD Background, OSD Frame, Loading Effect" /></td></tr>
 <tr><td>A row that can't be used here is dimmed, never hidden, and the help line says why.</td><td>The whole look at once with Theme, or each part on its own row.</td></tr>
 </table>
 
@@ -273,8 +273,8 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 #### The look and the screen
 
 <table>
-<tr><th width="50%">OSD Background: Window</th><th width="50%">OSD Background: Off</th></tr>
-<tr><td><img src="screenshots/osd-window.png" width="100%" alt="OSD Background: Window" /></td><td><img src="screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td></tr>
+<tr><th width="50%">OSD Background: Box</th><th width="50%">OSD Background: Off</th></tr>
+<tr><td><img src="screenshots/osd-window.png" width="100%" alt="OSD Background: Box" /></td><td><img src="screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td></tr>
 <tr><td>The menus in a framed window of the color scheme's background, black around it. Over a video behind the menus, the picture shows whole around the window.</td><td>No background: the menus on black, like a deck's on-screen display with nothing playing, in the scheme's lighter color.</td></tr>
 </table>
 
@@ -306,7 +306,7 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 
 <table>
 <tr><th width="50%">System Information</th><th width="50%">Renaming the device</th></tr>
-<tr><td><img src="screenshots/system-info.png" width="100%" alt="Settings → System → About → System Information: the device's name, what it is and its addresses" /></td><td><img src="screenshots/system-info-rename.png" width="100%" alt="Renaming the device on the on-screen keyboard" /></td></tr>
+<tr><td><img src="screenshots/system-info.png" width="100%" alt="Settings → System → System Information: the device's name, what it is and its addresses" /></td><td><img src="screenshots/system-info-rename.png" width="100%" alt="Renaming the device on the on-screen keyboard" /></td></tr>
 <tr><td>The device's name first, the name LAN Play shows the others, then what it is and each connection's addresses.</td><td>On the image, select on the name types a new one.</td></tr>
 </table>
 
@@ -365,7 +365,7 @@ Settings → Look → Theme sets the whole look at once: the color scheme, the s
 </table>
 
 <table>
-<tr><th width="50%">Skin: DOS, Window Frame: Shadow</th><th width="50%">Skin: Rounded</th></tr>
-<tr><td><img src="screenshots/skin-dos.png" width="100%" alt="Skin: DOS, Window Frame: Shadow" /></td><td><img src="screenshots/skin-rounded.png" width="100%" alt="Skin: Rounded" /></td></tr>
-<tr><td>A skin dresses the window, apart from the color scheme: DOS gives it a double line. Window Frame, offered with OSD Background's Window, adds a DOS window's shadow, a half tone of the window's color (over a video, it darkens the picture), or takes the frame away.</td><td>Rounded rounds the window's corners and the ends of its bars and of the selected line. A skin gives the shapes, and can draw icons of its own; the color scheme still gives the colors.</td></tr>
+<tr><th width="50%">Skin: DOS, OSD Frame: Shadow</th><th width="50%">Skin: Rounded</th></tr>
+<tr><td><img src="screenshots/skin-dos.png" width="100%" alt="Skin: DOS, OSD Frame: Shadow" /></td><td><img src="screenshots/skin-rounded.png" width="100%" alt="Skin: Rounded" /></td></tr>
+<tr><td>A skin dresses the window, apart from the color scheme: DOS gives it a double line. OSD Frame, offered with OSD Background's Box, adds a DOS window's shadow, a half tone of the window's color (over a video, it darkens the picture), or takes the frame away.</td><td>Rounded rounds the window's corners and the ends of its bars and of the selected line. A skin gives the shapes, and can draw icons of its own; the color scheme still gives the colors.</td></tr>
 </table>

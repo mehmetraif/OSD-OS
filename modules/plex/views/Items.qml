@@ -184,6 +184,7 @@ FocusScope {
     // (LetterList's restore()).
     function show(loadedItems) {
         isLoading = false
+        errorMessage = ""
         items = loadedItems
         if (listType === "folders")
             folderLetterNav = letterNavUsable(loadedItems)
@@ -215,8 +216,12 @@ FocusScope {
             if (itemListRoot.answers("categoriesLoaded")) itemListRoot.show(loadedItems)
         }
 
+        // The backend's errors are every request's: this list's own only
+        // while it waits for its rows. One that comes once they are shown
+        // (a request of a page left, failing late) is not drawn over them;
+        // one taken while waiting goes as the rows come after all (show()).
         function onErrorOccurred(msg) {
-            if (itemListRoot.listType !== "") {
+            if (itemListRoot.listType !== "" && itemListRoot.isLoading) {
                 itemListRoot.isLoading = false
                 itemListRoot.errorMessage = msg
             }

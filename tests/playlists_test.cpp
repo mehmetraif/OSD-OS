@@ -81,6 +81,18 @@ private slots:
         QVERIFY(failed.value(QStringLiteral("error")).toString().startsWith(QStringLiteral("The list could not be written")));
         QCOMPARE(folder.entryList({ QStringLiteral("*.m3u") }, QDir::Files),
                  QStringList({ QFileInfo(second).fileName() }));
+
+        // A playlist of Local Files' own isn't put on one: mpv would play it
+        // as the videos in it, and the places after it would be off.
+        for (const QString &name : { QStringLiteral("mix.m3u"), QStringLiteral("Mix.M3U8") }) {
+            const QString list = data.path() + QLatin1Char('/') + name;
+            QVERIFY(writeFileAtomically(list, "#EXTM3U\n" + film.toUtf8() + "\n" + film.toUtf8() + "\n"));
+            QCOMPARE(playlists.addEntry(id, QStringLiteral("com.osdos.local_files"),
+                                        { { QStringLiteral("path"), list }, { QStringLiteral("name"), name } })
+                         .value(QStringLiteral("reason")).toString(),
+                     QStringLiteral("unsupported"));
+        }
+        QCOMPARE(playlists.prepare(id).value(QStringLiteral("count")).toInt(), 1);
     }
 
     // An offline list's downloads only while the module is on: off, a video
@@ -179,6 +191,67 @@ private slots:
             QVERIFY2(exists(path), qPrintable(path));
     }
 
+    // A YouTube download's part files are cleared where it ran, though the
+    // Download Folder has been changed since: as a download that failed is
+    // taken off its lists, and as one is started again in the new folder,
+    // which it can't carry on from the old one in. A file of the user's own
+    // there stays. (No yt-dlp to run here, so each download fails at once.)
+    void leftoversInAnEarlierDownloadFolderAreCleared() {
+        QTemporaryDir app;
+        QTemporaryDir data;
+        QVERIFY(app.isValid() && data.isValid());
+        QVERIFY(QDir().mkpath(app.path() + QStringLiteral("/modules/playlists")));
+        QVERIFY(writeFileAtomically(app.path() + QStringLiteral("/modules/playlists/manifest.json"),
+                                    R"({"id": "com.osdos.playlists", "entry_point_qml": "views/Root.qml",
+                                        "settings": [{"key": "enabled", "type": "toggle", "default": "ON"},
+                                                     {"key": "download_folder", "type": "directory_browser", "default": ""}]})"));
+        const QString before = data.path() + QStringLiteral("/before");
+        const QString after = data.path() + QStringLiteral("/after");
+        QVERIFY(writeFileAtomically(data.path() + QStringLiteral("/config.json"),
+                                    QStringLiteral(R"({"modules": {"com.osdos.playlists": {"download_folder": "%1"}}})")
+                                        .arg(before).toUtf8()));
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([&path] { qputenv("PATH", path); });
+        qputenv("PATH", data.path().toUtf8());   // no yt-dlp
+
+        AppCore core(app.path(), data.path());
+        PlaylistsBackend playlists(data.path(), &core, nullptr, nullptr, {});
+        QCOMPARE(playlists.downloadFolder(), before);
+        const auto add = [&](const QString &list, const QString &videoId) {
+            return playlists.addEntry(list, QStringLiteral("com.osdos.youtube"),
+                                      { { QStringLiteral("videoId"), videoId },
+                                        { QStringLiteral("title"), videoId } })
+                .value(QStringLiteral("ok")).toBool();
+        };
+        const auto state = [&](const QString &list) {
+            return playlists.playlist(list).value(QStringLiteral("items")).toList().value(0)
+                .toMap().value(QStringLiteral("state")).toString();
+        };
+        const QString gone = playlists.createPlaylist(QStringLiteral("Gone"), QStringLiteral("offline"));
+        const QString again = playlists.createPlaylist(QStringLiteral("Again"), QStringLiteral("offline"));
+        QVERIFY(add(gone, QStringLiteral("aqz-KE-bpKQ")));
+        QVERIFY(add(again, QStringLiteral("dQw4w9WgXcQ")));
+        QTRY_COMPARE(state(gone), QStringLiteral("failed"));
+        QTRY_COMPARE(state(again), QStringLiteral("failed"));
+        // What yt-dlp got through, as it would have left it.
+        const QStringList left{ before + QStringLiteral("/YouTube/aqz-KE-bpKQ [aqz-KE-bpKQ].mp4.part"),
+                                before + QStringLiteral("/YouTube/dQw4w9WgXcQ [dQw4w9WgXcQ].f137.mp4") };
+        const QString mine = before + QStringLiteral("/YouTube/Notes [mine].txt");
+        QVERIFY(QDir().mkpath(before + QStringLiteral("/YouTube")));
+        for (const QString &file : left + QStringList{ mine })
+            QVERIFY(writeFileAtomically(file, "film"));
+
+        QVERIFY(core.save_setting(QStringLiteral("com.osdos.playlists"), QStringLiteral("download_folder"), after));
+        QCOMPARE(playlists.downloadFolder(), after);
+        playlists.deletePlaylist(gone);
+        QVERIFY2(!exists(left.at(0)), qPrintable(left.at(0)));
+        QVERIFY(exists(left.at(1)));
+        playlists.queueOfflineItems();
+        QTRY_VERIFY2(!exists(left.at(1)), qPrintable(left.at(1)));
+        QTRY_COMPARE(state(again), QStringLiteral("failed"));
+        QVERIFY(exists(mine));
+    }
+
     // A download that fails for the network (nothing answers: the router not
     // back yet after a power cut) is tried again after a while, a longer
     // while each time, and is on the device once the network is back, with
@@ -210,6 +283,8 @@ private slots:
                     answered << path;
                     socket->write(path.contains(QLatin1String("/refused/"))
                                       ? QByteArray("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                                  : path.contains(QLatin1String("/missing/"))
+                                      ? QByteArray("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                                       : QByteArray("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 4\r\n"
                                                    "Connection: close\r\n\r\nfilm"));
                     socket->disconnectFromHost();
@@ -235,11 +310,16 @@ private slots:
         };
         QVERIFY(add("abc123", "Film"));
         QVERIFY(add("refused", "Refused"));
+        QVERIFY(add("missing", "Missing"));
 
         // Nothing answers: both fail, saying what the network did.
         QTRY_COMPARE_WITH_TIMEOUT(item(0, "state"), QStringLiteral("failed"), 10000);
         QTRY_COMPARE_WITH_TIMEOUT(item(1, "state"), QStringLiteral("failed"), 10000);
         QVERIFY(item(0, "reason") != QLatin1String("not allowed"));
+        // In a few words, never the address asked: shown, saved and logged.
+        QVERIFY2(!item(0, "reason").isEmpty() && !item(0, "reason").contains(QLatin1String("127.0.0.1"))
+                     && !item(0, "reason").contains(QLatin1String("abc123")),
+                 qPrintable(item(0, "reason")));
         QVERIFY(answered.isEmpty());
         // Tried again a while later, the network still down: failed again,
         // and the next wait is a longer one.
@@ -258,10 +338,46 @@ private slots:
         // for Retry Downloads: nothing waits to be tried again.
         QTRY_COMPARE_WITH_TIMEOUT(item(1, "reason"), QStringLiteral("not allowed"), 10000);
         QCOMPARE(answered.count(QStringLiteral("/Items/refused/Download")), 1);
+        // What the server hasn't: its status, not Qt's text with the address.
+        QTRY_COMPARE_WITH_TIMEOUT(item(2, "reason"), QStringLiteral("HTTP 404 Not Found"), 10000);
+        QCOMPARE(answered.count(QStringLiteral("/Items/missing/Download")), 1);
         QVERIFY(playlists.m_retryKeys.isEmpty());
         QVERIFY(!playlists.m_retryTimer->isActive());
         // A download made: the next failure waits the first while again.
         QCOMPARE(playlists.m_retryMs, 60 * 1000);
+        QCOMPARE(playlists.m_downloads.value(QStringLiteral("jellyfin:abc123")).keys(),
+                 QStringList({ QStringLiteral("path"), QStringLiteral("state") }));
+    }
+
+    // A playlists.json an older version wrote, a finished download's size
+    // beside its path: the video is on the device and plays from its file,
+    // never fetched again; one whose file has gone is queued again.
+    void downloadsOfAnOlderFile() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString film = data.path() + QStringLiteral("/Film [abc123].mp4");
+        QVERIFY(writeFileAtomically(film, "film"));
+        const QByteArray file = QStringLiteral(R"({
+            "downloads": {
+                "jellyfin:abc123": { "bytes": 4, "path": "%1", "state": "done" },
+                "jellyfin:gone": { "bytes": 4, "path": "%2", "state": "done" }
+            },
+            "playlists": [ { "id": "list", "name": "Away", "kind": "offline", "order": "inorder", "items": [
+                { "id": "one", "key": "jellyfin:abc123", "module": "com.osdos.jellyfin",
+                  "source": { "itemId": "abc123" }, "title": "Film" },
+                { "id": "two", "key": "jellyfin:gone", "module": "com.osdos.jellyfin",
+                  "source": { "itemId": "gone" }, "title": "Gone" } ] } ]
+        })").arg(film, data.path() + QStringLiteral("/Gone [gone].mp4")).toUtf8();
+        QVERIFY(writeFileAtomically(data.path() + QStringLiteral("/playlists.json"), file));
+        PlaylistsBackend playlists(data.path(), nullptr, nullptr, nullptr, {});
+        const QVariantList items = playlists.playlist(QStringLiteral("list")).value(QStringLiteral("items")).toList();
+        QCOMPARE(items.size(), 2);
+        QCOMPARE(items.value(0).toMap().value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+        QCOMPARE(items.value(1).toMap().value(QStringLiteral("state")).toString(), QStringLiteral("queued"));
+        QCOMPARE(playlists.prepare(QStringLiteral("list")).value(QStringLiteral("count")).toInt(), 1);
+        QVERIFY(!playlists.enqueue(QStringLiteral("jellyfin:abc123")));
+        QVERIFY(playlists.enqueue(QStringLiteral("jellyfin:gone")));
+        QCOMPARE(playlists.m_queue, QStringList({ QStringLiteral("jellyfin:gone") }));
     }
 };
 

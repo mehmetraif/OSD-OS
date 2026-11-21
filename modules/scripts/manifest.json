@@ -1,21 +1,23 @@
 {
   "id": "com.osdos.scripts",
   "name": "Scripts",
+  "menu_order": 10,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Scripts on the main menu: the .sh files in its folder, below"
     },
     {
       "key": "scripts_directory",
-      "label": "Scripts Directory",
+      "label": "Scripts Folder",
       "type": "directory_browser",
       "default": "",
-      "description": "Folder holding your .sh files\nDefault: user_scripts in the app's data directory"
+      "description": "The folder of your .sh files\n[DEFAULT] user_scripts in the data folder"
     },
     {
       "key": "startup_script",
@@ -24,7 +26,9 @@
       "options_source": "dynamic",
       "options_slot": "getStartupScriptOptions",
       "default": "None",
-      "description": "Runs automatically when OSD/OS starts on this module\nSet START ON MODULE to Scripts in app settings"
+      "shown_with": { "app": "startup_module", "value": "com.osdos.scripts",
+                      "reason": "Only with Start On on Scripts (Settings > Startup)" },
+      "description": "A script run as OSD/OS starts on Scripts (Start On, in Settings > Startup)\n[NONE] None is run"
     },
     {
       "key": "rescan",
@@ -32,7 +36,7 @@
       "type": "action",
       "action_slot": "rescanScripts",
       "done": "Scripts folder read again",
-      "description": "Re-read the scripts folder and create any missing .txt files"
+      "description": "Reads the scripts folder again, and makes a .txt for a script that has none"
     }
   ]
 }

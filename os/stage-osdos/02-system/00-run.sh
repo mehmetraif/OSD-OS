@@ -18,14 +18,11 @@ sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos.se
 install -m 644 files/osdos-terminal.service "${ETC}/systemd/system/"
 install -m 644 files/osdos-cloud-init-once.service "${ETC}/systemd/system/"
 install -m 755 files/osdos-stop "${ROOTFS_DIR}/usr/local/bin/osdos-stop"
-install -m 644 files/osdos-display.socket files/osdos-display@.service "${ETC}/systemd/system/"
-sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-display.socket"
-install -m 644 files/osdos-wifi.socket files/osdos-wifi@.service "${ETC}/systemd/system/"
-sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-wifi.socket"
-install -m 644 files/osdos-name.socket files/osdos-name@.service "${ETC}/systemd/system/"
-sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-name.socket"
-install -m 644 files/osdos-system.socket files/osdos-system@.service "${ETC}/systemd/system/"
-sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/osdos-system.socket"
+for socket in files/osdos-*.socket; do
+	unit=$(basename "${socket}" .socket)
+	install -m 644 "${socket}" "files/${unit}@.service" "${ETC}/systemd/system/"
+	sed -i "s/@OSDOS_GROUP@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/${unit}.socket"
+done
 install -D -m 644 files/50-osdos-networkmanager.rules "${ETC}/polkit-1/rules.d/50-osdos-networkmanager.rules"
 sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${ETC}/polkit-1/rules.d/50-osdos-networkmanager.rules"
 # Wi-Fi without power saving: the Pi's Wi-Fi sleeps between packets unless
@@ -40,6 +37,10 @@ install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
 # Wi-Fi sends from its video queue (the file says why; nftables reads it).
 install -m 644 files/osdos-netplay-priority.nft "${LIB}/netplay-priority.nft"
 install -m 644 files/osdos-netplay-priority.service "${ETC}/systemd/system/"
+# With a cable and Wi-Fi both up, each interface answers only for its own
+# address, so that a game meant for the cable never comes over Wi-Fi
+# (osdos-arp.conf says why).
+install -D -m 644 files/osdos-arp.conf "${ETC}/sysctl.d/90-osdos-arp.conf"
 
 # OSD/OS Setup: the settings made on its page, from osdos-setup.json on the
 # boot partition, applied once as the card starts: OSD/OS's own before the

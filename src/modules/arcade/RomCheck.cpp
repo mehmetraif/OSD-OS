@@ -1,4 +1,6 @@
 #include "RomCheck.h"
+#include "../../util/FileText.h"
+#include "../../util/ProcessOver.h"
 #include "../../util/SevenZip.h"
 #include <QFile>
 #include <QJsonArray>
@@ -157,11 +159,6 @@ QStringList missingRoms(const QString &set, const QHash<QString, DatSet> &dat,
     return missing;
 }
 
-QString stampOf(const QFileInfo &file) {
-    if (!file.exists())
-        return QString();
-    return QStringLiteral("%1:%2").arg(file.size()).arg(file.lastModified().toMSecsSinceEpoch());
-}
 
 void VerifyReader::addData(const QByteArray &chunk) {
     m_pending += chunk;
@@ -208,10 +205,13 @@ void VerifyReader::readLine(const QString &text) {
 
 Results load(const QString &path) {
     Results results;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    QJsonObject json;
+    QString why;
+    if (!filetext::readJsonObject(path, &json, &why)) {
+        if (!why.isEmpty())
+            qWarning("[Arcade] %s: %s", qPrintable(path), qPrintable(why));
         return results;
-    const QJsonObject json = QJsonDocument::fromJson(file.readAll()).object();
+    }
     if (json.value(QStringLiteral("version")).toInt() != kVersion)
         return results;
     results.checked = QDateTime::fromString(json.value(QStringLiteral("checked")).toString(), Qt::ISODate);
@@ -287,13 +287,16 @@ void checkArchives(QPromise<QHash<QString, romcheck::State>> &promise, const Rom
         const QString &set = sets.at(i);
         romcheck::State state;
         // Its own archive, its parent's and those it takes ROMs from: the
-        // result holds while they are as they were.
+        // result holds while they are as they were. The whole chain, past a
+        // set already among them: a clone takes ROMs from its parent, there
+        // as its parent, and through it from the parent's BIOS set.
         QStringList family{ set };
         if (const QString parent = job.parents.value(set); !parent.isEmpty())
             family << parent;
         QString from = dat.value(set).romOf;
-        for (int depth = 0; depth < 3 && !from.isEmpty() && !family.contains(from); ++depth) {
-            family << from;
+        for (int depth = 0; depth < 3 && !from.isEmpty(); ++depth) {
+            if (!family.contains(from))
+                family << from;
             from = dat.value(from).romOf;
         }
         for (const QString &name : std::as_const(family))
@@ -407,7 +410,13 @@ void RomCheck::resume() {
         return;
     m_held = false;
     emit progressChanged();
-    if (m_stage == QLatin1String("MAME") && !m_process)
+    if (m_stage != QLatin1String("MAME") || m_process)
+        return;
+    // Held as MAME had answered for the last of the sets and had only to
+    // exit: done. Asked with no set, it would check every machine it knows.
+    if (m_toVerify.isEmpty())
+        finish(QStringLiteral("Done"));
+    else
         verifyNext();
 }
 
@@ -421,12 +430,7 @@ void RomCheck::verifyNext() {
     // its verdicts leave out too.
     m_process->setStandardErrorFile(QProcess::nullDevice());
     connect(m_process, &QProcess::readyReadStandardOutput, this, &RomCheck::verifyRead);
-    connect(m_process, &QProcess::finished, this, &RomCheck::verifyFinished);
-    connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
-        // finished() never comes for one that didn't start.
-        if (error == QProcess::FailedToStart)
-            verifyFinished(-1, QProcess::CrashExit);
-    });
+    whenOver(m_process, this, [this](const ProcessEnd &end) { verifyFinished(end); });
     m_process->start(m_job.mame, QStringList{ QStringLiteral("-rompath"), m_job.rompath, QStringLiteral("-verifyroms") }
                                      + m_batch);
     m_watchdog->start();
@@ -450,7 +454,7 @@ void RomCheck::verifyRead() {
         emit progressChanged();
 }
 
-void RomCheck::verifyFinished(int exitCode, QProcess::ExitStatus status) {
+void RomCheck::verifyFinished(const ProcessEnd &end) {
     if (!m_process)
         return;
     m_watchdog->stop();
@@ -462,8 +466,8 @@ void RomCheck::verifyFinished(int exitCode, QProcess::ExitStatus status) {
     m_process = nullptr;
     // All good (0), some not (2, missing files), or none found at all (5,
     // no such system): an answer. Anything else isn't one.
-    if (status != QProcess::NormalExit || (exitCode != 0 && exitCode != 2 && exitCode != 5)) {
-        qWarning("[Arcade] Check ROMs: MAME couldn't check the games (exit %d)", exitCode);
+    if (end.how != ProcessEnd::Exited || (end.code != 0 && end.code != 2 && end.code != 5)) {
+        qWarning("[Arcade] Check ROMs: MAME couldn't check the games (exit %d)", end.code);
         finish(QStringLiteral("MAME Could Not Check"));
         return;
     }

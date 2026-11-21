@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QNetworkRequest>
 #include <QTimer>
 #include <QUrl>
@@ -99,9 +100,10 @@ QString TmdbCatalog::apiKey() const {
     return {};
 }
 
-void TmdbCatalog::setProblem(const QString &problem) {
-    if (problem == m_problem) return;
+void TmdbCatalog::setProblem(const QString &problem, bool keyMissing) {
+    if (problem == m_problem && keyMissing == m_keyMissing) return;
     m_problem = problem;
+    m_keyMissing = keyMissing;
     emit problemChanged();
 }
 
@@ -124,8 +126,8 @@ QVariant TmdbCatalog::listing(const QString &path, bool preview) {
         };
     }
     if (apiKey().isEmpty()) {
-        setProblem(QStringLiteral("No TMDB API key: type one in Settings, in the module's TMDB Key"
-                                  " (free from themoviedb.org, Settings, API)"));
+        setProblem(QStringLiteral("No TMDB API key: type one in this module's settings,"
+                                  " TMDB Key (free from themoviedb.org, Settings, API)"), true);
         return QVariantList();
     }
     if (failedRecently(path)) {
@@ -427,9 +429,15 @@ void TmdbCatalog::findOnWikidata(const QString &path, const QString &fallback,
         const QJsonArray rows = QJsonDocument::fromJson(reply->readAll()).object()
                                     .value(QStringLiteral("results")).toObject()
                                     .value(QStringLiteral("bindings")).toArray();
-        const QString serviceId = rows.isEmpty() ? QString()
+        QString serviceId = rows.isEmpty() ? QString()
             : rows.first().toObject().value(QStringLiteral("id")).toObject()
                   .value(QStringLiteral("value")).toString();
+        // Anyone can edit Wikidata, and the id goes into the address the
+        // browser opens: only one of the plain form a service's id takes
+        // (letters, digits, . _ ~ -) is used, the search otherwise.
+        static const QRegularExpression plainId(QStringLiteral("^[A-Za-z0-9._~-]+$"));
+        if (!plainId.match(serviceId).hasMatch())
+            serviceId.clear();
         emit titleUrlReady(path, serviceId.isEmpty() ? fallback : m_service.titleUrl.arg(serviceId));
     });
 }

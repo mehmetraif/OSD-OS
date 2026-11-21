@@ -43,6 +43,16 @@ StandInRoot {
         signal dynamicOptionsReady(string mid, string key, var items)
         signal moduleAuthStateChanged(string mid)
         function get_settings() { return { modules: { "com.osdos.test": values, "com.osdos.other": otherValues } } }
+        // The app's own settings (app.<key>), and AppCore saying one changed.
+        property var appValues: ({})
+        signal appSettingChanged(string key, string value)
+        function get_setting(module, key) {
+            if (module === "")
+                return appValues[key]
+            var saved = module === "com.osdos.other" ? otherValues : values
+            var parts = key.split(".")
+            return parts.length === 2 ? (saved[parts[0]] || {})[parts[1]] : saved[key]
+        }
         function get_installed_modules() { return [{ id: "com.osdos.test", name: "Test" }, { id: "com.osdos.other", name: "Other" }] }
         // Who is signed in, and how often the page asked for that and for a
         // schema (counted in place: no binding follows them).
@@ -69,12 +79,21 @@ StandInRoot {
         property int writes: 0
         property var held: []
         signal settingsNotSaved()
+        // A key in dot-notation ("libraries.somekey") is saved, and read,
+        // as the somekey of libraries, as AppCore's putSetting() has it.
         function put(module, key, value) {
             var v = Object.assign({}, module === "com.osdos.other" ? otherValues : values)
+            var parts = key.split(".")
+            var at = v
+            if (parts.length === 2) {
+                at = Object.assign({}, typeof v[parts[0]] === "object" && v[parts[0]] ? v[parts[0]] : {})
+                v[parts[0]] = at
+                key = parts[1]
+            }
             if (value === undefined)
-                delete v[key]
+                delete at[key]
             else
-                v[key] = value
+                at[key] = value
             if (module === "com.osdos.other")
                 otherValues = v
             else
@@ -90,8 +109,7 @@ StandInRoot {
         }
         function save_setting_soon(module, key, value) {
             if (!held.some(function(h) { return h.module === module && h.key === key })) {
-                var saved = module === "com.osdos.other" ? otherValues : values
-                held = held.concat([{ module: module, key: key, before: saved[key] }])
+                held = held.concat([{ module: module, key: key, before: get_setting(module, key) }])
             }
             put(module, key, value)
             return true
@@ -110,6 +128,8 @@ StandInRoot {
             settingsNotSaved()
             return false
         }
+        // A module_view row's page: the module's own Root.qml.
+        function module_entry_point(id) { return "modules/" + id + "/views/Root.qml" }
         function get_module_settings_schema(id) {
             calls.schemas++
             return id === "com.osdos.other" ? otherSchema : schema
@@ -189,11 +209,13 @@ StandInRoot {
 
         function init() {
             root.menuLayout = "Standard"
+            root.framed = false
             root.chrome.basePath = []
             appCore.values = {}
             appCore.actions = []
             appCore.schema = arcadeRows
             appCore.otherValues = {}
+            appCore.appValues = {}
             appCore.otherSchema = []
             appCore.saveFails = false
             appCore.noSuchAction = false
@@ -290,6 +312,61 @@ StandInRoot {
             return null
         }
 
+        // A row that does something only on some machines (Arcade's CPU at
+        // Full Speed, on a Raspberry Pi): its capability asked for of the
+        // backend once as the page opens, by the slot the row names, on a
+        // submenu's page too; dimmed with the row's own reason until the
+        // backend reports it, ◄ ► leaving it as it is, and usable once it
+        // does. A capability named alone keeps the server's reason and asks
+        // nothing.
+        function test_capabilityByMachine() {
+            var pi = { name: "raspberry_pi", slot: "machineCapabilities", reason: "Only on a Raspberry Pi" }
+            appCore.schema = [
+                { key: "skip", label: "Skip Intros", type: "toggle", default: "ON", requires_capability: "mediasegments" },
+                { key: "full", label: "CPU at Full Speed", type: "toggle", default: "ON", requires_capability: pi,
+                  description: "The processor clocked high\n[ON] Steadier  [OFF] As set" },
+                { key: "video", label: "Emulator Video", type: "submenu", settings: [
+                    { key: "buffers", label: "Frame Buffers", type: "list_single", options: ["Auto", "Two"],
+                      default: "Auto", requires_capability: pi }] }
+            ]
+            var page = open()
+            compare(appCore.actions, ["machineCapabilities"])
+            compare(off(page, "skip"), "Not offered by the server")
+            compare(off(page, "full"), "Only on a Raspberry Pi")
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "full")
+            var help = findChild(page, "helpLine")
+            verify(help.shownText.indexOf("Only on a Raspberry Pi") === 0, help.shownText)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.full, undefined)
+            compare(menuRow(page, 1).value, "ON")
+            verify(menuRow(page, 1).dimmed)
+            // Elsewhere than on a Pi the backend says so, and nothing changes.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", [])
+            compare(off(page, "full"), "Only on a Raspberry Pi")
+            // On a Pi: usable.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["raspberry_pi"])
+            compare(off(page, "full"), "")
+            compare(off(page, "skip"), "Not offered by the server")
+            verify(!menuRow(page, 1).dimmed)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.full, false)
+            // Asked once, however often the rows are made again.
+            compare(appCore.actions, ["machineCapabilities"])
+            loader.source = ""
+
+            appCore.actions = []
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "video" } })
+            page = loader.item
+            page.forceActiveFocus()
+            compare(keys(page), ["buffers"])
+            compare(appCore.actions, ["machineCapabilities"])
+            compare(off(page, "buffers"), "Only on a Raspberry Pi")
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["raspberry_pi"])
+            compare(off(page, "buffers"), "")
+        }
+
         // What dims a row changes (the row it goes with, what the server can
         // do, a sign-in): the rows dimmed or usable otherwise change in
         // place. No line of the list is made again, the list stays where it
@@ -378,6 +455,31 @@ StandInRoot {
         // A toggle's and a list's value stand between the ◄ and ► that
         // change them; a submenu's line ends in a ►, and ► opens it as select
         // does; a slider's line has neither (its bar has the arrows).
+        // The help line shows the row's first sentence and the [ ] of the
+        // value now on the row alone, following ◄ ►; a row without a value
+        // (an action) shows its line whole.
+        function test_helpFollowsTheValue() {
+            appCore.schema = [
+                { key: "mode", label: "Mode", type: "list_single", options: ["Slow", "Fast"], "default": "Slow",
+                  description: "How it plays.\n[SLOW] Takes its time  [FAST] Hurries" },
+                { key: "wipe", label: "Wipe", type: "action", slot: "wipe",
+                  description: "Forgets it all. [SLOW] is no value of this row" }
+            ]
+            var page = open()
+            var help = findChild(page, "helpLine")
+            compare(help.value, "Slow")
+            verify(help.shownText.indexOf("How it plays.") === 0, help.shownText)
+            verify(help.shownText.indexOf("[SLOW] Takes its time") > 0, help.shownText)
+            verify(help.shownText.indexOf("[FAST]") < 0, help.shownText)
+            keyClick(Qt.Key_Right)
+            tryCompare(help, "value", "Fast")
+            verify(help.shownText.indexOf("[FAST] Hurries") > 0, help.shownText)
+            verify(help.shownText.indexOf("[SLOW]") < 0, help.shownText)
+            keyClick(Qt.Key_Down)
+            compare(help.value, "")
+            compare(help.shownText, help.text)
+        }
+
         function test_marks() {
             appCore.values = { screen: "Arcade" }
             appCore.schema = arcadeRows.concat([
@@ -531,6 +633,94 @@ StandInRoot {
             compare(page.currentDisplayValue(page.schemaItems[2]), "All Games")
         }
 
+        // A dynamic list that was a toggle once and is still saved as true
+        // or false (Local Files' Shuffle Playback): the row is on the choice
+        // that form is now (the choice's `old`), as the player takes it. It
+        // shows that choice, ◄ ► step from it, the rows that go with its
+        // value follow it, and a value changed in two steps (Broadcast) is
+        // counted from it too.
+        function test_savedAsAToggleOnce_data() {
+            return [{ tag: "false", saved: false, label: "Never", id: "no", next: "ask", nextLabel: "Ask", before: "yes" },
+                    { tag: "true", saved: true, label: "Always", id: "yes", next: "no", nextLabel: "Never", before: "ask" }]
+        }
+        function test_savedAsAToggleOnce(data) {
+            appCore.schema = [
+                { key: "shuffle", label: "Shuffle Playback", type: "list_single", options_source: "dynamic",
+                  options_slot: "shuffleOptions", default: "ask" },
+                { key: "order", label: "Order", type: "toggle", default: "ON",
+                  shown_with: { key: "shuffle", value: "no" } }
+            ]
+            var choices = [{ id: "ask", label: "Ask" }, { id: "yes", label: "Always", old: true },
+                           { id: "no", label: "Never", old: false }]
+            // The page with the row saved in its old form, its choices in.
+            var opened = function() {
+                loader.source = ""
+                appCore.values = { shuffle: data.saved }
+                var page = open()
+                appCore.dynamicOptionsReady("com.osdos.test", "shuffle", choices)
+                return page
+            }
+            var page = opened()
+            compare(page.currentDisplayValue(page.schemaItems[0]), data.label)
+            compare(menuRow(page, 0).value, data.label)
+            compare(page.valueOf(page.schemaItems[0]), data.id)
+            compare(usable(page), data.id === "no" ? ["shuffle", "order"] : ["shuffle"])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.shuffle, data.next)
+            compare(page.currentDisplayValue(page.schemaItems[0]), data.nextLabel)
+
+            page = opened()
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.shuffle, data.before)
+
+            // In Camcorder's pane as in Standard.
+            root.menuLayout = "Camcorder"
+            root.framed = true
+            page = opened()
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.shuffle, data.next)
+            root.framed = false
+
+            // In two steps: ▲ a choice on from the one it is on.
+            root.menuLayout = "Broadcast"
+            page = opened()
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, 0)
+            compare(menuRow(page, 0).value, data.label)
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 0).value, data.nextLabel)
+            compare(appCore.values.shuffle, data.saved)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.shuffle, data.next)
+        }
+
+        // A dynamic list on a choice its backend no longer offers (a server
+        // gone), or on none: the row is on its first choice, shown, stepped
+        // from and handed to the rows that go with it alike.
+        function test_dynamicChoiceNotOffered() {
+            appCore.schema = [
+                { key: "server", label: "Server", type: "list_single", options_source: "dynamic",
+                  options_slot: "serverOptions" },
+                { key: "sync", label: "Sync", type: "toggle", default: "ON",
+                  shown_with: { key: "server", value: "attic" } }
+            ]
+            appCore.values = { server: "cellar" }
+            var page = open()
+            // Before its choices are in, the row is what is saved.
+            compare(page.valueOf(page.schemaItems[0]), "cellar")
+            compare(page.currentDisplayValue(page.schemaItems[0]), "---")
+            appCore.dynamicOptionsReady("com.osdos.test", "server",
+                                        [{ id: "attic", label: "Attic" }, { id: "barn", label: "Barn" }])
+            compare(page.currentDisplayValue(page.schemaItems[0]), "Attic")
+            compare(page.valueOf(page.schemaItems[0]), "attic")
+            compare(usable(page), ["server", "sync"])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.server, "barn")
+            compare(usable(page), ["server"])
+        }
+
         // A "text" row is typed on the on-screen keyboard: select or ► opens
         // it on what is saved, OK keeps what was typed (without the spaces
         // at its ends) and calls the row's apply slot, back leaves it; a
@@ -582,6 +772,37 @@ StandInRoot {
             compare(page.currentDisplayValue(page.schemaItems[2]), "Not Set")
         }
 
+        // A manifest key in dot-notation is saved nested, as AppCore saves
+        // it, and the page reads it back from there: the value saved shows,
+        // a change is saved beside what else is under the same name and
+        // shows at once, and a list of typed lines' page reads its lines.
+        function test_dottedKey() {
+            appCore.schema = [
+                { key: "player.autoplay", label: "Autoplay", type: "toggle", default: "OFF" },
+                { key: "player.name", label: "Name", type: "text", default: "" },
+                { key: "lists.channels", label: "Channels", type: "text_list", max_length: 30 }
+            ]
+            appCore.values = { player: { autoplay: true, other: 1 }, lists: { channels: ["UCone", "UCtwo"] } }
+            var page = open()
+            compare(page.currentDisplayValue(page.schemaItems[0]), "ON")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Not Set")
+            compare(page.currentDisplayValue(page.schemaItems[2]), "2")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.player, { autoplay: false, other: 1 })
+            compare(page.currentDisplayValue(page.schemaItems[0]), "OFF")
+            appCore.put("com.osdos.test", "player.name", "Ada")
+            loader.source = ""
+            page = open()
+            compare(page.currentDisplayValue(page.schemaItems[0]), "OFF")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Ada")
+            loader.source = ""
+            loader.setSource(Qt.resolvedUrl("../../views/TextListSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "lists.channels",
+                                            settingLabel: "Channels", maxLength: 30 } })
+            verify(loader.item !== null, "loaded TextListSettings.qml")
+            compare(loader.item.lines, ["UCone", "UCtwo"])
+        }
+
         // A list of typed lines (text_list): its count on the row, its own
         // page from it, there a line added on the keyboard, changed, not
         // listed twice, taken out, and no more than the row takes.
@@ -625,9 +846,17 @@ StandInRoot {
             verify(keyboard && options && lines)
             compare(list.lines, ["UCone", "UCtwo"])
             compare(lines.count, 3)
-            // ADD, the last row: a line typed, kept at the foot, the cursor
-            // left on ADD.
-            lines.currentIndex = 2
+            // ADD, the last row, which ▼ comes to past the lines and ▲ round
+            // from the first: a line typed, kept at the foot, the cursor left
+            // on ADD.
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 2)
+            verify(lines.onAdd)
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 0)
+            keyClick(Qt.Key_Up)
             verify(lines.onAdd)
             keyClick(Qt.Key_Return)
             verify(keyboard.visible)
@@ -644,7 +873,8 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(!keyboard.visible)
             // A line: change it, or take it out.
-            lines.currentIndex = 0
+            keyClick(Qt.Key_Down)
+            compare(lines.currentIndex, 0)
             keyClick(Qt.Key_Return)
             verify(options.visible)
             compare(options.subtitleText, "UCone")
@@ -773,6 +1003,41 @@ StandInRoot {
         // or by another row's value. Dimmed, ◄ ► leave it as it is; a row
         // that "shown_with" keeps back too says that first. With another
         // theme, or none, it is a row like the others.
+        // A row that works only with an app setting (Settings → Startup's
+        // Start On naming the module, "shown_with": { "app", "value",
+        // "reason" }): dimmed with its reason while that isn't so, usable
+        // once it is, following a change made while the page is open.
+        function test_shownWithAppSetting() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "auto_launch", label: "Auto-Launch Playback", type: "toggle", default: "OFF",
+                  shown_with: { app: "startup_module", value: "com.osdos.test",
+                                reason: "Only with Start On on Test (Settings > Startup)" } }
+            ]
+            var page = open()
+            compare(off(page, "auto_launch"), "Only with Start On on Test (Settings > Startup)")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.auto_launch, undefined)
+            var help = findChild(page, "helpLine")
+            compare(help.text, "Only with Start On on Test (Settings > Startup)\n")
+
+            appCore.appValues = { startup_module: "com.osdos.test" }
+            appCore.appSettingChanged("startup_module", "com.osdos.test")
+            compare(off(page, "auto_launch"), "")
+            compare(cursor(page), "auto_launch")
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.auto_launch, true)
+
+            appCore.appSettingChanged("startup_module", "None")
+            compare(off(page, "auto_launch"), "Only with Start On on Test (Settings > Startup)")
+            loader.source = ""
+            // Saved before the page opens.
+            appCore.appValues = { startup_module: "com.osdos.test" }
+            page = open()
+            compare(off(page, "auto_launch"), "")
+        }
+
         function test_shownUnless() {
             appCore.schema = [
                 { key: "screen", label: "Screen", type: "list_single", options: ["Original", "Arcade"],
@@ -853,6 +1118,38 @@ StandInRoot {
             compare(appCore.values.ground, 0)
             keyClick(Qt.Key_Down)
             compare(cursor(page), "video")
+        }
+
+        // A slider dimmed (shown_with, as the Arcade's Info Background is in
+        // the Orb look) shows no bar and leaves no empty lines for it: the
+        // next row is right under its line, and its bar's lines open once
+        // it can be used.
+        function test_sliderDimmedTakesNoRoom() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10,
+                  start_text: "TRANSPARENT", end_text: "SOLID", shown_with: { key: "enabled", value: "ON" } },
+                { key: "video", label: "Video", type: "list_single", options: ["Auto", "OpenGL"], default: "Auto" }
+            ]
+            var page = open()
+            var list = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].shownHeight !== undefined)
+                    list = page.children[i]
+            }
+            verify(list !== null)
+            var gap = function() {
+                list.forceLayout()
+                return list.itemAtIndex(2).y - list.itemAtIndex(1).y
+            }
+            verify(!!page.schemaItems[1]._off)
+            compare(gap(), root.menuRowHeight)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.enabled, true)
+            verify(!page.schemaItems[1]._off)
+            verify(gap() > root.menuRowHeight, "the bar's lines: " + gap())
+            keyClick(Qt.Key_Left)
+            compare(gap(), root.menuRowHeight)
         }
 
         // A slider's steps are its value at once, on the page and in the
@@ -1039,6 +1336,59 @@ StandInRoot {
             compare(back.count, 1)
         }
 
+        // A multiselect_submenu row shows how many of its choices are on:
+        // All, None or "2 of 3", as its page has them (saved, else their
+        // default); before its choices come, how many are saved off. Its
+        // choices are asked for as the page opens, but not while a sign-in
+        // dims it. Its page shows the row's help on a choice's line.
+        function test_multiSelectValue() {
+            appCore.schema = [
+                { key: "picks", label: "Picks", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getPicks", description: "Which picks show" },
+                { key: "libraries", label: "Libraries", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getLibraries", requires_auth: true }
+            ]
+            appCore.values = { picks: { a: false }, libraries: { x: false, y: false } }
+            var page = open()
+            compare(appCore.actions, ["getPicks"])
+            compare(menuRow(page, 0).value, "1 Off")
+            compare(menuRow(page, 1).value, "2 Off")
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { label: "Group", heading: true }, { id: "a", label: "A" }, { id: "b", label: "B" },
+                { id: "c", label: "C", default: false }])
+            compare(menuRow(page, 0).value, "1 of 3")
+            loader.source = ""
+            appCore.values = { picks: { a: true, c: true } }
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C", default: false }])
+            compare(menuRow(page, 0).value, "All")
+            loader.source = ""
+            appCore.values = { picks: { a: false, b: false } }
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C", default: false }])
+            compare(menuRow(page, 0).value, "None")
+            // A server that couldn't say: what is saved.
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [{ problem: "Out of reach" }])
+            compare(menuRow(page, 0).value, "2 Off")
+
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[0].params.help, "Which picks show")
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: root.navigations[0].params })
+            var sub = loader.item
+            sub.forceActiveFocus()
+            var help = findChild(sub, "helpLine")
+            compare(help.text, "", "Loading…")
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { label: "Group", heading: true }, { id: "a", label: "A" }])
+            compare(help.text, "Turns all of the choices under it on or off")
+            keyClick(Qt.Key_Down)
+            compare(help.text, "Which picks show")
+            verify(help.visible)
+        }
+
         // A multiselect_submenu row's page before its choices come, and with
         // none: Loading… until the backend answers; No Choices for an answer
         // with none, and for one that says why (a single { problem }), which
@@ -1169,14 +1519,15 @@ StandInRoot {
 
         // A row that deletes or signs out (its "confirm") asks first, in the
         // standard question window: the question, what the row does under
-        // it, Yes and No with No under the cursor. No and back do nothing
-        // and leave nothing said; Yes calls the slot, and the help line says
-        // what became of it.
+        // it, Cancel under the cursor and then the row's verb (its "verb",
+        // else its label). Cancel and back do nothing and leave nothing
+        // said; the verb calls the slot, and the help line says what became
+        // of it.
         function test_actionAsksFirst() {
             appCore.schema = [
                 { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
                 { key: "delete_history", label: "Delete Recently Watched", type: "action",
-                  action_slot: "delete_history", confirm: "Delete Recently Watched?",
+                  action_slot: "delete_history", confirm: "Delete Recently Watched?", verb: "Delete",
                   done: "Recently Watched deleted", description: "Empties Recently Watched" }
             ]
             var page = open()
@@ -1190,10 +1541,10 @@ StandInRoot {
             compare(prompt.promptText, "Delete Recently Watched?")
             compare(prompt.promptKind, "question")
             compare(prompt.subtitleText, "Empties Recently Watched")
-            compare(prompt.choices.map(function(c) { return c.label }), ["Yes", "No"])
-            compare(prompt.choices[prompt.choiceIndex].label, "No")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Cancel", "Delete"])
+            compare(prompt.choices[prompt.choiceIndex].label, "Cancel")
 
-            // No.
+            // Cancel.
             keyClick(Qt.Key_Return)
             verify(!prompt.visible)
             compare(appCore.actions, [])
@@ -1201,15 +1552,15 @@ StandInRoot {
             // Back.
             keyClick(Qt.Key_Return)
             verify(prompt.visible)
-            compare(prompt.choices[prompt.choiceIndex].label, "No")
+            compare(prompt.choices[prompt.choiceIndex].label, "Cancel")
             keyClick(Qt.Key_Escape)
             verify(!prompt.visible)
             compare(appCore.actions, [])
             compare(help.text, "Empties Recently Watched")
-            // Yes.
+            // Delete.
             keyClick(Qt.Key_Return)
-            keyClick(Qt.Key_Up)
-            compare(prompt.choices[prompt.choiceIndex].label, "Yes")
+            keyClick(Qt.Key_Down)
+            compare(prompt.choices[prompt.choiceIndex].label, "Delete")
             keyClick(Qt.Key_Return)
             verify(!prompt.visible)
             compare(appCore.actions, ["delete_history"])
@@ -1226,7 +1577,7 @@ StandInRoot {
         // dimmed again where it stands, and what it did is still said.
         function test_signOutAsksFirst() {
             appCore.schema = [
-                { key: "logout", label: "Sign out", type: "action", action_slot: "logout",
+                { key: "logout", label: "Sign Out", type: "action", action_slot: "logout",
                   confirm: "Sign out of Plex?", done: "Signing out of Plex", requires_auth: true }
             ]
             var page = open()
@@ -1243,7 +1594,9 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             verify(prompt.visible)
             compare(prompt.promptText, "Sign out of Plex?")
-            keyClick(Qt.Key_Up)
+            compare(prompt.choices.map(function(c) { return c.label }), ["Cancel", "Sign Out"])
+            compare(prompt.choices[prompt.choiceIndex].label, "Cancel")
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(appCore.actions, ["logout"])
             compare(help.text, "Signing out of Plex")
@@ -1252,6 +1605,362 @@ StandInRoot {
             compare(off(page, "logout"), "Only once signed in")
             compare(help.text, "Signing out of Plex")
             verify(menuRow(page, 0).dimmed)
+        }
+
+        // The hint bar names the keys that do something on the row under
+        // the cursor: ◄ ► on a value, select on a line that opens, the
+        // action's own verb on an action, nothing but the way on and back
+        // on a dimmed row; select starts a change in the two-step layouts.
+        // The multi-select and text-list pages word theirs by their line.
+        function test_hintsByRow_data() {
+            return [{ tag: "Standard", layout: "Standard" }, { tag: "Broadcast", layout: "Broadcast" }]
+        }
+        function test_hintsByRow(data) {
+            appCore.schema = [
+                { key: "loop", label: "Loop", type: "toggle", default: "OFF" },
+                { key: "mode", label: "Mode", type: "list_single", options: ["A", "B"], default: "A" },
+                { key: "more", label: "More", type: "submenu", settings: [] },
+                { key: "picks", label: "Picks", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getPicks" },
+                { key: "extra", label: "Extra", type: "toggle", default: "OFF",
+                  shown_with: { key: "loop", value: "ON" } },
+                { key: "wipe", label: "Delete History", type: "action", action_slot: "wipe",
+                  confirm: "Delete History?", verb: "Delete" },
+                { key: "logout", label: "Sign Out", type: "action", action_slot: "logout", confirm: "Sign out?" }
+            ]
+            root.menuLayout = data.layout
+            var page = open()
+            var bar = findChild(page, "hintBar")
+            var two = data.layout === "Broadcast"
+            var change = two ? "[ENTER]:CHANGE" : "[◄►]:CHANGE"
+            var expected = ["[ESC]:BACK [▲▼]:NAVIGATE " + change, "[ESC]:BACK [▲▼]:NAVIGATE " + change,
+                            "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN", "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN",
+                            "[ESC]:BACK [▲▼]:NAVIGATE", "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:DELETE",
+                            "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:SIGN OUT"]
+            for (var i = 0; i < expected.length; i++) {
+                compare(bar.text, expected[i], page.schemaItems[i].key)
+                keyClick(Qt.Key_Down)
+            }
+            // Round to Loop. The row usable once Loop is on: its hint
+            // follows in place.
+            compare(cursor(page), "loop")
+            if (two) {
+                keyClick(Qt.Key_Return)
+                compare(bar.text, "[ESC]:CANCEL [▲▼]:CHANGE [ENTER]:CONFIRM")
+                keyClick(Qt.Key_Up)
+                keyClick(Qt.Key_Return)
+            } else {
+                keyClick(Qt.Key_Right)
+            }
+            compare(appCore.values.loop, true)
+            for (i = 0; i < 4; i++)
+                keyClick(Qt.Key_Down)
+            compare(cursor(page), "extra")
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE " + change)
+        }
+        function test_hintsOnSubPages() {
+            appCore.schema = [{ key: "picks", label: "Picks", type: "multiselect_submenu",
+                                options_source: "dynamic", options_slot: "getPicks" }]
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "picks", settingLabel: "Picks" } })
+            var page = loader.item
+            page.forceActiveFocus()
+            var bar = findChild(page, "hintBar")
+            compare(bar.text, "[ESC]:BACK", "Loading…")
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { label: "Genres", heading: true }, { id: "a", label: "A" }])
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [◄►]/[ENTER]:CHANGE ALL")
+            keyClick(Qt.Key_Down)
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [◄►]/[ENTER]:CHANGE")
+            loader.source = ""
+
+            appCore.values = { lines: ["one", "two"] }
+            loader.setSource(Qt.resolvedUrl("../../views/TextListSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", settingKey: "lines", settingLabel: "Lines",
+                                            maxLines: 2 } })
+            page = loader.item
+            page.forceActiveFocus()
+            bar = findChild(page, "hintBar")
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:CHANGE")
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE", "ADD, the list full")
+            page.maxLines = 3
+            compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:ADD")
+        }
+
+        // A dynamic list never saved shows the choice its backend marks as
+        // where an install starts (Catalog Region: the time zone's country),
+        // else the row's default by its id, and ◄ ► step from it; one
+        // saved keeps what it saved. The names show, the ids are saved.
+        function test_dynamicDefaultChoice() {
+            appCore.schema = [
+                { key: "region", label: "Catalog Region", type: "list_single", options_source: "dynamic",
+                  options_slot: "get_regions", default: "US" },
+                { key: "lang", label: "Language", type: "list_single", options_source: "dynamic",
+                  options_slot: "get_langs", default: "-" }
+            ]
+            var regions = [{ id: "DE", label: "Germany" }, { id: "TR", label: "Turkey", default: true },
+                           { id: "US", label: "USA" }]
+            var page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "region", regions)
+            appCore.dynamicOptionsReady("com.osdos.test", "lang", [{ id: "en", label: "English" }, { id: "-", label: "Any" }])
+            compare(menuRow(page, 0).value, "Turkey")
+            compare(menuRow(page, 1).value, "Any")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.region, "US")
+            compare(menuRow(page, 0).value, "USA")
+            loader.source = ""
+            appCore.values = { region: "DE" }
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "region", regions)
+            compare(menuRow(page, 0).value, "Germany")
+        }
+
+        // A list of fixed choices whose default the backend works out (Arcade's
+        // Relay Server, the one nearest the time zone) through the same
+        // dynamic choice marked default: true: shown while nothing is saved,
+        // nothing written for it as the page opens and closes, and saved only
+        // once changed.
+        function test_relayShownUnsaved() {
+            appCore.schema = [
+                { key: "online_play", label: "Online Play", type: "list_single", options: ["Off", "On"], default: "Off" },
+                { key: "relay_server", label: "Relay Server", type: "list_single", options_source: "dynamic",
+                  options_slot: "relayServerOptions", default: "New York",
+                  shown_with: { key: "online_play", value: "On" } }
+            ]
+            appCore.values = { online_play: "On" }
+            var relays = ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"].map(function(name) {
+                return name === "Madrid" ? { id: name, label: name, default: true } : { id: name, label: name }
+            })
+            var page = open()
+            compare(appCore.actions, ["relayServerOptions"])
+            appCore.dynamicOptionsReady("com.osdos.test", "relay_server", relays)
+            compare(menuRow(page, 1).value, "Madrid")
+            loader.source = ""
+            compare(appCore.writes, 0)
+            compare(appCore.values.relay_server, undefined)
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "relay_server", relays)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "relay_server")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.relay_server, "São Paulo")
+            compare(menuRow(page, 1).value, "São Paulo")
+        }
+
+        // Subtitles in every module's order, Off, Forced Only, On, with
+        // Forced Only where nothing is saved (or something no choice is):
+        // what was saved, an old true or false too, keeps its meaning.
+        function test_subtitlesOrder_data() {
+            return [{ tag: "unset", saved: undefined, shown: "Forced Only", left: "off" },
+                    { tag: "old on", saved: true, shown: "On", left: "forced" },
+                    { tag: "old off", saved: false, shown: "Forced Only", left: "off" },
+                    { tag: "off", saved: "off", shown: "Off", left: "on" },
+                    { tag: "unknown", saved: "sometimes", shown: "Forced Only", left: "off" }]
+        }
+        function test_subtitlesOrder(data) {
+            appCore.schema = [{ key: "auto_subtitles", label: "Subtitles", type: "list_single",
+                                options_source: "dynamic", options_slot: "get_auto_subtitles_options",
+                                default: "forced" }]
+            appCore.values = data.saved === undefined ? {} : { auto_subtitles: data.saved }
+            var page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "auto_subtitles", [
+                { id: "off", label: "Off" }, { id: "forced", label: "Forced Only", old: false, default: true },
+                { id: "on", label: "On", old: true }])
+            compare(menuRow(page, 0).value, data.shown)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.auto_subtitles, data.left)
+        }
+
+        // A list's own choices may each be { "id", "label" }: the label
+        // shown over the id saved (Weather's Time per Screen, "1 min" over
+        // "60 SEC"), ◄ ► and the two-step layouts stepping by them, a row
+        // shown with it following the id; a value no choice is shows as
+        // saved.
+        function test_staticChoiceLabels_data() {
+            return [{ tag: "Standard", layout: "Standard" }, { tag: "Flat Panel", layout: "Flat Panel" }]
+        }
+        function test_staticChoiceLabels(data) {
+            appCore.schema = [
+                { key: "screen_time", label: "Time per Screen", type: "list_single", default: "10 SEC",
+                  options: [{ id: "10 SEC", label: "10 sec" }, { id: "30 SEC", label: "30 sec" },
+                            { id: "60 SEC", label: "1 min" }] },
+                { key: "fast", label: "Fast", type: "toggle", default: "OFF",
+                  shown_with: { key: "screen_time", value: "60 SEC" } }
+            ]
+            root.menuLayout = data.layout
+            var page = open()
+            compare(menuRow(page, 0).value, "10 sec")
+            verify(off(page, "fast") !== "")
+            if (root.twoStep) {
+                keyClick(Qt.Key_Return)
+                keyClick(Qt.Key_Down)
+                compare(menuRow(page, 0).value, "1 min")
+                keyClick(Qt.Key_Return)
+            } else {
+                keyClick(Qt.Key_Left)
+            }
+            compare(appCore.values.screen_time, "60 SEC")
+            compare(menuRow(page, 0).value, "1 min")
+            compare(off(page, "fast"), "")
+            loader.source = ""
+            appCore.values = { screen_time: "15 SEC" }
+            page = open()
+            compare(menuRow(page, 0).value, "15 SEC")
+        }
+
+        // A row moved out of a submenu onto the first page (YouTube's
+        // Subtitles) reads what was saved while it was in there: a
+        // submenu's rows are saved flat under the module, by their keys.
+        function test_rowMovedOutOfSubmenu() {
+            appCore.values = { subtitles: "On", playback_speed: "2x" }
+            appCore.schema = [
+                { key: "advanced", label: "Advanced", type: "submenu", settings: [
+                    { key: "subtitles", label: "Subtitles", type: "list_single", options: ["Off", "On"], default: "Off" },
+                    { key: "playback_speed", label: "Playback Speed", type: "list_single", options: ["1x", "2x"], default: "1x" }] }
+            ]
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "advanced" } })
+            compare(menuRow(loader.item, 0).value, "On")
+            loader.source = ""
+            appCore.schema = [
+                { key: "subtitles", label: "Subtitles", type: "list_single", options: ["Off", "On"], default: "Off" },
+                { key: "advanced", label: "Advanced", type: "submenu", settings: [
+                    { key: "playback_speed", label: "Playback Speed", type: "list_single", options: ["1x", "2x"], default: "1x" }] }
+            ]
+            var page = open()
+            compare(menuRow(page, 0).value, "On")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.subtitles, "Off")
+            loader.source = ""
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "advanced" } })
+            compare(menuRow(loader.item, 0).value, "2x")
+        }
+
+        // An account module's two rows: SIGN IN after ENABLED, its value who
+        // is signed in (the name its slot sends) or SIGNED OUT, opening the
+        // module's own sign-in; SIGN OUT last, dimmed while signed out. The
+        // rows that need an account say where to sign in.
+        function test_signInRow() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "sign_in", label: "Sign In", type: "module_view", account: true,
+                  options_source: "dynamic", options_slot: "get_account", params: { signIn: true } },
+                { key: "libraries", label: "Libraries", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getLibraries", requires_auth: true },
+                { key: "logout", label: "Sign Out", type: "action", action_slot: "logout",
+                  confirm: "Sign out?", requires_auth: true }
+            ]
+            appCore.authState = "none"
+            var page = open()
+            compare(appCore.actions, ["get_account"])
+            compare(menuRow(page, 1).value, "Signed Out")
+            verify(menuRow(page, 1).opens)
+            verify(!menuRow(page, 1).dimmed)
+            compare(off(page, "libraries"), "Sign in first (SIGN IN above)")
+            compare(off(page, "logout"), "Sign in first (SIGN IN above)")
+            verify(menuRow(page, 3).dimmed)
+
+            appCore.authState = "authed"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(appCore.actions.filter(function(a) { return a === "get_account" }).length, 2)
+            compare(menuRow(page, 1).value, "Signed In")
+            appCore.dynamicOptionsReady("com.osdos.test", "sign_in", [{ id: "Ann", label: "Ann" }])
+            compare(menuRow(page, 1).value, "Ann")
+            compare(off(page, "libraries"), "")
+            compare(off(page, "logout"), "")
+
+            appCore.authState = "none"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(menuRow(page, 1).value, "Signed Out")
+
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "sign_in")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "modules/com.osdos.test/views/Root.qml")
+            compare(root.navigations[0].params, { signIn: true })
+        }
+
+        // A page that names a setting opens the settings page on that row
+        // (ModuleRouter.openSettings(): focusKey), found by its key among
+        // the rows as the page makes them, dimmed rows and headings among
+        // them: Weather's Location, Netflix's TMDB Key. Back on the page
+        // from one of its own, the cursor is where it was left; a key the
+        // page hasn't, its first row.
+        function test_opensOnTheRowNamed_data() {
+            return [{ tag: "weather, location", focus: "location", at: 2, schema: [
+                        { type: "section", label: "Places" },
+                        { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                        { key: "location", label: "Location", type: "text", default: "" },
+                        { key: "other_places", label: "Other Locations", type: "text_list" },
+                        { key: "units", label: "Units", type: "list_single", options: ["Metric", "US"], default: "Metric" }] },
+                    { tag: "netflix, tmdb key", focus: "tmdb_api_key", at: 2, schema: [
+                        { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                        { key: "sign_in", label: "Sign In", type: "module_view", account: true, params: { signIn: true } },
+                        { key: "tmdb_api_key", label: "TMDB Key", type: "text", secret: true, default: "" },
+                        { key: "catalog_language", label: "Catalog Language", type: "list_single",
+                          options: ["English", "Turkish"], default: "English" },
+                        { key: "sign_out", label: "Sign Out", type: "action", action_slot: "signOut",
+                          confirm: "Sign out of Netflix?", requires_auth: true }] },
+                    { tag: "a row of the page after a dimmed one", focus: "video_scaling", at: 3, schema: [
+                        { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                        { key: "sign_out", label: "Sign Out", type: "action", action_slot: "signOut",
+                          requires_auth: true },
+                        { key: "sign_in", label: "Sign In", type: "module_view", account: true },
+                        { key: "video_scaling", label: "Scaling", type: "list_single",
+                          options: ["Default", "Letterbox"], default: "Default" }] }]
+        }
+        function test_opensOnTheRowNamed(data) {
+            appCore.schema = data.schema
+            appCore.authState = "none"
+            var openOn = function(params) {
+                loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                                 { navParams: Object.assign({ moduleId: "com.osdos.test", alsoModules: [] }, params) })
+                loader.item.forceActiveFocus()
+                return loader.item
+            }
+            var page = openOn({ focusKey: data.focus })
+            compare(cursor(page), data.focus)
+            compare(cursorIndex(page), data.at)
+            loader.source = ""
+            page = openOn({ focusKey: data.focus, navListState: { currentIndex: data.schema.length - 1 } })
+            compare(cursorIndex(page), data.schema.length - 1)
+            loader.source = ""
+            page = openOn({ focusKey: "nothing" })
+            compare(cursorIndex(page), data.schema[0].type === "section" ? 1 : 0)
+        }
+
+        // A module_view row whose page holds a value (Arcade's Online Name)
+        // shows it as SIGN IN shows who is signed in: the one choice its
+        // options_slot sends, nothing until that comes, and each new one
+        // sent as its page changes it. Its page opens as before. One with
+        // no options_slot shows no value.
+        function test_pageRowShowsItsValue() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "online_name", label: "Online Name", type: "module_view", params: { onlineName: true },
+                  options_source: "dynamic", options_slot: "onlineNameOptions" },
+                { key: "pictures", label: "Game Pictures", type: "module_view", params: { pictures: true } }
+            ]
+            var page = open()
+            compare(appCore.actions, ["onlineNameOptions"])
+            compare(menuRow(page, 1).value, "")
+            appCore.dynamicOptionsReady("com.osdos.test", "online_name",
+                                        [{ id: "OSDOS-1234", label: "OSDOS-1234" }])
+            compare(menuRow(page, 1).value, "OSDOS-1234")
+            verify(menuRow(page, 1).opens)
+            appCore.dynamicOptionsReady("com.osdos.test", "online_name", [{ id: "Ann", label: "Ann" }])
+            compare(menuRow(page, 1).value, "Ann")
+            compare(menuRow(page, 2).value, "")
+
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "online_name")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].params, { onlineName: true })
         }
 
         // The file picker (views/FilePicker.qml), as a directory_browser row
@@ -1460,6 +2169,23 @@ StandInRoot {
             compare(appCore.values.loud, undefined)
             keyClick(Qt.Key_Return)
             compare(appCore.values.loud, 70)
+            // No further than an end: the steps past it aren't counted, so
+            // the first step back moves the value.
+            keyClick(Qt.Key_Return)
+            for (var i = 0; i < 5; i++)
+                keyClick(Qt.Key_Up)
+            compare(menuRow(page, 1).value, "100%")
+            keyClick(Qt.Key_Down)
+            compare(menuRow(page, 1).value, "90%")
+            for (i = 0; i < 12; i++)
+                keyClick(Qt.Key_Down)
+            compare(menuRow(page, 1).value, "0%")
+            keyClick(Qt.Key_Up)
+            compare(menuRow(page, 1).value, "10%")
+            compare(appCore.values.loud, 70)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.loud, 10)
+            compare(menuRow(page, 1).value, "10%")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             keyClick(Qt.Key_Up)

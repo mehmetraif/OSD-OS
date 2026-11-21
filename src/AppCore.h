@@ -2,8 +2,8 @@
 #ifndef APP_BUILD
 #define APP_BUILD ""
 #endif
+#include "util/CachedJsonFile.h"
 #include "util/LegacyNames.h"
-#include <QDateTime>
 #include <QObject>
 #include <QStringList>
 #include <QVariant>
@@ -24,6 +24,10 @@ struct ModuleEntry {
     QString iconRel;     // relative to module folder, e.g. "assets/images/logo.svg"
     QVariantList settings;
     QString settingsGroup; // "tv", "arcade" or "": where Settings lists its page
+    // The manifest's "menu_order": its place in its group on the main menu,
+    // lower first; none (hasMenuOrder false) after those with one, by name.
+    double menuOrder = 0;
+    bool hasMenuOrder = false;
     // What its "enabled" toggle defaults to in the manifest (true without one).
     bool enabledByDefault = true;
 };
@@ -94,6 +98,10 @@ public:
     Q_INVOKABLE void scan_for_modules();
     Q_INVOKABLE QVariant get_settings();
     Q_INVOKABLE QVariant get_setting(const QString &moduleId, const QString &key);
+    // A toggle's setting, on or off: saved as true or false, or in an older
+    // config as the manifest's "ON" or "OFF" (in any case); `fallback`, its
+    // manifest default, while nothing is saved, or what is saved is neither.
+    Q_INVOKABLE bool setting_on(const QString &moduleId, const QString &key, bool fallback);
     // False when config.json couldn't be written (a full or read-only card):
     // nothing then changes, and no setting changed is signalled.
     Q_INVOKABLE bool save_setting(const QString &moduleId, const QString &key, const QVariant &value);
@@ -254,8 +262,18 @@ private:
     // is held any more.
     bool saveConfig(const QJsonObject &config);
     bool saveSettings(const QString &moduleId, const QList<std::pair<QString, QVariant>> &values);
-    // A setting put in a config: an app's (moduleId empty) or a module's, a
-    // key with a dot as a value of a value ("libraries.key").
+    // A setting's key as config.json nests it: one with a single dot is a
+    // value of a value ("libraries.key": target["libraries"]["key"]), any
+    // other a value of its own, dots and all. settingKey() is the way back.
+    static QStringList settingPath(const QString &key);
+    static QString settingKey(const QString &value, const QString &subkey) {
+        return value + QLatin1Char('.') + subkey;
+    }
+    // False, with a line in the log, when config.json is there but isn't
+    // valid JSON: saving a setting would write the defaults over it.
+    bool configWritable(const QString &moduleId, const QString &key) const;
+    // A setting put in a config: an app's (moduleId empty) or a module's, by
+    // its key's path (settingPath()).
     static void putSetting(QJsonObject *config, const QString &moduleId, const QString &key, const QVariant &value);
     // A setting changed, told: appSettingChanged or moduleSettingChanged,
     // and the status icons again for a module turned on or off.
@@ -265,11 +283,14 @@ private:
     bool writeHeld(bool tell);
     QJsonObject loadLists(bool *broken = nullptr) const;
     bool listsToChange(QJsonObject *lists) const;
-    bool saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name) const;
+    bool saveLists(const QJsonObject &lists, const QString &moduleId, const QString &name);
     // The module with this id, or null.
     const ModuleEntry *findModule(const QString &moduleId) const;
     // APP_ROOT-relative QML entry point of a module ("modules/plex/views/Root.qml").
     static QString entryPointOf(const ModuleEntry &m);
+    // Whether a comes before b on the main menu: by group (TV / Movie, Arcade,
+    // the rest), then by menu_order, then by name.
+    static bool menuOrderBefore(const ModuleEntry &a, const ModuleEntry &b);
     QString moduleIdForBackend(QObject *backend) const;
     // Extra top-level menu rows a module's backend wants to contribute. Probed,
     // not connected — see the comment at the call site in scan_for_modules.
@@ -287,13 +308,9 @@ private:
     QString m_dataRoot;
     // saveLogs()'s copy.
     LogSaver *m_logSaver = nullptr;
-    // config.json as last read, good for as long as the file's time and
-    // size stay (loadConfig()): every get_setting() read and parsed the file
-    // anew, a dozen times and more as a video started.
-    mutable QJsonObject m_configCache;
-    mutable QDateTime   m_configCacheModified;
-    mutable qint64      m_configCacheSize = -1;
-    mutable bool        m_configCacheValid = false;
+    // config.json and lists.json as last read or written (CachedJsonFile).
+    CachedJsonFile m_config;
+    CachedJsonFile m_lists;
     // What save_setting_soon() holds back from the file, the newest value of
     // each setting, in the order they first changed; and the timer that
     // writes them once the steps rest. Only the changes are held, not a copy
@@ -302,12 +319,8 @@ private:
     struct HeldSetting { QString moduleId; QString key; QVariant value; };
     QList<HeldSetting> m_held;
     QTimer *m_settle = nullptr;
-    // lists.json the same way (loadLists()): the Arcade screen asks for a
-    // list at every page of games, a tree for each list it opens.
-    mutable QJsonObject m_listsCache;
-    mutable QDateTime   m_listsCacheModified;
-    mutable qint64      m_listsCacheSize = -1;
-    mutable bool        m_listsCacheValid = false;
+    // Every module with a manifest, in the main menu's order (menuOrderBefore()):
+    // what lists the modules takes them in this order.
     QList<ModuleEntry> m_modules;
     QMap<QString, QObject*> m_backends;
     QStringList m_statusIcons;

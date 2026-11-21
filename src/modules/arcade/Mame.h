@@ -1,5 +1,6 @@
 #pragma once
 #include <QByteArray>
+#include <QFileInfo>
 #include <QHash>
 #include <QList>
 #include <QPair>
@@ -30,7 +31,6 @@ QString downloadedMame(const QString &dataRoot);
 // else Debian's own. "" when there is none.
 QString pluginsFolder(const QString &program);
 
-// A machine as -listxml describes it: what the game list shows and sorts by.
 // A DIP switch, as -listxml has it: its port's tag, its bits (mask), the
 // value it is set to on the board (its default) and each of its settings,
 // a name and the bits, in MAME's order.
@@ -50,6 +50,7 @@ struct Dip {
 // "Difficulty", "Game Difficulty", "Difficulty Level".
 bool isDifficulty(const QString &dipName);
 
+// A machine as -listxml describes it: what the game list shows and sorts by.
 struct Machine {
     QString name;          // its short name, its set's: "pacman"
     QString description;   // "Pac-Man (Midway)"
@@ -115,7 +116,10 @@ private:
 // starts and writes as it ends) with a DIP switch set to value: its port in
 // the game's input, as MAME writes one (tag, DIPSWITCH, mask, its default
 // and the value), in place of any it had of that switch; the rest of the
-// file as it was. A new file for none, or one MAME can't read.
+// file as it was. A new file for none, or one MAME can't read. The file as
+// it is, to the byte, where it sets the switch so already: its one port
+// with the value, or no port of it (and no file) for the board's own
+// setting, as MAME writes none for a switch at its default.
 QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip, int value);
 
 // What MAME is told of the screen (Settings → Arcade → Emulator Video): its
@@ -127,17 +131,30 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
 // spread over them, as MAME would otherwise draw it once and cut it. fill
 // (Game Picture on Fit to Screen): the picture stretched over the whole
 // screen, whatever its shape, and none of the rest. monitor: Settings →
-// Screen → Monitor, a monitor turned on its side ("Turned Right", "Turned
+// Screen → Rotation, a monitor turned on its side ("Turned Right", "Turned
 // Left"), against which the picture is turned to stand upright on it (-rol,
 // -ror): a vertical game's lines then lie along the screen's, a horizontal
 // game's width across them.
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer,
                             bool fill = false, const QString &monitor = QString());
+// A monitor turned on its side, as Settings → Screen → Rotation, Vertical
+// Games and a game's own options name it; isTurned(): whether a value is
+// either (else Horizontal, or a game's Default).
+inline constexpr QLatin1String kTurnedRight("Turned Right");
+inline constexpr QLatin1String kTurnedLeft("Turned Left");
+inline bool isTurned(const QString &monitor) {
+    return monitor == kTurnedRight || monitor == kTurnedLeft;
+}
 
 // A set's file or folder name MAME may know: letters, digits and underscores
 // only. Anything else (a space, a wildcard MAME would match against every
 // machine it has) can't be one, and MAME isn't asked about it.
 bool isShortName(const QString &name);
+
+// A file as it is now, to tell when it has changed: its size and when it was
+// last written; "" for none. What a file read is kept against, by the Arcade
+// module (games.json's, romcheck.json's) and by High Scores (scores.json's).
+QString stampOf(const QFileInfo &file);
 
 // The maker a game is listed under: "Namco (Midway license)" → "Namco",
 // "Capcom / Mitchell" → "Capcom"; a company under its own name whichever of
@@ -195,9 +212,20 @@ QString genreOf(const QString &category);
 // be read.
 QHash<QString, QString> readGenres(const QString &path);
 
+// How the credits bought on the Arcade screen go in, in MAME
+// (coinScript()) and in FinalBurn Neo (libretro::coinDown()) alike: from
+// kCoinDelayMs into the game, past the start-up checks most boards run
+// (Galaga's RAM and ROM test, the Neo-Geo BIOS's); each coin held
+// kCoinHoldMs and let go kCoinGapMs, as a coin mech's switch would be:
+// games read it once a frame, and some count a coin only once it has been
+// there a few frames.
+inline constexpr int kCoinDelayMs = 5000;
+inline constexpr int kCoinHoldMs = 100;
+inline constexpr int kCoinGapMs = 200;
 // The Lua MAME runs as the game starts (-autoboot_script) to put the credits
 // bought on the Arcade screen in: player 1's coin pressed that many times,
-// from a few seconds in, once the game is past its start-up checks.
+// timed by the game's own clock, so a game MAME warns about first waits for
+// it.
 QString coinScript(int coins);
 
 // The controller file MAME is started with (-ctrlr): each player's controller

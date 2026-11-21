@@ -34,10 +34,10 @@ FocusScope {
     // (editIndex), and Cabinet Lock at the first screen's foot as Key
     // Protect; Flat Panel a page of rows at a time.
     readonly property string layout: root.menuLayout
-    readonly property bool camcorder: layout === "Camcorder"
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool camcorder: root.camcorderLayout
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     // In the shell's frame (Main.qml's root.chrome, a MonitorChrome), its
     // rows drawn by MonitorRow, in the layout's own colours.
     readonly property bool monitor: studio || broadcast || flat
@@ -51,12 +51,18 @@ FocusScope {
     // Each first-screen row's icon (PixelIcon's names), by its key or type.
     readonly property var pageIcons: ({ group_tv: "tv", group_arcade: "joystick", group_look: "sparkle",
                                         group_screen: "monitor", group_sound: "speaker", remap_controls: "gamepad",
-                                        group_network: "antenna", group_startup: "power", group_system: "gear",
+                                        group_network: "antenna", group_startup: "play", group_system: "gear",
                                         quit: "eject", group_status: "status" })
+    // Quit's under autostart (the OSD/OS image), where it is a power menu:
+    // the power symbol.
+    function pageIcon(row) {
+        var key = pageKey(row)
+        return key === "quit" && autostartSession ? "power" : pageIcons[key] || ""
+    }
     // Studio Monitor's first page, before the first screen's.
     readonly property var statusPage: ({ type: "submenu", key: "group_status", label: "Status",
                                          description: "What is set, at a glance: the outputs, the network, the theme and what OSD/OS starts on",
-                                         moduleId: "" })
+                                         moduleId: "", page: "views/Settings.qml", params: { group: "status" } })
     // The page a first-screen row opens in this view, "" for one that is a
     // view of its own.
     function pageGroup(row) {
@@ -193,7 +199,9 @@ FocusScope {
     readonly property var monitorGuide: {
         var h = root.hints
         if (studio)
-            return [h.navigate + ":MENU/ITEM", (inIcons() ? h.browse + ":ENTER" : h.change + ":CHANGE"), h.back + ":BACK"]
+            return [h.navigate + ":MENU/ITEM"].concat(inIcons() ? [h.browse + ":ENTER"]
+                                                      : rowHints.map(function(part) { return root.hintLine([part]) }),
+                                                      [h.back + ":BACK"])
         if (broadcast)
             return editIndex >= 0 ? ["TO CHANGE  :" + h.navigate, "TO CONFIRM :" + h.select, "TO CANCEL  :" + h.back]
                                   : ["TO SELECT  :" + h.navigate, "TO ENTER   :" + h.select, "TO CANCEL  :" + h.back]
@@ -239,15 +247,17 @@ FocusScope {
     // OSD-OS partition, which a computer shows as a drive (AppCore::saveLogs).
     property bool canSaveLogs: false
     readonly property var saveLogsOption: settingsRoot.canSaveLogs ? [{ label: "Save Logs", action: "logs" }] : []
+    // The answer that keeps the session first, under the cursor as the
+    // question opens: select twice never ends it.
     property var quitOptions: settingsRoot.autostartSession
-        ? [{ label: "Power Off",        action: "quit"     }]
+        ? [{ label: "Cancel",           action: "cancel"   },
+           { label: "Power Off",        action: "quit"     }]
           .concat(settingsRoot.canRestart ? [{ label: "Restart", action: "restart" }] : [])
           .concat([{ label: "Exit to Terminal", action: "terminal" }])
           .concat(saveLogsOption)
-          .concat([{ label: "Cancel",           action: "cancel"   }])
-        : [{ label: "Yes", action: "quit" }]
+        : [{ label: "No",  action: "cancel" },
+           { label: "Yes", action: "quit" }]
           .concat(saveLogsOption)
-          .concat([{ label: "No",  action: "cancel" }])
 
     // The page made, or made again where what it is made from may have
     // changed (a theme chosen, settings pasted, the layout, a row another
@@ -282,7 +292,7 @@ FocusScope {
         builtLayout = layout
         builtIcons = iconMenu
         var pages = iconMenu ? (studio ? [statusPage] : []).concat(first) : []
-        var icons = pages.map(function(row) { return { icon: pageIcons[pageKey(row)] || "" } })
+        var icons = pages.map(function(row) { return { icon: pageIcon(row) } })
         pageIconList = icons
         camPages = pages.map(function(row, i) { return { row: row, icon: icons[i].icon } })
     }
@@ -318,7 +328,9 @@ FocusScope {
         var saved = soon ? appCore.save_setting_soon(row.moduleId, row.key, value)
                          : appCore.save_setting(row.moduleId, row.key, value)
         saving = false
-        if (saved)
+        // A module's setting (a module row's on or off) is not one of the
+        // app's.
+        if (saved && !row.moduleId)
             appSettings[row.key] = value
         return saved
     }
@@ -370,6 +382,17 @@ FocusScope {
         var start = at !== undefined ? Math.min(at, items.length - 1)
                   : navListState.currentIndex !== undefined ? Math.min(navListState.currentIndex, items.length - 1) : 0
         start = Math.max(0, start)
+        // A page opened at its top starts on its first row that can be
+        // used, not on one dimmed (Display Output off a Pi), where there is
+        // one.
+        if (start === 0) {
+            for (var u = 0; u < items.length; u++) {
+                if (settingsList.stopsAt(u) && offReason(u) === "") {
+                    start = u
+                    break
+                }
+            }
+        }
         var stop = settingsList.selectableFrom(start, 1)
         settingsList.currentIndex = settingsList.stopsAt(stop) ? stop : start
         settingsList.show(settingsList.currentIndex)
@@ -441,17 +464,63 @@ FocusScope {
     }
 
     // Paste OSD/OS Setup: the clipboard's text, through a box no one sees
-    // (QML reads the clipboard only so), set at once; then what became of
-    // it, over the rows as they are now.
+    // (QML reads the clipboard only so). Where it holds OSD/OS Setup's
+    // settings (setupText(), as AppCore's reading of them starts) the
+    // question first, Cancel under the cursor, then PASTE sets them; else
+    // a notice says there is nothing to paste, and nothing is asked. Then
+    // what became of it, over the rows as they are now.
     property var pasted: ({})
     function pasteSetup() {
         clipboardBox.text = ""
         clipboardBox.paste()
+        var why = setupTextProblem(clipboardBox.text)
+        if (why !== "") {
+            clipboardBox.text = ""
+            pasted = { ok: false, title: "Nothing to paste", detail: why }
+            pastedNotice.open()
+            return
+        }
+        pasteConfirm.open()
+    }
+    // Why the text isn't OSD/OS Setup's settings, "" when it is: JSON with
+    // its osdos_setup number (AppCore::applySetupText() says the rest, a
+    // version this OSD/OS doesn't know).
+    function setupTextProblem(text) {
+        var copy = "Copy the settings on OSD/OS Setup's page first (osdos.tv/setup, Copy for a computer)"
+        if (String(text).trim() === "")
+            return "The clipboard is empty. " + copy
+        var file = null
+        try {
+            file = JSON.parse(text)
+        } catch (e) {
+            file = null
+        }
+        if (!file || typeof file !== "object" || typeof file.osdos_setup !== "number")
+            return "The clipboard holds no OSD/OS Setup settings. " + copy
+        return ""
+    }
+    function applyPaste() {
         pasted = appCore.applySetupText(clipboardBox.text)
         // Its passwords not kept about.
         clipboardBox.text = ""
         buildModel(settingsList.currentIndex)
         pastedNotice.open()
+    }
+    ChoiceOverlay {
+        id: pasteConfirm
+        objectName: "pasteConfirm"
+        anchors.fill: parent
+        promptText: "Paste these settings?"
+        subtitleText: "OSD/OS's own settings and the RetroAchievements account, from the clipboard, in place of those set here"
+        choices: [{ label: "Cancel", action: "cancel" }, { label: "Paste", action: "paste" }]
+        // Its text gone with the answer, whichever it is.
+        onActivated: function(act) {
+            if (act === "paste")
+                settingsRoot.applyPaste()
+            clipboardBox.text = ""
+        }
+        onCanceled: clipboardBox.text = ""
+        onClosed: settingsRoot.keysBack()
     }
 
     TextEdit {
@@ -471,6 +540,8 @@ FocusScope {
     // were, as listState() left them.
     Component.onCompleted: {
         core = appCore
+        if (group === "system" && info)
+            info.refresh()
         if (iconMenu && group === "") {
             // The first screen's row, after Studio Monitor's STATUS.
             camIndex = navListState.currentIndex === undefined || navListState.page === "group_status" ? 0
@@ -568,7 +639,7 @@ FocusScope {
         // A slider's step toward one end (-1 left, 1 right), kept and in
         // force at once, and saved once the steps rest or the page is left
         // (AppCore::save_setting_soon()): saved at every step, the key held
-        // down wrote config.json to the card ten times across the bar.
+        // down would write config.json to the card ten times across the bar.
         // One that is off turns on instead, where its bar waits. A row whose
         // value couldn't be saved (a full card) stays on what is saved, here
         // and in the list ones below; a slider's goes back to it once the
@@ -590,8 +661,13 @@ FocusScope {
         function toggleSlider() {
             var row = settingsItems[currentIndex]
             var on = !row.on
-            if (settingsRoot.save(row, on ? row.value : row.offValue))
-                replaceCurrentRow(Object.assign({}, row, { on: on }))
+            if (!settingsRoot.save(row, on ? row.value : row.offValue))
+                return
+            replaceCurrentRow(Object.assign({}, row, { on: on }))
+            // Its bar's lines come and go with it (SettingRow): the rows
+            // under it laid out again, and the bar brought into view.
+            forceLayout()
+            show(currentIndex)
         }
 
         // A list row's choice, one step back (-1) or on (1), saved and shown;
@@ -605,13 +681,32 @@ FocusScope {
             var opts = row.options
             if (newIdx < 0 || opts[newIdx] === row.value)
                 return
+            // The system's own (SSH): asked of the system, which says how it
+            // went (Setting, then as it is, or why not); nothing of the app's
+            // saved. Not again while one is on its way.
+            if (row.systemSetting) {
+                if (settingsRoot.system && !settingsRoot.system.busy)
+                    settingsRoot.system.setSsh(opts[newIdx] === "On")
+                return
+            }
             if (!settingsRoot.save(row, row.values ? row.values[newIdx] : opts[newIdx]))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")
                 settingsRoot.themeChosen()
-            // Cabinet Lock's row says whether it has a module to stay on.
-            else if (row.key === "startup_module")
+            // Cabinet Lock's row says whether it has a module to stay on; Scaling's help
+            // whether 14:9 and Pan & Scan work (1080p Playback).
+            else if (row.key === "startup_module" || row.key === "smooth_playback")
+                settingsRoot.buildModel(currentIndex)
+        }
+        // A module's row: the module turned on or off (its "enabled", as its
+        // own page's ENABLED saves it), the page made again from what the
+        // modules are now (Info Screen and Start On follow them). In
+        // Broadcast and Flat Panel, which change a value in two steps,
+        // ► and select open its page, where ENABLED is.
+        function toggleModule() {
+            var row = settingsItems[currentIndex]
+            if (settingsRoot.save(row, !row.on))
                 settingsRoot.buildModel(currentIndex)
         }
         // A slider set at once (a monitor layout's second step): a value,
@@ -632,38 +727,20 @@ FocusScope {
         // Output's list, a file's picker, Quit's question. ► opens it too,
         // and its line ends in a ►.
         function opens(row) {
-            return !!row && (row.type === "submenu" || row.type === "display_output"
+            return !!row && (row.type === "submenu" || row.type === "module" || row.type === "display_output"
                              || row.type === "file" || row.type === "quit" || row.type === "paste_setup")
         }
 
         function openRow(row) {
-            if (row.type === "submenu") {
-                if (row.key === "software_update")
-                    settingsRoot.navigateTo("views/Update.qml", {}, settingsRoot.listState())
-                else if (row.key === "remap_controls")
-                    settingsRoot.navigateTo("views/Controllers.qml", {}, settingsRoot.listState())
-                else if (row.key === "wifi")
-                    settingsRoot.navigateTo("views/Wifi.qml", {}, settingsRoot.listState())
-                else if (row.key === "bluetooth")
-                    settingsRoot.navigateTo("views/Bluetooth.qml", {}, settingsRoot.listState())
-                else if (row.key === "about")
-                    settingsRoot.navigateTo("views/About.qml", {}, settingsRoot.listState())
-                else if (row.key === "export_setup")
-                    settingsRoot.navigateTo("views/SetupExport.qml", {}, settingsRoot.listState())
-                else if (row.key === "test_patterns")
-                    settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
-                else if (row.key === "cabinet_lock")
-                    settingsRoot.navigateTo("views/CabinetLock.qml", {}, settingsRoot.listState())
-                else if (row.key === "time_zone" || row.key === "keyboard")
+            if (row.type === "submenu" || row.type === "module") {
+                // A row that leads to a page names it (`page`, `params`:
+                // SettingsPages.js); the rest open over this one.
+                if (row.key === "time_zone" || row.key === "keyboard")
                     settingsRoot.openSystemPicker(row.key)
                 else if (row.key === "mpv_video_args")
                     videoArgsKeyboard.open(String(appSettings["mpv_video_args"] || ""))
-                else if (row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade")
-                    settingsRoot.navigateTo("views/Settings.qml", { group: row.key.substring(6) },
-                                            settingsRoot.listState())
                 else
-                    settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
-                                            settingsRoot.listState())
+                    settingsRoot.navigateTo(row.page, Object.assign({}, row.params), settingsRoot.listState())
             } else if (row.type === "display_output") {
                 outputPrompts.open()
             } else if (row.type === "file") {
@@ -698,6 +775,8 @@ FocusScope {
                 moveSlider(-1)
             else if (row && row.type === "list_single")
                 cycleList(-1)
+            else if (row && row.type === "module")
+                toggleModule()
         }
 
         Keys.onRightPressed: {
@@ -717,6 +796,8 @@ FocusScope {
                 moveSlider(1)
             else if (row && row.type === "list_single")
                 cycleList(1)
+            else if (row && row.type === "module")
+                toggleModule()
             else if (opens(row))
                 openRow(row)
         }
@@ -772,7 +853,7 @@ FocusScope {
         // A line that leads to a page ends in a ►; a list's choice, which
         // ◄ ► change, stands between a ◄ and a ►. A slider's setting is the
         // deck's tape bar under its line, ◄ ► moving the ▼ between the two
-        // ends; off, or dimmed, its lines stay, empty. In a monitor layout
+        // ends; off, or dimmed, it is its line alone. In a monitor layout
         // a slider is its line alone, its value a number (shownValue()).
         delegate: SettingRow {
             id: rowItem
@@ -786,6 +867,7 @@ FocusScope {
             label: row.label || ""
             value: monitor ? (settingsRoot.editIndex, settingsRoot.editValue, settingsRoot.shownValue(row, index))
                  : row.type === "list_single" || row.type === "display_output" || row.type === "file" || row.type === "submenu"
+                   || row.type === "module"
                  ? (row.value || "")
                  : slider && row.on !== undefined ? (row.on ? "On" : "Off") : ""
             editing: settingsRoot.editIndex === index
@@ -824,31 +906,91 @@ FocusScope {
     // line that scrolls when it is too long for the box.
     // A dimmed row's says first why it can't be used now.
     // In Camcorder's icons, the page's.
-    readonly property var helpRow: inIcons() ? (camPages[camIndex] || {}).row : settingsItems[settingsList.currentIndex]
+    // Read again as a row changes in place (revision), its value with it.
+    readonly property var helpRow: (revision, inIcons() ? (camPages[camIndex] || {}).row : settingsItems[settingsList.currentIndex])
     readonly property string helpOff: inIcons() ? "" : (revision, offReason(settingsList.currentIndex))
     // "[ENTER]" in a row's description is select's name on the controller in
     // use, as the hint bar has it.
+    // A theme's part on THEME opens with what the theme has for it
+    // (themeValue: "Theme's: Glow", "Theme's: none").
     readonly property string helpText: (helpOff !== "" ? helpOff + "\n" : "")
+                                       + (helpRow && helpRow.themeValue !== undefined && helpValue === "Theme"
+                                          ? "Theme's: " + helpRow.themeValue + "\n" : "")
                                        + ((helpRow && helpRow.description) || "").split("[ENTER]").join(root.hints.select)
+    // The value on the row, as it shows it (the one being changed, in a
+    // value's second step): the help line has the row's first part and that
+    // value's [ ] alone (HelpLine's value). A page's row in the icons has
+    // none: its line whole.
+    function helpValueOf(row, index) {
+        if (!row || inIcons())
+            return ""
+        if (row.type === "slider")
+            return index === editIndex ? shownValue(row, index) : row.on === undefined ? "" : row.on ? "On" : "Off"
+        var v = index === editIndex ? editValue : row.value
+        return v === undefined || v === null ? "" : String(v)
+    }
+    readonly property string helpValue: (revision, editIndex, editValue,
+                                         helpValueOf(helpRow, settingsList.currentIndex))
     HelpLine {
         objectName: "helpLine"
         visible: text !== ""
         text: settingsRoot.helpText
+        value: settingsRoot.helpValue
     }
 
-    // --- FOOTER ---
     HintBar {
         id: footer
         guide: settingsRoot.monitor ? settingsRoot.monitorGuide : []
-        text: root.hintLine(["back:BACK", "navigate:NAVIGATE", settingsRoot.inIcons() ? "browse:OPEN" : "change:CHANGE",
-                             "select:SELECT"])
+        // A row with two keys of its own (a module's, a slider that can be
+        // off) leaves NAVIGATE out, which the list makes plain: the line then
+        // fits the bar at its own size, as every other does.
+        text: root.hintLine(["back:BACK", settingsRoot.rowHints.length > 1 ? "" : "navigate:NAVIGATE"]
+                            .concat(settingsRoot.rowHints))
+    }
+    // The keys the row under the cursor takes, as its hint bar names them
+    // (root.hintLine()'s parts), as a controller's page words its own: a
+    // page's in the icons opens; a row that opens a page, a picker or a
+    // question OPEN (PASTE for Paste OSD/OS Setup); a list CHANGE; a slider
+    // that can be off CHANGE and select's ON/OFF; a module's row ◄ ►'s
+    // ON/OFF and select's SETTINGS; a dimmed row none but back's and the
+    // cursor's.
+    readonly property var rowHints: {
+        if (inIcons())
+            return ["browse:OPEN"]
+        var row = (revision, settingsItems[settingsList.currentIndex])
+        if (!row || row.type === "info" || (revision, offReason(settingsList.currentIndex)) !== "")
+            return []
+        if (row.type === "module")
+            return root.twoStep ? ["select:SETTINGS"] : ["change:ON/OFF", "select:SETTINGS"]
+        if (row.type === "paste_setup")
+            return ["select:PASTE"]
+        if (settingsList.opens(row))
+            return ["select:OPEN"]
+        if (row.type === "slider" && row.on !== undefined)
+            return root.twoStep ? ["select:CHANGE"] : ["change:CHANGE", "select:ON/OFF"]
+        if (row.type === "list_single" || row.type === "slider")
+            return [root.twoStep ? "select:CHANGE" : "change:CHANGE"]
+        return []
     }
 
-    // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---
+    // The keys back from a question or a notice that closed: to another
+    // still open, the topmost first, else to the rows. A notice opens by
+    // itself (At Next Start's answer, a time zone or keyboard refused), so
+    // over a question that may still be open, and is drawn over it (z).
+    function keysBack() {
+        if (outputPrompts.takeKeys())
+            return
+        var open = [systemNotice, logsNotice, quitPrompt, pastedNotice, pasteConfirm, videoArgsKeyboard, systemPicker]
+                   .filter(function(overlay) { return overlay.visible })
+        var front = open.length > 0 ? open[0] : settingsList
+        front.forceActiveFocus()
+    }
+
     DisplayOutputPrompts {
         id: outputPrompts
         anchors.fill: parent
-        onClosed: settingsList.forceActiveFocus()
+        z: 1
+        onClosed: settingsRoot.keysBack()
     }
 
     // Window Mode switched from the keyboard (F11) while the page is open:
@@ -904,7 +1046,7 @@ FocusScope {
             // A card not yet given a zone is on Etc/UTC, the list's UTC.
             systemPicker.open(system.timeZone === "Etc/UTC" ? "UTC" : system.timeZone)
         } else {
-            systemPicker.title = "Keyboard"
+            systemPicker.title = "Keyboard Layout"
             systemPicker.message = "The keyboard's layout at Exit to Terminal"
             systemPicker.groupName = "LETTER"
             systemPicker.entries = system.keyboards.map(function(k) {
@@ -924,18 +1066,32 @@ FocusScope {
             else
                 settingsRoot.system.setKeyboard(value)
         }
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
     // The rows follow the system as it is read again, and as one is on its
-    // way (Setting); one that couldn't be set says why.
+    // way (Setting); one that couldn't be set says why ("Keyboard not set:
+    // …", "SSH not turned on: …", SystemSettings' wordings).
     Connections {
         target: settingsRoot.system
         ignoreUnknownSignals: true
         function onChanged() { settingsRoot.followSystem() }
         function onBusyChanged() { settingsRoot.followSystem() }
         function onMessageChanged() {
-            if (settingsRoot.system.message.indexOf(" not set: ") > 0)
+            if (/ not (set|turned on|turned off): /.test(settingsRoot.system.message))
                 systemNotice.open()
+        }
+    }
+    // System Information's row: the device's name read again as the page
+    // opens (in case it was changed outside OSD/OS), and the row following
+    // it as it changes.
+    readonly property var info: typeof systemInfo !== "undefined" && systemInfo ? systemInfo : null
+    Connections {
+        target: settingsRoot.info
+        ignoreUnknownSignals: true
+        function onChanged() {
+            var shown = settingsRoot.settingsItems.filter(function(r) { return r.key === "system_info" })[0]
+            if (shown && shown.value !== settingsRoot.info.deviceName && settingsRoot.editIndex < 0)
+                settingsRoot.buildModel(settingsList.currentIndex)
         }
     }
     // Made again only while the two rows are on the page, the cursor kept,
@@ -948,13 +1104,14 @@ FocusScope {
         id: systemNotice
         objectName: "systemNotice"
         anchors.fill: parent
+        z: 1
         promptKind: "notice"
         readonly property var parts: (settingsRoot.system ? settingsRoot.system.message : "").split(": ")
         promptText: parts[0] || ""
         subtitleText: parts.slice(1).join(": ")
         choices: []
         onClosed: {
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
             if (settingsRoot.system)
                 settingsRoot.system.clearMessage()
         }
@@ -973,7 +1130,7 @@ FocusScope {
         maxLength: 120
         onAccepted: function(text) {
             videoArgsKeyboard.close()
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
             if (appCore.save_setting("", "mpv_video_args", text.trim())) {
                 settingsRoot.appSettings = Object.assign({}, settingsRoot.appSettings, { mpv_video_args: text.trim() })
                 settingsRoot.buildModel(settingsList.currentIndex)
@@ -981,7 +1138,7 @@ FocusScope {
         }
         onCanceled: {
             videoArgsKeyboard.close()
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
         }
     }
 
@@ -992,14 +1149,14 @@ FocusScope {
         promptText: settingsRoot.pasted.title || ""
         subtitleText: settingsRoot.pasted.detail || ""
         choices: []
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 
     // --- QUIT CONFIRMATION OVERLAY ---
     ChoiceOverlay {
         id: quitPrompt
         anchors.fill: parent
-        promptText: "Really quit?"
+        promptText: settingsRoot.autostartSession ? "Power off?" : "Really quit?"
         choices: quitOptions
         onActivated: function(act) {
             if (act === "quit")          Qt.quit()
@@ -1007,7 +1164,7 @@ FocusScope {
             else if (act === "terminal") appCore.exitToTerminal()
             else if (act === "logs")     settingsRoot.saveLogs()
         }
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 
     // --- SAVE LOGS ---
@@ -1044,6 +1201,6 @@ FocusScope {
                     : saved ? "On the card's OSD-OS drive, in " + detail.replace(/\//g, "\\")
                     : detail
         choices: []
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 }

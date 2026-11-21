@@ -169,7 +169,7 @@ Select **Search**, type on the on-screen keyboard and choose OK. The results are
 A video's info screen shows its title, channel, date and description, then CHANNEL, DATE, LENGTH and VIEWS.
 
 - It opens with ► on a video, or by itself once the cursor rests on one.
-- **Settings → TV / Movie → Info Screen** sets when: after 1, 2, 3 (the default) or 5 seconds, **Key** for ► only, or **Off**.
+- **Settings → TV / Movie → Info Screen** sets when: after 1, 2, 3 (the default) or 5 seconds, **With ►** for ► only, or **Off**.
 - Length and views take a few seconds on a Pi.
 - Select plays. ▲ ▼ close it and move through the list. ◄ or back closes it. ► offers the options.
 
@@ -184,7 +184,7 @@ A video's info screen shows its title, channel, date and description, then CHANN
 
 ### Shorts
 
-With **Display Shorts** (Advanced, on by default) off, Shorts are hidden in channel feeds and search results, and when adding videos in the Playlists module. Playlists, Recently Watched and Watch Later always show them. A favourite keeps the mark it had when added.
+With **Show Shorts** (on by default) off, Shorts are hidden in channel feeds and search results, and when adding videos in the Playlists module. Playlists, Recently Watched and Watch Later always show them. A favourite keeps the mark it had when added.
 
 ## Playing
 
@@ -196,6 +196,7 @@ The position is kept when you stop more than 5 seconds in. A video watched to 95
 
 - **Resume Playback: Ask** (the default) asks **Resume from 12:34** or **Start from the beginning**.
 - **Resume Playback: Always** carries on without asking.
+- **Resume Playback: Never** starts from the beginning without asking.
 - A video still playing behind the menus carries on where it is.
 
 Positions live in `youtube_history.json`; **Delete Recently Watched** forgets them.
@@ -204,10 +205,10 @@ Positions live in `youtube_history.json`; **Delete Recently Watched** forgets th
 
 Back during a video opens its menu; back again returns to the video.
 
-1. Playback Resolution, Video Codec, Max Frame Rate, Scaling, Audio Language, Subtitles, Subtitle Language and Playback Speed. ◄ ► change and save one.
-2. **Add to Favorites**, **Play at Startup**, **Save to Watch Later** (or their opposites).
-3. **Browse YouTube**: back to the tree.
-4. **Close Video**: to the main menu.
+1. **Back to YouTube**: back to the tree.
+2. **Stop, to Main Menu**: ends the video and goes to the main menu.
+3. Subtitles, Subtitles In, Audio Language, Playback Speed, Scaling and Max Resolution. ◄ ► change and save one. Video Codec and Max Frame Rate are in YouTube's settings, under **Advanced**.
+4. **Add to Favorites**, **Play at Startup**, **Save to Watch Later** (or their opposites).
 
 With Transparent Background the video plays on under the menu; without it, the video stops for the menu ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu)).
 
@@ -215,20 +216,16 @@ If mpv fails before the video starts, OSD/OS shows **Playback failed: Please che
 
 ## The Advanced settings, and what yt-dlp is asked for
 
-Settings → TV / Movie → YouTube → **Advanced**. The keys sit directly under `modules.com.osdos.youtube` and are read each time a video starts.
+Settings → TV / Movie → YouTube → **Advanced**: the picture and the speed. The keys sit directly under `modules.com.osdos.youtube`, as the first page's do, and are read each time a video starts.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Playback Resolution | 240p, 360p, 480p, 720p, 1080p, 1440p, 2160p | 480p | The most a video plays at. 1440p and 2160p need Video Codec **Any**: YouTube has H.264 only up to 1080p. | `playback_resolution` |
+| Max Resolution | 240p, 360p, 480p, 720p, 1080p, 1440p, 2160p | 480p | The most a video plays at. 1440p and 2160p need Video Codec **Any**: YouTube has H.264 only up to 1080p. | `playback_resolution` |
 | Video Codec | H.264, Any | H.264 | **H.264**: decoded in hardware on a Pi; another codec only where a video lacks it. **Any**: often VP9 or AV1, decoded in software. | `video_codec` |
 | Max Frame Rate | Any, 30 | Any | **30**: 30 fps where a video also has 60. Lighter on a Pi. | `max_frame_rate` |
-| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills a 4:3 screen. **Default** follows Settings → TV / Movie → Scaling. | `video_scaling` |
-| Audio Language | Original (`original`), English (`en`), Spanish (`es`), French (`fr`), German (`de`), Italian (`it`), Portuguese (`pt`), Dutch (`nl`), Polish (`pl`), Russian (`ru`), Turkish (`tr`), Arabic (`ar`), Hindi (`hi`), Indonesian (`id`), Japanese (`ja`), Korean (`ko`), Chinese (`zh`) | Original | The audio track of a dubbed video; the original where the language is missing. | `audio_language` |
-| Subtitles | Off, On, With Auto | Off | **On**: the video's subtitles in Subtitle Language. **With Auto**: automatic captions too. | `subtitles` |
-| Subtitle Language | English … Chinese (the same 16 codes) | English | The language Subtitles shows. | `subtitle_language` |
 | Playback Speed | 0.75x, 1x, 1.25x, 1.5x, 1.75x, 2x | 1x | | `playback_speed` |
-| Resume Playback | Ask, Always | Ask | See [Resume](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#resume). | `resume_playback` |
-| Display Shorts | On, Off | On | See [Shorts](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#shorts). | `display_shorts` (`true`/`false`) |
+
+The first page holds the rest: Subtitles, Subtitles In, Audio Language, Resume Playback, Scaling and Show Shorts ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#settings)).
 
 A language code also matches its regional variants (`pt` takes `pt-BR`).
 
@@ -255,10 +252,10 @@ bestvideo[height<=?480][vcodec^=avc1]+bestaudio/bestvideo[height<=?480]+bestaudi
 | `--ytdl=yes` | Always. |
 | `--ytdl-format=<format>` | Always: the string above. |
 | `--script-opts=…,ytdl_hook-ytdl_path=<path>` | Always, with the yt-dlp [found above](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#how-osdos-finds-yt-dlp). |
-| `--ytdl-raw-options=write-subs=,sub-langs=<code>.*` | Subtitles On or With Auto. |
-| `…,write-auto-subs=` | Subtitles With Auto. |
+| `--ytdl-raw-options=write-subs=,sub-langs=<code>.*` | Subtitles On or On+Auto Captions. With Subtitles In Any, `sub-langs=all,-live_chat`, or `sub-langs=.*-orig` with automatic captions. |
+| `…,write-auto-subs=` | Subtitles On+Auto Captions. |
 | `…,cookies-from-browser=%<bytes>%<browser>:<profile>` | Once you have signed in. |
-| `--subs-with-matching-audio=yes --subs-fallback=yes --sid=auto --slang=<code>` | Subtitles On or With Auto. |
+| `--subs-with-matching-audio=yes --subs-fallback=yes --sid=auto --slang=<code>` | Subtitles On or On+Auto Captions. |
 | `--sid=no` | Subtitles Off. |
 | `--speed=<n>` | Playback Speed other than 1x. |
 
@@ -276,7 +273,7 @@ Signed in, YouTube asks for fewer bot checks and age-restricted videos play.
 3. Sign in with the keyboard.
 4. Come back by holding back (Esc, or B on a gamepad) for two seconds, or with `Ctrl+W`.
 
-- The sign-in lives in a browser profile, `youtube/browser` in the data folder. **Sign out** deletes it.
+- The sign-in lives in a browser profile, `youtube/browser` in the data folder. **Sign Out** deletes it.
 - Without `wtype`, close the browser with `Ctrl+W`, or wait half a minute after signing in before holding back. Otherwise the sign-in may not be saved.
 - Linux needs Chromium (`chromium`, `chromium-browser`, `google-chrome-stable` or `google-chrome`), plus `cage` and `wtype` without a desktop: `sudo apt install chromium cage wtype`.
 - A Mac needs **Google Chrome** in `/Applications`; otherwise the screen says **Google Chrome is not installed**.
@@ -288,15 +285,21 @@ Settings → TV / Movie → **YouTube**:
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows YouTube on the main menu. | `modules.com.osdos.youtube.enabled` |
+| Sign In | SIGNED IN or SIGNED OUT | | See [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). SIGNED IN while the sign-in's browser profile is kept. | |
 | Subscriptions | A list of lines, 50 at most | None | [Your channels](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#channels-and-subscriptions). Select ADD to type one; select a line to change it or take it out. | `modules.com.osdos.youtube.subscriptions` |
 | Playlists | A list of lines, 50 at most | None | [Your playlists](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#playlists). | `modules.com.osdos.youtube.playlists` |
-| Advanced | Opens a submenu | | [The Advanced settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#the-advanced-settings-and-what-yt-dlp-is-asked-for). | |
+| Subtitles | Off, On, On+Auto Captions | Off | **On**: the video's subtitles in Subtitles In. **On+Auto Captions**: automatic captions too. | `modules.com.osdos.youtube.subtitles` (`Off`, `On`, `With Auto`) |
+| Subtitles In | Any (`-`), English … Chinese (the same 16 codes) | Any | The language Subtitles shows. **Any**: whatever the video has; with automatic captions, those in its own language. | `modules.com.osdos.youtube.subtitle_language` |
+| Audio Language | Original (`original`), English (`en`), Spanish (`es`), French (`fr`), German (`de`), Italian (`it`), Portuguese (`pt`), Dutch (`nl`), Polish (`pl`), Russian (`ru`), Turkish (`tr`), Arabic (`ar`), Hindi (`hi`), Indonesian (`id`), Japanese (`ja`), Korean (`ko`), Chinese (`zh`) | Original | The audio track of a dubbed video; the original where the language is missing. | `modules.com.osdos.youtube.audio_language` |
+| Resume Playback | Ask, Always, Never | Ask | See [Resume](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#resume). | `modules.com.osdos.youtube.resume_playback` |
+| Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills a 4:3 screen. **Default** follows Settings → TV / Movie → Scaling. | `modules.com.osdos.youtube.video_scaling` |
+| Show Shorts | On, Off | On | See [Shorts](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#shorts). | `modules.com.osdos.youtube.display_shorts` (`true`/`false`) |
+| Advanced | Opens a submenu | | Max Resolution, Video Codec, Max Frame Rate and Playback Speed: [the Advanced settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#the-advanced-settings-and-what-yt-dlp-is-asked-for). | |
 | Delete Watch Later | Select | | Asks first, then deletes `youtube_watch_later.json`. | |
 | Delete Recently Watched | Select | | Asks first, then deletes `youtube_history.json`: Recently Watched and every resume point. | |
-| Sign in | Select | | See [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). | |
-| Sign out | Select | | Asks first, then deletes the sign-in's browser profile. Does nothing while the browser is open. | |
+| Sign Out | Select | | Asks first, then deletes the sign-in's browser profile. Dimmed while signed out; does nothing while the browser is open. | |
 
-App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Startup From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
+App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Play From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
 
 ## Files and config keys
 
@@ -352,7 +355,7 @@ The tree's help line names the problem.
 | `Sign in to confirm you're not a bot` | [Sign in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in) with a spare account. If it persists, compare `--force-ipv4` with `--force-ipv6` in the command below: a check on IPv4 only points at the route. |
 | Subscriptions and Channels don't appear. | Check the file's name and place (not `.txt.txt`), and that it has a line that is neither blank nor a comment. |
 | A channel shows as its ID, with no videos. | A wrong ID, a comment on the ID's line, a handle URL, or a channel that has gone. |
-| Stutter on a Pi. | Playback Resolution 480p (or 720p), Video Codec H.264, Max Frame Rate 30. |
+| Stutter on a Pi. | Max Resolution 480p (or 720p), Video Codec H.264, Max Frame Rate 30. |
 | Signed out again after signing in. | Install `wtype`, or see [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). |
 
 yt-dlp by hand, with the format OSD/OS uses (on the image, `~/.local/share/OSD-OS/bin/yt-dlp`):
