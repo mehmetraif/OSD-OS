@@ -354,6 +354,7 @@ ModuleRouter {
         startFilter = own.start_filter || "all"
         listStyle = own.list_style || "Curved"
         attractMode = own.attract_mode === "In Order" || own.attract_mode === "Random" ? own.attract_mode : "Off"
+        // Attract After, by the id saved (the row shows 30 sec, 1 min…).
         attractAfter = ({ "30 Seconds": 30, "2 Minutes": 120, "5 Minutes": 300 })[own.attract_after] || 60
         border = isOn(own.border)
         var ground = parseInt(own.info_background)

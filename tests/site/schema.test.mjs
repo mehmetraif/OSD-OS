@@ -365,6 +365,10 @@ test("Arcade's rows without the headings Settings groups them under, each shown 
     const attract = arcade.find(r => r.key === "attract_after");
     assert.deepEqual(attract.shown_with, { key: "screen", value: "Arcade" });
     assert.deepEqual(attract.shown_unless, { key: "attract_mode", value: "Off" });
+    // Its times written as the menus write them, over the values saved.
+    assert.deepEqual(attract.options, [["30 sec", "30 Seconds"], ["1 min", "1 Minute"], ["2 min", "2 Minutes"],
+                                       ["5 min", "5 Minutes"]]);
+    assert.equal(attract.default, "1 Minute");
     // A condition on the theme isn't passed on.
     assert.equal(arcade.find(r => r.key === "list_style").shown_unless, undefined);
     // Game Pictures' own setting, by its names over the values saved.

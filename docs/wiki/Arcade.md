@@ -286,7 +286,7 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. The credits 
 **Settings → Arcade → Attract Mode** makes the Arcade screen go through its games on its own when left alone, a game every six seconds. It is Off by default.
 
 - **In Order** goes down the list and round; **Random** picks a game at random each time.
-- **Attract After** sets how long the screen is left alone first: 30 Seconds, 1 Minute (the default), 2 Minutes or 5 Minutes.
+- **Attract After** sets how long the screen is left alone first: 30 sec, 1 min (the default), 2 min or 5 min.
 - The first button or key ends it and does nothing else. COIN also puts in a credit.
 - It waits on Search, Online Games, LAN Games and RetroArch Lobby, and on a filter of fewer than two games.
 - Where it can begin, the screen saver (Settings → Screen → Screen Saver) waits, whichever of the two times is shorter.
@@ -589,7 +589,7 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | Hint Bar † | ON, OFF | ON | The keys at the foot of the Arcade screen | `modules.com.osdos.arcade.hint_bar` |
 | Help Line † | ON, OFF | ON | The line under the list | `modules.com.osdos.arcade.help_line` |
 | Attract Mode † | Off, In Order, Random | Off | The Arcade screen goes through its games when left alone | `modules.com.osdos.arcade.attract_mode` |
-| Attract After † | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the screen is left alone first. Dimmed while Attract Mode is Off ("Only with Attract Mode on") | `modules.com.osdos.arcade.attract_after` |
+| Attract After † | 30 sec, 1 min, 2 min, 5 min | 1 min | How long the screen is left alone first. Dimmed while Attract Mode is Off ("Only with Attract Mode on") | `modules.com.osdos.arcade.attract_after` (`"30 Seconds"`, `"1 Minute"`, `"2 Minutes"`, `"5 Minutes"`) |
 | **PLAYING** | | | | |
 | Start Info Screen | ON, OFF | ON | The screen before a game ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | Play Mode | Credits, Free Play | Credits | COIN buys credits, or every game starts with 9 | `modules.com.osdos.arcade.play_mode` |
