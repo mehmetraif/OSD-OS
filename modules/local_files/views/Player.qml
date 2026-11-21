@@ -337,17 +337,20 @@ FocusScope {
                        (isPlaylist(filePath) && localFilesBackend.playlistContainsImages(filePath))
 
         // This file, still playing behind the menus: it goes on full screen
-        // where it is, without asking, played as it was started so that it is
-        // the same session (back saved where it got to). Left with Browse, it
-        // starts again where it was saved, at the playlist's video then; a
-        // shuffled playlist's places are gone with its order, so it starts
-        // shuffled afresh.
+        // where it is, without asking, the same session (takeBack(): what
+        // back saved can't say where it is, as nothing in its first seconds
+        // or near its end is saved). Left with Browse, it starts again where
+        // it was saved, at the playlist's video then; a shuffled playlist's
+        // places are gone with its order, so it starts shuffled afresh.
         var note = root.takeBackNote
         if (note.module === moduleRoot.moduleId && note.params && note.params.filePath === filePath) {
+            if (root.videoBehind && mpvController.takeBack()) {
+                startedShuffled = !!note.shuffle
+                playbackStarted = true
+                return
+            }
             var held = localFilesBackend.getSavedPosition(filePath)
-            if (root.videoBehind)
-                play(held.pos || 0, note.plPos, note.shuffle)
-            else if (note.shuffle)
+            if (note.shuffle)
                 play(0, -1, true)
             else
                 play(held.pos || 0, held.plPos !== undefined && held.plPos !== null ? held.plPos : -1, false)

@@ -22,7 +22,8 @@ import "../../views/Components/Hover.js" as Hover
 // servers' lists are (LetterList), on its own; and Plex's list, each kind of
 // it, its letters and its rows. A list takes a backend's error for its own
 // only while it waits for its rows. And Local Files' player: a remote's
-// channel or page keys step through the folder's films.
+// channel or page keys step through the folder's films. A video behind the
+// menus, chosen again, is taken back where it is (takeBack).
 // A playlist's page (Playlists) keeps its cursor on the video moved up or
 // down, and on the place of one taken off.
 // The sign-in pages keep an error as long as Qt's own inside the page.
@@ -158,6 +159,10 @@ StandInRoot {
             extraArgs = extraArgs.concat([extra || []])
         }
         function noteSession(note) {}
+        // The session behind the menus taken back where it is, if there is
+        // one (background), counted.
+        property int takeBacks: 0
+        function takeBack() { takeBacks++; return background }
         // The failures a player had written to the log (logFailure): which
         // player, what it played, and why where the player said.
         property var failures: []
@@ -438,6 +443,10 @@ StandInRoot {
             root.backs = 0
             root.leaves = 0
             mpvController.videoActive = false
+            mpvController.background = false
+            mpvController.takeBacks = 0
+            root.videoBehind = false
+            root.takeBackNote = ({})
             appCore.settings = {}
             appCore.lists = {}
             mpvController.loads = 0
@@ -1974,6 +1983,47 @@ StandInRoot {
             compare(mpvController.starts[1], 90)
             compare(mpvController.keys, [])
             compare(root.backs, 1)
+        }
+
+        // A video still playing behind the menus, chosen again (the main
+        // menu's row, or the same video in its module): its player takes the
+        // session back where it is (takeBack), not from what it saved as back
+        // left it, which says nothing of a video's first seconds or its end.
+        // Left with Browse instead (none behind the menus), it starts again
+        // where it was saved, without asking.
+        function test_aVideoBehindTheMenusIsTakenBack_data() {
+            var talk = { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123", title: "A Talk" }
+            return [{ tag: "youtube", module: "youtube", params: { item: talk },
+                      note: { module: "com.osdos.youtube", params: { item: talk } } },
+                    { tag: "local_files", module: "local_files", params: { filePath: "/films/B.mkv", title: "B.mkv" },
+                      note: { module: "com.osdos.local_files", params: { filePath: "/films/B.mkv" }, plPos: -1,
+                              shuffle: false } },
+                    { tag: "playlists", module: "playlists", params: { playlistId: "p1" },
+                      note: { module: "com.osdos.playlists", params: { playlistId: "p1", plPos: -1,
+                                                                       prepared: { file: "/data/p1.m3u", count: 2 } } } }]
+        }
+        function test_aVideoBehindTheMenusIsTakenBack(data) {
+            appCore.settings = { resume_playback: "ask", shuffle_playback: "no" }
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 } }
+            youtubeBackend.saved = { pos: 90000 }
+            root.takeBackNote = data.note
+            root.videoBehind = true
+            mpvController.background = true
+            var player = open(data.module, "Player.qml", data.params)
+            compare(mpvController.takeBacks, 1)
+            compare(mpvController.loads, 0)
+            verify(!promptOf(player).visible)
+            verify(player.playbackStarted)
+
+            // Left with Browse: started again where it was saved.
+            if (data.module === "playlists")
+                return
+            root.videoBehind = false
+            mpvController.background = false
+            open(data.module, "Player.qml", data.params)
+            compare(mpvController.takeBacks, 1)
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 90)
         }
 
         // CLOSE VIDEO in a player's menu (YouTube's, Local Files',

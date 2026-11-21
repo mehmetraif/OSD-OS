@@ -165,9 +165,10 @@ public:
     Q_INVOKABLE void logFailure(const QString &player, const QString &playing, const QString &why = QString());
     // The session behind the menus, full screen again where it is, for the
     // player it belongs to (backgroundNote says whose it is): false when
-    // there is none, and the player starts its video as it would any.
-    // startSeconds is the player's resume point, which reattach() weighs.
-    Q_INVOKABLE bool takeBack(float startSeconds);
+    // there is none, and the player starts its video as it would any. It
+    // carries on where it is: what the player saved as back left it can't
+    // say where that is (nothing near its start or end is saved).
+    Q_INVOKABLE bool takeBack();
     // A player with a playback menu of its own says so in its note (menu:
     // true): back then has it open the menu, the session staying its
     // player's, where any other player takes back as stopped and goes back
@@ -421,7 +422,9 @@ private:
     // Back from the player's view (sendKey "ESC" or "BS"): to mpv while its
     // deck menu or screen saver is up, which take it; else acted on here.
     void backKey(const QString &key);
-    // The session behind the menus chosen again: full screen, where it is.
+    // The session behind the menus chosen again: full screen, sought to
+    // startSeconds unless that is where back left it; where it is for a
+    // negative one.
     void reattach(float startSeconds);
     VideoProfile detectVideoProfile() const;
     // Appends the profile-specific --vo/--gpu-context/--hwdec flags (honouring the

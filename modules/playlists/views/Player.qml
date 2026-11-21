@@ -100,11 +100,10 @@ FocusScope {
         var takenBack = fromItemId === "" && note.module === moduleRoot.moduleId && note.params
                         && note.params.playlistId === playlistId
         if (takenBack && root.videoBehind && note.params.prepared) {
-            var resumeMs = playlistsBackend.savedPositionMs(playlistId)
-            if (mpvController.takeBack(resumeMs / 1000.0)) {
+            if (mpvController.takeBack()) {
                 prepared = note.params.prepared
                 startedAt = note.params.plPos
-                lastStartMs = resumeMs
+                lastStartMs = playlistsBackend.savedPositionMs(playlistId)
                 playbackStarted = true
                 return
             }

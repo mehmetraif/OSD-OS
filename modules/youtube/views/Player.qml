@@ -253,11 +253,17 @@ FocusScope {
         var saved = youtubeBackend.getSavedPosition(videoId)
         var savedPos = saved.pos || 0
         // This video, still playing behind the menus: it goes on full screen
-        // where it is, without asking (back saved where it got to); left with
-        // Browse, it starts again where it was saved.
+        // where it is, without asking, the same session (takeBack(): what
+        // back saved can't say where it is, as nothing in its first seconds
+        // or near its end is saved); left with Browse, it starts again where
+        // it was saved.
         var note = root.takeBackNote
         var behind = note.module === moduleRoot.moduleId && note.params && note.params.item
                      && note.params.item.videoId === videoId
+        if (behind && root.videoBehind && mpvController.takeBack()) {
+            playbackStarted = true
+            return
+        }
 
         // The favourite played at startup begins without asking, where
         // Settings' STARTUP FROM says.

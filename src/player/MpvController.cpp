@@ -2446,9 +2446,9 @@ void MpvController::reattach(float startSeconds) {
     emit backgroundChanged();
     // The module asks to resume where back left it (the point it saved then):
     // that is carrying on where it is now. Anything else, from the start say,
-    // it gets.
+    // it gets. None asked (takeBack()): it carries on.
     const double start = startSeconds > 0.5f ? double(startSeconds) : 0.0;
-    if (std::abs(start * 1000.0 - m_detachPositionMs) > 1500.0)
+    if (startSeconds >= 0.0f && std::abs(start * 1000.0 - m_detachPositionMs) > 1500.0)
         sendCommand({"seek", start, "absolute"});
     emit durationChanged(m_duration);
     if (m_playlistPos >= 0)
@@ -2456,9 +2456,9 @@ void MpvController::reattach(float startSeconds) {
     emit positionChanged(m_position);
 }
 
-bool MpvController::takeBack(float startSeconds) {
+bool MpvController::takeBack() {
     if (!m_background || !videoActive())
         return false;
-    reattach(startSeconds);
+    reattach(-1.0f);
     return true;
 }

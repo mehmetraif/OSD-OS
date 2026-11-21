@@ -926,6 +926,33 @@ private slots:
         QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
     }
 
+    // Transparent Background: a video behind the menus, taken back by its
+    // player (takeBack()), carries on where it is, whatever its player saved
+    // as back left it (nothing in its first seconds, nothing near its end):
+    // it is not sought. With none behind the menus, there is none to take.
+    void aVideoTakenBackCarriesOnWhereItIs() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QVERIFY(!m_mpv->takeBack());
+        playPicture("color=c=gray:s=64x48:r=10:d=60");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->position() > 1500, 15000);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        QSignalSpy position(m_mpv, &MpvController::positionChanged);
+        QVERIFY(m_mpv->takeBack());
+        QVERIFY(!m_mpv->background());
+        QTest::qWait(600);
+        QVERIFY(!position.isEmpty());
+        QVERIFY2(m_mpv->position() > 1500, qPrintable(QString::number(m_mpv->position())));
+        for (const QList<QVariant> &at : std::as_const(position))
+            QVERIFY2(at.first().toInt() > 1500, qPrintable(at.first().toString()));
+    }
+
     // Transparent Background: a video behind the menus whose screen saver is
     // up, chosen again, carries on with the saver over it; back then goes to
     // the saver, as it did before, and the video stays in front.
