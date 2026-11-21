@@ -247,7 +247,7 @@ QJsonArray JellyfinBackend::subtitleProfiles(bool directPlay) const {
         // tells it to keep direct play and serve the sub separately — which is what
         // the app already does with them: every text sub is fetched from
         // /Videos/{id}/{src}/Subtitles/{idx}/Stream.{ext} and passed to mpv as a
-        // --sub-file (see the subUrl built in formatItem + buildSubArgs in Player.qml).
+        // --sub-file (see the subUrl built in formatItem + buildSubArgs in MediaServerPlayer.qml).
         auto addText = [&](const char *fmt) {
             addProfile(fmt, "External");
             addProfile(fmt, "Embed");
@@ -338,10 +338,9 @@ void JellyfinBackend::probeCapabilities() {
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
 
-        // fetchSegments may have handled the probe while we were waiting
+        // fetchSegments may have handled the probe while we were waiting: it
+        // set m_hasCapability and told the settings page already.
         if (m_capabilitiesProbed) {
-            // fetchSegments already emitted — sync our cached flag
-            // m_hasCapability was already set by fetchSegments
             return;
         }
 

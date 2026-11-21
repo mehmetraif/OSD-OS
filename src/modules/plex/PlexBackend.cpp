@@ -1231,7 +1231,8 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
                 });
             }
 
-            // Probe servers sequentially, build list, then save + emit
+            // Every server probed at once, each its connections in turn; the list
+            // saved and emitted once the last has answered
             auto *serverList = new QJsonArray();
             auto *remaining  = new int(pending.size());
 
@@ -1347,7 +1348,6 @@ void PlexBackend::probeNext(const QList<QString> &uris, int index,
     QString uri = uris[index];
     auto *reply = plexGet(QUrl(uri + "/"), {});
 
-    // 3-second timeout per probe
     auto *timer = new QTimer(this);
     timer->setSingleShot(true);
     timer->setInterval(3000);
@@ -2854,7 +2854,7 @@ void PlexBackend::set_subtitle_stream(const QString &streamId, const QString &pa
 // NOTE: the live endpoints below are reverse-engineered/version-sensitive (Plex's
 // API documentation describes the shapes but real PMS responses vary). Each parse
 // logs its raw input on miss so field mappings can be confirmed against a live
-// DVR server (see the plan's verification step). The channel list is built from
+// DVR server. The channel list is built from
 // the EPG lineup; tuning produces an HLS transcode reusing the same master-m3u8
 // parse + streamUrlReady hand-off as request_transcode.
 // ---------------------------------------------------------------------------

@@ -434,17 +434,13 @@ bool EmbyBackend::transcodeInstead(const QJsonObject &source, const QString &ite
 
     qInfo("[Emby] Dolby Vision source (range=%s) — forcing SDR transcode; mpv can't render the DV enhancement layer",
           qPrintable(videoRange));
-    // Keep the selected subtitle if it can survive the transcode.
-    // This used to drop every subtitle, because the transcode path
-    // burnt the selected sub in (SubtitleMethod=Encode) and this
-    // server 500s on burn-in, so a burned sub meant no playback at
-    // all. Text subs are now delivered as a sidecar (Method=External
-    // in the transcode profile) and never touch the video, so there
-    // is nothing left to work around for them.
+    // Keep the selected subtitle if it can survive the transcode. Text
+    // subs are delivered as a sidecar (Method=External in the transcode
+    // profile) and never touch the video.
     //
-    // Image subs (PGS/VOBSUB) have no sidecar and are still burnt in,
-    // which is exactly the case that takes the whole transcode down,
-    // so those are still dropped rather than losing playback.
+    // Image subs (PGS/VOBSUB) have no sidecar and are burnt in
+    // (SubtitleMethod=Encode), which this server 500s on, taking the
+    // whole transcode down: those are dropped rather than losing playback.
     int keptSubtitle = subtitleStreamIndex;
     if (keptSubtitle >= 0) {
         bool isTextSub = false;
@@ -480,7 +476,7 @@ QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
         // falls back to a full transcode (SubtitleMethod=Encode / burn-in).
         //
         //   Text subs (subrip/ass/vtt/…): the client fetches them as a sidecar
-        //   file (see subUrl in extract_item_detail) and hands them to mpv as
+        //   file (see subUrl in formatItem) and hands them to mpv as
         //   --sub-file. That is External delivery, so advertise Method=External.
         //   Advertising only Embed (as the Jellyfin port did) is why Emby
         //   transcoded on every subtitle-on: it couldn't embed the selected sub
@@ -510,8 +506,8 @@ QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
         // Transcode: text subs are delivered as a sidecar, exactly as they are
         // for direct play — only image subs are burnt in.
         //
-        // Burning text subs in (Method=Encode) is what the Plex module does and
-        // what this module used to do, but it makes the server re-encode the
+        // Burning text subs in (Method=Encode) is what the Plex module does,
+        // but it makes the server re-encode the
         // video with the subtitle painted on, and Emby 500s on that for every
         // subrip tested here, SDR sources included. A burnt-in sub therefore
         // meant no playback at all on the transcode path.
@@ -519,7 +515,7 @@ QJsonArray EmbyBackend::subtitleProfiles(bool directPlay) const {
         // External is safe because it is NOT the soft HLS subtitle rendition
         // that mpv renders unreliably after a seek: the sidecar is a separate
         // /Videos/.../Subtitles/{i}/Stream.srt fetch, independent of the HLS
-        // video, and Player.qml hands the selected one to mpv as --sub-file on
+        // video, and MediaServerPlayer.qml hands the selected one to mpv as --sub-file on
         // the transcode path too (see doStartPlayback). Verified
         // against Emby 4.9.5.0: with Method=External the returned
         // TranscodingUrl carries no SubtitleMethod and no SubtitleStreamIndex,

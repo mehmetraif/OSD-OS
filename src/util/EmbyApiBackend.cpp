@@ -909,7 +909,7 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
     // "auto" (Direct Play) lets the server serve the original file untouched
     // when the source is compatible; any other value forces a quality-capped
     // HLS transcode. forceTranscode overrides "auto" for a fallback retry after
-    // a direct-play failure (see Player.qml onPlaybackEnded). The setting is
+    // a direct-play failure (see MediaServerPlayer.qml onPlaybackEnded). The setting is
     // read once: the reply holds the transcode to the quality's height.
     const QString quality = videoQuality();
     const bool directPlay = !forceTranscode && quality == QLatin1String("auto");
@@ -977,7 +977,7 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
 
         // Direct play when requested AND the server confirms the source is
         // compatible. Serves the original file via /Videos/{id}/stream?static=true;
-        // mpv handles embedded audio/subtitle tracks (Player.qml direct-play branch).
+        // mpv handles embedded audio/subtitle tracks (MediaServerPlayer.qml's direct-play branch).
         // PlaySessionId from the PlaybackInfo response is reused for the stream
         // URL and every /Sessions report so the server correlates the dashboard
         // session with this stream — and tears the transcode down on Stopped.
@@ -1061,7 +1061,7 @@ QJsonObject EmbyApiBackend::deviceProfile(bool directPlay, int maxBitrate) const
         // 4.9.5.0: mkv/mp4/avi with h264/hevc/vc1/mpeg2 all direct-play through
         // this wildcard). A codec whitelist here silently forced
         // transcodes on exact-name misses (pcm_s16le vs pcm, webvtt vs vtt, …).
-        // If mpv truly can't play a file, the transcode retry in Player.qml
+        // If mpv truly can't play a file, the transcode retry in MediaServerPlayer.qml
         // onPlaybackEnded is the safety net. An empty array (transcode mode)
         // tells the server nothing can be direct-played.
         QJsonObject dp;
@@ -1296,7 +1296,7 @@ void EmbyApiBackend::report_playback_stopped(const QString &itemId, const QStrin
     QUrl url(m_serverUrl + "/Sessions/Playing/Stopped");
     auto *reply = serverPost(url, QJsonDocument(body).toJson(QJsonDocument::Compact));
     // Only clear the session id if it's still the one we reported on — the
-    // transcode retry in Player.qml starts a new session right after reporting
+    // transcode retry in MediaServerPlayer.qml starts a new session right after reporting
     // the failed one stopped, and this reply may land after that.
     const QString reportedSessionId = m_currentPlaySessionId;
     connect(reply, &QNetworkReply::finished, this, [this, reply, reportedSessionId]() {
