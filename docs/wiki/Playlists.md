@@ -134,7 +134,7 @@ Select **Play**, or **Play from Here** on a video.
 - **What can't play is left out**: a missing Local Files file, a server video while you are signed out, and on an offline list anything not downloaded yet.
 - **During a video**, the deck's menu (▲ or ▼) has **<** and **>** for the previous and next video. Page Up and Page Down, or a remote's Channel + and −, do the same.
 - **Loop Playback** starts the list again from its first video when it ends (`--loop-playlist=inf`).
-- **Subtitles** is Forced Only (the default), On or Off, for every video on the list. On shows a streamed YouTube video's in the YouTube module's **Subtitle Language**.
+- **Subtitles** is Off, Forced Only (the default) or On, for every video on the list. On shows a streamed YouTube video's in the YouTube module's **Subtitle Language**.
 - A server's subtitles kept as separate files aren't fetched, and a downloaded YouTube video has none.
 - **YouTube videos on an online list** play with the YouTube module's **Advanced** settings, but always at normal speed.
 - **Still images** from Local Files show for Local Files' **Image Duration**.
@@ -278,7 +278,7 @@ Settings → TV / Movie → Playlists.
 |---|---|---|---|---|
 | ENABLED | ON, OFF | ON | Shows Playlists on the main menu, and Add to Playlist in the other modules | `modules.com.osdos.playlists.enabled` |
 | Download Folder | Default, or a folder | Default | Where offline playlists' videos are downloaded | `modules.com.osdos.playlists.download_folder` |
-| Subtitles | Forced Only, On, Off | Forced Only | Whether a video's subtitles show as it starts ([Playing](#playing)) | `modules.com.osdos.playlists.subtitles` |
+| Subtitles | Off, Forced Only, On | Forced Only | Whether a video's subtitles show as it starts ([Playing](#playing)) | `modules.com.osdos.playlists.subtitles` |
 | Loop Playback | ON, OFF | OFF | When a playlist ends, start it again from its first video | `modules.com.osdos.playlists.loop_playback` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen in Playlists | `modules.com.osdos.playlists.video_scaling` |
 

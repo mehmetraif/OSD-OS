@@ -223,11 +223,11 @@ Positions are kept in `local_files_history.json` in the data folder, the 1000 mo
 
 ### Subtitles and audio tracks
 
-| Auto Show Subtitles | What mpv is told | What you see |
+| Subtitles | What mpv is told | What you see |
 |---|---|---|
+| **Off** | `--sid=no` | None |
 | **Forced Only** (default) | `--subs-with-matching-audio=forced --subs-fallback-forced=always` | Only forced subtitles: dialogue in another language |
 | **On** | `--subs-with-matching-audio=yes --subs-fallback=yes --sid=auto` | A subtitle track always |
-| **Off** | `--sid=no` | None |
 
 - **Subtitle Language** is **Any** (the default) or one of 183 languages. It goes to mpv as `--slang=<code>` (`en` for English).
 - mpv also loads a subtitle file beside the video under the same name: `Film.srt` or `Film.en.srt` next to `Film.mkv`.
@@ -266,7 +266,7 @@ Back during a video (with the deck's menu closed) opens the video's own menu:
 |---|---|
 | **Back to Local Files** | Back to the tree. With Transparent Background the video plays on behind it; without, it stops where it is |
 | **Stop, to Main Menu** | Stops the video and leaves Local Files for the main menu |
-| **Auto Show Subtitles**, **Subtitle Language** | ◄ ► change the module setting; the video reloads where it is as you go back to it |
+| **Subtitles**, **Subtitle Language** | ◄ ► change the module setting; the video reloads where it is as you go back to it |
 | **Loop Playback**, **Scaling** | ◄ ► change it; with Transparent Background the playing video takes it at once |
 | **Add to Favorites**, **Play at Startup** | As in the file's options |
 
@@ -285,7 +285,7 @@ Settings → TV / Movie → Local Files.
 | Loop Playback | ON, OFF | OFF | Repeats a file or a playlist until stopped | `modules.com.osdos.local_files.loop_playback` |
 | Shuffle Playback | Ask, Always, Never | Ask | Plays playlists in random order | `modules.com.osdos.local_files.shuffle_playback` |
 | Resume Playback | Ask, Always, Never | Ask | Whether a video resumes where it was stopped | `modules.com.osdos.local_files.resume_playback` |
-| Auto Show Subtitles | Forced Only, On, Off | Forced Only | Which subtitles show as a video starts | `modules.com.osdos.local_files.auto_subtitles` |
+| Subtitles | Off, Forced Only, On | Forced Only | Which subtitles show as a video starts | `modules.com.osdos.local_files.auto_subtitles` |
 | Subtitle Language | Any, or a language | Any | The subtitle language mpv picks first | `modules.com.osdos.local_files.sub_lang` |
 | Image Duration | 5, 10, 30, 60 Seconds | 5 Seconds | How long a still image is shown | `modules.com.osdos.local_files.image_duration` |
 | Hide File Extensions | ON, OFF | ON | Leaves `.mkv` and the like off the names | `modules.com.osdos.local_files.hide_extensions` |
@@ -458,7 +458,7 @@ Then run `sudo systemctl daemon-reload` and `sudo systemctl restart osdos`. The 
 | A file isn't listed | Its extension isn't one of [those Local Files plays](#what-it-plays), or its name starts with a dot. Rename it, or list it in an m3u |
 | A USB drive doesn't show | See [what counts as a drive](#usb-drives). On Linux a drive mounted at `/mnt/…` doesn't count: set Media Directory to it. On the image, `journalctl -u 'osdos-usb-mount@*'` says why it wasn't mounted (an encrypted volume, swap or a RAID member never is) |
 | No resume question | The video was stopped in its first 5 seconds or its last 5%, or Resume Playback is Always or Never |
-| No subtitles | Auto Show Subtitles is Forced Only (the default): set it to On. A sidecar `.srt` must have the video's name |
+| No subtitles | Subtitles is Forced Only (the default): set it to On. A sidecar `.srt` must have the video's name |
 | A playlist entry is skipped | mpv couldn't open it: a relative path is taken from the playlist's folder; a drive is out; a YouTube link isn't played here |
 | A video won't play at all | See [Playback and mpv → Troubleshooting playback](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#troubleshooting-playback). mpv's log is `/tmp/runtime-pi/osdos-mpv.log` on the image ([elsewhere](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#logs-and-temporary-files)) |
 | A video from a USB drive stopped | The drive was pulled out, or went to sleep; plug it back in and choose the file again |

@@ -124,8 +124,13 @@ private slots:
         QCOMPARE(options.size(), 1);
         QCOMPARE(options.first().at(0).toString(), QStringLiteral("auto_subtitles"));
         QHash<QString, QVariant> old;
-        for (const QVariant &option : options.first().at(1).toList())
+        QStringList order;
+        for (const QVariant &option : options.first().at(1).toList()) {
             old.insert(option.toMap().value("id").toString(), option.toMap().value("old"));
+            order << option.toMap().value("label").toString();
+        }
+        // In the order every module's Subtitles has.
+        QCOMPARE(order, QStringList({ "Off", "Forced Only", "On" }));
         QCOMPARE(old.value("on"), QVariant(true));
         QCOMPARE(old.value("forced"), QVariant(false));
         QVERIFY(!old.value("off").isValid());

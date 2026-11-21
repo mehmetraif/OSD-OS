@@ -103,6 +103,7 @@ public:
     // ADVANCED's language lists (options_slot), by yt-dlp's language codes.
     Q_INVOKABLE void get_audio_languages();
     Q_INVOKABLE void get_subtitle_languages();
+    Q_INVOKABLE void get_subtitle_options();
 
     // Watch history (youtube_history.json). A finished video stays in history
     // with pos 0 (so it lists under RECENTLY WATCHED but never prompts to resume);

@@ -66,6 +66,45 @@ private slots:
         QCOMPARE(marked, QStringList{ QStringLiteral("DE") });
     }
 
+    // Subtitles' choices in every module's order, With Auto named for what it
+    // adds; and the subtitles yt-dlp is asked for: those in Subtitle
+    // Language, or with Any (unset, as an install starts) whatever the
+    // video has, its automatic captions only in its own language.
+    void subtitlesAndAnyLanguage() {
+        QTemporaryDir data;
+        YouTubeBackend youtube(data.path(), data.path(), nullptr, nullptr);
+        QSignalSpy options(&youtube, &YouTubeBackend::dynamicOptionsReady);
+        youtube.get_subtitle_options();
+        youtube.get_subtitle_languages();
+        QCOMPARE(options.count(), 2);
+        QStringList labels, ids;
+        for (const QVariant &v : options.at(0).at(1).toList()) {
+            labels << v.toMap().value("label").toString();
+            ids << v.toMap().value("id").toString();
+        }
+        QCOMPARE(labels, QStringList({ "Off", "On", "On + Auto Captions" }));
+        QCOMPARE(ids, QStringList({ "Off", "On", "With Auto" }));
+        const QVariantMap any = options.at(1).at(1).toList().first().toMap();
+        QCOMPARE(any.value("id").toString(), QStringLiteral("-"));
+        QCOMPARE(any.value("label").toString(), QStringLiteral("Any"));
+        QCOMPARE(youtube.playbackSettings().value("subtitleLanguage").toString(), QStringLiteral("-"));
+
+        const auto raw = [&youtube](const QString &subtitles, const QString &language) {
+            const QStringList args = youtube.playbackArgs({ { "subtitles", subtitles }, { "subtitleLanguage", language } });
+            for (const QString &arg : args) {
+                if (arg.startsWith(QLatin1String("--ytdl-raw-options=")))
+                    return arg.mid(19);
+            }
+            return QString();
+        };
+        QCOMPARE(raw("Off", "-"), QString());
+        QCOMPARE(raw("On", "fr"), QStringLiteral("write-subs=,sub-langs=fr.*"));
+        QCOMPARE(raw("With Auto", "fr"), QStringLiteral("write-subs=,sub-langs=fr.*,write-auto-subs="));
+        QCOMPARE(raw("On", "-"), QStringLiteral("write-subs=,sub-langs=all,-live_chat"));
+        QCOMPARE(raw("On", ""), QStringLiteral("write-subs=,sub-langs=all,-live_chat"));
+        QCOMPARE(raw("With Auto", "-"), QStringLiteral("write-subs=,sub-langs=.*-orig,write-auto-subs="));
+    }
+
     // SIGN IN's state: signed in while SIGN IN's browser keeps its profile,
     // signed out once Sign Out has deleted it, which says so.
     void signedInWhileTheProfileIsKept() {

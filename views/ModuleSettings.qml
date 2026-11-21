@@ -395,10 +395,10 @@ FocusScope {
     // the choice saved, by its id; for a row that was a toggle once and is
     // still saved as true or false, the choice that form is now (its `old`),
     // as the module's player takes it (util/PlaybackOptions.h's chosen());
-    // with nothing saved, the one the backend marks as where an install
-    // starts from (`default`: true, as Catalog Region's time zone's
-    // country), else the row's own default by its id; else the first, as
-    // with a choice no longer offered. -1 while it has no choices.
+    // with nothing saved, or a choice no longer offered, the one the backend
+    // marks as where an install starts from (`default`: true, as Catalog
+    // Region's time zone's country), else the row's own default by its id,
+    // else the first. -1 while it has no choices.
     function chosenIndex(item) {
         var opts = dynamicOptions[rowId(item)] || []
         var saved = savedOf(item)
@@ -407,15 +407,13 @@ FocusScope {
             if (toggle ? opts[i].old === saved : opts[i].id === saved)
                 return i
         }
-        if (saved === undefined || saved === null || saved === "") {
-            for (i = 0; i < opts.length; i++) {
-                if (opts[i].default === true)
-                    return i
-            }
-            for (i = 0; item.default !== undefined && i < opts.length; i++) {
-                if (opts[i].id === item.default)
-                    return i
-            }
+        for (i = 0; i < opts.length; i++) {
+            if (opts[i].default === true)
+                return i
+        }
+        for (i = 0; item.default !== undefined && i < opts.length; i++) {
+            if (opts[i].id === item.default)
+                return i
         }
         return opts.length > 0 ? 0 : -1
     }

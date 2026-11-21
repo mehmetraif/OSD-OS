@@ -107,7 +107,7 @@
       "options": {
         "shuffle_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
         "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
-        "auto_subtitles": [["Forced Only", "forced"], ["On", "on"], ["Off", "off"]],
+        "auto_subtitles": [["Off", "off"], ["Forced Only", "forced"], ["On", "on"]],
         "sub_lang": "languages",
         "image_duration": [["5 Seconds", "5"], ["10 Seconds", "10"], ["30 Seconds", "30"], ["60 Seconds", "60"]]
       }
@@ -115,14 +115,15 @@
     "com.osdos.nfc_reader": {
       "options": {
         "resume_playback": [["Ask", "ask"], ["Always", "yes"], ["Never", "no"]],
-        "auto_subtitles": [["Forced Only", "forced"], ["On", "on"], ["Off", "off"]],
+        "auto_subtitles": [["Off", "off"], ["Forced Only", "forced"], ["On", "on"]],
         "sub_lang": "languages"
       }
     },
     "com.osdos.youtube": {
       "options": {
         "audio_language": [["Original", "original"], ["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]],
-        "subtitle_language": [["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]]
+        "subtitles": [["Off", "Off"], ["On", "On"], ["On + Auto Captions", "With Auto"]],
+        "subtitle_language": [["Any", "-"], ["English", "en"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Italian", "it"], ["Portuguese", "pt"], ["Dutch", "nl"], ["Polish", "pl"], ["Russian", "ru"], ["Turkish", "tr"], ["Arabic", "ar"], ["Hindi", "hi"], ["Indonesian", "id"], ["Japanese", "ja"], ["Korean", "ko"], ["Chinese", "zh"]]
       }
     },
     "com.osdos.plex": {

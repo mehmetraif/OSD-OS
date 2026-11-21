@@ -1605,6 +1605,30 @@ StandInRoot {
             compare(menuRow(page, 0).value, "Germany")
         }
 
+        // Subtitles in every module's order, Off, Forced Only, On, with
+        // Forced Only where nothing is saved (or something no choice is):
+        // what was saved, an old true or false too, keeps its meaning.
+        function test_subtitlesOrder_data() {
+            return [{ tag: "unset", saved: undefined, shown: "Forced Only", left: "off" },
+                    { tag: "old on", saved: true, shown: "On", left: "forced" },
+                    { tag: "old off", saved: false, shown: "Forced Only", left: "off" },
+                    { tag: "off", saved: "off", shown: "Off", left: "on" },
+                    { tag: "unknown", saved: "sometimes", shown: "Forced Only", left: "off" }]
+        }
+        function test_subtitlesOrder(data) {
+            appCore.schema = [{ key: "auto_subtitles", label: "Subtitles", type: "list_single",
+                                options_source: "dynamic", options_slot: "get_auto_subtitles_options",
+                                default: "forced" }]
+            appCore.values = data.saved === undefined ? {} : { auto_subtitles: data.saved }
+            var page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "auto_subtitles", [
+                { id: "off", label: "Off" }, { id: "forced", label: "Forced Only", old: false, default: true },
+                { id: "on", label: "On", old: true }])
+            compare(menuRow(page, 0).value, data.shown)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.auto_subtitles, data.left)
+        }
+
         // A row moved out of a submenu onto the first page (YouTube's
         // Subtitles) reads what was saved while it was in there: a
         // submenu's rows are saved flat under the module, by their keys.

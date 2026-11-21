@@ -22,30 +22,38 @@ inline QVariantList resumePlayback() {
     return options;
 }
 
-// Auto Show Subtitles. It was once On or Off, saved as true or false: `old`
-// is the choice each of those is now.
+// Subtitles (auto_subtitles), in the order every module's Subtitles has:
+// Off, Forced Only, On; Forced Only where nothing is saved (`default`). It
+// was once On or Off, saved as true or false: `old` is the choice each of
+// those is now.
 inline QVariantList autoSubtitles() {
     QVariantList options;
-    QVariantMap forced; forced["id"] = "forced"; forced["label"] = "Forced Only"; forced["old"] = false;
-    QVariantMap on;     on["id"] = "on";         on["label"] = "On";              on["old"] = true;
     QVariantMap off;    off["id"] = "off";       off["label"] = "Off";
-    options << forced << on << off;
+    QVariantMap forced; forced["id"] = "forced"; forced["label"] = "Forced Only"; forced["old"] = false;
+    forced["default"] = true;
+    QVariantMap on;     on["id"] = "on";         on["label"] = "On";              on["old"] = true;
+    options << off << forced << on;
     return options;
 }
 
 // The choice a setting saved as `saved` is, of `options`: the one of its id,
 // or for a setting once a toggle, saved as true or false, the one that form
-// is now (`old`); the first, the default, when it is neither (nothing saved),
-// as Settings shows it.
+// is now (`old`); when it is neither (nothing saved), the default, the one
+// marked `default` or else the first, as Settings shows it.
 inline QString chosen(const QVariantList &options, const QVariant &saved) {
     const bool toggle = saved.typeId() == QMetaType::Bool;
+    QString fallback;
     for (const QVariant &option : options) {
         const QVariantMap map = option.toMap();
         const QVariant old = map.value(QStringLiteral("old"));
         if (toggle ? old.isValid() && old.toBool() == saved.toBool()
                    : map.value(QStringLiteral("id")).toString() == saved.toString())
             return map.value(QStringLiteral("id")).toString();
+        if (fallback.isEmpty() && map.value(QStringLiteral("default")).toBool())
+            fallback = map.value(QStringLiteral("id")).toString();
     }
+    if (!fallback.isEmpty())
+        return fallback;
     return options.isEmpty() ? QString() : options.first().toMap().value(QStringLiteral("id")).toString();
 }
 

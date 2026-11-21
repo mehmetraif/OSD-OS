@@ -617,11 +617,18 @@ QStringList YouTubeBackend::playbackArgs(const QVariantMap &settings) const {
     // Without these mpv has yt-dlp list every subtitle the video has, none shown.
     const QString subtitles = settings.value(QStringLiteral("subtitles")).toString();
     if (subtitles == QLatin1String("On") || subtitles == QLatin1String("With Auto")) {
-        QString language = settings.value(QStringLiteral("subtitleLanguage")).toString().trimmed().toLower();
-        if (language.isEmpty())
-            language = QStringLiteral("en");
-        raw << QStringLiteral("write-subs=") << QStringLiteral("sub-langs=%1.*").arg(language);
-        if (subtitles == QLatin1String("With Auto"))
+        const QString language = settings.value(QStringLiteral("subtitleLanguage")).toString().trimmed().toLower();
+        const bool withAuto = subtitles == QLatin1String("With Auto");
+        // Any ("-", or none): the subtitles the video has in whatever
+        // language, and with the automatic captions only those in the
+        // language it was made in (yt-dlp's "-orig"), never their many
+        // translations.
+        const bool any = language.isEmpty() || language == QLatin1String("-");
+        raw << QStringLiteral("write-subs=")
+            << QStringLiteral("sub-langs=") + (!any ? language + QStringLiteral(".*")
+                                               : withAuto ? QStringLiteral(".*-orig")
+                                               : QStringLiteral("all,-live_chat"));
+        if (withAuto)
             raw << QStringLiteral("write-auto-subs=");
     }
     // The account, as the app's own yt-dlp runs have it. A path may hold a
@@ -653,7 +660,7 @@ QVariantMap YouTubeBackend::playbackSettings() const {
             {QStringLiteral("maxFrameRate"), setting("max_frame_rate", "Any")},
             {QStringLiteral("audioLanguage"), setting("audio_language", "original")},
             {QStringLiteral("subtitles"), setting("subtitles", "Off")},
-            {QStringLiteral("subtitleLanguage"), setting("subtitle_language", "en")},
+            {QStringLiteral("subtitleLanguage"), setting("subtitle_language", "-")},
             {QStringLiteral("speed"), setting("playback_speed", "1x")}};
 }
 
@@ -677,8 +684,24 @@ void YouTubeBackend::get_audio_languages() {
     emit dynamicOptionsReady(QStringLiteral("audio_language"), options);
 }
 
+// Subtitle Language: Any (no preference, "-", where nothing is saved), then
+// the languages.
 void YouTubeBackend::get_subtitle_languages() {
-    emit dynamicOptionsReady(QStringLiteral("subtitle_language"), languageOptions());
+    QVariantList options{QVariantMap{{QStringLiteral("id"), QStringLiteral("-")},
+                                     {QStringLiteral("label"), QStringLiteral("Any")}}};
+    options << languageOptions();
+    emit dynamicOptionsReady(QStringLiteral("subtitle_language"), options);
+}
+
+// Subtitles, in the order every module's has, each saved as it always was:
+// With Auto reads "On + Auto Captions".
+void YouTubeBackend::get_subtitle_options() {
+    QVariantList options;
+    for (const auto &[id, label] : { std::pair{ "Off", "Off" }, std::pair{ "On", "On" },
+                                     std::pair{ "With Auto", "On + Auto Captions" } })
+        options << QVariantMap{{QStringLiteral("id"), QString::fromLatin1(id)},
+                               {QStringLiteral("label"), QString::fromLatin1(label)}};
+    emit dynamicOptionsReady(QStringLiteral("subtitles"), options);
 }
 
 // ---------------------------------------------------------------------------

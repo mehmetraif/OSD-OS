@@ -251,7 +251,7 @@ Local Files, YouTube and Playlists give a video a menu of its own:
 
 | Module | Its lines |
 |---|---|
-| Local Files | Back to Local Files, Stop, to Main Menu; Auto Show Subtitles, Subtitle Language, Loop Playback, Scaling; Add to Favorites, Play at Startup |
+| Local Files | Back to Local Files, Stop, to Main Menu; Subtitles, Subtitle Language, Loop Playback, Scaling; Add to Favorites, Play at Startup |
 | YouTube | Back to YouTube, Stop, to Main Menu; Subtitles, Subtitle Language, Audio Language, Playback Speed, Scaling, Playback Resolution; Add to Favorites, Play at Startup, Save to Watch Later |
 | Playlists | Back to Playlists, Stop, to Main Menu; Subtitles, Loop Playback, Scaling |
 

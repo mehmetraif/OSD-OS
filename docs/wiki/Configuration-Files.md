@@ -447,7 +447,7 @@ OSD/OS carries over what a 240-MP install left:
 - **The data folder.** At its first start, when `OSD-OS` doesn't exist or is empty, OSD/OS moves `~/.local/share/240-MP` to `~/.local/share/OSD-OS` (on a Mac, in `~/Library/Application Support`). The log says `[legacy] moved the 240-MP data folder … to …`. Should the move fail, it uses the 240-MP folder where it is.
 - **Module ids.** At every start, keys and values beginning `com.240mp.` in the data folder's `.json` files, `nfc_tags` included, are renamed `com.osdos.`.
 - **Environment variables.** Every `OSDOS_<NAME>` is read as `MP240_<NAME>` when unset. `web-player.sh` reads `MP240_WEB_PLAYER_UA`, and `scripts/rpi-run-local.sh` `MP240_BIN`.
-- **Old settings.** `app.theme` is read while `app.skin` is unset, and `app.auto_crop` while `app.video_scaling` is. The `true`/`false` values of Local Files' Shuffle Playback and Auto Show Subtitles still read.
+- **Old settings.** `app.theme` is read while `app.skin` is unset, and `app.auto_crop` while `app.video_scaling` is. The `true`/`false` values of Local Files' Shuffle Playback and Subtitles still read.
 - **The install.** `install.sh` removes a 240-MP install (`240mp.service`, `/opt/240mp`, `/usr/local/bin/240mp`) first. An app still running from `/opt/240mp` can't update itself: run the installer once ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
 
 ## The cache folder

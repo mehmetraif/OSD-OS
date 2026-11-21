@@ -41,9 +41,10 @@
       "key": "subtitles",
       "label": "Subtitles",
       "type": "list_single",
-      "options": ["Off", "On", "With Auto"],
+      "options_source": "dynamic",
+      "options_slot": "get_subtitle_options",
       "default": "Off",
-      "description": "[ON] A video's subtitles in Subtitle Language, where it has them  [WITH AUTO] Also YouTube's automatic captions"
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[ON] A video's own subtitles, in Subtitle Language where it has them\n[ON + AUTO CAPTIONS] Also YouTube's automatic captions"
     },
     {
       "key": "subtitle_language",
@@ -51,7 +52,8 @@
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_subtitle_languages",
-      "default": "en"
+      "default": "-",
+      "description": "The language subtitles are shown in, where a video has several\n[ANY] Whichever the video has; with automatic captions, those in its own language"
     },
     {
       "key": "audio_language",
