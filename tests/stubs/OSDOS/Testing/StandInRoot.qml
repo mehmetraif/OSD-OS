@@ -229,6 +229,8 @@ Rectangle {
         else
             Qt.callLater(function() { if (loader) loader.setSource(source, properties) })
     }
+    // No old window caught: a view changes at once.
+    readonly property bool windowCatching: false
     // Where the menus can be a window on a desktop (Window Mode).
     property bool canWindow: Qt.platform.os === "windows" || Qt.platform.pluginName === "xcb"
                              || Qt.platform.pluginName === "wayland"

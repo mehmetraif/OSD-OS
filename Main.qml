@@ -411,6 +411,9 @@ Window {
     // Loader.setSource has them), as Settings → Look → Effects → Transition
     // has it, or at once (WindowChange's change()).
     function changeWindow(loader, source, properties, base) { windowChange.change(loader, source, properties, base) }
+    // The old window being caught: the view leaving still has the keys, and
+    // what it asks for meanwhile (a second select) is not taken.
+    readonly property bool windowCatching: windowChange.capturing
 
     // --- MENU MUSIC (Settings → Sound → Menu Music, or the theme's) ---
     // In the menus only: not while the effects rest, a script or a module's
@@ -1473,6 +1476,7 @@ Window {
                     ignoreUnknownSignals: true
 
                     function onNavigateTo(path, params, listState) {
+                        if (root.windowCatching) return
                         // The way to the view opened: this view's own, as
                         // the frame has it; kept, for the way back.
                         root.appNavStack.push({ source: moduleLoader.source, params: root.appCurrentParams,
@@ -1482,7 +1486,7 @@ Window {
                     }
 
                     function onGoBack() {
-                        if (root.appNavStack.length === 0) return
+                        if (root.appNavStack.length === 0 || root.windowCatching) return
                         // Locked: the start module in the main menu's place,
                         // and nothing behind it.
                         if (root.appNavStack.length === 1 && root.cabinetLocked()) {

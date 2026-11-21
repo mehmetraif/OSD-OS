@@ -36,13 +36,23 @@ Rectangle {
     property var shown: []
     property var onShow: null
     function showView(loader, source, properties, base) {
-        loader.source = source
+        if (loader.setSource)
+            loader.setSource(source, properties)
+        else
+            loader.source = source
         shown = shown.concat([String(source)])
         if (onShow)
             onShow()
     }
     function changeWindow(loader, source, properties, base) {
         windowChange.change(loader, source, properties, base)
+    }
+    // The old window being caught, as Main.qml says it to the routers.
+    readonly property bool windowCatching: windowChange.capturing
+    // AppCore, for a module's name (ModuleRouter).
+    QtObject {
+        id: appCore
+        function get_module_info(id) { return {} }
     }
 
     WindowChange {
@@ -58,6 +68,12 @@ Rectangle {
             text: view.source
             color: "white"
         }
+    }
+    // A module's router as a module's Root is one (module_router/Root.qml),
+    // its views changing through the window.
+    Loader {
+        id: module
+        anchors.fill: parent
     }
     // Two loaders' stand-ins (moduleLoader's, a module's own): only their
     // source is read and set.
@@ -167,6 +183,34 @@ Rectangle {
             tryCompare(other, "source", "Again.qml", 1000)
             compare(root.shown, ["Next.qml", "Again.qml"])
             compare(windowChange.kind, "Fade")
+        }
+
+        // A view asked for again while the old window is caught (a second
+        // select) is not: the view asking is the one leaving, and it would
+        // be on the way back twice, with the next view's params. Back from
+        // the view opened returns to it, and back meanwhile is not taken
+        // either.
+        function test_askedAgainWhileCaught() {
+            module.setSource(Qt.resolvedUrl("module_router/Root.qml"))
+            var router = module.item
+            tryCompare(router.currentView, "name", "first", 1000)
+            tryCompare(windowChange, "running", false, 3000)
+            var first = router.currentView
+            // The first view's way back is out of the module.
+            var depth = router.navStack.length
+            first.navigateTo("Page.qml", { name: "second" }, {})
+            verify(windowChange.capturing)
+            first.navigateTo("Page.qml", { name: "third" }, {})
+            first.goBack()
+            tryCompare(windowChange, "capturing", false, 1000)
+            compare(router.currentView.name, "second")
+            compare(router.navStack.length, depth + 1)
+            tryCompare(windowChange, "running", false, 3000)
+            router.currentView.goBack()
+            tryCompare(windowChange, "capturing", false, 1000)
+            compare(router.currentView.name, "first")
+            compare(router.navStack.length, depth)
+            module.source = ""
         }
 
         function test_changeMadeByAChange() {

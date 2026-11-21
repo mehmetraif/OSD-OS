@@ -145,13 +145,18 @@ FocusScope {
         Connections {
             target: internalLoader.item
             ignoreUnknownSignals: true
+            // Not while the old window is being caught (root.windowCatching):
+            // the view asking is the one leaving, and a second select would
+            // put it on the way back twice.
             function onNavigateTo(path, params, listState) {
+                if (root.windowCatching)
+                    return
                 if (!moduleRouter.opensOwn || !moduleRouter.opensOwn(path, params, listState))
                     moduleRouter.navigateToView(path, params, listState)
             }
             function onReplaceWith(path, params) { moduleRouter.replaceWith(path, params) }
             function onReplaceCurrent(path, params) { moduleRouter.replaceCurrent(path, params) }
-            function onGoBack() { moduleRouter.navigateBack() }
+            function onGoBack() { if (!root.windowCatching) moduleRouter.navigateBack() }
             function onUpdateBackItem(item) { moduleRouter.updateBackItem(item) }
         }
     }
