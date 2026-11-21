@@ -104,7 +104,27 @@ FocusScope {
             if (!refreshed.pending)
                 remembered[path] = Math.max(0, Math.min(remembered[path], refreshed.items.length - 1))
         }
+        // Its branch is laid out again once for every folder that came in in
+        // this turn of the event loop (several load at once), not once each.
         if (branched)
+            branchesLater()
+    }
+
+    // A layout of the branches asked for, to be made as the event loop
+    // turns: any layout made before then (relayout(), the cursor coming to
+    // rest) is of the latest state and takes its place.
+    property bool branchesDue: false
+    function branchesLater() {
+        if (branchesDue) return
+        branchesDue = true
+        Qt.callLater(tree.branchesNow)
+    }
+    function branchesNow() {
+        if (!branchesDue) return
+        branchesDue = false
+        // Branches cleared since (the cursor moved) come back with the
+        // cursor at rest, the latest entries in them.
+        if (ready && branched)
             layoutBranches(true)
     }
 
@@ -525,6 +545,7 @@ FocusScope {
     // it is (the cursor moved, or a branch's entries came in), rather than
     // being placed again for these branches.
     function layoutBranches(stripFixed) {
+        branchesDue = false
         var col = trail.get(active)
         var items = listing(col.path).items
         var colX = columnX[active]

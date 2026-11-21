@@ -27,6 +27,8 @@ StandInRoot {
         fetch: function(path, preview) { return root.entries[path] === undefined ? [] : root.entries[path] }
     }
     SignalSpy { id: activatedSpy; target: browser; signalName: "activated" }
+    // One for each layout of the branches.
+    SignalSpy { id: layoutSpy; target: browser; signalName: "blocksChanged" }
     TestCase {
         name: "ExpandedFolderTree"
         when: windowShown
@@ -54,6 +56,11 @@ StandInRoot {
             var trail = browser.trailState()
             if (trail[0].sel !== 0) browser.move(-trail[0].sel)
             browser.relayout()
+        }
+        // A closed folder's entries coming in are laid out as the event
+        // loop turns: one layout for all that came in together.
+        function laidOut() {
+            tryVerify(function() { return !browser.branchesDue })
         }
         function block(path) {
             for (var i = 0; i < browser.blocks.length; i++)
@@ -127,6 +134,7 @@ StandInRoot {
             for (var i = 0; i < 1000; i++) list.push(root.file("item" + i, "/projects/" + i))
             root.entries["/projects"] = list
             browser.refresh("/projects")
+            laidOut()
             var b = block("/projects")
             compare(b.rows.length, 1000)
             verify(browser.visibleRows(b).rows.length <= Math.ceil((browser.bandBottom - browser.bandTop) / browser.rowHeight))
@@ -140,6 +148,7 @@ StandInRoot {
             // Another app removed the later entries while the folder was closed.
             root.entries["/projects"] = root.entries["/projects"].slice(0, 2)
             browser.refresh("/projects")
+            laidOut()
             compare(block("/projects").offset, 1)
             verify(browser.openFolder())
             compare(browser.selectedItem().path, "/projects/tests")
@@ -165,6 +174,54 @@ StandInRoot {
             compare(browser.selectedItem().path, "/films/one")
             verify(browser.listings["/projects"] === projects)
         }
+        // Folders that aren't open coming in together (several loading at
+        // once) are laid out once, as the event loop turns, with what came in
+        // last; the cursor, the strip and the open folders as they were.
+        function test_refreshesInOneTurnLaidOutOnce() {
+            verify(browser.openFolder())
+            browser.move(4)
+            compare(browser.selectedItem().path, "/projects/assets")
+            tryVerify(function() { return browser.branched })
+            var trail = JSON.stringify(browser.trailState())
+            var strip = browser.stripTarget
+            layoutSpy.clear()
+            root.entries["/projects/source"] = [root.file("a.cpp", "/projects/source/a.cpp")]
+            browser.refresh("/projects/source")
+            root.entries["/projects/tests"] = [root.file("b.cpp", "/projects/tests/b.cpp")]
+            browser.refresh("/projects/tests")
+            root.entries["/projects/assets"] = [root.file("one.svg", "/projects/assets/one.svg")]
+            browser.refresh("/projects/assets")
+            root.entries["/projects/assets"] = [root.file("one.svg", "/projects/assets/one.svg"),
+                                                root.file("two.svg", "/projects/assets/two.svg")]
+            browser.refresh("/projects/assets")
+            compare(layoutSpy.count, 0, "laid out as the event loop turns, not at each refresh")
+            laidOut()
+            wait(50)
+            compare(layoutSpy.count, 1)
+            compare(block("/projects/source").rows[0].label, "a.cpp")
+            compare(block("/projects/tests").rows[0].label, "b.cpp")
+            compare(block("/projects/assets").rows.length, 2)
+            compare(JSON.stringify(browser.trailState()), trail)
+            compare(browser.stripTarget, strip)
+            compare(browser.selectedItem().path, "/projects/assets")
+            // A layout of its own in the same turn (a folder opened) is of
+            // the latest state already: none more after it.
+            layoutSpy.clear()
+            root.entries["/projects/docs"] = [root.file("new.md", "/projects/docs/new.md")]
+            browser.refresh("/projects/docs")
+            browser.relayout()
+            compare(layoutSpy.count, 1)
+            wait(50)
+            compare(layoutSpy.count, 1)
+            compare(block("/projects/docs").rows[0].label, "new.md")
+            // The cursor moved before they were laid out: the branches come
+            // back with it at rest, holding what came in.
+            root.entries["/projects/source"] = [root.file("c.cpp", "/projects/source/c.cpp")]
+            browser.refresh("/projects/source")
+            browser.move(-4)
+            tryVerify(function() { return browser.branched })
+            compare(block("/projects/source").rows[0].label, "c.cpp")
+        }
         function test_hintBarRoom() {
             // With the hint bar off, the area reaches the content box's foot:
             // more of a long folder shows under the spine, which stays put.
@@ -172,6 +229,7 @@ StandInRoot {
             for (var i = 0; i < 40; i++) list.push(root.file("item" + i, "/projects/" + i))
             root.entries["/projects"] = list
             browser.refresh("/projects")
+            laidOut()
             var spine = browser.spine
             var bottom = browser.bandBottom
             var shown = browser.visibleRows(block("/projects")).rows.length
