@@ -543,6 +543,10 @@ osdos_qml_test(window_change tst_window_change.qml)
 # way forward and back, the two replaces, a view the Root opens its own way,
 # inFrame, and the shell's own navigateTo.
 osdos_qml_test(module_router tst_module_router.qml)
+# The catalogue browsers, YouTube's (modules/youtube/views/Items.qml) and a
+# web player module's (views/Components/WebPlayerBrowse.qml), against
+# stand-ins for their backends.
+osdos_qml_test(catalog_browser_views tst_catalog_browsers.qml)
 
 # Settings → Look → Menu Layout's monitor layouts as a frame every kind of
 # view takes its place in (views/Components/MonitorChrome.qml and the shared
