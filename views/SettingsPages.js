@@ -38,7 +38,11 @@ function firstRows(items) {
         description: "Every controller connected, each with its own buttons (and a pad's button labels), and extra keys for every keyboard and remote",
         moduleId: ""
     })
-    items.push(groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes"))
+    // Dimmed where neither of its rows can be used (a Mac, Windows), with
+    // why, as its rows are.
+    var network = groupRow("network", "Wi-Fi's networks, and pairing Bluetooth keyboards, gamepads and remotes")
+    network.unavailable = networkOff()
+    items.push(network)
     items.push(groupRow("startup", "What OSD/OS opens on: Start on Module, Play at Startup and Cabinet Lock"))
     items.push(groupRow("system", "OSD/OS Setup's settings pasted, Update, About, and the settings of the modules of no group"))
     // On the OSD/OS image (autostart) a power menu, and named so.
@@ -444,7 +448,7 @@ function soundRows(items) {
             options: [],
             value: "",
             description: "Which sound card plays: the AV jack, HDMI or a USB sound card",
-            unavailable: "Only where OSD/OS chooses among ALSA's sound cards, as on Linux",
+            unavailable: "Only on a Raspberry Pi or a Linux without a sound server: here the system's sound settings choose",
             moduleId: ""
         })
     }
@@ -481,6 +485,16 @@ function soundRows(items) {
         shownWith: { key: "menu_music", not: "Off" },
         moduleId: ""
     })
+}
+
+// Why neither Wi-Fi nor Bluetooth can be used here, "" where one can: the
+// first screen's Network row's reason.
+function networkOff() {
+    if ((wifiManager && wifiManager.supported) || (bluetoothManager && bluetoothManager.supported))
+        return ""
+    return wifiManager && wifiManager.launcherTooOld
+           ? "Needs a newer launcher: run install.sh again, or put a newer OSD/OS image on the card"
+           : "Only where NetworkManager or BlueZ runs, as on the OSD/OS image"
 }
 
 // NETWORK: joining a Wi-Fi network (NetworkManager), pairing Bluetooth

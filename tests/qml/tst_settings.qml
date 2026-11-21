@@ -558,12 +558,51 @@ StandInRoot {
             compare(page.monitorGuide, ["[▲▼]:MENU/ITEM", "[◄►]:ON/OFF", "[ENTER]:SETTINGS", "[ESC]:BACK"])
         }
 
+        // A page opens on its first row that can be used, not a dimmed one
+        // (Screen's Display Output off a Pi); back to it, on the row it was
+        // left on. The first screen's Network row is dimmed, with why, where
+        // neither Wi-Fi nor Bluetooth can be used, and usable with either.
+        function test_startsOnAUsableRow() {
+            var page = open({ group: "screen" })
+            verify(page.offReason(0) !== "")
+            compare(cursor(page), "Monitor")
+            loader.source = ""
+            page = open({ group: "screen", navListState: { currentIndex: 0 } })
+            compare(cursor(page), "Monitor")
+            loader.source = ""
+            page = open({ group: "screen", navListState: { currentIndex: 3 } })
+            compare(cursor(page), lines(page)[3])
+            loader.source = ""
+            displayOutput.available = true
+            page = open({ group: "screen" })
+            compare(cursor(page), "Display Output")
+            loader.source = ""
+            page = open()
+            var at = lines(page).indexOf("Network")
+            compare(page.offReason(at), "Only where NetworkManager or BlueZ runs, as on the OSD/OS image")
+            verify(menuRow(page, at).dimmed)
+            wifiManager.launcherTooOld = true
+            loader.source = ""
+            page = open()
+            verify(page.offReason(at).indexOf("Needs a newer launcher") === 0)
+            loader.source = ""
+            bluetoothManager.supported = true
+            page = open()
+            compare(page.offReason(at), "")
+            moveTo(page, "Network")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].params.group, "network")
+        }
+
         // Sound: Menu Music's rows dimmed while it is Off, each saying for
         // what; Audio Output dimmed where OSD/OS can't choose a sound card.
         function test_soundPage() {
             var page = open({ group: "sound" })
             var all = lines(page)
-            verify(page.offReason(all.indexOf("Audio Output")).indexOf("Only where") === 0)
+            compare(page.offReason(all.indexOf("Audio Output")),
+                    "Only on a Raspberry Pi or a Linux without a sound server: here the system's sound settings choose")
+            // Opened on the first row that can be used.
+            compare(cursor(page), "Menu Music")
             compare(page.offReason(all.indexOf("Menu Music")), "")
             compare(page.offReason(all.indexOf("Music File")), "Only with Menu Music on File")
             compare(page.offReason(all.indexOf("Music Volume")), "Off while Menu Music is Off")
@@ -675,7 +714,10 @@ StandInRoot {
             compare(row(page, "Keyboard").value, "Turkish (Q)")
             verify(page.offReason(0).indexOf("Only on the OSD/OS image") === 0)
             verify(page.offReason(1).indexOf("Only on the OSD/OS image") === 0)
-            // The cursor stops on a dimmed row, and select opens nothing.
+            // Opened on the first row that can be used; the cursor still
+            // stops on a dimmed row, and select opens nothing.
+            compare(cursor(page), "Paste OSD/OS Setup")
+            listOf(page).currentIndex = 0
             compare(cursor(page), "Time Zone")
             keyClick(Qt.Key_Return)
             verify(!named(page, "systemPicker").visible)

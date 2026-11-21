@@ -382,6 +382,17 @@ FocusScope {
         var start = at !== undefined ? Math.min(at, items.length - 1)
                   : navListState.currentIndex !== undefined ? Math.min(navListState.currentIndex, items.length - 1) : 0
         start = Math.max(0, start)
+        // A page opened at its top starts on its first row that can be
+        // used, not on one dimmed (Display Output off a Pi), where there is
+        // one.
+        if (start === 0) {
+            for (var u = 0; u < items.length; u++) {
+                if (settingsList.stopsAt(u) && offReason(u) === "") {
+                    start = u
+                    break
+                }
+            }
+        }
         var stop = settingsList.selectableFrom(start, 1)
         settingsList.currentIndex = settingsList.stopsAt(stop) ? stop : start
         settingsList.show(settingsList.currentIndex)

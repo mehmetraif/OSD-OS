@@ -442,7 +442,7 @@ Nothing in `mpv.conf` reaches the menu music's mpv. More in [Menu music](https:/
 
 ## Rows dimmed in Settings
 
-Settings never hides a row. One that can't be used is dimmed, a checkerboard over it, and its help line starts with why.
+Settings never hides a row. One that can't be used is dimmed, a checkerboard over it, and its help line starts with why. A page opens on its first row that can be used.
 
 | Row | Can be used when |
 |---|---|
@@ -459,6 +459,7 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | Music File, Music Volume (Sound) | Menu Music is File; Menu Music isn't Off |
 | Wi-Fi (Network) | On Linux, in a build with Qt D-Bus, with NetworkManager running |
 | Bluetooth (Network) | On Linux, in a build with Qt D-Bus, with BlueZ running |
+| Network (the first screen) | Wi-Fi or Bluetooth can be used |
 | Startup From (Startup) | A favourite is set to Play at Startup |
 | Paste OSD/OS Setup (System) | There is a clipboard: on a computer, not on the image's console |
 
