@@ -1363,8 +1363,12 @@ StandInRoot {
             below += 5 * rowHeight
             verify(rows.contentY < below - 0.5)
             tryVerify(function() { return settled(below) }, 2000)
-            // And back up past the top of what shows: gliding too.
-            var top = Math.round((rows.contentY - rows.originY) / rowHeight)
+            // And back up past the top of what shows: gliding too. The top
+            // is the first row shown whole: where the rows' height is no
+            // whole number of rows (a layout's frame under another font),
+            // the row above it shows in part, and the cursor on that one
+            // would move the rows already.
+            var top = Math.ceil((rows.contentY - rows.originY) / rowHeight - 0.001)
             while (list.currentIndex > top)
                 keyClick(Qt.Key_Up)
             tryVerify(function() { return settled(below) }, 1000)
