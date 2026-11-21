@@ -201,54 +201,89 @@ StandInRoot {
             compare(cursor(page), "Data")
         }
 
-        // A licence's page longer than its box: its ▲ ▼ inside the box, over
-        // the strips the text leaves them, clear of the hint bar under it,
-        // in every Menu Layout.
-        function test_licenseMarksInTheBox_data() {
+        // A licence's page longer than its box, in every Menu Layout: at
+        // every scroll position only whole lines show, none cut by the box,
+        // a strip, or a mark; the ▲ and the ▼ are inside the box, clear of
+        // the text and of the hint bar under it, and their strips are there
+        // only while they are: at the top the text starts at the box's top.
+        // Long wrapped lines among them, so the lines aren't the box's.
+        function test_licenseShowsWholeLines_data() {
             return root.menuLayouts.map(function(layout) { return { tag: layout, layout: layout } })
         }
-        function test_licenseMarksInTheBox(data) {
+        function test_licenseShowsWholeLines(data) {
             root.menuLayout = data.layout
-            appCore.gpl = "GNU GENERAL PUBLIC LICENSE Version 3" + new Array(60).join("\nA line of the license's text")
+            appCore.gpl = "GNU GENERAL PUBLIC LICENSE Version 3"
+                          + new Array(40).join("\nA line of the license's text, long enough that it wraps once or twice in the box")
             var page = open()
             downTo(page, "License")
             keyClick(Qt.Key_Return)
             tryVerify(function() { return findText(page, "This program is free software") !== null }, 1000)
-            var find = function(item, test) {
-                if (test(item))
-                    return item
-                for (var i = 0; i < item.children.length; i++) {
-                    var found = find(item.children[i], test)
-                    if (found)
-                        return found
+            var box = findChild(page, "licenseBox")
+            var window = findChild(page, "licenseWindow")
+            var flick = findChild(page, "licenseFlick")
+            var marks = findChild(page, "licenseMarks")
+            verify(box && window && flick && marks)
+            var room = window.parent
+            // The lines where the page says they are: each text as tall as
+            // its lines at their pitch.
+            var texts = []
+            var findTexts = function(item) {
+                if (item.pitch !== undefined && item.lineCount !== undefined)
+                    texts.push(item)
+                for (var i = 0; i < item.children.length; i++)
+                    findTexts(item.children[i])
+            }
+            findTexts(flick.contentItem)
+            compare(texts.length, 2)
+            for (var t = 0; t < texts.length; t++)
+                fuzzyCompare(texts[t].height, texts[t].lineCount * texts[t].pitch, 1)
+            var markOf = function(name) {
+                for (var i = 0; i < marks.children.length; i++) {
+                    if (marks.children[i].name === name)
+                        return marks.children[i]
                 }
                 return null
             }
-            // The page's marks: those of the text in its bordered box.
-            var marks = find(page, function(i) { return i.moreBelow !== undefined && !!i.list && !!i.list.parent
-                                                       && i.list.parent.border !== undefined })
-            verify(marks !== null)
-            var flick = marks.list
-            var box = flick.parent
-            var rectOf = function(item) {
-                var p = item.mapToItem(root, 0, 0)
-                return { top: p.y, bottom: p.y + item.height }
-            }
-            var check = function(name) {
-                var mark = find(marks, function(i) { return i.name === name })
-                verify(mark !== null && mark.visible, name)
-                var m = rectOf(mark)
-                var b = rectOf(box)
-                verify(m.top >= b.top + root.px && m.bottom <= b.bottom - root.px,
-                       name + " in the box: " + JSON.stringify(m) + " " + JSON.stringify(b))
-                var t = rectOf(flick)
-                verify(m.bottom <= t.top || m.top >= t.bottom, name + " clear of the text")
+            var yOf = function(item) { return item.mapToItem(root, 0, 0).y }
+            var check = function(where) {
+                var top = yOf(window)
+                var bottom = top + window.height
+                var lines = flick.lines()
+                for (var i = 0; i < lines.length; i++) {
+                    var lt = yOf(flick.contentItem) + lines[i].top
+                    var lb = lt + (lines[i].bottom - lines[i].top)
+                    var inside = lt >= top - 0.5 && lb <= bottom + 0.5
+                    var outside = lb <= top + 0.5 || lt >= bottom - 0.5
+                    verify(inside || outside, where + ": line " + i + " cut")
+                }
+                verify(window.height > 0, where)
+                var b = { top: yOf(box) + root.px, bottom: yOf(box) + box.height - root.px }
+                for (var name of ["up", "down"]) {
+                    var mark = markOf(name)
+                    if (!mark.visible)
+                        continue
+                    var m = { top: yOf(mark), bottom: yOf(mark) + mark.height }
+                    verify(m.top >= b.top && m.bottom <= b.bottom, where + ": " + name + " in the box")
+                    verify(m.bottom <= top + 0.5 || m.top >= bottom - 0.5, where + ": " + name + " clear of the text")
+                }
+                // No strip at an end with no mark.
+                if (!markOf("up").visible)
+                    fuzzyCompare(top, yOf(room), 0.5)
             }
             tryVerify(function() { return marks.moreBelow }, 1000, "longer than its box")
-            check("down")
-            flick.contentY = flick.contentHeight - flick.height
-            verify(marks.moreAbove)
-            check("up")
+            check("the top")
+            compare(markOf("up").visible, false)
+            var steps = 0
+            while (marks.moreBelow && steps < 40) {
+                keyClick(Qt.Key_Down)
+                check("down " + ++steps)
+            }
+            verify(!marks.moreBelow && marks.moreAbove, "to its end")
+            while (marks.moreAbove && steps < 80) {
+                keyClick(Qt.Key_Up)
+                check("up " + ++steps)
+            }
+            compare(flick.contentY, 0)
             root.menuLayout = "Standard"
         }
 
