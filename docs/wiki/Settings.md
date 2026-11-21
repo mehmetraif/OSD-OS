@@ -23,7 +23,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 - The hint bar names only the keys the selected row takes: **OPEN** on a row ending in ►, **CHANGE** on a list, **ON/OFF** where select turns a slider on or off, **ON/OFF** and **SETTINGS** on a module's row, and only back on a dimmed row.
 - No row is hidden. One that can't be used is dimmed, and its help line starts with why; a page opens on its first row that can be used. The first screen's Network row is dimmed where neither Wi-Fi nor Bluetooth can be used (a Mac, Windows) ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#rows-dimmed-in-settings)).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with OSD Frame selected and dimmed rows for Orb Fog and OSD Frame, the help line starting: Only with OSD Background on Box" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with OSD Frame selected and dimmed, the help line starting: Only with OSD Background on Box" />
 
 ## TV / Movie
 
@@ -54,7 +54,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 
 **The file browser** that Music File and Logo Image open is Local Files' tree. At its top is the default (**No File**, **OSD/OS Logo**), then **Home**, **Media** (`/media`), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`); on Windows, in Root's place, each drive by its letter (**C:**, **D:**).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: 1080p Playback dimmed, Loading Effect, Loading Colors, Channel Logo, Logo Image, Info Screen, then the MODULES heading and Ambient:Mode" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: Info Screen, then the MODULES heading and each video module's row with its ON or OFF: Local Files selected, Playlists, Plex, Jellyfin, Emby and YouTube" />
 
 ### The video modules
 
@@ -68,7 +68,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 
 `SETTINGS | LOOK`. A theme sets the part rows: Color Scheme, Skin, the effects and Menu Music.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, OSD FRAME dimmed, BOOT COLORS THEME" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, MENU LAYOUT STANDARD, OSD BACKGROUND FULL, OSD FRAME dimmed, LOADING EFFECT ON" />
 
 - **THEME** in a part row (saved as `""`) means the theme's. **Off** (saved as `"Off"`) means none. A choice of its own (saved by its name) replaces the theme's.
 - Choosing a theme sets every part row back to THEME.
@@ -130,7 +130,7 @@ Every layout has the same pages and rows, and changes at once. A layout is kept 
 <tr><td colspan="2"><b>Studio Monitor.</b></td></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-broadcast.png" width="100%" alt="Broadcast: plain blue, LOOK centred at the top, the Look page's rows, Menu Layout's value STUDIO MONITOR boxed in white while it is being changed, and the guide TO CHANGE, TO CONFIRM, TO CANCEL" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-broadcast.png" width="100%" alt="The main menu in Broadcast: OSD/OS centred, every module with three dots after it, a filled square before Local Files, and the guide TO SELECT, TO ENTER, TO SETTINGS" /></td></tr>
 <tr><td colspan="2"><b>Broadcast.</b></td></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-flat-panel.png" width="100%" alt="Flat Panel: black, >Look at the top left and 1/2 at the top right, the rows in mixed case as Label: Value, Menu Layout's value Broadcast in yellow while it is being changed on a grey bar" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-flat-panel.png" width="100%" alt="The main menu in Flat Panel: black, OSD/OS at the top left, the modules in mixed case each with a ▶, Local Files on a grey bar" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-flat-panel.png" width="100%" alt="Flat Panel: black, >Settings >Look at the top left and 1/2 at the top right, the rows in mixed case as Label: Value, Menu Layout's value Broadcast in yellow while it is being changed on a grey bar" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-flat-panel.png" width="100%" alt="The main menu in Flat Panel: black, OSD/OS at the top left, the modules in mixed case each with a ▶, Local Files on a grey bar" /></td></tr>
 <tr><td colspan="2"><b>Flat Panel.</b> The title is the path to the page (<code>&gt;Settings &gt;Look &gt;Effects</code>).</td></tr>
 </table>
 
@@ -217,7 +217,7 @@ Full-screen pictures to set up a TV or monitor by, from Artemio Urbina's [240p T
 
 <table>
 <tr><th width="50%">Grid</th><th width="50%">Monoscope</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/test-patterns.png" width="100%" alt="Settings → Screen → Test Patterns: the Grid, white squares with a dot in each and red ones round the edge, and in a box at the foot its name, what to set with it and the keys" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/test-patterns-monoscope.png" width="100%" alt="The Monoscope: the centre cross, the arrows at the sides, the corners' patterns and the red square, with its name and what to set with it in the box" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/test-patterns.png" width="100%" alt="Settings → Screen → Test Patterns: the Grid, white squares with a dot in each and red ones round the edge, and in a box at the foot its name, what to set with it and the keys" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/test-patterns-monoscope.png" width="100%" alt="The Monoscope: the center cross, the arrows at the sides, the corners' patterns and the red square, with its name and what to set with it in the box" /></td></tr>
 <tr><td>Size, position and geometry.</td><td>A tube's convergence, purity and geometry.</td></tr>
 </table>
 
@@ -434,10 +434,10 @@ More in [Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation).
 <table>
 <tr><th width="50%">About</th><th width="50%">The license</th></tr>
 <tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license" /></td></tr>
-<tr><td>System Information, then a line for each part of OSD/OS.</td><td>The notice, then the GNU GPL's text, a page at a time.</td></tr>
+<tr><td>A line for each part of OSD/OS.</td><td>The notice, then the GNU GPL's text, a page at a time.</td></tr>
 </table>
 
-- **System Information** is the first line: this device's name. Select opens its page ([below](#system-information)).
+- **System Information** is a row of System's page, not of About's: this device's name, and select opens its page ([below](#system-information)).
 - **Build** has the commit and the day of the build. The version is in the title bar.
 - The other lines say who makes OSD/OS and what it is made of; under **ARCADE**, the arcade's software and sites ([Credits](https://github.com/mehmetraif/OSD-OS/wiki/Credits)).
 - Each line's detail is in the help line, shown even with Help Line off.

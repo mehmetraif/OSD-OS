@@ -418,7 +418,7 @@ For `sudo` on an image built without a password, give `pi` a password on OSD/OS 
 
 <table>
 <tr><th width="50%">Quit</th><th width="50%">Update</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="Really quit? with No selected, then Yes and Save Logs" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/update.png" width="100%" alt="Update: installed version DEV, press Enter to check for the latest" /></td></tr>
 <tr><td>Settings → Quit, run by hand. On the image it offers the choices below.</td><td>Settings → System → Update.</td></tr>
 </table>
 

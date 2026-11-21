@@ -238,7 +238,7 @@ Settings → Arcade → **LAN Play** and **Online Play**: up to six players acro
 
 <table>
 <tr><th width="50%">Dimmed rows</th><th width="50%">Look</th></tr>
-<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with dimmed rows, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, OSD Background, OSD Frame, Boot Colors" /></td></tr>
+<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with a dimmed row, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, Menu Layout, OSD Background, OSD Frame, Loading Effect" /></td></tr>
 <tr><td>A row that can't be used here is dimmed, never hidden, and the help line says why.</td><td>The whole look at once with Theme, or each part on its own row.</td></tr>
 </table>
 

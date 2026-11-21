@@ -335,7 +335,7 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 
 ## The hint bar and the help line
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, then ARCADE, LOOK, SCREEN, SOUND, CONTROLS, NETWORK and STARTUP, a ▼ for the rows below, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [◄►]:CHANGE [ENTER]:SELECT" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings.png" width="100%" alt="Settings: TV / MOVIE selected, then ARCADE, LOOK, SCREEN, SOUND, CONTROLS, NETWORK and STARTUP, a ▼ for the rows below, a help line scrolling its text, and the hint bar [ESC]:BACK [▲▼]:NAVIGATE [ENTER]:OPEN" />
 
 - **The hint bar** at the foot of every screen says which keys do what there. It shows the keyboard's keys (`[ESC]`, `[ENTER]`, `[SPACE]`) until you press a gamepad button, then that gamepad's (`[B]`, `[A]`, `[START]`) ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#the-hints-at-the-foot-of-the-screen)).
 - **The help line** is the box under a menu with a line about the selected row. A line too long for the box scrolls through it.
@@ -368,7 +368,7 @@ Back on the main menu opens Settings. A line has its value between the arrows th
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: its folder, looping, shuffle, resume, subtitles, and its own Scaling" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker open on the films folder, the home folder's folders to its left: USE THIS FOLDER, then its folders, one for each genre, ACTION's RAMBO MOVIES faint" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: its folder, looping, shuffle, resume, subtitles, and its own Scaling" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker open on the films folder, the places and the home folder's folders to its left: USE THIS FOLDER selected, then its folders, one for each genre" /></td></tr>
 <tr><td>Local Files' settings.</td><td>Folders are picked on the same tree: USE THIS FOLDER picks the one open, Default Folder the module's own.</td></tr>
 </table>
 
@@ -376,7 +376,7 @@ Back on the main menu opens Settings. A line has its value between the arrows th
 
 ## Quit, Restart, Power Off, Exit to Terminal
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="REALLY QUIT?: YES, SAVE LOGS and NO" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="REALLY QUIT?: NO selected, then YES and SAVE LOGS" />
 
 **Quit** is the last line of Settings. It asks **Really quit?**, the cursor on the answer that stays (**No**, **Cancel**). Started with the system the row is **Power**, with the power symbol in Camcorder's column, and asks **Power off?**:
 
@@ -397,8 +397,8 @@ Back on the main menu opens Settings. A line has its value between the arrows th
 
 <table>
 <tr><th width="50%">About</th><th width="50%">The license</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About: the OSD/OS wordmark and SMART TV FOR CRT, then SYSTEM INFORMATION with this device's name, BUILD, DEVELOPER, BASED ON, LICENSE and SOURCE lines, and the help line about the selected one" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license page: the GPL's notice for OSD/OS, then the license's text" /></td></tr>
-<tr><td>System Information, then a line for each part of OSD/OS.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/about.png" width="100%" alt="About: the OSD/OS wordmark and SMART TV FOR CRT, then the BUILD line selected, DEVELOPER, BASED ON, LICENSE, WEBSITE and SOURCE, and the help line about the selected one" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/license.png" width="100%" alt="The license page: the GPL's notice for OSD/OS, then the license's text" /></td></tr>
+<tr><td>A line for each part of OSD/OS.</td><td>Behind the LICENSE line: the notice, then the GNU GPL's text.</td></tr>
 </table>
 
 Settings → System → **About** lists what OSD/OS is, who makes it and what it is made of. The help line gives each line's detail, even with Help Line off.

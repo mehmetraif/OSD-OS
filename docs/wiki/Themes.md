@@ -112,7 +112,7 @@ Each is a folder in [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/ma
 
 ### Theme and the rows under it
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, OSD FRAME dimmed, BOOT COLORS THEME" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, MENU LAYOUT STANDARD, OSD BACKGROUND FULL, OSD FRAME dimmed, LOADING EFFECT ON" />
 
 **Theme** lists None (the default) and every theme by name. It is saved as `app.osd_theme`: the theme's folder name, `""` for None.
 

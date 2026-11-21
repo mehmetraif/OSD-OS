@@ -44,8 +44,8 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
 
 <table>
 <tr><th width="50%">Settings → Quit, run by hand</th><th width="50%">The boot screen (the image)</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="The quit question: Yes, Save Logs and No" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the cassette and a line per service" /></td></tr>
-<tr><td>Run by hand: Yes, Save Logs (on the image) and No. Started by the service: Power Off, Restart, Exit to Terminal, Save Logs and Cancel.</td><td><code>[ OK ]</code> once a service is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/quit.png" width="100%" alt="The quit question: No selected, then Yes and Save Logs" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/boot.png" width="100%" alt="The boot screen: the cassette and a line per service" /></td></tr>
+<tr><td>Run by hand: No, Yes and Save Logs (on the image). Started by the service: Cancel, Power Off, Restart, Exit to Terminal and Save Logs.</td><td><code>[ OK ]</code> once a service is up, <code>[FAIL]</code> if it failed, <code>[ -- ]</code> if it was skipped.</td></tr>
 </table>
 
 ### When it crashes or freezes: the reports
