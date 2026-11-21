@@ -107,12 +107,25 @@ Online, a game plays ahead with no latency, and a machine that can't keep up tak
 For a smooth game:
 
 - **Screens of 60 Hz.** A screen of 50 Hz (Display Output's 288p and 576i modes, and PAL) is slower than most arcade games. Choose a mode of 60 Hz in **Settings → Screen → Display Output** on every machine.
-- **A cable, or Wi-Fi kept awake.** A radio that saves power stutters the game. The OSD/OS image keeps its Wi-Fi awake ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)); a computer joining over Wi-Fi may need the same.
+- **A cable, or Wi-Fi kept awake.** A radio that saves power stutters the game. The OSD/OS image keeps its Wi-Fi awake ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)); a Windows PC is set by hand ([A Windows PC](#a-windows-pc)).
 - **A network game's packets ahead on Wi-Fi.** The OSD/OS image's Pis mark what they send in a LAN game so that Wi-Fi sends it ahead of other traffic ([The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi)). A Windows PC marks nothing until an administrator sets a QoS policy once: [INSTALL.md → On Windows](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64) gives the command, the one that removes it, and how to see on a Pi that the PC's packets arrive marked.
 - **Bluetooth controllers** on a Raspberry Pi share an aerial with its 2.4 GHz Wi-Fi: use a 5 GHz network or a cable. The Pi's radio serves the two in turn at 2.4 GHz, so the game's packets wait while the pads are served.
   - A router that gives both its bands one name lets the Pi pick either, and a Pi behind a TV may pick 2.4 GHz. Giving the 5 GHz band a name of its own, and joining that one, keeps it there.
   - A Pi whose Wi-Fi country isn't set to where it is may not hear the router's 5 GHz channel at all: **Settings → Network → Wi-Fi → Country**.
   - To see the band a Pi is on: the app's log has `[Wi-Fi] On 2437 MHz (2.4 GHz) through wlan0` each time it changes, and on the Pi, `iw dev wlan0 link` gives `freq` (below 3000 is 2.4 GHz), `iw reg get` the country the radio keeps to, and `bluetoothctl devices Connected` the Bluetooth devices connected.
+
+#### A Windows PC
+
+Windows leaves its own Wi-Fi and power settings to you. Each of these is set once, and each has a way to check it, in a Command Prompt or PowerShell:
+
+| Set | What it does | To check |
+|---|---|---|
+| **A cable**, or else a 5 GHz network | A cable has no air to wait for. At 2.4 GHz the PC shares the band with every other network and device around | `netsh wlan show interfaces`: **Band** (`5 GHz`), **Channel** and **Signal**. No Wi-Fi interface listed while a cable is in is the cable |
+| **The Wi-Fi adapter's power saving at Maximum Performance**: Control Panel → Power Options → **Change plan settings** → **Change advanced power settings** → **Wireless Adapter Settings** → **Power Saving Mode**, both On battery and Plugged in | An adapter that saves power sleeps between packets and wakes late for the next | `powercfg /query SCHEME_CURRENT 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1`: both **Power Setting Index** values `0x00000000` are Maximum Performance |
+| **The power mode at Best performance**: Settings → System → **Power & battery** → **Power mode** (on a PC that offers plans instead, the **High performance** plan) | The processor holds its speed rather than stepping down between frames | `powercfg /getactivescheme` names the plan in force |
+| **The Wi-Fi list closed during a game** (the network list of the taskbar's Quick Settings) | Windows searches for networks while the list is open, which takes the radio off its channel for a moment | `ping -t <the Pi's address>` with the list open, then closed: the times jump while it is open |
+
+The PC's packets also go ahead on Wi-Fi only under a QoS policy ([INSTALL.md → On Windows](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64)).
 
 ### Coming back, and the host leaving
 
