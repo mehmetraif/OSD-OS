@@ -3842,8 +3842,6 @@ void ArcadeBackend::readOwnVersions() {
         });
     };
     readCore(libretro::corePath(m_dataRoot), m_coreVersion, m_coreVersionOf, m_coreInfoRead);
-    // OSD/OS's own core for CV1000 games, which LAN Games' rooms of it are
-    // matched against.
     readCore(m_lanPlay ? libretro::lanCorePath(m_dataRoot) : QString(), m_lanCoreVersion, m_lanCoreVersionOf,
              m_lanCoreInfoRead);
 }

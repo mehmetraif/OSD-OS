@@ -1529,8 +1529,8 @@ private slots:
 
     // MAME leaving a process of its own running as it exits (a sound server
     // its sound library started): the game ends as MAME does, and what it
-    // left is ended, where the screen used to wait for it for good, the
-    // game's last frame up and nothing answering.
+    // left is ended, where the screen would wait for it for good, the game's
+    // last frame up and nothing answering.
     void aGameLeavingAProcessBehindEnds() {
 #ifndef Q_OS_LINUX
         QSKIP("Process groups are followed on Linux");

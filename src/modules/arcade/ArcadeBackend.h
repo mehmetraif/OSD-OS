@@ -458,13 +458,9 @@ public:
     // "classic" until its host says, which comes with the ports, after the
     // Play screen.
     Q_INVOKABLE QString onlineLayout(const QString &set, bool hosting) const;
-    // Where the query goes: broadcast to every network's hosts at
-    // RetroArch's port, or a stand-in's address and port (a test's).
+    // LanRooms::setDiscovery(), setListenTime() and setClaimPort().
     void setLanDiscovery(const QString &address, quint16 port);
-    // How long the answers are listened for: a second, or a test's.
     void setLanListenTime(int ms);
-    // Where a host's OSD/OS gives the machines joining their ports
-    // (libretro::kLanClaimPort), or a test's port.
     void setLanClaimPort(quint16 port);
     // What says a core's name and version (libretro::readCoreInfo()), the
     // core's path given last: a copy of the app run with --core-info, or a
@@ -478,22 +474,14 @@ public:
     // ArcadeDB's scraper service, progetto-SNAPS' pictures' way here: its
     // own, or a stand-in's.
     void setPictureServer(const QUrl &arcadeDb);
-    // How long the look through the games for pictures waits between two steps
-    // (ArcadePictures::sweepPictures()): a second, or a test's; and how long
-    // after a look that couldn't have every picture the next is made: ten
-    // minutes, or a test's.
+    // ArcadePictures::setSweepInterval() and setRetryInterval().
     void setPictureSweepInterval(int ms);
     void setPictureRetryInterval(int ms);
     // Whether that look is under way.
     bool sweepingPictures() const;
 
-    // Account page (Settings → Arcade → RetroAchievements Account). The
-    // password is kept in memory only, for RetroArch to sign in with
-    // (RetroAchievements' own way: a launcher may not), never written but into
-    // the config of the RetroArch it goes to, which goes as it ends: at once,
-    // with the sign-in core (RetroAchievementsAccount::checkSignIn()), or else
-    // at the next game. OSD/OS Setup's alone is on disk until then
-    // (takeSetupAccount()).
+    // Account page (Settings → Arcade → RetroAchievements Account):
+    // RetroAchievementsAccount::signIn() and signOut().
     Q_INVOKABLE void signInAchievements(const QString &user, const QString &password);
     Q_INVOKABLE void signOutAchievements();
     // The account's Web API key (RetroAchievements' settings page), for
@@ -502,11 +490,8 @@ public:
     Q_INVOKABLE void setAchievementsKey(const QString &key);
     // The kept key asked about, while neither is known (the page opens).
     Q_INVOKABLE void checkAchievementsKey();
-    // The sign-in core RetroArch checks a sign-in with: osdos_signin_libretro
-    // beside the app, or a stand-in's.
+    // RetroAchievementsAccount::setSignInCore() and setSetupRetryInterval().
     void setSignInCore(const QString &path);
-    // How long after OSD/OS Setup's account couldn't be checked it is
-    // checked again: 30 s, or a test's.
     void setSetupRetryInterval(int ms);
     // Where catver.ini is downloaded from when neither folder has one
     // (downloadGenres()): progettosnaps' own, OSDOS_GENRES_URL's (none when
@@ -655,9 +640,7 @@ signals:
     void leaderboardReady(const QString &set);
     void gameAchievementsReady(const QString &set);
     void badgesReady();
-    // A game's pictures have changed: one of RetroAchievements' or
-    // progetto-SNAPS' is in. set: the one it is named after, the game's or
-    // its parent's.
+    // ArcadePictures::picturesChanged().
     void picturesChanged(const QString &set);
     void picturesProgressChanged();
     void romCheckChanged();
