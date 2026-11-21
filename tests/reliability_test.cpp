@@ -4,6 +4,7 @@
 #include "modules/weather/WeatherBackend.h"
 #include "update/UpdateManager.h"
 #include "util/AtomicFile.h"
+#include "util/CachedJsonFile.h"
 #include "util/DurableFile.h"
 #include "util/EndProcess.h"
 #include "util/AsyncDirectoryCache.h"
@@ -1507,6 +1508,71 @@ private slots:
         // Gone: the defaults, as before, not what was read.
         QVERIFY(QFile::remove(path));
         QCOMPARE(core.get_setting(QString(), "osd_theme").toString(), QString());
+    }
+
+    // A JSON file as last read or written (CachedJsonFile, config.json's and
+    // lists.json's): none, or one empty, is no object and nothing broken; one
+    // that isn't JSON is broken and leaves the object as it was; a write is
+    // kept as read, and the file read anew once its time or size changes.
+    void cachedJsonFile() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString path = dir.path() + "/file.json";
+        CachedJsonFile file(path);
+        QJsonObject read{ { "kept", true } };
+        bool broken = true;
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(!broken);
+        QVERIFY(QFile(path).open(QIODevice::WriteOnly));
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(!broken);
+        {
+            QFile garbled(path);
+            QVERIFY(garbled.open(QIODevice::WriteOnly));
+            garbled.write("{ \"a\": 1, }");
+        }
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(broken);
+        QCOMPARE(read, QJsonObject({ { "kept", true } }));
+
+        // Written: the file whole, and the object kept as read.
+        QVERIFY(file.write(QJsonObject{ { "a", "one" } }, QJsonDocument::Compact));
+        QCOMPARE(contents(path), QByteArray("{\"a\":\"one\"}"));
+        const QDateTime modified = QFileInfo(path).lastModified();
+        const auto writeFile = [&path](const QByteArray &data, const QDateTime &time) {
+            QFile edited(path);
+            if (!edited.open(QIODevice::WriteOnly) || edited.write(data) != data.size())
+                return false;
+            edited.close();
+            return edited.open(QIODevice::ReadWrite) && edited.setFileTime(time, QFileDevice::FileModificationTime);
+        };
+        QVERIFY(writeFile("{\"a\":\"two\"}", modified));
+        QVERIFY(file.read(&read, &broken));
+        QVERIFY(!broken);
+        QCOMPARE(read.value("a").toString(), QString("one"));
+        // Its time changed, or its size: read anew.
+        QVERIFY(writeFile("{\"a\":\"two\"}", modified.addSecs(2)));
+        QVERIFY(file.read(&read));
+        QCOMPARE(read.value("a").toString(), QString("two"));
+        QVERIFY(writeFile("{\"a\":\"three\"}", modified.addSecs(2)));
+        QVERIFY(file.read(&read));
+        QCOMPARE(read.value("a").toString(), QString("three"));
+        // Made broken by hand after a good read: broken, not the old object.
+        QVERIFY(writeFile("{\"a\":", modified.addSecs(4)));
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(broken);
+        // Gone: nothing, not what was read.
+        QVERIFY(file.write(QJsonObject{ { "a", "four" } }, QJsonDocument::Indented));
+        QVERIFY(QFile::remove(path));
+        read = QJsonObject();
+        QVERIFY(!file.read(&read, &broken));
+        QVERIFY(!broken);
+        QVERIFY(read.isEmpty());
+
+        // One that can't be written: false, and nothing kept of it.
+        CachedJsonFile nowhere(dir.path() + "/no/such/folder/file.json");
+        QVERIFY(!nowhere.write(QJsonObject{ { "a", 1 } }, QJsonDocument::Compact));
+        QVERIFY(!nowhere.read(&read));
     }
 
     // What of a text OSD/OS Setup's file is (setupfile::parse()), checked as
