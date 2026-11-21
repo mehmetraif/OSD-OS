@@ -37,7 +37,8 @@
       "type": "multiselect_submenu",
       "options_source": "dynamic",
       "options_slot": "getLibraries",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Which of the server's libraries the home screen lists"
     },
     {
       "key": "video_quality",
@@ -64,7 +65,8 @@
       "label": "Autoplay Next Episode",
       "type": "toggle",
       "default": "OFF",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "What follows an episode played to its end\n[ON] The next episode of the series\n[OFF] Back to its page"
     },
     {
       "key": "intro_skip",
@@ -74,7 +76,7 @@
       "default": "Off",
       "requires_auth": true,
       "requires_capability": "mediasegments",
-      "description": "Requires the Jellyfin Intro Skipper plugin on your server"
+      "description": "What happens as a marked intro starts\n[OFF] Nothing\n[AUTO] Skipped by itself\n[BUTTON] SKIP is offered: select skips\nNeeds the Intro Skipper plugin on the server"
     },
     {
       "key": "outro_skip",
@@ -84,7 +86,7 @@
       "default": "Off",
       "requires_auth": true,
       "requires_capability": "mediasegments",
-      "description": "Requires the Jellyfin Intro Skipper plugin on your server"
+      "description": "What happens as marked credits start\n[OFF] Nothing\n[AUTO] Skipped by itself\n[BUTTON] SKIP is offered: select skips\nNeeds the Intro Skipper plugin on the server"
     },
     {
       "key": "video_scaling",

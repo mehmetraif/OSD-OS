@@ -58,7 +58,8 @@
       "label": "Units",
       "type": "list_single",
       "options": ["Metric", "US"],
-      "default": "Metric"
+      "default": "Metric",
+      "description": "How the forecast's numbers are written\n[METRIC] °C, km/h, millibars, kilometers\n[US] °F, mph, inches of mercury, miles"
     },
     {
       "key": "screen_time",
@@ -74,7 +75,8 @@
       "label": "Hours Format",
       "type": "list_single",
       "options": ["24-hour", "12-hour"],
-      "default": "24-hour"
+      "default": "24-hour",
+      "description": "How the clock, sunrise and sunset are written\n[24-HOUR] 14:52\n[12-HOUR] 2:52 PM"
     }
   ]
 }

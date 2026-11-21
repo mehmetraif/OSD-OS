@@ -84,7 +84,8 @@
       "key": "display_shorts",
       "label": "Show Shorts",
       "type": "toggle",
-      "default": "ON"
+      "default": "ON",
+      "description": "Whether Shorts are listed in channels and search results\n[ON] Listed\n[OFF] Left out; playlists, Recently Watched and Watch Later still show them"
     },
     {
       "key": "advanced",
@@ -98,7 +99,7 @@
           "type": "list_single",
           "options": ["240p", "360p", "480p", "720p", "1080p", "1440p", "2160p"],
           "default": "480p",
-          "description": "The most a video plays at; lower where it has nothing this high\n[480P] Right for a CRT and a Pi  [1440P] [2160P] Need Video Codec ANY: YouTube has H.264 only up to 1080p"
+          "description": "The most a video plays at, lower where it has nothing this high\n[480P] Right for a CRT and a Pi\n[1440P] [2160P] Need Video Codec ANY: YouTube has H.264 only up to 1080p"
         },
         {
           "key": "video_codec",
@@ -106,7 +107,7 @@
           "type": "list_single",
           "options": ["H.264", "Any"],
           "default": "H.264",
-          "description": "[H.264] What a Pi decodes in hardware, wherever YouTube has it  [ANY] Whatever looks best, often VP9 or AV1, decoded in software"
+          "description": "The video format asked for\n[H.264] What a Pi decodes in hardware, wherever YouTube has it\n[ANY] Whatever looks best, often VP9 or AV1, decoded in software"
         },
         {
           "key": "max_frame_rate",
@@ -114,14 +115,15 @@
           "type": "list_single",
           "options": ["Any", "30"],
           "default": "Any",
-          "description": "[30] 30 fps where a video also has 60: lighter on a Pi"
+          "description": "The most frames a second a video plays at\n[ANY] As it was made\n[30] 30 where a video also has 60: lighter on a Pi"
         },
         {
           "key": "playback_speed",
           "label": "Playback Speed",
           "type": "list_single",
           "options": ["0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"],
-          "default": "1x"
+          "default": "1x",
+          "description": "How fast a video plays\n[1X] As it was made"
         }
       ]
     },

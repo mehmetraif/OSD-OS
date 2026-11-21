@@ -17,7 +17,8 @@
       "key": "media_directory",
       "label": "Media Folder",
       "type": "directory_browser",
-      "default": ""
+      "default": "",
+      "description": "The folder of the clips, and of any music, Ambient:Mode plays\n[DEFAULT] ambient in the data folder"
     },
     {
       "key": "auto_launch",

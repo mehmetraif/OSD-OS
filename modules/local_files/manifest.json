@@ -34,7 +34,7 @@
       "options_source": "dynamic",
       "options_slot": "get_shuffle_playback_options",
       "default": "ask",
-      "description": "Play playlists in random order.\n[ASK] lets you choose each time a playlist starts."
+      "description": "The order a playlist file plays in\n[ASK] Asks as the playlist starts\n[ALWAYS] Shuffled\n[NEVER] In order"
     },
     {
       "key": "resume_playback",
@@ -70,14 +70,14 @@
       "options_source": "dynamic",
       "options_slot": "get_image_duration_options",
       "default": "5",
-      "description": "How long an image is shown before advancing.\nApplies to images in folders and playlists."
+      "description": "How long a picture stays up before the next, in a folder or a playlist"
     },
     {
       "key": "hide_extensions",
       "label": "Hide File Extensions",
       "type": "toggle",
       "default": "ON",
-      "description": "Hide file extensions when browsing."
+      "description": "Whether the files' names show their type, as .mkv, in the folders\n[ON] Without it\n[OFF] With it"
     },
     {
       "key": "video_scaling",

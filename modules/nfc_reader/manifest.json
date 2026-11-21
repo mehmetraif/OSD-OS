@@ -38,7 +38,8 @@
         "720p",
         "1080p"
       ],
-      "default": "480p"
+      "default": "480p",
+      "description": "The most a YouTube card's video plays at\n[480P] Right for a CRT and a Pi"
     },
     {
       "key": "auto_subtitles",

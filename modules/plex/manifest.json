@@ -29,14 +29,16 @@
       "options_source": "dynamic",
       "options_slot": "getUsers",
       "apply_slot": "applyCurrentUserSetting",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The Plex Home profile Plex plays as\nA profile with a PIN asks for it the next time Plex opens"
     },
     {
       "key": "auto_sign_in",
       "label": "Auto Sign In",
       "type": "toggle",
       "default": "OFF",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Whether Plex asks who is watching as it opens\n[ON] Opens as the profile chosen last, without Select User\n[OFF] Select User every time"
     },
     {
       "key": "server_machine_id",
@@ -45,7 +47,8 @@
       "options_source": "dynamic",
       "options_slot": "getServers",
       "apply_slot": "applyCurrentServerSetting",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "The server Plex browses and plays from, of those the profile can use"
     },
     {
       "key": "libraries",
@@ -53,7 +56,8 @@
       "type": "multiselect_submenu",
       "options_source": "dynamic",
       "options_slot": "getLibraries",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "Which of the server's libraries the home screen lists"
     },
     {
       "key": "video_quality",
@@ -79,7 +83,8 @@
       "label": "Autoplay Next Episode",
       "type": "toggle",
       "default": "OFF",
-      "requires_auth": true
+      "requires_auth": true,
+      "description": "What follows an episode played to its end\n[ON] The next episode of the series\n[OFF] Back to its page"
     },
     {
       "key": "video_scaling",
