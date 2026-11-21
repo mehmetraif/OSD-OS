@@ -115,7 +115,7 @@ On a pad, COIN is its Back button, so here the pad's B is Back.
 
 <table>
 <tr><th>Straight</th><th>Curved</th><th>3D Curved</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: Final Fight two rows under the wheel's middle, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-straight.png" width="100%" alt="List Style Straight: seven games one under another as wide as the bar, Final Fight selected and out to the bar's left end" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-screen.png" width="100%" alt="List Style Curved: seven games on an arc, the middle of the page furthest right, Final Fight selected" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-list-3d-curved.png" width="100%" alt="List Style 3D Curved: nine games on the wheel, Final Fight a row under its middle, furthest out, the games over and under it smaller and fainter the further they are from it; the bar reads 4/9" /></td></tr>
 </table>
 
 **Settings → Arcade → List Style** lays the list out:
@@ -205,7 +205,7 @@ Search is the last filter. While it is shown, the on-screen keyboard stands in t
 
 ### Menu Filters
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online and Not Recognized, ON; the GENRES heading selected, over Beat 'em Up, ON; the help line: Turns all of the choices under it on or off" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/arcade-menu-filters.png" width="100%" alt="Settings / Arcade / Menu Filters: the LISTS heading over Favorites, Recently Played, RetroAchievements, Playable Online, Vertical Games and Not Recognized, ON; the GENRES heading selected; the help line: Turns all of the choices under it on or off; the hint bar: [◄►]/[ENTER]:CHANGE ALL" />
 
 **Settings → Arcade → Menu Filters** chooses the filters ◄ ► goes round. Its page lists them under five headings: **Lists**, **Genres**, **Players**, **Years** and **Publishers**.
 
