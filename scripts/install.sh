@@ -794,15 +794,33 @@ esac
 STOP_HELPER
     sudo chmod +x /usr/local/bin/osdos-stop
 
-    # Display Output's At Next Start, while the app runs: it writes a preset's
-    # name to this socket, which only its user may, and osdos-stop next-start,
-    # as root, writes that preset for the next start and answers.
-    sudo tee /etc/systemd/system/osdos-display.socket > /dev/null << 'DISPLAY_SOCKET'
+    # The app's requests of root while it runs, each through a socket only its
+    # user may write to, behind which osdos-stop, as root, does it and answers:
+    # Display Output's At Next Start (next-start: a preset's name, written for
+    # the next start), Settings → Network → Wi-Fi's country (wifi-country: a
+    # two-letter code, which raspi-config sets), Settings → System → About →
+    # System Information's Device Name (device-name) and Settings → System's
+    # Time Zone and Keyboard (system-setting: which, and its value). os/build.sh
+    # writes the image's units from these lines too.
+    # ROOT_REQUESTS_BEGIN
+    # name|osdos-stop's mode|what it sets|where in Settings
+    ROOT_REQUESTS=(
+        "display|next-start|display output for the next start|Settings → Screen → Display Output"
+        "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
+        "name|device-name|device name|Settings → System → About → System Information"
+        "system|system-setting|time zone and keyboard|Settings → System"
+    )
+    # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is
+    # the app's user's group.
+    root_request_socket() {
+        local name mode what where
+        IFS='|' read -r name mode what where <<< "$1"
+        cat << SOCKET
 [Unit]
-Description=OSD/OS display output for the next start (Settings → Screen → Display Output)
+Description=OSD/OS ${what} (${where})
 
 [Socket]
-ListenStream=/run/osdos-display.sock
+ListenStream=/run/osdos-${name}.sock
 SocketUser=root
 SocketGroup=@OSDOS_GROUP@
 SocketMode=0660
@@ -811,138 +829,54 @@ MaxConnections=1
 
 [Install]
 WantedBy=sockets.target
-DISPLAY_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-display.socket
-    sudo tee /etc/systemd/system/osdos-display@.service > /dev/null << 'DISPLAY_SERVICE'
+SOCKET
+    }
+    # The unit a request behind it runs, osdos-<name>@.service.
+    root_request_service() {
+        local name mode what where
+        IFS='|' read -r name mode what where <<< "$1"
+        cat << SERVICE
 [Unit]
-Description=OSD/OS display output for the next start, one request
+Description=OSD/OS ${what}, one request
 # One unit a request: gone once it has run, however it ended.
 CollectMode=inactive-or-failed
 
 [Service]
-ExecStart=/usr/local/bin/osdos-stop next-start
+ExecStart=/usr/local/bin/osdos-stop ${mode}
 StandardInput=socket
 StandardOutput=socket
 StandardError=journal
 NoNewPrivileges=yes
-PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-DISPLAY_SERVICE
-
-    # Settings → Network → Wi-Fi's country, while the app runs: it writes a two-letter
-    # code to this socket, which only its user may, and osdos-stop
-    # wifi-country, as root, has raspi-config set it and answers.
-    sudo tee /etc/systemd/system/osdos-wifi.socket > /dev/null << 'WIFI_SOCKET'
-[Unit]
-Description=OSD/OS Wi-Fi country (Settings → Network → Wi-Fi)
-
-[Socket]
-ListenStream=/run/osdos-wifi.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-WIFI_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-wifi.socket
-    sudo tee /etc/systemd/system/osdos-wifi@.service > /dev/null << 'WIFI_SERVICE'
-[Unit]
-Description=OSD/OS Wi-Fi country, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop wifi-country
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+SERVICE
+        case "${name}" in
+            wifi) cat << 'NETWORK' ;;
 # No PrivateNetwork=, unlike the display output's: raspi-config sets the Wi-Fi's
 # regulatory domain over the kernel's nl80211 (iw reg set), and the Wi-Fi
 # device is in the host's network namespace, not one of the unit's own.
-PrivateTmp=yes
-ProtectHome=yes
-WIFI_SERVICE
-
-    # Settings → System → About → System Information's Device Name, while the app
-    # runs: it writes a name to this socket, which only its user may, and
-    # osdos-stop device-name, as root, sets it and answers.
-    sudo tee /etc/systemd/system/osdos-name.socket > /dev/null << 'NAME_SOCKET'
-[Unit]
-Description=OSD/OS device name (Settings → System → About → System Information)
-
-[Socket]
-ListenStream=/run/osdos-name.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-NAME_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-name.socket
-    sudo tee /etc/systemd/system/osdos-name@.service > /dev/null << 'NAME_SERVICE'
-[Unit]
-Description=OSD/OS device name, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop device-name
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+NETWORK
+            name) cat << 'NETWORK' ;;
 # hostnamectl and systemctl talk to their daemons over D-Bus, whose socket is
 # a file's: the unit itself has no network of its own.
 PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-NAME_SERVICE
-
-    # Settings → System's Time Zone and Keyboard, while the app runs: it writes
-    # which and its value to this socket, which only its user may, and
-    # osdos-stop system-setting, as root, sets it and answers.
-    sudo tee /etc/systemd/system/osdos-system.socket > /dev/null << 'SYSTEM_SOCKET'
-[Unit]
-Description=OSD/OS time zone and keyboard (Settings → System)
-
-[Socket]
-ListenStream=/run/osdos-system.sock
-SocketUser=root
-SocketGroup=@OSDOS_GROUP@
-SocketMode=0660
-Accept=yes
-MaxConnections=1
-
-[Install]
-WantedBy=sockets.target
-SYSTEM_SOCKET
-    sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" /etc/systemd/system/osdos-system.socket
-    sudo tee /etc/systemd/system/osdos-system@.service > /dev/null << 'SYSTEM_SERVICE'
-[Unit]
-Description=OSD/OS time zone and keyboard, one request
-# One unit a request: gone once it has run, however it ended.
-CollectMode=inactive-or-failed
-
-[Service]
-ExecStart=/usr/local/bin/osdos-stop system-setting
-StandardInput=socket
-StandardOutput=socket
-StandardError=journal
-NoNewPrivileges=yes
+NETWORK
+            system) cat << 'NETWORK' ;;
 # timedatectl talks to its daemon over D-Bus, whose socket is a file's: the
 # unit itself has no network of its own.
 PrivateNetwork=yes
-PrivateTmp=yes
-ProtectHome=yes
-SYSTEM_SERVICE
+NETWORK
+            *) echo "PrivateNetwork=yes" ;;
+        esac
+        printf 'PrivateTmp=yes\nProtectHome=yes\n'
+    }
+    # ROOT_REQUESTS_END
+    ROOT_SOCKETS=()
+    for request in "${ROOT_REQUESTS[@]}"; do
+        ROOT_SOCKETS+=("osdos-${request%%|*}.socket")
+        root_request_socket "${request}" | sudo tee "/etc/systemd/system/osdos-${request%%|*}.socket" > /dev/null
+        sudo sed -i "s/@OSDOS_GROUP@/$(id -gn "${SERVICE_USER}")/" "/etc/systemd/system/osdos-${request%%|*}.socket"
+        root_request_service "${request}" \
+            | sudo tee "/etc/systemd/system/osdos-${request%%|*}@.service" > /dev/null
+    done
 
     # On-demand login shell for "Exit to Terminal". Not enabled (no boot race with
     # osdos.service); getty@tty1 stays masked. Started only by osdos-stop, or by
@@ -967,8 +901,8 @@ TERMINAL_UNIT
     sudo systemctl daemon-reload
     # Restarted, not only started: one already listening keeps the group it
     # was made with until then, and the service's user may be another now.
-    sudo systemctl enable osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
-    sudo systemctl restart osdos-display.socket osdos-wifi.socket osdos-name.socket osdos-system.socket
+    sudo systemctl enable "${ROOT_SOCKETS[@]}"
+    sudo systemctl restart "${ROOT_SOCKETS[@]}"
     # A service kept as it was stays enabled or not, as it was left, and the
     # login on tty1 with it.
     if [[ "${AUTOSTART_REPLY}" =~ ^[Yy]$ ]]; then
