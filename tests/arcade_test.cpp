@@ -4945,6 +4945,37 @@ private slots:
         QCOMPARE(download(QStringLiteral("/Badge/250337_lock.png")), png("locked"));
     }
 
+    // The numbered pictures read with the folder: a set's in turn from 1,
+    // past a few numbers the user deleted and those that are sets of the
+    // folder, but not another machine's snap a pack names <set>_<n> far
+    // past them (Data East's TMNT pinball, tmnt_101 to tmnt_104, beside
+    // Konami's tmnt), with pictures of the set's own before it or not.
+    void numberedPicturesInTurn() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString snap = dir.path() + QStringLiteral("/snap");
+        for (const char *name : { "tmnt.png", "tmnt_101.png", "tmnt_103.png", "tmnt_104.png", "sf2_2.png",
+                                  "sf2_4.png", "sf2_8.jpg", "sf2_8.png", "sf2_13.png", "mk_1.png", "mk_101.png" })
+            writeFile(snap + QLatin1Char('/') + QLatin1String(name), png(name));
+        const QHash<QString, QString> sets{ { QStringLiteral("tmnt"), QStringLiteral("tmnt.zip") },
+                                            { QStringLiteral("sf2"), QStringLiteral("sf2.zip") },
+                                            { QStringLiteral("sf2_6"), QStringLiteral("sf2_6.zip") },
+                                            { QStringLiteral("mk"), QStringLiteral("mk.zip") } };
+        const auto in = [&snap](std::initializer_list<const char *> names) {
+            QStringList paths;
+            for (const char *name : names)
+                paths << snap + QLatin1Char('/') + QLatin1String(name);
+            return paths;
+        };
+        ArcadePictures::Found found = ArcadePictures::read(snap, dir.path() + QStringLiteral("/titles"),
+                                                           dir.path() + QStringLiteral("/shots"), sets);
+        QVERIFY2(!found.numbered.contains(QStringLiteral("tmnt")), qPrintable(found.numbered.value("tmnt").join(' ')));
+        QCOMPARE(found.snaps.value(QStringLiteral("tmnt")), snap + QStringLiteral("/tmnt.png"));
+        // 1 and 3 deleted, 5 and 7 missing and 6 a set's; 9 to 12 missing.
+        QCOMPARE(found.numbered.value(QStringLiteral("sf2")), in({ "sf2_2.png", "sf2_4.png", "sf2_8.png", "sf2_8.jpg" }));
+        QCOMPARE(found.numbered.value(QStringLiteral("mk")), in({ "mk_1.png" }));
+    }
+
     // RetroAchievements' pictures of a game as it is shown, with a key kept:
     // saved in the games folder's snap folder as <set>_<n> in the first
     // numbers free, never over the user's own (whatever its suffix's case)

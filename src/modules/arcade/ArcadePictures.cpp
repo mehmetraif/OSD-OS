@@ -45,14 +45,24 @@ constexpr int kSweepPasses = 3;
 // about again: its pictures follow MAME's releases, a few a year.
 constexpr qint64 kSnapsAgainSeconds = 60 * 24 * 3600;
 
+// How many numbers in a row a set's numbered pictures can be missing and
+// those after still be its own: the pictures the user deleted (three are
+// RetroAchievements' of a game). Past that, a picture is another machine's
+// snap that a pack names <set>_<n>: Data East's TMNT pinball is tmnt_104,
+// beside Konami's TMNT, tmnt.
+constexpr int kMostMissingInTurn = 3;
+
+// The number a numbered picture has after its set's name.
+int turnOf(const QString &path) {
+    const QString stem = QFileInfo(path).completeBaseName();
+    return stem.mid(stem.lastIndexOf(QLatin1Char('_')) + 1).toInt();
+}
+
 // The order a set's numbered pictures go round in: by their number, a .png
 // before a .jpg of the same.
 bool beforeInTurn(const QString &a, const QString &b) {
     const auto turn = [](const QString &path) {
-        const QFileInfo info(path);
-        const QString stem = info.completeBaseName();
-        return std::pair(stem.mid(stem.lastIndexOf(QLatin1Char('_')) + 1).toInt(),
-                         info.suffix().compare(QLatin1String("png"), Qt::CaseInsensitive) != 0);
+        return std::pair(turnOf(path), QFileInfo(path).suffix().compare(QLatin1String("png"), Qt::CaseInsensitive) != 0);
     };
     return turn(a) < turn(b);
 }
@@ -188,7 +198,8 @@ ArcadePictures::Found ArcadePictures::read(const QString &snapFolder, const QStr
     // snap, named by the set as MAME names it, the way the picture packs for
     // MAME have them, a .png before a .jpg, and those numbered after a set
     // there (sf2_1.png, sf2_2.jpg: RetroAchievements' and the user's own;
-    // not a set's own snap, sf2_1.png while there is a set sf2_1); and the
+    // not a set's own snap, sf2_1.png while there is a set sf2_1, nor one
+    // past kMostMissingInTurn numbers none has, another machine's); and the
     // first MAME took of each game, in its own snap folder.
     static const QRegularExpression numbered(QRegularExpression::anchoredPattern(QStringLiteral("(.+)_(\\d{1,3})")));
     QHash<QString, int> ranks;   // set → how well its picture's name fits
@@ -206,8 +217,31 @@ ArcadePictures::Found ArcadePictures::read(const QString &snapFolder, const QStr
         if (match.hasMatch() && !sets.contains(set))
             read.numbered[match.captured(1)] << info.filePath();
     }
-    for (QStringList &pictures : read.numbered)
+    for (auto it = read.numbered.begin(); it != read.numbered.end();) {
+        QStringList &pictures = it.value();
         std::sort(pictures.begin(), pictures.end(), beforeInTurn);
+        // In turn from 1, a number that is a set of the folder's no gap
+        // (savePicture() passes over it too).
+        int last = 0;
+        qsizetype kept = 0;
+        for (const QString &picture : std::as_const(pictures)) {
+            const int n = turnOf(picture);
+            int missing = 0;
+            for (int m = last + 1; m < n; ++m) {
+                if (!sets.contains(QStringLiteral("%1_%2").arg(it.key()).arg(m)))
+                    ++missing;
+            }
+            if (missing > kMostMissingInTurn)
+                break;
+            last = n;
+            ++kept;
+        }
+        pictures.resize(kept);
+        if (pictures.isEmpty())
+            it = read.numbered.erase(it);
+        else
+            ++it;
+    }
     // The title screens, in the games folder's titles, named by set as the
     // Titles pack for MAME has them: the exact name first, then a .png.
     QHash<QString, int> titleRanks;

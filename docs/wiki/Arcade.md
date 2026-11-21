@@ -237,7 +237,7 @@ The genres come from **catver.ini**, progettosnaps.net's category list for MAME'
 A game's pictures are, in this order:
 
 1. `titles/<set>.png` in the games folder, its title screen.
-2. `snap/<set>_1.png`, `snap/<set>_2.jpg`… in the games folder: your own and those downloaded from RetroAchievements.
+2. `snap/<set>_1.png`, `snap/<set>_2.jpg`… in the games folder: your own and those downloaded from RetroAchievements. They count up from 1; one after more than three numbers in a row are missing is taken for another machine's (a picture pack's `tmnt_104.png` is a pinball's, not Konami's TMNT's).
 3. `snap/<set>.png` (or `.jpg`).
 4. The first snapshot taken of it in MAME (F12 in the game), kept in `arcade/snap/<set>/`.
 
