@@ -1004,6 +1004,15 @@ void YouTubeBackend::loadMore(const QString &path) {
         searchPage(path);
 }
 
+void YouTubeBackend::forgetSearches() {
+    for (auto it = m_searches.begin(); it != m_searches.end();) {
+        if (it->loading)
+            ++it;
+        else
+            it = m_searches.erase(it);
+    }
+}
+
 // One page of matches, through the same yt-dlp mpv plays them with.
 void YouTubeBackend::searchPage(const QString &path) {
     Search &search = m_searches[path];

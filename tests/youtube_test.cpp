@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "modules/youtube/YouTubeBackend.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -185,6 +186,62 @@ private slots:
         youtube.listing(QStringLiteral("subscriptions"));
         QTRY_COMPARE_WITH_TIMEOUT(asked.size(), 3, 5000);
         QCOMPARE(asked, QStringList({ QStringLiteral("UCtyped"), QStringLiteral("UClinked"), QStringLiteral("UCfile") }));
+    }
+
+    // A search's matches, against a stand-in yt-dlp that answers each run
+    // with another video: kept while the folder is browsed (and MORE loads
+    // onto them), and asked for afresh once forgetSearches() has let them go,
+    // as it does before a search typed in is opened. A search on its way
+    // isn't dropped, and lands where it was asked for.
+    void searchesAskedAfresh() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        QVERIFY(QDir(data.path()).mkpath(QStringLiteral("bin")));
+        const QString bin = data.path() + QStringLiteral("/bin/yt-dlp");
+        QFile script(bin);
+        QVERIFY(script.open(QIODevice::WriteOnly));
+        script.write("#!/bin/sh\n"
+                     "here=$(dirname \"$0\")\n"
+                     "n=$(cat \"$here/runs\" 2>/dev/null || echo 0)\n"
+                     "n=$((n + 1))\n"
+                     "echo $n > \"$here/runs\"\n"
+                     "[ -f \"$here/slow\" ] && sleep 1\n"
+                     "printf '{\"id\":\"run%s\",\"title\":\"Run %s\"}\\n' $n $n\n");
+        script.close();
+        QVERIFY(script.setPermissions(script.permissions() | QFileDevice::ExeOwner));
+
+        const auto ids = [](const QVariant &listing) {
+            QStringList out;
+            for (const QVariant &entry : listing.toList())
+                out << entry.toMap().value(QStringLiteral("videoId")).toString();
+            return out;
+        };
+        const QString cats = QStringLiteral("search/cats");
+        YouTubeBackend youtube(data.path(), data.path(), nullptr, nullptr);
+        QSignalSpy ready(&youtube, &YouTubeBackend::listingReady);
+        QVERIFY(!youtube.listing(cats).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 1, 5000);
+        QCOMPARE(ids(youtube.listing(cats)), QStringList({ QStringLiteral("run1") }));
+        QCOMPARE(ids(youtube.listing(cats)), QStringList({ QStringLiteral("run1") }));
+
+        // The same words typed in again: YouTube asked once more.
+        youtube.forgetSearches();
+        QVERIFY(!youtube.listing(cats).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 2, 5000);
+        QCOMPARE(ids(youtube.listing(cats)), QStringList({ QStringLiteral("run2") }));
+
+        // Let go while on its way: it lands all the same, and only once.
+        QFile slow(data.path() + QStringLiteral("/bin/slow"));
+        QVERIFY(slow.open(QIODevice::WriteOnly));
+        slow.close();
+        const QString dogs = QStringLiteral("search/dogs");
+        QVERIFY(!youtube.listing(dogs).isValid());
+        youtube.forgetSearches();
+        QVERIFY(!youtube.listing(dogs).isValid());
+        QTRY_COMPARE_WITH_TIMEOUT(ready.size(), 3, 5000);
+        QCOMPARE(ids(youtube.listing(dogs)), QStringList({ QStringLiteral("run3") }));
+        QTest::qWait(1500);
+        QCOMPARE(ready.size(), 3);
     }
 };
 

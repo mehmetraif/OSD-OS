@@ -149,6 +149,9 @@ FocusScope {
         title: "Search YouTube"
         onAccepted: function(text) {
             tree.forceActiveFocus()
+            // Afresh: YouTube may have other matches for words typed before.
+            youtubeBackend.forgetSearches()
+            tree.refresh("search/" + text)
             tree.openItem({ name: "Search: " + text, path: "search/" + text })
         }
         onCanceled: tree.forceActiveFocus()

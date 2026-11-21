@@ -142,6 +142,11 @@ public:
     Q_INVOKABLE QVariant entries(const QString &path, bool preview = false);
     // Loads the next matches of a search onto its end.
     Q_INVOKABLE void     loadMore(const QString &path);
+    // Before a search typed in is opened: the searches so far are let go,
+    // so the same words ask YouTube afresh (it may have other matches by
+    // now) and none is kept for the whole run. One still on its way is left
+    // to land.
+    Q_INVOKABLE void     forgetSearches();
     // What a video's info screen shows: detailsReady(path, { title, facts,
     // summary, rows, complete }) follows at once with what the list knows,
     // and again, complete, with what yt-dlp adds (length, views, the whole

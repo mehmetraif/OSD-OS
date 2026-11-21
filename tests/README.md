@@ -202,6 +202,7 @@ A C++ test built with the app's sources links those several tests share, built o
   - A channel opened meanwhile is asked for next, ahead of those still waiting, and answered as its own feed lands, before the subscriptions are.
   - Once every feed has landed, the subscriptions list every channel's videos.
   - The channels and playlists typed in Settings (lists of lines) give Home their folders with no file there, and the channels are Settings' first, then the file's, each once, a link's channel taken from it.
+  - A search's matches (a stand-in yt-dlp in the data folder's `bin`, another video each run) are kept while it is browsed and asked for afresh once `forgetSearches()` lets them go, as a search typed in does; one let go on its way lands once, where it was asked for.
 - **menu_music** (`menu_music_test.cpp`, Linux only). The menu music against stand-ins for mpv, FluidSynth and openmpt123: shell scripts first on `PATH` that write down what they were asked.
   - Wanted, with a file, it plays a moment later; unwanted, it stops.
   - A hold stops it before `hold()` returns, so the sound card is free; it plays again once nothing holds it, and two holds keep it off until both let go.
