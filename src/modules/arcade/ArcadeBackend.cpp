@@ -2728,6 +2728,10 @@ bool ArcadeBackend::mameVsync() const {
 QString ArcadeBackend::relay() const {
     if (!m_relay.isEmpty())
         return m_relay;
+    return zoneRelay();
+}
+
+QString ArcadeBackend::zoneRelay() const {
     QString zone = m_timeZone ? *m_timeZone : systemlocale::timeZone();
     if (zone.isEmpty() && !m_timeZone)
         zone = QString::fromUtf8(QTimeZone::systemTimeZoneId());
@@ -2741,6 +2745,21 @@ QString ArcadeBackend::relayServer() const {
             return it.key();
     }
     return QStringLiteral("New York");
+}
+
+void ArcadeBackend::relayServerOptions() {
+    // In the row's own order, as OSD/OS Setup lists them too.
+    static const char *const order[] = { "New York", "Madrid", "São Paulo", "Singapore", "Chuncheon" };
+    const QString nearest = zoneRelay();
+    QVariantList choices;
+    for (const char *relay : order) {
+        const QString name = QString::fromUtf8(relay);
+        QVariantMap choice{ { QStringLiteral("id"), name }, { QStringLiteral("label"), name } };
+        if (kRelays.value(name) == nearest)
+            choice.insert(QStringLiteral("default"), true);
+        choices << choice;
+    }
+    emit dynamicOptionsReady(QStringLiteral("relay_server"), choices);
 }
 
 void ArcadeBackend::setScreen(bool tube, const QSize &size, double refresh) {

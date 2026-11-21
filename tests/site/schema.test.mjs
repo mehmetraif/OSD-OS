@@ -424,6 +424,10 @@ test("Arcade's emulator and network rows in their groups, with the backend's def
     assert.deepEqual(valuesOf(row("sound_buffer")), ["Auto", "RetroArch's"]);
     for (const key of ["mame_vsync", "frame_buffers", "sound_buffer"])
         assert.equal(row(key).default, "Auto", key);
+    // Relay Server's choices come from the backend on the device (the one
+    // nearest the time zone marked): the page keeps the same five.
+    assert.equal(rows.find(r => r.key === "relay_server").options_slot, "relayServerOptions");
+    assert.deepEqual(valuesOf(row("relay_server")), ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"]);
 });
 
 test("defaults are among the values, and rows show with rows that are there", () => {

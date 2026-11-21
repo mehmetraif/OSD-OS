@@ -1685,6 +1685,38 @@ StandInRoot {
             compare(menuRow(page, 0).value, "Germany")
         }
 
+        // A list of fixed choices whose default the backend works out (Arcade's
+        // Relay Server, the one nearest the time zone) through the same
+        // dynamic choice marked default: true: shown while nothing is saved,
+        // nothing written for it as the page opens and closes, and saved only
+        // once changed.
+        function test_relayShownUnsaved() {
+            appCore.schema = [
+                { key: "online_play", label: "Online Play", type: "list_single", options: ["Off", "On"], default: "Off" },
+                { key: "relay_server", label: "Relay Server", type: "list_single", options_source: "dynamic",
+                  options_slot: "relayServerOptions", default: "New York",
+                  shown_with: { key: "online_play", value: "On" } }
+            ]
+            appCore.values = { online_play: "On" }
+            var relays = ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"].map(function(name) {
+                return name === "Madrid" ? { id: name, label: name, default: true } : { id: name, label: name }
+            })
+            var page = open()
+            compare(appCore.actions, ["relayServerOptions"])
+            appCore.dynamicOptionsReady("com.osdos.test", "relay_server", relays)
+            compare(menuRow(page, 1).value, "Madrid")
+            loader.source = ""
+            compare(appCore.writes, 0)
+            compare(appCore.values.relay_server, undefined)
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "relay_server", relays)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "relay_server")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.relay_server, "São Paulo")
+            compare(menuRow(page, 1).value, "São Paulo")
+        }
+
         // Subtitles in every module's order, Off, Forced Only, On, with
         // Forced Only where nothing is saved (or something no choice is):
         // what was saved, an old true or false too, keeps its meaning.

@@ -8925,6 +8925,49 @@ private slots:
         QCOMPARE(sent(options.size() - 1), QStringList({ "online_name", "OSD-OS=OSD-OS" }));
     }
 
+    // Settings → Arcade → Relay Server's choices: the five relays in the
+    // row's order, saved by their names, the one nearest the time zone
+    // marked as the row's while nothing is saved, whatever is saved. OSD/OS
+    // Setup lists the same.
+    void relayServerRow() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        AppCore core(m_data.path(), m_data.path());
+        ArcadeBackend arcade(m_data.path(), m_data.path(), &core, nullptr);
+        QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+        const auto sent = [&options] {
+            QStringList got{ options.last().at(0).toString() };
+            for (const QVariant &v : options.last().at(1).toList()) {
+                const QVariantMap choice = v.toMap();
+                // Shown by the name it is saved under.
+                if (choice.value(QStringLiteral("id")) != choice.value(QStringLiteral("label")))
+                    got << QStringLiteral("label differs");
+                got << choice.value(QStringLiteral("id")).toString()
+                           + (choice.value(QStringLiteral("default")).toBool() ? QStringLiteral(" *") : QString());
+            }
+            return got;
+        };
+        arcade.setTimeZone(QStringLiteral("Asia/Tokyo"));
+        arcade.relayServerOptions();
+        QCOMPARE(sent(), QStringList({ "relay_server", "New York", "Madrid", "São Paulo", "Singapore",
+                                       "Chuncheon *" }));
+        arcade.setTimeZone(QStringLiteral("Europe/Istanbul"));
+        arcade.onSettingChanged(module, QStringLiteral("relay_server"), QStringLiteral("Singapore"));
+        arcade.relayServerOptions();
+        QCOMPARE(sent(), QStringList({ "relay_server", "New York", "Madrid *", "São Paulo", "Singapore",
+                                       "Chuncheon" }));
+        QCOMPARE(arcade.relayServer(), QStringLiteral("Singapore"));
+        arcade.setTimeZone(QString());
+        arcade.relayServerOptions();
+        QCOMPARE(sent().filter(QStringLiteral(" *")), QStringList({ "New York *" }));
+
+        QFile extra(QStringLiteral(TESTS_DIR "/../site/setup/schema-extra.json"));
+        QVERIFY(extra.open(QIODevice::ReadOnly));
+        const QJsonArray listed = QJsonDocument::fromJson(extra.readAll()).object().value(QLatin1String("modules"))
+                                      .toObject().value(module).toObject().value(QLatin1String("options"))
+                                      .toObject().value(QLatin1String("relay_server")).toArray();
+        QCOMPARE(listed.toVariantList(), QVariantList({ "New York", "Madrid", "São Paulo", "Singapore", "Chuncheon" }));
+    }
+
     // What the machine is, for Settings → Arcade's rows that do something
     // only on a Raspberry Pi (CPU at Full Speed, Frame Buffers): the
     // manifest's slot for them answers with the capability on any Pi and

@@ -205,7 +205,7 @@ A room's page says why it can't be joined: another core's, a host whose connecti
 | Setting | What it is |
 |---|---|
 | **Online Name** | The name the others see. Unset: the RetroAchievements account's, else OSD-OS; never the device's name |
-| **Relay Server** | Where a game you host goes through: New York, Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest. Unset, the nearest to the time zone of **Settings → System → Time Zone**: Madrid for Europe and Africa, São Paulo for South America, New York for the rest of the Americas, Chuncheon for Korea and Japan, Singapore for the rest of Asia and Oceania. A relay chosen is kept |
+| **Relay Server** | Where a game you host goes through: New York, Madrid, São Paulo, Singapore or Chuncheon. The nearest plays smoothest. Unset, the nearest to the time zone of **Settings → System → Time Zone**: Madrid for Europe and Africa, São Paulo for South America, New York for the rest of the Americas, Chuncheon for Korea and Japan, Singapore for the rest of Asia and Oceania. The row shows that one until a relay is chosen; a relay chosen is kept |
 
 ### A game too big for the machine's memory
 

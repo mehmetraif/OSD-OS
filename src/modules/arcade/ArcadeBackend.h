@@ -429,6 +429,11 @@ public:
     // the nearest to the system's time zone (libretro::relayForTimeZone()), by
     // the row's name ("Madrid"), for the row to show while nothing is saved.
     Q_INVOKABLE QString relayServer() const;
+    // manifest: relay_server's choices (dynamicOptionsReady): the five
+    // relays by the row's names, saved as they are named, the one nearest
+    // the time zone marked default: true, so that the row shows it while
+    // nothing is saved, without saving it.
+    Q_INVOKABLE void relayServerOptions();
 
     // LAN Play (Settings → Arcade → LAN Play): the games RetroArch hosts on
     // the local network, found by a query broadcast there that each host
@@ -939,6 +944,8 @@ private:
     // The relay a game hosted online goes through, by RetroArch's name: the
     // one saved, else relayForTimeZone()'s.
     QString relay() const;
+    // relayForTimeZone()'s, whatever is saved.
+    QString zoneRelay() const;
     // The line the app's log has of a network game as it ends, after
     // "arcade: network game: ": the set, how it was played (hosted or
     // joined, online through which relay, or on the LAN with which LAN

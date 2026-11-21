@@ -259,10 +259,11 @@
       "key": "relay_server",
       "label": "Relay Server",
       "type": "list_single",
-      "options": ["New York", "Madrid", "São Paulo", "Singapore", "Chuncheon"],
+      "options_source": "dynamic",
+      "options_slot": "relayServerOptions",
       "default": "New York",
       "shown_with": { "key": "online_play", "value": "On" },
-      "description": "Where a game you host is relayed from, for players a home router would turn away: the nearest plays smoothest"
+      "description": "Where a game you host is relayed from, for players a home router would turn away: the nearest plays smoothest, and until one is chosen the one nearest Settings → System → Time Zone"
     },
     {
       "key": "lan_play",
