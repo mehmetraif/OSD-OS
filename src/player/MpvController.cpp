@@ -1748,6 +1748,14 @@ void MpvController::onIpcReadyRead() {
             if (report)
                 emit durationChanged(m_duration);
         } else if (name == "playlist-pos") {
+            // On to another of the list's videos: where the last one got to
+            // isn't where this one is. mpv has no time-pos for it until it
+            // plays (null, skipped above), and an end in that gap would hand
+            // its player the last video's position for this one.
+            if (m_playlistPos >= 0 && int(val) != m_playlistPos) {
+                m_position = 0;
+                m_duration = 0;
+            }
             m_playlistPos = int(val);
             if (report)
                 emit playlistPosChanged(m_playlistPos);

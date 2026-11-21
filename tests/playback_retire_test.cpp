@@ -1671,6 +1671,37 @@ private slots:
         QVERIFY(m_mpv->lastError().isEmpty());
     }
 
+    // A playlist gone on to its next video ends before that one has a
+    // position of its own (mpv has none for it until it plays): its player
+    // is handed none, not the last video's. The same video told again (a
+    // control connection made anew) keeps where it is.
+    void aPlaylistsNextVideoStartsAtNothing() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        QSignalSpy moved(m_mpv, &MpvController::playlistPosChanged);
+        socket->write("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":0}\n"
+                      "{\"event\":\"property-change\",\"id\":2,\"name\":\"duration\",\"data\":60.0}\n"
+                      "{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\",\"data\":40.0}\n"
+                      "{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":0}\n");
+        socket->flush();
+        QTRY_COMPARE_WITH_TIMEOUT(moved.count(), 2, 5000);
+        QCOMPARE(m_mpv->position(), 40000);
+        socket->write("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":1}\n"
+                      "{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\"}\n"
+                      "{\"event\":\"property-change\",\"id\":2,\"name\":\"duration\"}\n");
+        socket->flush();
+        QTRY_COMPARE_WITH_TIMEOUT(moved.count(), 3, 5000);
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(ended.first().at(0).toInt(), 0);
+        QCOMPARE(ended.first().at(1).toInt(), 0);
+    }
+
     // A video its menu's Browse left (an mpv process having ended for the
     // menu): the main menu offers it back until another video is asked for.
     void aLeftVideoIsOfferedUntilTheNext() {
