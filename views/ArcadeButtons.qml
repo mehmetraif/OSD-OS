@@ -6,11 +6,15 @@ import Components
 // Button 1 to 8, Coin and Start, the same in every game, MAME's and FinalBurn
 // Neo's alike.
 //
-// LAYOUT is chosen from a list (back leaves it as it was): a preset (Fighting
+// LAYOUT is chosen from a list (back leaves it as it was): Auto, OSD/OS's own
+// by the game (a game of up to four buttons on Neo Geo 4's rows, the ones
+// shown, and one of five or more on Fighting 6's), where a pad SDL knows by
+// its kind starts; a preset (Fighting
 // 6: a fighter's punches over its kicks, as a six-button cabinet's two rows;
 // Neo Geo 4: A B C D on the four face buttons; NES, Mega Drive, SNES, Saturn
-// and N64: a console pad's own), the emulators' own (Default: what OSD/OS
-// always did, a JAMMA stick's pins' buttons in their order), or Custom, the
+// and N64: a console pad's own), the emulators' own (Engine's: what OSD/OS
+// always did, where any other pad starts, a JAMMA stick's pins' buttons in
+// their order), or Custom, the
 // inputs set by hand, which InputManager keeps while another layout is
 // chosen, so Custom brings them back.
 //
@@ -171,6 +175,7 @@ FocusScope {
     // The layout's own words, short enough to be read at once.
     function layoutDescription() {
         var words = {
+            auto: "Games of five buttons or more: Fighting 6's",
             fighting6: "Punches 1 2 3 over kicks 4 5 6",
             neogeo4: "A B C D on the four face buttons",
             nes: "B is button 1, A button 2",

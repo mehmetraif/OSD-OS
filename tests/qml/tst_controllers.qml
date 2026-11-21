@@ -211,7 +211,7 @@ StandInRoot {
         var choices = [["a", "A"], ["b", "B"], ["x", "X"], ["y", "Y"], ["leftshoulder", "LB"], ["rightshoulder", "RB"],
                        ["lefttrigger+", "LT"], ["righttrigger+", "RT"], ["back", "BACK"], ["start", "START"],
                        ["leftstick", "LS"], ["rightstick", "RS"]]
-        var titles = { "default": "Engine's", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }
+        var titles = { auto: "Auto", "default": "Engine's", fighting6: "Fighting 6", neogeo4: "Neo Geo 4", custom: "Custom" }
         return { key: root.padKey, name: "8BitDo Pro 2", present: present !== false, jamma: 0, layout: layout,
                  layoutTitle: titles[layout],
                  layouts: [{ layout: "default", title: "Engine's" }, { layout: "fighting6", title: "Fighting 6" },
@@ -1012,6 +1012,45 @@ StandInRoot {
                     return page.children[i]
             }
             return null
+        }
+
+        // A well-known pad's Game Buttons on Auto: the lines a game of up to
+        // four buttons', the layout's own line saying in words that one of
+        // five or more plays on Fighting 6's; listed first; a line set by
+        // hand as on any layout.
+        function test_gameButtonsAuto() {
+            var auto = root.arcadePage("auto", root.padInputs,
+                                       ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START"])
+            auto.layouts = [{ layout: "auto", title: "Auto" }].concat(auto.layouts)
+            auto.manyRows = root.arcadePage("fighting6", ["x", "y", "rightshoulder", "a", "b", "righttrigger+",
+                                                          "leftshoulder", "lefttrigger+", "back", "start"],
+                                            ["X", "Y", "RB", "A", "B", "RT", "LB", "LT", "BACK", "START"]).rows
+            inputManager.arcadePages = { "pad-0300aaaa": auto }
+            var page = open("ArcadeButtons.qml", { key: root.padKey })
+            compare(page.rows[2].label, "Auto")
+            var values = page.rows.slice(3).map(function(r) { return r.value })
+            compare(values, ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START"])
+            compare(page.rows[3].token, "a")
+            compare(page.rows[0].description, "Games of five buttons or more: Fighting 6's")
+            verify(findText(page, "Games of five buttons or more: Fighting 6's") !== null)
+            keyClick(Qt.Key_Return)
+            var layouts = findChild(page, "layoutChooser")
+            verify(layouts.visible)
+            compare(labels(layouts.choices), ["Auto", "Engine's", "Fighting 6", "Neo Geo 4", "Custom"])
+            compare(layouts.choiceIndex, 0)
+            keyClick(Qt.Key_Escape)
+            // Button 1 from its list: InputManager makes the layout Custom.
+            keys(Qt.Key_Down, 2)
+            compare(page.rows[list(page).currentIndex].label, "Button 1")
+            verify(findText(page, "Games of five buttons or more: Fighting 6's") === null)
+            keyClick(Qt.Key_Return)
+            var inputs = findChild(page, "inputChooser")
+            verify(findText(page, "Now: A") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(inputManager.last(), ["arcadeInput", root.padKey, "1", "leftstick"])
+            keyClick(Qt.Key_Escape)
+            compare(root.backs, 1)
         }
 
         // Set One by One: a press a step, twenty seconds each; the joystick

@@ -244,6 +244,27 @@ exit 0
         f.write(data);
     }
 
+    // The Arcade module's list of the games of five buttons or more, as it
+    // ships in modules/arcade (scripts/make-five-button-sets.py): a stand-in
+    // in the app's folder, before its ArcadeBackend first plays.
+    void writeFiveButtonSets(const QString &appRoot, const QByteArray &sets) {
+        writeFile(appRoot + QStringLiteral("/modules/arcade/five-button-sets.txt"), "# MAME 0.000: a stand-in\n" + sets);
+    }
+    // A player on Game Buttons' Auto, as InputManager gives one: Neo Geo
+    // 4's row (A B X Y LB RB LT RT) and Fighting 6's (X Y RB over A B RT),
+    // on a pad whose triggers are axes.
+    static controllers::ArcadeBinds autoBinds() {
+        controllers::ArcadeBinds binds;
+        binds.automatic = true;
+        binds.mame = QStringList({ "BUTTON1", "BUTTON2", "BUTTON3", "BUTTON4", "BUTTON5", "BUTTON6",
+                                   "SLIDER1_NEG_SWITCH", "SLIDER2_NEG_SWITCH", "SELECT", "START" });
+        binds.retroarch = QStringList({ "0", "1", "2", "3", "9", "10", "+4", "+5", "4", "6" });
+        binds.mameMany = QStringList({ "BUTTON3", "BUTTON4", "BUTTON6", "BUTTON1", "BUTTON2",
+                                       "SLIDER2_NEG_SWITCH", "BUTTON5", "SLIDER1_NEG_SWITCH", "SELECT", "START" });
+        binds.retroarchMany = QStringList({ "2", "3", "10", "0", "1", "+5", "9", "+4", "4", "6" });
+        return binds;
+    }
+
     static QByteArray contents(const QString &path) {
         QFile f(path);
         return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
@@ -962,6 +983,8 @@ private slots:
     // A game started as MAME is to have it, and back.
     void play() {
         QFile::remove(m_log);
+        writeFiveButtonSets(m_data.path(), "sf2\nsf2ce\n");
+        const auto noSets = qScopeGuard([this] { QFile::remove(m_data.path() + QStringLiteral("/modules/arcade/five-button-sets.txt")); });
         ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, nullptr);
         refreshed(arcade);
         // Players 1 and 2 on two pads, player 3 on one of player 1's model.
@@ -1020,6 +1043,29 @@ private slots:
         QVERIFY(withArcade.contains(QStringLiteral("KEYCODE_ESC OR JOYCODE_1_SELECT JOYCODE_1_START"
                                                    " OR JOYCODE_2_BUTTON6 JOYCODE_2_START OR JOYCODE_3_SELECT JOYCODE_3_START")));
         QVERIFY(!withArcade.contains(QStringLiteral("P1_BUTTON1")));
+        // Player 2 on Auto: a game of up to four buttons (Pac-Man, not in
+        // the module's list) on Neo Geo 4's row, Button 1 its A and Button 4
+        // its Y; one of five or more (Street Fighter II, in it, which the
+        // stand-in MAME doesn't play: its controller file is written all the
+        // same) on Fighting 6's, Button 1 its X and Button 4 its A.
+        controllers::setPlayerArcade({ {}, autoBinds() });
+        const auto joycodes = [&home](const char *port) {
+            const QRegularExpression re(QStringLiteral("<port type=\"%1\">\\s*<newseq type=\"standard\">[^<]*"
+                                                       "(JOYCODE_2_[A-Z0-9_]+)</newseq>").arg(QLatin1String(port)));
+            const QRegularExpressionMatch m = re.match(QString::fromUtf8(contents(home + QStringLiteral("/ctrlr/osdos.cfg"))));
+            return m.hasMatch() ? m.captured(1) : QStringLiteral("<no port>");
+        };
+        QFile::remove(m_log);
+        QCOMPARE(played(arcade, QStringLiteral("pacman")).at(1).toString(), QStringLiteral("ok"));
+        QCOMPARE(joycodes("P2_BUTTON1"), QStringLiteral("JOYCODE_2_BUTTON1"));
+        QCOMPARE(joycodes("P2_BUTTON4"), QStringLiteral("JOYCODE_2_BUTTON4"));
+        QCOMPARE(joycodes("COIN2"), QStringLiteral("JOYCODE_2_SELECT"));
+        QFile::remove(m_log);
+        played(arcade, QStringLiteral("sf2"));
+        QCOMPARE(joycodes("P2_BUTTON1"), QStringLiteral("JOYCODE_2_BUTTON3"));
+        QCOMPARE(joycodes("P2_BUTTON4"), QStringLiteral("JOYCODE_2_BUTTON1"));
+        QCOMPARE(joycodes("P2_BUTTON6"), QStringLiteral("JOYCODE_2_SLIDER2_NEG_SWITCH"));
+        QCOMPARE(joycodes("COIN2"), QStringLiteral("JOYCODE_2_SELECT"));
         controllers::setPlayerArcade({});
 
         // The module's settings: MAME's picture drawn another way, and no
@@ -2688,6 +2734,31 @@ private slots:
     // looks; RetroAchievements' password goes to RetroArch once, for the
     // token it saves, and never stays; and what its log says of a game that
     // didn't start.
+    // The Arcade module's list of the games of five buttons or more, as it
+    // ships (modules/arcade/five-button-sets.txt, made from MAME's -listxml
+    // by scripts/make-five-button-sets.py): the MAME it was made from named
+    // first, then the sets one a line, sorted, each once; the six-button
+    // fighters in it, parents and clones, and the games of four buttons or
+    // fewer not.
+    void fiveButtonSets() {
+        QFile file(QStringLiteral(TESTS_DIR "/../modules/arcade/five-button-sets.txt"));
+        QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+        QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+        QVERIFY(lines.takeFirst().startsWith(QStringLiteral("# MAME 0.")));
+        QCOMPARE(lines.takeLast(), QString());
+        QVERIFY(lines.size() > 1000);
+        QStringList sorted = lines;
+        sorted.sort();
+        sorted.removeDuplicates();
+        QCOMPARE(lines, sorted);
+        for (const QString &set : std::as_const(lines))
+            QVERIFY2(!set.isEmpty() && set == set.trimmed() && !set.startsWith(QLatin1Char('#')), qPrintable(set));
+        for (const char *set : { "sf2", "sf2ce", "ssf2t", "mk", "mk2", "kinst", "sfa3" })
+            QVERIFY2(lines.contains(QLatin1String(set)), set);
+        for (const char *set : { "pacman", "mslug", "kof98", "galaga", "dino" })
+            QVERIFY2(!lines.contains(QLatin1String(set)), set);
+    }
+
     void fbneoEngine() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -2717,6 +2788,7 @@ private slots:
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("030000005e0400008e02000014010000") } });
         writeFile(data.path() + QStringLiteral("/gamecontrollerdb.txt"), "# none\n");
+        writeFiveButtonSets(data.path(), "sf2\n");
 
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         refreshed(arcade);
@@ -2913,6 +2985,26 @@ private slots:
             QVERIFY2(config.contains(QLatin1String(line)), line);
         QCOMPARE(QString::fromUtf8(contents(remap)).split(QLatin1Char('\n')).filter(QStringLiteral("input_libretro_device_p")),
                  QStringList({ QStringLiteral("input_libretro_device_p1 = \"261\"") }));
+        controllers::setPlayerArcade({});
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!QFileInfo::exists(remap));
+        // On Auto: Street Fighter II, in the module's list of the games of
+        // five buttons or more, on Fighting 6's row (X Y RB over A B RT);
+        // Galaga, not in it, on Neo Geo 4's (A B X Y on Button 1 to 4: the
+        // 6-Button Panel's Y X L B slots).
+        controllers::setPlayerArcade({ autoBinds() });
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_y_btn = \"2\"", "input_player1_l_btn = \"10\"",
+                                  "input_player1_b_btn = \"0\"", "input_player1_r_axis = \"+5\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
+        QCOMPARE(arcade.engineOf(QStringLiteral("galaga")), QStringLiteral("fbneo"));
+        played(arcade, QStringLiteral("galaga"));
+        config = QString::fromUtf8(contents(configCopy));
+        for (const char *line : { "input_player1_y_btn = \"0\"", "input_player1_x_btn = \"1\"",
+                                  "input_player1_l_btn = \"2\"", "input_player1_b_btn = \"3\"",
+                                  "input_player1_r_btn = \"10\"", "input_player1_r_axis = \"nul\"" })
+            QVERIFY2(config.contains(QLatin1String(line)), line);
         controllers::setPlayerArcade({});
         played(arcade, QStringLiteral("sf2"));
         QVERIFY(!QFileInfo::exists(remap));
@@ -6540,6 +6632,7 @@ private slots:
                     lanAnswer("di", "smw", 55439, 0, "1.22.2", 0, "Snes9x"), QByteArray("RANS, not an answer"),
                     ann, eve };
 
+        writeFiveButtonSets(data.path(), "sf2\n");
         ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
         arcade.setLanDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
         arcade.setLanListenTime(150);
@@ -6969,6 +7062,40 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         QCOMPARE(requested(config), QStringLiteral("1"));
         QVERIFY2(config.contains(QStringLiteral("input_player1_b_btn = \"0\"")), qPrintable(config));
+        // Two pads on Game Buttons' Auto, no stick among them: the host's
+        // layout is what it is with both on Engine's, Classic, which it
+        // tells the machines joining, and its players play RetroArch's own
+        // binds, not Auto's rows (the remap file none); a layout chosen by
+        // hand makes it the panel's, as before.
+        const Players twoPads = { { QStringLiteral("OSDOS_PLAYER1_GUID"), QStringLiteral("0600bbbb") },
+                                  { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("Xbox 360 Controller") },
+                                  { QStringLiteral("OSDOS_PLAYER2_GUID"), QStringLiteral("0600cccc") },
+                                  { QStringLiteral("OSDOS_PLAYER2_NAME"), QStringLiteral("Xbox 360 Controller") } };
+        controllers::setPlayerEnvironment(twoPads);
+        controllers::setPlayerArcade({});
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("classic"));
+        controllers::setPlayerArcade({ autoBinds(), autoBinds() });
+        const auto noArcade = qScopeGuard([] { controllers::setPlayerArcade({}); });
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("classic"));
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("galaga"), true), QStringLiteral("classic"));
+        QFile::remove(m_log);
+        hostEnded.clear();
+        QVERIFY(arcade.hostLanGame(QStringLiteral("sf2")));
+        QCOMPARE(asking(libretro::claimQuery(1), 2000),
+                 libretro::claimLayout(libretro::Launch::Layout::Classic) + " / " + libretro::claimAnswer({ 2, 1 }));
+        QVERIFY(hostEnded.wait(10000) || !hostEnded.isEmpty());
+        QCOMPARE(hostEnded.first().value(1).toString(), QStringLiteral("ok"));
+        QVERIFY(!QFile::exists(hostRemap));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY2(!config.contains(QStringLiteral("input_player1_r_axis = \"+5\"")), qPrintable(config));
+        QVERIFY(!config.contains(QStringLiteral("input_player1_y_btn = \"0\"")));
+        controllers::ArcadeBinds chosen = autoBinds();
+        chosen.automatic = false;
+        controllers::setPlayerArcade({ chosen });
+        QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("panel"));
+        controllers::setPlayerArcade({});
+        controllers::setPlayerEnvironment(twoPlayers);
+
         // Cadillacs and Dinosaurs, whose players aren't known: the panel's
         // layout kept, this machine on port 1 alone, and a machine joining
         // with four given port 2 alone. Hosted with LAN Sync on Responsive:

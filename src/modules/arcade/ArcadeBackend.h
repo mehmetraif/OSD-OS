@@ -949,6 +949,12 @@ private:
     // How many players set plays at once, as MAME says (up to
     // libretro::kMostPorts); 0 for a game MAME doesn't know.
     int gamePlayers(const QString &set) const;
+    // Whether set has five buttons or more, by MAME's own list of them
+    // (modules/arcade/five-button-sets.txt, scripts/make-five-button-sets.py),
+    // read once as it is first asked: on Game Buttons' Auto, the game plays
+    // on Fighting 6's row, else Neo Geo 4's (controllers::ArcadeBinds). A
+    // set not in it, a clone too, has four buttons or fewer for this.
+    bool manyButtons(const QString &set) const;
     // The ports this machine's players take hosting set online: up to the
     // last player with a controller (libretro::localPorts()), but one fewer
     // than the game plays at once, so that a machine joining has a port
@@ -1094,6 +1100,7 @@ private:
     QString m_appRoot;
     QString m_dataRoot;
     QString m_home;               // <data>/arcade: MAME's keeping
+    mutable std::optional<QSet<QString>> m_fiveButtonSets;   // manyButtons()
     AppCore *m_appCore = nullptr;
     ScriptLauncher *m_launcher = nullptr;
 

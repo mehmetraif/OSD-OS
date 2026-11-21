@@ -53,6 +53,8 @@ class JammaPins;
 // which of its inputs is each of a cabinet's, Button 1 to 8, Coin and Start,
 // in every game: kept in its profile, and given to the Arcade module for
 // each player as MAME and RetroArch name them (controllers::playerArcade()).
+// A pad SDL knows by its kind starts on Auto, OSD/OS's own by the game's
+// buttons (arcadeLayoutOf()); any other on Engine's, the emulators' own.
 //
 // Cabinet Lock's unlock buttons (Settings → Startup → Cabinet Lock) are one to four
 // inputs, of any pads and keyboards, held together: with the lock on
@@ -195,13 +197,16 @@ public:
     // own starts from), and value that as the pad's labels call it, "None"
     // for none or one a pad connected hasn't. Under Default
     // the rows are the pad's own: a JAMMA stick's pins' buttons; another
-    // pad's buttons "Auto", MAME and FinalBurn Neo laying them out their own
-    // ways. choices: the inputs it has that can be one (every one for a pad
+    // pad's buttons "Engine's", MAME and FinalBurn Neo laying them out their
+    // own ways. Under Auto (arcadeLayoutOf()) the rows are a game of up to
+    // four buttons', and manyRows a game of five or more's (Fighting 6's),
+    // which the page says in words; [] under any other layout. choices: the inputs it has that can be one (every one for a pad
     // away), in controllers::arcadeTokens()' order.
     Q_INVOKABLE QVariantMap arcadePage(const QString &key) const;
     // One of arcadePage()'s layouts: a preset's inputs, Custom's from those
-    // there are (the default ones from Default), Default none. False when
-    // it could not be saved.
+    // there are (the default ones from Default, the four-button row from
+    // Auto), Default and Auto none: each is kept as chosen. False when it
+    // could not be saved.
     Q_INVOKABLE bool setArcadeLayout(const QString &key, const QString &layout);
     // One of its Arcade Buttons ("1" to "8", "coin", "start") made an input
     // of the pad (controllerInputCaptured()'s token), "" for none, which
@@ -397,9 +402,20 @@ private:
     void updatePlayers();
     controllers::Profile &editProfile(const QString &key);
     // A pad's Arcade Buttons as they are now, kArcadeInputs tokens: its
-    // layout's, or with none the pad's own (arcadeDefaultInputs()); on a pad
-    // connected, as they act on it (controllers::arcadeActing()).
-    QStringList arcadeInputsOf(const QString &key) const;
+    // layout's, under Auto a game of up to four buttons' or of five or more's
+    // (manyButtons), or under Default the pad's own (arcadeDefaultInputs());
+    // on a pad connected, as they act on it (controllers::arcadeActing()).
+    QStringList arcadeInputsOf(const QString &key, bool manyButtons = false) const;
+    // The layout a pad's Game Buttons are on: the one chosen for it, or with
+    // none chosen "auto" for a pad SDL knows by its kind (knownPadType()) that
+    // isn't a JAMMA board's stick, "default" (Engine's) for any other. By
+    // what the pad was last seen as (m_seenAs), so also while it is away.
+    QString arcadeLayoutOf(const QString &key) const;
+    // arcadeInputsOf()'s inputs before they act on the pad.
+    QStringList arcadeRowOf(const QString &key, bool manyButtons = false) const;
+    // Whether SDL knows a pad by its kind (an SDL_GameControllerType that is
+    // neither unknown nor virtual).
+    static bool knownPadType(int sdlType);
     // A pad's controller while it is connected (livePad()), else null.
     SDL_GameController *padController(const QString &key) const;
     bool saveArcade(const QString &key, const QString &layout, const QStringList &inputs);

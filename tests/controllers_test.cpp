@@ -339,8 +339,9 @@ private slots:
     // RetroArch name each of its inputs.
     void arcadeAsKept() {
         using namespace controllers;
-        QCOMPARE(arcadeLayouts(), QStringList({ "default", "fighting6", "neogeo4", "nes", "megadrive", "snes", "saturn", "n64",
-                                                "custom" }));
+        QCOMPARE(arcadeLayouts(), QStringList({ "auto", "default", "fighting6", "neogeo4", "nes", "megadrive", "snes", "saturn",
+                                                "n64", "custom" }));
+        QCOMPARE(arcadeLayoutTitle("auto"), QString("Auto"));
         QCOMPARE(arcadeLayoutTitle("fighting6"), QString("Fighting 6"));
         QCOMPARE(arcadeLayoutTitle(""), QString("Engine's"));
         QCOMPARE(arcadeInputName(kArcadeCoin), QString("coin"));
@@ -366,7 +367,30 @@ private slots:
         QCOMPARE(arcadeLayoutInputs("fighting6").mid(0, 6),
                  QStringList({ "x", "y", "rightshoulder", "a", "b", "righttrigger+" }));
         QCOMPARE(arcadeLayoutInputs("neogeo4", true), arcadeLayoutInputs("neogeo4"));
-        QVERIFY(Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", "default" } } } }).isEmpty());
+        // Auto: the two rows it plays, Neo Geo 4's for a game of up to four
+        // buttons and Fighting 6's for one of five or more, Coin and Start
+        // the same in both.
+        QCOMPARE(arcadeLayoutInputs("auto"), QStringList());
+        QCOMPARE(arcadeAutoInputs(false), arcadeLayoutInputs("neogeo4"));
+        QCOMPARE(arcadeAutoInputs(true), arcadeLayoutInputs("fighting6"));
+        QCOMPARE(arcadeAutoInputs(true).mid(kArcadeCoin), arcadeAutoInputs(false).mid(kArcadeCoin));
+        // Engine's and Auto written are chosen, kept apart from nothing
+        // chosen (which a pad's kind decides), and have no inputs.
+        for (const char *layout : { "default", "auto" }) {
+            p = Profile::fromVariant(QVariantMap{ { "arcade", QVariantMap{ { "layout", layout } } } });
+            QCOMPARE(p.arcadeLayout, QString(layout));
+            QVERIFY(p.arcade.isEmpty());
+            QVERIFY(!p.isEmpty());
+            const QVariantMap written = p.toVariant().value("arcade").toMap();
+            QCOMPARE(written, QVariantMap({ { "layout", layout } }));
+            QCOMPARE(Profile::fromVariant(p.toVariant()).arcadeLayout, QString(layout));
+        }
+        QVERIFY(Profile::fromVariant(QVariantMap{ { "labels", "shapes" } }).arcadeLayout.isEmpty());
+        // What SDL took the pad for, kept for while it is away.
+        p = Profile::fromVariant(QVariantMap{ { "sdl_type", 1 }, { "labels", "shapes" } });
+        QCOMPARE(p.sdlType, 1);
+        QCOMPARE(p.toVariant().value("sdl_type").toInt(), 1);
+        QVERIFY(!Profile().toVariant().contains("sdl_type"));
         // Set by hand: an input it can't be, or one another has (the first
         // keeps it), is none; one without a Coin or a Start is none at all.
         QVariantMap inputs{ { "1", "x" }, { "2", "dpup" }, { "3", "X" }, { "4", "rightx-" },
@@ -660,7 +684,8 @@ private slots:
         QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Engine's"));
         QCOMPARE(values(), QStringList({ "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "Engine's", "BACK", "START" }));
         QCOMPARE(listed(page.value("layouts").toList(), "title"),
-                 QStringList({ "Engine's", "Fighting 6", "Neo Geo 4", "NES", "Mega Drive", "SNES", "Saturn", "N64", "Custom" }));
+                 QStringList({ "Auto", "Engine's", "Fighting 6", "Neo Geo 4", "NES", "Mega Drive", "SNES", "Saturn", "N64",
+                               "Custom" }));
         // Every input it has that can be one: all but a touchpad, which SDL
         // gives no pad it makes up.
         QStringList has = controllers::arcadeTokens();
@@ -825,6 +850,150 @@ private slots:
         const QJsonObject inputs = savedControllers().value(key).toObject().value("arcade").toObject().value("inputs").toObject();
         QCOMPARE(inputs.value("2").toString(), QString());
         QCOMPARE(inputs.value("7").toString(), QString("b"));
+    }
+
+    // A pad SDL knows by its kind (a virtual pad of a well-known vendor and
+    // product, which SDL types by them) starts on Auto: a game of up to four
+    // buttons on Neo Geo 4's row, the one the page shows, one of five or
+    // more on Fighting 6's, both given to its player's games; one SDL
+    // doesn't (the test's own pads, which SDL calls virtual) on Engine's.
+    // Engine's chosen on it lasts, a config.json from before Auto puts it on
+    // Auto, a line set by hand is Custom from the row shown, and a pad away
+    // shows what it was seen as.
+    void arcadeAuto() {
+        auto core = std::make_unique<AppCore>(m_app.path(), m_data.path());
+        auto im = std::make_unique<InputManager>(m_data.path(), core.get());
+        // A pad lasts as long as the InputManager whose SDL it was made in.
+        auto known = std::make_unique<VirtualPad>();
+        VirtualPad unknown;
+        QVERIFY(known->attach("OSD/OS Known Pad", 0x045e, 0x028e));
+        QVERIFY(unknown.attach("OSD/OS Test Pad"));
+        QTRY_VERIFY(entry(*im, "OSD/OS Known Pad").value("present").toBool());
+        QTRY_VERIFY(entry(*im, "OSD/OS Test Pad").value("present").toBool());
+        const QString key = entry(*im, "OSD/OS Known Pad").value("key").toString();
+        const QString other = entry(*im, "OSD/OS Test Pad").value("key").toString();
+        const auto again = [&](bool attached) {
+            im.reset();
+            known = std::make_unique<VirtualPad>();
+            core = std::make_unique<AppCore>(m_app.path(), m_data.path());
+            im = std::make_unique<InputManager>(m_data.path(), core.get());
+            if (!attached)
+                return true;
+            return known->attach("OSD/OS Known Pad", 0x045e, 0x028e)
+                && QTest::qWaitFor([&] { return entry(*im, "OSD/OS Known Pad").value("present").toBool(); }, 5000);
+        };
+        const auto values = [&im, &key](const char *field = "rows") {
+            QStringList list;
+            for (const QVariant &v : im->arcadePage(key).value(field).toList())
+                list << v.toMap().value("value").toString();
+            return list;
+        };
+        // Its player's binds (it plays as player 1 or 2).
+        const auto bindsOf = [&im, &key] {
+            for (int p = 1; p <= 2; ++p) {
+                if (player(*im, p).value("playing").toString() == key)
+                    return controllers::playerArcade().value(p - 1);
+            }
+            return controllers::ArcadeBinds();
+        };
+        const QStringList four{ "A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START" };
+        const QStringList six{ "X", "Y", "RB", "A", "B", "RT", "LB", "LT", "BACK", "START" };
+
+        QVariantMap page = im->arcadePage(key);
+        QCOMPARE(page.value("layout").toString(), QString("auto"));
+        QCOMPARE(page.value("layoutTitle").toString(), QString("Auto"));
+        QCOMPARE(im->controllerPage(key).value("arcade").toString(), QString("Auto"));
+        QCOMPARE(values(), four);
+        QCOMPARE(values("manyRows"), six);
+        QCOMPARE(im->arcadeLabel(key, "1"), QString("A"));
+        QCOMPARE(im->inputRoles(key, "a").value("game").toString(), QString("Button 1"));
+        QCOMPARE(im->inputRoles(key, "rightshoulder").value("game").toString(), QString("Button 6"));
+        QCOMPARE(im->inputRoles(key, "back").value("game").toString(), QString("Coin"));
+        // The other pad: Engine's, as before Auto.
+        QCOMPARE(im->arcadePage(other).value("layout").toString(), QString("default"));
+        QVERIFY(im->arcadePage(other).value("manyRows").toList().isEmpty());
+        QCOMPARE(im->inputRoles(other, "a").value("game").toString(), QString("Engine's"));
+
+        // Its player's games get both rows; online, and for a host's
+        // layout, none of its own.
+        QTRY_VERIFY(bindsOf().automatic);
+        controllers::ArcadeBinds binds = bindsOf();
+        QCOMPARE(binds.mame, QStringList({ "BUTTON1", "BUTTON2", "BUTTON3", "BUTTON4", "BUTTON5", "BUTTON6",
+                                           "SLIDER1_NEG_SWITCH", "SLIDER2_NEG_SWITCH", "SELECT", "START" }));
+        QCOMPARE(binds.mameMany, QStringList({ "BUTTON3", "BUTTON4", "BUTTON6", "BUTTON1", "BUTTON2",
+                                               "SLIDER2_NEG_SWITCH", "BUTTON5", "SLIDER1_NEG_SWITCH", "SELECT", "START" }));
+        QCOMPARE(binds.retroarch, QStringList({ "0", "1", "2", "3", "9", "10", "+4", "+5", "4", "6" }));
+        QCOMPARE(binds.retroarchMany, QStringList({ "2", "3", "10", "0", "1", "+5", "9", "+4", "4", "6" }));
+        QCOMPARE(binds.mameFor(false), binds.mame);
+        QCOMPARE(binds.mameFor(true), binds.mameMany);
+        QCOMPARE(binds.retroarchFor(false), binds.retroarch);
+        QCOMPARE(binds.retroarchFor(true), binds.retroarchMany);
+        QVERIFY(binds.retroarchOnline().isEmpty());
+        // A layout chosen by hand plays online as it always did.
+        QVERIFY(im->setArcadeLayout(key, "fighting6"));
+        binds = bindsOf();
+        QVERIFY(!binds.automatic);
+        QCOMPARE(binds.retroarchOnline(), binds.retroarch);
+        QCOMPARE(binds.mameFor(true), binds.mame);
+
+        // Engine's chosen lasts, through a save and the next start.
+        QVERIFY(im->setArcadeLayout(key, "default"));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
+        QVERIFY(bindsOf().isEmpty());
+        const QJsonObject saved = savedControllers().value(key).toObject();
+        QCOMPARE(saved.value("arcade").toObject().value("layout").toString(), QString("default"));
+        QCOMPARE(saved.value("sdl_type").toInt(), int(SDL_CONTROLLER_TYPE_XBOX360));
+        QVERIFY(again(true));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
+        QCOMPARE(values().mid(0, 2), QStringList({ "Engine's", "Engine's" }));
+        // Auto chosen again; Reset to Defaults is Auto too.
+        QVERIFY(im->setArcadeLayout(key, "auto"));
+        QCOMPARE(savedControllers().value(key).toObject().value("arcade").toObject().value("layout").toString(),
+                 QString("auto"));
+        QCOMPARE(values(), four);
+        QVERIFY(im->resetController(key));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("auto"));
+
+        // A config.json from before Auto: the pad's profile with no arcade in
+        // it (its labels set) is on Auto; "default" with Custom's inputs kept
+        // beside it, as Engine's was written then, is Engine's chosen.
+        const auto oldConfig = [&](const QJsonObject &arcade) {
+            QJsonObject profile{ { "name", "OSD/OS Known Pad" }, { "kind", "gamepad" }, { "labels", "shapes" } };
+            if (!arcade.isEmpty())
+                profile.insert("arcade", arcade);
+            im.reset();
+            return writeData("config.json", QJsonDocument(QJsonObject{ { "app", QJsonObject{ { "controllers",
+                                            QJsonObject{ { key, profile } } } } } }).toJson());
+        };
+        QVERIFY(oldConfig({}));
+        QVERIFY(again(true));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("auto"));
+        QCOMPARE(values().mid(0, 4), QStringList({ "X", "O", "SQ", "TR" }));
+        QTRY_VERIFY(bindsOf().automatic);
+        // Set by hand: Custom, from the row shown.
+        const QVariantMap result = im->setArcadeInput(key, "1", "y");
+        QCOMPARE(outcome(result), QString("swapped"));
+        QCOMPARE(result.value("other").toString(), QString("Button 4"));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("custom"));
+        QCOMPARE(values(), QStringList({ "TR", "O", "SQ", "X", "L1", "R1", "L2", "R2", "SELECT", "START" }));
+        QVERIFY(!bindsOf().automatic);
+        QVERIFY(!bindsOf().isEmpty());
+        QVERIFY(oldConfig(QJsonObject{ { "layout", "default" }, { "custom", QJsonObject{ { "1", "a" }, { "coin", "back" },
+                                                                                          { "start", "start" } } } }));
+        QVERIFY(again(true));
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("default"));
+
+        // Away: what it was seen as, through the next start too (its
+        // profile keeps its kind).
+        QVERIFY(im->resetController(key));
+        QVERIFY(im->setControllerLabels(key, "a_below"));
+        known->detach();
+        QTRY_VERIFY(!entry(*im, "OSD/OS Known Pad").value("present").toBool());
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("auto"));
+        QVERIFY(again(false));
+        QVERIFY(!entry(*im, "OSD/OS Known Pad").value("present").toBool());
+        QCOMPARE(im->arcadePage(key).value("layout").toString(), QString("auto"));
+        QCOMPARE(values(), four);
     }
 
     // input.cfg is every pad's map, a pad's own over it.

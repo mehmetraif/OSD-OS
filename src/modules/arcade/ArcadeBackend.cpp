@@ -2529,8 +2529,9 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         }
     }
     QList<QStringList> arcade;
+    const bool many = manyButtons(name);
     for (const controllers::ArcadeBinds &binds : controllers::playerArcade())
-        arcade << binds.mame;
+        arcade << binds.mameFor(many);
     // The files made for each game (this one, the credits' script, FinalBurn
     // Neo's info and config below) are written in place, without a wait for
     // the card each.
@@ -3007,6 +3008,25 @@ int ArcadeBackend::gamePlayers(const QString &set) const {
     return machine && machine->players > 0 ? std::min(machine->players, libretro::kMostPorts) : 0;
 }
 
+bool ArcadeBackend::manyButtons(const QString &set) const {
+    if (!m_fiveButtonSets) {
+        QSet<QString> sets;
+        QFile file(m_appRoot + QStringLiteral("/modules/arcade/five-button-sets.txt"));
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            while (!file.atEnd()) {
+                const QString line = QString::fromUtf8(file.readLine()).trimmed();
+                if (!line.isEmpty() && !line.startsWith(QLatin1Char('#')))
+                    sets.insert(line);
+            }
+        } else {
+            qWarning("[Arcade] %s couldn't be read: every game plays Auto's four-button row",
+                     qPrintable(file.fileName()));
+        }
+        m_fiveButtonSets = sets;
+    }
+    return m_fiveButtonSets->contains(set);
+}
+
 int ArcadeBackend::hostPorts(const QString &set, int *most) const {
     // As many as the game plays at once. A game whose players aren't known
     // (a set MAME doesn't know: FinalBurn Neo's list doesn't say) may play
@@ -3032,7 +3052,8 @@ QString ArcadeBackend::onlineLayout(const QString &set, bool hosting) const {
     QList<QStringList> binds;
     for (int p = 0; p < guids.size(); ++p) {
         panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
-        binds << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarch);
+        // A player on Auto counts as having none (it plays as Engine's online).
+        binds << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarchOnline());
     }
     return libretro::hostLayout(panels, binds, gamePlayers(set)) == libretro::Launch::Layout::Panel
                ? QStringLiteral("panel")
@@ -3173,12 +3194,19 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     const QStringList guids = controllers::playerGuids();
     const QStringList names = controllers::playerNames();
     const QList<controllers::ArcadeBinds> arcade = controllers::playerArcade();
+    const bool many = manyButtons(name);
     launch.padsByVendor = libretro::kPadsByVendor;
     for (int p = 0; p < guids.size(); ++p) {
         launch.pads << (guids.at(p).isEmpty() ? QString()
                                               : libretro::reservedDevice(guids.at(p), names.value(p), launch.padsByVendor));
         launch.panels << (!guids.at(p).isEmpty() && controllers::isJammaStick(names.value(p)));
-        launch.arcade << (guids.at(p).isEmpty() ? QStringList() : arcade.value(p).retroarch);
+        // Off line, Auto's row for the game; online, a player on Auto counts
+        // as having none, as on Engine's, so that the host's layout
+        // (hostLayout()) and what every machine plays with are as they were.
+        const controllers::ArcadeBinds binds = arcade.value(p);
+        launch.arcade << (guids.at(p).isEmpty() ? QStringList()
+                          : netplay == Netplay::None ? binds.retroarchFor(many)
+                                                     : binds.retroarchOnline());
     }
     // With Online High Scores on, the RetroAchievements account.
     m_account->lendTo(launch, m_achievements);

@@ -721,12 +721,11 @@ void InputManager::rebuildPad(SDL_JoystickID id) {
     const int type = SDL_GameControllerGetType(gc);
     Pad pad = padFor(controllers::padKey(padGuid(joystick)),
                      name && *name ? QString::fromUtf8(name) : QStringLiteral("Gamepad"), type);
-    // Its Arcade Buttons' Coin, by what it has.
-    const controllers::Profile profile = m_profiles.value(pad.key);
-    if (!profile.arcadeLayout.isEmpty())
-        pad.coin = controllers::arcadeActing(profile.arcade, padShape(gc)).value(controllers::kArcadeCoin);
-    m_pads.insert(id, pad);
     m_seenAs.insert(pad.key, { pad.name, pad.arcade ? QStringLiteral("arcade") : QStringLiteral("gamepad"), type });
+    // Its Arcade Buttons' Coin, by what it has (Auto's is Back in both rows).
+    if (arcadeLayoutOf(pad.key) != QLatin1String("default"))
+        pad.coin = controllers::arcadeActing(arcadeRowOf(pad.key), padShape(gc)).value(controllers::kArcadeCoin);
+    m_pads.insert(id, pad);
 }
 
 // A JAMMA stick of an osdos-jamma that gives it a vendor and a product has
@@ -1562,7 +1561,7 @@ void InputManager::loadProfiles() {
             continue;
         m_profiles.insert(it.key(), profile);
         if (!profile.name.isEmpty() && !m_seenAs.contains(it.key()))
-            m_seenAs.insert(it.key(), { profile.name, profile.kind });
+            m_seenAs.insert(it.key(), { profile.name, profile.kind, profile.sdlType });
     }
 }
 
@@ -1758,7 +1757,7 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
                         { QStringLiteral("labels"), controllers::labelStyleName(profile.labels) },
                         { QStringLiteral("labelsInUse"), isPad ? controllers::labelStyleTitle(pad.labels) : QString() },
                         { QStringLiteral("jamma"), isPad ? jammaPlayer(pad) : 0 },
-                        { QStringLiteral("arcade"), isPad ? controllers::arcadeLayoutTitle(profile.arcadeLayout) : QString() },
+                        { QStringLiteral("arcade"), isPad ? controllers::arcadeLayoutTitle(arcadeLayoutOf(key)) : QString() },
                         { QStringLiteral("rows"), rows } };
 }
 
@@ -1841,6 +1840,8 @@ controllers::Profile &InputManager::editProfile(const QString &key) {
     controllers::Profile &profile = m_profiles[key];
     profile.name = page.value(QStringLiteral("name")).toString();
     profile.kind = page.value(QStringLiteral("kind")).toString();
+    if (const int type = m_seenAs.value(key).sdlType)
+        profile.sdlType = type;
     return profile;
 }
 
@@ -1971,8 +1972,9 @@ QVariantMap InputManager::inputRoles(const QString &key, const QString &input) c
         const QStringList inputs = arcadeInputsOf(key);
         const int at = int(inputs.indexOf(token));
         // Under Default MAME and FinalBurn Neo number another pad's buttons
-        // their own ways: only its Coin and Start are OSD/OS's.
-        const bool theirs = m_profiles.value(key).arcadeLayout.isEmpty() && !jammaPlayer(pad);
+        // their own ways: only its Coin and Start are OSD/OS's. Under Auto
+        // the row is a game of up to four buttons'.
+        const bool theirs = arcadeLayoutOf(key) == QLatin1String("default") && !jammaPlayer(pad);
         if (token == QLatin1String("guide"))
             game = QStringLiteral("MAME's menu");
         else if (!controllers::isArcadeToken(token))
@@ -2010,11 +2012,32 @@ bool InputManager::resetController(const QString &key) {
 
 // ── Arcade Buttons ────────────────────────────────────────────────────────────
 
-QStringList InputManager::arcadeInputsOf(const QString &key) const {
-    const controllers::Profile profile = m_profiles.value(key);
-    const QStringList inputs = profile.arcadeLayout.isEmpty() ? controllers::arcadeDefaultInputs() : profile.arcade;
+QStringList InputManager::arcadeInputsOf(const QString &key, bool manyButtons) const {
+    const QStringList inputs = arcadeRowOf(key, manyButtons);
     SDL_GameController *gc = padController(key);
     return gc ? controllers::arcadeActing(inputs, padShape(gc)) : inputs;
+}
+
+QStringList InputManager::arcadeRowOf(const QString &key, bool manyButtons) const {
+    const QString layout = arcadeLayoutOf(key);
+    if (layout == QLatin1String("default"))
+        return controllers::arcadeDefaultInputs();
+    if (layout == QLatin1String("auto"))
+        return controllers::arcadeAutoInputs(manyButtons, controllers::isJammaStick(m_seenAs.value(key).name));
+    return m_profiles.value(key).arcade;
+}
+
+QString InputManager::arcadeLayoutOf(const QString &key) const {
+    const QString chosen = m_profiles.value(key).arcadeLayout;
+    if (!chosen.isEmpty())
+        return chosen;
+    const Seen seen = m_seenAs.value(key);
+    return knownPadType(seen.sdlType) && !controllers::isJammaStick(seen.name) ? QStringLiteral("auto")
+                                                                              : QStringLiteral("default");
+}
+
+bool InputManager::knownPadType(int sdlType) {
+    return sdlType != SDL_CONTROLLER_TYPE_UNKNOWN && sdlType != SDL_CONTROLLER_TYPE_VIRTUAL;
 }
 
 SDL_GameController *InputManager::padController(const QString &key) const {
@@ -2025,7 +2048,7 @@ SDL_GameController *InputManager::padController(const QString &key) const {
 bool InputManager::saveArcade(const QString &key, const QString &layout, const QStringList &inputs) {
     controllers::Profile &profile = editProfile(key);
     profile.arcadeLayout = layout;
-    profile.arcade = layout.isEmpty() ? QStringList() : inputs;
+    profile.arcade = inputs;
     // Custom's inputs are kept while another layout is chosen.
     if (layout == QLatin1String("custom"))
         profile.arcadeCustom = inputs;
@@ -2039,7 +2062,7 @@ QVariantMap InputManager::arcadePage(const QString &key) const {
     const QString name = controller.value(QStringLiteral("name")).toString();
     const Pad pad = padOf(key, name);
     const int jamma = jammaPlayer(pad);
-    const QString layout = m_profiles.value(key).arcadeLayout;
+    const QString layout = arcadeLayoutOf(key);
 
     QVariantList layouts;
     for (const QString &l : controllers::arcadeLayouts())
@@ -2051,18 +2074,24 @@ QVariantMap InputManager::arcadePage(const QString &key) const {
 
     // Under Default MAME and FinalBurn Neo each number another pad's buttons
     // their own way: only its Back and Start are Coin and Start in both.
-    const QStringList inputs = arcadeInputsOf(key);
-    QVariantList rows;
-    for (int i = 0; i < controllers::kArcadeInputs; ++i) {
-        const bool theirs = layout.isEmpty() && !jamma && i < controllers::kArcadeCoin;
-        const QString token = inputs.value(i);
-        rows << QVariantMap{ { QStringLiteral("input"), controllers::arcadeInputName(i) },
-                             { QStringLiteral("label"), controllers::arcadeInputLabel(i) },
-                             { QStringLiteral("token"), token },
-                             { QStringLiteral("value"), theirs ? QStringLiteral("Engine's")
-                                                        : token.isEmpty() || (gc && !shape.has(token)) ? QStringLiteral("None")
-                                                        : padInputLabel(pad, token) } };
-    }
+    // Under Auto the rows are a game of up to four buttons', and manyRows a
+    // game of five or more's.
+    const auto rowsOf = [&](const QStringList &inputs) {
+        QVariantList rows;
+        for (int i = 0; i < controllers::kArcadeInputs; ++i) {
+            const bool theirs = layout == QLatin1String("default") && !jamma && i < controllers::kArcadeCoin;
+            const QString token = inputs.value(i);
+            rows << QVariantMap{ { QStringLiteral("input"), controllers::arcadeInputName(i) },
+                                 { QStringLiteral("label"), controllers::arcadeInputLabel(i) },
+                                 { QStringLiteral("token"), token },
+                                 { QStringLiteral("value"), theirs ? QStringLiteral("Engine's")
+                                                            : token.isEmpty() || (gc && !shape.has(token)) ? QStringLiteral("None")
+                                                            : padInputLabel(pad, token) } };
+        }
+        return rows;
+    };
+    const QVariantList rows = rowsOf(arcadeInputsOf(key));
+    const QVariantList manyRows = layout == QLatin1String("auto") ? rowsOf(arcadeInputsOf(key, true)) : QVariantList();
 
     QVariantList choices;
     for (const QString &token : controllers::arcadeTokens()) {
@@ -2073,18 +2102,21 @@ QVariantMap InputManager::arcadePage(const QString &key) const {
     return QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("name"), name },
                         { QStringLiteral("present"), controller.value(QStringLiteral("present")) },
                         { QStringLiteral("jamma"), jamma },
-                        { QStringLiteral("layout"), layout.isEmpty() ? QStringLiteral("default") : layout },
+                        { QStringLiteral("layout"), layout },
                         { QStringLiteral("layoutTitle"), controllers::arcadeLayoutTitle(layout) },
                         { QStringLiteral("layouts"), layouts },
                         { QStringLiteral("rows"), rows },
+                        { QStringLiteral("manyRows"), manyRows },
                         { QStringLiteral("choices"), choices } };
 }
 
 bool InputManager::setArcadeLayout(const QString &key, const QString &layout) {
     if (!controllers::isPadKey(key) || !controllers::arcadeLayouts().contains(layout))
         return false;
-    if (layout == QLatin1String("default"))
-        return saveArcade(key, QString(), {});
+    // Auto and Default kept as chosen: Default chosen on a pad SDL knows by
+    // its kind stays over Auto.
+    if (layout == QLatin1String("default") || layout == QLatin1String("auto"))
+        return saveArcade(key, layout, {});
     if (layout == QLatin1String("custom"))
         return saveArcade(key, layout, m_profiles.value(key).arcadeCustom.isEmpty() ? arcadeInputsOf(key)
                                                                                   : m_profiles.value(key).arcadeCustom);
@@ -2113,8 +2145,9 @@ QVariantMap InputManager::setArcadeInput(const QString &key, const QString &inpu
         return outcome(QStringLiteral("joystick"));
     QStringList inputs = arcadeInputsOf(key);
     // Set under Default, it is a layout of its own, the pad's own inputs as
-    // it starts from.
-    if (!m_profiles.value(key).arcadeLayout.isEmpty() && inputs.value(index) == wanted)
+    // it starts from; under Auto, the row shown, a game of up to four
+    // buttons'.
+    if (arcadeLayoutOf(key) != QLatin1String("default") && inputs.value(index) == wanted)
         return outcome(QStringLiteral("already"));
     // One input, one of them: the one that had it takes this one's, none for
     // one the pad hasn't, unless that would leave Coin or Start none.
@@ -2159,7 +2192,7 @@ QString InputManager::arcadeLabel(const QString &key, const QString &input) cons
         if (input != controllers::arcadeInputName(i))
             continue;
         // Under Default another pad's buttons are the emulators' to number.
-        if (m_profiles.value(key).arcadeLayout.isEmpty() && !jammaPlayer(pad) && i < controllers::kArcadeCoin)
+        if (arcadeLayoutOf(key) == QLatin1String("default") && !jammaPlayer(pad) && i < controllers::kArcadeCoin)
             return QString();
         const QString token = arcadeInputsOf(key).value(i);
         SDL_GameController *gc = padController(key);
@@ -2196,19 +2229,28 @@ controllers::PadShape InputManager::padShape(SDL_GameController *gc) {
 }
 
 // Each player's pad's Arcade Buttons, by what that pad has: none for a
-// player without a pad, or whose pad has no layout of its own.
+// player without a pad, or whose pad has no layout of its own (Engine's);
+// on Auto both its rows, a game of up to four buttons' and of five or more's.
 void InputManager::publishArcade() {
     QList<controllers::ArcadeBinds> players;
     for (int p = 0; p < controllers::kPlayers; ++p) {
         controllers::ArcadeBinds binds;
         const SDL_JoystickID id = m_playerPads.value(p, -1);
         SDL_GameController *gc = m_controllers.value(id, nullptr);
-        const controllers::Profile profile = m_profiles.value(m_pads.value(id).key);
-        if (gc && !profile.arcadeLayout.isEmpty()) {
+        const QString key = m_pads.value(id).key;
+        const QString layout = arcadeLayoutOf(key);
+        if (gc && layout != QLatin1String("default")) {
             const controllers::PadShape shape = padShape(gc);
-            for (const QString &token : controllers::arcadeActing(profile.arcade, shape)) {
-                binds.mame << controllers::mameInput(shape, token);
-                binds.retroarch << (shape.has(token) ? controllers::retroarchBind(token) : QString());
+            const auto bind = [&shape](const QStringList &row, QStringList &mame, QStringList &retroarch) {
+                for (const QString &token : controllers::arcadeActing(row, shape)) {
+                    mame << controllers::mameInput(shape, token);
+                    retroarch << (shape.has(token) ? controllers::retroarchBind(token) : QString());
+                }
+            };
+            bind(arcadeRowOf(key), binds.mame, binds.retroarch);
+            if (layout == QLatin1String("auto")) {
+                binds.automatic = true;
+                bind(arcadeRowOf(key, true), binds.mameMany, binds.retroarchMany);
             }
         }
         players << binds;

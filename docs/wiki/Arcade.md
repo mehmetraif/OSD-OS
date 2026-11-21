@@ -434,6 +434,7 @@ MAME's players are the ones **Settings → Controls → Players** sets ([Control
 **Game Buttons.** A pad's own page in Settings → Controls says which of its buttons is each of a cabinet's: Button 1 to 8, Coin and Start ([Controls → Game Buttons](https://github.com/mehmetraif/OSD-OS/wiki/Controls#game-buttons)).
 
 - A player whose pad has them plays every game with them, in MAME, and in FinalBurn Neo off line.
+- A pad SDL knows by its kind starts on **Auto**: a game of five buttons or more (Street Fighter II, Mortal Kombat, Killer Instinct) on **Fighting 6**'s buttons, any other on **Neo Geo 4**'s. Which is which comes from MAME's own list of the games, which OSD/OS carries. Online, Auto plays as Engine's.
 - What is changed in MAME's menu comes before them: **Input Settings → Input Assignments (general)** for every game (`arcade/cfg/default.cfg`), and a game's own for that game.
 - In a game played with others, the host's layout holds for every player ([Players](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#players)).
 
