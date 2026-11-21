@@ -205,13 +205,13 @@ FocusScope {
             // and while one is being set there is nothing to choose.
             if (!wifiOn && country === "" && countryAvailable) {
                 if (!countryBusy)
-                    countries.open()
+                    countries.openOnCountry()
             } else {
                 wifiManager.setEnabled(!wifiOn)
             }
         } else if (row.type === "country") {
             if (countryAvailable && !countryBusy)
-                countries.open()
+                countries.openOnCountry()
         } else if (row.type === "search") {
             if (searching)
                 wifiManager.stopSearch()
@@ -405,93 +405,24 @@ FocusScope {
 
     // The country the Pi is used in, from the time zone database's list by
     // name, starting on the one set, else the system time zone's: ▲ ▼ one at a
-    // time, ◄ ► from letter to letter.
-    FocusScope {
+    // time, ◄ ► from letter to letter. Its lines are made as it first opens:
+    // most visits to the page never choose a country.
+    ListPicker {
         id: countries
-        anchors.fill: parent
-        visible: false
-        // Hidden, it lets go of the keys: an item only hidden would keep them.
-        enabled: visible
+        title: "Wi-Fi Country"
+        message: "The country the Pi is used in: Wi-Fi keeps to its rules"
+        groupName: "LETTER"
+        entries: made && wifiManager ? wifiManager.countries.map(function(c) {
+            return { label: c.name, value: c.code, group: c.letter }
+        }) : []
 
-        readonly property var entries: wifiManager ? wifiManager.countries : []
-        property int index: 0
-        // Its window, a line for every country there is, is made as it
-        // first opens: most visits to the page never choose a country.
-        property bool made: false
-
-        function open() {
-            var code = wifiRoot.country !== "" ? wifiRoot.country : (wifiManager ? wifiManager.suggestedCountry : "")
-            index = 0
-            for (var i = 0; i < entries.length; i++) {
-                if (entries[i].code === code)
-                    index = i
-            }
-            made = true
-            visible = true
-            forceActiveFocus()
+        function openOnCountry() {
+            open(wifiRoot.country !== "" ? wifiRoot.country : (wifiManager ? wifiManager.suggestedCountry : ""))
         }
-        function close() {
-            visible = false
-            list.forceActiveFocus()
-        }
-        // To the first country of the next letter (step 1), or of the one
-        // before (step -1), round.
-        function jump(step) {
-            var n = entries.length
-            if (n === 0)
-                return
-            var letter = entries[index].letter
-            var i = index
-            if (step > 0) {
-                while (i < n && entries[i].letter === letter)
-                    i++
-                index = i < n ? i : 0
-            } else {
-                while (i >= 0 && entries[i].letter === letter)
-                    i--
-                if (i < 0)
-                    i = n - 1
-                while (i > 0 && entries[i - 1].letter === entries[i].letter)
-                    i--
-                index = i
-            }
-        }
-
-        Keys.onPressed: function(event) {
-            // Ctrl+Q and the rest go on to Main.qml.
-            if (event.modifiers & Qt.ControlModifier)
-                return
-            event.accepted = true
-            var n = entries.length
-            if (root.isBack(event)) {
-                close()
-            } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && n > 0) {
-                var code = entries[index].code
-                close()
-                if (wifiManager)
-                    wifiManager.setCountry(code)
-            } else if (event.key === Qt.Key_Up && n > 0) {
-                index = (index - 1 + n) % n
-            } else if (event.key === Qt.Key_Down && n > 0) {
-                index = (index + 1) % n
-            } else if (event.key === Qt.Key_Left) {
-                jump(-1)
-            } else if (event.key === Qt.Key_Right) {
-                jump(1)
-            }
-        }
-
-        Loader {
-            anchors.fill: parent
-            active: countries.made
-            sourceComponent: PromptScreen {
-                title: "Wi-Fi Country"
-                message: "The country the Pi is used in: Wi-Fi keeps to its rules"
-                choices: countries.entries.map(function(c) { return { label: c.name, action: c.code } })
-                currentIndex: countries.index
-                onHovered: function(index) { countries.index = index }
-                hint: root.hintLine(["back:BACK", "navigate:NAVIGATE", "change:LETTER", "select:SELECT"])
-            }
+        onClosed: list.forceActiveFocus()
+        onPicked: function(code) {
+            if (wifiManager)
+                wifiManager.setCountry(code)
         }
     }
 }
