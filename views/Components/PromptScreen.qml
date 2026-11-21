@@ -82,7 +82,7 @@ Item {
     QtObject {
         id: asked
         readonly property bool monitor: ground.inLayout && root.monitorInk === true
-        readonly property bool mixedCase: monitor && root.menuLayout === "Flat Panel"
+        readonly property bool mixedCase: monitor && root.flatLayout
         readonly property bool columned: ground.inLayout && root.framed === true
         readonly property bool paned: monitor || columned
     }

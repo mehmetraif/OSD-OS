@@ -35,7 +35,7 @@ Item {
 
     // In a monitor layout's frame, and its rows a page at a time there.
     readonly property bool monitor: root.monitorFramed === true
-    readonly property bool paged: monitor && root.menuLayout === "Flat Panel"
+    readonly property bool paged: monitor && root.flatLayout
 
     anchors.top: parent.top
     anchors.left: parent.left

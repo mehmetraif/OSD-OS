@@ -182,8 +182,8 @@ FocusScope {
     // layout's (SelectionBox), which in Studio Monitor and Broadcast is a
     // mark before the row and wants its room there.
     readonly property bool monitor: root.monitorFramed === true
-    readonly property bool windowed: monitor && root.menuLayout === "Studio Monitor"
-    readonly property real cursorRoom: monitor && root.menuLayout !== "Flat Panel" ? root.chrome.gutter : pad
+    readonly property bool windowed: monitor && root.studioLayout
+    readonly property real cursorRoom: monitor && !root.flatLayout ? root.chrome.gutter : pad
     // The tree's sides: the pane's (Main.qml's), beside a layout's column
     // where the view is in its frame, else where every view's content is.
     readonly property real leftEdge: root.paneX + cursorRoom //80

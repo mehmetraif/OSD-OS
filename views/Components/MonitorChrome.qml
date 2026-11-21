@@ -218,10 +218,9 @@ Item {
     property int page: 0
     property int pages: 1
 
-    readonly property string layout: root.menuLayout
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     readonly property var pal: root.menuPalette || ({ ground: root.surfaceColor, ink: root.primaryColor,
                                                      dim: root.primaryColor, accent: root.primaryColor,
                                                      soft: root.primaryColor, mark: root.primaryColor,

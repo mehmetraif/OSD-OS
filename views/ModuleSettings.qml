@@ -738,7 +738,7 @@ FocusScope {
         Keys.onLeftPressed: {
             if (root.twoStep) {
                 // Flat Panel: ◄ is back, and leaves a value being changed.
-                if (root.menuLayout === "Flat Panel") {
+                if (root.flatLayout) {
                     if (moduleSettingsRoot.editIndex >= 0)
                         moduleSettingsRoot.editIndex = -1
                     else

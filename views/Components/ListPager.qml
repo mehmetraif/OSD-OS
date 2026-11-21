@@ -20,7 +20,7 @@ Item {
     // A list that shows: one hidden (Camcorder's column, a list under a
     // keyboard) counts no pages.
     readonly property bool paged: list !== null && root.monitorFramed === true
-                                  && root.menuLayout === "Flat Panel" && list.orientation === Qt.Vertical
+                                  && root.flatLayout && list.orientation === Qt.Vertical
                                   && list.visible
 
     visible: false

@@ -46,9 +46,8 @@ Item {
     // while the line is selected: lines that are read rather than chosen.
     property bool alwaysScroll: false
 
-    readonly property string layout: root.menuLayout
-    readonly property bool flat: layout === "Flat Panel"
-    readonly property bool broadcast: layout === "Broadcast"
+    readonly property bool flat: root.flatLayout
+    readonly property bool broadcast: root.broadcastLayout
     readonly property var pal: root.menuPalette || ({ ink: root.primaryColor, dim: root.primaryColor,
                                                      soft: root.primaryColor, mark: root.primaryColor,
                                                      bar: root.primaryColor, ground: root.surfaceColor })

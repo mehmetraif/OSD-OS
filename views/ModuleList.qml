@@ -48,10 +48,10 @@ FocusScope {
     // Settings opens without a Back button too; Flat Panel's goes a page at a
     // time.
     readonly property string layout: root.menuLayout
-    readonly property bool camcorder: layout === "Camcorder"
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool camcorder: root.camcorderLayout
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     readonly property bool monitor: studio || broadcast || flat
     readonly property bool iconMenu: camcorder || studio
     property var groups: []

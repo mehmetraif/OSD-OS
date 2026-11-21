@@ -469,6 +469,13 @@ Window {
             layoutRead.name = menuLayoutOf(appCore.get_setting("", "menu_layout"))
         return layoutRead.name
     }
+    // The layouts, in the order Settings offers them, and which one is in
+    // force: the views go by these flags rather than by the names.
+    readonly property var menuLayouts: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"]
+    readonly property bool camcorderLayout: menuLayout === "Camcorder"
+    readonly property bool studioLayout: menuLayout === "Studio Monitor"
+    readonly property bool broadcastLayout: menuLayout === "Broadcast"
+    readonly property bool flatLayout: menuLayout === "Flat Panel"
     // The monitor layouts' colours, whatever the colour scheme: the ground,
     // the text, a row that can't be used, the strips and bars (accent), the
     // text on them and the guide (soft), the cursor's mark or a value being
@@ -496,9 +503,9 @@ Window {
     // other way round, or in a monitor layout's frame its mark with the
     // ground's colour on it, Flat Panel's bar with its text's.
     readonly property string cursorColor: !monitorInk ? primaryColor
-                                        : menuLayout === "Flat Panel" ? menuPalette.bar : menuPalette.mark
+                                        : flatLayout ? menuPalette.bar : menuPalette.mark
     readonly property string cursorInk: !monitorInk ? surfaceColor
-                                      : menuLayout === "Flat Panel" ? menuPalette.ink : menuPalette.ground
+                                      : flatLayout ? menuPalette.ink : menuPalette.ground
     // Two colours only, like a deck's on-screen display: everything is drawn in
     // the scheme's primary colour on its surface colour. A selection is a solid
     // box with its text in the surface colour, and anything dimmed is dithered
@@ -661,14 +668,14 @@ Window {
     property bool viewInFrame: false
     property int viewLoading: 0
     onLiveInFrameChanged: if (viewLoading === 0) viewInFrame = liveInFrame
-    readonly property bool framed: menuLayout === "Camcorder" && shownFrameIcons.length > 0 && viewInFrame
+    readonly property bool framed: camcorderLayout && shownFrameIcons.length > 0 && viewInFrame
     // A monitor layout's frame is up: its chrome drawn, the view's rows in
     // its pane.
     readonly property bool monitorFramed: menuPalette !== null && viewInFrame
     // A value changed in two steps there, as Broadcast's and Flat Panel's
     // menus change one (Settings', a module's settings): select, ▲ ▼, then
     // select again, back leaving it as it was; ◄ ► change nothing.
-    readonly property bool twoStep: monitorFramed && (menuLayout === "Broadcast" || menuLayout === "Flat Panel")
+    readonly property bool twoStep: monitorFramed && (broadcastLayout || flatLayout)
     // A layer that takes the whole screen over the view, in the scheme's
     // colours (the on-screen keyboard, an info screen: an OsdGround that is
     // not laid `inLayout`), is outside the frame, and so is whatever rests
@@ -1227,7 +1234,7 @@ Window {
         return s === "on" || s === "dim" || !isNaN(parseInt(s))
     }
     function menuLayoutOf(raw) {
-        return ["Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"].indexOf(raw) >= 0 ? raw : "Standard"
+        return menuLayouts.indexOf(raw) >= 0 ? raw : "Standard"
     }
     function osdBackgroundOf(raw) {
         return raw === "Window" || raw === "Off" ? raw : "Full"
@@ -1444,7 +1451,7 @@ Window {
                 visible: root.monitorInk
                 screen: Qt.rect(0, -root.stageY, root.canvasW, root.canvasH)
                 // Studio Monitor's strip: the icons Camcorder's column has.
-                icons: root.menuLayout === "Studio Monitor" ? root.shownFrameIcons : []
+                icons: root.studioLayout ? root.shownFrameIcons : []
                 iconIndex: root.shownFrameIndex
                 iconsActive: root.frameActive && !root.moduleFrame
                              && !!moduleLoader.item && moduleLoader.item.ownsFrame === true

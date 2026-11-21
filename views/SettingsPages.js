@@ -155,7 +155,7 @@ function lookRows(items) {
         type: "list_single",
         key: "menu_layout",
         label: "Menu Layout",
-        options: ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"],
+        options: root.menuLayouts,
         value: root.menuLayoutOf(appSettings["menu_layout"]),
         description: "How Settings and the main menu are laid out\n[STANDARD] A list, a page at a time  [CAMCORDER] As a camcorder's menu: the pages, or the main menu's groups, as icons in a column that stays in place, the rows of the one chosen beside it  [STUDIO MONITOR] As a studio monitor's window over the picture, the pages as icons in a strip, a Status page first  [BROADCAST] As a broadcast monitor's menu, plain blue, a value changed in two steps: select, then ▲ ▼, then select  [FLAT PANEL] As a flat-panel monitor's menu, black, a page of rows at a time, a value changed in two steps",
         moduleId: ""

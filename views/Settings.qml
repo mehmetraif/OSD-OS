@@ -34,10 +34,10 @@ FocusScope {
     // (editIndex), and Cabinet Lock at the first screen's foot as Key
     // Protect; Flat Panel a page of rows at a time.
     readonly property string layout: root.menuLayout
-    readonly property bool camcorder: layout === "Camcorder"
-    readonly property bool studio: layout === "Studio Monitor"
-    readonly property bool broadcast: layout === "Broadcast"
-    readonly property bool flat: layout === "Flat Panel"
+    readonly property bool camcorder: root.camcorderLayout
+    readonly property bool studio: root.studioLayout
+    readonly property bool broadcast: root.broadcastLayout
+    readonly property bool flat: root.flatLayout
     // In the shell's frame (Main.qml's root.chrome, a MonitorChrome), its
     // rows drawn by MonitorRow, in the layout's own colours.
     readonly property bool monitor: studio || broadcast || flat
