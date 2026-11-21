@@ -56,17 +56,11 @@ FocusScope {
 
     // Its options, as the tree offers them, then the way to the tree.
     function menuActions() {
-        var favorite = appCore.list_contains(moduleRoot.moduleId, "favorites", item.path)
         var later = youtubeBackend.isInWatchLater(videoId)
-        return [{ label: favorite ? "Remove from Favorites" : "Add to Favorites", action: "favorite" },
-                { label: atStartup() ? "Don't Play at Startup" : "Play at Startup", action: "startup" },
-                { label: later ? "Remove from Watch Later" : "Save to Watch Later", action: "later" },
-                { label: "Browse " + moduleRoot.moduleName, action: "browse" }]
-    }
-    // This video is the favourite played at startup.
-    function atStartup() {
-        var startup = appCore.get_setting("", "startup_favorite")
-        return !!startup && startup.module === moduleRoot.moduleId && startup.path === item.path
+        return EntryFavorites.choices(EntryFavorites.isFavorite(appCore, moduleRoot.moduleId, entry),
+                                      EntryFavorites.isAtStartup(appCore, moduleRoot.moduleId, entry))
+               .concat([{ label: later ? "Remove from Watch Later" : "Save to Watch Later", action: "later" },
+                        { label: "Browse " + moduleRoot.moduleName, action: "browse" }])
     }
     // A setting changed in the menu: the speed and the Scaling at once, the
     // rest as the menu closes.
@@ -81,26 +75,10 @@ FocusScope {
     function menuAction(action) {
         if (session.menuAction(action))
             return
-        var favorite = appCore.list_contains(moduleRoot.moduleId, "favorites", item.path)
         if (action === "favorite") {
-            if (favorite) {
-                appCore.remove_from_list(moduleRoot.moduleId, "favorites", item.path)
-                // The startup favourite is one of the favourites.
-                if (atStartup())
-                    appCore.save_setting("", "startup_favorite", "")
-            } else {
-                appCore.add_to_list(moduleRoot.moduleId, "favorites", entry, 100)
-            }
+            EntryFavorites.toggleFavorite(appCore, moduleRoot.moduleId, entry)
         } else if (action === "startup") {
-            if (atStartup()) {
-                appCore.save_setting("", "startup_favorite", "")
-            } else {
-                // Played at startup from FAVORITES, so it goes there too.
-                if (!favorite)
-                    appCore.add_to_list(moduleRoot.moduleId, "favorites", entry, 100)
-                appCore.save_setting("", "startup_favorite",
-                                     { module: moduleRoot.moduleId, path: item.path, name: item.title || item.name || "" })
-            }
+            EntryFavorites.toggleStartup(appCore, moduleRoot.moduleId, entry)
         } else if (action === "later") {
             if (youtubeBackend.isInWatchLater(videoId))
                 youtubeBackend.removeFromWatchLater(videoId)

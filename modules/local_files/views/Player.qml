@@ -79,12 +79,9 @@ FocusScope {
         playerMenu.open(itemTitle.replace(/\.[^.\/]+$/, ""))
     }
     function menuActions() {
-        var favorite = appCore.list_contains(moduleRoot.moduleId, "favorites", filePath)
-        var startup = appCore.get_setting("", "startup_favorite")
-        var atStartup = !!startup && startup.module === moduleRoot.moduleId && startup.path === filePath
-        return [{ label: favorite ? "Remove from Favorites" : "Add to Favorites", action: "favorite" },
-                { label: atStartup ? "Don't Play at Startup" : "Play at Startup", action: "startup" },
-                { label: "Browse " + moduleRoot.moduleName, action: "browse" }]
+        return EntryFavorites.choices(EntryFavorites.isFavorite(appCore, moduleRoot.moduleId, entry),
+                                      EntryFavorites.isAtStartup(appCore, moduleRoot.moduleId, entry))
+               .concat([{ label: "Browse " + moduleRoot.moduleName, action: "browse" }])
     }
     // A setting changed in the menu: loop and the Scaling at once, the
     // subtitles as the menu closes.
@@ -101,29 +98,10 @@ FocusScope {
     function menuAction(action) {
         if (session.menuAction(action))
             return
-        var favorite = appCore.list_contains(moduleRoot.moduleId, "favorites", filePath)
-        var startup = appCore.get_setting("", "startup_favorite")
-        var atStartup = !!startup && startup.module === moduleRoot.moduleId && startup.path === filePath
-        if (action === "favorite") {
-            if (favorite) {
-                appCore.remove_from_list(moduleRoot.moduleId, "favorites", filePath)
-                // The startup favourite is one of the favourites.
-                if (atStartup)
-                    appCore.save_setting("", "startup_favorite", "")
-            } else {
-                appCore.add_to_list(moduleRoot.moduleId, "favorites", entry, 100)
-            }
-        } else if (action === "startup") {
-            if (atStartup) {
-                appCore.save_setting("", "startup_favorite", "")
-            } else {
-                // Played at startup from FAVORITES, so it goes there too.
-                if (!favorite)
-                    appCore.add_to_list(moduleRoot.moduleId, "favorites", entry, 100)
-                appCore.save_setting("", "startup_favorite",
-                                     { module: moduleRoot.moduleId, path: filePath, name: itemTitle })
-            }
-        }
+        if (action === "favorite")
+            EntryFavorites.toggleFavorite(appCore, moduleRoot.moduleId, entry)
+        else if (action === "startup")
+            EntryFavorites.toggleStartup(appCore, moduleRoot.moduleId, entry)
         playerMenu.actions = menuActions()
         playerMenu.refresh()
     }

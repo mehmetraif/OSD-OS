@@ -1956,6 +1956,51 @@ StandInRoot {
             compare(asked, 1)
         }
 
+        // An entry on FAVORITES and Play at Startup (EntryFavorites.js), as
+        // an entry's options and a video's menu offer them: the startup
+        // favourite put on FAVORITES too, and taken off at startup as it
+        // goes off FAVORITES; named by its title, else its name.
+        function test_entryFavorites() {
+            var core = {
+                favorites: [], startup: "",
+                list_contains: function(id, list, path) {
+                    return this.favorites.some(function(e) { return e.path === path })
+                },
+                add_to_list: function(id, list, entry, max) { this.favorites = this.favorites.concat([entry]) },
+                remove_from_list: function(id, list, path) {
+                    this.favorites = this.favorites.filter(function(e) { return e.path !== path })
+                },
+                get_setting: function(id, key) { return this.startup },
+                save_setting: function(id, key, value) { this.startup = value }
+            }
+            var film = { name: "B.mkv", path: "/films/B.mkv", isFolder: false }
+            var talk = { name: "A Talk.mp4", title: "A Talk", path: "video/abc123" }
+            compare(EntryFavorites.choices(false, false).map(function(c) { return c.label + ":" + c.action }),
+                    ["Add to Favorites:favorite", "Play at Startup:startup"])
+            compare(EntryFavorites.choices(true, true).map(function(c) { return c.label }),
+                    ["Remove from Favorites", "Don't Play at Startup"])
+
+            EntryFavorites.toggleFavorite(core, "m", film)
+            verify(EntryFavorites.isFavorite(core, "m", film))
+            verify(!EntryFavorites.isAtStartup(core, "m", film))
+            // Already a favourite: nothing more on FAVORITES.
+            verify(!EntryFavorites.toggleStartup(core, "m", film))
+            compare(core.startup, { module: "m", path: "/films/B.mkv", name: "B.mkv" })
+            verify(EntryFavorites.isAtStartup(core, "m", film))
+            verify(!EntryFavorites.isAtStartup(core, "other", film))
+            // Off FAVORITES, and so off at startup.
+            EntryFavorites.toggleFavorite(core, "m", film)
+            compare([core.favorites.length, core.startup], [0, ""])
+
+            // Played at startup from FAVORITES: it goes there too.
+            verify(EntryFavorites.toggleStartup(core, "m", talk))
+            compare(core.favorites, [talk])
+            compare(core.startup.name, "A Talk")
+            verify(!EntryFavorites.toggleStartup(core, "m", talk))
+            compare(core.startup, "")
+            compare(core.favorites, [talk])
+        }
+
         // The episode a show's or a season's PLAY opens (Episodes.js): the
         // first part-watched, else the first unwatched, else the first.
         function test_bestEpisode() {
