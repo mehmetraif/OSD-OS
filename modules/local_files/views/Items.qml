@@ -90,7 +90,7 @@ FocusScope {
             font.pixelSize: root.sh * 0.05 //24
         }
         Text {
-            text: "Please add items in the local files media directory"
+            text: "Add files to the Local Files media folder"
             color: root.primaryColor
             font.family: root.globalFont
             font.capitalization: Font.AllUppercase

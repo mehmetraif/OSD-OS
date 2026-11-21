@@ -114,6 +114,8 @@ StandInRoot {
         property var asked: []
         property bool pending: false
         function entries(path) { synced++; return path === "/films" ? folder : [] }
+        function mediaRoot() { return "/films" }
+        function clearDirectoryCache() {}
         function requestEntries(path) {
             asked = asked.concat([path])
             return pending ? undefined : (path === "/films" ? folder : [])
@@ -2961,6 +2963,26 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 3)
             root.hints = root.keyboardHints
+        }
+
+        // An empty media folder says so, naming the setting that picks it as
+        // the module's settings page does: Media Folder.
+        function test_emptyMediaFolderNamesItsSetting_data() {
+            return [{ tag: "local_files", module: "local_files", says: "Add files to the Local Files media folder" },
+                    { tag: "ambient_mode", module: "ambient_mode", says: "Add videos to the Ambient:Mode media folder" }]
+        }
+        function test_emptyMediaFolderNamesItsSetting(data) {
+            localFilesBackend.folder = []
+            ambientModeBackend.videos = []
+            var texts = function(item) {
+                var found = typeof item.text === "string" && item.visible ? [item.text] : []
+                for (var i = 0; i < item.children.length; i++)
+                    found = found.concat(texts(item.children[i]))
+                return found
+            }
+            var view = open(data.module, "Items.qml", {})
+            tryVerify(function() { return texts(view).indexOf(data.says) >= 0 }, 2000, texts(view).join(" | "))
+            compare(texts(view).filter(function(t) { return /directory/i.test(t) }), [])
         }
 
         // The Scripts module's list: ► puts a script on the main menu (or

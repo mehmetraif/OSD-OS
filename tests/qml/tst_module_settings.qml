@@ -949,7 +949,7 @@ StandInRoot {
         // that "shown_with" keeps back too says that first. With another
         // theme, or none, it is a row like the others.
         // A row that works only with an app setting (Settings → Startup's
-        // Start On naming the module, "shown_with": { "app", "value",
+        // Start on Module naming the module, "shown_with": { "app", "value",
         // "reason" }): dimmed with its reason while that isn't so, usable
         // once it is, following a change made while the page is open.
         function test_shownWithAppSetting() {
@@ -957,15 +957,15 @@ StandInRoot {
                 { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
                 { key: "auto_launch", label: "Auto-Launch Playback", type: "toggle", default: "OFF",
                   shown_with: { app: "startup_module", value: "com.osdos.test",
-                                reason: "Only with Start On on Test (Settings > Startup)" } }
+                                reason: "Only with Start on Module on Test (Settings > Startup)" } }
             ]
             var page = open()
-            compare(off(page, "auto_launch"), "Only with Start On on Test (Settings > Startup)")
+            compare(off(page, "auto_launch"), "Only with Start on Module on Test (Settings > Startup)")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(appCore.values.auto_launch, undefined)
             var help = findChild(page, "helpLine")
-            compare(help.text, "Only with Start On on Test (Settings > Startup)\n")
+            compare(help.text, "Only with Start on Module on Test (Settings > Startup)\n")
 
             appCore.appValues = { startup_module: "com.osdos.test" }
             appCore.appSettingChanged("startup_module", "com.osdos.test")
@@ -975,7 +975,7 @@ StandInRoot {
             compare(appCore.values.auto_launch, true)
 
             appCore.appSettingChanged("startup_module", "None")
-            compare(off(page, "auto_launch"), "Only with Start On on Test (Settings > Startup)")
+            compare(off(page, "auto_launch"), "Only with Start on Module on Test (Settings > Startup)")
             loader.source = ""
             // Saved before the page opens.
             appCore.appValues = { startup_module: "com.osdos.test" }

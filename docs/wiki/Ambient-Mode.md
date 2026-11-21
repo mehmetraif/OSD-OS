@@ -85,8 +85,8 @@ The `music` folder itself isn't listed, but the playlist reaches into it.
 
 **Auto-Launch Playback** plays straight away when OSD/OS starts on this module:
 
-1. Settings → Startup → **Start On**: Ambient:Mode.
-2. Settings → TV / Movie → Ambient:Mode → **Auto-Launch Playback**: On. The row is dimmed, its help line saying **Only with Start On on Ambient:Mode (Settings > Startup)**, until step 1 is done.
+1. Settings → Startup → **Start on Module**: Ambient:Mode.
+2. Settings → TV / Movie → Ambient:Mode → **Auto-Launch Playback**: On. The row is dimmed, its help line saying **Only with Start on Module on Ambient:Mode (Settings > Startup)**, until step 1 is done.
 
 - It always shuffles: the videos when there is more than one, and the music when there is more than one audio file or playlist. With one or none, the clip's own sound plays.
 - It doesn't happen when the module is opened from the main menu. Back from playback lands on the Ambient:Mode screen.

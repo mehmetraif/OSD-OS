@@ -311,7 +311,7 @@ FocusScope {
     // look, which lays the list out itself). Or on an app setting:
     // { "app", "value", "reason" }, one of the app's keys (app.<key> in
     // config.json) and the value it is saved as, such as Settings → Startup's
-    // Start On naming the module ("startup_module": "com.osdos.scripts"),
+    // Start on Module naming the module ("startup_module": "com.osdos.scripts"),
     // followed as it changes (onAppSettingChanged).
     function shownWith(cond, mid, depth) {
         if (cond.app !== undefined)
