@@ -301,7 +301,7 @@ COIN puts in a credit, up to 9, shown as `Credit 2` on the picture. The credits 
 Settings → Look → **Theme** → **Orb** draws the Arcade screen in 3D, in x-ray glass. The keys do what they do on the screen above.
 
 - The games are on a panel at the right, eight to a page. The game's pictures are in the orb at the left.
-- Settings → Look → **Orb Fog** chooses the fog behind: **Picture** (the default) or **Live** (more work for a Raspberry Pi's GPU).
+- Settings → Look → Effects → **Orb Fog** chooses the fog behind: **Picture** (the default) or **Live** (more work for a Raspberry Pi's GPU).
 - A game started goes into the orb for about two and a half seconds, in which no key counts.
 - Screen Adjustment, Hint Bar and Help Line apply; List Style, Border and Info Background don't, and Settings → Arcade shows them dimmed, the help line saying why.
 

@@ -424,12 +424,12 @@ StandInRoot {
         // them there on every system, those it can't use dimmed.
         function test_pages_data() {
             return [
-                { tag: "look", lines: ["Theme", "Orb Fog", "Color Scheme", "Skin", "Effects", "Menu Layout",
+                { tag: "look", lines: ["Theme", "Color Scheme", "Skin", "Effects", "Menu Layout",
                                        "OSD Background", "Window Frame", "Loading Effect", "Loading Colors", "Boot Colors",
                                        "Hint Bar", "Help Line",
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
-                                          "Transition"] },
+                                          "Transition", "Orb Fog"] },
                 { tag: "screen", lines: ["Display Output", "Use Display", "Rotation", "Test Patterns", "Screen Saver",
                                          "Mouse Pointer", "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
@@ -1051,9 +1051,8 @@ StandInRoot {
             verify(theme.changes)
             verify(!theme.opens)
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
             compare(cursor(page), "Color Scheme")
-            verify(menuRow(page, 2).changes)
+            verify(menuRow(page, 1).changes)
             var before = row(page, "Color Scheme").value
             keyClick(Qt.Key_Right)
             compare(root.navigations.length, 2)

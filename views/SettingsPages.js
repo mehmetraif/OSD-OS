@@ -116,20 +116,6 @@ function lookRows(items) {
     // each is without one (Video 1, OSD/OS's own window, off).
     items.push(themeRow())
 
-    // Orb Fog — the fog behind the panels of the Arcade screen's Orb look
-    // (OrbLook.qml; Main.qml's orbFogLive), for a theme with that look:
-    // the rows are made again as one is chosen (themeChosen()).
-    items.push({
-        type: "list_single",
-        key: "orb_fog",
-        label: "Orb Fog",
-        options: ["Picture", "Live"],
-        value: appSettings["orb_fog"] === "Live" ? "Live" : "Picture",
-        description: "The fog drifting behind the Arcade screen's panels in the Orb look\n[PICTURE] A picture of fog, light on the GPU  [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU",
-        unavailable: root.theme && root.theme.arcade === "orb" ? "" : "Only with a theme in the Orb look",
-        moduleId: ""
-    })
-
     // Main.qml's schemes, the custom ones among them (root.allSchemes).
     items.push(partRow("color_scheme", "Color Scheme", Object.keys(root.allSchemes), false,
         "The two colors everything is drawn in (a custom one: see the wiki)\n[THEME] The theme's, else Video 1"))
@@ -306,6 +292,20 @@ function effectRows(items) {
     items.push(screenFx)
     items.push(partRow("transition", "Transition", root.transitionPresets.filter(root.transitionUsable), true,
         "How one window gives way to the next\n[THEME] The theme's  [FADE] The old fades away  [CUBE] The window turns over like a cube, the next on a face at random  [RIPPLE] The old ripples out as the new ripples in  [WAVE] A wave runs out from a corner and dies away, the new one behind it  [DROP] A drop falls in a corner, the new one inside its spreading ring"))
+
+    // Orb Fog, the last — the fog behind the panels of the Arcade screen's Orb look
+    // (OrbLook.qml; Main.qml's orbFogLive), for a theme with that look:
+    // the rows are made again as one is chosen (themeChosen()).
+    items.push({
+        type: "list_single",
+        key: "orb_fog",
+        label: "Orb Fog",
+        options: ["Picture", "Live"],
+        value: appSettings["orb_fog"] === "Live" ? "Live" : "Picture",
+        description: "The fog drifting behind the Arcade screen's panels in the Orb look\n[PICTURE] A picture of fog, light on the GPU  [LIVE] Worked out as it drifts, as in the look's first design, more work for a Raspberry Pi's GPU",
+        unavailable: root.theme && root.theme.arcade === "orb" ? "" : "Only with a theme in the Orb look",
+        moduleId: ""
+    })
 }
 
 // Display Output's value, where the Pi has it (displayOutput.available):

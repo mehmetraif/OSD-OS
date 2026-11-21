@@ -449,7 +449,7 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | Transparent Background (TV / Movie) | libmpv is found (`libmpv2` on Raspberry Pi OS, part of Homebrew's mpv) and the build has libmpv's headers. Else the log says `[EmbeddedMpv] libmpv not found: Transparent Background is unavailable` |
 | 1080p Playback (TV / Movie) | On a Raspberry Pi 3 |
 | Logo Image (TV / Movie) | Channel Logo isn't Off |
-| Orb Fog (Look) | The theme has the Arcade screen's Orb look |
+| Orb Fog (Look → Effects) | The theme has the Arcade screen's Orb look |
 | Window Frame (Look) | OSD Background is Window |
 | Text Effect, Background Effect, Screen Effect (Look → Effects) | The build has Qt Shader Tools and Qt draws on a GPU, not with its software renderer. Without them Transition lists no Ripple, Wave or Drop |
 | Selector Effect, and Fade and Cube (Look → Effects) | Always |

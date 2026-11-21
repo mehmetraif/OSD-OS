@@ -98,7 +98,7 @@ Each is a folder in [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/ma
 
 ### Orb
 
-`orb/`: `theme.json` alone. Its `arcade` key enables Settings → Look → **Orb Fog**: Picture (the default) or Live ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look)).
+`orb/`: `theme.json` alone. Its `arcade` key enables Settings → Look → Effects → **Orb Fog**: Picture (the default) or Live ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look)).
 
 ```json
 {

@@ -78,8 +78,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Theme | None, Arcade, Demoscene, Green Screen, Inferno, Late Show, Matrix, Orb, Trinitron, Winter, and those in the data folder's `themes` | None | The colour scheme, skin, effects and menu music in one ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)) | `app.osd_theme`: the theme's folder name (`trinitron`, `late-show`), `""` for None |
-| Orb Fog | Picture, Live | Picture | The fog behind the Arcade screen's panels in the [Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look). **Live** is thicker and quicker, and more work for a Raspberry Pi's GPU. Only with a theme in the Orb look | `app.orb_fog` |
-| Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR 1-1978, and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in ([below](#color-schemes)). It has no Off | `app.color_scheme`: the scheme's name, `""` for THEME |
+| Color Scheme | THEME (with a theme), Video 1, Late Night, Synthwave, Terminal, T-120, Amber, Kinescope, SMPTE ECR (saved as SMPTE ECR 1-1978), and your own | THEME; without a theme, Video 1 | The two colours everything is drawn in ([below](#color-schemes)). It has no Off | `app.color_scheme`: the scheme's name, `""` for THEME |
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, bars and selected line, and its icons ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
 | Effects | A page | | [Below](#effects) | |
 | Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How the menus are laid out: Settings, the main menu and the pages and modules opened from them ([below](#menu-layout)) | `app.menu_layout` |
@@ -94,15 +93,16 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 
 ### Effects
 
-`SETTINGS | LOOK / EFFECTS`. Each row is a part of the theme. Its default is THEME; without a theme, Off.
+`SETTINGS | LOOK / EFFECTS`. Each row but the last, Orb Fog, is a part of the theme. Its default is THEME; without a theme, Off.
 
 | Setting | Values | What it does | Config key |
 |---|---|---|---|
 | Text Effect | THEME, Off, Rainbow, Shimmer, Glow, Flicker | What the text, the lines and the bars do. Needs a GPU | `app.text_effect` |
-| Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Checkered Flag, Plasma | What goes on behind the menus, in the window. Needs a GPU | `app.background_effect` |
+| Background Effect | THEME, Off, Matrix, Fire, Stars, Snow, Flag (saved as Checkered Flag), Plasma | What goes on behind the menus, in the window. Needs a GPU | `app.background_effect` |
 | Selector Effect | THEME, Off, Sparkles, Welding, Lightning, Rainbow, Snow | What goes on round the selected line. Works everywhere | `app.selector_effect` |
 | Screen Effect | THEME, Off, Scanlines, CRT, VHS | A picture tube's or a tape's look over the whole screen. Needs a GPU | `app.screen_effect` |
 | Transition | THEME, Off, Fade, Cube, Ripple, Wave, Drop | How one window gives way to the next. Ripple, Wave and Drop need a GPU; without one a theme's falls back to Fade, and one saved before plays, and reads, as Fade | `app.transition` |
+| Orb Fog | Picture, Live | The fog behind the Arcade screen's panels in the [Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look). **Live** is thicker and quicker, and more work for a Raspberry Pi's GPU. Only with a theme in the Orb look (Picture when unset) | `app.orb_fog` |
 
 The effects and the menu music rest while a video plays, loads or has its menu open, and while a player has the screen ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
 
