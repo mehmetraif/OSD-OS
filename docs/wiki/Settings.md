@@ -511,7 +511,7 @@ Each module's wiki page explains its rows. A module's own **Scaling** is **Defau
 |---|---|---|
 | `toggle` | ◄ ► or select flips it | `true` or `false` |
 | `list_single` | ◄ ► step through the choices | The choice's text, or its id for a list the module supplies |
-| `multiselect_submenu` | Select opens a page of on/off lines | `{ "<id>": true, "<id>": false }` |
+| `multiselect_submenu` | Shows how many are on (ALL, NONE, 3 OF 4); select opens a page of on/off lines, where ◄ ► or select flips one | `{ "<id>": true, "<id>": false }` |
 | `submenu` | Select opens a page of its own rows | Its rows' keys, flat under the module |
 | `directory_browser` | Select opens the folder picker: **Default Folder**, the places, and **Use This Folder** in every folder | The folder's path; `""` for the module's own |
 | `slider` | ◄ ► move it a step | A number from 0 to 100 |

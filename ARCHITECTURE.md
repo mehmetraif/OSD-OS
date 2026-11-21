@@ -183,7 +183,7 @@ An optional `"menu_order"`, a number, is the module's place on the main menu wit
 |---|---|---|
 | `toggle` | ON/OFF toggle | `default: "ON"` or `"OFF"` |
 | `list_single` | Single-select list | `options` (its choices) and `default`, or `options_source: "dynamic"` with `options_slot` (and `apply_slot`) |
-| `multiselect_submenu` | Multi-select list via submenu (`MultiSelectSettings.qml`): a line for each choice, ON or OFF, and a heading over a group of them that turns them all on or off | `options_source`, `options_slot` |
+| `multiselect_submenu` | Multi-select list via submenu (`MultiSelectSettings.qml`): a line for each choice, ON or OFF, and a heading over a group of them that turns them all on or off; the row's `description` is that page's help line on a choice. The row shows how many are on, `All`, `None` or `3 of 4`, its choices asked for as the settings page opens (`multiValue()`); before they come, how many are saved off (`2 Off`) | `options_source`, `options_slot` |
 | `submenu` | A page of its own for a group of settings, like YouTube's ADVANCED | `settings`: its rows, in this same format (a submenu may hold another) |
 | `module_view` | Opens the module itself on one of its own views, like Netflix's SIGN IN | `params`: the `navParams` its `Root.qml` routes on |
 | `directory_browser` | A folder, picked on the file picker's tree ([FilePicker](#filepicker-viewsfilepickerqml)); `""` is the module's own | `default` (path string, may be empty) |

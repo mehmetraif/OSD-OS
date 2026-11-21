@@ -1181,6 +1181,59 @@ StandInRoot {
             compare(back.count, 1)
         }
 
+        // A multiselect_submenu row shows how many of its choices are on:
+        // All, None or "2 of 3", as its page has them (saved, else their
+        // default); before its choices come, how many are saved off. Its
+        // choices are asked for as the page opens, but not while a sign-in
+        // dims it. Its page shows the row's help on a choice's line.
+        function test_multiSelectValue() {
+            appCore.schema = [
+                { key: "picks", label: "Picks", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getPicks", description: "Which picks show" },
+                { key: "libraries", label: "Libraries", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getLibraries", requires_auth: true }
+            ]
+            appCore.values = { picks: { a: false }, libraries: { x: false, y: false } }
+            var page = open()
+            compare(appCore.actions, ["getPicks"])
+            compare(menuRow(page, 0).value, "1 Off")
+            compare(menuRow(page, 1).value, "2 Off")
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { label: "Group", heading: true }, { id: "a", label: "A" }, { id: "b", label: "B" },
+                { id: "c", label: "C", default: false }])
+            compare(menuRow(page, 0).value, "1 of 3")
+            loader.source = ""
+            appCore.values = { picks: { a: true, c: true } }
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C", default: false }])
+            compare(menuRow(page, 0).value, "All")
+            loader.source = ""
+            appCore.values = { picks: { a: false, b: false } }
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C", default: false }])
+            compare(menuRow(page, 0).value, "None")
+            // A server that couldn't say: what is saved.
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [{ problem: "Out of reach" }])
+            compare(menuRow(page, 0).value, "2 Off")
+
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[0].params.help, "Which picks show")
+            loader.setSource(Qt.resolvedUrl("../../views/MultiSelectSettings.qml"),
+                             { navParams: root.navigations[0].params })
+            var sub = loader.item
+            sub.forceActiveFocus()
+            var help = findChild(sub, "helpLine")
+            compare(help.text, "", "Loading…")
+            appCore.dynamicOptionsReady("com.osdos.test", "picks", [
+                { label: "Group", heading: true }, { id: "a", label: "A" }])
+            compare(help.text, "Turns all of the choices under it on or off")
+            keyClick(Qt.Key_Down)
+            compare(help.text, "Which picks show")
+            verify(help.visible)
+        }
+
         // A multiselect_submenu row's page before its choices come, and with
         // none: Loading… until the backend answers; No Choices for an answer
         // with none, and for one that says why (a single { problem }), which

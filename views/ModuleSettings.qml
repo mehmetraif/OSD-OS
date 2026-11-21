@@ -385,14 +385,15 @@ FocusScope {
 
     // Asks the backend for the choices of the dynamic rows it hasn't been
     // asked for yet (a row a sign-in or a capability no longer keeps back),
-    // or of all of them again (a sign-in changes them). A multi-select row's
-    // are its own page's, which asks for them as it opens.
+    // or of all of them again (a sign-in changes them). A multi-select
+    // row's too, for how many of them are on (multiValue()); its own page
+    // asks again as it opens.
     property var askedOptions: ({})
     function requestOptions(again) {
         for (var i = 0; i < schemaItems.length; i++) {
             var item = schemaItems[i]
             var id = rowId(item)
-            if (item.options_source === "dynamic" && item.options_slot && item.type !== "multiselect_submenu"
+            if (item.options_source === "dynamic" && item.options_slot
                 && item._offBy !== "auth" && item._offBy !== "capability"
                 && (again || (dynamicOptions[id] === undefined && !askedOptions[id]))) {
                 askedOptions[id] = true
@@ -426,7 +427,26 @@ FocusScope {
     // Rows that show their current value after the dots.
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
-               || item.type === "text" || item.type === "text_list"
+               || item.type === "text" || item.type === "text_list" || item.type === "multiselect_submenu"
+    }
+
+    // A multi-select row's value: All, None or "3 of 4", its choices on as
+    // its page shows them (saved, else as their default says, else on).
+    // Before its choices are in, or with none, what is saved can say only
+    // how many are off ("2 Off"); with nothing off saved, nothing.
+    function multiValue(item) {
+        var saved = savedOf(item)
+        saved = saved && typeof saved === "object" ? saved : {}
+        var opts = dynamicOptions[rowId(item)]
+        var choices = opts ? Array.from(opts).filter(function(o) { return !o.heading && o.id !== undefined }) : []
+        if (choices.length === 0) {
+            var offs = Object.keys(saved).filter(function(id) { return saved[id] === false }).length
+            return offs > 0 ? offs + " Off" : ""
+        }
+        var on = choices.filter(function(o) {
+            return saved[o.id] !== undefined ? saved[o.id] === true : o.default !== false
+        }).length
+        return on === choices.length ? "All" : on === 0 ? "None" : on + " of " + choices.length
     }
 
     function currentDisplayValue(item) {
@@ -462,6 +482,9 @@ FocusScope {
             var count = lines && lines.length !== undefined && typeof lines !== "string" ? lines.length : 0
             return count === 0 ? "None" : String(count)
         }
+
+        if (type === "multiselect_submenu")
+            return multiValue(item)
 
         return ""
     }
@@ -688,7 +711,8 @@ FocusScope {
                     moduleId: mid,
                     moduleName: mid === moduleSettingsRoot.moduleId ? moduleName : (moduleNames[mid] || mid),
                     settingKey: item.key,
-                    settingLabel: item.label
+                    settingLabel: item.label,
+                    help: item.description || ""
                 }, { currentIndex: settingsList.currentIndex })
             } else if (item.type === "submenu") {
                 moduleSettingsRoot.navigateTo("views/ModuleSettings.qml", {

@@ -26,6 +26,8 @@ FocusScope {
     property string settingKey: navParams.settingKey || ""
     property string settingLabel: navParams.settingLabel || ""
     property string moduleName: navParams.moduleName || moduleId.split(".").pop().toUpperCase()
+    // The row's help, on every choice's line.
+    property string help: navParams.help || ""
 
     property var options: []         // [{id, label, default}], and [{label, heading}]
     property var enabledMap: ({})    // id -> bool, as the page shows them
@@ -145,14 +147,18 @@ FocusScope {
         }
     }
 
-    // What a heading does, on its line; or why there are no choices, which
-    // is said whatever Settings' Help Line is: it is all the page has to say.
+    // What a heading does, on its line, and the row's own help on a
+    // choice's; or why there are no choices, which is said whatever
+    // Settings' Help Line is: it is all the page has to say.
     HelpLine {
+        objectName: "helpLine"
         readonly property var currentRow: multiSelectRoot.options[optionsList.currentIndex]
         readonly property bool heading: !!(currentRow && currentRow.heading)
-        visible: heading || multiSelectRoot.problem !== ""
-        always: !heading
-        text: heading ? "Turns all of the choices under it on or off" : multiSelectRoot.problem
+        visible: text !== ""
+        always: multiSelectRoot.problem !== ""
+        text: multiSelectRoot.problem !== "" ? multiSelectRoot.problem
+              : heading ? "Turns all of the choices under it on or off"
+              : currentRow ? multiSelectRoot.help : ""
     }
 
     // ◄ ► and select alike flip the choice under the cursor, or a heading's
