@@ -142,7 +142,6 @@ void AppCore::scan_for_modules() {
 
     QVariantList displayData;
     for (const auto &m : m_modules) {
-        // Respect "enabled" setting; fall back to manifest default, then true
         if (!isModuleEnabled(m, modulesConfig)) {
             qDebug("[AppCore] Module disabled: %s", qPrintable(m.name));
             continue;
@@ -293,7 +292,6 @@ bool AppCore::saveSettings(const QString &moduleId, const QList<std::pair<QStrin
 }
 
 void AppCore::putSetting(QJsonObject *config, const QString &moduleId, const QString &key, const QVariant &value) {
-    // The target section
     QJsonObject target = moduleId.isEmpty() ? config->value("app").toObject()
                                             : config->value("modules").toObject()[moduleId].toObject();
     const QStringList path = settingPath(key);

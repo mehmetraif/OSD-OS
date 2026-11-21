@@ -17,11 +17,11 @@
 
 // Where the files go that OSD/OS makes for a run and hands to mpv: its key
 // bindings, control socket and log, the deck menu's subtitle names, a logo's
-// overlay, and the fontconfig file that shows it the VCR font. They used to
-// lie in the temp folder under fixed names, and on Linux and the BSDs that
-// folder (/tmp) is every account's to write in: another account could put a
-// file of its own there first, key bindings that run a command among them,
-// or read a media server's token out of mpv's log.
+// overlay, and the fontconfig file that shows it the VCR font. Not the temp
+// folder under fixed names: on Linux and the BSDs that folder (/tmp) is every
+// account's to write in, and another account could put a file of its own
+// there first, key bindings that run a command among them, or read a media
+// server's token out of mpv's log.
 //
 // On Linux and the BSDs the folder is the user's run-time folder, which only
 // they can open (QStandardPaths::RuntimeLocation): $XDG_RUNTIME_DIR, which a
