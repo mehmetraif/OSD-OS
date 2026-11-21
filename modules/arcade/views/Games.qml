@@ -15,16 +15,15 @@ import Components
 // shown: select joins one. Its last line, RetroArch Lobby, opens the whole
 // lobby (Lobby.qml). With LAN Play on, LAN Games lists those hosted on the
 // local network (ArcadeBackend::lanRooms()), asked for as they come to be
-// shown and again every 5 s while they are. Coming back from a game
-// restores the tree from the listState handed to navigateTo; a game played
-// from the tree itself (Start Info Screen off) leaves it as it was. Opened
-// with the startup favourite (navParams.startupPlay), it plays that at once,
-// the tree open on it in Favorites.
+// shown and again every 5 s while they are. A game's screen, Game Details
+// and the lobby open over the tree (Root.qml's playLayer, pageLayer), which
+// coming back finds as it was left. Opened with the startup favourite
+// (navParams.startupPlay), it plays that at once, the tree open on it in
+// Favorites.
 FocusScope {
     id: gamesRoot
 
     property var navParams: ({})
-    property var navListState: navParams.navListState || ({})
     // Context properties read null while the module's Loader tears this view
     // down, hence the guards.
     readonly property string gamesFolder: arcadeBackend ? arcadeBackend.gamesFolder() : ""
@@ -60,23 +59,22 @@ FocusScope {
 
     // Plays a game, or joins a room of the lobby or the local network
     // (item.room, item.lan), or with online ({ hosting: true, lan }) hosts
-    // it; trail is where coming back lands.
-    function play(item, trail, online) {
+    // it.
+    function play(item, online) {
         var params = { game: item.game, title: item.name }
         if (item.room !== undefined)
             params.online = { room: item.room, host: item.host, lan: !!item.lan }
         else if (online)
             params.online = online
-        gamesRoot.navigateTo("Play.qml", params, { trail: trail })
+        gamesRoot.navigateTo("Play.qml", params, {})
     }
 
     // The startup favourite, played as if chosen in Favorites, so coming back
-    // from it lands there. Only as the view first opens: coming back from the
-    // game brings navListState instead. Once the folder has been read
+    // from it lands there, as the view opens. Once the folder has been read
     // (ArcadeBackend reads it as the module opens): till then it waits here.
     property var startupEntry: null
     Component.onCompleted: {
-        if (!navParams.navListState && navParams.startupPlay)
+        if (navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
     }
     function playAtStartup(entry) {
@@ -97,7 +95,7 @@ FocusScope {
                              { path: "favorites", sel: i, name: "Favorites", pushed: false }]
                 // There as it plays, for a game played from the tree itself.
                 tree.reopen(trail)
-                play(favorites[i], trail)
+                play(favorites[i])
                 return
             }
         }
@@ -129,7 +127,6 @@ FocusScope {
         rootPath: "top"
         // The info line's room, while it shows (Help Line on).
         reservedBottom: infoLine.visible && infoLine.shown ? areaBottom - infoLine.y : 0
-        savedTrail: gamesRoot.navListState.trail || []
         fetch: function(path, preview) {
             if (!arcadeBackend)
                 return []
@@ -145,9 +142,9 @@ FocusScope {
             if (item.kind === "search")
                 osk.open("")
             else if (item.kind === "lobby")
-                gamesRoot.navigateTo("Lobby.qml", {}, { trail: tree.trailState() })
+                gamesRoot.navigateTo("Lobby.qml", {}, {})
             else if (item.game)
-                gamesRoot.play(item, tree.trailState())
+                gamesRoot.play(item)
         }
         onOptionsRequested: function(item) {
             if (item.game && item.room === undefined)
@@ -257,11 +254,9 @@ FocusScope {
         firstChoices: [{ label: "Game Details", action: "details" }]
         onActivated: function(action) {
             if (action === "details")
-                gamesRoot.navigateTo("Details.qml", { game: options.set, title: options.title },
-                                     { trail: tree.trailState() })
+                gamesRoot.navigateTo("Details.qml", { game: options.set, title: options.title }, {})
             else if (action === "host" || action === "hostLan")
-                gamesRoot.play({ game: options.set, name: options.title }, tree.trailState(),
-                               { hosting: true, lan: action === "hostLan" })
+                gamesRoot.play({ game: options.set, name: options.title }, { hosting: true, lan: action === "hostLan" })
         }
         onFavoritesEdited: tree.refresh("favorites")
         onClosed: tree.forceActiveFocus()

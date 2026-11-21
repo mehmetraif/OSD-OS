@@ -443,8 +443,8 @@ StandInRoot {
     Connections {
         target: loader.item
         ignoreUnknownSignals: true
-        function onNavigateTo(path, params, listState) {
-            root.navigations = root.navigations.concat([{ path: path, params: params, listState: listState }])
+        function onNavigateTo(path, params) {
+            root.navigations = root.navigations.concat([{ path: path, params: params }])
         }
         function onGoBack() { root.backs++ }
     }
@@ -615,8 +615,8 @@ StandInRoot {
             compare(nav.path, "Play.qml")
             compare(nav.params.game, "pacman")
             compare(nav.params.title, "Pac-Man (Midway)")
-            // Back from the game lands where it was chosen.
-            compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
+            // The tree, under the game, still on it.
+            verify(findText(games, "1980") !== null)
         }
 
         // Under Cabinet Lock, with the Arcade the start module, back from
@@ -710,8 +710,8 @@ StandInRoot {
             tryVerify(function() { return root.navigations.length === 1 })
             var nav = root.navigations[0]
             compare(nav.params.game, "pacman")
-            compare(nav.listState.trail[1].path, "favorites")
-            // The tree there as it plays, its line on the game.
+            // The tree there as it plays, in Favorites, its line on the game.
+            verify(findText(games, "Favorites", true) !== null)
             verify(findText(games, "1980") !== null)
             // With Online Play and LAN Play on, their folders come first:
             // Favorites is wherever the backend lists it, not the second row.
@@ -725,8 +725,15 @@ StandInRoot {
             nav = root.navigations[0]
             compare(nav.params.game, "pacman")
             verify(findText(games, "1980") !== null)
-            compare(nav.listState.trail[0].sel, 3)
-            compare(nav.listState.trail[1].path, "favorites")
+            // The tree itself on Favorites' row, under the game.
+            var tree = null
+            for (var i = 0; i < games.children.length && !tree; ++i) {
+                if (games.children[i].trailState !== undefined)
+                    tree = games.children[i]
+            }
+            var trail = tree.trailState()
+            compare(trail[0].sel, 3)
+            compare(trail[1].path, "favorites")
         }
 
         // While the folder is read, the startup favourite waits for it, on
@@ -1013,8 +1020,8 @@ StandInRoot {
             compare(nav.path, "Play.qml")
             compare(nav.params.game, "sf2")
             compare(nav.params.title, "Street Fighter II: The World Warrior (World 910522)")
-            compare(nav.listState.filter, "all")
-            compare(nav.listState.set, "sf2")
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
         }
@@ -1636,8 +1643,8 @@ StandInRoot {
             verify(arcadeBackend.picturesWanted.indexOf("1942") >= 0)
         }
 
-        // A game's options offer its Game Details, which open on it; back
-        // from them lands where it was, as from playing it. The tree's too.
+        // A game's options offer its Game Details, which open on it, the
+        // list under them as it was. The tree's too.
         function test_gameDetailsOption() {
             var screen = openScreen()
             keyPress(Qt.Key_Return)
@@ -1650,8 +1657,8 @@ StandInRoot {
             compare(root.navigations[0].path, "Details.qml")
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.title, "Street Fighter II: The World Warrior (World 910522)")
-            compare(root.navigations[0].listState.set, "sf2")
-            compare(root.navigations[0].listState.filter, "all")
+            compare(screen.filterId, "all")
+            compare(screen.currentSet, "sf2")
             loader.source = ""
             root.navigations = []
             var games = open("Games.qml")
@@ -1666,7 +1673,7 @@ StandInRoot {
             compare(root.navigations.length, 1)
             compare(root.navigations[0].path, "Details.qml")
             compare(root.navigations[0].params.game, "galaga")
-            compare(root.navigations[0].listState.trail[root.navigations[0].listState.trail.length - 1].path, "all")
+            verify(findText(games, "1981") !== null)
         }
 
         // Game Details: what the game is; while its achievements are read,
@@ -1972,9 +1979,7 @@ StandInRoot {
             keyPress(Qt.Key_Return)
             keyRelease(Qt.Key_Return)
             compare(root.navigations[0].params.online.room, 11)
-            compare(root.navigations[0].listState.room, 11)
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[0].listState })
+            // The screen under the game, still on the room.
             compare(screen.current.room, 11)
             // The room gone: the game's other one.
             arcadeBackend.filterList[0].rows = arcadeBackend.filterList[0].rows.slice(0, 1)
@@ -2106,14 +2111,12 @@ StandInRoot {
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.online.room, 11)
             compare(root.navigations[0].params.online.host, "ann")
-            compare(root.navigations[0].listState.room, 11)
+            // The page under the game, still on the room.
+            compare(page.room.id, 11)
             keyClick(Qt.Key_Escape)
+            compare(page.roomId, 11)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
-            // Back from a game: on its room.
-            loader.source = ""
-            page = open("Lobby.qml", { navListState: { room: 16 } })
-            tryVerify(function() { return findText(page, "this one is Snes9x's") !== null }, 1000)
             // Not reached: why.
             arcadeBackend.setLobby({ state: "failed", problem: "RetroArch's lobby can't be reached: Connection refused",
                                      rooms: [] })
@@ -2927,9 +2930,7 @@ StandInRoot {
             keyClick(Qt.Key_Space)
             var played = root.navigations[root.navigations.length - 1]
             compare(played.path, "Play.qml")
-            compare(played.listState.row, 7)
-            loader.source = ""
-            screen = openScreen({ navListState: played.listState })
+            // The screen under the game, still on it in its row.
             compare(screen.currentSet, "galaga")
             compare(screen.selectedRow, 7)
             moduleRoot.screenAdjustment = { top: -30, bottom: -105, left: 0, right: 0 }
@@ -3095,8 +3096,7 @@ StandInRoot {
             compare(findText(screen, "No games found"), null)
         }
 
-        // Start Filter's, or back from a game, the filter and the game it was
-        // on; a filter that isn't there, All Games.
+        // Start Filter's; a filter that isn't there, All Games.
         function test_screenOpensOn() {
             moduleRoot.startFilter = "genres/Fighting"
             var screen = openScreen()
@@ -3105,10 +3105,6 @@ StandInRoot {
             moduleRoot.startFilter = "genres/Nothing"
             screen = openScreen()
             compare(screen.filterId, "all")
-            loader.source = ""
-            screen = openScreen({ navListState: { filter: "favorites", set: "sf2" } })
-            compare(screen.filterId, "favorites")
-            compare(screen.currentSet, "sf2")
         }
 
         // A Start Filter with no games once MAME has answered gives way to
@@ -3241,7 +3237,6 @@ StandInRoot {
             tryVerify(function() { return root.navigations.length === 1 })
             var nav = root.navigations[0]
             compare(nav.params.game, "sf2")
-            compare(nav.listState.filter, "favorites")
             // The screen there as it plays.
             compare(screen.filterId, "favorites")
             compare(screen.currentSet, "sf2")
@@ -3693,12 +3688,14 @@ StandInRoot {
             compare(screen.filterId, "all")
             compare(marks(screen), ["heart", "heart"])
             loader.source = ""
-            screen = openScreen({ navListState: { filter: "favorites", set: "sf2" } })
+            moduleRoot.startFilter = "favorites"
+            screen = openScreen()
             compare(screen.filterId, "favorites")
             compare(screen.count, 2)
             compare(marks(screen), [])
             loader.source = ""
-            screen = openScreen({ navListState: { filter: "genres/Fighting", set: "kinst" } })
+            moduleRoot.startFilter = "genres/Fighting"
+            screen = openScreen()
             compare(screen.filterId, "genres/Fighting")
             compare(marks(screen), ["heart"])
         }
@@ -3778,8 +3775,8 @@ StandInRoot {
             compare(root.navigations[0].params.game, "sf2")
             compare(root.navigations[0].params.online.room, 11)
             compare(root.navigations[0].params.online.host, "ann")
-            compare(root.navigations[0].listState.filter, "lobby")
-            compare(root.navigations[0].listState.room, 11)
+            compare(screen.filterId, "lobby")
+            compare(screen.lobbyRoom.id, 11)
             // One with a password: its page, nothing to join.
             keyClick(Qt.Key_Down)
             compare(screen.lobbyRoom.id, 14)
@@ -3791,7 +3788,7 @@ StandInRoot {
             compare(root.navigations.length, 2)
             compare(root.navigations[1].path, "Lobby.qml")
             compare(root.navigations[1].params.room, 14)
-            compare(root.navigations[1].listState.room, 14)
+            compare(screen.lobbyRoom.id, 14)
             // Another core's, of no game of the folder: no picture either,
             // the box saying its game as its host has it, its core, marked as
             // not yours, and that it can't be joined.
@@ -3818,14 +3815,13 @@ StandInRoot {
             compare(root.navigations[2].path, "Lobby.qml")
             compare(root.navigations[2].params.room, 11)
             compare(root.navigations.length, 3)
-            // Back from a room's page: on it.
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[1].listState })
+            // Under a room's page, still on it.
             compare(screen.filterId, "lobby")
-            compare(screen.lobbyRoom.id, 14)
+            compare(screen.lobbyRoom.id, 11)
             // The cursor kept on one of a game not in the folder as the lobby
-            // is read again; back from its page, on it, and on it still as
-            // the lobby read again puts a room before it.
+            // is read again; under its page, on it, and on it still as the
+            // lobby read again puts a room before it.
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             arcadeBackend.gamesChanged()
             compare(screen.lobbyRoom.id, 16)
@@ -3833,8 +3829,6 @@ StandInRoot {
             keyRelease(Qt.Key_Return)
             compare(root.navigations.length, 4)
             compare(root.navigations[3].params.room, 16)
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[3].listState })
             compare(screen.lobbyRoom.id, 16)
             // The rooms changed under the screen, as the backend's do, until
             // it says so: roomsChanged(), then gamesChanged().
@@ -3996,11 +3990,7 @@ StandInRoot {
             keyRelease(Qt.Key_Return)
             compare(root.navigations.length, 1)
             compare(root.navigations[0].params.game, "sf2")
-            compare(root.navigations[0].listState.filter, "search")
-            // Back from it: the words kept, on the game.
-            loader.source = ""
-            screen = openScreen({ navListState: root.navigations[0].listState })
-            keys = findChild(screen, "searchKeys")
+            // Under it, the words kept, on the game.
             compare(screen.filterId, "search")
             compare(screen.currentSet, "sf2")
             compare(arcadeBackend.searches[arcadeBackend.searches.length - 1], "STR")

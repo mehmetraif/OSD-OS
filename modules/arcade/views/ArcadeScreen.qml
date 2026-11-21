@@ -29,10 +29,9 @@ import "Rooms.js" as Rooms
 // as Start Info Screen says); select held opens its options (Play, Game
 // Details, its favourite, Play at Startup, its engine, hosting it) and back
 // leaves the module. Game Details (Details.qml) says what the game is and
-// lists its achievements on RetroAchievements. Coming back from it or from a
-// game restores the filter, the game and its row on the wheel from the
-// listState handed to navigateTo; a game played from the screen itself
-// (Start Info Screen off) leaves it as it was. Opened with the startup
+// lists its achievements on RetroAchievements. It and a game's screen open
+// over this one (Root.qml's pageLayer, playLayer), which coming back from
+// either finds as it was left. Opened with the startup
 // favourite (navParams.startupPlay), it plays that as soon as the folder has
 // been read, the screen on it in Favorites.
 //
@@ -73,7 +72,6 @@ FocusScope {
     id: arcadeScreen
 
     property var navParams: ({})
-    property var navListState: navParams.navListState || ({})
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -297,7 +295,7 @@ FocusScope {
     // has games (while MAME is asked, only the lists have).
     property var filters: []
     property int filterIndex: 0
-    property string wanted: navListState.filter || moduleRoot.startFilter || "all"
+    property string wanted: moduleRoot.startFilter || "all"
     readonly property var filter: filters.length > 0 ? filters[Math.min(filterIndex, filters.length - 1)] : null
     readonly property string filterId: filter ? filter.id : ""
     readonly property int count: filter ? filter.count : 0
@@ -522,19 +520,19 @@ FocusScope {
     // game kept where it is in it, or landOn. A filter shown in the wanted
     // one's place while that one has no games yet (the folder read, MAME
     // asked) hands its game on only once ▲ ▼ have moved in it (browsed):
-    // else the wanted one opens as the screen would have, on the game it was
-    // left on or its first, at the top of the list.
+    // else the wanted one opens as the screen would have, on its first game,
+    // at the top of the list.
     property bool browsed: false
     function reload(landOn) {
         if (!arcadeBackend)
             return
         var standIn = filterId !== "" && filterId !== wanted && !browsed
-        // The row kept: the one the cursor is on, else landOn's game or the
-        // one come back to. A game by its set; a room by its id too, as its
-        // game may be hosted twice, or be none of the folder's (RetroArch
-        // Lobby's); Search's own row by its place.
+        // The row kept: the one the cursor is on, else landOn's game. A game
+        // by its set; a room by its id too, as its game may be hosted twice,
+        // or be none of the folder's (RetroArch Lobby's); Search's own row by
+        // its place.
         var fromCurrent = !landOn && !!current && !standIn
-        var from = landOn ? { set: landOn } : fromCurrent ? current : navListState
+        var from = landOn ? { set: landOn } : fromCurrent ? current : {}
         var keep = from.set || ""
         var keepRoom = from.room !== undefined ? from.room : -1
         // Where it is: its filter, and its row on the wheel.
@@ -557,14 +555,12 @@ FocusScope {
         var moved = filterId !== keptFilter
         selected = place >= 0 ? place : (standIn || moved ? 0 : Math.max(0, Math.min(selected, count - 1)))
         // On the wheel, the game kept keeps its row while its filter is the
-        // one shown still, and the game come back to after playing it the
-        // row it was played from; a game landed on, or one kept as its
-        // filter went, comes to the middle row, and the screen opened afresh
-        // has the first game in the top row, as a filter ◄ ► came to does,
-        // and one shown without the game kept.
+        // one shown still; a game landed on, or one kept as its filter went,
+        // comes to the middle row, and the screen opened afresh has the first
+        // game in the top row, as a filter ◄ ► came to does, and one shown
+        // without the game kept.
         var row = fromCurrent ? (!moved ? keptRow : place >= 0 ? middleRow : 0)
-                : landOn ? middleRow
-                : navListState.row !== undefined ? navListState.row : 0
+                : landOn ? middleRow : 0
         placeWheel(Math.min(row, perPage - 1))
         revision++
     }
@@ -619,19 +615,15 @@ FocusScope {
             orbLook.item.nudge(delta, 0)
     }
 
-    // Plays a game; coming back lands on it in listFilter.
     // A game played, or with online, a room of the lobby joined ({ room,
     // host }) or one hosted ({ hosting: true }), of the local network with
     // lan: true too. In the Orb look once the camera has gone into the orb,
     // but at once at startup.
-    function play(set, name, listFilter, online, atOnce) {
+    function play(set, name, online, atOnce) {
         var params = { game: set, title: name }
-        var state = { filter: listFilter, set: set, row: selectedRow }
         if (online)
             params.online = online
-        if (online && online.room !== undefined)
-            state.room = online.room
-        var go = function() { arcadeScreen.navigateTo("Play.qml", params, state) }
+        var go = function() { arcadeScreen.navigateTo("Play.qml", params, {}) }
         if (orb && !atOnce)
             orbLook.item.launch(go)
         else
@@ -650,9 +642,9 @@ FocusScope {
         else if (lobbyRoom && !lobbyRoom.joinable)
             openRoom()
         else if (current && current.room !== undefined)
-            play(currentSet, current.name, filterId, { room: current.room, host: current.host, lan: !!current.lan })
+            play(currentSet, current.name, { room: current.room, host: current.host, lan: !!current.lan })
         else if (isGame)
-            play(currentSet, details.name || current.name, filterId)
+            play(currentSet, details.name || current.name)
     }
 
     // Select held: a game's options; on a room of the lobby, its page; on
@@ -665,11 +657,9 @@ FocusScope {
         else if (isGame && current.room === undefined)
             options.offer({ name: details.name || current.name, path: "game:" + currentSet, isFolder: false })
     }
-    // A room of the lobby's page, everything the lobby says of it; coming
-    // back lands on it.
+    // A room of the lobby's page, everything the lobby says of it.
     function openRoom() {
-        navigateTo("Lobby.qml", { room: current.room },
-                   { filter: filterId, set: currentSet, room: current.room, row: selectedRow })
+        navigateTo("Lobby.qml", { room: current.room }, {})
     }
 
     // Search's keys, in the picture's frame while Search is shown: as each
@@ -717,9 +707,9 @@ FocusScope {
     }
     // Leaving Search any other way, its keys hand the screen its keys back.
     onFilterIdChanged: if (filterId !== "search" && typing) leaveKeys(false)
-    // A game's Game Details; coming back lands on it, as from playing it.
+    // A game's Game Details.
     function openDetails(set, title) {
-        navigateTo("Details.qml", { game: set, title: title }, { filter: filterId, set: set, row: selectedRow })
+        navigateTo("Details.qml", { game: set, title: title }, {})
     }
 
     // Whether the rooms are worth asking for again: the screen is shown, no
@@ -828,11 +818,9 @@ FocusScope {
         onTriggered: arcadeScreen.adjusting ? arcadeScreen.resetAdjustment() : arcadeScreen.holdCurrent()
     }
 
-    // The startup favourite, played as if chosen in Favorites. Only as the
-    // view first opens: coming back from the game brings navListState
-    // instead.
-    // Waits here while the folder is read (ArcadeBackend reads it as the
-    // module opens).
+    // The startup favourite, played as if chosen in Favorites, as the view
+    // opens. Waits here while the folder is read (ArcadeBackend reads it as
+    // the module opens).
     property var startupEntry: null
     function playAtStartup(entry) {
         if (arcadeBackend.reading) {
@@ -849,19 +837,19 @@ FocusScope {
         // There as it plays, for a game played from the screen itself.
         wanted = "favorites"
         reload(set)
-        play(set, game.name, "favorites", undefined, true)
+        play(set, game.name, undefined, true)
     }
 
     Component.onCompleted: {
         // The high scores kept, read before the first game's are asked for.
         if (scoresBackend)
             scoresBackend.refresh()
-        // Search looks for nothing yet, but coming back from a game found.
-        if (arcadeBackend && !navParams.navListState)
+        // Search looks for nothing yet.
+        if (arcadeBackend)
             arcadeBackend.setSearch("")
         searchKeys.text = arcadeBackend ? arcadeBackend.search() : ""
         reload()
-        if (!navParams.navListState && navParams.startupPlay)
+        if (navParams.startupPlay)
             Qt.callLater(playAtStartup, navParams.startupPlay)
     }
 
@@ -1392,12 +1380,11 @@ FocusScope {
         revision: arcadeScreen.revision
         onActivated: function(action) {
             if (action === "play")
-                arcadeScreen.play(options.set, options.title, arcadeScreen.filterId)
+                arcadeScreen.play(options.set, options.title)
             else if (action === "details")
                 arcadeScreen.openDetails(options.set, options.title)
             else if (action === "host" || action === "hostLan")
-                arcadeScreen.play(options.set, options.title, arcadeScreen.filterId,
-                                  { hosting: true, lan: action === "hostLan" })
+                arcadeScreen.play(options.set, options.title, { hosting: true, lan: action === "hostLan" })
         }
         onChosen: arcadeScreen.revision++
         onFavoritesEdited: arcadeScreen.reload()

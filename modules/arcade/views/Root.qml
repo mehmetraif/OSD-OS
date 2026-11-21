@@ -114,12 +114,12 @@ ModuleRouter {
     // (keyCatcher), and Play.qml only says why a game didn't play, or why
     // it stopped. Either way the list stays loaded under the game, as it
     // was, and is on the screen again the moment the game ends.
-    function playGame(params, listState) {
+    function playGame(params) {
         if (startInfo) {
             openPlay(params)
             return
         }
-        playing = { game: params.game, title: params.title, online: params.online, listState: listState || {} }
+        playing = { game: params.game, title: params.title, online: params.online }
         keyCatcher.forceActiveFocus()
         listLaunch.restart()
     }
@@ -177,7 +177,7 @@ ModuleRouter {
         }
     }
     // The game playGame() starts from the list, from the moment it is
-    // chosen until it ends: { game, title, online, listState }; null for
+    // chosen until it ends: { game, title, online }; null for
     // none. The loading screen covers the list meanwhile, which is not drawn
     // under it (viewCovered), and nothing of the menus moves behind it:
     // their effects rest, as for a game's own screen (Play.qml).
@@ -215,9 +215,9 @@ ModuleRouter {
     // A view's navigateTo: a game asked for, played as Start Info Screen
     // says; Game Details and a room's page, over the list; any other view
     // on the stack, as the router has it.
-    opensOwn: function(path, params, listState) {
+    opensOwn: function(path, params) {
         if (path === "Play.qml" && params && params.game)
-            moduleRoot.playGame(params, listState)
+            moduleRoot.playGame(params)
         else if (moduleRoot.overList(path))
             moduleRoot.openPage(path, params)
         else
@@ -256,9 +256,9 @@ ModuleRouter {
         Connections {
             target: pageLayer.item
             ignoreUnknownSignals: true
-            function onNavigateTo(path, params, listState) {
+            function onNavigateTo(path, params) {
                 if (path === "Play.qml" && params && params.game)
-                    moduleRoot.playGame(params, listState)
+                    moduleRoot.playGame(params)
             }
             function onGoBack() { moduleRoot.closePage() }
         }

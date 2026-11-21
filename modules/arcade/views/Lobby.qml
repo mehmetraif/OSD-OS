@@ -23,7 +23,6 @@ FocusScope {
     id: lobbyRoot
 
     property var navParams: ({})
-    property var navListState: navParams.navListState || ({})
 
     signal navigateTo(string path, var params, var listState)
     signal goBack()
@@ -54,10 +53,10 @@ FocusScope {
     // The room open, whose lines are shown; null for the rooms.
     property var room: null
     readonly property var lines: room ? Rooms.linesOf(room, lobby) : []
-    // The room the cursor is on, kept there as the lobby is read again, and
-    // as coming back from a game it joined; or the one room of the page.
+    // The room the cursor is on, kept there as the lobby is read again; or
+    // the one room of the page.
     readonly property bool roomPage: navParams.room !== undefined
-    property int roomId: roomPage ? navParams.room : navListState.room !== undefined ? navListState.room : -1
+    property int roomId: roomPage ? navParams.room : -1
 
     // How many rooms, FinalBurn Neo's and those to join; or why there are
     // none.
@@ -163,7 +162,7 @@ FocusScope {
         if (!room || !room.joinable)
             return
         lobbyRoot.navigateTo("Play.qml", { game: room.set, title: room.title, online: { room: room.id, host: room.host } },
-                             { room: room.id })
+                             {})
     }
 
     // What the help line says of a line of the rooms: a room's (Rooms.js), a
