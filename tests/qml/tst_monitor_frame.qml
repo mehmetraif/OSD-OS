@@ -442,7 +442,7 @@ StandInRoot {
             compare(root.chrome.helpText, "")
             var per = Math.floor(page.list.height / root.chrome.rowHeight + 0.001)
             if (data.layout === "Flat Panel") {
-                verify(page.pager.paging)
+                verify(page.pager.paged)
                 tryCompare(root.chrome, "pages", Math.ceil(25 / per))
                 page.list.currentIndex = per
                 compare(root.chrome.page, 1)
@@ -451,11 +451,11 @@ StandInRoot {
                 // column, which is hidden in this layout; a list under a
                 // keyboard).
                 page.list.visible = false
-                verify(!page.pager.paged && !page.pager.paging)
+                verify(!page.pager.paged)
                 page.list.visible = true
-                verify(page.pager.paging)
+                verify(page.pager.paged)
             } else {
-                verify(!page.pager.paging)
+                verify(!page.pager.paged)
                 compare(root.chrome.pages, 1)
             }
             compare(root.chrome.title, data.layout === "Studio Monitor" ? "Movies"
