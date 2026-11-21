@@ -37,6 +37,18 @@ private slots:
         QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Alien"), QStringLiteral("/films/alien.mkv"), QString()));
         QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.txt") }));
         QCOMPARE(nfc.mappedTitleForUid(m_uid), QStringLiteral("Alien"));
+
+        // A file named by hand with its extension in capitals: mapped again,
+        // it is the one replaced, under its own name for the same title, so
+        // no second file claims the card.
+        QVERIFY(QFile::rename(tags() + QStringLiteral("/Alien.txt"), tags() + QStringLiteral("/Alien.TXT")));
+        nfc.reloadMapping();
+        QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Alien"), QStringLiteral("/films/aliens.mkv"), QString()));
+        QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.TXT") }));
+        QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Aliens"), QStringLiteral("/films/aliens.mkv"), QString()));
+        QCOMPARE(entries(), QStringList({ QStringLiteral("Aliens.txt") }));
+        QVERIFY(nfc.writeCardFile(m_uid, QStringLiteral("Alien"), QStringLiteral("/films/alien.mkv"), QString()));
+        QCOMPARE(entries(), QStringList({ QStringLiteral("Alien.txt") }));
 #ifdef Q_OS_UNIX
         // A full card: nothing more can be written, so the new file can't be,
         // and the card plays what it did. (A file size limit, which holds for

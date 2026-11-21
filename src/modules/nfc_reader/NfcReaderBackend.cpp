@@ -419,7 +419,7 @@ void NfcReaderBackend::scanTagsDir() {
                      qPrintable(uid), qPrintable(fi.fileName()));
             continue;
         }
-        m_mapping.insert(uid, MappingEntry{path, fi.completeBaseName(), mode});
+        m_mapping.insert(uid, MappingEntry{path, fi.completeBaseName(), mode, fi.fileName()});
         fileCount++;
     }
     qDebug("[NfcReader] Scanned %d tag files from %s", fileCount, qPrintable(tagsDirPath()));
@@ -443,7 +443,7 @@ void NfcReaderBackend::writeStubFile(const QString &normalizedUid) {
     file.write((normalizedUid + "\n").toUtf8());
     qDebug("[NfcReader] Created stub tag file: %s", qPrintable(path));
     // Register as known-unmapped so a lift-and-retap doesn't re-scan/re-write.
-    m_mapping.insert(normalizedUid, MappingEntry{QString(), name, QString()});
+    m_mapping.insert(normalizedUid, MappingEntry{QString(), name, QString(), name + ".txt"});
 }
 
 void NfcReaderBackend::reloadMapping() {
@@ -500,6 +500,7 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     // this write is allowed to replace.
     const auto prev = m_mapping.constFind(normalizedUid);
     const QString prevName = (prev != m_mapping.constEnd()) ? prev->title : QString();
+    const QString prevFile = (prev != m_mapping.constEnd()) ? prev->file : QString();
 
     // Two cards must never land on one filename: the second write would replace
     // the first card's file and silently break that card. Titles alone are not
@@ -512,7 +513,10 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     for (int n = 2; name != prevName && QFile::exists(tagsDirPath() + "/" + name + ".txt"); ++n)
         name = base + " (" + QString::number(n) + ")";
 
-    const QString path = tagsDirPath() + "/" + name + ".txt";
+    // The same title: the card's own file is written over, under the name it
+    // has (Dune.TXT stays Dune.TXT, rather than a Dune.txt beside it).
+    const QString path = tagsDirPath() + "/"
+                         + (name == prevName && !prevFile.isEmpty() ? prevFile : name + ".txt");
 
     QString body = normalizedUid + "\n" + ref + "\n";
     if (!mode.isEmpty()) body += mode + "\n";
@@ -525,8 +529,8 @@ bool NfcReaderBackend::writeCardFile(const QString &uid, const QString &title,
     // card, and scanTagsDir resolves that by keeping the alphabetically
     // earlier one — which might be the stale one — so one that can't be
     // removed takes the new file back, and the card stays as it was.
-    if (!prevName.isEmpty()) {
-        const QString prevPath = tagsDirPath() + "/" + prevName + ".txt";
+    if (!prevFile.isEmpty()) {
+        const QString prevPath = tagsDirPath() + "/" + prevFile;
         if (prevPath != path && QFile::exists(prevPath)) {
             if (!QFile::remove(prevPath)) {
                 qWarning("[NfcReader] Could not remove previous tag file: %s", qPrintable(prevPath));

@@ -140,6 +140,7 @@ private:
         QString path;  // empty = known card with a tag file but no path yet
         QString title;
         QString mode;  // optional line-3 token ("shuffle"), empty when absent
+        QString file;  // the tag file's own name, its extension as it is (Dune.TXT)
     };
 
     AppCore *m_appCore = nullptr;
