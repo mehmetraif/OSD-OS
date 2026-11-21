@@ -993,9 +993,11 @@ Item {
                     y: look.sy(arcadeScreen.orbFootY) - 260 * look.flung
                     opacity: 1 - look.swing
                     readonly property var pairs: arcadeScreen.hintPairs
-                    readonly property var backPair: pairs.length > 0 ? pairs[0] : null
+                    // Back's is the first, where there is one: under Cabinet
+                    // Lock the start module's has none.
+                    readonly property var backPair: pairs.length > 0 && pairs[0].key === root.hints.back ? pairs[0] : null
                     readonly property var selectPair: {
-                        for (var i = 1; i < pairs.length; ++i) {
+                        for (var i = 0; i < pairs.length; ++i) {
                             if (pairs[i].key === root.hints.select)
                                 return pairs[i]
                         }

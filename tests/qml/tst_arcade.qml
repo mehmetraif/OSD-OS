@@ -693,6 +693,22 @@ StandInRoot {
             keyClick(Qt.Key_Right)  // into it
             verify(findText(games, "[ESC]:BACK ") !== null)
             loader.source = ""
+            // No games: nothing to say, and no bar drawn for it (not an
+            // empty strip).
+            var listed = arcadeBackend.filterList
+            arcadeBackend.filterList = []
+            screen = openScreen()
+            verify(findText(screen, "No games found") !== null)
+            var bar = null
+            for (var i = 0; i < screen.children.length; i++) {
+                if (screen.children[i].frameRole === "hints")
+                    bar = screen.children[i]
+            }
+            verify(bar !== null)
+            compare(bar.text, "")
+            compare(bar.opacity, 0)
+            loader.source = ""
+            arcadeBackend.filterList = listed
             root.leavingBarred = false
             games = open("Games.qml")
             verify(findText(games, "[ESC]:BACK ") !== null)
