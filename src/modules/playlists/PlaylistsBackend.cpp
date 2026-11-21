@@ -338,6 +338,12 @@ QJsonObject PlaylistsBackend::itemFor(const QString &moduleId, const QVariantMap
         if (entry.value(QStringLiteral("isFolder")).toBool())
             return {};
         id = entry.value(QStringLiteral("path")).toString();
+        // Not a playlist of Local Files' own (.m3u, .m3u8): mpv plays one in
+        // the list's place as all the videos in it, so every place after it
+        // would name another video than the one playing (savePosition).
+        const QString suffix = QFileInfo(id).suffix().toLower();
+        if (suffix == QLatin1String("m3u") || suffix == QLatin1String("m3u8"))
+            return {};
         source.insert(QStringLiteral("path"), id);
         if (title.isEmpty())
             title = QFileInfo(id).completeBaseName();

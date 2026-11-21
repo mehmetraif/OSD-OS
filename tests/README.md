@@ -195,6 +195,7 @@ A C++ test built with the app's sources links those several tests share, built o
 - **playlists** (`playlists_test.cpp`, Linux only). A playlist's m3u (`PlaylistsBackend::prepare`). Downloads wait for a game: held while one plays, a video put on an offline list stays queued, and the queue goes on once it has ended.
   - Owner-only and whole, `#EXTM3U` then each video's `#EXTINF` and path; played again, a new one, the one before gone.
   - One a full card can't take (a file size limit, which holds for root too) says why and plays nothing, and the one before stays.
+  - A playlist of Local Files' own (`.m3u`, `.M3U8`) isn't put on one, since mpv would play it as the videos in it and the places after it would be off.
   - What a server's download cut short by the power going left in its folder (the temporary file it was writing, the film's name with six letters after it) is deleted as the downloads start; the films, a file of the user's own and yt-dlp's part file stay.
   - A server's download that fails for the network (a stand-in that drops whoever connects) is tried again after a while, a longer while each time, and is on the device once the stand-in answers; what the server refuses (403) is asked for once and left for Retry Downloads.
 - **youtube** (`youtube_test.cpp`, Linux only). YouTube's subscriptions against a stand-in for its feeds (`YouTubeBackend::setFeedUrl`), each request held until the test answers it.

@@ -81,6 +81,18 @@ private slots:
         QVERIFY(failed.value(QStringLiteral("error")).toString().startsWith(QStringLiteral("The list could not be written")));
         QCOMPARE(folder.entryList({ QStringLiteral("*.m3u") }, QDir::Files),
                  QStringList({ QFileInfo(second).fileName() }));
+
+        // A playlist of Local Files' own isn't put on one: mpv would play it
+        // as the videos in it, and the places after it would be off.
+        for (const QString &name : { QStringLiteral("mix.m3u"), QStringLiteral("Mix.M3U8") }) {
+            const QString list = data.path() + QLatin1Char('/') + name;
+            QVERIFY(writeFileAtomically(list, "#EXTM3U\n" + film.toUtf8() + "\n" + film.toUtf8() + "\n"));
+            QCOMPARE(playlists.addEntry(id, QStringLiteral("com.osdos.local_files"),
+                                        { { QStringLiteral("path"), list }, { QStringLiteral("name"), name } })
+                         .value(QStringLiteral("reason")).toString(),
+                     QStringLiteral("unsupported"));
+        }
+        QCOMPARE(playlists.prepare(id).value(QStringLiteral("count")).toInt(), 1);
     }
 
     // An offline list's downloads only while the module is on: off, a video
