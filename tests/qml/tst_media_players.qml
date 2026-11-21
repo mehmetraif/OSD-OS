@@ -1290,6 +1290,101 @@ StandInRoot {
             loader.sourceComponent = undefined
         }
 
+        // ▲ ▼ past an edge glide the rows after the cursor, as Plex's list
+        // moved before it was a LetterList: the ListView following its
+        // current row at its own pace (highlightMoveVelocity, 400 pixels a
+        // second), in every layout that scrolls its rows (Standard,
+        // Camcorder's pane, Studio Monitor's and Broadcast's frames, rows
+        // drawn as MonitorRows there). Keys held step as fast as they come;
+        // round the ends and to a letter the rows land at once. Flat Panel
+        // turns its pages at once.
+        function test_letterListGlides_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true },
+                    { tag: "Studio Monitor", layout: "Studio Monitor", framed: false },
+                    { tag: "Broadcast", layout: "Broadcast", framed: false },
+                    { tag: "Flat Panel", layout: "Flat Panel", framed: false }]
+        }
+        function test_letterListGlides(data) {
+            root.menuLayout = data.layout
+            root.framed = data.framed
+            var page = openLetters(films())
+            var list = page.list
+            var rows = rowsOf(list)
+            var view = null
+            var find = function(item) {
+                for (var i = 0; i < item.children.length && !view; i++) {
+                    if (item.children[i].highlightMoveVelocity !== undefined)
+                        view = item.children[i]
+                    else
+                        find(item.children[i])
+                }
+            }
+            find(rows)
+            verify(view !== null)
+            var rowHeight = view.itemAtIndex(0).height
+            var shown = Math.floor(rows.height / rowHeight + 0.001)
+            verify(shown < 20, "more rows than show: " + shown)
+            var settled = function(y) { return Math.abs(rows.contentY - y) < 0.5 }
+            // Within the rows shown nothing moves but the cursor.
+            for (var i = 0; i < shown - 1; i++)
+                keyClick(Qt.Key_Down)
+            wait(50)
+            verify(settled(rows.originY))
+
+            if (data.layout === "Flat Panel") {
+                // The next page, at once.
+                keyClick(Qt.Key_Down)
+                compare(list.currentIndex, shown)
+                verify(settled(rows.originY + shown * root.chrome.rowHeight))
+                loader.sourceComponent = undefined
+                return
+            }
+
+            // Past the foot: the rows glide there, at the ListView's pace.
+            compare(view.highlightMoveVelocity, 400)
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, shown)
+            var below = rows.originY + (shown + 1) * rowHeight - rows.height
+            verify(rows.contentY < below - 0.5, "gliding, not there at once: " + rows.contentY)
+            tryVerify(function() { return settled(below) }, 1000)
+
+            // Held: each press a row on at once, the rows following.
+            for (i = 0; i < 5; i++)
+                keyPress(Qt.Key_Down, Qt.NoModifier, -1)
+            keyRelease(Qt.Key_Down)
+            compare(list.currentIndex, shown + 5)
+            below += 5 * rowHeight
+            verify(rows.contentY < below - 0.5)
+            tryVerify(function() { return settled(below) }, 2000)
+            // And back up past the top of what shows: gliding too.
+            var top = Math.round((rows.contentY - rows.originY) / rowHeight)
+            while (list.currentIndex > top)
+                keyClick(Qt.Key_Up)
+            tryVerify(function() { return settled(below) }, 1000)
+            keyClick(Qt.Key_Up)
+            verify(rows.contentY > rows.originY + (top - 1) * rowHeight + 0.5)
+            tryVerify(function() { return settled(rows.originY + (top - 1) * rowHeight) }, 1000)
+
+            // Round the top to the last row: at once.
+            list.currentIndex = 0
+            rows.positionViewAtIndex(0, ListView.Beginning)
+            keyClick(Qt.Key_Up)
+            compare(list.currentIndex, 22)
+            verify(settled(rows.originY + rows.contentHeight - rows.height))
+            // To a letter: at once, its first row at the top.
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Down)
+            compare(list.letterIndex[lettersOf(list).currentIndex].letter, "#")
+            compare(list.currentIndex, 0)
+            verify(settled(rows.originY))
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(list.currentIndex, 3)
+            verify(settled(Math.min(rows.originY + 3 * rowHeight, rows.originY + rows.contentHeight - rows.height)))
+            loader.sourceComponent = undefined
+        }
+
         // The letters follow the cursor's row as ▲ ▼ move it, and round an
         // end of the list go round theirs: to the last letter from the first
         // row up, even where the last row is under "#".

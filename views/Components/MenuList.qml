@@ -59,6 +59,12 @@ Item {
     // list drawn as a module's lists are, without them (LetterList's).
     // Flat Panel's pages either way.
     property bool marks: true
+    // The rows glide after the cursor as ▲ ▼ step it past an edge, as the
+    // ListView follows its current row by itself (its highlightMoveVelocity,
+    // 400 pixels a second), rather than jump to it: a media server's A–Z
+    // lists (LetterList), as Plex's list moved before it was one. Round the
+    // ends, and in Flat Panel's pages, it jumps as any list does.
+    property bool glides: false
 
     // The rows the cursor stops on: every row but a heading, a note, a line
     // read alone and a gap (Hover.js's selectable(), which the mouse keeps
@@ -94,8 +100,10 @@ Item {
             return
         var i = selectableFrom(currentIndex + delta, delta)
         if (stopsAt(i)) {
+            var round = delta > 0 ? i < currentIndex : i > currentIndex
             currentIndex = i
-            show(i)
+            if (!glides || round || paged)
+                show(i)
         }
         moved(delta)
     }
