@@ -128,6 +128,12 @@ def module_settings(manifest, extra):
             row = {"key": key, "label": s.get("label", key), "help": help_text(s.get("description"))}
             if "shown_with" in s:
                 row["shown_with"] = s["shown_with"]
+            # One on another row's value (Arcade's Attract After, not with
+            # Attract Mode Off), as the page reads it (core.shown()); one on
+            # the theme is the device's alone.
+            unless = s.get("shown_unless")
+            if isinstance(unless, dict) and "key" in unless:
+                row["shown_unless"] = {"key": unless["key"], "value": unless["value"]}
             if key in views:
                 row["view"] = views[key]
             if kind == "submenu":

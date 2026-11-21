@@ -10,7 +10,12 @@
       "key": "enabled",
       "label": "ENABLED",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Arcade on the main menu: the MAME ROM sets of Games Folder, which play in MAME, and FinalBurn Neo's in RetroArch\n[OFF] Off the main menu, its settings kept"
+    },
+    {
+      "type": "section",
+      "label": "Games"
     },
     {
       "key": "games_directory",
@@ -31,7 +36,7 @@
       "label": "Hide Incomplete Games",
       "type": "toggle",
       "default": "OFF",
-      "description": "The games Check ROMs found files missing of, for MAME and for FinalBurn Neo alike\n[ON] Left off every list and filter, until it is off again or their files change\nNothing is left off until Check ROMs has been run"
+      "description": "The games Check ROMs found files missing of, for MAME and for FinalBurn Neo alike: none is left off until Check ROMs has been run\n[ON] Left off every list and filter, until it is off again or their files change"
     },
     {
       "key": "regions",
@@ -39,7 +44,33 @@
       "type": "multiselect_submenu",
       "options_source": "dynamic",
       "options_slot": "regionOptions",
-      "description": "The region in the parentheses of a set's name, as MAME writes it: (World), (USA), (Euro), (Asia), (Japan)…; Germany, Italy or UK counts as Europe, Canada as USA, Australia as Oceania, and a region the list doesn't name (Israel, Middle East) as Others\n[OFF] The region's sets left off every list and filter, Favorites and Recently Played too; a set of several regions once they all are off"
+      "description": "The regions whose sets are listed, by the parentheses of a set's name as MAME writes it: (World), (USA), (Euro), (Asia), (Japan)…; Germany, Italy or UK counts as Europe, Canada as USA, Australia as Oceania, and a region the list doesn't name (Israel, Middle East) as Others\n[OFF] The region's sets left off every list and filter, Favorites and Recently Played too; a set of several regions once they all are off"
+    },
+    {
+      "key": "rescan",
+      "label": "Read the Games Again",
+      "type": "action",
+      "action_slot": "rescan",
+      "done": "Reading the games again",
+      "description": "Asks MAME about every game in the folder again, then looks for every game's pictures, as Pictures From allows, a game a second, in the background"
+    },
+    {
+      "key": "check_roms",
+      "label": "Check ROMs",
+      "type": "module_view",
+      "params": { "romCheck": true },
+      "description": "Whether every game's files are whole, for MAME and for FinalBurn Neo: started on its page alone, as it reads every game's file; a game missing files for one engine plays in the other"
+    },
+    {
+      "key": "favorites_file",
+      "label": "Favorites",
+      "type": "module_view",
+      "params": { "favorites": true },
+      "description": "The favorites as a file of their own, osdos-favorites.txt in the games folder: Export writes it, a copy to keep, to edit or to take to another OSD/OS, and Import adds the games it names"
+    },
+    {
+      "type": "section",
+      "label": "Arcade Screen"
     },
     {
       "key": "screen",
@@ -56,7 +87,7 @@
       "options_source": "dynamic",
       "options_slot": "startFilterOptions",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The list the Arcade screen opens on: All Games, Favorites, Recently Played, LAN Games, Online Games, RetroArch Lobby, or one of the lists, genres, players, decades and publishers Menu Filters shows\nOne that isn't there opens on All Games"
+      "description": "The list the Arcade screen opens on: All Games, Favorites, Recently Played, LAN Games, Online Games, RetroArch Lobby, or one of the lists, genres, players, decades and publishers Menu Filters shows; one that isn't there opens on All Games"
     },
     {
       "key": "menu_filters",
@@ -65,15 +96,7 @@
       "options_source": "dynamic",
       "options_slot": "menuFilterOptions",
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "The filters ◄ ► goes round on the Arcade screen, under their headings: the lists, the genres (Fighting, Beat 'em Up, Shmup, Run and Gun…), players, years and publishers\nAll Games is always there, a publisher only once turned on"
-    },
-    {
-      "key": "play_at_startup",
-      "label": "Play at Startup",
-      "type": "list_single",
-      "options_source": "dynamic",
-      "options_slot": "startupGameOptions",
-      "description": "One of your favorite games, started as OSD/OS starts, as a game's options set it too\n[NONE] No game starts with OSD/OS\nThere is one for the whole of OSD/OS: choosing a game replaces another module's"
+      "description": "The filters ◄ ► goes round on the Arcade screen, under their headings: the lists, the genres (Fighting, Beat 'em Up, Shmup, Run and Gun…), players, years and publishers; All Games is always there, a publisher only once turned on\n[OFF] Left out of the round, its games still under All Games"
     },
     {
       "key": "list_style",
@@ -112,7 +135,7 @@
       "type": "module_view",
       "params": { "adjustScreen": true },
       "shown_with": { "key": "screen", "value": "Arcade" },
-      "description": "Fits the Arcade screen to your screen: a frame round it whose sides ▲ ▼ ◄ ► move out, or in after select, the list holding as many games as fit\nHold select to put it back as it was made; back keeps it"
+      "description": "Fits the Arcade screen to your screen: a frame round it whose sides ▲ ▼ ◄ ► move out, or in after select, the list holding as many games as fit; hold select to put it back as it was made, back keeps it"
     },
     {
       "key": "hint_bar",
@@ -145,8 +168,13 @@
       "type": "list_single",
       "options": ["30 Seconds", "1 Minute", "2 Minutes", "5 Minutes"],
       "default": "1 Minute",
-      "shown_with": [{ "key": "attract_mode", "value": "In Order" }, { "key": "attract_mode", "value": "Random" }],
+      "shown_with": { "key": "screen", "value": "Arcade" },
+      "shown_unless": { "key": "attract_mode", "value": "Off", "reason": "Only with Attract Mode on" },
       "description": "How long the Arcade screen is left alone before its attract mode begins"
+    },
+    {
+      "type": "section",
+      "label": "Playing"
     },
     {
       "key": "start_info",
@@ -164,11 +192,23 @@
       "description": "How a game is paid for, in MAME and FinalBurn Neo alike, played on this machine\n[CREDITS] COIN on the game list puts credits in, up to 9, which go in as the game starts  [FREE PLAY] Every game starts with 9 credits in, no coin needed"
     },
     {
+      "key": "play_at_startup",
+      "label": "Play at Startup",
+      "type": "list_single",
+      "options_source": "dynamic",
+      "options_slot": "startupGameOptions",
+      "description": "One of your favorite games, started as OSD/OS starts: the same as Play at Startup in Settings > Startup and in a game's options, one for the whole of OSD/OS, so a game replaces another module's\n[NONE] No game starts with OSD/OS"
+    },
+    {
+      "type": "section",
+      "label": "Scores and Pictures"
+    },
+    {
       "key": "high_scores",
       "label": "Save High Scores",
       "type": "toggle",
       "default": "ON",
-      "description": "Keep each game's high score table, as MAME's hiscore plugin does\nFor the games that forget it when they are switched off"
+      "description": "Keep each game's high score table, as MAME's hiscore plugin does, for the games that forget it when they are switched off\n[OFF] Those games' tables are gone as they are switched off"
     },
     {
       "key": "online_high_scores",
@@ -176,14 +216,14 @@
       "type": "list_single",
       "options": ["Off", "RetroAchievements"],
       "default": "Off",
-      "description": "High scores from the internet beside this machine's own\n[RETROACHIEVEMENTS] A game FinalBurn Neo has plays in it, in hardcore mode, its scores going to RetroAchievements, and the Arcade screen shows its leaderboard's top three"
+      "description": "High scores from the internet beside this machine's own\n[OFF] This machine's own alone  [RETROACHIEVEMENTS] A game FinalBurn Neo has plays in it in hardcore mode, with no save states, as RetroAchievements' leaderboards take only those: its scores go to RetroAchievements, and the Arcade screen shows its leaderboard's top three"
     },
     {
       "key": "achievements_account",
       "label": "RetroAchievements Account",
       "type": "module_view",
       "params": { "achievements": true },
-      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with\nWith a key, the pictures RetroAchievements has of a game are downloaded as it is shown, or every game's with Game Pictures → Download Pictures, into the games folder's snap folder, named after it (sf2_1.png, sf2_2.png…) and never over a file there"
+      "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with, the pictures going into the games folder's snap folder (sf2_1.png, sf2_2.png…), never over a file there"
     },
     {
       "key": "pictures_source",
@@ -191,7 +231,7 @@
       "type": "list_single",
       "options": ["RetroAchievements, then progetto-SNAPS", "RetroAchievements", "progetto-SNAPS", "Off"],
       "default": "RetroAchievements, then progetto-SNAPS",
-      "description": "Where a game's pictures are downloaded from, as it is shown and with Download Pictures\n[RETROACHIEVEMENTS] Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with a Web API key  [PROGETTO-SNAPS] A screenshot in play and the title screen of nearly every MAME game, through ArcadeDB (adb.arcadeitalia.net), for the games still without a picture  [OFF] None downloaded"
+      "description": "Where a game's pictures are downloaded from, as it is shown and with Download Pictures\n[RETROACHIEVEMENTS, THEN PROGETTO-SNAPS] RetroAchievements' first, then progetto-SNAPS' for the games still without a picture  [RETROACHIEVEMENTS] Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with a Web API key  [PROGETTO-SNAPS] A screenshot in play and the title screen of nearly every MAME game, through ArcadeDB (adb.arcadeitalia.net)  [OFF] None downloaded"
     },
     {
       "key": "game_pictures",
@@ -199,6 +239,10 @@
       "type": "module_view",
       "params": { "pictures": true },
       "description": "How many games have a picture, where the pictures come from, and Download Pictures: every game's looked for in the background, a game a second, RetroAchievements' first and progetto-SNAPS' for the rest"
+    },
+    {
+      "type": "section",
+      "label": "Online and LAN"
     },
     {
       "key": "online_play",
@@ -243,6 +287,10 @@
       "description": "The name the others see, online and on the network\n[DEFAULT] Online, the RetroAchievements account's, else OSD-OS; on the network, this device's name (Settings → System → About → System Information)"
     },
     {
+      "type": "section",
+      "label": "Emulators"
+    },
+    {
       "key": "mame",
       "label": "MAME",
       "type": "module_view",
@@ -277,7 +325,7 @@
           "type": "list_single",
           "options": ["Auto", "4:3", "16:9", "Square Pixels"],
           "default": "Auto",
-          "description": "Your screen's shape, which a game's picture is drawn to in its own shape\n[AUTO] 4:3 on a CRT's display output (a TV, a JAMMA cabinet), whatever its pixels are; Square Pixels on HDMI  [16:9] A widescreen TV  [SQUARE PIXELS] As the screen's pixels give it"
+          "description": "Your screen's shape, which a game's picture is drawn to in its own shape\n[AUTO] 4:3 on a CRT's display output (a TV, a JAMMA cabinet), whatever its pixels are; Square Pixels on HDMI  [4:3] A TV or monitor of the old shape  [16:9] A widescreen TV  [SQUARE PIXELS] As the screen's pixels give it"
         },
         {
           "key": "integer_scale",
@@ -286,7 +334,7 @@
           "type": "list_single",
           "options": ["Auto", "On", "Off"],
           "default": "Auto",
-          "description": "A game's lines drawn whole, once or twice, rather than spread over the screen's: sharp lines, with a thin border above and below\n[AUTO] On a CRT's display output  [OFF] The picture fills the screen's height\nA game with more lines than the screen fills it either way"
+          "description": "A game's lines drawn whole, once or twice, rather than spread over the screen's: sharp lines, with a thin border above and below; a game with more lines than the screen fills it either way\n[AUTO] On a CRT's display output  [ON] Always  [OFF] The picture fills the screen's height"
         },
         {
           "key": "vertical_monitor",
@@ -294,7 +342,7 @@
           "type": "list_single",
           "options": ["Horizontal", "Turned Right", "Turned Left"],
           "default": "Horizontal",
-          "description": "A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it, filling it with their own lines, the menus and the horizontal games as they are. Settings → Screen → Monitor, for a monitor that stays turned, goes before it\n[TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left"
+          "description": "A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it, filling it with their own lines, the menus and the horizontal games as they are; a monitor that stays turned is set in Settings > Screen instead, which goes first\n[HORIZONTAL] Every game as it is  [TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left"
         },
         {
           "key": "video",
@@ -302,35 +350,9 @@
           "type": "list_single",
           "options": ["Auto", "OpenGL", "BGFX", "Accelerated", "Software"],
           "default": "Auto",
-          "description": "How MAME draws the game\n[AUTO] As MAME's own settings say\nTry another when a game shows no picture"
+          "description": "How MAME draws the game: try another when a game shows no picture\n[AUTO] As MAME's own settings say"
         }
       ]
-    },
-    {
-      "key": "favorites_file",
-      "label": "Favorites",
-      "type": "module_view",
-      "params": {
-        "favorites": true
-      },
-      "description": "The favorites as a file of their own, osdos-favorites.txt in the games folder: Export writes it, a copy to keep, to edit or to take to another OSD/OS, and Import adds the games it names"
-    },
-    {
-      "key": "check_roms",
-      "label": "Check ROMs",
-      "type": "module_view",
-      "params": {
-        "romCheck": true
-      },
-      "description": "Whether every game's files are whole, for MAME and for FinalBurn Neo: started here alone, as it reads every game's file\nA game missing files for one engine plays in the other, and its details say what it lacks"
-    },
-    {
-      "key": "rescan",
-      "label": "Read the Games Again",
-      "type": "action",
-      "action_slot": "rescan",
-      "done": "Reading the games again",
-      "description": "Ask MAME about every game in the folder again\nEvery game's pictures are then looked for too, as Pictures From allows, a game a second, in the background"
     }
   ]
 }

@@ -1,6 +1,6 @@
 # High Scores
 
-The High Scores module shows the high score tables of the arcade games played in the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module, as MAME kept them. It reads MAME's files on the device, with nothing online. It is off at first: turn it on in **Settings → Arcade → High Scores → Enabled**.
+The High Scores module shows the high score tables of the arcade games played in the [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade) module, as MAME kept them. It reads MAME's files on the device, with nothing online. It is off at first: turn it on with **Settings → Arcade → High Scores**, the last row of the page.
 
 <table>
 <tr><th width="50%">The games</th><th width="50%">All Games</th></tr>
@@ -14,7 +14,7 @@ The High Scores module shows the high score tables of the arcade games played in
 ## Setting it up
 
 1. **Play in Arcade**, with **Settings → Arcade → Save High Scores** on (the default; [Arcade → High scores](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#high-scores)). Leave a game with Coin and Start together, so MAME saves its table.
-2. **Turn it on**: **Settings → Arcade → High Scores → Enabled**. **High Scores** is then on the main menu.
+2. **Turn it on**: **Settings → Arcade → High Scores**, the page's last row. **High Scores** is then on the main menu.
 
 A build of your own needs minizip ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source)).
 
@@ -62,11 +62,11 @@ hi2txt's game definitions say how each game lays its table out in its file: 3,10
 
 ## Settings
 
-The module's row is on the Arcade module's page in Settings, under a **High Scores** heading.
+The module's row, **High Scores**, is its Enabled: it is at the foot of the Arcade module's page in Settings, under a **High Scores** heading.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Enabled | ON, OFF | OFF | Shows High Scores on the main menu | `modules.com.osdos.highscores.enabled` |
+| High Scores | ON, OFF | OFF | Shows High Scores on the main menu. Its tables need Arcade's Save High Scores on | `modules.com.osdos.highscores.enabled` |
 
 ## Files it keeps
 

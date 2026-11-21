@@ -561,19 +561,22 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 
 ## Settings
 
-Settings → Arcade. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose **Enabled** follows these rows under a **High Scores** heading. The rows marked † show while Screen is Arcade.
+Settings → Arcade. Enabled comes first, then the rows in groups under headings the cursor steps over: **Games**, **Arcade Screen**, **Playing**, **Scores and Pictures**, **Online and LAN** and **Emulators**. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose Enabled, a row named **High Scores**, follows them under a **High Scores** heading. The rows marked † can be used while Screen is Arcade, and are dimmed otherwise.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Enabled | ON, OFF | OFF | Shows Arcade on the main menu | `modules.com.osdos.arcade.enabled` |
+| Enabled | ON, OFF | OFF | Shows Arcade on the main menu. The games need MAME, and FinalBurn Neo's RetroArch | `modules.com.osdos.arcade.enabled` |
+| **GAMES** | | | | |
 | Games Folder | Default, or a folder | Default | The folder of ROM sets ([Setting it up](#setting-it-up)) | `modules.com.osdos.arcade.games_directory` |
 | Hide Hacks and Bootlegs | ON, OFF | OFF | Hides bootleg and hack sets ([Filters](#filters)) | `modules.com.osdos.arcade.hide_bootlegs` |
 | Hide Incomplete Games | ON, OFF | OFF | Hides the games Check ROMs found incomplete | `modules.com.osdos.arcade.hide_incomplete` |
 | Regions | Each region ON or OFF | All ON | Hides a region's sets ([Filters](#filters)) | `modules.com.osdos.arcade.regions` |
+| Read the Games Again | (action) | | [Reading the games](#reading-the-games) | |
+| Favorites, Check ROMs | (pages) | | [Favorites as a file](#favorites-as-a-file), [Check ROMs](#check-roms) | |
+| **ARCADE SCREEN** | | | | |
 | Screen | Original, Arcade | Arcade | The tree, or the Arcade screen | `modules.com.osdos.arcade.screen` |
 | Start Filter † | All Games, a list, LAN Games, Online Games, RetroArch Lobby, a genre, a number of players, a decade or a publisher | All Games | The filter the Arcade screen opens on | `modules.com.osdos.arcade.start_filter` |
 | Menu Filters † | Each filter ON or OFF | All ON, the publishers OFF | The filters ◄ ► goes round | `modules.com.osdos.arcade.menu_filters` |
-| Play at Startup | None, then the favorites | None | A favorite started as OSD/OS starts | `modules.com.osdos.arcade.play_at_startup` |
 | List Style † | Straight, Curved, 3D Curved | Curved | How the Arcade screen's games lie | `modules.com.osdos.arcade.list_style` |
 | Border † | ON, OFF | ON | The frames round the picture and the box | `modules.com.osdos.arcade.border` |
 | Info Background † | A slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | 100 (SOLID) | How much of the Background Effect shows under the picture and the box | `modules.com.osdos.arcade.info_background` |
@@ -581,23 +584,26 @@ Settings → Arcade. The page is shared with the [High Scores](https://github.co
 | Hint Bar † | ON, OFF | ON | The keys at the foot of the Arcade screen | `modules.com.osdos.arcade.hint_bar` |
 | Help Line † | ON, OFF | ON | The line under the list | `modules.com.osdos.arcade.help_line` |
 | Attract Mode † | Off, In Order, Random | Off | The Arcade screen goes through its games when left alone | `modules.com.osdos.arcade.attract_mode` |
-| Attract After | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the screen is left alone first. Shown while Attract Mode isn't Off | `modules.com.osdos.arcade.attract_after` |
+| Attract After † | 30 Seconds, 1 Minute, 2 Minutes, 5 Minutes | 1 Minute | How long the screen is left alone first. Dimmed while Attract Mode is Off ("Only with Attract Mode on") | `modules.com.osdos.arcade.attract_after` |
+| **PLAYING** | | | | |
 | Start Info Screen | ON, OFF | ON | The screen before a game ([Playing](#playing)) | `modules.com.osdos.arcade.start_info` |
 | Play Mode | Credits, Free Play | Credits | COIN buys credits, or every game starts with 9 | `modules.com.osdos.arcade.play_mode` |
+| Play at Startup | None, then the favorites | None | A favorite started as OSD/OS starts: the same setting as Settings → Startup → Play at Startup, one for the whole of OSD/OS | `modules.com.osdos.arcade.play_at_startup` |
+| **SCORES AND PICTURES** | | | | |
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables ([High scores](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
-| Online High Scores | Off, RetroAchievements | Off | FinalBurn Neo's games play in hardcore mode, their scores going to RetroAchievements | `modules.com.osdos.arcade.online_high_scores` |
+| Online High Scores | Off, RetroAchievements | Off | FinalBurn Neo's games play in hardcore mode, with no save states, as RetroAchievements' leaderboards take only those; their scores go to RetroAchievements | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (page) | | Sign in and out, and the Web API key ([FinalBurn Neo](#finalburn-neo)) | |
 | Pictures From | RetroAchievements, then progetto-SNAPS; RetroAchievements; progetto-SNAPS; Off | RetroAchievements, then progetto-SNAPS | Where pictures are downloaded from | `modules.com.osdos.arcade.pictures_source` |
 | Game Pictures | (page) | | How many games have a picture, and Download Pictures | |
+| **ONLINE AND LAN** | | | | |
 | Online Play | Off, On | Off | Play over the internet, in FinalBurn Neo | `modules.com.osdos.arcade.online_play` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from. Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |
 | LAN Play | Off, On | Off | Play on the same network, in FinalBurn Neo | `modules.com.osdos.arcade.lan_play` |
 | LAN Sync | Smooth, Responsive | Smooth | How a game you host keeps its machines together. **Smooth**: the joiners follow the host, so host on the fastest machine, on a cable. **Responsive**: every machine plays ahead, with a frame of input latency ([Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)). Shown while LAN Play is On | `modules.com.osdos.arcade.lan_sync` |
 | Online Name | (on-screen keyboard) | Online, the RetroAchievements account's, else OSD-OS; on the local network, the device's name | The name the others see. Shown while Online Play or LAN Play is On | `modules.com.osdos.arcade.online_name` |
+| **EMULATORS** | | | | |
 | MAME, FinalBurn Neo | (pages) | | [MAME's page](#mames-page), [The core and RetroArch](#the-core-and-retroarch) | |
 | Emulator Video | (page) | | Five settings ([Emulator Video](#emulator-video)) | |
-| Favorites, Check ROMs | (pages) | | [Favorites as a file](#favorites-as-a-file), [Check ROMs](#check-roms) | |
-| Read the Games Again | (action) | | [Reading the games](#reading-the-games) | |
 
 ### How the values are saved
 

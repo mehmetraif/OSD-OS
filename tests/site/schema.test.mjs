@@ -332,6 +332,30 @@ test("the modules in the main menu's order", () => {
     assert.deepEqual(startOn, menu);
 });
 
+test("Arcade's rows without the headings Settings groups them under, each shown as the app has it", () => {
+    const arcade = schema.modules.find(m => m.id === "com.osdos.arcade").settings;
+    // The manifest's "section" rows are the device's headings alone.
+    assert.ok(arcade.every(r => r.key !== undefined || r.type === "heading"));
+    assert.ok(!arcade.some(r => ["Games", "Arcade Screen", "Online and LAN"].includes(r.label)));
+    const attract = arcade.find(r => r.key === "attract_after");
+    assert.deepEqual(attract.shown_with, { key: "screen", value: "Arcade" });
+    assert.deepEqual(attract.shown_unless, { key: "attract_mode", value: "Off" });
+    // A condition on the theme isn't passed on.
+    assert.equal(arcade.find(r => r.key === "list_style").shown_unless, undefined);
+
+    // On the device, Enabled and then the groups' headings, in order, with
+    // High Scores' own row named so, and a help line on every row.
+    const read = dir => JSON.parse(readFileSync(join(root, "modules", dir, "manifest.json"), "utf8")).settings;
+    const rows = read("arcade");
+    assert.equal(rows[0].key, "enabled");
+    assert.deepEqual(rows.filter(r => r.type === "section").map(r => r.label),
+                     ["Games", "Arcade Screen", "Playing", "Scores and Pictures", "Online and LAN", "Emulators"]);
+    assert.equal(read("highscores")[0].label, "High Scores");
+    const walk = list => list.flatMap(r => [r, ...walk(r.settings || [])]);
+    for (const row of walk(rows).concat(read("highscores")).filter(r => r.type !== "section"))
+        assert.ok(row.description, `${row.key} has a help line`);
+});
+
 test("defaults are among the values, and rows show with rows that are there", () => {
     const scopes = [["app", appRows], ...schema.modules.map(m => [m.id, m.settings])];
     for (const [scope, rows] of scopes) {
