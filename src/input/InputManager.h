@@ -117,8 +117,9 @@ public:
     static QString allKeys();
 
     // One controller's page: { key, name, kind, present, count, labels,
-    // labelsInUse, jamma, arcade, players, player, rows }; labels the style
-    // chosen ("auto"...), labelsInUse the one shown (a pad's, by its title);
+    // labelsInUse, labelStyles, jamma, arcade, players, player, rows }; labels
+    // the style chosen ("auto"...), labelsInUse the one shown (a pad's, by its
+    // title), labelStyles a pad's choices (controllers::labelStyles());
     // jamma the JAMMA board's player (1, 2) for its sticks, else 0; arcade
     // its Game Buttons' layout, by its title ("" for a controller that isn't
     // a pad); players the numbers a pad plays as now, player the one chosen

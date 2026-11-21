@@ -1756,6 +1756,7 @@ QVariantMap InputManager::controllerPage(const QString &key) const {
                         { QStringLiteral("player"), isPad ? int(m_playerKeys.indexOf(key)) + 1 : 0 },
                         { QStringLiteral("labels"), controllers::labelStyleName(profile.labels) },
                         { QStringLiteral("labelsInUse"), isPad ? controllers::labelStyleTitle(pad.labels) : QString() },
+                        { QStringLiteral("labelStyles"), isPad ? controllers::labelStyles() : QVariantList() },
                         { QStringLiteral("jamma"), isPad ? jammaPlayer(pad) : 0 },
                         { QStringLiteral("arcade"), isPad ? controllers::arcadeLayoutTitle(arcadeLayoutOf(key)) : QString() },
                         { QStringLiteral("rows"), rows } };

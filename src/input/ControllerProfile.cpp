@@ -338,11 +338,12 @@ QString labelStyleTitle(LabelStyle style) {
     return QLatin1String(kStyles[int(style)].title);
 }
 
-QStringList labelStyleNames() {
-    QStringList names;
+QVariantList labelStyles() {
+    QVariantList styles;
     for (const Style &s : kStyles)
-        names << QLatin1String(s.name);
-    return names;
+        styles << QVariantMap{ { QStringLiteral("style"), QLatin1String(s.name) },
+                               { QStringLiteral("title"), QLatin1String(s.title) } };
+    return styles;
 }
 
 QString inputLabel(LabelStyle style, const QString &token) {

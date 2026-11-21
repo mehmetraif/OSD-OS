@@ -36,9 +36,6 @@ FocusScope {
     // Its name as last seen: kept once a reset leaves nothing of one away.
     property string name: ""
 
-    readonly property var styles: ["auto", "a_below", "a_right", "shapes", "numbers"]
-    readonly property var styleTitles: ({ auto: "Auto", a_below: "A below", a_right: "A right",
-                                          shapes: "Shapes", numbers: "Numbers" })
     // The layouts a JAMMA stick's test names the board's pins by.
     readonly property var pinLayouts: ["OSD/OS", "Crown, CHAMMA", "JammaPi"]
     property int pinLayout: 0
@@ -63,10 +60,20 @@ FocusScope {
         function onPlayersChanged() { pageRoot.refresh() }
     }
 
+    // The label styles, in the order ◄ ► steps through them.
+    function styles() {
+        return (page.labelStyles || []).map(function(s) { return s.style })
+    }
+
     function labelsValue() {
         if (page.labels === "auto" || !page.labels)
             return page.labelsInUse ? "Auto (" + page.labelsInUse + ")" : "Auto"
-        return styleTitles[page.labels] || page.labels
+        var all = page.labelStyles || []
+        for (var i = 0; i < all.length; i++) {
+            if (all[i].style === page.labels)
+                return all[i].title
+        }
+        return page.labels
     }
 
     // "AUTO (1)", "AUTO" for one that plays as no one, "2" chosen by hand.
@@ -117,8 +124,11 @@ FocusScope {
     }
 
     function cycleLabels(step) {
-        var i = styles.indexOf(page.labels || "auto")
-        if (!inputManager.setControllerLabels(key, styles[((i < 0 ? 0 : i) + step + styles.length) % styles.length]))
+        var all = styles()
+        if (all.length === 0)
+            return
+        var i = all.indexOf(page.labels || "auto")
+        if (!inputManager.setControllerLabels(key, all[((i < 0 ? 0 : i) + step + all.length) % all.length]))
             notice = ControlsText.notSaved
     }
 

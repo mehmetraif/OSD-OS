@@ -67,7 +67,16 @@ StandInRoot {
         function copyOf(map) { return JSON.parse(JSON.stringify(map || {})) }
         function note(call) { calls = calls.concat([call]) }
         function last() { return calls[calls.length - 1] }
-        function controllerPage(key) { return copyOf(pages[key]) }
+        // A pad's label styles, in InputManager's order.
+        readonly property var labelStyles: [{ style: "auto", title: "Auto" }, { style: "a_below", title: "A below" },
+                                            { style: "a_right", title: "A right" }, { style: "shapes", title: "Shapes" },
+                                            { style: "numbers", title: "Numbers" }]
+        function controllerPage(key) {
+            var page = copyOf(pages[key])
+            if (key.indexOf("pad-") === 0)
+                page.labelStyles = copyOf(labelStyles)
+            return page
+        }
         // A wait, and how long its page said it lasts (0 once it is over):
         // InputManager listens for that long.
         property int captureSeconds: 0

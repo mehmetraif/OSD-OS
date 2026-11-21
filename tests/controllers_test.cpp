@@ -241,8 +241,13 @@ private slots:
         QCOMPARE(controllers::labelStyleTitle(S::ABelow), QString("A below"));
         QCOMPARE(inputLabel(S::Shapes, "guide"), QString("HOME"));
         QCOMPARE(controllers::labelStyleFromName("bogus"), S::Auto);
-        QCOMPARE(controllers::labelStyleNames(),
-                 QStringList({ "auto", "a_below", "a_right", "shapes", "numbers" }));
+        QStringList names, titles;
+        for (const QVariant &style : controllers::labelStyles()) {
+            names << style.toMap().value("style").toString();
+            titles << style.toMap().value("title").toString();
+        }
+        QCOMPARE(names, QStringList({ "auto", "a_below", "a_right", "shapes", "numbers" }));
+        QCOMPARE(titles, QStringList({ "Auto", "A below", "A right", "Shapes", "Numbers" }));
     }
 
     void profileAsKept() {
@@ -577,6 +582,7 @@ private slots:
         QCOMPARE(page.value("name").toString(), QString("OSD/OS Test Pad"));
         QCOMPARE(page.value("labels").toString(), QString("auto"));
         QCOMPARE(page.value("labelsInUse").toString(), QString("A below"));
+        QCOMPARE(page.value("labelStyles").toList(), controllers::labelStyles());
         QCOMPARE(rowValue(page, "select"), QString("A"));
         QCOMPARE(rowValue(page, "back"), QString("B, BACK"));
         QCOMPARE(rowValue(page, "up"), QString("D-PAD ▲, L STICK ▲"));

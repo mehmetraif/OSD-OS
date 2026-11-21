@@ -28,8 +28,9 @@ enum class LabelStyle { Auto, ABelow, ARight, Shapes, Numbers };
 LabelStyle labelStyleFromName(const QString &name);
 QString labelStyleName(LabelStyle style);
 QString labelStyleTitle(LabelStyle style);
-// In the order Settings offers them.
-QStringList labelStyleNames();
+// In the order Settings offers them, as a pad's page has them (Button
+// Names): [{ style (its name), title }].
+QVariantList labelStyles();
 // A pad's input, input.cfg's token for it ("a", "dpup", "leftx-",
 // "lefttrigger+"), as that style prints it. Auto isn't one: InputManager
 // makes it one of the four first.
