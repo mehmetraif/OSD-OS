@@ -1262,19 +1262,22 @@ FocusScope {
                     select(shrinking ? "EXPAND" : "SHRINK"), { key: "HOLD", word: "RESET" }]
         if (typing)
             return [back("DONE"), { key: h.arrows, word: "MOVE" }, select("TYPE")]
+        // No BACK where it goes nowhere: the start module under Cabinet
+        // Lock (Main.qml's leavingBarred).
+        var leave = root.leavingBarred ? [] : [back("BACK")]
         if (filters.length === 0 || !current)
-            return [back("BACK")]
+            return leave
         if (onSearch)
-            return [back("BACK"), select("SEARCH")]
+            return leave.concat([select("SEARCH")])
         if (lobbyRoom)
-            return [back("BACK")].concat(lobbyRoom.joinable ? [select("JOIN"), { key: "HOLD", word: "DETAILS" }]
-                                                            : [select("DETAILS")])
+            return leave.concat(lobbyRoom.joinable ? [select("JOIN"), { key: "HOLD", word: "DETAILS" }]
+                                                   : [select("DETAILS")])
         if (current.room !== undefined)
-            return [back("BACK"), select("JOIN")]
+            return leave.concat([select("JOIN")])
         if (current.unknown)
-            return [back("BACK")]
-        return [back("BACK")].concat(buysCredits ? [{ key: h.coin, word: "COIN" }] : [])
-                             .concat([select("PLAY"), { key: "HOLD", word: "OPTIONS" }])
+            return leave
+        return leave.concat(buysCredits ? [{ key: h.coin, word: "COIN" }] : [])
+                    .concat([select("PLAY"), { key: "HOLD", word: "OPTIONS" }])
     }
     HintBar {
         id: hintLine

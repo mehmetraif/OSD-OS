@@ -575,6 +575,7 @@ StandInRoot {
 
         function cleanup() {
             loader.source = ""
+            root.leavingBarred = false
             moduleRoot.attractMode = "Off"
             moduleRoot.attractAfter = 60
         }
@@ -616,6 +617,29 @@ StandInRoot {
             compare(nav.params.title, "Pac-Man (Midway)")
             // Back from the game lands where it was chosen.
             compare(nav.listState.trail[nav.listState.trail.length - 1].path, "all")
+        }
+
+        // Under Cabinet Lock, with the Arcade the start module, back from
+        // its first view goes nowhere: neither screen offers it there, the
+        // tree still in a folder, where back goes up.
+        function test_cabinetLockBack() {
+            root.leavingBarred = true
+            var screen = openScreen()
+            tryVerify(function() { return screen.currentSet === "sf2" })
+            verify(findText(screen, "[5]:COIN [ENTER]:PLAY HOLD:OPTIONS", true) !== null)
+            compare(findText(screen, ":BACK"), null)
+            loader.source = ""
+            var games = open("Games.qml")
+            verify(findText(games, ":NAVIGATE") !== null)
+            compare(findText(games, ":BACK"), null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)   // All Games
+            keyClick(Qt.Key_Right)  // into it
+            verify(findText(games, "[ESC]:BACK ") !== null)
+            loader.source = ""
+            root.leavingBarred = false
+            games = open("Games.qml")
+            verify(findText(games, "[ESC]:BACK ") !== null)
         }
 
         // What stands in the way comes first in the line under the tree,

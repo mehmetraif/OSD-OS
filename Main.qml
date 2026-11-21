@@ -1034,6 +1034,10 @@ Window {
         return cabinetLockOn && !cabinetUnlocked && inputManager.unlockButtons !== ""
                && appCore.startupModuleEntryPoint() !== ""
     }
+    // The start module open under the lock, where back at its first view
+    // goes nowhere (onGoBack): that view leaves BACK out of its hints.
+    readonly property bool leavingBarred: cabinetLocked() && appCore.moduleIdForSource(moduleLoader.source.toString())
+                                          === appCore.get_setting("", "startup_module")
     // The Start on Module alone above the main menu, as at startup.
     function openHome() {
         var entry = appCore.startupModuleEntryPoint()

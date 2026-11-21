@@ -225,7 +225,9 @@ FocusScope {
         readonly property var entry: tree.currentEntry
         readonly property bool onRoom: !!entry && entry.room !== undefined
         readonly property bool onGame: !!entry && !!entry.game && !onRoom
-        text: root.hints.back + ":BACK "
+        // BACK at the top goes nowhere under Cabinet Lock (Main.qml's
+        // leavingBarred), and isn't offered there.
+        text: (tree.active > 0 || !root.leavingBarred ? root.hints.back + ":BACK " : "")
               + (onGame ? String(root.hints.navigate).replace("]", "◄]") + ":NAVIGATE "
                           + root.hints.browse + ":OPTIONS "
                         : root.hints.arrows + ":NAVIGATE ")

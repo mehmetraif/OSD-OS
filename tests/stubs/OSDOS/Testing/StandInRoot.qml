@@ -116,6 +116,8 @@ Rectangle {
     // Main.qml has them.
     function isBack(event) { return Hints.isBack(event) }
     function hintLine(parts) { return Hints.line(hints, parts) }
+    // No Cabinet Lock: back leaves the start module (a test sets it).
+    property bool leavingBarred: false
 
     // --- A VIDEO ---
     // None playing, none behind the menus, the screen the app's own.
