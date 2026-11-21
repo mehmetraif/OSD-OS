@@ -284,9 +284,10 @@ ModuleRouter {
         onTriggered: if (idleTracker) idleTracker.resetActivity()
     }
 
-    // Game Details or a room's page, over the list (openPage()). A game
-    // asked for from it plays as one from the list does, the page there
-    // again when it ends.
+    // Game Details or a room's page, over the list (openPage()), or the
+    // RetroAchievements Account page Game Details opens for its Web API
+    // key. A game asked for from it plays as one from the list does, the
+    // page there again when it ends.
     Loader {
         id: pageLayer
         objectName: "pageLayer"
@@ -301,8 +302,19 @@ ModuleRouter {
             function onNavigateTo(path, params) {
                 if (path === "Play.qml" && params && params.game)
                     moduleRoot.playGame(params)
+                else if (path === "Account.qml")
+                    moduleRoot.openPage(path, params)
             }
-            function onGoBack() { moduleRoot.closePage() }
+            // A page opened from another over the list (Game Details'
+            // RetroAchievements Account, its backTo): back is that page
+            // again; else the list.
+            function onGoBack() {
+                var from = pageLayer.item && pageLayer.item.navParams ? pageLayer.item.navParams.backTo : null
+                if (from && from.path)
+                    moduleRoot.openPage(from.path, from.params)
+                else
+                    moduleRoot.closePage()
+            }
         }
     }
 

@@ -368,10 +368,12 @@ A desktop's monitor is turned in the system's display settings; OSD/OS then lays
 - **The list**: **Earned**, then **Not Earned**. The help line says what the selected one asks for, and `Earned 2026-03-14 in Hardcore` or `Not Earned Yet`.
 - **The badges** are saved in the games folder's `snap` folder as `achieve_sf2_12345.png` (`achieve_sf2_12345_lock.png` for the grey one).
 
-The achievements are read with the account's **Web API Key**, and its **User** for which you have earned ([FinalBurn Neo](#finalburn-neo)). Without them the page says why:
+The achievements are read with the account's **Web API Key**, and its **User Name** for which you have earned ([FinalBurn Neo](#finalburn-neo)). Without them the page says why:
 
-- `No Web API key: Settings, Arcade, RetroAchievements Account`
+- `Achievements need a Web API key`
 - `RetroAchievements refused the Web API key`
+
+With either of those two, **►** (`[►]:SET KEY`) opens **Settings → Arcade → RetroAchievements Account** over the list, and back from it returns to Game Details, the achievements read again. Not while [Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings) keeps Settings shut.
 - `RetroAchievements could not be reached`
 - `RetroAchievements has no achievements for this game`
 

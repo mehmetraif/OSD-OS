@@ -1958,16 +1958,30 @@ StandInRoot {
         // Why there are none: no key, a key refused, RetroAchievements not
         // reached, a game it has none of; with no user to say which were
         // earned, all under one heading, each badge in colour.
+        // Without a key, or with one refused, ► goes to the page it is typed
+        // on (and the hint bar says so), select still plays; with neither,
+        // ► does nothing and the hint names no such key.
         function test_detailsWithout() {
-            var cases = [["nokey", "No Web API key: Settings, Arcade, RetroAchievements Account"],
-                         ["refused", "RetroAchievements refused the Web API key"],
-                         ["failed", "RetroAchievements could not be reached"],
-                         ["none", "RetroAchievements has no achievements for this game"]]
+            var cases = [["nokey", "Achievements need a Web API key", true],
+                         ["refused", "RetroAchievements refused the Web API key", true],
+                         ["failed", "RetroAchievements could not be reached", false],
+                         ["none", "RetroAchievements has no achievements for this game", false]]
             var details
             for (var i = 0; i < cases.length; ++i) {
                 arcadeBackend.achievementsData = { sf2: { state: cases[i][0] } }
+                root.navigations = []
                 details = open("Details.qml", { game: "sf2", title: "Street Fighter II" })
                 verify(findText(details, cases[i][1], true) !== null, cases[i][0])
+                compare(findText(details, "[►]:SET KEY") !== null, cases[i][2], cases[i][0])
+                keyClick(Qt.Key_Right)
+                if (cases[i][2]) {
+                    compare(root.navigations.length, 1, cases[i][0])
+                    compare(root.navigations[0].path, "Account.qml")
+                    compare(root.navigations[0].params.backTo.path, "Details.qml")
+                    compare(root.navigations[0].params.backTo.params.game, "sf2")
+                } else {
+                    compare(root.navigations.length, 0, cases[i][0])
+                }
                 loader.source = ""
             }
             arcadeBackend.achievementsData = { sf2: { state: "ready", progress: false, achievements: [
@@ -3830,6 +3844,33 @@ StandInRoot {
             verify(screen.attractable)
             keyClick(Qt.Key_Down)
             compare(screen.currentSet, "1942")
+            compare(root.backs, 0)
+        }
+
+        // Game Details without a Web API key: ► opens the RetroAchievements
+        // Account page over the list in its place, and back from it is Game
+        // Details again, for the same game; back from that, the list.
+        function test_rootDetailsToAccount() {
+            arcadeBackend.achievementsData = { sf2: { state: "nokey" } }
+            var router = openRoot({ screen: "Arcade" })
+            var screen = shown(router)
+            var page = findChild(router, "pageLayer")
+            keyPress(Qt.Key_Return)
+            tryVerify(function() { return findText(screen, "Game Details", true) !== null }, 1500)
+            keyRelease(Qt.Key_Return)
+            keyClick(Qt.Key_Down)   // Game Details
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return page.item !== null && String(page.source).indexOf("Details.qml") >= 0 })
+            keyClick(Qt.Key_Right)
+            tryVerify(function() { return String(page.source).indexOf("Account.qml") >= 0 })
+            tryVerify(function() { return page.item !== null && page.item.activeFocus })
+            verify(findText(page.item, "Not Signed In", true) !== null)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return String(page.source).indexOf("Details.qml") >= 0 })
+            tryVerify(function() { return page.item !== null && page.item.game === "sf2" })
+            keyClick(Qt.Key_Escape)
+            tryCompare(page, "item", null)
+            verify(screen.visible)
             compare(root.backs, 0)
         }
 
