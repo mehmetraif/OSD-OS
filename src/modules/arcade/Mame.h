@@ -137,6 +137,14 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
 // game's width across them.
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer,
                             bool fill = false, const QString &monitor = QString());
+// A monitor turned on its side, as Settings → Screen → Monitor, Vertical
+// Games and a game's own options name it; isTurned(): whether a value is
+// either (else Horizontal, or a game's Default).
+inline constexpr QLatin1String kTurnedRight("Turned Right");
+inline constexpr QLatin1String kTurnedLeft("Turned Left");
+inline bool isTurned(const QString &monitor) {
+    return monitor == kTurnedRight || monitor == kTurnedLeft;
+}
 
 // A set's file or folder name MAME may know: letters, digits and underscores
 // only. Anything else (a space, a wildcard MAME would match against every

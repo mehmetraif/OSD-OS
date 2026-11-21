@@ -640,7 +640,7 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_fitScreen = value.toString() == QLatin1String("Fit to Screen");
     } else if (key == QLatin1String("vertical_monitor")) {
         const QString turn = value.toString();
-        m_verticalMonitor = turn == QLatin1String("Turned Right") || turn == QLatin1String("Turned Left") ? turn : QString();
+        m_verticalMonitor = mame::isTurned(turn) ? turn : QString();
     } else if (key == QLatin1String("menu_filters")) {
         // Saved whole at every change (MultiSelectSettings.qml).
         m_menuFilters = value.toMap();
@@ -2633,7 +2633,7 @@ QString ArcadeBackend::screenShape() const {
 QString ArcadeBackend::screenMonitor() const {
     const QString monitor = m_appCore ? m_appCore->get_setting(QString(), QStringLiteral("monitor")).toString()
                                       : QString();
-    return monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left") ? monitor : QString();
+    return mame::isTurned(monitor) ? monitor : QString();
 }
 
 QString ArcadeBackend::monitorFor(const QString &set) const {
@@ -2641,7 +2641,7 @@ QString ArcadeBackend::monitorFor(const QString &set) const {
     if (!monitor.isEmpty())
         return monitor;
     const QString own = m_monitors.value(set).toString();
-    if (own == QLatin1String("Turned Right") || own == QLatin1String("Turned Left"))
+    if (mame::isTurned(own))
         return own;
     return gameAspect(set) < 1.0 ? m_verticalMonitor : QString();
 }
@@ -2800,11 +2800,11 @@ QVariantList ArcadeBackend::monitorChoices(const QString &set) const {
     if (!screenMonitor().isEmpty() || !m_sets.contains(set) || !(gameAspect(set) < 1.0))
         return {};
     QString chosen = m_monitors.value(set).toString();
-    if (chosen != QLatin1String("Turned Right") && chosen != QLatin1String("Turned Left"))
+    if (!mame::isTurned(chosen))
         chosen = QStringLiteral("default");
     const QString byDefault = m_verticalMonitor.isEmpty() ? QStringLiteral("Horizontal") : m_verticalMonitor;
     QVariantList out;
-    for (const QString &id : { QStringLiteral("default"), QStringLiteral("Turned Right"), QStringLiteral("Turned Left") })
+    for (const QString &id : { QStringLiteral("default"), QString(mame::kTurnedRight), QString(mame::kTurnedLeft) })
         out << QVariantMap{ { QStringLiteral("id"), id },
                             { QStringLiteral("label"), id == QLatin1String("default")
                                                            ? QStringLiteral("Default (%1)").arg(byDefault) : id },
@@ -2967,7 +2967,7 @@ void ArcadeBackend::setMonitor(const QString &set, const QString &monitor) {
     if (!m_appCore || !mame::isShortName(set))
         return;
     QVariantMap monitors = m_monitors;
-    if (monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left"))
+    if (mame::isTurned(monitor))
         monitors.insert(set, monitor);
     else
         monitors.remove(set);
@@ -3165,7 +3165,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // game Emulator Video → Vertical Games): the picture a quarter turn
     // against it, its shape on the screen the other way round.
     const QString turn = monitorFor(name);
-    launch.rotation = turn == QLatin1String("Turned Right") ? 1 : turn == QLatin1String("Turned Left") ? 3 : 0;
+    launch.rotation = turn == mame::kTurnedRight ? 1 : turn == mame::kTurnedLeft ? 3 : 0;
     const double shown = launch.rotation % 2 ? 1.0 / gameAspect(name) : gameAspect(name);
     const QString shape = screenShape();
     if (!shape.isEmpty())

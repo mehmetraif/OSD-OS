@@ -512,9 +512,9 @@ QByteArray withDip(const QByteArray &cfg, const QString &system, const Dip &dip,
 QStringList screenArguments(const Machine &machine, int screenLines, const QString &shape, bool integer, bool fill,
                             const QString &monitor) {
     QStringList args;
-    const bool turned = monitor == QLatin1String("Turned Right") || monitor == QLatin1String("Turned Left");
+    const bool turned = isTurned(monitor);
     if (turned)
-        args << (monitor == QLatin1String("Turned Right") ? QStringLiteral("-rol") : QStringLiteral("-ror"));
+        args << (monitor == kTurnedRight ? QStringLiteral("-rol") : QStringLiteral("-ror"));
     if (fill)
         return args << QStringLiteral("-nokeepaspect");
     if (!shape.isEmpty())
