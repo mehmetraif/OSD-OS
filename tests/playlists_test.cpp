@@ -283,6 +283,8 @@ private slots:
                     answered << path;
                     socket->write(path.contains(QLatin1String("/refused/"))
                                       ? QByteArray("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                                  : path.contains(QLatin1String("/missing/"))
+                                      ? QByteArray("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                                       : QByteArray("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 4\r\n"
                                                    "Connection: close\r\n\r\nfilm"));
                     socket->disconnectFromHost();
@@ -308,11 +310,16 @@ private slots:
         };
         QVERIFY(add("abc123", "Film"));
         QVERIFY(add("refused", "Refused"));
+        QVERIFY(add("missing", "Missing"));
 
         // Nothing answers: both fail, saying what the network did.
         QTRY_COMPARE_WITH_TIMEOUT(item(0, "state"), QStringLiteral("failed"), 10000);
         QTRY_COMPARE_WITH_TIMEOUT(item(1, "state"), QStringLiteral("failed"), 10000);
         QVERIFY(item(0, "reason") != QLatin1String("not allowed"));
+        // In a few words, never the address asked: shown, saved and logged.
+        QVERIFY2(!item(0, "reason").isEmpty() && !item(0, "reason").contains(QLatin1String("127.0.0.1"))
+                     && !item(0, "reason").contains(QLatin1String("abc123")),
+                 qPrintable(item(0, "reason")));
         QVERIFY(answered.isEmpty());
         // Tried again a while later, the network still down: failed again,
         // and the next wait is a longer one.
@@ -331,6 +338,9 @@ private slots:
         // for Retry Downloads: nothing waits to be tried again.
         QTRY_COMPARE_WITH_TIMEOUT(item(1, "reason"), QStringLiteral("not allowed"), 10000);
         QCOMPARE(answered.count(QStringLiteral("/Items/refused/Download")), 1);
+        // What the server hasn't: its status, not Qt's text with the address.
+        QTRY_COMPARE_WITH_TIMEOUT(item(2, "reason"), QStringLiteral("HTTP 404 Not Found"), 10000);
+        QCOMPARE(answered.count(QStringLiteral("/Items/missing/Download")), 1);
         QVERIFY(playlists.m_retryKeys.isEmpty());
         QVERIFY(!playlists.m_retryTimer->isActive());
         // A download made: the next failure waits the first while again.
