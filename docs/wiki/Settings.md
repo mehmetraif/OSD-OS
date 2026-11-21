@@ -493,15 +493,15 @@ Marks in the table: \* only with Screen on Arcade; † only once signed in.
 | [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `com.osdos.emby` | Enabled, Sign In, Server Address, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Intro Skip†, Credit Skip†, Scaling, Sign Out† |
 | [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) | `com.osdos.highscores` | Enabled, the row named **High Scores** on the Arcade page under the **HIGH SCORES** heading |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin) | `com.osdos.jellyfin` | Enabled, Sign In, Server Address, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Intro Skip† and Credit Skip† (where the server has the Intro Skipper plugin), Scaling, Sign Out† |
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Enabled, Media Folder, Loop Playback, Shuffle Playback, Resume Playback, Subtitles, Subtitle Language, Image Duration, Hide File Extensions, Scaling |
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | `com.osdos.local_files` | Enabled, Media Folder, Loop Playback, Shuffle Playback, Resume Playback, Subtitles, Subtitles In, Image Duration, Hide File Extensions, Scaling |
 | [Netflix](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.netflix` | Enabled, Sign In, TMDB Key, Catalog Region, Catalog Language, Scaling, Sign Out† |
-| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `com.osdos.nfc_reader` | Enabled, Cards Folder, Resume Playback, YouTube Resolution, Subtitles, Subtitle Language, Scaling |
+| [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `com.osdos.nfc_reader` | Enabled, Cards Folder, Resume Playback, YouTube Resolution, Subtitles, Subtitles In, Scaling |
 | [Playlists](https://github.com/mehmetraif/OSD-OS/wiki/Playlists) | `com.osdos.playlists` | Enabled, Download Folder, Subtitles, Loop Playback, Scaling |
 | [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `com.osdos.plex` | Enabled, Sign In, Current User†, Auto Sign In†, Server†, Libraries†, Video Quality†, Resume Playback†, Autoplay Next Episode†, Scaling, Sign Out† |
 | [Prime Video](https://github.com/mehmetraif/OSD-OS/wiki/Netflix-and-Prime-Video) | `com.osdos.prime_video` | Enabled, Sign In, TMDB Key, Catalog Region, Catalog Language, Scaling, Sign Out† |
 | [Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts) | `com.osdos.scripts` | Enabled, Scripts Folder, Auto-Run On Startup, Rescan Scripts |
 | [Weather](https://github.com/mehmetraif/OSD-OS/wiki/Weather) | `com.osdos.weather` | Enabled, Location, Other Locations, Screens, Music, Music List, Units, Time per Screen, Hours Format |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | Enabled, Sign In, Subscriptions, Playlists, Subtitles, Subtitle Language, Audio Language, Resume Playback, Scaling, Show Shorts, Advanced (Max Resolution, Video Codec, Max Frame Rate, Playback Speed), Delete Watch Later, Delete Recently Watched, Sign Out† |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `com.osdos.youtube` | Enabled, Sign In, Subscriptions, Playlists, Subtitles, Subtitles In, Audio Language, Resume Playback, Scaling, Show Shorts, Advanced (Max Resolution, Video Codec, Max Frame Rate, Playback Speed), Delete Watch Later, Delete Recently Watched, Sign Out† |
 
 Each module's wiki page explains its rows. A module's own **Scaling** is **Default** (follow Settings → TV / Movie → Scaling) or one of the four, for that module only.
 

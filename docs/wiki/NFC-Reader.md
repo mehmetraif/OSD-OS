@@ -205,7 +205,7 @@ Settings → TV / Movie → **NFC Reader**. The keys sit under `modules.com.osdo
 | Resume Playback | Ask, Always, Never | Ask | See [Resume](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader#resume). | `resume_playback` (`ask`, `yes`, `no`) |
 | YouTube Resolution | 480p, 720p, 1080p | 480p | The most a YouTube card plays at. | `playback_resolution` |
 | Subtitles | Off, Forced Only, On | Forced Only | **Off**: never. **Forced Only**: subtitles only for foreign dialogue. **On**: always. | `auto_subtitles` (`off`, `forced`, `on`) |
-| Subtitle Language | Any, or a language | Any | The subtitle language to prefer. | `sub_lang` (`-` for Any, else an ISO 639-1 code: `en`, `tr` …) |
+| Subtitles In | Any, or a language | Any | The subtitle language to prefer. | `sub_lang` (`-` for Any, else an ISO 639-1 code: `en`, `tr` …) |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in this module. Default follows Settings → TV / Movie → Scaling. | `video_scaling` |
 
 ## Files and config keys

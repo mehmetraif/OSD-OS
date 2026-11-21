@@ -238,8 +238,8 @@ Settings → TV / Movie → **Video Arguments** (`mpv_video_args` in `config.jso
 
 | Module | What its player adds |
 |---|---|
-| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Subtitle Language `--slang`; Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua` |
-| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from its Advanced settings; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*`, `write-auto-subs=` (On + Auto Captions) and, signed in, `cookies-from-browser=…`; `--speed=` for a Playback Speed other than 1x; `ytdl_hook-ytdl_path=` in the script options |
+| [Local Files](https://github.com/mehmetraif/OSD-OS/wiki/Local-Files) | Subtitles In `--slang`; Loop Playback `--loop-playlist=inf`; for a playlist, Shuffle `--shuffle` and `--playlist-start`; Image Duration `--image-display-duration`; for photos, `scripts/mpv-slideshow-redraw.lua` |
+| [YouTube](https://github.com/mehmetraif/OSD-OS/wiki/YouTube) | `--ytdl=yes`; `--ytdl-format=` from its Advanced settings; `--ytdl-raw-options=` with `write-subs=`, `sub-langs=<language>.*`, `write-auto-subs=` (On+Auto Captions) and, signed in, `cookies-from-browser=…`; `--speed=` for a Playback Speed other than 1x; `ytdl_hook-ytdl_path=` in the script options |
 | [NFC Reader](https://github.com/mehmetraif/OSD-OS/wiki/NFC-Reader) | `--ytdl=yes`, and a `--ytdl-format=` capped at its YouTube Resolution; subtitles as Local Files |
 | [Plex](https://github.com/mehmetraif/OSD-OS/wiki/Plex) | `--http-header-fields=X-Plex-Token:<token>`; `--aid`; `--sub-file`; `--tls-verify=no` for a server reached at `*.plex.direct` |
 | [Jellyfin](https://github.com/mehmetraif/OSD-OS/wiki/Jellyfin), [Emby](https://github.com/mehmetraif/OSD-OS/wiki/Emby) | `--http-header-fields=Authorization:MediaBrowser Token="<token>"`; `--aid` and `--sub-file` for a file played whole. A transcode adds `--script-opts-append=transcode-sub=…`, `sub-cycle=…`, `transcode-audio=…` and `audio-cycle=…` |
@@ -274,10 +274,10 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 | Forced subtitles only (dialogue in another language) | `--subs-with-matching-audio=forced --subs-fallback-forced=always` |
 | Subtitles on | `--subs-with-matching-audio=yes --subs-fallback=yes`, and `--sid=auto` when no subtitle file is given |
 | Subtitles off (or burnt in by a transcode) | `--sid=no` |
-| A language first | `--slang=<code>`: Local Files' and the NFC Reader's Subtitle Language (Any adds nothing), YouTube's Subtitle Language |
+| A language first | `--slang=<code>`: Local Files' and the NFC Reader's Subtitles In (Any adds nothing), YouTube's Subtitles In |
 | Subtitles in files beside the stream | `--sub-file=<url>` for each: a Plex, Jellyfin or Emby server's |
 
-- **Module settings**: Subtitles and Subtitle Language (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitle Language and Audio Language (YouTube). Each module's page has the values.
+- **Module settings**: Subtitles and Subtitles In (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitles In and Audio Language (YouTube). Each module's page has the values.
 - `--subs-with-matching-audio=forced` came with mpv 0.38, and an older mpv refuses to start with it. OSD/OS asks each mpv once (`mpv --list-options`) and gives one older than 0.38 `--subs-fallback-forced=always` alone, its nearest: a forced track in the audio's language, and nothing else.
 - A server's sidecar subtitles show their real names in the deck menu (`osdos-mpv-subinfo.json` in the run-time folder).
 - **How subtitles look** is mpv's: `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.

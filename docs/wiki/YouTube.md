@@ -207,7 +207,7 @@ Back during a video opens its menu; back again returns to the video.
 
 1. **Back to YouTube**: back to the tree.
 2. **Stop, to Main Menu**: ends the video and goes to the main menu.
-3. Subtitles, Subtitle Language, Audio Language, Playback Speed, Scaling and Max Resolution. ◄ ► change and save one. Video Codec and Max Frame Rate are in YouTube's settings, under **Advanced**.
+3. Subtitles, Subtitles In, Audio Language, Playback Speed, Scaling and Max Resolution. ◄ ► change and save one. Video Codec and Max Frame Rate are in YouTube's settings, under **Advanced**.
 4. **Add to Favorites**, **Play at Startup**, **Save to Watch Later** (or their opposites).
 
 With Transparent Background the video plays on under the menu; without it, the video stops for the menu ([Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-videos-own-menu)).
@@ -225,7 +225,7 @@ Settings → TV / Movie → YouTube → **Advanced**: the picture and the speed.
 | Max Frame Rate | Any, 30 | Any | **30**: 30 fps where a video also has 60. Lighter on a Pi. | `max_frame_rate` |
 | Playback Speed | 0.75x, 1x, 1.25x, 1.5x, 1.75x, 2x | 1x | | `playback_speed` |
 
-The first page holds the rest: Subtitles, Subtitle Language, Audio Language, Resume Playback, Scaling and Show Shorts ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#settings)).
+The first page holds the rest: Subtitles, Subtitles In, Audio Language, Resume Playback, Scaling and Show Shorts ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#settings)).
 
 A language code also matches its regional variants (`pt` takes `pt-BR`).
 
@@ -252,10 +252,10 @@ bestvideo[height<=?480][vcodec^=avc1]+bestaudio/bestvideo[height<=?480]+bestaudi
 | `--ytdl=yes` | Always. |
 | `--ytdl-format=<format>` | Always: the string above. |
 | `--script-opts=…,ytdl_hook-ytdl_path=<path>` | Always, with the yt-dlp [found above](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#how-osdos-finds-yt-dlp). |
-| `--ytdl-raw-options=write-subs=,sub-langs=<code>.*` | Subtitles On or On + Auto Captions. With Subtitle Language Any, `sub-langs=all,-live_chat`, or `sub-langs=.*-orig` with automatic captions. |
-| `…,write-auto-subs=` | Subtitles On + Auto Captions. |
+| `--ytdl-raw-options=write-subs=,sub-langs=<code>.*` | Subtitles On or On+Auto Captions. With Subtitles In Any, `sub-langs=all,-live_chat`, or `sub-langs=.*-orig` with automatic captions. |
+| `…,write-auto-subs=` | Subtitles On+Auto Captions. |
 | `…,cookies-from-browser=%<bytes>%<browser>:<profile>` | Once you have signed in. |
-| `--subs-with-matching-audio=yes --subs-fallback=yes --sid=auto --slang=<code>` | Subtitles On or On + Auto Captions. |
+| `--subs-with-matching-audio=yes --subs-fallback=yes --sid=auto --slang=<code>` | Subtitles On or On+Auto Captions. |
 | `--sid=no` | Subtitles Off. |
 | `--speed=<n>` | Playback Speed other than 1x. |
 
@@ -288,8 +288,8 @@ Settings → TV / Movie → **YouTube**:
 | Sign In | SIGNED IN or SIGNED OUT | | See [Signing in](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#signing-in). SIGNED IN while the sign-in's browser profile is kept. | |
 | Subscriptions | A list of lines, 50 at most | None | [Your channels](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#channels-and-subscriptions). Select ADD to type one; select a line to change it or take it out. | `modules.com.osdos.youtube.subscriptions` |
 | Playlists | A list of lines, 50 at most | None | [Your playlists](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#playlists). | `modules.com.osdos.youtube.playlists` |
-| Subtitles | Off, On, On + Auto Captions | Off | **On**: the video's subtitles in Subtitle Language. **On + Auto Captions**: automatic captions too. | `modules.com.osdos.youtube.subtitles` (`Off`, `On`, `With Auto`) |
-| Subtitle Language | Any (`-`), English … Chinese (the same 16 codes) | Any | The language Subtitles shows. **Any**: whatever the video has; with automatic captions, those in its own language. | `modules.com.osdos.youtube.subtitle_language` |
+| Subtitles | Off, On, On+Auto Captions | Off | **On**: the video's subtitles in Subtitles In. **On+Auto Captions**: automatic captions too. | `modules.com.osdos.youtube.subtitles` (`Off`, `On`, `With Auto`) |
+| Subtitles In | Any (`-`), English … Chinese (the same 16 codes) | Any | The language Subtitles shows. **Any**: whatever the video has; with automatic captions, those in its own language. | `modules.com.osdos.youtube.subtitle_language` |
 | Audio Language | Original (`original`), English (`en`), Spanish (`es`), French (`fr`), German (`de`), Italian (`it`), Portuguese (`pt`), Dutch (`nl`), Polish (`pl`), Russian (`ru`), Turkish (`tr`), Arabic (`ar`), Hindi (`hi`), Indonesian (`id`), Japanese (`ja`), Korean (`ko`), Chinese (`zh`) | Original | The audio track of a dubbed video; the original where the language is missing. | `modules.com.osdos.youtube.audio_language` |
 | Resume Playback | Ask, Always, Never | Ask | See [Resume](https://github.com/mehmetraif/OSD-OS/wiki/YouTube#resume). | `modules.com.osdos.youtube.resume_playback` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills a 4:3 screen. **Default** follows Settings → TV / Movie → Scaling. | `modules.com.osdos.youtube.video_scaling` |

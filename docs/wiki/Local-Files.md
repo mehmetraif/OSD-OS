@@ -49,7 +49,7 @@ Selecting **Media Folder** opens the folder picker, the same tree:
 
 <table>
 <tr><th width="50%">A module's settings</th><th width="50%">Picking a folder</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: Enabled, Media Folder, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitle Language, Image Duration" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker: Use This Folder at the top of each folder" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/module-settings.png" width="100%" alt="Local Files' settings: Enabled, Media Folder, Loop Playback, Shuffle Playback, Resume Playback, Auto Show Subtitles, Subtitles In, Image Duration" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/folder-picker.png" width="100%" alt="The folder picker: Use This Folder at the top of each folder" /></td></tr>
 <tr><td>Local Files' settings.</td><td>USE THIS FOLDER picks the folder open, Default Folder the module's own.</td></tr>
 </table>
 
@@ -229,7 +229,7 @@ Positions are kept in `local_files_history.json` in the data folder, the 1000 mo
 | **Forced Only** (default) | `--subs-with-matching-audio=forced --subs-fallback-forced=always` | Only forced subtitles: dialogue in another language |
 | **On** | `--subs-with-matching-audio=yes --subs-fallback=yes --sid=auto` | A subtitle track always |
 
-- **Subtitle Language** is **Any** (the default) or one of 183 languages. It goes to mpv as `--slang=<code>` (`en` for English).
+- **Subtitles In** is **Any** (the default) or one of 183 languages. It goes to mpv as `--slang=<code>` (`en` for English).
 - mpv also loads a subtitle file beside the video under the same name: `Film.srt` or `Film.en.srt` next to `Film.mkv`.
 - The audio track is mpv's choice: the file's default, or an `alang=` line in your `mpv.conf` (not read with Transparent Background).
 - During playback the deck's menu (▲ or ▼) steps through the tracks with **AUDIO** and **SUBTITLE** ([Using OSD/OS → The deck's menu](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-decks-menu)).
@@ -256,7 +256,7 @@ Positions are kept in `local_files_history.json` in the data folder, the 1000 mo
 
 <table>
 <tr><th width="50%">The video's menu</th><th width="50%">Main menu</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' player menu over the picture: Auto Show Subtitles, Subtitle Language, Loop Playback, Scaling, Add to Favorites, Play at Startup, Browse Local Files, Close Video" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="The main menu leading with the video playing behind it" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/player-menu.png" width="100%" alt="Local Files' player menu over the picture: Auto Show Subtitles, Subtitles In, Loop Playback, Scaling, Add to Favorites, Play at Startup, Browse Local Files, Close Video" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu-over-video.png" width="100%" alt="The main menu leading with the video playing behind it" /></td></tr>
 <tr><td>Back during a video opens its menu.</td><td>The main menu leads with the video: select takes it back to full screen.</td></tr>
 </table>
 
@@ -266,7 +266,7 @@ Back during a video (with the deck's menu closed) opens the video's own menu:
 |---|---|
 | **Back to Local Files** | Back to the tree. With Transparent Background the video plays on behind it; without, it stops where it is |
 | **Stop, to Main Menu** | Stops the video and leaves Local Files for the main menu |
-| **Subtitles**, **Subtitle Language** | ◄ ► change the module setting; the video reloads where it is as you go back to it |
+| **Subtitles**, **Subtitles In** | ◄ ► change the module setting; the video reloads where it is as you go back to it |
 | **Loop Playback**, **Scaling** | ◄ ► change it; with Transparent Background the playing video takes it at once |
 | **Add to Favorites**, **Play at Startup** | As in the file's options |
 
@@ -286,7 +286,7 @@ Settings → TV / Movie → Local Files.
 | Shuffle Playback | Ask, Always, Never | Ask | Plays playlists in random order | `modules.com.osdos.local_files.shuffle_playback` |
 | Resume Playback | Ask, Always, Never | Ask | Whether a video resumes where it was stopped | `modules.com.osdos.local_files.resume_playback` |
 | Subtitles | Off, Forced Only, On | Forced Only | Which subtitles show as a video starts | `modules.com.osdos.local_files.auto_subtitles` |
-| Subtitle Language | Any, or a language | Any | The subtitle language mpv picks first | `modules.com.osdos.local_files.sub_lang` |
+| Subtitles In | Any, or a language | Any | The subtitle language mpv picks first | `modules.com.osdos.local_files.sub_lang` |
 | Image Duration | 5 sec, 10 sec, 30 sec, 1 min | 5 sec | How long a still image is shown | `modules.com.osdos.local_files.image_duration` |
 | Hide File Extensions | ON, OFF | ON | Leaves `.mkv` and the like off the names | `modules.com.osdos.local_files.hide_extensions` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills the 4:3 screen here | `modules.com.osdos.local_files.video_scaling` |

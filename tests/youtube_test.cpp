@@ -82,7 +82,7 @@ private slots:
             labels << v.toMap().value("label").toString();
             ids << v.toMap().value("id").toString();
         }
-        QCOMPARE(labels, QStringList({ "Off", "On", "On + Auto Captions" }));
+        QCOMPARE(labels, QStringList({ "Off", "On", "On+Auto Captions" }));
         QCOMPARE(ids, QStringList({ "Off", "On", "With Auto" }));
         const QVariantMap any = options.at(1).at(1).toList().first().toMap();
         QCOMPARE(any.value("id").toString(), QStringLiteral("-"));

@@ -26,7 +26,7 @@
       "type": "list_single",
       "options": ["Off", "Forced Only", "On"],
       "default": "Forced Only",
-      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language; none on a YouTube video\n[ON] Shown: a YouTube video's in the YouTube module's Subtitle Language"
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language; none on a YouTube video\n[ON] Shown: a YouTube video's in the language of the YouTube module's Subtitles In"
     },
     {
       "key": "loop_playback",

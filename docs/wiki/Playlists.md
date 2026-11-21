@@ -134,7 +134,7 @@ Select **Play**, or **Play from Here** on a video.
 - **What can't play is left out**: a missing Local Files file, a server video while you are signed out, and on an offline list anything not downloaded yet.
 - **During a video**, the deck's menu (▲ or ▼) has **<** and **>** for the previous and next video. Page Up and Page Down, or a remote's Channel + and −, do the same.
 - **Loop Playback** starts the list again from its first video when it ends (`--loop-playlist=inf`).
-- **Subtitles** is Off, Forced Only (the default) or On, for every video on the list. On shows a streamed YouTube video's in the YouTube module's **Subtitle Language**.
+- **Subtitles** is Off, Forced Only (the default) or On, for every video on the list. On shows a streamed YouTube video's in the YouTube module's **Subtitles In**.
 - A server's subtitles kept as separate files aren't fetched, and a downloaded YouTube video has none.
 - **YouTube videos on an online list** play with the YouTube module's **Advanced** settings, but always at normal speed.
 - **Still images** from Local Files show for Local Files' **Image Duration**.

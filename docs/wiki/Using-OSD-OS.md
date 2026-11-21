@@ -251,8 +251,8 @@ Local Files, YouTube and Playlists give a video a menu of its own:
 
 | Module | Its lines |
 |---|---|
-| Local Files | Back to Local Files, Stop, to Main Menu; Subtitles, Subtitle Language, Loop Playback, Scaling; Add to Favorites, Play at Startup |
-| YouTube | Back to YouTube, Stop, to Main Menu; Subtitles, Subtitle Language, Audio Language, Playback Speed, Scaling, Max Resolution; Add to Favorites, Play at Startup, Save to Watch Later |
+| Local Files | Back to Local Files, Stop, to Main Menu; Subtitles, Subtitles In, Loop Playback, Scaling; Add to Favorites, Play at Startup |
+| YouTube | Back to YouTube, Stop, to Main Menu; Subtitles, Subtitles In, Audio Language, Playback Speed, Scaling, Max Resolution; Add to Favorites, Play at Startup, Save to Watch Later |
 | Playlists | Back to Playlists, Stop, to Main Menu; Subtitles, Loop Playback, Scaling |
 
 - The two ways out lead, the cursor on the first as the menu opens, each with a help line. A gap parts them from the settings. YouTube's Video Codec and Max Frame Rate are only in its settings' **Advanced**.

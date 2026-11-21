@@ -52,11 +52,11 @@
       "options_source": "dynamic",
       "options_slot": "get_auto_subtitles_options",
       "default": "forced",
-      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language\n[ON] Shown, in Subtitle Language where the video has it"
+      "description": "Whether a video's subtitles show as it starts\n[OFF] Not shown\n[FORCED ONLY] Only for dialogue in another language\n[ON] Shown, in the language of Subtitles In where the video has it"
     },
     {
       "key": "sub_lang",
-      "label": "Subtitle Language",
+      "label": "Subtitles In",
       "type": "list_single",
       "options_source": "dynamic",
       "options_slot": "get_subtitle_languages",

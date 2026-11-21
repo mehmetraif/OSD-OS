@@ -684,7 +684,7 @@ void YouTubeBackend::get_audio_languages() {
     emit dynamicOptionsReady(QStringLiteral("audio_language"), options);
 }
 
-// Subtitle Language: Any (no preference, "-", where nothing is saved), then
+// Subtitles In: Any (no preference, "-", where nothing is saved), then
 // the languages.
 void YouTubeBackend::get_subtitle_languages() {
     QVariantList options{QVariantMap{{QStringLiteral("id"), QStringLiteral("-")},
@@ -694,11 +694,11 @@ void YouTubeBackend::get_subtitle_languages() {
 }
 
 // Subtitles, in the order every module's has, each saved as it always was:
-// With Auto reads "On + Auto Captions".
+// With Auto reads "On+Auto Captions", short enough for Camcorder's rows.
 void YouTubeBackend::get_subtitle_options() {
     QVariantList options;
     for (const auto &[id, label] : { std::pair{ "Off", "Off" }, std::pair{ "On", "On" },
-                                     std::pair{ "With Auto", "On + Auto Captions" } })
+                                     std::pair{ "With Auto", "On+Auto Captions" } })
         options << QVariantMap{{QStringLiteral("id"), QString::fromLatin1(id)},
                                {QStringLiteral("label"), QString::fromLatin1(label)}};
     emit dynamicOptionsReady(QStringLiteral("subtitles"), options);
