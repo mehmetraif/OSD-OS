@@ -699,7 +699,7 @@ void PlaylistsBackend::dropUnreferenced() {
             continue;
         cancel(key);
         // What a failed download left for a retry too: no list wants it now.
-        removePartials(key);
+        removePartials(key, failedFolder(key));
         const QJsonObject download = m_downloads.take(key);
         const QString path = download.value(QStringLiteral("path")).toString();
         if (!path.isEmpty() && QFile::remove(path))
@@ -786,6 +786,12 @@ void PlaylistsBackend::startNext() {
             continue;
         m_active = Active();
         m_active.key = key;
+        m_active.folder = downloadFolder();
+        // Tried before in a download folder since changed: what it left
+        // there is nothing to carry on from now.
+        const QString before = failedFolder(key);
+        if (QDir(before) != QDir(m_active.folder))
+            removePartials(key, before);
         if (module == kYouTube)
             startYouTube(key, item);
         else
@@ -963,7 +969,8 @@ void PlaylistsBackend::record(bool ok) {
         // only a download no list wants loses it (cancel).
         const QString reason = m_active.reason.isEmpty() ? QStringLiteral("error") : m_active.reason;
         m_downloads.insert(key, QJsonObject{{QStringLiteral("state"), QStringLiteral("failed")},
-                                            {QStringLiteral("reason"), reason}});
+                                            {QStringLiteral("reason"), reason},
+                                            {QStringLiteral("folder"), m_active.folder}});
         qWarning("[Playlists] download of %s failed: %s", qPrintable(key), qPrintable(reason));
         // One that may pass is tried again after a while (retryFailed), with
         // the others that fail meanwhile: until now only the next start did.
@@ -1006,10 +1013,11 @@ void PlaylistsBackend::cancel(const QString &key) {
     // A finished file still on its way to the card, or what a download got
     // through: no list wants it now.
     const QString finalPath = m_active.finalPath;
+    const QString folder = m_active.folder;
     stopActive();
     if (!finalPath.isEmpty())
         QFile::remove(finalPath);
-    removePartials(key);
+    removePartials(key, folder);
     QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
 }
 
@@ -1047,13 +1055,20 @@ void PlaylistsBackend::setHeld(bool held) {
     }
 }
 
-void PlaylistsBackend::removePartials(const QString &key) const {
+QString PlaylistsBackend::failedFolder(const QString &key) const {
+    const QJsonObject download = m_downloads.value(key);
+    const QString folder = download.value(QStringLiteral("folder")).toString();
+    return download.value(QStringLiteral("state")).toString() == QLatin1String("failed") && !folder.isEmpty()
+               ? folder : downloadFolder();
+}
+
+void PlaylistsBackend::removePartials(const QString &key, const QString &folder) const {
     // What yt-dlp leaves of a video it didn't finish: its .part files and the
     // streams it was to merge (".f137.mp4"), all named with "[<id>]".
-    if (!key.startsWith(QLatin1String("youtube:")))
+    if (!key.startsWith(QLatin1String("youtube:")) || folder.isEmpty())
         return;
     const QString tag = QLatin1Char('[') + key.mid(8) + QLatin1Char(']');
-    QDir dir(QDir(downloadFolder()).filePath(sourceFolderName(kYouTube)));
+    QDir dir(QDir(folder).filePath(sourceFolderName(kYouTube)));
     for (const QFileInfo &f : dir.entryInfoList(QDir::Files))
         if (f.fileName().contains(tag))
             QFile::remove(f.absoluteFilePath());

@@ -204,7 +204,7 @@ Each source has a folder of its own, and each file carries the video's id in bra
 
 - Characters exFAT forbids (`\ / : * ? " < > |`) are replaced, and the title is cut at 80 characters (YouTube: 80 bytes).
 - The default folder is inside Local Files' media folder, so Local Files lists it too. A video copied into it by hand isn't on any list.
-- Changing the Download Folder affects what downloads next; files already downloaded stay where they are.
+- Changing the Download Folder affects what downloads next; files already downloaded stay where they are. What a download cut short left in the old folder is deleted there once it starts again in the new one, or once no list has the video.
 - The folder must be writable. On the OSD/OS image USB drives are mounted read-only, so they can't take downloads.
 
 ### YouTube videos

@@ -191,6 +191,67 @@ private slots:
             QVERIFY2(exists(path), qPrintable(path));
     }
 
+    // A YouTube download's part files are cleared where it ran, though the
+    // Download Folder has been changed since: as a download that failed is
+    // taken off its lists, and as one is started again in the new folder,
+    // which it can't carry on from the old one in. A file of the user's own
+    // there stays. (No yt-dlp to run here, so each download fails at once.)
+    void leftoversInAnEarlierDownloadFolderAreCleared() {
+        QTemporaryDir app;
+        QTemporaryDir data;
+        QVERIFY(app.isValid() && data.isValid());
+        QVERIFY(QDir().mkpath(app.path() + QStringLiteral("/modules/playlists")));
+        QVERIFY(writeFileAtomically(app.path() + QStringLiteral("/modules/playlists/manifest.json"),
+                                    R"({"id": "com.osdos.playlists", "entry_point_qml": "views/Root.qml",
+                                        "settings": [{"key": "enabled", "type": "toggle", "default": "ON"},
+                                                     {"key": "download_folder", "type": "directory_browser", "default": ""}]})"));
+        const QString before = data.path() + QStringLiteral("/before");
+        const QString after = data.path() + QStringLiteral("/after");
+        QVERIFY(writeFileAtomically(data.path() + QStringLiteral("/config.json"),
+                                    QStringLiteral(R"({"modules": {"com.osdos.playlists": {"download_folder": "%1"}}})")
+                                        .arg(before).toUtf8()));
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([&path] { qputenv("PATH", path); });
+        qputenv("PATH", data.path().toUtf8());   // no yt-dlp
+
+        AppCore core(app.path(), data.path());
+        PlaylistsBackend playlists(data.path(), &core, nullptr, nullptr, {});
+        QCOMPARE(playlists.downloadFolder(), before);
+        const auto add = [&](const QString &list, const QString &videoId) {
+            return playlists.addEntry(list, QStringLiteral("com.osdos.youtube"),
+                                      { { QStringLiteral("videoId"), videoId },
+                                        { QStringLiteral("title"), videoId } })
+                .value(QStringLiteral("ok")).toBool();
+        };
+        const auto state = [&](const QString &list) {
+            return playlists.playlist(list).value(QStringLiteral("items")).toList().value(0)
+                .toMap().value(QStringLiteral("state")).toString();
+        };
+        const QString gone = playlists.createPlaylist(QStringLiteral("Gone"), QStringLiteral("offline"));
+        const QString again = playlists.createPlaylist(QStringLiteral("Again"), QStringLiteral("offline"));
+        QVERIFY(add(gone, QStringLiteral("aqz-KE-bpKQ")));
+        QVERIFY(add(again, QStringLiteral("dQw4w9WgXcQ")));
+        QTRY_COMPARE(state(gone), QStringLiteral("failed"));
+        QTRY_COMPARE(state(again), QStringLiteral("failed"));
+        // What yt-dlp got through, as it would have left it.
+        const QStringList left{ before + QStringLiteral("/YouTube/aqz-KE-bpKQ [aqz-KE-bpKQ].mp4.part"),
+                                before + QStringLiteral("/YouTube/dQw4w9WgXcQ [dQw4w9WgXcQ].f137.mp4") };
+        const QString mine = before + QStringLiteral("/YouTube/Notes [mine].txt");
+        QVERIFY(QDir().mkpath(before + QStringLiteral("/YouTube")));
+        for (const QString &file : left + QStringList{ mine })
+            QVERIFY(writeFileAtomically(file, "film"));
+
+        QVERIFY(core.save_setting(QStringLiteral("com.osdos.playlists"), QStringLiteral("download_folder"), after));
+        QCOMPARE(playlists.downloadFolder(), after);
+        playlists.deletePlaylist(gone);
+        QVERIFY2(!exists(left.at(0)), qPrintable(left.at(0)));
+        QVERIFY(exists(left.at(1)));
+        playlists.queueOfflineItems();
+        QTRY_VERIFY2(!exists(left.at(1)), qPrintable(left.at(1)));
+        QTRY_COMPARE(state(again), QStringLiteral("failed"));
+        QVERIFY(exists(mine));
+    }
+
     // A download that fails for the network (nothing answers: the router not
     // back yet after a power cut) is tried again after a while, a longer
     // while each time, and is on the device once the network is back, with

@@ -119,6 +119,9 @@ private:
         QPointer<ServerDownload> download;
         QString finalPath;
         QString reason;
+        // The download folder it was started in: what it leaves is there,
+        // whatever Download Folder says by the time it ends.
+        QString folder;
         int percent = 0;
         // The finished file is on its way to the card (finish()).
         bool flushing = false;
@@ -167,7 +170,12 @@ private:
     QString sourceFolder(const QString &name) const;
     // Whether a download can go in the folder; if not, it fails, saying so.
     bool writable(const QString &folder);
-    void removePartials(const QString &key) const;
+    // What a YouTube download cut short left in the download folder it ran
+    // in (Active's folder, a failed one's record's).
+    void removePartials(const QString &key, const QString &folder) const;
+    // The download folder a failed download ran in, as its record has it;
+    // the one now chosen for a record from before it was kept.
+    QString failedFolder(const QString &key) const;
     // The temporary files that servers' downloads cut short by the power
     // going left in their folders: deleted as the lists are queued (15 s
     // after the start, the module turned on, Retry Downloads), unless a
