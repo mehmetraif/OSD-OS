@@ -1593,6 +1593,13 @@ private slots:
         QVERIFY2(refused.lines.first().endsWith("deleted, not applied: not OSD/OS Setup's settings"),
                  qPrintable(refused.lines.first()));
         QCOMPARE(setupfile::noticeTitle(refused, setupfile::Taken::AtStart), QString("OSD/OS Setup not applied"));
+        // A config.json that holds nothing, as the app takes it: none.
+        QVERIFY(write(data + "/config.json", " \n"));
+        QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}}})"));
+        const setupfile::Result onEmpty = setupfile::applyAtStart(data);
+        QVERIFY2(onEmpty.ok, qPrintable(onEmpty.lines.join('\n')));
+        QCOMPARE(QJsonDocument::fromJson(contents(data + "/config.json")).object()["app"].toObject()["osd_theme"]
+                     .toString(), QString("VHS"));
         QVERIFY(write(data + "/config.json", "{\"app\": {"));
         QVERIFY(write(setupPath, R"({"osdos_setup": 1, "config": {"app": {"osd_theme": "VHS"}},
                                      "retroachievements": {"key": "K1"}})"));
