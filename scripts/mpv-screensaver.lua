@@ -1,7 +1,8 @@
 -- Screen saver for OSD/OS: bounces the OSD/OS logo across a solid black
 -- background when the video has been paused longer than the configured timeout.
 --
--- Loaded by --script= only when screensaver_timeout != "OFF".
+-- Loaded by --script= only when screensaver_timeout is a number of seconds,
+-- not "OFF".
 -- Uses the same ASS-overlay technique as mpv-media-keys.lua's volume bar.
 -- Dismiss keys are consumed, matching the app-shell overlay: the first press
 -- only wakes the screen saver, the next press acts normally.
@@ -54,8 +55,8 @@ local ss_active   = false
 local paused_sec  = 0
 local x, y   = 20, 20
 local vx, vy = SPEED, SPEED
--- Set at activation: logo sized to 5% of OSD width (matching the QML overlay's
--- sourceSize of root.sw * 0.05), drawing pre-scaled to pixels.
+-- Set at activation: logo sized to a tenth of the OSD's width, drawing
+-- pre-scaled to pixels.
 local logo_w, logo_h = 0, 0
 local logo_path = ""
 

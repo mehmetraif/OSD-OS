@@ -393,7 +393,9 @@ end)
 mp.add_forced_key_binding("UP",   "open_menu_up",   toggle_menu)
 mp.add_forced_key_binding("DOWN", "open_menu_down", toggle_menu)
 
--- ESC / BS quit when the menu is not visible. When the menu opens it adds
+-- ESC / BS quit when the menu is not visible and input.conf leaves them
+-- unbound: mpv lets input.conf win over these, and the one OSD/OS gives mpv
+-- sends them to OSD/OS as osdos-menu instead. When the menu opens it adds
 -- forced bindings for these keys that take priority automatically; when it
 -- closes those forced bindings are removed and these become active again.
 mp.add_key_binding("ESC", "bg-esc", function() mp.command("quit") end)
