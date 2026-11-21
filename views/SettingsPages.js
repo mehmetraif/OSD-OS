@@ -518,6 +518,11 @@ function soundRows(items) {
     items.push(partRow("menu_music", "Menu Music", ["File"], true,
         "A tune under the menus, never while a video plays, loads or has its menu open\n[THEME] The theme's, if it has one  [FILE] A file of your own, below"))
     var musicFile = appSettings["menu_music_file"] || ""
+    // A file of a kind this system has no player for (a MIDI file without
+    // FluidSynth, MenuMusic::missingFor()): the help line opens with why.
+    // Nothing dimmed, the choice kept.
+    var music = typeof menuMusic !== "undefined" && menuMusic && menuMusic.missingFor ? menuMusic : null
+    var silent = music && musicFile !== "" ? music.missingFor(musicFile) : ""
     items.push({
         type: "file",
         key: "menu_music_file",
@@ -527,7 +532,7 @@ function soundRows(items) {
         picker: { mode: "file", types: ["ogg", "opus", "mp3", "flac", "wav", "m4a", "aac",
                                         "mid", "midi", "xm", "mod", "s3m", "it"],
                   defaultLabel: "No File" },
-        description: "The menu music's file, played over and over\n[ENTER] Pick it on the file browser: an MP3, WAV, OGG, FLAC, Opus or M4A, a MIDI file (played with a SoundFont), or a tracker's XM, MOD, S3M or IT",
+        description: (silent !== "" ? silent + "\n" : "") + "The menu music's file, played over and over\n[ENTER] Pick it on the file browser: an MP3, WAV, OGG, FLAC, Opus or M4A, a MIDI file (played with a SoundFont), or a tracker's XM, MOD, S3M or IT",
         shownWith: { key: "menu_music", value: "File" },
         moduleId: ""
     })

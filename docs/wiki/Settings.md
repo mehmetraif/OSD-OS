@@ -243,7 +243,7 @@ While a pattern is up the screen effects rest and the screen saver waits.
 |---|---|---|---|---|
 | Audio Output | Auto, then each sound card that can play: AV Jack, HDMI (HDMI 0 and HDMI 1 when there are two), a USB card by its name | Auto | Which sound card plays, from the moment you choose it ([below](#audio-output)). On Linux with plain ALSA only | `app.audio_output`: `""` for Auto, or `{ "card", "name" }` |
 | Menu Music | THEME, Off, File | THEME; without a theme, Off | A tune under the menus: the theme's, if it has one, or the file below ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) | `app.menu_music`: `""`, `"Off"` or `"File"` |
-| Music File | No File, or an MP3, WAV, OGG, Opus, FLAC, M4A, AAC, MID, MIDI, XM, MOD, S3M or IT picked on the file browser | None | The menu music's own file, played over and over. Only with Menu Music on File | `app.menu_music_file`: the file's full path |
+| Music File | No File, or an MP3, WAV, OGG, Opus, FLAC, M4A, AAC, MID, MIDI, XM, MOD, S3M or IT picked on the file browser | None | The menu music's own file, played over and over. Only with Menu Music on File. A file this system has no player for (a MIDI file without FluidSynth or a SoundFont, a module neither mpv nor openmpt123 can play) is kept, and the help line opens with why it is silent | `app.menu_music_file`: the file's full path |
 | Music Volume | A slider from QUIET to LOUD, 0 to 100 in steps of 10 | 60 | How loud the menu music is. Dimmed while Menu Music is Off | `app.menu_music_volume`: a number |
 
 ### Audio Output

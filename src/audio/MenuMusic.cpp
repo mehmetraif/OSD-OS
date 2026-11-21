@@ -167,6 +167,22 @@ void MenuMusic::start() {
         play(file);
 }
 
+QString MenuMusic::missingFor(const QString &file) const {
+    if (file.isEmpty())
+        return {};
+    const Kind kind = kindOf(file);
+    if (kind == Kind::Midi) {
+        if (QStandardPaths::findExecutable(QStringLiteral("fluidsynth")).isEmpty())
+            return QStringLiteral("Silent here: a MIDI file needs FluidSynth, which isn't installed");
+        if (soundFont(file).isEmpty())
+            return QStringLiteral("Silent here: a MIDI file needs a SoundFont, beside it, in the data folder's soundfonts or the system's");
+    } else if (kind == Kind::Module && !m_failed.isEmpty() && m_failed == m_source && path() == file
+               && QStandardPaths::findExecutable(QStringLiteral("openmpt123")).isEmpty()) {
+        return QStringLiteral("Silent here: mpv can't play this module, and openmpt123, which can, isn't installed");
+    }
+    return {};
+}
+
 QString MenuMusic::soundFont(const QString &midi) const {
     const QFileInfo info(midi);
     QStringList candidates = { info.absolutePath() + QLatin1Char('/') + info.completeBaseName()

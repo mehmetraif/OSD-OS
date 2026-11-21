@@ -277,6 +277,25 @@ private slots:
         QCOMPARE(renders().size(), 1);
     }
 
+    // What can't play here says why, for Music File's help line: a MIDI
+    // file without FluidSynth; nothing for one that can, or a recording.
+    void missingFor() {
+        const QString midi = m_dir.path() + QStringLiteral("/said.mid");
+        QVERIFY(writeFile(midi, "MThd"));
+        QVERIFY(writeFile(m_dir.path() + QStringLiteral("/said.sf2"), "sfbk"));
+        QCOMPARE(m_music->missingFor(midi), QString());
+        QCOMPARE(m_music->missingFor(m_tune), QString());
+        QCOMPARE(m_music->missingFor(QString()), QString());
+        const QByteArray path = qgetenv("PATH");
+        const QString none = m_dir.path() + QStringLiteral("/nothing");
+        QVERIFY(QDir().mkpath(none));
+        qputenv("PATH", none.toUtf8());
+        const QString why = m_music->missingFor(midi);
+        qputenv("PATH", path);
+        QVERIFY2(why.contains(QStringLiteral("FluidSynth")), qPrintable(why));
+        QCOMPARE(m_music->missingFor(m_tune), QString());
+    }
+
     // No SoundFont beside it: the first in the data folder's soundfonts.
     void dataFolderSoundFont() {
         const QString fonts = m_dir.path() + QStringLiteral("/data/soundfonts");

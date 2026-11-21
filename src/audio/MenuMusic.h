@@ -52,6 +52,12 @@ public:
     static void hold(const QString &who);
     static void release(const QString &who);
 
+    // Why `file` (a path) can't be played here, "" when nothing says so: a
+    // MIDI file without FluidSynth or a SoundFont, a module mpv gave up on
+    // with no openmpt123 to make it a WAV. Settings → Sound → Music File's
+    // help line opens with it.
+    Q_INVOKABLE QString missingFor(const QString &file) const;
+
 public slots:
     // On another sound card (Settings → Sound → Audio Output): from the start
     // there, a tune the card before couldn't play too.

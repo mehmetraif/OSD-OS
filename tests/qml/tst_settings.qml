@@ -254,6 +254,12 @@ StandInRoot {
         function setSsh(on) { asked = asked.concat(["ssh " + (on ? "on" : "off")]); return true }
         function clearMessage() { message = "" }
     }
+    // MenuMusic as Music File's row asks it: why a file can't play here.
+    QtObject {
+        id: menuMusic
+        property var silent: ({})
+        function missingFor(file) { return silent[file] || "" }
+    }
     // SystemInfo as System's row reads it: the device's name.
     QtObject {
         id: systemInfo
@@ -2093,6 +2099,25 @@ StandInRoot {
             verify(named(page, "systemNotice").visible)
             keyClick(Qt.Key_Return)
             systemSettings.available = false
+        }
+
+        // Music File: a file this system has no player for (a MIDI file
+        // without FluidSynth) has the help line open with why; nothing
+        // dimmed, the choice kept.
+        function test_musicFileSilent() {
+            menuMusic.silent = { "/music/song.mid": "Silent here: a MIDI file needs FluidSynth, which isn't installed" }
+            appCore.values = { menu_music: "File", menu_music_file: "/music/song.mid" }
+            var page = open({ group: "sound" })
+            moveTo(page, "Music File")
+            compare(page.offReason(lines(page).indexOf("Music File")), "")
+            compare(row(page, "Music File").value, "song.mid")
+            verify(helpOf(page).shownText.indexOf("Silent here: a MIDI file needs FluidSynth") === 0, helpOf(page).shownText)
+            loader.source = ""
+            appCore.values = { menu_music: "File", menu_music_file: "/music/song.ogg" }
+            page = open({ group: "sound" })
+            moveTo(page, "Music File")
+            verify(helpOf(page).shownText.indexOf("Silent here") < 0, helpOf(page).shownText)
+            menuMusic.silent = {}
         }
 
         function test_partRowsInForce() {
