@@ -550,7 +550,7 @@ EmbeddedMpv::~EmbeddedMpv() {
 bool EmbeddedMpv::gpuAvailable() {
     if (!m_gpuOff && !m_gpuRenderer && !setUpGpu())
         m_gpuOff = true;
-    return !m_gpuOff;
+    return !m_gpuOff && !gpuHeld();
 }
 
 bool EmbeddedMpv::setUpGpu() {
@@ -600,6 +600,16 @@ bool EmbeddedMpv::setUpGpu() {
 void EmbeddedMpv::shutdownGpu() {
     if (!m_gpuRenderer)
         return;
+    // Its thread still in a core given up on: left as it is, rather than
+    // the app waiting on it as it quits.
+    if (gpuHeld()) {
+        qWarning("[EmbeddedMpv] the GPU's thread is still held by a core given up on: left as it is");
+        m_gpuRenderer = nullptr;
+        m_gpuThread = nullptr;
+        m_gpuContext = nullptr;
+        m_gpuSurface = nullptr;
+        return;
+    }
     QMetaObject::invokeMethod(m_gpuRenderer, [this] { m_gpuRenderer->cleanup(); },
                               Qt::BlockingQueuedConnection);
     m_gpuThread->quit();
@@ -832,8 +842,11 @@ void EmbeddedMpv::retire() {
     mpv_render_context *render = nullptr;
     if (m_gpu) {
         GpuRenderer *renderer = m_gpuRenderer;
-        QMetaObject::invokeMethod(renderer, [renderer, renderDown] {
+        auto detached = std::make_shared<std::atomic<bool>>(false);
+        m_gpuDetached = detached;
+        QMetaObject::invokeMethod(renderer, [renderer, renderDown, detached] {
             renderer->detach();
+            detached->store(true);
             renderDown->release();
         }, Qt::QueuedConnection);
         m_gpu = false;
@@ -910,6 +923,13 @@ void EmbeddedMpv::abandonRetirement() {
              int(m_retiringSince.elapsed() / 1000));
     QThread *thread = m_retireThread;
     m_retireThread = nullptr;
+    // Held in it the GPU's thread too, freeing its render context: the next
+    // sessions are drawn on the CPU until that is done, should it ever be.
+    if (m_gpuDetached && !m_gpuDetached->load()) {
+        qWarning("[EmbeddedMpv] the GPU's thread is still freeing that core's pictures: "
+                 "the next videos are drawn on the CPU until it has");
+        m_gpuHeldBy = m_gpuDetached;
+    }
     disconnect(thread, nullptr, this, nullptr);
     connect(thread, &QThread::finished, thread, &QObject::deleteLater);
     ++m_retireSerial;
