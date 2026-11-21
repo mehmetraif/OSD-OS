@@ -300,7 +300,6 @@ exit 0
         return list;
     }
 
-    // Asked about the folder, and done asking MAME.
     // The folder read, or looked at and found as it was (lookAtNames()),
     // and MAME asked about what it hadn't been.
     static void refreshed(ArcadeBackend &arcade) {
@@ -2411,8 +2410,8 @@ private slots:
         QCOMPARE(given("a", 4), QStringLiteral("2+3"));
         QCOMPARE(given("b", 4), QStringLiteral("5+2"));
         QCOMPARE(given("a", 1), QStringLiteral("2+1"));
-        // One each, as OSD/OS hosts on the local network: one port whatever
-        // a machine asks for.
+        // One each, as OSD/OS hosts on the local network on FinalBurn Neo's
+        // own core: one port whatever a machine asks for.
         claims.reset(1, 6, 1);
         QCOMPARE(given("a", 2), QStringLiteral("2+1"));
         QCOMPARE(given("b", 4), QStringLiteral("3+1"));
@@ -2462,7 +2461,7 @@ private slots:
         QVERIFY(!lan->joinable);
         QVERIFY(!libretro::readLanAnswer(lanAnswer("cy", "sf2", 55435, 0, "1.22.2", 0, "Snes9x"),
                                          QStringLiteral("10.0.0.5"))->joinable);
-        // OSD/OS's own core for CV1000 games: joined, with it.
+        // OSD/OS's LAN core: joined, with it.
         QVERIFY(libretro::readLanAnswer(lanAnswer("cy", "akatana", 55435, 0, "1.22.2", 0, "OSD-OS LAN Core"),
                                         QStringLiteral("10.0.0.5"))->joinable);
         QVERIFY(!libretro::readLanAnswer(lanAnswer("di", "N/A", 55435), QStringLiteral("10.0.0.5"))->joinable);
@@ -2728,12 +2727,6 @@ private slots:
         QVERIFY(libretro::achievementsHash(QStringLiteral("SF2.zip")) != libretro::achievementsHash(QStringLiteral("sf2.zip")));
     }
 
-    // The second engine: a set FinalBurn Neo has plays in it while Online
-    // High Scores or Online Play is on, or as its options choose, with the
-    // players' controllers kept for them and the BIOS sets linked where it
-    // looks; RetroAchievements' password goes to RetroArch once, for the
-    // token it saves, and never stays; and what its log says of a game that
-    // didn't start.
     // The Arcade module's list of the games of five buttons or more, as it
     // ships (modules/arcade/five-button-sets.txt, made from MAME's -listxml
     // by scripts/make-five-button-sets.py): the MAME it was made from named
@@ -2759,6 +2752,12 @@ private slots:
             QVERIFY2(!lines.contains(QLatin1String(set)), set);
     }
 
+    // The second engine: a set FinalBurn Neo has plays in it while Online
+    // High Scores or Online Play is on, or as its options choose, with the
+    // players' controllers kept for them and the BIOS sets linked where it
+    // looks; RetroAchievements' password goes to RetroArch once, for the
+    // token it saves, and never stays; and what its log says of a game that
+    // didn't start.
     void fbneoEngine() {
         QTemporaryDir data;
         QVERIFY(data.isValid());
@@ -7043,10 +7042,11 @@ private slots:
         QVERIFY(logLines().contains(QStringLiteral("coreinfo deterministic")));
         QCOMPARE(asking(libretro::claimQuery(1), 300), QByteArray("no answer"));
         // X-Men's six players, hosted with the same two: on Classic, the
-        // stick's buttons by number and no remap file. On the local network
-        // one port a machine, so that the players take the ports in the
-        // order their machines come in: this machine's first on port 1
-        // alone, and a machine joining with four given port 2 alone.
+        // stick's buttons by number and no remap file. On the local network,
+        // on FinalBurn Neo's own core, one port a machine, so that the players
+        // take the ports in the order their machines come in: this machine's
+        // first on port 1 alone, and a machine joining with four given port 2
+        // alone.
         QCOMPARE(arcade.onlineLayout(QStringLiteral("xmen6p"), true), QStringLiteral("classic"));
         QCOMPARE(arcade.onlineLayout(QStringLiteral("sf2"), true), QStringLiteral("panel"));
         QCOMPARE(arcade.onlineLayout(QStringLiteral("dino"), true), QStringLiteral("panel"));
@@ -8830,8 +8830,6 @@ private slots:
         QVERIFY(!logLines(QStringLiteral("play")).last().contains(QStringLiteral("autoboot")));
     }
 
-    // How long each game has been played, kept for the next start; not a
-    // game MAME refused.
     // The module opened again reads nothing while the games folder is as it
     // was: a look at its names says so, and the list stays as it is. A game
     // put in it, or taken out, is found by that look and the folder read.
@@ -8863,6 +8861,8 @@ private slots:
         QVERIFY(!names(arcade.requestEntries(QStringLiteral("unknown"))).contains(QStringLiteral("1944.zip")));
     }
 
+    // How long each game has been played, kept for the next start; not a
+    // game MAME refused.
     void playTime() {
         QFile::remove(m_data.path() + QStringLiteral("/arcade/playtime.json"));
         {
