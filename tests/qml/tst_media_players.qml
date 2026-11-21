@@ -280,7 +280,18 @@ StandInRoot {
         // Where the video was left: { pos }.
         property var saved: ({})
         function playbackArgs(settings) { return [] }
-        function playbackSettings() { return ({}) }
+        // The ADVANCED settings as the backend reads them, each at its
+        // manifest default until set.
+        function playbackSettings() {
+            function setting(key, fallback) {
+                var value = appCore.get_setting("com.osdos.youtube", key)
+                return (value === undefined || value === null || value === "") ? fallback : String(value)
+            }
+            return { resolution: setting("playback_resolution", "480p"), codec: setting("video_codec", "H.264"),
+                     maxFrameRate: setting("max_frame_rate", "Any"), audioLanguage: setting("audio_language", "original"),
+                     subtitles: setting("subtitles", "Off"), subtitleLanguage: setting("subtitle_language", "en"),
+                     speed: setting("playback_speed", "1x") }
+        }
         function getSavedPosition(videoId) { return saved }
         function savePosition(videoId, pos, title, channelName) {}
         function isInWatchLater(videoId) { return false }

@@ -35,26 +35,13 @@ FocusScope {
                                     params: { item: item }, menu: true })
     }
 
-    // The ADVANCED settings the video plays with, each at its manifest
-    // default until set.
-    function setting(key, fallback) {
-        var value = appCore.get_setting(moduleRoot.moduleId, key)
-        return (value === undefined || value === null || value === "") ? fallback : value
-    }
+    // The ADVANCED settings the video plays with, as the backend reads them
+    // (each at its manifest default until set).
     function readSettings() {
-        var subtitles = setting("subtitles", "Off")
-        var subtitleLanguage = setting("subtitle_language", "en")
-        ytdlArgs = youtubeBackend.playbackArgs({
-            resolution: setting("playback_resolution", "480p"),
-            codec: setting("video_codec", "H.264"),
-            maxFrameRate: setting("max_frame_rate", "Any"),
-            audioLanguage: setting("audio_language", "original"),
-            subtitles: subtitles,
-            subtitleLanguage: subtitleLanguage,
-            speed: setting("playback_speed", "1x")
-        })
-        subTrack = subtitles !== "Off" ? 0 : -2
-        subLangs = subtitles !== "Off" ? [subtitleLanguage] : []
+        var advanced = youtubeBackend.playbackSettings()
+        ytdlArgs = youtubeBackend.playbackArgs(advanced)
+        subTrack = advanced.subtitles !== "Off" ? 0 : -2
+        subLangs = advanced.subtitles !== "Off" ? [advanced.subtitleLanguage] : []
     }
 
     function openMenu() {
@@ -191,7 +178,7 @@ FocusScope {
         }
         readSettings()
 
-        var resumeSetting = setting("resume_playback", "Ask")
+        var resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "Ask"
         var saved = youtubeBackend.getSavedPosition(videoId)
         var savedPos = saved.pos || 0
         // This video, still playing behind the menus: it goes on full screen
