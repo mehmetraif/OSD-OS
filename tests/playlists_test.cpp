@@ -345,6 +345,39 @@ private slots:
         QVERIFY(!playlists.m_retryTimer->isActive());
         // A download made: the next failure waits the first while again.
         QCOMPARE(playlists.m_retryMs, 60 * 1000);
+        QCOMPARE(playlists.m_downloads.value(QStringLiteral("jellyfin:abc123")).keys(),
+                 QStringList({ QStringLiteral("path"), QStringLiteral("state") }));
+    }
+
+    // A playlists.json an older version wrote, a finished download's size
+    // beside its path: the video is on the device and plays from its file,
+    // never fetched again; one whose file has gone is queued again.
+    void downloadsOfAnOlderFile() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString film = data.path() + QStringLiteral("/Film [abc123].mp4");
+        QVERIFY(writeFileAtomically(film, "film"));
+        const QByteArray file = QStringLiteral(R"({
+            "downloads": {
+                "jellyfin:abc123": { "bytes": 4, "path": "%1", "state": "done" },
+                "jellyfin:gone": { "bytes": 4, "path": "%2", "state": "done" }
+            },
+            "playlists": [ { "id": "list", "name": "Away", "kind": "offline", "order": "inorder", "items": [
+                { "id": "one", "key": "jellyfin:abc123", "module": "com.osdos.jellyfin",
+                  "source": { "itemId": "abc123" }, "title": "Film" },
+                { "id": "two", "key": "jellyfin:gone", "module": "com.osdos.jellyfin",
+                  "source": { "itemId": "gone" }, "title": "Gone" } ] } ]
+        })").arg(film, data.path() + QStringLiteral("/Gone [gone].mp4")).toUtf8();
+        QVERIFY(writeFileAtomically(data.path() + QStringLiteral("/playlists.json"), file));
+        PlaylistsBackend playlists(data.path(), nullptr, nullptr, nullptr, {});
+        const QVariantList items = playlists.playlist(QStringLiteral("list")).value(QStringLiteral("items")).toList();
+        QCOMPARE(items.size(), 2);
+        QCOMPARE(items.value(0).toMap().value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+        QCOMPARE(items.value(1).toMap().value(QStringLiteral("state")).toString(), QStringLiteral("queued"));
+        QCOMPARE(playlists.prepare(QStringLiteral("list")).value(QStringLiteral("count")).toInt(), 1);
+        QVERIFY(!playlists.enqueue(QStringLiteral("jellyfin:abc123")));
+        QVERIFY(playlists.enqueue(QStringLiteral("jellyfin:gone")));
+        QCOMPARE(playlists.m_queue, QStringList({ QStringLiteral("jellyfin:gone") }));
     }
 };
 

@@ -328,7 +328,7 @@ Written whole each time anything changes.
 | `playlists[].order` | `"inorder"` or `"shuffle"` |
 | `playlists[].items` | Its videos, in order: each an `id` (a UUID of its own), the `module` it comes from, its `key`, its `title` and its `source` (`path` for Local Files, `videoId` and `channel` for YouTube, `itemId` for Jellyfin and Emby) |
 | `playlists[].resume` | Where it stopped: the item's `id` (`itemId`) and `positionMs`. Absent once it has played out |
-| `downloads` | By key: `{ "path", "state": "done", "bytes" }` for a finished download, `{ "state": "failed", "reason" }` for a failed one. A video not downloaded yet has no entry |
+| `downloads` | By key: `{ "path", "state": "done" }` for a finished download (one an older version wrote has its `bytes` too, which is ignored), `{ "state": "failed", "reason" }` for a failed one. A video not downloaded yet has no entry |
 
 A video's **key** names it whatever list it is on, and so names its download: `local:<path>`, `youtube:<videoId>`, `jellyfin:<itemId>` or `emby:<itemId>`.
 
@@ -342,7 +342,6 @@ An offline playlist of two videos, as OSD/OS writes it:
             "state": "failed"
         },
         "jellyfin:5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b": {
-            "bytes": 734003200,
             "path": "/media/OSD-OS/Movies/Playlists/Jellyfin/Kickboxer (1989) [5f1c0a8e9b2d4c6f8a1e3b5d7c9f0a2b].mkv",
             "state": "done"
         }

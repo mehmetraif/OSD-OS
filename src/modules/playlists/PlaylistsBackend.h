@@ -139,6 +139,10 @@ private:
     QString itemState(const QJsonObject &item, const QString &kind, int *percent,
                       QString *reason) const;
     QString playableUrl(const QJsonObject &item, const QString &kind) const;
+    // A download's file, once it is done and the file is there; "" otherwise.
+    QString downloadedPath(const QString &key) const;
+    // Every item of every offline list, in the lists' order.
+    QList<QJsonObject> offlineItems() const;
     bool referencedOffline(const QString &key) const;
     // Downloads no offline list wants any more: stopped, their files deleted.
     void dropUnreferenced();

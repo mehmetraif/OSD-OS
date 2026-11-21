@@ -475,11 +475,10 @@ QString PlaylistsBackend::itemState(const QJsonObject &item, const QString &kind
         *percent = m_active.percent;
         return QStringLiteral("downloading");
     }
-    const QJsonObject download = m_downloads.value(key);
-    const QString state = download.value(QStringLiteral("state")).toString();
-    if (state == QLatin1String("done") && QFileInfo::exists(download.value(QStringLiteral("path")).toString()))
+    if (!downloadedPath(key).isEmpty())
         return QStringLiteral("ready");
-    if (state == QLatin1String("failed")) {
+    const QJsonObject download = m_downloads.value(key);
+    if (download.value(QStringLiteral("state")).toString() == QLatin1String("failed")) {
         *reason = download.value(QStringLiteral("reason")).toString();
         return QStringLiteral("failed");
     }
@@ -493,12 +492,8 @@ QString PlaylistsBackend::playableUrl(const QJsonObject &item, const QString &ki
         const QString path = source.value(QStringLiteral("path")).toString();
         return QFileInfo::exists(path) ? path : QString();
     }
-    if (kind == QLatin1String("offline")) {
-        const QJsonObject download = m_downloads.value(item.value(QStringLiteral("key")).toString());
-        const QString path = download.value(QStringLiteral("path")).toString();
-        return download.value(QStringLiteral("state")).toString() == QLatin1String("done") && QFileInfo::exists(path)
-                   ? path : QString();
-    }
+    if (kind == QLatin1String("offline"))
+        return downloadedPath(item.value(QStringLiteral("key")).toString());
     if (module == kYouTube)
         return QStringLiteral("https://www.youtube.com/watch?v=") + source.value(QStringLiteral("videoId")).toString();
     const MediaServer *server = m_servers.value(module);
@@ -677,15 +672,29 @@ void PlaylistsBackend::forgetListings() {
 // Downloads
 // ---------------------------------------------------------------------------
 
-bool PlaylistsBackend::referencedOffline(const QString &key) const {
+QString PlaylistsBackend::downloadedPath(const QString &key) const {
+    const QJsonObject download = m_downloads.value(key);
+    const QString path = download.value(QStringLiteral("path")).toString();
+    return download.value(QStringLiteral("state")).toString() == QLatin1String("done") && QFileInfo::exists(path)
+               ? path : QString();
+}
+
+QList<QJsonObject> PlaylistsBackend::offlineItems() const {
+    QList<QJsonObject> items;
     for (const QJsonObject &p : m_playlists) {
         if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
             continue;
         for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray())
-            if (v.toObject().value(QStringLiteral("key")).toString() == key)
-                return true;
+            items << v.toObject();
     }
-    return false;
+    return items;
+}
+
+bool PlaylistsBackend::referencedOffline(const QString &key) const {
+    const QList<QJsonObject> items = offlineItems();
+    return std::any_of(items.cbegin(), items.cend(), [&key](const QJsonObject &item) {
+        return item.value(QStringLiteral("key")).toString() == key;
+    });
 }
 
 void PlaylistsBackend::dropUnreferenced() {
@@ -719,22 +728,17 @@ void PlaylistsBackend::dropUnreferenced() {
 
 void PlaylistsBackend::queueOfflineItems() {
     removeStaleTemporaries();
-    for (const QJsonObject &p : m_playlists) {
-        if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
+    for (const QJsonObject &item : offlineItems()) {
+        if (item.value(QStringLiteral("module")).toString() == kLocalFiles)
             continue;
-        for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray()) {
-            const QJsonObject item = v.toObject();
-            if (item.value(QStringLiteral("module")).toString() == kLocalFiles)
-                continue;
-            const QString key = item.value(QStringLiteral("key")).toString();
-            const QJsonObject download = m_downloads.value(key);
-            const QString state = download.value(QStringLiteral("state")).toString();
-            // One the server refused stays refused until asked again.
-            if (state == QLatin1String("failed")
-                && download.value(QStringLiteral("reason")).toString() == QLatin1String("not allowed"))
-                continue;
-            enqueue(key);
-        }
+        const QString key = item.value(QStringLiteral("key")).toString();
+        const QJsonObject download = m_downloads.value(key);
+        const QString state = download.value(QStringLiteral("state")).toString();
+        // One the server refused stays refused until asked again.
+        if (state == QLatin1String("failed")
+            && download.value(QStringLiteral("reason")).toString() == QLatin1String("not allowed"))
+            continue;
+        enqueue(key);
     }
 }
 
@@ -748,15 +752,11 @@ void PlaylistsBackend::retryFailed() {
         return;
     // In the lists' order, as queueOfflineItems() has them; not one tried
     // again, taken off its lists or downloaded meanwhile.
-    for (const QJsonObject &p : m_playlists) {
-        if (p.value(QStringLiteral("kind")).toString() != QLatin1String("offline"))
-            continue;
-        for (const QJsonValue &v : p.value(QStringLiteral("items")).toArray()) {
-            const QString key = v.toObject().value(QStringLiteral("key")).toString();
-            if (keys.contains(key)
-                && m_downloads.value(key).value(QStringLiteral("state")).toString() == QLatin1String("failed"))
-                enqueue(key);
-        }
+    for (const QJsonObject &item : offlineItems()) {
+        const QString key = item.value(QStringLiteral("key")).toString();
+        if (keys.contains(key)
+            && m_downloads.value(key).value(QStringLiteral("state")).toString() == QLatin1String("failed"))
+            enqueue(key);
     }
 }
 
@@ -764,9 +764,7 @@ bool PlaylistsBackend::enqueue(const QString &key) {
     if (m_active.key == key || m_queue.contains(key))
         return true;
     // On the device already, for another list: never fetched twice.
-    const QJsonObject download = m_downloads.value(key);
-    if (download.value(QStringLiteral("state")).toString() == QLatin1String("done")
-        && QFileInfo::exists(download.value(QStringLiteral("path")).toString()))
+    if (!downloadedPath(key).isEmpty())
         return false;
     m_queue << key;
     QTimer::singleShot(0, this, &PlaylistsBackend::startNext);
@@ -959,8 +957,7 @@ void PlaylistsBackend::record(bool ok) {
     const QString key = m_active.key;
     if (ok) {
         m_downloads.insert(key, QJsonObject{{QStringLiteral("path"), m_active.finalPath},
-                                            {QStringLiteral("state"), QStringLiteral("done")},
-                                            {QStringLiteral("bytes"), double(QFileInfo(m_active.finalPath).size())}});
+                                            {QStringLiteral("state"), QStringLiteral("done")}});
         qDebug("[Playlists] downloaded %s: %s", qPrintable(key), qPrintable(m_active.finalPath));
         // The network is there: the next failure is waited on from the start.
         m_retryMs = kRetryFirstMs;
