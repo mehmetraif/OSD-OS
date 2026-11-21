@@ -22,6 +22,7 @@ CatalogBrowser CatalogBrowser.qml
 InfoPanel InfoPanel.qml
 EntryOptions EntryOptions.qml
 PlayerMenu PlayerMenu.qml
+PlayerSession PlayerSession.qml
 MousePointer MousePointer.qml
 ScreenSaver ScreenSaver.qml
 LoadingScreen LoadingScreen.qml

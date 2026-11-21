@@ -1,5 +1,4 @@
 import QtQuick
-import "MpvKeys.js" as MpvKeys
 
 // Jellyfin's and Emby's player: mpv on the server's stream, reported to the
 // server as it plays; a direct play that fails retried as a transcode, a track
@@ -34,7 +33,7 @@ FocusScope {
     // How long it is, from the server, and where the last start began: the
     // loading screen's counters.
     property int    itemDurationMs: navParams.duration       || 0
-    property int    lastStartMs:    0
+    property alias  lastStartMs:    session.startMs
     property var    audioStreams:       navParams.audioStreams     || []
     property var    subtitleStreams:    navParams.subtitleStreams  || []
     property string selectedAudioId:    navParams.selectedAudioId    || ""
@@ -63,7 +62,7 @@ FocusScope {
     property int    subtitleIdx: -1
 
     property bool stoppedReported: false
-    property bool playbackStarted: false
+    property alias playbackStarted: session.started
 
     // Intro/outro skip
     property var    segments:           []
@@ -74,8 +73,9 @@ FocusScope {
     property string introSkipSetting:   "Off"
     property string outroSkipSetting:   "Off"
 
-    property int lastKnownPositionMs: 0
-    property int lastKnownDurationMs: 0
+    // Where it is, as mpv says (PlayerSession).
+    property alias lastKnownPositionMs: session.positionMs
+    property alias lastKnownDurationMs: session.durationMs
 
     // Waiting on the server with no mpv running: for the next episode, or for
     // the transcode a failed direct play (or a track switch) falls back to.
@@ -118,20 +118,16 @@ FocusScope {
                 leaveWaiting()
             event.accepted = true
         } else {
-            // The keys mpv takes (MpvKeys.js). A key's repeats go as
-            // repeats: mpv holds the key down for them, and lets it go as
-            // the key is (Keys.onReleased).
-            var key = MpvKeys.name(event.key)
-            if (key !== "") {
-                mpvController.sendKey(key, event.isAutoRepeat)
-                event.accepted = true
-            }
+            session.forwardKey(event)
         }
     }
-    // A key let go: the one mpv holds down for its repeats, if any, with it.
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    // First position update means mpv is up and playing: the loading
+    // indicator goes (mpv's own window now covers the screen).
+    PlayerSession {
+        id: session
+        player: playerRoot
     }
 
     function msToTicks(ms) {
@@ -542,14 +538,10 @@ FocusScope {
     Connections {
         target: mpvController
 
+        // Where it is and that it has started are the session's; this is
+        // the skip segments' tracking.
         function onPositionChanged(ms) {
             if (ms > 0) {
-                playerRoot.lastKnownPositionMs = ms
-                // First position update means mpv is up and playing — drop the
-                // loading indicator (mpv's own window now covers the screen).
-                playerRoot.playbackStarted = true
-
-                // --- Skip segment tracking ---
                 if (playerRoot.segments.length > 0) {
                     var seg = findActiveSegment(ms)
                     if (seg && seg !== playerRoot.activeSegment) {
@@ -579,11 +571,7 @@ FocusScope {
                         mpvController.clearOsdPrompt()
                     }
                 }
-                // --- End skip segment tracking ---
             }
-        }
-        function onDurationChanged(ms) {
-            if (ms > 0) playerRoot.lastKnownDurationMs = ms
         }
 
         function onSkipRequested() {

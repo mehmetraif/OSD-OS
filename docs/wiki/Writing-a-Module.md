@@ -1089,6 +1089,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `OnScreenKeyboard` | Typing with a remote: `open(text)`, then `accepted(text)` or `canceled()` |
 | `TreeBrowser`, `InfoPanel`, `EntryOptions`, `PlaylistAdder` | Browsing as Local Files does, a title's info screen, an entry's options, Add to Playlist |
 | `LoadingScreen`, `PlayerMenu`, `PlaybackNotice` | The tape loading while a video starts, a video's own menu, the notice for a video that couldn't be played |
+| `PlayerSession` | What OSD/OS's own players share as a video plays: where it is, the keys sent on to mpv, the way into and out of a player's menu |
 | `MpvKeys` | mpv's names for the keys a player sends on as its video plays (`MpvKeys.name(event.key)`) |
 | `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |

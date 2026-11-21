@@ -20,7 +20,7 @@ FocusScope {
     property string sessionId:     ""
     property string streamUrl:     ""
     property string plexToken:     ""
-    property bool   playbackStarted: false
+    property alias  playbackStarted: session.started
     property bool   exiting:        false
     // Waiting for the server to tune the channel: its failure is the
     // channel's, not an error elsewhere's.
@@ -87,19 +87,14 @@ FocusScope {
             event.accepted = true
             return
         }
-        // The keys mpv takes (MpvKeys.js); back quits mpv, and
-        // onPlaybackEnded drives the teardown + goBack. A key's repeats go
-        // as repeats: mpv holds the key down for them, and lets it go as
-        // the key is (Keys.onReleased).
-        var key = MpvKeys.name(event.key)
-        if (key !== "") {
-            mpvController.sendKey(key, event.isAutoRepeat)
-            event.accepted = true
-        }
+        // Back quits mpv, and onPlaybackEnded drives the teardown + goBack.
+        session.forwardKey(event)
     }
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    PlayerSession {
+        id: session
+        player: livePlayerRoot
     }
 
     Connections {
@@ -129,10 +124,6 @@ FocusScope {
 
     Connections {
         target: mpvController
-
-        function onPositionChanged(ms) {
-            if (ms > 0) livePlayerRoot.playbackStarted = true
-        }
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             // mpv couldn't play the stream, or it broke off: why, in mpv's

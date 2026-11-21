@@ -28,19 +28,12 @@ FocusScope {
     // mpv subtitle-track flag derived from subtitleMode: 0 = on, -1 = forced only, -2 = off.
     property int    subFlag:             (subtitleMode == "on") ? 0 : ((subtitleMode == "forced") ? -1 : -2)
 
-    // The video has shown its first position: the loading screen goes.
-    property bool   playbackStarted:      false
-    // Where the last start began, for the loading screen's counter.
-    property int    lastStartMs:          0
-
-    // Where the session is, for its save at the end and its start again
-    // after the menu: where play() asked it to start (the video of a
-    // playlist, -1 its first, and the point in it) until mpv says
-    // otherwise, so that back before its first picture keeps the resume
-    // point; the point is zeroed only as mpv goes on to another video.
-    property int    lastKnownPositionMs:  0
-    property int    lastKnownDurationMs:  0
-    property int    lastKnownPlaylistPos: -1
+    // Where the session is (PlayerSession).
+    property alias  playbackStarted:      session.started
+    property alias  lastStartMs:          session.startMs
+    property alias  lastKnownPositionMs:  session.positionMs
+    property alias  lastKnownDurationMs:  session.durationMs
+    property alias  lastKnownPlaylistPos: session.playlistPos
 
     // Back during the video opens its menu (PlayerMenu): over the picture,
     // the video playing on behind it, with Transparent Background; without,
@@ -48,8 +41,6 @@ FocusScope {
     // was as the menu closes. A change the video can't take as it plays (its
     // subtitles) reloads it where it is as the menu closes; CLOSE VIDEO goes
     // back to the main menu. How it was started, for that reload.
-    property bool   reloadOnClose:   false
-    property bool   closeToMainMenu: false
     property bool   startedShuffled: false
 
     focus: true
@@ -105,10 +96,12 @@ FocusScope {
         } else if (key === "video_scaling") {
             playerMenu.applyScaling(value)
         } else {
-            reloadOnClose = true
+            session.reloadOnClose = true
         }
     }
     function menuAction(action) {
+        if (session.menuAction(action))
+            return
         var favorite = appCore.list_contains(moduleRoot.moduleId, "favorites", filePath)
         var startup = appCore.get_setting("", "startup_favorite")
         var atStartup = !!startup && startup.module === moduleRoot.moduleId && startup.path === filePath
@@ -131,43 +124,12 @@ FocusScope {
                 appCore.save_setting("", "startup_favorite",
                                      { module: moduleRoot.moduleId, path: filePath, name: itemTitle })
             }
-        } else if (action === "browse") {
-            // As back always did: saved where it is, then the module's tree,
-            // the video playing on behind it. Ended for the menu (an mpv
-            // process has the screen), it is saved already.
-            playerMenu.close()
-            if (mpvController.videoActive) {
-                mpvController.leavePlayerMenu()
-            } else {
-                // The main menu's first row takes it back from there.
-                mpvController.leaveSession()
-                goBack()
-            }
-            return
-        } else if (action === "close") {
-            closeToMainMenu = true
-            playerMenu.close()
-            if (mpvController.videoActive)
-                mpvController.stop()
-            else
-                moduleRoot.leaveModule()
-            return
         }
         playerMenu.actions = menuActions()
         playerMenu.refresh()
     }
-    // Back in the menu: the video full screen again, reloaded where it is if
-    // a setting asks for it, or started again there if it ended for the menu.
     function backToVideo() {
-        playerMenu.close()
-        playerRoot.forceActiveFocus()
-        var ended = !mpvController.videoActive
-        mpvController.closePlayerMenu()
-        if (reloadOnClose || ended) {
-            reloadOnClose = false
-            readSettings()
-            playAgain()
-        }
+        session.backToVideo()
     }
     // The session started again where it is. A shuffled playlist's places
     // are gone with its order (mpv's shuffle, made again at each start), so
@@ -184,13 +146,8 @@ FocusScope {
         // Main.qml (Ctrl+Q), not to mpv.
         if (startPrompt.visible)
             return
-        // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats:
-        // mpv holds the key down for them, and lets it go as the key is
-        // (Keys.onReleased).
-        var key = MpvKeys.name(event.key)
-        if (key !== "") {
-            mpvController.sendKey(key, event.isAutoRepeat)
-            event.accepted = true
+        if (session.forwardKey(event)) {
+            return
         } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_ChannelUp) {
             // A TV remote's channel keys, or its page keys: the folder's
             // next or previous film, once per press however long it is
@@ -205,11 +162,7 @@ FocusScope {
             event.accepted = true
         }
     }
-    // A key let go: the one mpv holds down for its repeats, if any, with it.
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
-    }
+    Keys.onReleased: function(event) { session.releaseKey(event) }
 
     // The folder's next (1) or previous (-1) film, as a TV's programme keys
     // change the channel: round the folder's end, this one saved where it got
@@ -281,29 +234,20 @@ FocusScope {
         }
     }
 
+    PlayerSession {
+        id: session
+        player: playerRoot
+        menu: playerMenu
+        followsPlaylist: true
+        onMenuRequested: playerRoot.openMenu()
+        onRestartRequested: {
+            playerRoot.readSettings()
+            playerRoot.playAgain()
+        }
+    }
+
     Connections {
         target: mpvController
-
-        function onPlayerMenuRequested() {
-            playerRoot.openMenu()
-        }
-
-        function onPositionChanged(ms) {
-            if (ms > 0) {
-                playerRoot.lastKnownPositionMs = ms
-                playerRoot.playbackStarted = true
-            }
-        }
-        function onDurationChanged(ms) {
-            if (ms > 0) playerRoot.lastKnownDurationMs = ms
-        }
-        function onPlaylistPosChanged(pos) {
-            if (pos >= 0) {
-                if (pos !== Math.max(0, playerRoot.lastKnownPlaylistPos))
-                    playerRoot.lastKnownPositionMs = 0
-                playerRoot.lastKnownPlaylistPos = pos
-            }
-        }
 
         // mpv exited for any reason ("eof"/"stopped"/"failed"). Local Files has no
         // autoplay-next or transcode-retry, so every exit is handled the same way:
@@ -320,19 +264,7 @@ FocusScope {
                 failure.showMpv(true)
                 return
             }
-            // Back during an mpv process, which has the screen while it
-            // plays: the video ended for this menu, and starts again where
-            // it was as the menu closes (backToVideo).
-            if (reason === "menu") {
-                openMenu()
-                return
-            }
-            playerMenu.close()
-            // CLOSE VIDEO leaves the module for the main menu.
-            if (closeToMainMenu)
-                moduleRoot.leaveModule()
-            else
-                goBack()
+            session.end(reason)
         }
     }
 
@@ -446,9 +378,7 @@ FocusScope {
 
     function play(startMs, plPos, shuffle) {
         playbackStarted = false
-        lastStartMs = startMs
-        lastKnownPositionMs = startMs
-        lastKnownPlaylistPos = plPos
+        session.begin(startMs, plPos)
         mpvController.loadAndPlay({ url: filePath, startSeconds: startMs > 0 ? startMs / 1000.0 : 0.0,
                                     subTrack: subFlag, subLangs: subtitleLangs, loop: loopOn,
                                     playlistStart: plPos, shuffle: shuffle,
@@ -516,7 +446,7 @@ FocusScope {
         id: failure
         onRetried: playerRoot.playAgain()
         // CLOSE VIDEO leaves the module for the main menu.
-        onDismissed: playerRoot.closeToMainMenu ? moduleRoot.leaveModule() : playerRoot.goBack()
+        onDismissed: session.leave()
     }
 
     function isPlaylist(path) {

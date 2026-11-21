@@ -21,7 +21,7 @@ FocusScope {
     // How long it is, from the server, and where the last start began: the
     // loading screen's counters.
     property int    itemDurationMs: navParams.duration   || 0
-    property int    lastStartMs:  0
+    property alias  lastStartMs:  session.startMs
     property string itemTitle:    navParams.title        || ""
     property var    audioStreams:     navParams.audioStreams     || []
     property var    subtitleStreams:  navParams.subtitleStreams  || []
@@ -54,7 +54,7 @@ FocusScope {
     property int    queueIndex:         navParams.queueIndex || 0
 
     property bool stoppedReported:    false
-    property bool playbackStarted:    false
+    property alias playbackStarted:   session.started
     property string resumeSetting:    "ask"
     property bool pendingRetryTranscode: false
 
@@ -90,8 +90,9 @@ FocusScope {
         goBack()
     }
 
-    property int lastKnownPositionMs: 0
-    property int lastKnownDurationMs: 0
+    // Where it is, as mpv says (PlayerSession).
+    property alias lastKnownPositionMs: session.positionMs
+    property alias lastKnownDurationMs: session.durationMs
 
     // The video that failed, again where it got to (the notice's RETRY), as
     // it was played: direct, or the transcode a failed direct play fell back
@@ -115,20 +116,16 @@ FocusScope {
                 leaveWaiting()
             event.accepted = true
         } else {
-            // The keys mpv takes (MpvKeys.js). A key's repeats go as
-            // repeats: mpv holds the key down for them, and lets it go as
-            // the key is (Keys.onReleased).
-            var key = MpvKeys.name(event.key)
-            if (key !== "") {
-                mpvController.sendKey(key, event.isAutoRepeat)
-                event.accepted = true
-            }
+            session.forwardKey(event)
         }
     }
-    // A key let go: the one mpv holds down for its repeats, if any, with it.
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    // First position update means mpv is up and playing: the loading
+    // indicator goes (mpv's own window now covers the screen).
+    PlayerSession {
+        id: session
+        player: playerRoot
     }
 
     function newSessionId() {
@@ -389,18 +386,6 @@ FocusScope {
 
     Connections {
         target: mpvController
-
-        function onPositionChanged(ms) {
-            if (ms > 0) {
-                playerRoot.lastKnownPositionMs = ms
-                // First position update means mpv is up and playing — drop the
-                // loading indicator (mpv's own window now covers the screen).
-                playerRoot.playbackStarted = true
-            }
-        }
-        function onDurationChanged(ms) {
-            if (ms > 0) playerRoot.lastKnownDurationMs = ms
-        }
 
         function onPlaybackEnded(finalPositionMs, finalDurationMs, reason) {
             if (reason === "failed") {

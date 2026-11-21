@@ -20,19 +20,12 @@ FocusScope {
 
     focus: true
 
-    // The keys mpv takes (MpvKeys.js). A key's repeats go as repeats: mpv
-    // holds the key down for them, and lets it go as the key is
-    // (Keys.onReleased).
-    Keys.onPressed: function(event) {
-        var key = MpvKeys.name(event.key)
-        if (key !== "") {
-            mpvController.sendKey(key, event.isAutoRepeat)
-            event.accepted = true
-        }
-    }
-    Keys.onReleased: function(event) {
-        if (!event.isAutoRepeat)
-            mpvController.releaseKeys()
+    Keys.onPressed: function(event) { session.forwardKey(event) }
+    Keys.onReleased: function(event) { session.releaseKey(event) }
+
+    PlayerSession {
+        id: session
+        player: playerRoot
     }
 
     Connections {

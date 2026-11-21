@@ -1889,6 +1889,50 @@ StandInRoot {
             compare(MpvKeys.name(Qt.Key_Q), "")
         }
 
+        // Where a session is (views/Components/PlayerSession.qml), on its
+        // own: where begin() asked it to start until mpv says otherwise, the
+        // point zeroed only as mpv goes on to another of the playlist's
+        // videos; a player that plays no playlist leaves the video mpv is on
+        // alone. (The stand-in's positionChanged and durationChanged carry
+        // nothing, so the session is told them as MpvController tells it.)
+        Component {
+            id: lonelySession
+            PlayerSession {}
+        }
+        function test_playerSessionFollowsMpv() {
+            var session = createTemporaryObject(lonelySession, root, { followsPlaylist: true })
+            session.begin(90000, 2)
+            compare([session.startMs, session.positionMs, session.playlistPos], [90000, 90000, 2])
+            verify(!session.started)
+            // The video it was started at: the point stays.
+            mpvController.playlistPosChanged(2)
+            compare(session.positionMs, 90000)
+            session.mpv.onPositionChanged(0)
+            verify(!session.started)
+            session.mpv.onPositionChanged(95000)
+            session.mpv.onDurationChanged(600000)
+            verify(session.started)
+            compare([session.positionMs, session.durationMs], [95000, 600000])
+            // On to the next: it is at nothing yet.
+            mpvController.playlistPosChanged(3)
+            compare([session.positionMs, session.playlistPos], [0, 3])
+            // A list started at its first video (-1) is at its first.
+            session.begin(30000)
+            compare(session.playlistPos, -1)
+            mpvController.playlistPosChanged(0)
+            compare([session.positionMs, session.playlistPos], [30000, 0])
+
+            var single = createTemporaryObject(lonelySession, root)
+            single.begin(30000)
+            mpvController.playlistPosChanged(1)
+            compare([single.positionMs, single.playlistPos], [30000, -1])
+            // Its end for the menu opens the menu; no other end does.
+            var asked = 0
+            single.menuRequested.connect(function() { asked++ })
+            single.end("menu")
+            compare(asked, 1)
+        }
+
         // The episode a show's or a season's PLAY opens (Episodes.js): the
         // first part-watched, else the first unwatched, else the first.
         function test_bestEpisode() {
