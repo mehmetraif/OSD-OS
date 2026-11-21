@@ -51,8 +51,7 @@ void link(const QString &target, const QString &path) {
 
 // A file as a game's stamp has it: its name, size and time.
 QString stampOf(const QFileInfo &info) {
-    return info.fileName() + QLatin1Char(':') + QString::number(info.size()) + QLatin1Char(':')
-           + QString::number(info.lastModified().toMSecsSinceEpoch());
+    return info.fileName() + QLatin1Char(':') + mame::stampOf(info);
 }
 
 // What a file holds, not when it was written: an update that brings the
@@ -66,12 +65,6 @@ QString digestOf(const QString &path) {
     return QString::fromLatin1(hash.result().toHex());
 }
 
-QString identityOf(const QString &path) {
-    const QFileInfo info(path);
-    if (!info.exists())
-        return QString();
-    return QString::number(info.size()) + QLatin1Char(':') + QString::number(info.lastModified().toMSecsSinceEpoch());
-}
 
 // A game with no table, its fields alone (a best score, as Solar Fox
 // keeps): a line each, lined up as a table of two columns.
@@ -308,7 +301,7 @@ QString HighScoresBackend::definitionsIdentity() const {
     // size or date has changed since the last asking, as this is asked at
     // every refresh (the Arcade screen opening, each game's end).
     const QString dat = readRoot() + QStringLiteral("/plugins/hiscore/hiscore.dat");
-    const QString stamp = identityOf(m_definitions) + QLatin1Char('|') + identityOf(dat);
+    const QString stamp = mame::stampOf(QFileInfo(m_definitions)) + QLatin1Char('|') + mame::stampOf(QFileInfo(dat));
     if (stamp != m_definitionsStamp) {
         m_definitionsStamp = stamp;
         m_definitionsIdentity = QString::number(kCacheVersion) + QLatin1Char('|') + digestOf(m_definitions)
@@ -318,7 +311,7 @@ QString HighScoresBackend::definitionsIdentity() const {
 }
 
 QString HighScoresBackend::gamesJsonIdentity() const {
-    return identityOf(m_arcade + QStringLiteral("/games.json"));
+    return mame::stampOf(QFileInfo(m_arcade + QStringLiteral("/games.json")));
 }
 
 void HighScoresBackend::loadCache() {

@@ -216,10 +216,10 @@ QVariantMap folder(const QString &name, const QString &path) {
              { QStringLiteral("isFolder"), true } };
 }
 
-// A file as it is now, to tell when it has changed: its path, size and time.
+// A file as it is now, to tell when it has changed: its path, then
+// mame::stampOf()'s size and time.
 QString fileStamp(const QFileInfo &file) {
-    return QStringLiteral("%1:%2:%3").arg(file.canonicalFilePath()).arg(file.size())
-                                     .arg(file.lastModified().toMSecsSinceEpoch());
+    return file.canonicalFilePath() + QLatin1Char(':') + mame::stampOf(file);
 }
 
 QVariantMap filter(const QString &id, const QString &name, qsizetype count) {
@@ -884,7 +884,7 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
         if (read.sets.contains(name) && (isFolder || !read.folders.contains(name)))
             continue;
         read.sets.insert(name, info.fileName());
-        read.stamps.insert(name, romcheck::stampOf(info));
+        read.stamps.insert(name, mame::stampOf(info));
         if (isFolder)
             read.folders.insert(name);
         else
@@ -908,7 +908,7 @@ ArcadeBackend::Read ArcadeBackend::read(const QString &folder, const QString &ho
             biosSets.next();
             const QString name = biosSets.fileInfo().completeBaseName().toLower();
             if (!read.stamps.contains(name))
-                read.stamps.insert(name, romcheck::stampOf(biosSets.fileInfo()));
+                read.stamps.insert(name, mame::stampOf(biosSets.fileInfo()));
         }
     }
 

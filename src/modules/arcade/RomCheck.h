@@ -52,10 +52,6 @@ QStringList missingRoms(const QString &set, const QHash<QString, DatSet> &dat,
                         const std::function<QString(const QString &)> &archiveOf,
                         QHash<QString, Contents> *cache, bool *unreadable);
 
-// A file's stamp as a set's result is kept against: its size and when it
-// was last written; "" for none.
-QString stampOf(const QFileInfo &file);
-
 // MAME's -verifyroms, read as it comes: each set's verdict ("romset pacman
 // is good", "romset sf2ua [sf2] is best available", "romset mslug [neogeo]
 // is bad") and the files it lacks ("mslug       : sp-s2.sp1 (131072 bytes) -

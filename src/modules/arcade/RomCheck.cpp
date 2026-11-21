@@ -158,11 +158,6 @@ QStringList missingRoms(const QString &set, const QHash<QString, DatSet> &dat,
     return missing;
 }
 
-QString stampOf(const QFileInfo &file) {
-    if (!file.exists())
-        return QString();
-    return QStringLiteral("%1:%2").arg(file.size()).arg(file.lastModified().toMSecsSinceEpoch());
-}
 
 void VerifyReader::addData(const QByteArray &chunk) {
     m_pending += chunk;

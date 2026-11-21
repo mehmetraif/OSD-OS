@@ -1,5 +1,6 @@
 #pragma once
 #include <QByteArray>
+#include <QFileInfo>
 #include <QHash>
 #include <QList>
 #include <QPair>
@@ -141,6 +142,11 @@ QStringList screenArguments(const Machine &machine, int screenLines, const QStri
 // only. Anything else (a space, a wildcard MAME would match against every
 // machine it has) can't be one, and MAME isn't asked about it.
 bool isShortName(const QString &name);
+
+// A file as it is now, to tell when it has changed: its size and when it was
+// last written; "" for none. What a file read is kept against, by the Arcade
+// module (games.json's, romcheck.json's) and by High Scores (scores.json's).
+QString stampOf(const QFileInfo &file);
 
 // The maker a game is listed under: "Namco (Midway license)" → "Namco",
 // "Capcom / Mitchell" → "Capcom"; a company under its own name whichever of

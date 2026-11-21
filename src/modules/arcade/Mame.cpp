@@ -534,6 +534,12 @@ QStringList screenArguments(const Machine &machine, int screenLines, const QStri
     return args;
 }
 
+QString stampOf(const QFileInfo &file) {
+    if (!file.exists())
+        return QString();
+    return QStringLiteral("%1:%2").arg(file.size()).arg(file.lastModified().toMSecsSinceEpoch());
+}
+
 bool isShortName(const QString &name) {
     // By hand rather than a regular expression: it is asked of every set in
     // the folder, tens of thousands in a full set.
