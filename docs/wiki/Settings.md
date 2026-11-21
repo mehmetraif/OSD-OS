@@ -36,8 +36,6 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 | Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
 | Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if they look grey | `app.video_output_levels` |
 | 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: smooth 1080p; 14:9 and Pan & Scan show the whole picture, and the deck menu has no CROP. **Off**: cropping works, 1080p stutters | `app.smooth_playback` |
-| Loading Effect | On, Off | On | A tape's noise and tracking bands on the loading screen | `app.loading_effect` |
-| Loading Colors | Theme, Default | Theme | The loading screen in the theme's or colour scheme's colours, or white on blue | `app.loading_colors` |
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | A logo in a corner of the picture while a video plays | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
 | Logo Image | OSD/OS Logo, or a PNG, JPG, JPEG, SVG, GIF, BMP or WebP picked on the file browser | OSD/OS | Your own picture as the channel logo, as tall as OSD/OS's. A PNG with a clear background works best. Only while Channel Logo isn't Off | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
 | Video Arguments | Default, or a line typed on the on-screen keyboard | Default | For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)). From the next video | `app.mpv_video_args` |
@@ -87,7 +85,9 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How the menus are laid out: Settings, the main menu and the pages and modules opened from them ([below](#menu-layout)) | `app.menu_layout` |
 | OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Window**: a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
 | Window Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Window | `app.osd_frame` |
-| Boot Colors | Theme, Default | Theme | The OSD/OS image's boot screen in the theme's or colour scheme's colours, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors` |
+| Loading Effect | On, Off | On | A tape's noise and tracking bands on the loading screen | `app.loading_effect` |
+| Loading Colors | Menu, Blue | Menu | The loading screen in the menus' colors, a theme's or the color scheme's, or white on blue | `app.loading_colors`: `Theme` (Menu) or `Default` (Blue) |
+| Boot Colors | Menu, Blue | Menu | The OSD/OS image's boot screen in the menus' colors, a theme's or the color scheme's, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors`: `Theme` (Menu) or `Default` (Blue) |
 | Hint Bar | On, Off | On | The key hints at the foot of every screen. Off gives every menu a row more; the keys work as before | `app.hint_bar` |
 | Help Line | On, Off | On | The line about the selected row under a menu. Off hides it everywhere but About | `app.help_line` |
 | Status Icons | On, Off | On | What is on, at the right end of every title bar ([below](#status-icons)) | `app.status_icons` |

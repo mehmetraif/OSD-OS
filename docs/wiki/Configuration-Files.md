@@ -293,7 +293,7 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `transparent_background` | Transparent Background | number, 0 to 100, or the string `"Off"`. `"On"` and `"Dim"` read as 0 and 60 |
 | `video_output_levels` | Video Levels | string: `"Auto"`, `"Limited"`, `"Full"` |
 | `loading_effect`, `hint_bar`, `help_line`, `status_icons` | Loading Effect, Hint Bar, Help Line, Status Icons | string: `"On"` or `"Off"` |
-| `loading_colors`, `boot_colors` | Loading Colors, Boot Colors | string: `"Theme"` (when unset) or `"Default"` |
+| `loading_colors`, `boot_colors` | Loading Colors, Boot Colors | string: `"Theme"` (when unset), shown Menu, or `"Default"`, shown Blue |
 | `video_logo` | Channel Logo | string: `"off"`, `"tl"`, `"tr"`, `"bl"`, `"br"`, `"all"` |
 | `video_logo_image` | Logo Image | string: a full path, `""` for OSD/OS's logo |
 | `screensaver_timeout` | Screen Saver | string: `"OFF"`, `"30"`, `"60"`, `"120"` |

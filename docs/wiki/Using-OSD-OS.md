@@ -210,10 +210,10 @@ While a video starts, a tape loads, until the picture comes:
 - **SLP▶** names the module.
 - The theme's effects and the menu music rest while a video plays, loads, or has its menu open.
 
-| Setting (Settings → TV / Movie) | Values | Default | What it does | Config key |
+| Setting (Settings → Look) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Loading Effect | On, Off | On | **Off**: the deck's display alone, without the noise and the bands | `app.loading_effect` |
-| Loading Colors | Theme, Default | Theme | **Default**: white on blue, whatever the theme | `app.loading_colors` |
+| Loading Colors | Menu, Blue | Menu | **Blue**: white on blue, whatever the theme | `app.loading_colors`: `Theme` (Menu) or `Default` (Blue) |
 
 ### The deck's menu
 

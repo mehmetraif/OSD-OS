@@ -425,7 +425,8 @@ StandInRoot {
         function test_pages_data() {
             return [
                 { tag: "look", lines: ["Theme", "Orb Fog", "Color Scheme", "Skin", "Effects", "Menu Layout",
-                                       "OSD Background", "Window Frame", "Boot Colors", "Hint Bar", "Help Line",
+                                       "OSD Background", "Window Frame", "Loading Effect", "Loading Colors", "Boot Colors",
+                                       "Hint Bar", "Help Line",
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
@@ -441,7 +442,8 @@ StandInRoot {
         function test_pages(data) {
             var page = open({ group: data.tag })
             compare(lines(page), data.lines)
-            verify(page.settingsItems.length <= 12, "a screenful")
+            // A screenful, but Look's, whose loading rows are together.
+            verify(page.settingsItems.length <= (data.tag === "look" ? 14 : 12), "a screenful")
         }
 
         // A row that goes with another's value is dimmed rather than hidden:
@@ -920,8 +922,7 @@ StandInRoot {
             var page = open({ group: "tv" })
             var all = lines(page)
             compare(all, ["Scaling", "Transparent Background", "Info Screen", "# Modules", "Local Files", "Plex",
-                          "# Video", "Video Levels", "1080p Playback", "Loading Effect", "Loading Colors",
-                          "Channel Logo", "Logo Image", "Video Arguments"])
+                          "# Video", "Video Levels", "1080p Playback", "Channel Logo", "Logo Image", "Video Arguments"])
             verify(page.offReason(all.indexOf("1080p Playback")) !== "")
             compare(page.offReason(all.indexOf("Transparent Background")), "")
             verify(all.indexOf("Theme") < 0)
@@ -2109,9 +2110,24 @@ StandInRoot {
             var page = open({ group: "look" })
             var at = lines(page).indexOf("Boot Colors")
             compare(page.offReason(at), "")
+            compare(row(page, "Boot Colors").options, ["Menu", "Blue"])
+            compare(row(page, "Boot Colors").value, "Menu")
+            compare(row(page, "Loading Colors").value, "Menu")
             moveTo(page, "Boot Colors")
             keyClick(Qt.Key_Right)
             compare(appCore.values.boot_colors, "Default")
+            compare(row(page, "Boot Colors").value, "Blue")
+            verify(helpOf(page).shownText.indexOf("[BLUE] White on blue") > 0, helpOf(page).shownText)
+            moveTo(page, "Loading Colors")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.loading_colors, "Default")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.loading_colors, "Theme")
+            loader.source = ""
+            // Saved as before: Default read as Blue.
+            appCore.values = { loading_colors: "Default", boot_colors: "Theme" }
+            page = open({ group: "look" })
+            compare([row(page, "Loading Colors").value, row(page, "Boot Colors").value], ["Blue", "Menu"])
             loader.source = ""
             appCore.values = {}
             bootProgress.available = false

@@ -12,7 +12,7 @@
 // names (ModuleSettings, alsoModules). A module's group is its
 // manifest's "settings_group"; the modules of no group are on System's.
 function firstRows(items) {
-    items.push(groupRow("tv", "The videos' settings: how a picture fills the screen, Transparent Background, the loading screen, the channel logo, the info screen, and each video module's own"))
+    items.push(groupRow("tv", "The videos' settings: how a picture fills the screen, Transparent Background, the info screen, each video module's own, and the channel logo"))
     var arcade = groupModules("arcade")
     if (arcade.length > 0) {
         var also = arcade.slice(1).map(function(m) { return m.id })
@@ -27,7 +27,7 @@ function firstRows(items) {
             params: { moduleId: arcade[0].id, alsoModules: also }
         })
     }
-    items.push(groupRow("look", "The whole look: the theme, the color scheme, the skin, the effects, what the menus are drawn on and the bars around them"))
+    items.push(groupRow("look", "The whole look: the theme, the color scheme, the skin, the effects, what the menus are drawn on, the loading and boot screens and the bars around them"))
     items.push(groupRow("screen", "Where the picture goes and setting the screen up: Display Output, Test Patterns, the screen saver, the mouse pointer and Window Mode"))
     items.push(groupRow("sound", "Which sound card plays, and the music under the menus"))
     items.push({
@@ -198,21 +198,9 @@ function lookRows(items) {
         moduleId: ""
     })
 
-    // BOOT SCREEN COLORS — the boot screen in the colours in force, as
-    // the loading screen's are (TV / Movie). Read in Main.qml
-    // (root.bootInk). The boot screen is the OSD/OS image's
-    // (BootProgress's available): elsewhere there is none to colour.
-    var bootScreen = typeof bootProgress !== "undefined" && !!bootProgress && bootProgress.available
-    items.push({
-        type: "list_single",
-        key: "boot_colors",
-        label: "Boot Colors",
-        options: ["Theme", "Default"],
-        value: appSettings["boot_colors"] === "Default" ? "Default" : "Theme",
-        description: "The colours of the boot screen, with its cassette, on the OSD/OS image\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
-        unavailable: bootScreen ? "" : "Only on the OSD/OS image, which has a boot screen",
-        moduleId: ""
-    })
+    // The loading screen and the boot screen, together: LOADING EFFECT,
+    // LOADING COLORS and BOOT COLORS.
+    loadingRows(items)
 
     // HINT BAR — the key hints on the bar at the foot of every screen
     // (Components/HintBar). Read in Main.qml.
@@ -248,6 +236,51 @@ function lookRows(items) {
         options: ["On", "Off"],
         value: appSettings["status_icons"] === "Off" ? "Off" : "On",
         description: "What is on, at the top right of the title bar and the bottom right of the Arcade screen: Wi-Fi's signal, Bluetooth, and the Arcade's HI (Save High Scores), trophy (RetroAchievements), globe (Online Play) and network (LAN Play)\n[OFF] None",
+        moduleId: ""
+    })
+}
+
+// The loading screen a video loads behind and the image's boot screen,
+// three rows of Look's.
+function loadingRows(items) {
+    // Loading Effect — the screen a video loads behind is a tape loading
+    // (Components/LoadingScreen): its noise and tracking bands, or, off,
+    // the deck's display alone on the plain background. Read in Main.qml.
+    items.push({
+        type: "list_single",
+        key: "loading_effect",
+        label: "Loading Effect",
+        options: ["On", "Off"],
+        value: appSettings["loading_effect"] === "Off" ? "Off" : "On",
+        description: "While a video loads, a tape's noise and tracking bands roll over its counters\n[OFF] The counters alone, on the plain background",
+        moduleId: ""
+    })
+    // LOADING COLORS and BOOT COLORS — the screen a video loads behind,
+    // and the boot screen, in the menus' colors, a theme's or a scheme's
+    // (Menu, saved as Theme, the default), or in OSD/OS's own whatever the
+    // look: Video 1's white on a VCR's blue (Blue, saved as Default). Read
+    // in Main.qml (root.loadingInk, root.bootInk). The boot screen is the
+    // OSD/OS image's (BootProgress's available): elsewhere there is none.
+    items.push({
+        type: "list_single",
+        key: "loading_colors",
+        label: "Loading Colors",
+        options: ["Menu", "Blue"],
+        values: ["Theme", "Default"],
+        value: appSettings["loading_colors"] === "Default" ? "Blue" : "Menu",
+        description: "The colors of the screen a video loads behind\n[MENU] The menus' own, a theme's or the color scheme's  [BLUE] White on blue",
+        moduleId: ""
+    })
+    var bootScreen = typeof bootProgress !== "undefined" && !!bootProgress && bootProgress.available
+    items.push({
+        type: "list_single",
+        key: "boot_colors",
+        label: "Boot Colors",
+        options: ["Menu", "Blue"],
+        values: ["Theme", "Default"],
+        value: appSettings["boot_colors"] === "Default" ? "Blue" : "Menu",
+        description: "The colors of the boot screen, with its cassette, on the OSD/OS image\n[MENU] The menus' own, a theme's or the color scheme's  [BLUE] White on blue",
+        unavailable: bootScreen ? "" : "Only on the OSD/OS image, which has a boot screen",
         moduleId: ""
     })
 }
@@ -811,32 +844,6 @@ function videoRows(items) {
         moduleId: ""
     })
 
-    // Loading Effect — the screen a video loads behind is a tape loading
-    // (Components/LoadingScreen): its noise and tracking bands, or, off,
-    // the deck's display alone on the plain background. Read in Main.qml.
-    items.push({
-        type: "list_single",
-        key: "loading_effect",
-        label: "Loading Effect",
-        options: ["On", "Off"],
-        value: appSettings["loading_effect"] === "Off" ? "Off" : "On",
-        description: "While a video loads, a tape's noise and tracking bands roll over its counters\n[OFF] The counters alone, on the plain background",
-        moduleId: ""
-    })
-
-    // LOADING SCREEN COLORS — the screen a video loads behind in the
-    // colours in force, a theme's or a scheme's (Theme, the default), or
-    // in OSD/OS's own whatever the look: Video 1's white on a VCR's blue.
-    // Read in Main.qml (root.loadingInk).
-    items.push({
-        type: "list_single",
-        key: "loading_colors",
-        label: "Loading Colors",
-        options: ["Theme", "Default"],
-        value: appSettings["loading_colors"] === "Default" ? "Default" : "Theme",
-        description: "The colours of the screen a video loads behind\n[THEME] The theme's or color scheme's  [DEFAULT] White on blue",
-        moduleId: ""
-    })
     // CHANNEL LOGO — OSD/OS's logo in a corner of the picture while a
     // video plays, drawn by mpv (scripts/mpv-logo.lua, loaded by
     // MpvController at each launch, so it applies from the next video).
