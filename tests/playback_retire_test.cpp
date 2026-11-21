@@ -1705,6 +1705,30 @@ private slots:
         QVERIFY(m_mpv->lastError().isEmpty());
     }
 
+    // How long a session's mpv has to open what it plays and show its first
+    // picture: a file's while for a file and for a playlist of files, a
+    // stream's for an address, for a playlist of addresses on the device
+    // (a Jellyfin video on one of Playlists') and for what yt-dlp is to find
+    // (YouTube videos on one).
+    void aPlaylistOfStreamsHasAStreamsWhileToStart() {
+        qunsetenv("OSDOS_START_TIMEOUT_MS");
+        const QString files = m_dir.path() + QStringLiteral("/files.m3u");
+        const QString streams = m_dir.path() + QStringLiteral("/streams.m3u");
+        QVERIFY(write(files, "#EXTM3U\n#EXTINF:-1,A\n/media/A.mp4\nfile:///media/B.mp4\n"));
+        QVERIFY(write(streams, "#EXTM3U\n/media/A.mp4\n#EXTINF:-1,B\nhttps://jellyfin.example/Videos/7/stream\n"));
+        const QStringList none{ QStringLiteral("--ytdl=no") };
+        const QStringList ytdl{ QStringLiteral("--ytdl=no"), QStringLiteral("--ytdl=yes") };
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("/media/A.mp4") }, none, false), 25000);
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("/media/A.mp4") }, none, true), 10000);
+        QCOMPARE(MpvController::startTimeoutMs({ files }, none, false), 25000);
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("https://plex.example/film.mp4") }, none, false), 90000);
+        QCOMPARE(MpvController::startTimeoutMs({ QStringLiteral("https://plex.example/film.mp4") }, none, true), 45000);
+        QCOMPARE(MpvController::startTimeoutMs({ streams }, none, false), 90000);
+        QCOMPARE(MpvController::startTimeoutMs({ QUrl::fromLocalFile(streams).toString() }, none, true), 45000);
+        QCOMPARE(MpvController::startTimeoutMs({ files }, ytdl, false), 90000);
+        QCOMPARE(MpvController::startTimeoutMs({ files }, ytdl, true), 45000);
+    }
+
     // A playlist gone on to its next video ends before that one has a
     // position of its own (mpv has none for it until it plays): its player
     // is handed none, not the last video's. The same video told again (a

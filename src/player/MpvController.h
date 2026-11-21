@@ -53,6 +53,10 @@ public:
                            DisplayHandoff *handoff = nullptr,
                            QObject *parent = nullptr);
     ~MpvController() override;
+    // How long a session's mpv, started with `args` to play `media`, has to
+    // open it (opened false) or, opened, to show its first picture
+    // (watchStart()). Public for its test.
+    static int startTimeoutMs(const QStringList &media, const QStringList &args, bool opened);
 
     int position()    const { return m_position;    }
     int duration()    const { return m_duration;    }
@@ -361,7 +365,6 @@ private:
     void startTimedOut();
     void relaunch();
     void logStartState(const char *what);
-    static int startTimeoutMs(const QStringList &media, bool opened);
     // A session mpv calls failed for its sound alone, and the end it had.
     bool playedWithoutSound() const;
     static QString endOfSilent(int positionMs, int durationMs);

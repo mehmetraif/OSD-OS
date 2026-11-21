@@ -1135,13 +1135,42 @@ static bool localMedia(const QStringList &media) {
     return !first.contains(QLatin1String("://")) || first.startsWith(QLatin1String("file://"));
 }
 
+// Whether a session's videos come over the network all the same: yt-dlp
+// is to find them (a player's --ytdl=yes: a playlist with YouTube videos on
+// it), or what plays is a playlist on this machine (.m3u, .m3u8) that lists
+// addresses (a Jellyfin or Emby video on one of the Playlists module's).
+static bool fetchedMedia(const QStringList &media, const QStringList &args) {
+    const QString ytdl = lastOption(args, QLatin1String("ytdl"));
+    if ((!ytdl.isEmpty() && ytdl != QLatin1String("no")) || (ytdl.isEmpty() && args.contains(QStringLiteral("--ytdl"))))
+        return true;
+    const QString first = media.value(0);
+    const QString path = first.startsWith(QLatin1String("file://")) ? QUrl(first).toLocalFile() : first;
+    if (!path.endsWith(QLatin1String(".m3u"), Qt::CaseInsensitive)
+            && !path.endsWith(QLatin1String(".m3u8"), Qt::CaseInsensitive))
+        return false;
+    QFile list(path);
+    if (!list.open(QIODevice::ReadOnly | QIODevice::Text))
+        return false;
+    // Its first megabyte: a list longer than that is a file's own.
+    qint64 read = 0;
+    while (!list.atEnd() && read < (1 << 20)) {
+        const QByteArray line = list.readLine();
+        read += line.size();
+        const QByteArray entry = line.trimmed();
+        if (!entry.isEmpty() && !entry.startsWith('#') && entry.contains("://") && !entry.startsWith("file://"))
+            return true;
+    }
+    return false;
+}
+
 // How long a session's mpv has to open what it plays, and, opened, to show
-// its first picture.
-int MpvController::startTimeoutMs(const QStringList &media, bool opened) {
+// its first picture: a server's or the web's as long as a stream takes,
+// whether it is asked for by its address or through a playlist on the device.
+int MpvController::startTimeoutMs(const QStringList &media, const QStringList &args, bool opened) {
     const int standIn = legacy::envInt("START_TIMEOUT_MS");
     if (standIn > 0)
         return standIn;
-    if (localMedia(media))
+    if (localMedia(media) && !fetchedMedia(media, args))
         return opened ? kPictureLocalMs : kOpenLocalMs;
     return opened ? kPictureRemoteMs : kOpenRemoteMs;
 }
@@ -1164,7 +1193,7 @@ void MpvController::watchStart() {
     m_started = false;
     m_softwareAsked = false;
     m_startClock.start();
-    m_startTimer->start(startTimeoutMs(m_launchMedia, false));
+    m_startTimer->start(startTimeoutMs(m_launchMedia, m_launchArgs, false));
 }
 
 void MpvController::noteStarted() {
@@ -1194,7 +1223,7 @@ void MpvController::startTimedOut() {
         qWarning("[MpvController] Telling mpv to decode the video without the hardware decoder");
         m_softwareAsked = true;
         sendCommand({"set_property", "hwdec", "no"});
-        m_startTimer->start(startTimeoutMs(m_launchMedia, true));
+        m_startTimer->start(startTimeoutMs(m_launchMedia, m_launchArgs, true));
         return;
     }
     // A core inside the window isn't started again by itself: one that
@@ -1672,7 +1701,7 @@ void MpvController::onIpcReadyRead() {
             // The start's watch: opened, what plays has a shorter while to
             // show its first picture; shown, it is over (watchStart()).
             if (event == "file-loaded" && !m_started && m_startTimer->isActive())
-                m_startTimer->start(startTimeoutMs(m_launchMedia, true));
+                m_startTimer->start(startTimeoutMs(m_launchMedia, m_launchArgs, true));
             else if (event == "playback-restart")
                 noteStarted();
             if (event == "end-file") {
