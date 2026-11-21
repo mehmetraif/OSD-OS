@@ -30,7 +30,8 @@
 // found again at the address it has now, Emby Connect tries a server's
 // address from outside when its LAN address gives no sign-in, Settings'
 // Libraries are told why there are none when the server can't be reached,
-// Jellyfin's Quick Connect says a server's refusal by its status, an error
+// Jellyfin's Quick Connect says a server's refusal by its status and
+// trusts a self-signed certificate of its own server's only, an error
 // says a refusal's status and never the address asked, a
 // Server Address changed while signed in to Jellyfin or Emby signs out of
 // the server that issued the token, which goes to no other host, and
@@ -81,7 +82,15 @@ public:
     }
     qint64 bytesAvailable() const override { return m_body.size() + QNetworkReply::bytesAvailable(); }
     QByteArray sent;    // the body the request sent (a POST's)
+    // A certificate that isn't trusted, the server's own or, after a
+    // redirect, another host's: the errors the backend let go are kept.
+    void untrusted(const QUrl &at) {
+        setUrl(at);
+        emit sslErrors({ QSslError(QSslError::SelfSignedCertificate) });
+    }
+    QList<QSslError> ignored;
 protected:
+    void ignoreSslErrorsImplementation(const QList<QSslError> &errors) override { ignored += errors; }
     qint64 readData(char *data, qint64 max) override {
         const qint64 size = qMin(max, qint64(m_body.size()));
         if (!size) return -1;
@@ -1340,6 +1349,43 @@ private slots:
         QVERIFY(!body.contains(QLatin1String("MaxStreamingBitrate")));
         QVERIFY(!body.contains(QLatin1String("MaxHeight")));
         QCOMPARE(body["DeviceProfile"].toObject()["MaxStreamingBitrate"].toInt(), 2000000000);
+    }
+
+    // Quick Connect lets a self-signed certificate go for the server it was
+    // started on, as every other request to a server does, and for no other
+    // host a request is sent on to; its cancel's reply is freed.
+    void jellyfinQuickConnectTrustsOnlyItsServer() {
+        QTemporaryDir tmp;
+        JellyfinBackend backend(tmp.path());
+        delete backend.m_nam;
+        auto *network = new Network(&backend);
+        backend.m_nam = network;
+        const QUrl own(QStringLiteral("https://jellyfin.lan:8920/QuickConnect"));
+        const QUrl other(QStringLiteral("https://elsewhere.example/QuickConnect"));
+        const QList<std::function<void()>> asks = {
+            [&] { backend.quick_connect_initiate(QStringLiteral("https://jellyfin.lan:8920")); },
+            [&] { backend.quick_connect_poll(QStringLiteral("secret")); },
+            [&] { backend.quick_connect_authenticate(QStringLiteral("secret")); },
+        };
+        for (const auto &ask : asks) {
+            ask();
+            network->last()->untrusted(own);
+            QCOMPARE(network->last()->ignored.size(), 1);
+            ask();
+            network->last()->untrusted(other);
+            QVERIFY(network->last()->ignored.isEmpty());
+        }
+
+        backend.m_quickConnectSecret = QStringLiteral("secret");
+        backend.quick_connect_cancel();
+        QPointer<Reply> cancel = network->last();
+        QVERIFY(cancel->url().path().endsWith(QLatin1String("/QuickConnect/Connect")));
+        cancel->untrusted(own);
+        QCOMPARE(cancel->ignored.size(), 1);
+        cancel->complete(QByteArray());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(cancel.isNull());
+        network->replies.removeLast();
     }
 
     // Quick Connect says what the server answered, as it starts and at the

@@ -8,11 +8,9 @@
 
 #include "../../util/EmbyApi.h"
 #include "../../util/ServerLog.h"
-#include "../../util/SslErrors.h"
 #include <QVariantList>
 #include <QVariantMap>
 #include <QDebug>
-#include <QSslError>
 
 static const QString kModuleId = QStringLiteral("com.osdos.jellyfin");
 
@@ -67,13 +65,10 @@ void JellyfinBackend::quick_connect_initiate(const QString &serverUrl) {
 
     // Initiate uses empty POST body
     auto *reply = m_nam->post(req, QByteArray());
-    connect(reply, &QNetworkReply::sslErrors, reply, [reply](const QList<QSslError> &errors) {
-        for (const QSslError &e : errors)
-            qDebug("[JellyfinBackend] QC SSL error (ignored): %s", qPrintable(e.errorString()));
-        QList<QSslError> allowed = expectedLanSslErrors(errors);
-        if (!allowed.isEmpty())
-            reply->ignoreSslErrors(allowed);
-    });
+    // A self-signed LAN certificate let go for the server Quick Connect was
+    // started on, and for no other host (a redirect), as for every request
+    // to a server once signed in.
+    ignoreSslErrors(reply, QUrl(m_quickConnectServerUrl).host());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
@@ -124,13 +119,7 @@ void JellyfinBackend::quick_connect_poll(const QString &secret) {
     authorize(req, QString());
 
     auto *reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::sslErrors, reply, [reply](const QList<QSslError> &errors) {
-        for (const QSslError &e : errors)
-            qDebug("[JellyfinBackend] QC SSL error (ignored): %s", qPrintable(e.errorString()));
-        QList<QSslError> allowed = expectedLanSslErrors(errors);
-        if (!allowed.isEmpty())
-            reply->ignoreSslErrors(allowed);
-    });
+    ignoreSslErrors(reply, QUrl(m_quickConnectServerUrl).host());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, secret]() {
         reply->deleteLater();
@@ -178,13 +167,7 @@ void JellyfinBackend::quick_connect_authenticate(const QString &secret) {
     authorize(req, QString());
 
     auto *reply = m_nam->post(req, payload);
-    connect(reply, &QNetworkReply::sslErrors, reply, [reply](const QList<QSslError> &errors) {
-        for (const QSslError &e : errors)
-            qDebug("[JellyfinBackend] QC SSL error (ignored): %s", qPrintable(e.errorString()));
-        QList<QSslError> allowed = expectedLanSslErrors(errors);
-        if (!allowed.isEmpty())
-            reply->ignoreSslErrors(allowed);
-    });
+    ignoreSslErrors(reply, QUrl(m_quickConnectServerUrl).host());
 
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
@@ -234,7 +217,10 @@ void JellyfinBackend::quick_connect_cancel() {
         return;
     QUrl url(m_quickConnectServerUrl + "/QuickConnect/Connect?secret=" + m_quickConnectSecret);
     QNetworkRequest req(url);
-    m_nam->deleteResource(req);
+    auto *reply = m_nam->deleteResource(req);
+    ignoreSslErrors(reply, url.host());
+    // Nothing is waited for from it: freed once it is over.
+    connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
     m_quickConnectSecret.clear();
 }
 
