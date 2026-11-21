@@ -33,7 +33,7 @@ on:
       - 'views/SettingsPages.js'
       - 'Main.qml'
       - 'shaders/**'
-      - 'src/display/DisplayOutput.cpp'
+      - 'os/stage-osdos/03-boot/files/display-presets.json'
       - 'os/stage-osdos/03-boot/files/**'
       - 'assets/themes/**'
       - 'assets/skins/**'

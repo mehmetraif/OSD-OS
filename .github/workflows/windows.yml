@@ -23,6 +23,7 @@ on:
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
+      - 'os/stage-osdos/03-boot/files/display-presets.json'
       - 'scripts/build-fbneo.sh'
       - 'scripts/build-fbneo-lan.sh'
       - 'scripts/fbneo-make.sh'
