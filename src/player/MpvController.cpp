@@ -851,9 +851,9 @@ void MpvController::play(const PlaybackRequest &request) {
         emit leftNoteChanged();
     }
     m_menuOnExit = false;
-    // The new session's mpv has neither up yet.
-    m_oscMenuShown = false;
-    m_saverShown = false;
+    // Its deck menu and screen saver stay as its mpv last said: the session
+    // may go on (reattach() below), and a new one's mpv has neither up
+    // (closeIpc()).
     // Transparent Background plays inside the app's own window, where the
     // menus can lie over the picture.
     const bool embedded = transparentBackground();

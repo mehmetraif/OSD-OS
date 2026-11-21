@@ -926,6 +926,40 @@ private slots:
         QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
     }
 
+    // Transparent Background: a video behind the menus whose screen saver is
+    // up, chosen again, carries on with the saver over it; back then goes to
+    // the saver, as it did before, and the video stays in front.
+    void aVideoChosenAgainKeepsItsScreenSaver() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(!m_mpv->videoFrame().isNull(), 10000);
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(m_mpv->background());
+        // The saver says it is up, as mpv-screensaver.lua does, to every
+        // client of mpv's socket, the controller's among them once it has
+        // said what it had to as the video went behind the menus.
+        QLocalSocket probe;
+        QTRY_VERIFY_WITH_TIMEOUT((probe.state() == QLocalSocket::ConnectedState
+                                  || (probe.connectToServer(socketPath()), probe.waitForConnected(500))), 10000);
+        QByteArray heard;
+        connect(&probe, &QLocalSocket::readyRead, this, [&]() { heard += probe.readAll(); });
+        QTRY_VERIFY_WITH_TIMEOUT(heard.contains("osdos-osd-menu-hide"), 10000);
+        probe.write("{\"command\":[\"script-message\",\"osdos-screensaver\",\"shown\"]}\n");
+        probe.flush();
+        QTRY_VERIFY_WITH_TIMEOUT(heard.contains("\"osdos-screensaver\",\"shown\""), 5000);
+        QTest::qWait(200);
+        playPicture("color=c=gray:s=64x48:r=10");
+        QVERIFY(!m_mpv->background());
+        m_mpv->sendKey(QStringLiteral("ESC"));
+        QVERIFY(!m_mpv->background());
+    }
+
     // A Scaling chosen in a player's menu reaches the video under it as a
     // session starts with it: Default is Settings', and Settings' unset is
     // the old Auto Crop's (ON reading as Pan & Scan), as for the session's
