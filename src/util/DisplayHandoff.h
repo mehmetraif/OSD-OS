@@ -68,8 +68,9 @@ struct DrmCover {
 // do not reorder it, and do not re-implement these ioctls in a new caller:
 //
 //   acquire():  the app stops drawing  ->  VT switch  ->  drmDropMaster  ->  save CRTC state
-//     Drawing stops FIRST (the drawing switch, main.cpp: the window hidden).
-//     Neither the VT switch nor the master drop pauses Qt EGLFS: drawing on,
+//     Drawing stops FIRST (the drawing switch, main.cpp: the window hidden);
+//     with a cover painter set, once the cover is up (below), the child not
+//     started yet. Neither the VT switch nor the master drop pauses Qt EGLFS: drawing on,
 //     every frame it drew through a whole game was a flip refused (EACCES), and
 //     Qt's atomic path keeps each refused flip's properties in its next commit,
 //     so the first commit after a long game carried thousands of them and was

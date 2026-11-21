@@ -199,11 +199,7 @@ int DisplayHandoff::acquire(const QString &owner) {
     m_savedDrm = {};
     // The app stops drawing before the screen goes; with a cover, once it is
     // painted from the app's frame (below). Neither the VT switch nor the
-    // master drop pauses Qt: a Pi 5 logged a refused flip ("Failed to commit
-    // atomic request (code=-13)") for every frame it drew through a game, and
-    // Qt's atomic path carries each refused flip's properties into its next
-    // commit, so the first one after a long game was refused (code=-22) with
-    // every one after it.
+    // master drop pauses Qt (DisplayHandoff.h says what that did on a Pi 5).
     if (!m_coverPainter)
         setDrawing(false);
     // VT switch before DRM master is dropped: the child gets a console of its
@@ -286,8 +282,9 @@ void DisplayHandoff::doRestore(bool useCover) {
             qWarning("[DisplayHandoff] drmSetMaster failed: %s", strerror(errno));
         } else {
             qDebug("[DisplayHandoff] DRM master restored (fd %d)", m_qtDrmFd);
-            // Restore the CRTC to its pre-hand-off state using legacy
-            // drmModeSetCrtc. This re-enables the CRTC with the original mode and
+            // Restore the CRTC to its pre-hand-off state (restoreDrmCrtcState():
+            // Qt's state committed whole on atomic KMS, else legacy
+            // drmModeSetCrtc). This re-enables the CRTC with the original mode and
             // the cover, black, or Qt's last framebuffer, so EGLFS's first
             // atomic page flip succeeds instead of getting EINVAL from a
             // disabled CRTC.
@@ -582,7 +579,7 @@ void DisplayHandoff::restoreDrmCrtcState(int fd, bool useCover) {
     // The cover, black, where this hand-off showed one: the app's last frame
     // (the loading screen it handed the screen over from) never comes back
     // on the screen, which shows black until the app's next frame. Should
-    // the cover not be taken, Qt's own frame buffer, as before covers.
+    // the cover not be taken, Qt's own frame buffer.
     const bool cover = useCover && m_cover.shown && m_cover.fd == fd;
     if (cover)
         blackenCover();
