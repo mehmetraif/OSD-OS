@@ -54,7 +54,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 
 **The file browser** that Music File and Logo Image open is Local Files' tree. At its top is the default (**No File**, **OSD/OS Logo**), then **Home**, **Media** (`/media`), **Drives** (`/run/media/<user>`), **Volumes** (`/Volumes`, on a Mac) and **Root** (`/`); on Windows, in Root's place, each drive by its letter (**C:**, **D:**).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page further down: Info Screen, then the MODULES heading and each video module's row with its ON or OFF: Local Files selected, Playlists, Plex, Jellyfin, Emby and YouTube" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="TV / Movie's page: Scaling, Transparent Background and Info Screen, then the MODULES heading and each video module's row with its ON or OFF: Local Files selected, Playlists, Plex and Jellyfin" />
 
 ### The video modules
 

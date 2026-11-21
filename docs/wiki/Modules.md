@@ -4,7 +4,7 @@ Everything OSD/OS plays comes in through a module. **TV / Movie** modules are so
 
 <table>
 <tr><th width="50%">The main menu</th><th width="50%">Settings → TV / Movie</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → TV / Movie further down: Info Screen, then the MODULES heading and each video module's row with its ON or OFF: Local Files selected, Playlists, Plex, Jellyfin, Emby and YouTube" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-modules.png" width="100%" alt="Settings → TV / Movie: Scaling, Transparent Background and Info Screen, then the MODULES heading and each video module's row with its ON or OFF: Local Files selected, Playlists, Plex and Jellyfin" /></td></tr>
 <tr><td>The modules turned on. Select opens one; back opens Settings.</td><td>A module's row under Modules opens its settings.</td></tr>
 </table>
 
