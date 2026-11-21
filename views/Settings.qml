@@ -56,7 +56,7 @@ FocusScope {
     // Studio Monitor's first page, before the first screen's.
     readonly property var statusPage: ({ type: "submenu", key: "group_status", label: "Status",
                                          description: "What is set, at a glance: the outputs, the network, the theme and what OSD/OS starts on",
-                                         moduleId: "" })
+                                         moduleId: "", page: "views/Settings.qml", params: { group: "status" } })
     // The page a first-screen row opens in this view, "" for one that is a
     // view of its own.
     function pageGroup(row) {
@@ -638,32 +638,14 @@ FocusScope {
 
         function openRow(row) {
             if (row.type === "submenu") {
-                if (row.key === "software_update")
-                    settingsRoot.navigateTo("views/Update.qml", {}, settingsRoot.listState())
-                else if (row.key === "remap_controls")
-                    settingsRoot.navigateTo("views/Controllers.qml", {}, settingsRoot.listState())
-                else if (row.key === "wifi")
-                    settingsRoot.navigateTo("views/Wifi.qml", {}, settingsRoot.listState())
-                else if (row.key === "bluetooth")
-                    settingsRoot.navigateTo("views/Bluetooth.qml", {}, settingsRoot.listState())
-                else if (row.key === "about")
-                    settingsRoot.navigateTo("views/About.qml", {}, settingsRoot.listState())
-                else if (row.key === "export_setup")
-                    settingsRoot.navigateTo("views/SetupExport.qml", {}, settingsRoot.listState())
-                else if (row.key === "test_patterns")
-                    settingsRoot.navigateTo("views/TestPatterns.qml", {}, settingsRoot.listState())
-                else if (row.key === "cabinet_lock")
-                    settingsRoot.navigateTo("views/CabinetLock.qml", {}, settingsRoot.listState())
-                else if (row.key === "time_zone" || row.key === "keyboard")
+                // A row that leads to a page names it (`page`, `params`:
+                // SettingsPages.js); the rest open over this one.
+                if (row.key === "time_zone" || row.key === "keyboard")
                     settingsRoot.openSystemPicker(row.key)
                 else if (row.key === "mpv_video_args")
                     videoArgsKeyboard.open(String(appSettings["mpv_video_args"] || ""))
-                else if (row.key && row.key.indexOf("group_") === 0 && row.key !== "group_arcade")
-                    settingsRoot.navigateTo("views/Settings.qml", { group: row.key.substring(6) },
-                                            settingsRoot.listState())
                 else
-                    settingsRoot.navigateTo("views/ModuleSettings.qml", { moduleId: row.moduleId, alsoModules: row.alsoModules || [] },
-                                            settingsRoot.listState())
+                    settingsRoot.navigateTo(row.page, Object.assign({}, row.params), settingsRoot.listState())
             } else if (row.type === "display_output") {
                 outputPrompts.open()
             } else if (row.type === "file") {
