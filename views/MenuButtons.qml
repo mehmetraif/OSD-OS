@@ -57,18 +57,10 @@ FocusScope {
     property string captureAction: ""
     property bool replacing: false
     readonly property bool capturing: captureAction !== ""
-    // How long the wait lasts: the prompt counts them down, and InputManager
-    // is told the same (captureController()), so that it listens for as long.
-    readonly property int pressSeconds: 10
     // What the last choice or press did, in the help line until the cursor moves.
     property string notice: ""
 
-    // InputManager as the page opened, for its end: the context property may
-    // read null while the view Loader tears down.
-    property var manager: null
-
     Component.onCompleted: {
-        manager = inputManager
         refresh()
         // Back from its test: on that line.
         var state = navParams.navListState || {}
@@ -76,25 +68,9 @@ FocusScope {
         list.show(list.currentIndex)
         list.forceActiveFocus()
     }
-    // Leaving the page while it waits for a press: the controller acts again.
-    Component.onDestruction: {
-        if (manager)
-            manager.captureController("")
-    }
-
     Connections {
         target: inputManager
         function onControllersChanged() { pageRoot.refresh() }
-        // A tap: the answer.
-        function onControllerInputCaptured(key, input, label) {
-            if (pageRoot.capturing && key === pageRoot.key)
-                pageRoot.answer(input, label)
-        }
-        // Held: the way out.
-        function onCaptureHeld(key) {
-            if (pageRoot.capturing && key === pageRoot.key)
-                pageRoot.endCapture("Nothing changed")
-        }
     }
 
     function rowOf(action) {
@@ -169,19 +145,13 @@ FocusScope {
         notice = ""
         captureAction = action
         replacing = replace
-        inputManager.captureController(key, pressSeconds)
-        prompt.visible = true
-        prompt.start(pressSeconds)
-        prompt.forceActiveFocus()
+        prompt.begin()
     }
 
     // The wait over, with what to say of it.
     function endCapture(said) {
-        var hadKeys = prompt.activeFocus
+        var hadKeys = prompt.end()
         captureAction = ""
-        prompt.visible = false
-        if (inputManager)
-            inputManager.captureController("")
         notice = said
         if (hadKeys)
             list.forceActiveFocus()
@@ -372,6 +342,8 @@ FocusScope {
     PressPrompt {
         id: prompt
         objectName: "capturePrompt"
+        visible: pageRoot.capturing
+        controllerKeys: [pageRoot.key]
         keys: !pageRoot.pad
         title: (pageRoot.replacing ? "New " : "Another ") + pageRoot.noun
         message: {
@@ -379,6 +351,9 @@ FocusScope {
             var where = pageRoot.all ? "" : " on " + pageRoot.name
             return "Press the " + (pageRoot.replacing ? "new " : "") + pageRoot.noun + where + " for [" + now.label + "]"
         }
+        // A tap: the answer. Held: the way out.
+        onTapped: function(key, input, label) { pageRoot.answer(input, label) }
+        onHeld: pageRoot.endCapture("Nothing changed")
         onBackPressed: pageRoot.endCapture("Nothing changed")
         onTimedOut: pageRoot.endCapture("No press: nothing changed")
     }

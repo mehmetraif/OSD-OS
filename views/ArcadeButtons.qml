@@ -74,9 +74,7 @@ FocusScope {
     // 1 to 6, Coin, Start, then 7 and 8.
     readonly property var allOrder: [0, 1, 2, 3, 4, 5, 8, 9, 6, 7]
     readonly property bool optionalStep: settingAll && optionalAt(step)
-    // How long a wait lasts, a line's own and a step of Set One by One:
-    // the prompt counts them down, and InputManager is told the same
-    // (captureController()), so that it listens for as long.
+    // How long a wait lasts, a line's own and a step of Set One by One.
     readonly property int pressSeconds: 10
     readonly property int stepSeconds: 20
 
@@ -88,40 +86,15 @@ FocusScope {
     // On whose side of it (playerSide()): 2 the right, 1 the left.
     property int player: 1
 
-    // InputManager as the page opened, for its end: the context property may
-    // read null while the view Loader tears down.
-    property var manager: null
-
     Component.onCompleted: {
-        manager = inputManager
         refresh()
         list.currentIndex = list.selectableFrom(0, 1)
         list.forceActiveFocus()
     }
-    // Leaving the page while it waits for a press: the controller acts again.
-    Component.onDestruction: {
-        if (manager)
-            manager.captureController("")
-    }
-
     Connections {
         target: inputManager
         function onControllersChanged() { pageRoot.refresh() }
         function onPlayersChanged() { pageRoot.player = pageRoot.playerSide() }
-        // A tap: the answer.
-        function onControllerInputCaptured(key, input, label) {
-            if (key !== pageRoot.key || !pageRoot.capturing)
-                return
-            if (pageRoot.settingAll)
-                pageRoot.stepPress(input, label)
-            else
-                pageRoot.setPress(input, label)
-        }
-        // Held: the way out.
-        function onCaptureHeld(key) {
-            if (key === pageRoot.key && pageRoot.capturing)
-                pageRoot.endCapture("Nothing changed")
-        }
     }
 
     Timer {
@@ -285,21 +258,14 @@ FocusScope {
         notice = ""
         stepNotice = ""
         captureInput = input
-        var seconds = settingAll ? stepSeconds : pressSeconds
-        inputManager.captureController(key, seconds)
-        prompt.visible = true
-        prompt.start(seconds)
-        prompt.forceActiveFocus()
+        prompt.begin()
     }
 
     // The wait over, with what to say of it.
     function endCapture(said) {
-        var hadKeys = prompt.activeFocus
+        var hadKeys = prompt.end()
         captureInput = ""
         settingAll = false
-        prompt.visible = false
-        if (inputManager)
-            inputManager.captureController("")
         notice = said
         if (hadKeys)
             list.forceActiveFocus()
@@ -335,8 +301,7 @@ FocusScope {
     // The step it is at, asked for (again).
     function askStep() {
         captureInput = page.rows[allOrder[step]].input
-        prompt.start(stepSeconds)
-        inputManager.captureController(key, stepSeconds)
+        prompt.again()
     }
 
     function take(token, label) {
@@ -356,11 +321,9 @@ FocusScope {
             askStep()
             return
         }
-        var hadKeys = prompt.activeFocus
+        var hadKeys = prompt.end()
         captureInput = ""
         settingAll = false
-        prompt.visible = false
-        inputManager.captureController("")
         summing = true
         sumIndex = 0
         if (hadKeys)
@@ -538,12 +501,23 @@ FocusScope {
     PressPrompt {
         id: prompt
         objectName: "capturePrompt"
+        visible: pageRoot.capturing
+        controllerKeys: [pageRoot.key]
+        seconds: pageRoot.settingAll ? pageRoot.stepSeconds : pageRoot.pressSeconds
         title: pageRoot.settingAll ? "Set One by One (" + (pageRoot.step + 1) + "/" + pageRoot.allOrder.length + ")"
                                    : pageRoot.inputLabel(pageRoot.captureInput)
         message: (pageRoot.stepNotice !== "" ? pageRoot.stepNotice + "\n" : "")
                  + "Press the button on " + pageRoot.name + " for [" + pageRoot.inputLabel(pageRoot.captureInput) + "]"
         extra: !pageRoot.settingAll ? ""
                : "Joystick ◄ back" + (pageRoot.optionalStep ? ", ► no button" : "")
+        // A tap: the answer. Held: the way out.
+        onTapped: function(key, input, label) {
+            if (pageRoot.settingAll)
+                pageRoot.stepPress(input, label)
+            else
+                pageRoot.setPress(input, label)
+        }
+        onHeld: pageRoot.endCapture("Nothing changed")
         onBackPressed: pageRoot.endCapture("Nothing changed")
         onTimedOut: pageRoot.endCapture("No press: nothing changed")
 

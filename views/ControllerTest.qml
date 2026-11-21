@@ -102,18 +102,14 @@ FocusScope {
             found[key] = jamma
         }
         sticks = found
-        capture()
         if (jamma)
             inputManager.watchJammaPins(true)
         prompt.visible = true
-        prompt.start(testSeconds)
-        prompt.forceActiveFocus()
+        prompt.begin()
     }
     Component.onDestruction: {
-        if (manager) {
-            manager.captureController("")
+        if (manager)
             manager.watchJammaPins(false)
-        }
     }
 
     Connections {
@@ -121,14 +117,6 @@ FocusScope {
         function onControllersChanged() {
             // Unplugged: nothing left to test.
             if (!testRoot.ended && !inputManager.controllerPage(testRoot.key).present)
-                testRoot.end()
-        }
-        function onControllerInputDown(key, input, label) {
-            if (!testRoot.ended && testRoot.mine(key))
-                testRoot.testPress(key, input, label)
-        }
-        function onCaptureHeld(key) {
-            if (testRoot.mine(key))
                 testRoot.end()
         }
         function onJammaPinChanged(player, address, pin, pressed, input) {
@@ -148,25 +136,14 @@ FocusScope {
         }
     }
 
-    function mine(key) {
-        return key === testRoot.key || sticks[key] !== undefined
-    }
-
-    // InputManager listens for as long as the prompt counts.
-    function capture() {
-        inputManager.captureControllers(jamma ? Object.keys(sticks) : [key], testSeconds)
-    }
-
     // Over: the controller acts again, and the page it came from is back.
     function end() {
         if (ended)
             return
         ended = true
-        prompt.stop()
-        if (inputManager) {
-            inputManager.captureController("")
+        prompt.end()
+        if (inputManager)
             inputManager.watchJammaPins(false)
-        }
         goBack()
     }
 
@@ -218,8 +195,7 @@ FocusScope {
     function keepTesting() {
         if (ended)
             return
-        prompt.start(testSeconds)
-        capture()
+        prompt.again()
     }
 
     // "A → SELECT / OK → BUTTON 4"; on the JAMMA board "P1 B1 → 4 → BUTTON 4",
@@ -245,6 +221,8 @@ FocusScope {
     PressPrompt {
         id: prompt
         objectName: "testPrompt"
+        controllerKeys: testRoot.jamma ? Object.keys(testRoot.sticks) : [testRoot.key]
+        seconds: testRoot.testSeconds
         keys: !testRoot.pad
         title: testRoot.pad ? "Test Buttons" : "Test Keys"
         message: testRoot.jamma && testRoot.pinsNotice !== ""
@@ -256,6 +234,8 @@ FocusScope {
         maxChoices: testRoot.jamma ? 2 : testRoot.pad ? 3 : (root.hintBar ? 4 : 5)
         choices: testRoot.presses.slice(0, maxChoices).map(testRoot.pressText)
         currentIndex: 0
+        onInputDown: function(key, input, label) { testRoot.testPress(key, input, label) }
+        onHeld: testRoot.end()
         onBackPressed: testRoot.end()
         onTimedOut: testRoot.end()
 
