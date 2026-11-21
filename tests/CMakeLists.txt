@@ -544,7 +544,8 @@ osdos_qml_test(window_change tst_window_change.qml)
 # inFrame, and the shell's own navigateTo.
 osdos_qml_test(module_router tst_module_router.qml)
 # The catalogue browsers, YouTube's (modules/youtube/views/Items.qml) and a
-# web player module's (views/Components/WebPlayerBrowse.qml), against
+# web player module's (views/Components/WebPlayerBrowse.qml), both a
+# CatalogBrowser (views/Components/CatalogBrowser.qml), against
 # stand-ins for their backends.
 osdos_qml_test(catalog_browser_views tst_catalog_browsers.qml)
 

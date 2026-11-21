@@ -18,6 +18,7 @@ WebPlayerLaunch WebPlayerLaunch.qml
 TreeBrowser TreeBrowser.qml
 OnScreenKeyboard OnScreenKeyboard.qml
 WebPlayerBrowse WebPlayerBrowse.qml
+CatalogBrowser CatalogBrowser.qml
 InfoPanel InfoPanel.qml
 EntryOptions EntryOptions.qml
 PlayerMenu PlayerMenu.qml

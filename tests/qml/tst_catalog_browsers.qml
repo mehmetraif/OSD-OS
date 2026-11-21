@@ -76,6 +76,7 @@ StandInRoot {
             return []
         }
         function loadMore(path) { root.ask("loadMore " + path) }
+        function forgetSearches() { root.ask("forgetSearches") }
         function loadDetails(item) { root.ask("loadDetails " + item.path) }
         function isInWatchLater(videoId) { return false }
         function addToWatchLater(videoId, title, channelName) { root.ask("watchLater " + videoId) }
@@ -226,6 +227,12 @@ StandInRoot {
             osk.close()
             osk.accepted("cats")
             verify(root.asked.indexOf(data.listAsk + "search/cats") >= 0)
+            // YouTube asks for its words afresh, before their folder opens.
+            var forgot = root.asked.indexOf("forgetSearches")
+            if (data.module === "youtube")
+                verify(forgot >= 0 && forgot < root.asked.indexOf(data.listAsk + "search/cats"))
+            else
+                compare(forgot, -1)
             compare(tree.folderName, "Search: cats")
             keyClick(Qt.Key_Escape)
             compare(tree.trailState().length, 1)

@@ -1092,6 +1092,7 @@ Every screen is drawn from the components in [`views/Components`](https://github
 | `OsdGround`, `SelectionBox`, `SkinImage`, `Dither` | The ground under a full-screen layer, the selected line's box, a skin's picture, two-colour dimming |
 | `PixelIcon`, `OsdTicks`, `OsdTapeBar`, `VhsCassette` | Pixel-drawn pieces: symbols, a segment bar, the tape position bar, the boot screen's cassette |
 | `NfcCardWriter` | Writing an NFC card for what a detail view shows |
+| `CatalogBrowser` | A catalogue in a `TreeBrowser` with search, MORE, an info screen and options on what plays (YouTube's list and `WebPlayerBrowse` are one), given what it browses |
 | `WebPlayerBrowse`, `WebPlayerLaunch` | A streaming service's catalogue and its web player |
 | `MediaServerLibraries`, `MediaServerItems`, `MediaServerItem`, `MediaServerPlayer`… | A Jellyfin-style server's libraries, lists, item pages and player (Jellyfin's and Emby's), given the module's backend |
 
