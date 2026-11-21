@@ -2,7 +2,9 @@ import QtQuick
 import Components
 
 // Something set for a game, from its options, chosen among its settings: a
-// vertical game's Monitor, a MAME game's Difficulty. The host says where the
+// vertical game's Monitor, a MAME game's Difficulty, the Engine that plays
+// it (Auto, which names the engine it picks, MAME, or FinalBurn Neo for a
+// set it has: ArcadeBackend's engineChoices()). The host says where the
 // settings come from (choicesFor(game): [{ id, label, current }], the
 // backend's) and how one is kept (keep(game, id)); the one in force is
 // under the cursor as it opens, chosen() after one is kept.
@@ -23,6 +25,9 @@ ChoiceOverlay {
     property string name: ""
     property var choicesFor: function(game) { return [] }
     property var keep: function(game, id) {}
+    // How many settings a game needs for there to be a choice: the Engine's
+    // Auto and MAME are there for every game, so it takes FinalBurn Neo too.
+    property int least: 2
     property string set: ""
 
     signal chosen()
@@ -53,7 +58,7 @@ ChoiceOverlay {
     }
     // Whether a game has anything to choose.
     function offered(game) {
-        return choicesFor(game).length > 1
+        return choicesFor(game).length >= least
     }
 
     promptText: name

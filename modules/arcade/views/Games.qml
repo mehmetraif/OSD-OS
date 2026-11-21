@@ -309,10 +309,14 @@ FocusScope {
         onChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
-    EngineChooser {
+    GameChoice {
         id: engines
         anchors.fill: parent
-        onEngineChosen: gamesRoot.engineRevision++
+        name: "Engine"
+        least: 3
+        choicesFor: function(game) { return arcadeBackend ? arcadeBackend.engineChoices(game) : [] }
+        keep: function(game, id) { if (arcadeBackend) arcadeBackend.setEngine(game, id) }
+        onChosen: gamesRoot.engineRevision++
         onClosed: tree.forceActiveFocus()
     }
 }
