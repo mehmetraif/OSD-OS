@@ -387,7 +387,7 @@ Turns `ssh.service` on and starts it, or turns it off and stops it, through the 
 ### Paste OSD/OS Setup
 
 1. On [OSD/OS Setup](https://osdos.tv/setup/), choose the settings, then **Copy for a computer**.
-2. Select on this row. OSD/OS's own settings and the RetroAchievements account are set at once.
+2. Select on this row. OSD/OS asks **Paste these settings?**, the cursor on **Cancel**; **Paste** sets OSD/OS's own settings and the RetroAchievements account at once. A clipboard that holds no OSD/OS Setup settings is said, and nothing is asked.
 
 - A window says what was set. What only an OSD/OS card sets stays as it is: the device's name, the display output, Wi-Fi, the password, SSH, the time zone, the keyboard (the time zone, the keyboard and whether SSH is on have rows of their own above).
 - The page's file does the same at the next start, put in the data folder or beside the app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-on-a-computer)).

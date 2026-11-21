@@ -637,12 +637,13 @@ function systemRows(items) {
         moduleId: ""
     })
     // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
-    // set at once (pasteSetup(), AppCore::applySetupText()), where there
-    // is a clipboard to paste them from: a computer's.
+    // set once the question is answered (pasteSetup(),
+    // AppCore::applySetupText()), where there is a clipboard to paste them
+    // from: a computer's.
     items.push({
         type: "paste_setup",
         label: "Paste OSD/OS Setup",
-        description: "The settings copied on OSD/OS Setup's page (osdos.tv/setup, Copy for a computer), set here at once:"
+        description: "The settings copied on OSD/OS Setup's page (osdos.tv/setup, Copy for a computer), set here once you say so:"
                      + " OSD/OS's own and the RetroAchievements account. The device's name, Wi-Fi and the"
                      + " rest are set on an OSD/OS card alone",
         unavailable: settingsRoot.canPaste ? "" : "Only on a computer, from its clipboard; an OSD/OS card takes OSD/OS Setup's file",

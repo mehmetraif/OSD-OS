@@ -451,17 +451,63 @@ FocusScope {
     }
 
     // Paste OSD/OS Setup: the clipboard's text, through a box no one sees
-    // (QML reads the clipboard only so), set at once; then what became of
-    // it, over the rows as they are now.
+    // (QML reads the clipboard only so). Where it holds OSD/OS Setup's
+    // settings (setupText(), as AppCore's reading of them starts) the
+    // question first, Cancel under the cursor, then PASTE sets them; else
+    // a notice says there is nothing to paste, and nothing is asked. Then
+    // what became of it, over the rows as they are now.
     property var pasted: ({})
     function pasteSetup() {
         clipboardBox.text = ""
         clipboardBox.paste()
+        var why = setupTextProblem(clipboardBox.text)
+        if (why !== "") {
+            clipboardBox.text = ""
+            pasted = { ok: false, title: "Nothing to paste", detail: why }
+            pastedNotice.open()
+            return
+        }
+        pasteConfirm.open()
+    }
+    // Why the text isn't OSD/OS Setup's settings, "" when it is: JSON with
+    // its osdos_setup number (AppCore::applySetupText() says the rest, a
+    // version this OSD/OS doesn't know).
+    function setupTextProblem(text) {
+        var copy = "Copy the settings on OSD/OS Setup's page first (osdos.tv/setup, Copy for a computer)"
+        if (String(text).trim() === "")
+            return "The clipboard is empty. " + copy
+        var file = null
+        try {
+            file = JSON.parse(text)
+        } catch (e) {
+            file = null
+        }
+        if (!file || typeof file !== "object" || typeof file.osdos_setup !== "number")
+            return "The clipboard holds no OSD/OS Setup settings. " + copy
+        return ""
+    }
+    function applyPaste() {
         pasted = appCore.applySetupText(clipboardBox.text)
         // Its passwords not kept about.
         clipboardBox.text = ""
         buildModel(settingsList.currentIndex)
         pastedNotice.open()
+    }
+    ChoiceOverlay {
+        id: pasteConfirm
+        objectName: "pasteConfirm"
+        anchors.fill: parent
+        promptText: "Paste these settings?"
+        subtitleText: "OSD/OS's own settings and the RetroAchievements account, from the clipboard, in place of those set here"
+        choices: [{ label: "Cancel", action: "cancel" }, { label: "Paste", action: "paste" }]
+        // Its text gone with the answer, whichever it is.
+        onActivated: function(act) {
+            if (act === "paste")
+                settingsRoot.applyPaste()
+            clipboardBox.text = ""
+        }
+        onCanceled: clipboardBox.text = ""
+        onClosed: settingsRoot.keysBack()
     }
 
     TextEdit {
@@ -873,7 +919,7 @@ FocusScope {
     function keysBack() {
         if (outputPrompts.takeKeys())
             return
-        var open = [systemNotice, logsNotice, quitPrompt, pastedNotice, videoArgsKeyboard, systemPicker]
+        var open = [systemNotice, logsNotice, quitPrompt, pastedNotice, pasteConfirm, videoArgsKeyboard, systemPicker]
                    .filter(function(overlay) { return overlay.visible })
         var front = open.length > 0 ? open[0] : settingsList
         front.forceActiveFocus()

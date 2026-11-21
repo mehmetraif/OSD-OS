@@ -326,7 +326,7 @@ If you don't have a Raspberry Pi and would like to try OSD/OS, I also provide a 
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS and **Paste**: its own settings and the RetroAchievements account are set at once.
 - Or save the page's `osdos-setup.json` in `~/Library/Application Support/OSD-OS/`, or in the folder `osdos.app` is in: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a Mac.
 
@@ -379,7 +379,7 @@ The AppImage carries its own copy of the Wayland client libraries and uses them 
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS and **Paste**: its own settings and the RetroAchievements account are set at once.
 - Or save the page's `osdos-setup.json` in `~/.local/share/OSD-OS/`, or beside the AppImage: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a computer.
 
@@ -434,7 +434,7 @@ For Windows 11 on x64, OSD/OS comes as a zip: one folder, `osdos`, with `osdos.e
 
 **Settings from OSD/OS Setup**
 
-- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS: its own settings and the RetroAchievements account are set at once.
+- Choose the settings on [OSD/OS Setup](https://osdos.tv/setup/), press **Copy for a computer** there, then Settings → System → **Paste OSD/OS Setup** in OSD/OS and **Paste**: its own settings and the RetroAchievements account are set at once.
 - Or save the page's `osdos-setup.json` in `%APPDATA%\OSD-OS\`, or in the `osdos` folder beside `osdos.exe`: OSD/OS applies it at its next start, says what it set, and deletes the file, which holds the account's password.
 - The device's name, the display output, Wi-Fi and the system's settings are set on an OSD/OS card alone, and left as they are on a PC.
 

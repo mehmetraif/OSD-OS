@@ -767,6 +767,25 @@ StandInRoot {
             var list = listOf(page)
             list.currentIndex = all.indexOf("Paste OSD/OS Setup")
             verify(list.opens(row(page, "Paste OSD/OS Setup")), "its line ends in a ►")
+            // Asked first, Cancel under the cursor: nothing set.
+            keyClick(Qt.Key_Return)
+            var confirm = named(page, "pasteConfirm")
+            verify(confirm.visible)
+            compare(confirm.promptText, "Paste these settings?")
+            compare(labelsOf(confirm), ["Cancel", "Paste"])
+            compare(confirm.choiceIndex, 0)
+            keyClick(Qt.Key_Return)
+            verify(!confirm.visible)
+            compare(appCore.pasted, "")
+            compare(cursor(page), "Paste OSD/OS Setup")
+            // Back keeps it as it was too.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Escape)
+            verify(!confirm.visible)
+            compare(appCore.pasted, "")
+            // PASTE sets them.
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(appCore.pasted, text)
             compare(page.pasted.title, "OSD/OS Setup pasted")
@@ -781,6 +800,22 @@ StandInRoot {
             keyClick(Qt.Key_Escape)
             verify(!notice.visible, "back closes it")
             compare(cursor(page), "Paste OSD/OS Setup")
+            // Nothing that can be pasted: said, and nothing asked.
+            var others = ["", "just some text", '{"config": {}}']
+            for (var k = 0; k < others.length; k++) {
+                appCore.pasted = "none"
+                clipboardSource.text = others[k] === "" ? " " : others[k]
+                clipboardSource.selectAll()
+                clipboardSource.copy()
+                keyClick(Qt.Key_Return)
+                verify(!confirm.visible, others[k])
+                compare(page.pasted.title, "Nothing to paste")
+                verify(notice.visible)
+                compare(notice.promptText, "Nothing to paste")
+                compare(appCore.pasted, "none")
+                keyClick(Qt.Key_Escape)
+                compare(cursor(page), "Paste OSD/OS Setup")
+            }
         }
 
         // TV / Movie's page: the videos' rows, then the video modules with
@@ -1238,7 +1273,7 @@ StandInRoot {
 
             systemSettings.available = true
             page = open({ group: "system" })
-            page.pasteSetup()
+            page.applyPaste()
             var pasted = promptShown(page)
             compare(pasted.promptText, "OSD/OS Setup pasted")
             var notice = named(page, "systemNotice")
