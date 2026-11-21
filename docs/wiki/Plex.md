@@ -187,11 +187,12 @@ A card plays as whoever is signed in. It never signs in, switches profile or swi
 
 ## Settings
 
-Settings → TV / Movie → Plex. Everything but Enabled and Scaling shows only once you have signed in.
+Settings → TV / Movie → Plex. Until you have signed in, every row but Enabled, Sign In and Scaling is dimmed, its help line saying **Sign in first (SIGN IN above)**.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Plex on the main menu | `enabled` |
+| Sign In | the profile in use, or SIGNED OUT | | Opens Plex: its sign-in while signed out, else Select User | |
 | Current User | the account's Plex Home profiles | the one chosen at sign-in | Switches profile; a PIN is asked the next time you open Plex | `current_user_id` |
 | Auto Sign In | ON, OFF | OFF | ON opens Plex on the libraries as the current profile | `auto_sign_in` |
 | Server | the servers the profile can use | the one chosen at sign-in | The server Plex browses and plays from | `server_machine_id` |
@@ -200,7 +201,7 @@ Settings → TV / Movie → Plex. Everything but Enabled and Scaling shows only 
 | Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
 | Autoplay Next Episode | ON, OFF | OFF | Plays the season's next episode when one ends | `autoplay_next_episode` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Plex; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign Out | (an action) | | Signs out of Plex on this device | |
+| Sign Out | (an action) | | Asks first, then signs out of Plex on this device. Dimmed while signed out | |
 
 ### How the values are saved
 

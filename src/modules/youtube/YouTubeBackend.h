@@ -61,6 +61,9 @@ public:
     // manifest: sign_out (action). Deletes SIGN IN's browser profile, and with
     // it the sign-in yt-dlp reads.
     Q_INVOKABLE void signOut();
+    // SIGN IN's browser's (WebPlayerBackend::get_auth_state()): "authed"
+    // while it keeps a profile, and so a sign-in yt-dlp reads.
+    Q_INVOKABLE QString get_auth_state() const;
 
     // Root.qml, as the module opens: brings yt-dlp up to date on OSD/OS's
     // image, where its update (osdos-yt-dlp-update.service) otherwise runs
@@ -161,6 +164,7 @@ signals:
     void listingReady(const QString &path);
     void detailsReady(const QString &path, const QVariantMap &details);
     void problemChanged();
+    void authStateChanged();
 
 private:
     bool m_updateStarted = false;

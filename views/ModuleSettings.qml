@@ -206,13 +206,24 @@ FocusScope {
         }
     }
 
-    // Whether any of these rows wants to know who is signed in.
+    // Whether any of these rows wants to know who is signed in: one usable
+    // only then, or the module's SIGN IN, which shows it ("account").
     function needsAuth(schema) {
         for (var n = 0; n < schema.length; n++) {
-            if (schema[n].requires_auth)
+            if (schema[n].requires_auth || schema[n].account)
                 return true
         }
         return false
+    }
+    function signedOut(state) {
+        return state === "none" || state === ""
+    }
+    // Why a row waits for a sign-in: where to sign in, the menu's SIGN IN
+    // row ("Sign in first (SIGN IN above)") where it has one.
+    function authReason(schema) {
+        var row = Array.from(schema || []).filter(function(r) { return r.account })[0]
+        return row ? "Sign in first (" + String(row.label || "Sign In").toUpperCase() + " above)"
+                   : "Only once signed in"
     }
 
     // A menu's rows on the page (another module's, `mid`, marked as its), all
@@ -227,8 +238,8 @@ FocusScope {
         for (var i = 0; i < schema.length; i++) {
             var item = schema[i]
             var off = "", by = ""
-            if (item.requires_auth && (state === "none" || state === "")) {
-                off = "Only once signed in"
+            if (item.requires_auth && signedOut(state)) {
+                off = authReason(schema)
                 by = "auth"
             } else if (item.requires_capability && caps.indexOf(item.requires_capability) < 0) {
                 off = "Not offered by the server"
@@ -428,6 +439,18 @@ FocusScope {
     function hasValue(item) {
         return item.type === "toggle" || item.type === "list_single" || item.type === "directory_browser"
                || item.type === "text" || item.type === "text_list" || item.type === "multiselect_submenu"
+               || !!item.account
+    }
+
+    // SIGN IN's value ("account": true, a module_view row): who is signed
+    // in, the name its options_slot sends as its one choice (the backend's
+    // get_account()), else Signed In; Signed Out while the module's sign-in
+    // state says no one is (get_module_auth_state()).
+    function accountValue(item) {
+        if (signedOut(item._module ? (alsoAuthStates[item._module] || "") : authState))
+            return "Signed Out"
+        var opts = dynamicOptions[rowId(item)] || []
+        return opts.length > 0 && opts[0].label ? String(opts[0].label) : "Signed In"
     }
 
     // A multi-select row's value: All, None or "3 of 4", its choices on as
@@ -485,6 +508,9 @@ FocusScope {
 
         if (type === "multiselect_submenu")
             return multiValue(item)
+
+        if (item.account)
+            return accountValue(item)
 
         return ""
     }

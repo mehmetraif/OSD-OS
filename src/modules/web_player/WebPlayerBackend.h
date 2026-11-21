@@ -85,6 +85,12 @@ public:
     // the service's sign-in lives.
     Q_INVOKABLE void signOut();
 
+    // "authed" while the browser keeps a profile for the service, where its
+    // sign-in lives (made by SIGN IN, or by a title played, which needs one),
+    // "none" once there is none: SIGN OUT is dimmed then, and SIGN IN reads
+    // SIGNED OUT. The browser keeps no name the app can read.
+    Q_INVOKABLE QString get_auth_state() const;
+
 public slots:
     // The module's catalogue region and language (wired by registerModule).
     void onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value);
@@ -92,6 +98,9 @@ public slots:
 signals:
     void runningChanged();
     void openedChanged();
+    // get_auth_state() may have changed: a run of the browser has ended, or
+    // signOut() deleted the profile.
+    void authStateChanged();
     // Once per launch. reason: "ok" (the browser was closed), "failed",
     // "stopped" (close() had to stop it) or "failed_to_start".
     void finished(int exitCode, const QString &reason);

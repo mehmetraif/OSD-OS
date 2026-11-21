@@ -26,6 +26,21 @@ class YouTubeTest : public QObject {
     Q_OBJECT
 
 private slots:
+    // SIGN IN's state: signed in while SIGN IN's browser keeps its profile,
+    // signed out once Sign Out has deleted it, which says so.
+    void signedInWhileTheProfileIsKept() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        YouTubeBackend youtube(data.path(), data.path(), nullptr, nullptr);
+        QSignalSpy changed(&youtube, &YouTubeBackend::authStateChanged);
+        QCOMPARE(youtube.get_auth_state(), QStringLiteral("none"));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/youtube/browser/Default")));
+        QCOMPARE(youtube.get_auth_state(), QStringLiteral("authed"));
+        youtube.signOut();
+        QCOMPARE(youtube.get_auth_state(), QStringLiteral("none"));
+        QCOMPARE(changed.count(), 1);
+    }
+
     void channelsFourAtOnce() {
         QTemporaryDir data;
         QVERIFY(data.isValid());

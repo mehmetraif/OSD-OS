@@ -3156,6 +3156,14 @@ void PlexBackend::get_resume_playback_options() {
     emit dynamicOptionsReady("resume_playback", options);
 }
 
+void PlexBackend::get_account() {
+    QVariantList options;
+    const QString name = get_auth_state() == QLatin1String("none") ? QString() : get_active_user_name();
+    if (!name.isEmpty())
+        options.append(QVariantMap{{"id", name}, {"label", name}});
+    emit dynamicOptionsReady("sign_in", options);
+}
+
 void PlexBackend::getLibraries() {
     QString uri = serverUrl(), token = serverToken();
     if (uri.isEmpty()) { emit dynamicOptionsReady("libraries", QVariantList{}); return; }

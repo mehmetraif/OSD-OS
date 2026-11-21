@@ -70,6 +70,7 @@ Each setting is an object:
 | `confirm` | `action` | A question asked before the slot is called, for a row that deletes or signs out (`"Delete Watch Later?"`): Cancel, under the cursor as it opens, then the row's verb. The row's `description` is shown under it |
 | `verb` | `action` | The question's second answer, the action's own word (`"Delete"`), also on the hint bar on the row. Without it, the label (`Sign Out`) |
 | `params` | `module_view` | The `navParams` the module's `Root.qml` opens with |
+| `account` | `module_view` | `true` on the module's SIGN IN row: it shows who is signed in, the one choice its `options_slot` sends (`dynamicOptionsReady("sign_in", [{ "id", "label" }])`), else SIGNED IN, or SIGNED OUT while `get_auth_state()` is `"none"`; rows with `requires_auth` then say `Sign in first (SIGN IN above)` |
 | `settings` | `submenu` | Its own rows, in this same format |
 | `step`, `start_text`, `end_text` | `slider` | How far ◄ ► move it (10 unless given), and the names under the bar's two ends |
 | `requires_auth` | Every type | Usable only while the backend's `get_auth_state()` is neither `""` nor `"none"`. Dimmed until then (`Only once signed in`) |

@@ -167,6 +167,9 @@ public:
     Q_INVOKABLE void getLibraries();
     Q_INVOKABLE void getVideoQualities();
     Q_INVOKABLE void get_resume_playback_options();
+    // SIGN IN's value: dynamicOptionsReady("sign_in", [{ id, label }]), the
+    // profile signed in as, or [] while no one is.
+    Q_INVOKABLE void get_account();
     Q_INVOKABLE void applyCurrentUserSetting();
     Q_INVOKABLE void applyCurrentServerSetting();
     Q_INVOKABLE void reset_device_check();

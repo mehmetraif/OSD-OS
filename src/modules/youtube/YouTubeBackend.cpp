@@ -60,6 +60,7 @@ YouTubeBackend::YouTubeBackend(const QString &appRoot, const QString &dataRoot, 
         "%26app%3Ddesktop%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252F");
     service.needsChromium = true;
     m_browser = new WebPlayerBackend(service, appRoot, dataRoot, appCore, handoff, this);
+    connect(m_browser, &WebPlayerBackend::authStateChanged, this, &YouTubeBackend::authStateChanged);
 }
 
 QObject *YouTubeBackend::browser() const {
@@ -68,6 +69,10 @@ QObject *YouTubeBackend::browser() const {
 
 void YouTubeBackend::signOut() {
     m_browser->signOut();
+}
+
+QString YouTubeBackend::get_auth_state() const {
+    return m_browser->get_auth_state();
 }
 
 void YouTubeBackend::opened() {

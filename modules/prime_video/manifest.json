@@ -14,6 +14,14 @@
       "description": "Browses what Prime Video carries, and plays it in Prime Video's own player full screen\nNeeds Chromium with Widevine (on the OSD/OS image already)"
     },
     {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "params": { "signIn": true },
+      "description": "Opens Prime Video's sign-in page full screen, to sign in with a keyboard\nThis player stays signed in until Sign Out"
+    },
+    {
       "key": "tmdb_api_key",
       "label": "TMDB Key",
       "type": "text",
@@ -62,18 +70,12 @@
       "description": "How a 16:9 picture fills the 4:3 screen in this module\n[DEFAULT] As Settings' Scaling says"
     },
     {
-      "key": "sign_in",
-      "label": "Sign in",
-      "type": "module_view",
-      "params": { "signIn": true },
-      "description": "Opens Prime Video's sign-in page full screen, to sign in with a keyboard\nThis player stays signed in until Sign out"
-    },
-    {
       "key": "sign_out",
       "label": "Sign Out",
       "type": "action",
       "action_slot": "signOut",
       "confirm": "Sign out of Prime Video?",
+      "requires_auth": true,
       "done": "Signed out of Prime Video",
       "description": "Forgets the Prime Video sign-in on this player\nThe next visit asks for it again"
     }

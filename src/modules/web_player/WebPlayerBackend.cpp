@@ -56,6 +56,8 @@ WebPlayerBackend::WebPlayerBackend(const Service &service,
             this, &WebPlayerBackend::runningChanged);
     connect(m_launcher, &ScriptLauncher::finished,
             this, &WebPlayerBackend::finished);
+    connect(m_launcher, &ScriptLauncher::finished,
+            this, &WebPlayerBackend::authStateChanged);
 
     m_closeTimer = new QTimer(this);
     m_closeTimer->setSingleShot(true);
@@ -214,4 +216,9 @@ void WebPlayerBackend::signOut() {
     }
     if (QDir(browserProfile()).removeRecursively())
         qInfo("[WebPlayer] Signed out of %s: browser profile removed", qPrintable(m_service));
+    emit authStateChanged();
+}
+
+QString WebPlayerBackend::get_auth_state() const {
+    return QFileInfo(browserProfile()).isDir() ? QStringLiteral("authed") : QStringLiteral("none");
 }

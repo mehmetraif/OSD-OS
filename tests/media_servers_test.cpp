@@ -765,6 +765,42 @@ private slots:
     // A profile switch plex.tv doesn't answer changes nothing: the profile
     // that was active stays, whatever PIN was typed, and nothing more is
     // asked. The profile already active is refreshed as before.
+    // SIGN IN's value, the name of who is signed in, as its one choice: none
+    // while no one is, the user signed in as on Jellyfin and Emby, Plex's
+    // profile in use.
+    void signInRowNamesTheAccount() {
+        const auto named = [](const QSignalSpy &spy) {
+            const QList<QVariant> &last = spy.last();
+            [&] { QCOMPARE(last.at(0).toString(), QStringLiteral("sign_in")); }();
+            const QVariantList choices = last.at(1).toList();
+            return choices.isEmpty() ? QString() : choices.first().toMap().value("label").toString();
+        };
+        QTemporaryDir tmp;
+        JellyfinBackend jellyfin(tmp.path());
+        QSignalSpy options(&jellyfin, &JellyfinBackend::dynamicOptionsReady);
+        jellyfin.get_account();
+        QCOMPARE(named(options), QString());
+        signIn(jellyfin);
+        jellyfin.m_userName = QStringLiteral("Ann");
+        jellyfin.get_account();
+        QCOMPARE(named(options), QStringLiteral("Ann"));
+
+        QTemporaryDir plexData;
+        PlexBackend plex(plexData.path(), plexData.path());
+        QSignalSpy plexOptions(&plex, &PlexBackend::dynamicOptionsReady);
+        plex.get_account();
+        QCOMPARE(named(plexOptions), QString());
+        QFile auth(plexData.path() + QStringLiteral("/plex_auth.json"));
+        QVERIFY(auth.open(QIODevice::WriteOnly));
+        auth.write(QJsonDocument(QJsonObject{
+            { "auth_token", "token" }, { "active_server_uri", "http://server" }, { "active_user_id", "2" },
+            { "users", QJsonArray{ QJsonObject{ { "id", "1" }, { "title", "Owner" } },
+                                   QJsonObject{ { "id", "2" }, { "title", "Kid" } } } } }).toJson());
+        auth.close();
+        plex.get_account();
+        QCOMPARE(named(plexOptions), QStringLiteral("Kid"));
+    }
+
     void plexAFailedSwitchChangesNoProfile() {
         QTemporaryDir tmp;
         QVERIFY(tmp.isValid());

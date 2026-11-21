@@ -138,6 +138,7 @@ Settings → TV / Movie → Emby. Everything but Enabled and Scaling shows only 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | ON, OFF | OFF | Shows Emby on the main menu | `enabled` |
+| Sign In | the user signed in as, or SIGNED OUT | | Opens Emby: its sign-in while signed out, else its libraries | |
 | Libraries | each library, ON or OFF | all ON | Which libraries the home screen lists | `libraries` |
 | Video Quality | Direct Play, 480p (NTSC CRT), 576p (PAL CRT), 720p, 1080p | Direct Play | Direct Play, or a transcode capped at that size | `video_quality` |
 | Resume Playback | Ask, Always | Ask | Whether a video with a resume point asks, or carries on | `resume_playback` |
@@ -145,7 +146,7 @@ Settings → TV / Movie → Emby. Everything but Enabled and Scaling shows only 
 | Intro Skip | Off, Auto, Button | Off | What happens at a marked intro | `intro_skip` |
 | Credit Skip | Off, Auto, Button | Off | What happens at marked credits | `outro_skip` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How 16:9 fills the 4:3 screen in Emby; Default follows Settings → TV / Movie → Scaling | `video_scaling` |
-| Sign Out | (an action) | | Removes this device from the server and forgets the sign-in | |
+| Sign Out | (an action) | | Asks first, then removes this device from the server and forgets the sign-in. Dimmed while signed out | |
 
 ### How the values are saved
 

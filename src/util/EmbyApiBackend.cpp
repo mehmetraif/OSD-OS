@@ -1389,6 +1389,13 @@ void EmbyApiBackend::get_resume_playback_options() {
     emit dynamicOptionsReady("resume_playback", options);
 }
 
+void EmbyApiBackend::get_account() {
+    QVariantList options;
+    if (has_auth() && !m_userName.isEmpty())
+        options.append(QVariantMap{{"id", m_userName}, {"label", m_userName}});
+    emit dynamicOptionsReady("sign_in", options);
+}
+
 void EmbyApiBackend::onSettingChanged(const QString &moduleId, const QString &key, const QVariant &value) {
     if (moduleId != m_moduleId)
         return;

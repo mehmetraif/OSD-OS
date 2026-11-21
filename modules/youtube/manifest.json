@@ -15,6 +15,14 @@
       "default": "OFF"
     },
     {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "params": { "signIn": true },
+      "description": "Opens Google's sign-in page full screen, to sign in with a keyboard: YouTube then searches and plays as that account, with fewer bot checks\nYouTube can block an account used through yt-dlp: sign in with a spare one\nNeeds Chromium, or Google Chrome on a Mac"
+    },
+    {
       "key": "subscriptions",
       "label": "Subscriptions",
       "type": "text_list",
@@ -134,18 +142,12 @@
       "description": "Empties Recently Watched, and forgets where each video was stopped"
     },
     {
-      "key": "sign_in",
-      "label": "Sign in",
-      "type": "module_view",
-      "params": { "signIn": true },
-      "description": "Opens Google's sign-in page full screen, to sign in with a keyboard: YouTube then searches and plays as that account, with fewer bot checks\nYouTube can block an account used through yt-dlp: sign in with a spare one\nNeeds Chromium, or Google Chrome on a Mac"
-    },
-    {
       "key": "sign_out",
       "label": "Sign Out",
       "type": "action",
       "action_slot": "signOut",
       "confirm": "Sign out of YouTube?",
+      "requires_auth": true,
       "done": "Signed out of YouTube",
       "description": "Forgets the YouTube sign-in on this player"
     }

@@ -81,6 +81,9 @@ public:
     Q_INVOKABLE void getLibraries();
     Q_INVOKABLE virtual void getVideoQualities();
     Q_INVOKABLE void get_resume_playback_options();
+    // SIGN IN's value: dynamicOptionsReady("sign_in", [{ id, label }]), the
+    // user signed in as, or [] while no one is.
+    Q_INVOKABLE void get_account();
     Q_INVOKABLE void load_server_preferences();
 
     Q_INVOKABLE int get_last_audio_lang_idx() const;

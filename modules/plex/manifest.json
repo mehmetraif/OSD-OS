@@ -13,6 +13,15 @@
       "default": "OFF"
     },
     {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "options_source": "dynamic",
+      "options_slot": "get_account",
+      "description": "Opens Plex to sign in: a code to enter at plex.tv/link, then a profile and a server\nSigned in, the profile in use"
+    },
+    {
       "key": "current_user_id",
       "label": "Current User",
       "type": "list_single",

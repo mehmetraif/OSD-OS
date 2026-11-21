@@ -123,6 +123,8 @@ StandInRoot {
             settingsNotSaved()
             return false
         }
+        // A module_view row's page: the module's own Root.qml.
+        function module_entry_point(id) { return "modules/" + id + "/views/Root.qml" }
         function get_module_settings_schema(id) {
             calls.schemas++
             return id === "com.osdos.other" ? otherSchema : schema
@@ -1532,6 +1534,51 @@ StandInRoot {
             compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE", "ADD, the list full")
             page.maxLines = 3
             compare(bar.text, "[ESC]:BACK [▲▼]:NAVIGATE [ENTER]:ADD")
+        }
+
+        // An account module's two rows: SIGN IN after ENABLED, its value who
+        // is signed in (the name its slot sends) or SIGNED OUT, opening the
+        // module's own sign-in; SIGN OUT last, dimmed while signed out. The
+        // rows that need an account say where to sign in.
+        function test_signInRow() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "sign_in", label: "Sign In", type: "module_view", account: true,
+                  options_source: "dynamic", options_slot: "get_account", params: { signIn: true } },
+                { key: "libraries", label: "Libraries", type: "multiselect_submenu", options_source: "dynamic",
+                  options_slot: "getLibraries", requires_auth: true },
+                { key: "logout", label: "Sign Out", type: "action", action_slot: "logout",
+                  confirm: "Sign out?", requires_auth: true }
+            ]
+            appCore.authState = "none"
+            var page = open()
+            compare(appCore.actions, ["get_account"])
+            compare(menuRow(page, 1).value, "Signed Out")
+            verify(menuRow(page, 1).opens)
+            verify(!menuRow(page, 1).dimmed)
+            compare(off(page, "libraries"), "Sign in first (SIGN IN above)")
+            compare(off(page, "logout"), "Sign in first (SIGN IN above)")
+            verify(menuRow(page, 3).dimmed)
+
+            appCore.authState = "authed"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(appCore.actions.filter(function(a) { return a === "get_account" }).length, 2)
+            compare(menuRow(page, 1).value, "Signed In")
+            appCore.dynamicOptionsReady("com.osdos.test", "sign_in", [{ id: "Ann", label: "Ann" }])
+            compare(menuRow(page, 1).value, "Ann")
+            compare(off(page, "libraries"), "")
+            compare(off(page, "logout"), "")
+
+            appCore.authState = "none"
+            appCore.moduleAuthStateChanged("com.osdos.test")
+            compare(menuRow(page, 1).value, "Signed Out")
+
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "sign_in")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "modules/com.osdos.test/views/Root.qml")
+            compare(root.navigations[0].params, { signIn: true })
         }
 
         // The file picker (views/FilePicker.qml), as a directory_browser row

@@ -156,11 +156,11 @@ Settings → TV / Movie → **Netflix**, with keys under `modules.com.osdos.netf
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Enabled | On, Off | Off | Shows the module on the main menu. | `enabled` |
+| Sign In | SIGNED IN or SIGNED OUT | | Opens the service's sign-in page full screen. SIGNED IN while the browser keeps a profile for the service. | |
 | Catalogue Region | TR, US, GB, DE, FR, NL, ES, IT, CA, AU | TR | The country whose catalogue to list. | `region` |
 | Catalogue Language | English, Turkish | English | The language of titles, genres and stories. | `catalog_language` |
 | Scaling | Default, Letterbox, 14:9, Pan & Scan, Anamorphic | Default | How a 16:9 picture fills a 4:3 screen in the service's player. Default follows Settings → TV / Movie → Scaling. | `video_scaling` |
-| Sign in | Select | | Opens the service's sign-in page full screen. | |
-| Sign Out | Select | | Forgets the sign-in: deletes the profile. | |
+| Sign Out | Select | | Asks first, then forgets the sign-in: deletes the profile. Dimmed while signed out. | |
 
 The app's **Info Screen** (`app.info_screen`), **Play at Startup** (`app.startup_favorite`) and **Scaling** (`app.video_scaling`) apply too ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 

@@ -13,6 +13,15 @@
       "default": "OFF"
     },
     {
+      "key": "sign_in",
+      "label": "Sign In",
+      "type": "module_view",
+      "account": true,
+      "options_source": "dynamic",
+      "options_slot": "get_account",
+      "description": "Opens Jellyfin to sign in: the server's address, then Quick Connect\nSigned in, the user in use"
+    },
+    {
       "key": "server_url",
       "label": "Server Address",
       "type": "text",
