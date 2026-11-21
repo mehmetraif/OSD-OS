@@ -2,10 +2,9 @@ import QtQuick
 import QtTest
 import OSDOS.Testing
 
-// About, views/About.qml, against stand-ins for AppCore's licence files,
-// ArcadeBackend's FinalBurn Neo licence and SystemInfo's device name: System
-// Information first, the device's name its value, select opening its page and
-// back from it on its line again; OSD/OS's own lines, then the arcade's under
+// About, views/About.qml, against stand-ins for AppCore's license files and
+// ArcadeBackend's FinalBurn Neo license: Build first (System Information is
+// System's own row now); OSD/OS's own lines, then the arcade's under
 // its heading, which the cursor steps over; select on a line with a licence
 // opens it, OSD/OS's under the GPL's notice, another's under its name,
 // FinalBurn Neo's as it was installed or what to do without it; back closes
@@ -118,25 +117,15 @@ StandInRoot {
             compare(cursor(page), label)
         }
 
-        // System Information first, the device's name its value; its page
-        // opens on select, and nothing else does.
-        function test_systemInfo() {
+        // Build first: System Information is a row of System's own, and no
+        // line here leads to its page.
+        function test_noSystemInfo() {
             var page = open()
-            compare(systemInfo.refreshes, 1)
-            compare(cursor(page), "System Information")
-            compare(shown(page, 0), "den-tv")
-            verify(hintOf(page).indexOf("[ENTER]:OPEN") >= 0)
-            verify(helpOf(page).indexOf("tells it apart from others on the network") >= 0)
-            keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 1)
-            compare(root.navigations[0].path, "views/SystemInfo.qml")
-            compare(root.navigations[0].listState.currentIndex, 0)
-            compare(findText(page, "This program is free software"), null)
-            keyClick(Qt.Key_Down)
             compare(cursor(page), "Build")
+            verify(page.rows.every(function(r) { return r.page !== "views/SystemInfo.qml" }))
             compare(hintOf(page).indexOf("[ENTER]:OPEN"), -1)
             keyClick(Qt.Key_Return)
-            compare(root.navigations.length, 1)
+            compare(root.navigations.length, 0)
         }
 
         // A line that leads to a page, or holds a licence, ends in a ►, and ►
@@ -144,15 +133,10 @@ StandInRoot {
         function test_rightOpens() {
             var page = open()
             var list = childOf(childOf(childOf(page, "shownTop"), "topCut"), "highlightMoveDuration")
-            verify(list.itemAtIndex(0).opens)       // System Information
-            verify(!list.itemAtIndex(1).opens)      // Build
+            verify(!list.itemAtIndex(0).opens)      // Build
             verify(!list.itemAtIndex(0).changes)
             keyClick(Qt.Key_Right)
-            compare(root.navigations.length, 1)
-            compare(root.navigations[0].path, "views/SystemInfo.qml")
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Right)
-            compare(root.navigations.length, 1)
+            compare(root.navigations.length, 0)
             downTo(page, "License")
             verify(list.itemAtIndex(list.currentIndex).opens)
             keyClick(Qt.Key_Right)
@@ -161,23 +145,15 @@ StandInRoot {
             compare(findText(page, "This program is free software"), null)
         }
 
-        // Back from System Information, on its line again, wherever the list
-        // was; a new name on its line in place, the cursor where it is.
-        function test_backFromSystemInfo() {
-            var page = open({ currentIndex: 0 })
-            compare(cursor(page), "System Information")
-            cleanup()
-            page = open({ currentIndex: 5 })
-            compare(cursor(page), page.rows[5].label)
-            systemInfo.deviceName = "attic-tv"
-            compare(shown(page, 0), "attic-tv")
-            compare(cursor(page), page.rows[5].label)
+        // Back to the page, on the line it was left on.
+        function test_backToItsLine() {
+            var page = open({ currentIndex: 4 })
+            compare(cursor(page), page.rows[4].label)
         }
 
         // A gamepad pressed after the keyboard changes the select key's hint
         // in the help line and the hint bar, not the lines: the cursor stays
-        // where it was, and select does what it did (not System Information,
-        // the first line).
+        // where it was, and select does what it did (not the first line's).
         function test_hintsChange() {
             var page = open()
             downTo(page, "License")
@@ -209,7 +185,7 @@ StandInRoot {
         function test_lines() {
             var page = open()
             var labels = page.rows.map(function(r) { return (r.type === "section" ? "# " : "") + r.label })
-            compare(labels.slice(0, 2), ["System Information", "Build"])
+            compare(labels.slice(0, 2), ["Build", "Developer"])
             var at = labels.indexOf("# Arcade")
             verify(at > labels.indexOf("Data"))
             compare(labels.slice(at + 1), ["MAME", "RetroArch", "FinalBurn Neo", "openhi2txt", "hi2txt", "RapidXML",

@@ -205,7 +205,7 @@ The image lands in `os/work/pi-gen/deploy/`. `os/build.sh` fetches pi-gen at a p
 | `OSDOS_ARCADE` | `1` | `0` leaves out MAME (`mame`, `mame-data`), RetroArch and FinalBurn Neo; the Arcade module then says MAME is not installed. |
 | `OSDOS_ROOT_SIZE` | `8` | GiB the system keeps of the card; the rest becomes the film partition on the first boot. `0`: no film partition, the system takes the whole card. |
 | `ENABLE_SSH` | `0` | `1` enables SSH (it then also waits for the app, after mDNS). |
-| `TARGET_HOSTNAME` | `osdos` | The device's name on the network, every card's alike: name each in Raspberry Pi Imager's customisation, or in Settings → System → About → System Information once it has started. |
+| `TARGET_HOSTNAME` | `osdos` | The device's name on the network, every card's alike: name each in Raspberry Pi Imager's customisation, or in Settings → System → System Information once it has started. |
 | `IMG_NAME` | `osdos` | |
 | `WPA_COUNTRY`, `LOCALE_DEFAULT`, `KEYBOARD_KEYMAP`, `KEYBOARD_LAYOUT`, `TIMEZONE_DEFAULT`, `PUBKEY_SSH_FIRST_USER`, `PUBKEY_ONLY_SSH` | pi-gen's | Passed through to pi-gen. |
 | `DEPLOY_COMPRESSION` | `xz` | Passed through to pi-gen, which would otherwise zip the image. |

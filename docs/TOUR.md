@@ -306,7 +306,7 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 
 <table>
 <tr><th width="50%">System Information</th><th width="50%">Renaming the device</th></tr>
-<tr><td><img src="screenshots/system-info.png" width="100%" alt="Settings → System → About → System Information: the device's name, what it is and its addresses" /></td><td><img src="screenshots/system-info-rename.png" width="100%" alt="Renaming the device on the on-screen keyboard" /></td></tr>
+<tr><td><img src="screenshots/system-info.png" width="100%" alt="Settings → System → System Information: the device's name, what it is and its addresses" /></td><td><img src="screenshots/system-info-rename.png" width="100%" alt="Renaming the device on the on-screen keyboard" /></td></tr>
 <tr><td>The device's name first, the name LAN Play shows the others, then what it is and each connection's addresses.</td><td>On the image, select on the name types a new one.</td></tr>
 </table>
 

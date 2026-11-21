@@ -296,7 +296,7 @@ INSTALL_DIR="/opt/osdos"
 #    sets the Wi-Fi country through osdos-wifi.socket, so Settings offers
 #    Wi-Fi.
 # 8: osdos-stop also names the device through osdos-name.socket, so Settings
-#    → About → System Information can rename it.
+#    → System Information can rename it.
 # 9: osdos-stop also writes JAMMA 480i at 640 across on exit 39 (and powers
 #    off after it on 59), so Display Output offers it.
 # 10: osdos-stop also sets the time zone and the keyboard through
@@ -570,7 +570,7 @@ if [ -n "${SERVICE_USER}" ]; then
 # exit code, or to the signal name if a signal killed it. Called with
 # next-start, by osdos-display.socket instead: Display Output's At Next Start;
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
-# device-name, by osdos-name.socket: Settings → System → About → System Information's
+# device-name, by osdos-name.socket: Settings → System → System Information's
 # Device Name; with system-setting, by osdos-system.socket: Settings → System's
 # Time Zone, Keyboard and SSH.
 
@@ -669,7 +669,7 @@ wifi_country() {
     echo ok
 }
 
-# Settings → System → About → System Information's Device Name: a name on a line from
+# Settings → System → System Information's Device Name: a name on a line from
 # the app, through the socket, and "ok" back, or why not. Only a name the
 # network takes (RFC 1123, as the app has it too: letters, digits and
 # hyphens, 63 at most, neither end a hyphen), never echoed. hostnamectl sets
@@ -858,7 +858,7 @@ STOP_HELPER
     ROOT_REQUESTS=(
         "display|next-start|display output for the next start|Settings → Screen → Display Output"
         "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
-        "name|device-name|device name|Settings → System → About → System Information"
+        "name|device-name|device name|Settings → System → System Information"
         "system|system-setting|time zone and keyboard|Settings → System"
     )
     # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is

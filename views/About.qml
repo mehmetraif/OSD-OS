@@ -1,10 +1,8 @@
 import QtQuick
 import Components
 
-// ABOUT, from Settings: the wordmark with its tagline, then System
-// Information, this device's name its value, which opens its page
-// (views/SystemInfo.qml; back from it, the cursor on its line again), then
-// what OSD/OS is made of, who makes it and under which licence, as menu lines
+// ABOUT, from Settings: the wordmark with its tagline, then what OSD/OS is
+// made of, who makes it and under which license, as menu lines
 // whose help line carries each one's detail (it stays whatever Settings' HELP
 // LINE says: these lines are the page); then, under ARCADE, the free software
 // the games play in and read with, and the sites they are read from. Behind
@@ -34,18 +32,11 @@ FocusScope {
     readonly property string upstreamAuthor: "Anthony Caccese"
     readonly property string upstreamUrl: "github.com/anthonycaccese/240-MP"
     readonly property string year: "2026"
-    // Context properties read null while the Loader tears this view down.
-    readonly property string deviceName: systemInfo ? systemInfo.deviceName : ""
 
     // The lines, which nothing changes while the page is up: a new list
-    // would take the cursor back to the first line, System Information, which
-    // select opens. A description's {select} is the select key's hint, put in
+    // would take the cursor back to the first line. A description's {select} is the select key's hint, put in
     // as the help line shows it (keyboard or gamepad).
     readonly property var rows: [
-        { key: "system_info", label: "System Information", page: "views/SystemInfo.qml",
-          description: "This device's name, which tells it apart from others on the network • {select}"
-                       + " What it is: its model, OS, memory, storage and temperature, and each network connection's"
-                       + " IP and MAC addresses" },
         { key: "build", label: "Build", value: root.appBuild,
           description: "Version " + root.appVersion + " • The commit this build was made from, and the day"
                        + " • A VCR-style smart TV experience for CRTs: films, streams and arcade games with high"
@@ -210,12 +201,8 @@ FocusScope {
         + " without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
         + " See the GNU General Public License below for more details, or at gnu.org/licenses/gpl-3.0.html."
 
-    // The device's name read again as the page opens, as System Information
-    // reads it, in case it was changed outside OSD/OS; back from that page, the
-    // cursor on its line again.
+    // Back from a licence's page, the cursor on its line again.
     Component.onCompleted: {
-        if (systemInfo)
-            systemInfo.refresh()
         if (navListState.currentIndex !== undefined) {
             list.currentIndex = Math.min(navListState.currentIndex, rows.length - 1)
             list.show(list.currentIndex)
@@ -302,9 +289,7 @@ FocusScope {
             height: root.menuRowHeight
             heading: modelData.type === "section"
             label: modelData.label
-            // The device's name read here, so that a new one doesn't make the
-            // lines anew.
-            value: modelData.key === "system_info" ? aboutRoot.deviceName : (modelData.value || "")
+            value: modelData.value || ""
             // A line that leads to a page, or a licence's text, ends in a ►.
             opens: !!(modelData.page || modelData.license)
             selected: list.currentIndex === index

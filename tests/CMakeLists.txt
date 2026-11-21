@@ -238,7 +238,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # then ended and deleted.
     osdos_cpp_test(process_over)
 
-    # Settings → System → About → System Information (SystemInfo): its rows from what
+    # Settings → System → System Information (SystemInfo): its rows from what
     # the system says, Linux's files from a stand-in root, the name a network
     # takes of what is typed, and the device renamed through a stand-in for
     # osdos-name.socket.
@@ -479,15 +479,14 @@ osdos_qml_test(catalog_browser_views tst_catalog_browsers.qml)
 # view takes its place in (views/Components/MonitorChrome.qml and the shared
 # components that hand it their content), against a stand-in for Main.qml.
 osdos_qml_test(monitor_frame_views tst_monitor_frame.qml)
-# About (views/About.qml): System Information first, the device's name its
-# value, opening its page; OSD/OS's lines and the arcade's, each licence a
-# page of its own, against stand-ins for the licence files and the name.
+# About (views/About.qml): OSD/OS's lines and the arcade's, each license a
+# page of its own, against stand-ins for the license files.
 osdos_qml_test(about_view tst_about.qml)
 # Settings → Screen → Test Patterns (views/TestPatterns.qml): every pattern there and
 # loading, the keys through them, the name and keys over them, the effects
 # resting and the screen saver waiting.
 osdos_qml_test(test_patterns_view tst_test_patterns.qml)
-# About → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
+# Settings → System → System Information (views/SystemInfo.qml): its rows, the cursor kept on its
 # line as they are read again, and the device renamed on the keyboard, against
 # a stand-in for SystemInfo.
 osdos_qml_test(system_info_view tst_system_info.qml)

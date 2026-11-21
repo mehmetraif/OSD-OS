@@ -50,6 +50,6 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **Audio Output** in Settings: the Pi's AV jack, HDMI or a USB sound card ([Audio Output](https://github.com/mehmetraif/OSD-OS/wiki/Audio-Output)).
 - **Wi-Fi** in Settings: the networks in reach, joined with the on-screen keyboard ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)).
 - **Bluetooth** in Settings: search for a keyboard, gamepad or remote and pair it ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
-- **System Information** in Settings → System → About: the device's name, model, memory, storage, temperature and network addresses ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
+- **System Information** in Settings → System: the device's name, model, memory, storage, temperature and network addresses ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
 - **Update** in Settings: a new release downloaded from GitHub and installed ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
 - **About** in Settings: what OSD/OS is, who makes it, and its license.

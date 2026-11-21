@@ -366,17 +366,17 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 
 ## System
 
-`SETTINGS | SYSTEM`: OSD/OS Setup, the update and About, then under **MODULES** the modules of no group ([Modules](#modules)).
+`SETTINGS | SYSTEM`: Update, System Information, the time zone and the keyboard layout, OSD/OS Setup and About, then under **MODULES** the modules of no group ([Modules](#modules)). The page opens on Update; off the OSD/OS image the image's rows are dimmed, saying **Only on the OSD/OS image**.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image, from a launcher at level 10; elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
-| Keyboard | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
-| SSH | ON / OFF | The system's | Turns the SSH service on or off, now and at every start after. On the OSD/OS image only ([below](#ssh)) | None: `systemctl` keeps it |
-| Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
-| Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
-| About | A page | | This device's System Information, then what OSD/OS is made of and its licenses | None: the device's name is the system's hostname |
+| System Information | A page; its value the device's name | | The device's name on the network, which it renames, then its model, OS, memory, storage, temperature and network addresses | None: the device's name is the system's hostname |
+| Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image (from a launcher at level 10); elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
+| Keyboard | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
+| Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
+| Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
+| About | A page | | What OSD/OS is made of and its licenses | None |
 
 ### SSH
 

@@ -245,7 +245,7 @@ function network() {
     if (!named && !wifi)
         return null;
     const name = state.deviceName ? core.hostnameFor(state.deviceName) : null;
-    return section("Network", "The device's name tells it apart from others on the network (Settings → System → About → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
+    return section("Network", "The device's name tells it apart from others on the network (Settings → System → System Information shows it). Wi-Fi joins a network at start; Ethernet needs nothing.",
         named ? [
             line("Device Name", text(state.deviceName, value => { state.deviceName = value; refreshDeviceNameHelp(); markChanged("device-name", !!value); },
                                      { id: "device-name", placeholder: "osdos" }),

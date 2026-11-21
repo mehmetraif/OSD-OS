@@ -540,6 +540,8 @@ FocusScope {
     // were, as listState() left them.
     Component.onCompleted: {
         core = appCore
+        if (group === "system" && info)
+            info.refresh()
         if (iconMenu && group === "") {
             // The first screen's row, after Studio Monitor's STATUS.
             camIndex = navListState.currentIndex === undefined || navListState.page === "group_status" ? 0
@@ -1058,6 +1060,19 @@ FocusScope {
         function onMessageChanged() {
             if (settingsRoot.system.message.indexOf(" not set: ") > 0)
                 systemNotice.open()
+        }
+    }
+    // System Information's row: the device's name read again as the page
+    // opens (in case it was changed outside OSD/OS), and the row following
+    // it as it changes.
+    readonly property var info: typeof systemInfo !== "undefined" && systemInfo ? systemInfo : null
+    Connections {
+        target: settingsRoot.info
+        ignoreUnknownSignals: true
+        function onChanged() {
+            var shown = settingsRoot.settingsItems.filter(function(r) { return r.key === "system_info" })[0]
+            if (shown && shown.value !== settingsRoot.info.deviceName && settingsRoot.editIndex < 0)
+                settingsRoot.buildModel(settingsList.currentIndex)
         }
     }
     // Made again only while the two rows are on the page, the cursor kept,

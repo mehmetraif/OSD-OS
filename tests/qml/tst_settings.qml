@@ -250,6 +250,14 @@ StandInRoot {
         function setKeyboard(code) { asked = asked.concat(["keyboard " + code]); return true }
         function clearMessage() { message = "" }
     }
+    // SystemInfo as System's row reads it: the device's name.
+    QtObject {
+        id: systemInfo
+        property string deviceName: "den-tv"
+        property int refreshes: 0
+        signal changed()
+        function refresh() { refreshes++ }
+    }
     QtObject {
         id: wifiManager
         property bool supported: false
@@ -426,8 +434,8 @@ StandInRoot {
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
                 { tag: "startup", lines: ["Start On", "Play at Startup", "Startup From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Time Zone", "Keyboard", "Paste OSD/OS Setup", "Export to OSD/OS Setup", "Update",
-                                         "About", "# Modules", "Scripts", "Radio"] }
+                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard", "Export to OSD/OS Setup",
+                                         "Paste OSD/OS Setup", "About", "# Modules", "Scripts", "Radio"] }
             ]
         }
         function test_pages(data) {
@@ -712,24 +720,25 @@ StandInRoot {
         // the system as it changes, and a refusal is said.
         function test_systemRows() {
             var page = open({ group: "system" })
-            compare(lines(page).slice(0, 2), ["Time Zone", "Keyboard"])
+            var tz = lines(page).indexOf("Time Zone")
+            compare(lines(page).slice(tz, tz + 2), ["Time Zone", "Keyboard"])
             compare(row(page, "Time Zone").value, "Europe/Istanbul")
             compare(row(page, "Keyboard").value, "Turkish (Q)")
-            verify(page.offReason(0).indexOf("Only on the OSD/OS image") === 0)
-            verify(page.offReason(1).indexOf("Only on the OSD/OS image") === 0)
-            // Opened on the first row that can be used; the cursor still
-            // stops on a dimmed row, and select opens nothing.
-            compare(cursor(page), "Paste OSD/OS Setup")
-            listOf(page).currentIndex = 0
-            compare(cursor(page), "Time Zone")
+            // Off the image: dimmed, saying so and no more.
+            compare(page.offReason(tz), "Only on the OSD/OS image")
+            compare(page.offReason(tz + 1), "Only on the OSD/OS image")
+            // Opened on its first row, Update; the cursor still stops on a
+            // dimmed row, and select opens nothing.
+            compare(cursor(page), "Update")
+            moveTo(page, "Time Zone")
             keyClick(Qt.Key_Return)
             verify(!named(page, "systemPicker").visible)
             loader.source = ""
 
             systemSettings.available = true
             page = open({ group: "system" })
-            compare(page.offReason(0), "")
-            compare(cursor(page), "Time Zone")
+            compare(page.offReason(tz), "")
+            moveTo(page, "Time Zone")
             var picker = named(page, "systemPicker")
             verify(picker !== null)
             verify(!picker.visible)
@@ -841,8 +850,8 @@ StandInRoot {
             var page = open({ group: "system" })
             var all = lines(page)
             compare(page.canPaste, Qt.platform.pluginName !== "eglfs" && Qt.platform.pluginName !== "linuxfb")
-            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("Export to OSD/OS Setup"))
-            compare(all.indexOf("Export to OSD/OS Setup") + 1, all.indexOf("Update"))
+            compare(all.indexOf("Export to OSD/OS Setup") + 1, all.indexOf("Paste OSD/OS Setup"))
+            compare(all.indexOf("Paste OSD/OS Setup") + 1, all.indexOf("About"))
             compare(page.offReason(all.indexOf("Paste OSD/OS Setup")) === "", page.canPaste)
             if (!page.canPaste)
                 return
@@ -1117,9 +1126,9 @@ StandInRoot {
             loader.source = ""
             page = open({ group: "system" })
             list = listOf(page)
-            hover(middle(list.itemAtIndex(5)))
-            compare(cursor(page), "About")
             hover(middle(list.itemAtIndex(6)))
+            compare(cursor(page), "About")
+            hover(middle(list.itemAtIndex(7)))
             compare(cursor(page), "About")
             // Studio Monitor's STATUS, read alone: a line under the mouse
             // takes neither the cursor nor the keys out of the strip, which
@@ -1484,7 +1493,7 @@ StandInRoot {
                 verify(root.frameIcons === icons, "the icons as they were handed")
             // Every page's rows as its own page has them: each page's first.
             var firstRows = ["Scaling", "Arcade", "Theme", "Display Output", "Audio Output", "Controls", "Wi-Fi",
-                             "Start On", "Time Zone", "Quit"]
+                             "Start On", "Update", "Quit"]
             if (data.first === 1)
                 firstRows.unshift("Output")
             var expected = []
@@ -1969,6 +1978,25 @@ StandInRoot {
             page = open({ group: "screen" })
             compare(row(page, "Rotation").value, "Turned Left")
             verify(row(page, "Use Display") !== undefined)
+        }
+
+        // System Information, System's second row: the device's name its
+        // value, read again as the page opens and followed as it changes;
+        // select opens its page.
+        function test_systemInformationRow() {
+            systemInfo.deviceName = "den-tv"
+            systemInfo.refreshes = 0
+            var page = open({ group: "system" })
+            compare(systemInfo.refreshes, 1)
+            compare(row(page, "System Information").value, "den-tv")
+            moveTo(page, "System Information")
+            systemInfo.deviceName = "attic-tv"
+            systemInfo.changed()
+            compare(row(page, "System Information").value, "attic-tv")
+            compare(cursor(page), "System Information")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations[root.navigations.length - 1].path, "views/SystemInfo.qml")
+            systemInfo.deviceName = "den-tv"
         }
 
         function test_partRowsInForce() {

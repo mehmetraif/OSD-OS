@@ -364,7 +364,7 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 ### The local network
 
 - The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`.
-- Settings → System → About → System Information renames the device. Give each OSD/OS on one network its own name.
+- Settings → System → System Information renames the device. Give each OSD/OS on one network its own name.
 - Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
 
 ### Bluetooth
@@ -483,7 +483,7 @@ journalctl -u 'osdos-wifi@*' -b    # what setting the Wi-Fi country did
 
 ### The device name's socket
 
-Settings → System → About → System Information renames the device through `osdos-name.socket` (`/run/osdos-name.sock`) and `osdos-stop device-name` ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)). The name is the hostname, and the name LAN Play's games are hosted under: letters, digits and hyphens, 63 at most, neither end a hyphen. `hostnamectl set-hostname` sets it, and avahi-daemon restarts.
+Settings → System → System Information renames the device through `osdos-name.socket` (`/run/osdos-name.sock`) and `osdos-stop device-name` ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)). The name is the hostname, and the name LAN Play's games are hosted under: letters, digits and hyphens, 63 at most, neither end a hyphen. `hostnamectl set-hostname` sets it, and avahi-daemon restarts.
 
 ```sh
 journalctl -u 'osdos-name@*' -b    # what renaming the device did

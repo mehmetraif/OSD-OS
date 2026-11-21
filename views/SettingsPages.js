@@ -44,7 +44,7 @@ function firstRows(items) {
     network.unavailable = networkOff()
     items.push(network)
     items.push(groupRow("startup", "What OSD/OS opens on: Start On, Play at Startup and Cabinet Lock"))
-    items.push(groupRow("system", "OSD/OS Setup's settings pasted, Update, About, and the settings of the modules of no group"))
+    items.push(groupRow("system", "Update, System Information, the time zone and the keyboard layout, OSD/OS Setup, About, and the modules of no group, such as Scripts"))
     // On the OSD/OS image (autostart) a power menu, and named so.
     items.push({ type: "quit", label: settingsRoot.autostartSession ? "Power" : "Quit",
                  description: settingsRoot.autostartSession ? "Power off or restart the Pi, or leave OSD/OS for a terminal"
@@ -628,15 +628,37 @@ function startModuleThere() {
     return installedModules.some(function(m) { return m.enabled && m.id === id })
 }
 
-// SYSTEM: OSD/OS Setup's settings, the update, About, and the modules
-// of no group, each a page.
+// SYSTEM: the update, this device's System Information, the system's
+// time zone and keyboard layout, OSD/OS Setup's settings, About, and the
+// modules of no group, each a page.
 function systemRows(items) {
+    items.push({
+        type: "submenu",
+        key: "software_update",
+        page: "views/Update.qml",
+        label: "Update",
+        description: "A newer OSD/OS, downloaded and installed",
+        moduleId: ""
+    })
+    // SYSTEM INFORMATION — this device: its name on the network (the row's
+    // value), what it is and its connections (views/SystemInfo.qml).
+    var info = typeof systemInfo !== "undefined" && systemInfo ? systemInfo : null
+    items.push({
+        type: "submenu",
+        key: "system_info",
+        page: "views/SystemInfo.qml",
+        label: "System Information",
+        value: info ? info.deviceName : "",
+        description: "This device's name, which tells it apart from others on the network, and what it is: its model, OS,"
+                     + " memory, storage and temperature, and each network connection's IP and MAC addresses",
+        moduleId: ""
+    })
     // TIME ZONE and KEYBOARD — the system's, as its files say
     // (systemSettings). On the OSD/OS image select opens the list to pick
     // another from, which its root helper sets (osdos-system.socket);
     // elsewhere they are the system's own settings' to change.
     var system = settingsRoot.system
-    var systemOff = system && system.available ? "" : "Only on the OSD/OS image, from its launcher at level 10: elsewhere, in the system's own settings"
+    var systemOff = system && system.available ? "" : "Only on the OSD/OS image"
     items.push({
         type: "submenu",
         key: "time_zone",
@@ -655,6 +677,17 @@ function systemRows(items) {
         unavailable: systemOff,
         moduleId: ""
     })
+    // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
+    // open OSD/OS Setup's page with them (views/SetupExport.qml).
+    items.push({
+        type: "submenu",
+        key: "export_setup",
+        page: "views/SetupExport.qml",
+        label: "Export to OSD/OS Setup",
+        description: "This device's settings as QR codes: a phone opens OSD/OS Setup's page (osdos.tv/setup) from"
+                     + " them, filled in, passwords too, to change what you need and make a card's file of",
+        moduleId: ""
+    })
     // PASTE OSD/OS SETUP — the settings copied on OSD/OS Setup's page,
     // set once the question is answered (pasteSetup(),
     // AppCore::applySetupText()), where there is a clipboard to paste them
@@ -668,35 +701,14 @@ function systemRows(items) {
         unavailable: settingsRoot.canPaste ? "" : "Only on a computer, from its clipboard; an OSD/OS card takes OSD/OS Setup's file",
         moduleId: ""
     })
-    // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
-    // open OSD/OS Setup's page with them (views/SetupExport.qml).
-    items.push({
-        type: "submenu",
-        key: "export_setup",
-        page: "views/SetupExport.qml",
-        label: "Export to OSD/OS Setup",
-        description: "This device's settings as QR codes: a phone opens OSD/OS Setup's page (osdos.tv/setup) from"
-                     + " them, filled in, passwords too, to change what you need and make a card's file of",
-        moduleId: ""
-    })
-    items.push({
-        type: "submenu",
-        key: "software_update",
-        page: "views/Update.qml",
-        label: "Update",
-        description: "A newer OSD/OS, downloaded and installed",
-        moduleId: ""
-    })
-    // ABOUT — this device's System Information, then what OSD/OS is, who
-    // makes it, what it is made of and under which licence
-    // (views/About.qml).
+    // ABOUT — what OSD/OS is, who makes it, what it is made of and under
+    // which license (views/About.qml).
     items.push({
         type: "submenu",
         key: "about",
         page: "views/About.qml",
         label: "About",
-        description: "This device's System Information, its name on the network first; what OSD/OS is, who makes it,"
-                     + " what it is made of and under which license",
+        description: "What OSD/OS is, who makes it, what it is made of and under which license",
         moduleId: ""
     })
     // The modules of no group with settings, a page each.
