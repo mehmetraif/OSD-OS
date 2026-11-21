@@ -515,6 +515,66 @@ StandInRoot {
             if (data.layout !== "Standard")
                 verify(root.paneX > root.contentBox.x)
         }
+
+        // The card writer (views/Components/NfcCardWriter.qml) asks in the
+        // window every question has, in the layout: each phase's words in
+        // its title bar, the title the card is for under it, the answers
+        // while there is one to choose, the keys in its hint bar; beside
+        // Camcorder's column, in the pane. The mouse moves its cursor.
+        function test_cardWriterWindow_data() {
+            return [{ tag: "Standard", layout: "Standard", framed: false },
+                    { tag: "Camcorder", layout: "Camcorder", framed: true }]
+        }
+        function test_cardWriterWindow(data) {
+            root.menuLayout = data.layout
+            root.setFrame([{ icon: "tv" }, { icon: "gear" }], 0, false, false)
+            root.framed = data.framed
+            var held = createTemporaryObject(cardWriter, root)
+            verify(held !== null)
+            var writer = held.writer
+            writer.offerShuffle = true
+            writer.open()
+            var prompt = root.promptIn(writer)
+            verify(prompt !== null)
+            compare(prompt.title, "Tap a card for...")
+            compare(prompt.kind, "notice")
+            compare(prompt.message, "<b>The Film</b>")
+            compare(prompt.choices.length, 0)
+            compare(prompt.hint, "[ESC]:CANCEL")
+            compare(columnOf(prompt) !== null, data.framed)
+            compare(prompt.paned, data.framed)
+            // Nothing to choose until a card comes.
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "armed")
+
+            held.reader.cardCaptured("04AABBCC", "An Older Film")
+            compare(writer.phase, "choose")
+            compare(prompt.title, "Write card for...")
+            compare(prompt.kind, "question")
+            compare(prompt.choices.map(function(c) { return c.label }),
+                    ["Write card (Sequential Episodes)", "Write card (Shuffle Episodes)", "Cancel"])
+            compare(prompt.hint, "[ESC]:CANCEL [▲▼]:NAVIGATE [ENTER]:SELECT")
+            var answers = answersOf(prompt)
+            compare(answers.mapToItem(root, 0, 0).x, data.framed ? root.paneX : root.contentBox.x)
+            keyClick(Qt.Key_Up)
+            compare(prompt.currentIndex, 2)
+            hover(answers.itemAtIndex(1))
+            compare(writer.choiceIndex, 1)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "replace")
+            compare(prompt.title, "This card plays \"An Older Film\". Change to...")
+            compare(prompt.choices.map(function(c) { return c.label }), ["Change this card", "Cancel"])
+            compare(prompt.currentIndex, 0)
+            keyClick(Qt.Key_Return)
+            compare(writer.phase, "done")
+            compare(prompt.title, "Card written for...")
+            compare(prompt.kind, "notice")
+            compare(prompt.choices.length, 0)
+            compare(prompt.hint, "[ENTER]:DONE")
+            keyClick(Qt.Key_Return)
+            verify(!writer.visible)
+        }
     }
 
     TestCase {
