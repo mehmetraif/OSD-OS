@@ -992,7 +992,7 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
             report_playback_start(itemId, mediaSourceId,
                                   audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
                                   subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-            emit streamUrlReady(directUrl);
+            emit streamUrlReady(directUrl, m_currentPlayMethod, subtitlesBeside(true));
             return;
         }
 
@@ -1034,7 +1034,16 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
         report_playback_start(itemId, mediaSourceId,
                               audioStreamIndex >= 0 ? QString::number(audioStreamIndex) : QString(),
                               subtitleStreamIndex >= 0 ? QString::number(subtitleStreamIndex) : QString());
-        emit streamUrlReady(fullUrl);
+        emit streamUrlReady(fullUrl, m_currentPlayMethod, subtitlesBeside(false));
+    });
+}
+
+bool EmbyApiBackend::subtitlesBeside(bool directPlay) const {
+    const QJsonArray profiles = subtitleProfiles(directPlay);
+    return std::any_of(profiles.cbegin(), profiles.cend(), [](const QJsonValue &profile) {
+        const QJsonObject p = profile.toObject();
+        return p[QLatin1String("Format")].toString() == QLatin1String("subrip")
+            && p[QLatin1String("Method")].toString() == QLatin1String("External");
     });
 }
 

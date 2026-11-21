@@ -1240,6 +1240,11 @@ private slots:
         QCOMPARE(emReady.last().at(0).toString(),
                  QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"
                                 "&api_key=token"));
+        // Played whole, a text subtitle beside it for both.
+        for (const QSignalSpy *ready : { &jfReady, &emReady }) {
+            QCOMPARE(ready->last().at(1).toString(), QStringLiteral("DirectPlay"));
+            QVERIFY(ready->last().at(2).toBool());
+        }
 
         // Direct Play asked, and the source can't be (a bitrate limit the
         // server holds the user to): no transcode built on the Direct Play
@@ -1271,6 +1276,9 @@ private slots:
                     "/videos/film/master.m3u8?PlaySessionId=ps1&SubtitleStreamIndex=2" } } } } }).toJson());
             QCOMPARE(ready->count(), told + 1);
             QVERIFY(ready->last().at(0).toString().contains(QLatin1String("master.m3u8")));
+            // A transcode: Jellyfin's text subtitle burnt in, Emby's beside it.
+            QCOMPARE(ready->last().at(1).toString(), QStringLiteral("Transcode"));
+            QCOMPARE(ready->last().at(2).toBool(), backend == &emby);
         }
 
         setVideoQuality(tmp.path(), "720p");

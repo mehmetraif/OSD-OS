@@ -108,7 +108,7 @@ FocusScope {
             }
         }
 
-        function onStreamUrlReady(url) {
+        function onStreamUrlReady(url, playMethod, subtitlesBeside) {
             // Only the stream this screen asked for, not one asked for
             // elsewhere that answers while it is open.
             if (!detailRoot.isLaunching || !detailRoot.detail) return
@@ -116,6 +116,8 @@ FocusScope {
 
             detailRoot.navigateTo("Player.qml", {
                 streamUrl: url,
+                playMethod: playMethod,
+                subtitlesBeside: subtitlesBeside,
                 itemId: d.itemId,
                 mediaSourceId: d.mediaSourceId || d.itemId,
                 title: d.title,

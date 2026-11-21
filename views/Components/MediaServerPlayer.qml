@@ -3,8 +3,7 @@ import QtQuick
 // Jellyfin's and Emby's player: mpv on the server's stream, reported to the
 // server as it plays; a direct play that fails retried as a transcode, a track
 // switched mid-transcode, autoplay's next episode, intro and credit skipping.
-// A module's Player.qml is this with its backend (see MediaServerLibraries),
-// and Emby's with sidecarSubsInTranscode.
+// A module's Player.qml is this with its backend (see MediaServerLibraries).
 FocusScope {
     id: playerRoot
 
@@ -13,12 +12,6 @@ FocusScope {
     // The module's backend (an EmbyApiBackend: jellyfinBackend, embyBackend),
     // which its view file names.
     property var backend: null
-    // Whether the server sends a transcode's text subtitle as a file beside
-    // the stream (Emby's: its device profile asks for them External) rather
-    // than burning it into the picture (Jellyfin's, Encode): mpv is then
-    // handed the chosen one as for direct play, an image one alone burnt in.
-    // As the backend's subtitleProfiles() asks.
-    property bool sidecarSubsInTranscode: false
 
     signal goBack()
     // Emitted when autoplay advances in place, so Root can repoint the BACK
@@ -39,7 +32,14 @@ FocusScope {
     property string selectedAudioId:    navParams.selectedAudioId    || ""
     property string selectedSubtitleId: navParams.selectedSubtitleId || ""
 
-    property bool isTranscoding: streamUrl.indexOf("master.m3u8") >= 0
+    // How the stream plays, as the backend's streamUrlReady said it (the
+    // detail screen passes it on): a transcode or not, and whether a text
+    // subtitle comes as a file beside it (Emby's transcode: its device
+    // profile asks for them External) rather than burnt into the picture
+    // (Jellyfin's, Encode). Beside it in a transcode, mpv is handed the
+    // chosen one as for direct play, an image one alone burnt in.
+    property bool isTranscoding:   navParams.playMethod === "Transcode"
+    property bool subtitlesBeside: navParams.subtitlesBeside === true
 
     // Autoplay next episode
     property bool   autoplayNext:       false
@@ -373,7 +373,7 @@ FocusScope {
         else if (selectedSubUrl)
             subTrack = 0                  // selected sidecar is the only loaded sub-file
         else if (isTranscoding)
-            // Image sub (PGS/VOBSUB) on the transcode path (sidecarSubsInTranscode):
+            // Image sub (PGS/VOBSUB) on the transcode path (subtitlesBeside):
             // it has no sidecar, so the server burnt it into the video. There is no
             // soft track to select, and the HLS stream carries no embedded subs to
             // index into.
@@ -408,7 +408,7 @@ FocusScope {
             // is burned into the video — so there's no soft track for mpv to pick
             // (subTrack -2 = --sid=no) or to cycle, for either audio or subs. Where
             // the server sends a text subtitle beside the stream instead
-            // (sidecarSubsInTranscode: its profile advertises Method=External, so
+            // (subtitlesBeside: its profile advertises Method=External, so
             // the server leaves the video alone), it is handed to mpv as --sub-file
             // exactly as for direct play, and buildSubArgs gives --sid=no for an
             // image one, burnt in: mpv still has only the chosen one.
@@ -447,7 +447,7 @@ FocusScope {
                 "--script-opts-append=audio-cycle=" + (audioStreams.length > 0 ? "1" : "0")
             ]
 
-            var tsub = sidecarSubsInTranscode ? buildSubArgs() : { track: -2, urls: [], titles: [] }
+            var tsub = subtitlesBeside ? buildSubArgs() : { track: -2, urls: [], titles: [] }
             mpvController.loadAndPlay({ url: streamUrl, startSeconds: offsetMs / 1000.0,
                                         subTrack: tsub.track, subFiles: tsub.urls, subTitles: tsub.titles,
                                         extraArgs: extra, jellyfinToken: token })
@@ -496,11 +496,13 @@ FocusScope {
             playerRoot.segments = segments_
         }
 
-        function onStreamUrlReady(url) {
+        function onStreamUrlReady(url, playMethod, subtitlesBeside) {
             if (pendingNextEpisode) {
                 // Stream URL for the auto-advanced next episode just arrived
                 pendingNextEpisode = false
                 playerRoot.streamUrl = url
+                playerRoot.isTranscoding = playMethod === "Transcode"
+                playerRoot.subtitlesBeside = subtitlesBeside
                 doStartPlayback(0)
                 // Fetch segments for intro/outro skip after playback starts, so
                 // the HTTP request doesn't contend with the PlaybackInfo POST.
@@ -511,11 +513,11 @@ FocusScope {
             if (pendingRetryTranscode) {
                 // Fallback transcode after a direct-play failure. The transcode
                 // covers the full timeline from 0, so seek mpv to where we left
-                // off. isTranscoding follows the URL (the server's HLS
-                // manifest): assigned, it would stay true for a next episode
-                // that plays direct.
+                // off.
                 pendingRetryTranscode = false
                 playerRoot.streamUrl = url
+                playerRoot.isTranscoding = playMethod === "Transcode"
+                playerRoot.subtitlesBeside = subtitlesBeside
                 // Where this start was asked from (the beginning, where it
                 // was chosen), not the item's own resume point.
                 doStartPlayback(lastKnownPositionMs > 0 ? lastKnownPositionMs : lastStartMs)

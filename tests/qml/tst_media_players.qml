@@ -377,7 +377,7 @@ StandInRoot {
         function quick_connect_cancel() {}
         function authenticate(url, user, password) { signIns = signIns.concat([["direct", url, user, password]]) }
         function connect_authenticate(user, password) { signIns = signIns.concat([["connect", user, password]]) }
-        signal streamUrlReady(string url)
+        signal streamUrlReady(string url, string playMethod, bool subtitlesBeside)
         signal errorOccurred(string message)
         signal nextEpisodeReady(var detail)
         signal segmentsReady(string itemId, var segments)
@@ -735,7 +735,7 @@ StandInRoot {
             var player = openJellyfinPlayer("jellyfin")
             mpvController.playbackEnded(0, 0, "failed")
             compare(jellyfinBackend.asks, 1)
-            jellyfinBackend.streamUrlReady("http://server/videos/e1/master.m3u8")
+            jellyfinBackend.streamUrlReady("http://server/videos/e1/master.m3u8", "Transcode", false)
             compare(mpvController.loads, 2)
             var stops = jellyfinBackend.stops
             mpvController.lastError = "mpv could not play it"
@@ -1503,7 +1503,8 @@ StandInRoot {
         function test_serverTrackSwitchMidTranscode(data) {
             var backend = data.module === "emby" ? embyBackend : jellyfinBackend
             var player = open(data.module, "Player.qml", {
-                streamUrl: "http://server/videos/e1/master.m3u8", itemId: "e1", mediaSourceId: "e1",
+                streamUrl: "http://server/videos/e1/master.m3u8", playMethod: "Transcode",
+                subtitlesBeside: data.module === "emby", itemId: "e1", mediaSourceId: "e1",
                 title: "Episode 1", selectedAudioId: "1", selectedSubtitleId: "",
                 audioStreams: [{ id: 1, language: "eng", displayTitle: "English 5.1" },
                                { id: 2, language: "fra", displayTitle: "French" }],
@@ -1524,7 +1525,7 @@ StandInRoot {
             compare(backend.asks, 1)
             compare(backend.lastAsk, ["e1", "e1", 2, -1, true])
             verify(player.waiting)
-            backend.streamUrlReady("http://server/videos/e1/master.m3u8?audio=2")
+            backend.streamUrlReady("http://server/videos/e1/master.m3u8?audio=2", "Transcode", data.module === "emby")
             compare(mpvController.loads, 2)
             compare(mpvController.starts[1], 30)
             compare(mpvController.extraArgs[1][2], "--script-opts-append=transcode-audio=French")
@@ -1537,7 +1538,8 @@ StandInRoot {
                 mpvController.subtitleCycleRequested()
                 mpvController.playbackEnded(30000, 60000, "stopped")
                 compare(backend.lastAsk, ["e1", "e1", 2, steps[i].sub, true])
-                backend.streamUrlReady("http://server/videos/e1/master.m3u8?subtitle=" + steps[i].sub)
+                backend.streamUrlReady("http://server/videos/e1/master.m3u8?subtitle=" + steps[i].sub, "Transcode",
+                                       data.module === "emby")
                 compare(mpvController.loads, 3 + i)
                 compare(mpvController.starts[2 + i], 30)
                 compare(mpvController.extraArgs[2 + i][0], "--script-opts-append=transcode-sub=" + steps[i].name)

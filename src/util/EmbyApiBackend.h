@@ -98,7 +98,11 @@ signals:
     void upNextLoaded(const QVariant &items);
     // Resume-or-next-unwatched episode for a series (empty map if none)
     void seriesNextUpReady(const QVariantMap &detail);
-    void streamUrlReady(const QString &url);
+    // The stream get_playback_url asked for: its URL, how it plays
+    // ("DirectPlay" or "Transcode"), and whether a text subtitle comes as a
+    // file beside it (its subUrl, handed to mpv) rather than burnt into the
+    // picture, as subtitleProfiles() asked the server for it.
+    void streamUrlReady(const QString &url, const QString &playMethod, bool subtitlesBeside);
     void dynamicOptionsReady(const QString &key, const QVariant &options);
     void segmentsReady(const QString &itemId, const QVariantList &segments);
     void errorOccurred(const QString &message);
@@ -214,6 +218,9 @@ protected:
     // How each subtitle format reaches mpv, for Direct Play or a transcode:
     // the server's own (Jellyfin's and Emby's differ).
     virtual QJsonArray subtitleProfiles(bool directPlay) const = 0;
+    // Whether those profiles have the server send a text subtitle as a file
+    // beside the stream (External), for streamUrlReady.
+    bool subtitlesBeside(bool directPlay) const;
     // The source PlaybackInfo answered with for Direct Play, before it is
     // played: true where the backend has asked for a transcode of it
     // instead (Emby's Dolby Vision sources), and it is not played.
