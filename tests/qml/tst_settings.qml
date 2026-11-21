@@ -1028,6 +1028,52 @@ StandInRoot {
             compare(promptShown(page), null)
         }
 
+        // A notice that opens by itself over a question still open (At Next
+        // Start's answer over the outputs; a time zone refused over Paste
+        // OSD/OS Setup's notice) is drawn over it, and closed, hands the
+        // keys back to that question, not to the rows under both.
+        function test_noticeOverAQuestion() {
+            displayOutput.available = true
+            var page = open({ group: "screen" })
+            moveTo(page, "Display Output")
+            keyClick(Qt.Key_Return)
+            var outputs = promptShown(page)
+            compare(outputs.promptText, "Display Output")
+            displayOutput.nextStartFinished(false, "the card can't be written")
+            var failed = null
+            for (var i = 0; i < outputs.parent.children.length; i++) {
+                if (outputs.parent.children[i].promptText === "Not written for the next start")
+                    failed = outputs.parent.children[i]
+            }
+            verify(failed.visible && failed.activeFocus)
+            keyClick(Qt.Key_Escape)
+            verify(!failed.visible)
+            verify(outputs.visible)
+            verify(outputs.activeFocus, "the outputs have the keys again")
+            keyClick(Qt.Key_Down)
+            compare(outputs.choiceIndex, 1)
+            keyClick(Qt.Key_Escape)
+            verify(!outputs.visible)
+            compare(cursor(page), "Display Output")
+            loader.source = ""
+
+            systemSettings.available = true
+            page = open({ group: "system" })
+            page.pasteSetup()
+            var pasted = promptShown(page)
+            compare(pasted.promptText, "OSD/OS Setup pasted")
+            var notice = named(page, "systemNotice")
+            systemSettings.message = "Time zone not set: timedatectl couldn't set it"
+            verify(notice.visible && notice.activeFocus)
+            verify(notice.z > pasted.z, "drawn over the notice it opened on")
+            keyClick(Qt.Key_Return)
+            verify(!notice.visible)
+            verify(pasted.visible && pasted.activeFocus, "the pasted notice has the keys again")
+            keyClick(Qt.Key_Escape)
+            verify(!pasted.visible)
+            verify(listOf(page).activeFocus)
+        }
+
         // Menu Layout, on Look's page: one of the five layouts, saved as it
         // changes; Standard while unset.
         function test_menuLayoutRow() {

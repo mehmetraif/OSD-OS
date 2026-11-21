@@ -27,6 +27,16 @@ Item {
     property var outputChoice: ({})
     property string outputFailure: ""
 
+    // The keys to the one of them still open, the topmost first, as another
+    // closes over it (why At Next Start didn't happen opens by itself, over
+    // the outputs opened again meanwhile): false with none open.
+    function takeKeys() {
+        var open = [outputFailed, outputStay, outputConfirm, outputPrompt].filter(function(p) { return p.visible })
+        if (open.length > 0)
+            open[0].forceActiveFocus()
+        return open.length > 0
+    }
+
     // The outputs, the cursor on the one in force.
     function open() {
         outputPrompt.open()

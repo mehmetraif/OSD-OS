@@ -844,11 +844,25 @@ FocusScope {
                              "select:SELECT"])
     }
 
+    // The keys back from a question or a notice that closed: to another
+    // still open, the topmost first, else to the rows. A notice opens by
+    // itself (At Next Start's answer, a time zone or keyboard refused), so
+    // over a question that may still be open, and is drawn over it (z).
+    function keysBack() {
+        if (outputPrompts.takeKeys())
+            return
+        var open = [systemNotice, logsNotice, quitPrompt, pastedNotice, videoArgsKeyboard, systemPicker]
+                   .filter(function(overlay) { return overlay.visible })
+        var front = open.length > 0 ? open[0] : settingsList
+        front.forceActiveFocus()
+    }
+
     // --- DISPLAY OUTPUT: the outputs this board has, then how to switch ---
     DisplayOutputPrompts {
         id: outputPrompts
         anchors.fill: parent
-        onClosed: settingsList.forceActiveFocus()
+        z: 1
+        onClosed: settingsRoot.keysBack()
     }
 
     // Window Mode switched from the keyboard (F11) while the page is open:
@@ -924,7 +938,7 @@ FocusScope {
             else
                 settingsRoot.system.setKeyboard(value)
         }
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
     // The rows follow the system as it is read again, and as one is on its
     // way (Setting); one that couldn't be set says why.
@@ -948,13 +962,14 @@ FocusScope {
         id: systemNotice
         objectName: "systemNotice"
         anchors.fill: parent
+        z: 1
         promptKind: "notice"
         readonly property var parts: (settingsRoot.system ? settingsRoot.system.message : "").split(": ")
         promptText: parts[0] || ""
         subtitleText: parts.slice(1).join(": ")
         choices: []
         onClosed: {
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
             if (settingsRoot.system)
                 settingsRoot.system.clearMessage()
         }
@@ -973,7 +988,7 @@ FocusScope {
         maxLength: 120
         onAccepted: function(text) {
             videoArgsKeyboard.close()
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
             if (appCore.save_setting("", "mpv_video_args", text.trim())) {
                 settingsRoot.appSettings = Object.assign({}, settingsRoot.appSettings, { mpv_video_args: text.trim() })
                 settingsRoot.buildModel(settingsList.currentIndex)
@@ -981,7 +996,7 @@ FocusScope {
         }
         onCanceled: {
             videoArgsKeyboard.close()
-            settingsList.forceActiveFocus()
+            settingsRoot.keysBack()
         }
     }
 
@@ -992,7 +1007,7 @@ FocusScope {
         promptText: settingsRoot.pasted.title || ""
         subtitleText: settingsRoot.pasted.detail || ""
         choices: []
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 
     // --- QUIT CONFIRMATION OVERLAY ---
@@ -1007,7 +1022,7 @@ FocusScope {
             else if (act === "terminal") appCore.exitToTerminal()
             else if (act === "logs")     settingsRoot.saveLogs()
         }
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 
     // --- SAVE LOGS ---
@@ -1044,6 +1059,6 @@ FocusScope {
                     : saved ? "On the card's OSD-OS drive, in " + detail.replace(/\//g, "\\")
                     : detail
         choices: []
-        onClosed: settingsList.forceActiveFocus()
+        onClosed: settingsRoot.keysBack()
     }
 }
