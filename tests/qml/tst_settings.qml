@@ -61,9 +61,12 @@ StandInRoot {
             calls.settings++
             return { app: values, modules: {} }
         }
+        // A module's own settings as saved (a module row's on or off), by
+        // module: its enabled the one get_installed_modules() gives.
+        property var moduleValues: ({})
         function get_installed_modules() {
             calls.modules++
-            return moreModules.concat(
+            var all = moreModules.concat(
                    [{ id: "com.osdos.arcade", name: "Arcade", has_settings: true, settings_group: "arcade", enabled: true },
                     { id: "com.osdos.highscores", name: "High Scores", has_settings: true, settings_group: "arcade", enabled: false },
                     { id: "com.osdos.local_files", name: "Local Files", has_settings: true, settings_group: "tv", enabled: true },
@@ -71,6 +74,10 @@ StandInRoot {
                     { id: "com.osdos.scripts", name: "Scripts", has_settings: true, settings_group: "", enabled: false },
                     { id: "com.osdos.radio", name: "Radio", has_settings: true, settings_group: "radio", enabled: false },
                     { id: "com.osdos.bare", name: "Bare", has_settings: false, settings_group: "tv", enabled: true }])
+            return all.map(function(m) {
+                var own = moduleValues[m.id] || {}
+                return own.enabled === undefined ? m : Object.assign({}, m, { enabled: own.enabled })
+            })
         }
         function isAutostartSession() { return false }
         function canRestartSystem() { return false }
@@ -97,6 +104,14 @@ StandInRoot {
         property var held: []
         signal settingsNotSaved()
         function save_setting(module, key, value) {
+            if (module) {
+                var m = Object.assign({}, moduleValues)
+                m[module] = Object.assign({}, m[module] || {})
+                m[module][key] = value
+                moduleValues = m
+                writes++
+                return true
+            }
             var v = Object.assign({}, values)
             v[key] = value
             values = v
@@ -269,6 +284,7 @@ StandInRoot {
         function init() {
             appCore.values = {}
             appCore.moreModules = []
+            appCore.moduleValues = {}
             appCore.pasted = ""
             appCore.canLogs = false
             appCore.logSaves = 0
@@ -697,7 +713,7 @@ StandInRoot {
         // ends, and Default again once nothing is.
         function test_videoArguments() {
             var page = open({ group: "tv" })
-            compare(lines(page).indexOf("Video Arguments"), lines(page).indexOf("Info Screen") + 1)
+            compare(lines(page).indexOf("Video Arguments"), lines(page).length - 1)
             compare(row(page, "Video Arguments").value, "Default")
             moveTo(page, "Video Arguments")
             var keyboard = named(page, "videoArgsKeyboard")
@@ -770,14 +786,11 @@ StandInRoot {
         function test_tvPage() {
             var page = open({ group: "tv" })
             var all = lines(page)
-            compare(all.slice(0, 4), ["Scaling", "Transparent Background", "Video Levels", "1080p Playback"])
+            compare(all, ["Scaling", "Transparent Background", "Info Screen", "# Modules", "Local Files", "Plex",
+                          "# Video", "Video Levels", "1080p Playback", "Loading Effect", "Loading Screen Colors",
+                          "Channel Logo", "Logo Image", "Video Arguments"])
             verify(page.offReason(all.indexOf("1080p Playback")) !== "")
             compare(page.offReason(all.indexOf("Transparent Background")), "")
-            verify(all.indexOf("Loading Effect") > 0)
-            verify(all.indexOf("Loading Screen Colors") > 0)
-            verify(all.indexOf("Channel Logo") > 0)
-            verify(all.indexOf("Info Screen") > 0)
-            compare(all.slice(-3), ["# Modules", "Local Files", "Plex"])
             verify(all.indexOf("Theme") < 0)
             verify(all.indexOf("Boot Screen Colors") < 0)
             verify(all.indexOf("Quit") < 0)
@@ -787,6 +800,64 @@ StandInRoot {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.values.transparent_background, 40)
+        }
+
+        // A module's row (TV / Movie's, System's) says whether the module is
+        // on, in AppCore's order; ◄ ► turn it on and off, saved as the
+        // module's enabled, and the rows that follow the modules follow it
+        // (Info Screen, Start on Module); select and ► open its settings.
+        // Broadcast and Flat Panel change a value in two steps: there ►
+        // opens it as select does.
+        function test_moduleRows() {
+            var page = open({ group: "tv" })
+            var plex = row(page, "Plex")
+            compare([plex.value, row(page, "Local Files").value], ["Off", "On"])
+            var at = lines(page).indexOf("Plex")
+            var line = menuRow(page, at)
+            compare(line.value, "Off")
+            verify(line.opens)
+            verify(!line.changes)
+            moveTo(page, "Plex")
+            var help = helpOf(page)
+            compare(help.shownText, "Shows Plex on the main menu\n[ENTER] Opens its settings")
+            keyClick(Qt.Key_Right)
+            compare(appCore.moduleValues["com.osdos.plex"].enabled, true)
+            compare(appCore.values.enabled, undefined)
+            compare(page.appSettings.enabled, undefined)
+            compare(row(page, "Plex").value, "On")
+            compare(menuRow(page, at).value, "On")
+            compare(cursor(page), "Plex")
+            compare(root.navigations.length, 0)
+            keyClick(Qt.Key_Left)
+            compare(appCore.moduleValues["com.osdos.plex"].enabled, false)
+            compare(row(page, "Plex").value, "Off")
+            // Info Screen follows the modules turned on.
+            appCore.moreModules = [{ id: "com.osdos.youtube", name: "YouTube", has_settings: true, settings_group: "tv", enabled: false }]
+            page.buildModel(page.settingsItems.indexOf(row(page, "Plex")))
+            verify(page.offReason(lines(page).indexOf("Info Screen")) !== "")
+            moveTo(page, "YouTube")
+            keyClick(Qt.Key_Right)
+            compare(page.offReason(lines(page).indexOf("Info Screen")), "")
+            keyClick(Qt.Key_Return)
+            compare(root.navigations.length, 1)
+            compare(root.navigations[0].path, "views/ModuleSettings.qml")
+            compare(root.navigations[0].params.moduleId, "com.osdos.youtube")
+            loader.source = ""
+            // System's too; the order is AppCore's.
+            appCore.moreModules = [{ id: "com.osdos.zed", name: "Zed", has_settings: true, settings_group: "", enabled: true }]
+            page = open({ group: "system" })
+            var all = lines(page)
+            compare(all.slice(all.indexOf("# Modules") + 1), ["Zed", "Scripts", "Radio"])
+            compare(row(page, "Zed").value, "On")
+            loader.source = ""
+            // Two steps: ► opens it, ◄ changes nothing.
+            root.menuLayout = "Broadcast"
+            page = open({ group: "tv" })
+            moveTo(page, "Plex")
+            keyClick(Qt.Key_Left)
+            compare(appCore.moduleValues["com.osdos.plex"].enabled, false)
+            keyClick(Qt.Key_Right)
+            compare(root.navigations[root.navigations.length - 1].params.moduleId, "com.osdos.plex")
         }
 
         // Select on a heading opens its page; on Arcade, the arcade modules'

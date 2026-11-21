@@ -26,19 +26,19 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 
 ## TV / Movie
 
-`SETTINGS | TV / MOVIE`: the videos' rows, then each video module under **MODULES**. What the rows do to mpv is in [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv).
+`SETTINGS | TV / MOVIE`: Scaling, Transparent Background and Info Screen, then each video module under **MODULES**, then the rest of the videos' rows under **VIDEO**. What the rows do to mpv is in [Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv).
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Scaling | Letterbox, 14:9, Pan & Scan, Anamorphic | Letterbox | How a 16:9 picture fills a 4:3 screen, in every module whose own Scaling is Default. **Letterbox**: bars above and below. **14:9**: thinner bars, the sides cut a little. **Pan & Scan**: no bars, the sides cut. **Anamorphic**: squeezed, for a TV set to 16:9. CROP in the deck menu changes it during a video | `app.video_scaling` |
 | Transparent Background | Off, or a slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | Off | Plays the video inside OSD/OS's own window: back returns to the menus with the picture behind them, and the main menu's first row returns to the video. The slider sets how solid the menus are; at SOLID the picture is hidden but plays on. Select turns it on (at 40) or off. Needs libmpv | `app.transparent_background`: a number from 0 to 100, or `"Off"` |
+| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
 | Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if they look grey | `app.video_output_levels` |
 | 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: smooth 1080p; 14:9 and Pan & Scan show the whole picture, and the deck menu has no CROP. **Off**: cropping works, 1080p stutters | `app.smooth_playback` |
 | Loading Effect | On, Off | On | A tape's noise and tracking bands on the loading screen | `app.loading_effect` |
 | Loading Screen Colors | Theme, Default | Theme | The loading screen in the theme's or colour scheme's colours, or white on blue | `app.loading_colors` |
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | A logo in a corner of the picture while a video plays | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
 | Logo Image | OSD/OS Logo, or a PNG, JPG, JPEG, SVG, GIF, BMP or WebP picked on the file browser | OSD/OS | Your own picture as the channel logo, as tall as OSD/OS's. A PNG with a clear background works best. Only while Channel Logo isn't Off | `app.video_logo_image`: the file's full path, `""` for OSD/OS's |
-| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
 | Video Arguments | Default, or a line typed on the on-screen keyboard | Default | For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for the device ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#mpv_video_args)). From the next video | `app.mpv_video_args` |
 
 <table>
@@ -479,7 +479,7 @@ All fourteen modules have settings, defined in their `manifest.json` ([Writing a
 
 ### Turning a module on
 
-Every module's first row is **Enabled**, saved as `modules.<module id>.enabled`, `true` or `false`.
+Every module's first row is **Enabled**, saved as `modules.<module id>.enabled`, `true` or `false`. A module's row under **MODULES** on TV / Movie's and System's pages shows it too (`PLEX ····· OFF ►`): ◄ ► turn the module on and off there, and select opens its settings. In Broadcast and Flat Panel, which change a value in two steps, ► and select open its settings, where Enabled is.
 
 - A module turned off is left off the main menu, can't be chosen in Start on Module, and an NFC card can't hand off to it.
 - By default only **Local Files** and **Playlists** are on.

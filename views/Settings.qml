@@ -318,7 +318,9 @@ FocusScope {
         var saved = soon ? appCore.save_setting_soon(row.moduleId, row.key, value)
                          : appCore.save_setting(row.moduleId, row.key, value)
         saving = false
-        if (saved)
+        // A module's setting (a module row's on or off) is not one of the
+        // app's.
+        if (saved && !row.moduleId)
             appSettings[row.key] = value
         return saved
     }
@@ -614,6 +616,16 @@ FocusScope {
             else if (row.key === "startup_module")
                 settingsRoot.buildModel(currentIndex)
         }
+        // A module's row: the module turned on or off (its "enabled", as its
+        // own page's ENABLED saves it), the page made again from what the
+        // modules are now (Info Screen and Start on Module follow them). In
+        // Broadcast and Flat Panel, which change a value in two steps,
+        // ► and select open its page, where ENABLED is.
+        function toggleModule() {
+            var row = settingsItems[currentIndex]
+            if (settingsRoot.save(row, !row.on))
+                settingsRoot.buildModel(currentIndex)
+        }
         // A slider set at once (a monitor layout's second step): a value,
         // or -1 for Off where it can be.
         function setSlider(v) {
@@ -632,12 +644,12 @@ FocusScope {
         // Output's list, a file's picker, Quit's question. ► opens it too,
         // and its line ends in a ►.
         function opens(row) {
-            return !!row && (row.type === "submenu" || row.type === "display_output"
+            return !!row && (row.type === "submenu" || row.type === "module" || row.type === "display_output"
                              || row.type === "file" || row.type === "quit" || row.type === "paste_setup")
         }
 
         function openRow(row) {
-            if (row.type === "submenu") {
+            if (row.type === "submenu" || row.type === "module") {
                 // A row that leads to a page names it (`page`, `params`:
                 // SettingsPages.js); the rest open over this one.
                 if (row.key === "time_zone" || row.key === "keyboard")
@@ -680,6 +692,8 @@ FocusScope {
                 moveSlider(-1)
             else if (row && row.type === "list_single")
                 cycleList(-1)
+            else if (row && row.type === "module")
+                toggleModule()
         }
 
         Keys.onRightPressed: {
@@ -699,6 +713,8 @@ FocusScope {
                 moveSlider(1)
             else if (row && row.type === "list_single")
                 cycleList(1)
+            else if (row && row.type === "module")
+                toggleModule()
             else if (opens(row))
                 openRow(row)
         }
@@ -768,6 +784,7 @@ FocusScope {
             label: row.label || ""
             value: monitor ? (settingsRoot.editIndex, settingsRoot.editValue, settingsRoot.shownValue(row, index))
                  : row.type === "list_single" || row.type === "display_output" || row.type === "file" || row.type === "submenu"
+                   || row.type === "module"
                  ? (row.value || "")
                  : slider && row.on !== undefined ? (row.on ? "On" : "Off") : ""
             editing: settingsRoot.editIndex === index

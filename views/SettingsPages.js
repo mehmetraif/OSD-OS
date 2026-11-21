@@ -682,9 +682,25 @@ function systemRows(items) {
     moduleRows(items, groupModules(""))
 }
 
-// TV / Movie's page: the rows that are the videos' alone, then the video
-// modules' (manifest "settings_group": "tv").
+// TV / Movie's page: how a picture fills the screen, Transparent Background
+// and the info screen, then the video modules (manifest "settings_group":
+// "tv") under MODULES, then the rest of the videos' rows under VIDEO.
 function tvRows(items) {
+    var video = []
+    videoRows(video)
+    var first = ["video_scaling", "transparent_background", "info_screen"]
+    for (var f = 0; f < first.length; f++)
+        items.push(video.filter(function(row) { return row.key === first[f] })[0])
+    moduleRows(items, groupModules("tv"))
+    items.push({ type: "section", label: "Video" })
+    for (var v = 0; v < video.length; v++) {
+        if (first.indexOf(video[v].key) < 0)
+            items.push(video[v])
+    }
+}
+// The videos' own rows, the first three and then the VIDEO heading's in
+// their order.
+function videoRows(items) {
     // Scaling — how a picture of another shape fills the screen: a 16:9 film
     // on a 4:3 tube above all. Every video module's settings can override
     // it for that module. It replaces Auto Crop, whose ON reads as Pan &
@@ -858,8 +874,6 @@ function tvRows(items) {
         description: "For experts: mpv's own options for the video output and decoder, in place of those OSD/OS picks for this device, such as --vo=gpu --hwdec=no. From the next video\n[DEFAULT] Nothing typed: OSD/OS's own",
         moduleId: ""
     })
-
-    moduleRows(items, groupModules("tv"))
 }
 
 // The installed modules with settings of a group ("" for none, as a
@@ -871,13 +885,21 @@ function groupModules(group) {
         return m.has_settings && own === group
     })
 }
+// Each says whether the module is on (its "enabled", which the main menu
+// and its backend follow), ◄ ► turning it on and off there (Settings.qml's
+// toggleModule()); select opens its settings. In AppCore's order.
 function moduleRows(items, modules) {
     if (modules.length === 0)
         return
     items.push({ type: "section", label: "Modules" })
     for (var i = 0; i < modules.length; i++)
-        items.push({ type: "submenu", label: modules[i].name, moduleId: modules[i].id,
-                     page: "views/ModuleSettings.qml", params: { moduleId: modules[i].id, alsoModules: [] } })
+        items.push(moduleRow(modules[i]))
+}
+function moduleRow(m) {
+    return { type: "module", key: "enabled", label: m.name, moduleId: m.id,
+             on: !!m.enabled, value: m.enabled ? "On" : "Off",
+             description: "Shows " + m.name + " on the main menu\n[ENTER] Opens its settings",
+             page: "views/ModuleSettings.qml", params: { moduleId: m.id, alsoModules: [] } }
 }
 
 // A row choosing one of the themes or the skins there are (AppCore's
