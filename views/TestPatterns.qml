@@ -51,13 +51,13 @@ FocusScope {
           kinds: [ drawnGrid ? { draw: "grid", w: gridColumns * 16, h: lines }
                    : tall ? { image: "grid-480.png", w: 640, h: 480 } : { image: "grid-240.png", w: 320, h: 240 } ] },
         { name: "Monoscope",
-          help: "A tube's setup: the centre cross for static convergence, the sides for the edges', the corners for"
+          help: "A tube's setup: the center cross for static convergence, the sides for the edges', the corners for"
                 + " corner convergence, purity and geometry. The red square is square on a screen set right:"
                 + " measure it, and set the height and width until its sides match",
           kinds: [ tall ? { image: "monoscope-480.png", w: 640, h: 480 } : { image: "monoscope-240.png", w: 320, h: 240 } ] },
         { name: "Convergence",
-          help: "Red, green and blue land on one another: no coloured fringe on the white lines, crosses or dots,"
-                + " none where the colours meet. Set it at a lowered brightness",
+          help: "Red, green and blue land on one another: no colored fringe on the white lines, crosses or dots,"
+                + " none where the colors meet. Set it at a lowered brightness",
           kinds: [ { name: "Lines", tile: "convergence-grid.png" },
                    { name: "Crosses", tile: "convergence-cross.png" },
                    { name: "Dots", tile: "convergence-dots.png" },
@@ -68,24 +68,24 @@ FocusScope {
                 + " then back one step, where they blend with the black",
           kinds: [ { image: "pluge.png", w: 320, h: 240 } ] },
         { name: "Color Bars",
-          help: "White level, then each colour's: raise Contrast until the brightest steps at the right of a bar run"
+          help: "White level, then each color's: raise Contrast until the brightest steps at the right of a bar run"
                 + " together, then lower it until they can be told apart. The darkest steps at the left just show"
                 + " once the black level is set",
           kinds: [ { image: "colorbars.png", w: 320, h: 240 } ] },
         { name: "SMPTE Color Bars",
-          help: "Colour and tint for video: with a blue filter or the set's blue-only mode, the bars and the blocks"
+          help: "Color and tint for video: with a blue filter or the set's blue-only mode, the bars and the blocks"
                 + " under them should match",
           kinds: [ { image: "smpte.png", w: 320, h: 240 } ] },
         { name: "Gray Ramp",
-          help: "Colour balance: every bar grey, with no red or blue in it. White level with Contrast: the two"
+          help: "Color balance: every bar gray, with no red or blue in it. White level with Contrast: the two"
                 + " whitest bars just told apart",
           kinds: [ { image: "grayramp.png", w: 320, h: 240 } ] },
         { name: "Sharpness",
-          help: "Set Sharpness (aperture on a monitor) so black and grey meet cleanly, without a white ghost between"
+          help: "Set Sharpness (aperture on a monitor) so black and gray meet cleanly, without a white ghost between"
                 + " them: on most sets at zero or the middle",
           kinds: [ { image: "sharpness.png", w: 320, h: 240 } ] },
         { name: "Solid Color",
-          help: "Purity and white balance: one colour, even from corner to corner, with no patch of another",
+          help: "Purity and white balance: one color, even from corner to corner, with no patch of another",
           kinds: [ { name: "White", color: "#ffffff" }, { name: "Black", color: "#000000" },
                    { name: "Red", color: "#ff0000" }, { name: "Green", color: "#00ff00" },
                    { name: "Blue", color: "#0000ff" } ] }

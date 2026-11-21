@@ -149,6 +149,17 @@ StandInRoot {
             verify(!child(page, "patternDrawn").visible)
         }
 
+        // What the patterns say is spelt as their names are (COLOR BARS,
+        // GRAY RAMP): American, one spelling.
+        function test_oneSpelling() {
+            var page = open()
+            for (var p = 0; p < page.patterns.length; p++) {
+                var said = [page.patterns[p].name, page.patterns[p].help]
+                    .concat(page.patterns[p].kinds.map(function(k) { return k.name || "" })).join(" ")
+                verify(!/colour|centre|grey/i.test(said), page.patterns[p].name + ": " + said)
+            }
+        }
+
         // Every pattern's every kind is there and loads: a picture, a tile,
         // or a colour over the whole screen.
         function test_everyPatternLoads() {
