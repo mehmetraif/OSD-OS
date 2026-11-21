@@ -8,9 +8,10 @@
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "ON"
+      "default": "ON",
+      "description": "Shows Local Files on the main menu: the videos, music and pictures in its folder, below"
     },
     {
       "key": "media_directory",

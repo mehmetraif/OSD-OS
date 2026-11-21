@@ -11,7 +11,7 @@
       "label": "Enabled",
       "type": "toggle",
       "default": "OFF",
-      "description": "Browses what Netflix carries, and plays it in Netflix's own player full screen\nNeeds Chromium with Widevine (on the OSD/OS image already)"
+      "description": "Shows Netflix on the main menu: what Netflix carries, played in its own player full screen\nNeeds a Netflix account, a free TMDB key (TMDB Key, below) and Chromium with Widevine, on the OSD/OS image already"
     },
     {
       "key": "sign_in",

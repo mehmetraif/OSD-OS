@@ -10,7 +10,8 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows NFC Reader on the main menu\nNeeds an NFC reader: a PN532 USB, or a PC/SC reader such as the ACR122U"
     },
     {
       "key": "tags_directory",

@@ -10,7 +10,8 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Jellyfin on the main menu\nNeeds a Jellyfin server with Quick Connect on: its address in Server Address, then SIGN IN"
     },
     {
       "key": "sign_in",

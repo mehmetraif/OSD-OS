@@ -7,9 +7,10 @@
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Scripts on the main menu: the .sh files in its folder, below"
     },
     {
       "key": "scripts_directory",

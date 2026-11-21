@@ -8,9 +8,10 @@
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "ON"
+      "default": "ON",
+      "description": "Shows Playlists on the main menu: your own lists of videos from Local Files, YouTube and the media servers"
     },
     {
       "key": "download_folder",

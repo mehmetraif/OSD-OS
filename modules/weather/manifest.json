@@ -10,7 +10,8 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Weather on the main menu\nNeeds your place in Location, below, and the network"
     },
     {
       "key": "location",

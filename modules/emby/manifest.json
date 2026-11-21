@@ -10,7 +10,8 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Emby on the main menu\nNeeds an Emby server: its address in Server Address, then SIGN IN"
     },
     {
       "key": "sign_in",

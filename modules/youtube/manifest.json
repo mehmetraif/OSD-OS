@@ -12,7 +12,8 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows YouTube on the main menu\nNeeds yt-dlp, on the OSD/OS image already; an account is optional (SIGN IN, below)"
     },
     {
       "key": "sign_in",

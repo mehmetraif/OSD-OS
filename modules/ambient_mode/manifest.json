@@ -8,9 +8,10 @@
   "settings": [
     {
       "key": "enabled",
-      "label": "ENABLED",
+      "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Ambient:Mode on the main menu: a video on a loop, with your music if you like, from its folder below"
     },
     {
       "key": "media_directory",

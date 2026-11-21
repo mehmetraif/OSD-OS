@@ -10,7 +10,8 @@
       "key": "enabled",
       "label": "Enabled",
       "type": "toggle",
-      "default": "OFF"
+      "default": "OFF",
+      "description": "Shows Plex on the main menu\nNeeds a Plex account and a Plex Media Server: sign in with SIGN IN, below"
     },
     {
       "key": "sign_in",
