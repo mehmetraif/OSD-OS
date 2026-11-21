@@ -144,6 +144,7 @@ StandInRoot {
         property var extraArgs: []
         // The playlist's video each was started at (-1 its first).
         property var playlistStarts: []
+        property var shuffles: []
         property var keys: []
         signal playbackEnded(int finalPositionMs, int finalDurationMs, string reason)
         signal playlistPosChanged(int pos)
@@ -161,6 +162,7 @@ StandInRoot {
             subFiles = subFiles.concat([files || []])
             extraArgs = extraArgs.concat([extra || []])
             playlistStarts = playlistStarts.concat([playlistStart])
+            shuffles = shuffles.concat([!!shuffle])
         }
         function noteSession(note) {}
         // The session behind the menus taken back where it is, if there is
@@ -462,6 +464,7 @@ StandInRoot {
             mpvController.subFiles = []
             mpvController.extraArgs = []
             mpvController.playlistStarts = []
+            mpvController.shuffles = []
             mpvController.position = 0
             mpvController.keys = []
             mpvController.lastError = ""
@@ -2084,6 +2087,35 @@ StandInRoot {
                 compare(player.lastKnownPositionMs, 0)
                 compare(player.lastKnownPlaylistPos, 3)
             }
+        }
+
+        // A Local Files playlist played shuffled: its places are in an order
+        // only that session had, so it saves none (the one kept for the file
+        // stays as it was), and starting again after the menu, or RETRY,
+        // shuffles it afresh from the start.
+        function test_aShuffledPlaylistKeepsNoPlace() {
+            appCore.settings = { resume_playback: "ask", shuffle_playback: "yes" }
+            localFilesBackend.positions = { "/films/list.m3u": { pos: 90000, plPos: 2 } }
+            var player = open("local_files", "Player.qml", { filePath: "/films/list.m3u", title: "list.m3u" })
+            compare(mpvController.shuffles, [true])
+            mpvController.playlistPosChanged(4)
+            player.lastKnownPositionMs = 30000
+            mpvController.playbackEnded(30000, 60000, "menu")
+            compare(localFilesBackend.positions["/films/list.m3u"], { pos: 90000, plPos: 2 })
+            player.backToVideo()
+            compare(mpvController.shuffles, [true, true])
+            compare(mpvController.starts[1], 0)
+            compare(mpvController.playlistStarts[1], -1)
+            mpvController.playbackEnded(0, 0, "failed")
+            var notice = noticeOf(player)
+            verify(notice.visible)
+            keyClick(Qt.Key_Return)
+            compare(mpvController.shuffles, [true, true, true])
+            compare(mpvController.starts[2], 0)
+            compare(mpvController.playlistStarts[2], -1)
+            mpvController.playlistPosChanged(1)
+            mpvController.playbackEnded(20000, 60000, "stopped")
+            compare(localFilesBackend.positions["/films/list.m3u"], { pos: 90000, plPos: 2 })
         }
 
         // CLOSE VIDEO in a player's menu (YouTube's, Local Files',

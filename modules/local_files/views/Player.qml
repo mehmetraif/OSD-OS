@@ -166,8 +166,17 @@ FocusScope {
         if (reloadOnClose || ended) {
             reloadOnClose = false
             readSettings()
-            play(lastKnownPositionMs, lastKnownPlaylistPos, startedShuffled)
+            playAgain()
         }
+    }
+    // The session started again where it is. A shuffled playlist's places
+    // are gone with its order (mpv's shuffle, made again at each start), so
+    // it starts shuffled afresh, as it does taken back from Browse.
+    function playAgain() {
+        if (startedShuffled)
+            play(0, -1, true)
+        else
+            play(lastKnownPositionMs || lastStartMs, lastKnownPlaylistPos, false)
     }
 
     Keys.onPressed: function(event) {
@@ -254,9 +263,12 @@ FocusScope {
     // playlist clears its resume point like a completed single video;
     // anything else saves item + timecode. A single file: cleared near its
     // end, saved otherwise. Images carry no resume position, so they never
-    // write history.
+    // write history. A shuffled playlist's places are in an order only that
+    // session had: it leaves the one kept for the file as it was.
     function rememberPosition(pos, dur, plPos, reason) {
         if (isPlaylist(filePath)) {
+            if (startedShuffled)
+                return
             if (reason === "eof")
                 localFilesBackend.clearPosition(filePath)
             else if (pos > 0 || plPos >= 0)
@@ -494,8 +506,7 @@ FocusScope {
 
     PlaybackNotice {
         id: failure
-        onRetried: playerRoot.play(playerRoot.lastKnownPositionMs || playerRoot.lastStartMs,
-                                   playerRoot.lastKnownPlaylistPos, playerRoot.startedShuffled)
+        onRetried: playerRoot.playAgain()
         // CLOSE VIDEO leaves the module for the main menu.
         onDismissed: playerRoot.closeToMainMenu ? moduleRoot.leaveModule() : playerRoot.goBack()
     }
