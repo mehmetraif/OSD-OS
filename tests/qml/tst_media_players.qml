@@ -2547,6 +2547,50 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
+        // Resume Playback, as each module saves it: Ask asks where to start
+        // a video with a resume point, Always starts it there, Never from
+        // the beginning, without asking. Plex, Local Files and the NFC
+        // Reader save ask / yes / no, Jellyfin and Emby ask / always /
+        // never, YouTube Ask / Always / Never.
+        function test_resumePlaybackFollowsItsSetting_data() {
+            var server = { streamUrl: "http://server/stream", itemId: "e1", mediaSourceId: "e1",
+                           title: "Episode 1", viewOffset: 90000 }
+            var players = [{ module: "plex", saved: ["ask", "yes", "no"],
+                             params: { streamUrl: "http://plex/10", plexToken: "token", ratingKey: "10",
+                                       partKey: "/library/parts/10", title: "Episode 1", viewOffset: 90000 } },
+                           { module: "jellyfin", saved: ["ask", "always", "never"], params: server },
+                           { module: "emby", saved: ["ask", "always", "never"], params: server },
+                           { module: "youtube", saved: ["Ask", "Always", "Never"],
+                             params: { item: { url: "https://www.youtube.com/watch?v=abc123", videoId: "abc123",
+                                               title: "A Talk" } } },
+                           { module: "local_files", saved: ["ask", "yes", "no"],
+                             params: { filePath: "/films/B.mkv", title: "B.mkv" } },
+                           { module: "nfc_reader", saved: ["ask", "yes", "no"],
+                             params: { videoPath: "/films/A.mkv", title: "A" } }]
+            var rows = []
+            for (var p of players) {
+                rows.push({ tag: p.module + ", Ask", module: p.module, params: p.params, saved: p.saved[0], asks: true })
+                rows.push({ tag: p.module + ", Always", module: p.module, params: p.params, saved: p.saved[1], start: 90 })
+                rows.push({ tag: p.module + ", Never", module: p.module, params: p.params, saved: p.saved[2], start: 0 })
+            }
+            return rows
+        }
+        function test_resumePlaybackFollowsItsSetting(data) {
+            appCore.settings = { resume_playback: data.saved, shuffle_playback: "no" }
+            localFilesBackend.positions = { "/films/B.mkv": { pos: 90000, plPos: -1 } }
+            youtubeBackend.saved = { pos: 90000 }
+            nfcReaderBackend.saved = { pos: 90000, plPos: -1 }
+
+            var prompt = promptOf(open(data.module, "Player.qml", data.params))
+            compare(prompt.visible, !!data.asks)
+            if (data.asks) {
+                compare(mpvController.loads, 0)
+                return
+            }
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], data.start)
+        }
+
         // A video still playing behind the menus, chosen again (the main
         // menu's row, or the same video in its module): its player takes the
         // session back where it is (takeBack), not from what it saved as back

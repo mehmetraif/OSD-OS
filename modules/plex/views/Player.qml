@@ -453,7 +453,11 @@ FocusScope {
         resumeSetting = appCore.get_setting(moduleRoot.moduleId, "resume_playback") || "ask"
         autoplayNext  = allowAutoplay && root.settingOn(moduleRoot.moduleId, "autoplay_next_episode", false)
 
-        if (resumeSetting === "ask" && viewOffset > 0) {
+        // Never ("no"): from the beginning; Ask: asked where there is a
+        // resume point; Always ("yes"): from it.
+        if (resumeSetting === "no") {
+            doStartPlayback(0)
+        } else if (resumeSetting === "ask" && viewOffset > 0) {
             resumePrompt.open()
         } else {
             doStartPlayback(viewOffset)

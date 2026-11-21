@@ -179,6 +179,8 @@ FocusScope {
             play(0)
         } else if (resumeSetting === "Always" || behind || startupFrom !== "") {
             play(savedPos)
+        } else if (resumeSetting === "Never") {
+            play(0)
         } else if (savedPos > 0) {
             savedPositionMs = savedPos
             resumePrompt.open()

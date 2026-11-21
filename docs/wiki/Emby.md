@@ -157,7 +157,7 @@ The keys sit under `modules.com.osdos.emby`, nested as in the fragment [above](#
 | `enabled`, `autoplay_next_episode` | `true` or `false` |
 | `libraries` | an object of `"<library id>": true` or `false` (`"7": true`); a library left out counts as ON |
 | `video_quality` | `"auto"` (Direct Play), `"480p"`, `"576p"`, `"720p"` or `"1080p"` |
-| `resume_playback` | `"ask"` or `"always"` |
+| `resume_playback` | `"ask"`, `"always"` or `"never"` |
 | `intro_skip`, `outro_skip` | `"Off"`, `"Auto"` or `"Button"` |
 | `video_scaling` | the option's name, such as `"Letterbox"` |
 | `server_url` | the server address: Settings → TV / Movie → EMBY → Server Address, and the sign-in screen |

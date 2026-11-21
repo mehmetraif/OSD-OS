@@ -727,8 +727,11 @@ FocusScope {
             backend.fetchSegments(itemId)
 
         // "ask": prompt resume vs. start over when there's a saved position.
-        // "always" (or anything else): resume directly.
-        if (resumeSetting === "ask" && viewOffset > 0) {
+        // "never": from the beginning. "always" (or anything else): resume
+        // directly.
+        if (resumeSetting === "never") {
+            beginPlayback(0)
+        } else if (resumeSetting === "ask" && viewOffset > 0) {
             resumePrompt.open()
         } else {
             beginPlayback(viewOffset)

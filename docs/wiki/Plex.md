@@ -215,7 +215,7 @@ The keys sit under `modules.com.osdos.plex`.
 | `server_machine_id` | the server's machine identifier |
 | `libraries` | an object of `"<machine id>_<library number>": true` or `false`; a library left out counts as ON |
 | `video_quality` | `"auto"` (Direct Play), `"8000"`, `"4000"` or `"2000"` (kbps). Unset means Direct Play |
-| `resume_playback` | `"ask"` or `"yes"` (Always) |
+| `resume_playback` | `"ask"`, `"yes"` (Always) or `"no"` (Never) |
 | `video_scaling` | the option's name, such as `"Pan & Scan"` |
 
 A `config.json` fragment (the ids are examples of their shape):
