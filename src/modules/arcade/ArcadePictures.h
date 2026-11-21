@@ -90,11 +90,11 @@ public:
     void gameEnded(const QString &set);
 
     // A game's pictures, as file URLs, in the order the Arcade screen shows
-    // them: the games folder's snap of it, those numbered after it there
-    // (RetroAchievements' among them), its title screen in the titles
-    // folder, then the first snapshot MAME took of it; a clone's own, else
-    // its parent's. As read with the folder (takeRead()), till the list
-    // opens again, and those downloaded since.
+    // them: its title screen in the titles folder, those numbered after it
+    // in the games folder (RetroAchievements' among them), the games
+    // folder's snap of it, then the first snapshot MAME took of it; a
+    // clone's own, else its parent's. As read with the folder (takeRead()),
+    // till the list opens again, and those downloaded since.
     QStringList picturesOf(const QString &set) const;
     // ArcadeBackend::wantPictures().
     void want(const QString &set);

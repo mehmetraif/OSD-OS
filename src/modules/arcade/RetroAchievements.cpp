@@ -327,9 +327,6 @@ void RetroAchievements::failWanted() {
         emit picturesFound(later.first(), QStringLiteral("failed"), {});
 }
 
-bool RetroAchievements::pausing() const {
-    return m_pausedUntil.isValid() && m_pausedUntil > QDateTime::currentDateTimeUtc();
-}
 
 void RetroAchievements::readWanted() {
     // Nothing while a request is being asked again after a pause either: it

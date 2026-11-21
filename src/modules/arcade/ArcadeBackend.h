@@ -1,7 +1,6 @@
 #pragma once
 #include <QDateTime>
 #include <QElapsedTimer>
-#include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QMap>

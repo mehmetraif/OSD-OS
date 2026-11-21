@@ -185,8 +185,7 @@ private:
     // request, which is asked again after each, kMostTries at most.
     void get(const QString &endpoint, const QList<std::pair<QString, QString>> &query, const Answer &answer,
              int tried = 0);
-    // A pause the server asked for (429, 503) is still on.
-    bool pausing() const;
+
     // A game's board read (or not): kept, and the next game asked for read.
     void done(const QString &fileName, const Board &board);
     void doneAchievements(const QString &fileName, const Progress &progress);

@@ -77,9 +77,6 @@ constexpr int kDeviceError = 4;
 constexpr int kNoSuchSystem = 5;
 constexpr int kInvalidConfig = 6;
 
-// What a file holding a token or a key is written with.
-constexpr QFileDevice::Permissions kOwnerOnly = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
-
 // Settings → Arcade → Relay Server's choices, by RetroArch's names.
 const QHash<QString, QString> kRelays = {
     { QStringLiteral("New York"), QStringLiteral("nyc") },
@@ -377,7 +374,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             addPlayTime(m_playing, (m_playClock.elapsed() + 500) / 1000);
         // Its achievements as the game left them, when next shown.
         if (!m_playing.isEmpty())
-            m_retroAchievements->forgetAchievements(QFileInfo(m_sets.value(m_playing)).fileName());
+            m_retroAchievements->forgetAchievements(m_sets.value(m_playing));
         // A snapshot taken in the game (F12) is its picture now.
         if (!m_playing.isEmpty())
             m_pictures->gameEnded(m_playing);
@@ -2226,10 +2223,8 @@ void ArcadeBackend::startupGameOptions() {
         // One put there without a title (OSD/OS Setup's, an import, before
         // MAME had said what it is): MAME's.
         QString name = entry.value(QStringLiteral("name")).toString();
-        if (name.isEmpty()) {
-            const mame::Machine *machine = machineOf(set);
-            name = machine && !machine->description.isEmpty() ? machine->description : set;
-        }
+        if (name.isEmpty())
+            name = descriptionOf(set);
         games.append({ mame::titleOf(name), set });
     }
     std::sort(games.begin(), games.end(), [](const auto &a, const auto &b) {
@@ -2712,7 +2707,7 @@ QStringList ArcadeBackend::madeSets(const QString &filter) const {
         const bool haveMame = !mamePath().isEmpty();
         for (const QString &set : index().games) {
             if (ready && engineFor(set, ready, haveMame) == QLatin1String("fbneo")
-                && m_retroAchievements->hasGame(QFileInfo(m_sets.value(set)).fileName()))
+                && m_retroAchievements->hasGame(m_sets.value(set)))
                 sets << set;
         }
     } else if (filter == QLatin1String("netplay") && m_onlinePlay && fbneoReady()) {
@@ -3103,7 +3098,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     // have it (netplayRefusal()): its files whole as far as Check ROMs
     // found, and the memory RetroArch's states of it need.
     if (netplay != Netplay::None) {
-        m_lastError = netplayRefusal(name, lanCore, netplay == Netplay::Host || netplay == Netplay::LanHost);
+        m_lastError = netplayRefusal(name, lanCore, libretro::hosts(netplay));
         if (!m_lastError.isEmpty())
             return false;
     }
@@ -3214,7 +3209,7 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
                                || netplay == libretro::Launch::Netplay::LanJoin);
     launch.relay = m_relay;
     launch.lanSync = m_lanFollow ? libretro::Launch::LanSync::Follow : libretro::Launch::LanSync::Predict;
-    const bool hosting = netplay == Netplay::Host || netplay == Netplay::LanHost;
+    const bool hosting = libretro::hosts(netplay);
     // The controller types every port plays with online: a host's own
     // choice, by its players (the panel's, with a stick or Arcade Buttons
     // among them) and the game's (Classic for five or six players, where one
@@ -4350,7 +4345,7 @@ QVariantMap ArcadeBackend::leaderboard(const QString &set) {
     const QString file = m_sets.value(set);
     if (!m_achievements || m_account->key().isEmpty() || file.isEmpty() || engineOf(set) != QLatin1String("fbneo"))
         return { { QStringLiteral("state"), QStringLiteral("off") } };
-    return m_retroAchievements->board(QFileInfo(file).fileName());
+    return m_retroAchievements->board(file);
 }
 
 void ArcadeBackend::setAchievementsServers(const QUrl &api, const QUrl &media) {
@@ -4365,7 +4360,7 @@ QVariantMap ArcadeBackend::gameAchievements(const QString &set) {
         return { { QStringLiteral("state"), QStringLiteral("nokey") } };
     if (m_account->keyRefused())
         return { { QStringLiteral("state"), QStringLiteral("refused") } };
-    return m_retroAchievements->achievements(QFileInfo(file).fileName());
+    return m_retroAchievements->achievements(file);
 }
 
 QVariantMap ArcadeBackend::achievementCount(const QString &set) {

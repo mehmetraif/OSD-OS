@@ -16,8 +16,6 @@
 
 namespace {
 
-// What a file holding a token or a password is written with.
-constexpr QFileDevice::Permissions kOwnerOnly = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
 // A sign-in RetroArch hasn't said how it went in this long is stopped (its
 // token read all the same), and one stopped is killed after this.
 constexpr int kSignInTimeoutMs = 20000;
