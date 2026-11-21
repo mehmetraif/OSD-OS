@@ -80,7 +80,7 @@ Right on a game opens its options; on the Arcade screen, hold select.
 | Option | What it does |
 |---|---|
 | **Game Details** | The game's page ([Game Details](#game-details)) |
-| **Vertical Games** | For a vertical game, while Settings → Screen → Monitor isn't turned: **Turned Right**, **Turned Left** or **Default**, as Settings → Arcade → Emulator Video → Vertical Games is ([A monitor on its side](#a-monitor-on-its-side-tate)) |
+| **Vertical Games** | For a vertical game, while Settings → Screen → Rotation isn't turned: **Turned Right**, **Turned Left** or **Default**, as Settings → Arcade → Emulator Video → Vertical Games is ([A monitor on its side](#a-monitor-on-its-side-tate)) |
 | **Difficulty** | For a game MAME plays whose board has a difficulty DIP switch ([Difficulty](#difficulty)) |
 | **Add to Favorites** / **Remove from Favorites** | Puts it on Favorites, or takes it off; 100 at most |
 | **Engine** | For a game both MAME and FinalBurn Neo have: **Auto**, **MAME** or **FinalBurn Neo** ([FinalBurn Neo](#finalburn-neo)) |
@@ -347,11 +347,11 @@ Three settings turn the picture for a monitor on its side. **Turned Right** has 
 
 | The monitor | Setting |
 |---|---|
-| Stays turned | **Settings → Screen → Monitor** |
+| Stays turned | **Settings → Screen → Rotation** |
 | Is turned for vertical games | **Settings → Arcade → Emulator Video → Vertical Games**: only the vertical games are turned |
 | Is turned for one game | **Vertical Games** in the game's options, which goes before Settings → Arcade → Emulator Video → Vertical Games |
 
-With Settings → Screen → Monitor turned:
+With Settings → Screen → Rotation turned:
 
 - The games stand upright on it: a vertical game fills the screen, a horizontal one lies across its middle.
 - The Arcade screen takes a tall layout of its own. The Orb look isn't drawn.

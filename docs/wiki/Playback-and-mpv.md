@@ -428,7 +428,7 @@ A video that can't play ends on a **Playback failed** notice: the reason, mpv's 
 
 - **A CRT**: on a CRT's display output OSD/OS tells mpv the screen is 4:3 (`--monitoraspect=4:3`). A tube whose picture still isn't right takes `monitoraspect` or `monitorpixelaspect` from `mpv.conf` instead; adjust it with a 4:3 test pattern ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation)).
 - **A Pi 5's composite output** sometimes reports a narrow raster (704×432 rather than 720×480); the same setting makes up for it.
-- **A monitor turned on its side** (Settings → Screen → Monitor): an mpv process turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for left). Its subtitles and deck menu lie across the screen; inside the app they turn too ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
+- **A monitor turned on its side** (Settings → Screen → Rotation): an mpv process turns the picture alone (`--video-rotate=270` for a monitor turned right, `90` for left). Its subtitles and deck menu lie across the screen; inside the app they turn too ([Arcade → A monitor on its side](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-monitor-on-its-side-tate)).
 - **Anamorphic** squeezes on purpose, for a TV set to 16:9: choose another Scaling.
 
 ### Washed-out or crushed colours

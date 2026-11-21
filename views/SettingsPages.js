@@ -320,7 +320,7 @@ function screenRows(items) {
             moduleId: ""
         })
     }
-    // DISPLAY — which of a computer's displays OSD/OS opens on, and mpv
+    // USE DISPLAY — which of a computer's displays OSD/OS opens on, and mpv
     // plays on (app.display_index, read as it starts: main.cpp). With
     // one display, as a Pi has, there is nothing to choose.
     var displays = Qt.application.screens
@@ -334,7 +334,7 @@ function screenRows(items) {
     items.push({
         type: "list_single",
         key: "display_index",
-        label: "Display",
+        label: "Use Display",
         options: displayOpts,
         values: displayVals,
         value: displayOpts[Math.max(0, displayAt)] || "",
@@ -342,17 +342,20 @@ function screenRows(items) {
         unavailable: displays.length > 1 ? "" : "Only with more than one display",
         moduleId: ""
     })
-    // MONITOR — a monitor turned on its side for vertical games (TATE):
+    // ROTATION — a monitor turned on its side for vertical games (TATE):
     // Main.qml turns what it draws to stand upright on it, MAME, RetroArch
     // and mpv their pictures, from the next game or video.
-    var monitorOpts = ["Horizontal", "Turned Right", "Turned Left"]
+    // ROTATION: shown None over the saved Horizontal.
+    var monitorVals = ["Horizontal", "Turned Right", "Turned Left"]
+    var monitorOpts = ["None", "Turned Right", "Turned Left"]
     items.push({
         type: "list_single",
         key: "monitor",
-        label: "Monitor",
+        label: "Rotation",
         options: monitorOpts,
-        value: monitorOpts.indexOf(appSettings["monitor"]) >= 0 ? appSettings["monitor"] : "Horizontal",
-        description: "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets, and the others lie across its middle. On a desktop, turn the screen in the system's display settings instead\n[TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left",
+        values: monitorVals,
+        value: monitorOpts[Math.max(0, monitorVals.indexOf(appSettings["monitor"]))],
+        description: "A monitor turned on its side for vertical games (TATE): the menus, games and videos are turned to stand upright on it. Vertical games then fill the screen with their own lines, as in their cabinets, and the others lie across its middle. On a desktop, turn the screen in the system's display settings instead\n[NONE] The monitor stands as monitors do  [TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left",
         moduleId: ""
     })
     // TEST PATTERNS — a picture to set a TV or monitor up by, its own

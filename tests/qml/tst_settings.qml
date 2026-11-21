@@ -421,7 +421,7 @@ StandInRoot {
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
                                           "Transition"] },
-                { tag: "screen", lines: ["Display Output", "Display", "Monitor", "Test Patterns", "Screen Saver",
+                { tag: "screen", lines: ["Display Output", "Use Display", "Rotation", "Test Patterns", "Screen Saver",
                                          "Mouse Pointer", "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
@@ -568,10 +568,10 @@ StandInRoot {
         function test_startsOnAUsableRow() {
             var page = open({ group: "screen" })
             verify(page.offReason(0) !== "")
-            compare(cursor(page), "Monitor")
+            compare(cursor(page), "Rotation")
             loader.source = ""
             page = open({ group: "screen", navListState: { currentIndex: 0 } })
-            compare(cursor(page), "Monitor")
+            compare(cursor(page), "Rotation")
             loader.source = ""
             page = open({ group: "screen", navListState: { currentIndex: 3 } })
             compare(cursor(page), lines(page)[3])
@@ -831,10 +831,10 @@ StandInRoot {
         // and size, and nothing to choose with one.
         function test_displayRow() {
             var page = open({ group: "screen" })
-            var display = row(page, "Display")
+            var display = row(page, "Use Display")
             compare(display.options.length, Qt.application.screens.length)
             verify(display.value.indexOf("1: ") === 0, display.value)
-            compare(page.offReason(lines(page).indexOf("Display")) === "", Qt.application.screens.length > 1)
+            compare(page.offReason(lines(page).indexOf("Use Display")) === "", Qt.application.screens.length > 1)
         }
 
         function test_pasteSetup() {
@@ -1950,6 +1950,25 @@ StandInRoot {
             compare(appCore.values.background_effect, "Checkered Flag")
             root.allSchemes = schemes
             root.backgroundPresets = backgrounds
+        }
+
+        // Screen's Use Display and Rotation: Rotation None | Turned Right |
+        // Turned Left, None shown over the saved Horizontal, saved as before.
+        function test_rotationRow() {
+            var page = open({ group: "screen" })
+            compare(row(page, "Rotation").options, ["None", "Turned Right", "Turned Left"])
+            compare(row(page, "Rotation").value, "None")
+            moveTo(page, "Rotation")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.monitor, "Turned Right")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.monitor, "Horizontal")
+            compare(row(page, "Rotation").value, "None")
+            loader.source = ""
+            appCore.values = { monitor: "Turned Left" }
+            page = open({ group: "screen" })
+            compare(row(page, "Rotation").value, "Turned Left")
+            verify(row(page, "Use Display") !== undefined)
         }
 
         function test_partRowsInForce() {
