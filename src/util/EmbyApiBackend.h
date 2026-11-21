@@ -62,7 +62,10 @@ public:
     // nor reports a playback the server would show as playing.
     Q_INVOKABLE void cancel_playback_url();
     Q_INVOKABLE void load_next_episode(const QString &currentItemId);
-    Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool isPaused);
+    // Where the item has got to, as it plays (MediaServerPlayer, every ten
+    // seconds). Always as playing (IsPaused false): the player doesn't follow
+    // whether mpv is paused.
+    Q_INVOKABLE void update_playback_progress(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks);
     Q_INVOKABLE void report_playback_stopped(const QString &itemId, const QString &mediaSourceId, qint64 positionTicks, bool failed = false);
 
     // URL helpers for QML

@@ -702,8 +702,7 @@ FocusScope {
             if (pos > 0) {
                 if (pos > playerRoot.lastKnownPositionMs)
                     playerRoot.lastKnownPositionMs = pos
-                backend.update_playback_progress(itemId, mediaSourceId,
-                                                 msToTicks(pos), false)
+                backend.update_playback_progress(itemId, mediaSourceId, msToTicks(pos))
             }
         }
     }

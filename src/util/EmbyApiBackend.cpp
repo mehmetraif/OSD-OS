@@ -1265,14 +1265,14 @@ void EmbyApiBackend::report_playback_start(const QString &itemId, const QString 
 }
 
 void EmbyApiBackend::update_playback_progress(const QString &itemId, const QString &mediaSourceId,
-                                              qint64 positionTicks, bool isPaused) {
+                                              qint64 positionTicks) {
     if (!has_auth()) return;
 
     QJsonObject body;
     body["ItemId"]         = itemId;
     body["MediaSourceId"]  = mediaSourceId;
     body["PositionTicks"]  = positionTicks;
-    body["IsPaused"]       = isPaused;
+    body["IsPaused"]       = false;
     body["PlayMethod"]     = m_currentPlayMethod.isEmpty() ? QStringLiteral("Transcode")
                                                            : m_currentPlayMethod;
     body["CanSeek"]        = true;
