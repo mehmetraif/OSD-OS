@@ -1,10 +1,10 @@
 import QtQuick
 import Components
 
-// Settings → Arcade → Check ROMs: whether the folder's games have their files
-// whole, as the last check found (ArcadeBackend::romCheckInfo()), and Check
-// ROMs itself (ArcadeBackend::checkRoms()), started here alone, with how far
-// it has got.
+// Settings → Arcade → Check ROMs: Check ROMs itself
+// (ArcadeBackend::checkRoms()), started here alone, with how far it has got,
+// and under it whether the folder's games have their files whole, as the
+// last check found (ArcadeBackend::romCheckInfo()).
 KeyedPage {
     id: romCheckRoot
     subtitle: "Check ROMs"
@@ -17,7 +17,9 @@ KeyedPage {
     readonly property var info: (revision, arcadeBackend ? arcadeBackend.romCheckInfo() : ({}))
     onActiveChanged: revision++
 
-    keys: ["last", "complete", "fbneoOnly", "mameOnly", "incomplete", "unchecked", "check"]
+    // Check ROMs first, the cursor on it, how far it has got as its value;
+    // what the last check found under it.
+    keys: ["check", "last", "complete", "fbneoOnly", "mameOnly", "incomplete", "unchecked"]
 
     function labelOf(key) {
         switch (key) {

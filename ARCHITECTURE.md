@@ -205,7 +205,7 @@ Additional fields any setting may carry:
 
 A `submenu` row opens `ModuleSettings.qml` again on just its rows (`navParams.submenu` names it, and the title bar reads `MODULE / LABEL`); back returns to the row. Its rows' keys stay flat under `modules.<id>`, so moving a setting into or out of a submenu keeps what was saved.
 
-A `module_view` row loads the module's `Root.qml` (`AppCore::module_entry_point`, so a disabled module's too) on the app's navigation stack, with the row's `params` as its `navParams`; the router opens the view they ask for, and back from that view returns to the row. Netflix, Prime Video and YouTube open their sign-in page this way (`{ "signIn": true }`).
+A `module_view` row loads the module's `Root.qml` (`AppCore::module_entry_point`, so a disabled module's too) on the app's navigation stack, with the row's `params` as its `navParams`; the router opens the view they ask for, and back from that view returns to the row. Netflix, Prime Video and YouTube open their sign-in page this way (`{ "signIn": true }`). Such a row may hold a setting the view shows itself, in its own `settings` (Arcade's Game Pictures, its Pictures From): the module's page never shows it, OSD/OS Setup and Export to OSD/OS Setup take it as one of the module's rows (`build-site.py`'s `module_settings()`, `SetupExport.cpp`'s `walkRows()`), and its `options` may be `[name, value]` pairs, the view showing the name over the value saved (`Pictures.qml`, through `KeyedPage`'s `choicesOf()`).
 
 ### Where Settings lists a module (`settings_group`)
 

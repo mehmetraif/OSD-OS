@@ -1,13 +1,13 @@
 import QtQuick
 import Components
 
-// Settings → Arcade → Favorites: how many games are favourites, Export, which
+// Settings → Arcade → Favorites: Export, which
 // writes them to osdos-favorites.txt in the games folder (a game's set a
 // line, its title after a #: on an OSD/OS card the OSD-OS partition, which a
 // computer opens), and Import, which adds those such a file names that
 // aren't favourites yet, as many as the list holds
-// (ArcadeBackend::exportFavorites(), importFavorites()). The help line says
-// how the last one went, the file named.
+// (ArcadeBackend::exportFavorites(), importFavorites()), then how many games
+// are favorites. The help line says how the last one went, the file named.
 KeyedPage {
     id: favoritesRoot
     subtitle: "Favorites"
@@ -19,7 +19,9 @@ KeyedPage {
     // How the last export or import went.
     property string message: ""
 
-    keys: ["count", "export", "import"]
+    // Export and Import first, the cursor on Export; how many there are
+    // under them.
+    keys: ["export", "import", "count"]
     keepValue: false
     onCurrentIndexChanged: message = ""
 

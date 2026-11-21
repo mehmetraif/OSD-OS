@@ -245,7 +245,7 @@ A game's pictures are, in this order:
 - With more than one, the Arcade screen shows the next every 4 seconds.
 - Without any, the frame says `No Picture` and the file it would be, with `No Web API Key` or `Web API Key Refused` where that is why.
 
-**Settings → Arcade → Pictures From** sets where pictures are downloaded from: **RetroAchievements, then progetto-SNAPS** (the default), either alone, or **Off**. **Settings → Arcade → Game Pictures** says how many games have a picture, and holds **Download Pictures**.
+**Settings → Arcade → Game Pictures** opens on **Pictures From**, which sets where pictures are downloaded from: **Both** (the default: RetroAchievements, then progetto-SNAPS for the games still without a picture), **RetroAchievements**, **progetto-SNAPS**, or **Off**. Under it is **Download Pictures**, the cursor on it, then how many games have a picture.
 
 #### Pictures from RetroAchievements
 
@@ -322,7 +322,7 @@ Running `install.sh` again does the same ([Installation → Updating with instal
 
 ### Favorites as a file
 
-**Settings → Arcade → Favorites** keeps the favorites as `osdos-favorites.txt` in the games folder. **Export** writes it, a game's set a line, its title after a `#`:
+**Settings → Arcade → Favorites** keeps the favorites as `osdos-favorites.txt` in the games folder. The page opens on **Export** and **Import**, how many favorites there are under them. **Export** writes it, a game's set a line, its title after a `#`:
 
 ```
 # OSD/OS's Arcade favorites: a game's set a line, its title after the #.
@@ -386,7 +386,7 @@ Names, years, makers, players and systems come from MAME. Those of a set only Fi
 
 ## Check ROMs
 
-**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs** on that page: nothing starts it by itself. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`). Started while the games are still being read, it waits for that too, and then checks them all.
+**Settings → Arcade → Check ROMs** says whether each game's files are whole, for MAME and for FinalBurn Neo. Start it with **Check ROMs**, the page's first row, the cursor on it, which shows how far it has got: nothing starts it by itself. What the last check found is under it. It takes a few minutes on a Raspberry Pi, and a game started meanwhile holds it (`Waiting`). Started while the games are still being read, it waits for that too, and then checks them all.
 
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/check-roms.png" width="480" alt="Settings → Arcade → Check ROMs: Last Check Never, the counts of Complete, FinalBurn Neo Only, MAME Only, Incomplete and Not Checked games, and the Check ROMs row">
 
@@ -593,8 +593,8 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables ([High scores](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | FinalBurn Neo's games play in hardcore mode, with no save states, as RetroAchievements' leaderboards take only those; their scores go to RetroAchievements | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (page) | | Sign in and out, and the Web API key ([FinalBurn Neo](#finalburn-neo)) | |
-| Pictures From | RetroAchievements, then progetto-SNAPS; RetroAchievements; progetto-SNAPS; Off | RetroAchievements, then progetto-SNAPS | Where pictures are downloaded from | `modules.com.osdos.arcade.pictures_source` |
-| Game Pictures | (page) | | How many games have a picture, and Download Pictures | |
+| Game Pictures | (page) | | Pictures From, Download Pictures, and how many games have a picture | |
+| Pictures From (on Game Pictures' page) | Both, RetroAchievements, progetto-SNAPS, Off | Both | Where pictures are downloaded from. **Both** is saved as `"RetroAchievements, then progetto-SNAPS"` | `modules.com.osdos.arcade.pictures_source` |
 | **ONLINE AND LAN** | | | | |
 | Online Play | Off, On | Off | Play over the internet, in FinalBurn Neo | `modules.com.osdos.arcade.online_play` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | New York | Where a game you host is relayed from. Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |

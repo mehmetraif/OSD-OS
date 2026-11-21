@@ -245,6 +245,14 @@ StandInRoot {
         }
         function fbneoLicenseText() { return "You may freely use, modify, and distribute FB Neo." }
         function downloadFbneo() { downloads++; fbneoDownloading = true; fbneoProgress = 40; fbneoChanged() }
+        // The Favorites page: how many there are, the file, and what
+        // Export and Import were asked.
+        property int favoriteCount: 2
+        property var favoriteFiles: []
+        function favoritesCount() { return favoriteCount }
+        function favoritesFile() { return "/media/OSD-OS/Games/Arcade/osdos-favorites.txt" }
+        function exportFavorites() { favoriteFiles = favoriteFiles.concat(["export"]); return { message: "2 written" } }
+        function importFavorites() { favoriteFiles = favoriteFiles.concat(["import"]); favoriteCount = 3; return { message: "1 added" } }
         // Back to OSD/OS's Version, as many times as it was asked for.
         property int ownFbneos: 0
         function useOwnFbneo() { ownFbneos++ }
@@ -438,7 +446,16 @@ StandInRoot {
             lastAdded = entry
         }
         function list_contains(module, list, path) { return false }
-        function get_setting(module, key) { return undefined }
+        function get_setting(module, key) { return saved[key] }
+        // The module's settings as its manifest has them, the rows the
+        // views read of it: Game Pictures' own, Pictures From.
+        property var schema: [{ key: "game_pictures", type: "module_view", settings: [
+            { key: "pictures_source", label: "Pictures From", type: "list_single",
+              options: [["Both", "RetroAchievements, then progetto-SNAPS"], ["RetroAchievements", "RetroAchievements"],
+                        ["progetto-SNAPS", "progetto-SNAPS"], ["Off", "Off"]],
+              default: "RetroAchievements, then progetto-SNAPS",
+              description: "Where a game's pictures are downloaded from\n[BOTH] RetroAchievements' first  [RETROACHIEVEMENTS] Its own alone  [OFF] None downloaded" }] }]
+        function get_module_settings_schema(id) { return id === "com.osdos.arcade" ? schema : [] }
         function save_setting(module, key, value) {
             var all = Object.assign({}, saved)
             all[key] = value
@@ -522,6 +539,8 @@ StandInRoot {
             arcadeBackend.fbneoMessage = ""
             arcadeBackend.downloads = 0
             arcadeBackend.ownFbneos = 0
+            arcadeBackend.favoriteCount = 2
+            arcadeBackend.favoriteFiles = []
             arcadeBackend.retroarchDownloading = false
             arcadeBackend.retroarchProgress = 0
             arcadeBackend.retroarchMessage = ""
@@ -599,6 +618,7 @@ StandInRoot {
 
         function cleanup() {
             loader.source = ""
+            root.menuLayout = "Standard"
             root.leavingBarred = false
             moduleRoot.attractMode = "Off"
             moduleRoot.attractAfter = 60
@@ -1404,19 +1424,38 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
-        // The Game Pictures page: the games with a picture of all, each
-        // source as Pictures From and the key have it, and Download Pictures
+        // The Game Pictures page: Pictures From first, by its names over
+        // the values saved (Both for the old long one), ◄ ► changing and
+        // saving it; Download Pictures under it, the cursor opening on it,
         // starting the look, whose way the row shows as it goes and how it
-        // ended; back closes the page.
+        // ended; then the games with a picture of all and each source as
+        // Pictures From and the key have it; back closes the page.
         function test_picturesPage() {
             arcadeBackend.pictureInfo = { games: 120, withPictures: 45, achievements: true, snaps: true, key: "none",
                                           writable: true }
             var page = open("Pictures.qml")
+            compare(page.keys, ["source", "download", "games", "achievements", "snaps"])
+            compare(page.currentKey, "download")
             verify(findText(page, "45/120") !== null)
             verify(findText(page, "No Web API Key") !== null)
-            compare(page.keys, ["games", "achievements", "snaps", "download"])
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
+            // Unset, the default's name; its help line the first sentence
+            // and the bracket of the value on the row.
+            compare(page.labelOf("source"), "Pictures From")
+            compare(page.shownValue("source", 0), "Both")
+            keyClick(Qt.Key_Up)
+            compare(page.currentKey, "source")
+            verify(findText(page, "[BOTH] RetroAchievements' first") !== null)
+            compare(findText(page, "[OFF]"), null)
+            keyClick(Qt.Key_Right)
+            compare(appCore.saved.pictures_source, "RetroAchievements")
+            compare(page.shownValue("source", 0), "RetroAchievements")
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Left)
+            compare(appCore.saved.pictures_source, "Off")
+            verify(findText(page, "Off", true) !== null)
+            keyClick(Qt.Key_Right)
+            compare(appCore.saved.pictures_source, "RetroAchievements, then progetto-SNAPS")
+            compare(page.shownValue("source", 0), "Both")
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.pictureDownloads, 1)
@@ -1440,21 +1479,65 @@ StandInRoot {
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+
+            // Saved as a value no longer offered, the default's name; saved
+            // as one, its name.
+            loader.source = ""
+            appCore.saved = { pictures_source: "progetto-SNAPS" }
+            page = open("Pictures.qml")
+            compare(page.shownValue("source", 0), "progetto-SNAPS")
+            loader.source = ""
+            appCore.saved = { pictures_source: "Somewhere" }
+            page = open("Pictures.qml")
+            compare(page.shownValue("source", 0), "Both")
         }
 
-        // The Check ROMs page: nothing checked yet, the check started by
+        // Pictures From in Broadcast and Flat Panel: select starts a change,
+        // ▲ ▼ step it with nothing saved, select saves it, back leaves it as
+        // it was; in Flat Panel ◄ is back.
+        function test_picturesPageTwoStep_data() {
+            return [{ tag: "Broadcast", layout: "Broadcast" }, { tag: "Flat Panel", layout: "Flat Panel" }]
+        }
+        function test_picturesPageTwoStep(data) {
+            root.menuLayout = data.layout
+            var page = open("Pictures.qml")
+            verify(root.twoStep)
+            page.currentIndex = 0
+            keyClick(Qt.Key_Right)
+            compare(appCore.saved.pictures_source, undefined)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, 0)
+            keyClick(Qt.Key_Up)
+            compare(page.shownValue("source", 0), "RetroAchievements")
+            compare(page.currentIndex, 0)
+            compare(appCore.saved.pictures_source, undefined)
+            keyClick(Qt.Key_Escape)
+            compare(page.editIndex, -1)
+            compare(root.backs, 0)
+            compare(page.shownValue("source", 0), "Both")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            compare(page.editIndex, -1)
+            compare(appCore.saved.pictures_source, "progetto-SNAPS")
+            keyClick(Qt.Key_Left)
+            compare(root.backs, data.layout === "Flat Panel" ? 1 : 0)
+        }
+
+        // The Check ROMs page: Check ROMs first, the cursor on it, started by
         // select alone and its way shown as it goes (waiting for a game, the
-        // stage and how far), how it ended, and the counts read again then;
-        // back closes the page.
+        // stage and how far), how it ended, and the counts under it read
+        // again then; back closes the page.
         function test_romCheckPage() {
             arcadeBackend.romInfo = { checked: "", games: 40, complete: 0, fbneoOnly: 0, mameOnly: 0, incomplete: 0,
                                       unchecked: 40 }
             var page = open("RomCheck.qml")
+            compare(page.keys[0], "check")
+            compare(page.currentKey, "check")
             verify(findText(page, "Never") !== null)
             verify(findText(page, "40") !== null)
             compare(arcadeBackend.romChecks, 0)
-            for (var i = 0; i < page.keys.length - 1; ++i)
-                keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.romChecks, 1)
             tryVerify(function() { return findText(page, "Starting") !== null }, 1000)
@@ -1474,6 +1557,22 @@ StandInRoot {
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)
             compare(root.backs, 1)
+        }
+
+        // The Favorites page: Export and Import first, the cursor on Export,
+        // how many there are under them; each says how it went.
+        function test_favoritesPage() {
+            var page = open("Favorites.qml")
+            compare(page.keys, ["export", "import", "count"])
+            compare(page.currentKey, "export")
+            verify(findText(page, "2 Games") !== null)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.favoriteFiles, ["export"])
+            verify(findText(page, "2 written") !== null)
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.favoriteFiles, ["export", "import"])
+            tryVerify(function() { return findText(page, "3 Games") !== null }, 1000)
         }
 
         // The account's page: one Account line, what is still to type

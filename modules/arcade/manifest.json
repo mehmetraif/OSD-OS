@@ -226,19 +226,21 @@
       "description": "The account the scores go to with Online High Scores, and the Web API key the leaderboards, the games' pictures and their achievements are read with, the pictures going into the games folder's snap folder (sf2_1.png, sf2_2.png…), never over a file there"
     },
     {
-      "key": "pictures_source",
-      "label": "Pictures From",
-      "type": "list_single",
-      "options": ["RetroAchievements, then progetto-SNAPS", "RetroAchievements", "progetto-SNAPS", "Off"],
-      "default": "RetroAchievements, then progetto-SNAPS",
-      "description": "Where a game's pictures are downloaded from, as it is shown and with Download Pictures\n[RETROACHIEVEMENTS, THEN PROGETTO-SNAPS] RetroAchievements' first, then progetto-SNAPS' for the games still without a picture  [RETROACHIEVEMENTS] Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with a Web API key  [PROGETTO-SNAPS] A screenshot in play and the title screen of nearly every MAME game, through ArcadeDB (adb.arcadeitalia.net)  [OFF] None downloaded"
-    },
-    {
       "key": "game_pictures",
       "label": "Game Pictures",
       "type": "module_view",
       "params": { "pictures": true },
-      "description": "How many games have a picture, where the pictures come from, and Download Pictures: every game's looked for in the background, a game a second, RetroAchievements' first and progetto-SNAPS' for the rest"
+      "description": "Where the pictures come from (Pictures From), Download Pictures, which looks for every game's in the background, a game a second, and how many games have one",
+      "settings": [
+        {
+          "key": "pictures_source",
+          "label": "Pictures From",
+          "type": "list_single",
+          "options": [["Both", "RetroAchievements, then progetto-SNAPS"], ["RetroAchievements", "RetroAchievements"], ["progetto-SNAPS", "progetto-SNAPS"], ["Off", "Off"]],
+          "default": "RetroAchievements, then progetto-SNAPS",
+          "description": "Where a game's pictures are downloaded from, as it is shown and with Download Pictures\n[BOTH] RetroAchievements' first, then progetto-SNAPS' for the games still without a picture  [RETROACHIEVEMENTS] Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with a Web API key  [PROGETTO-SNAPS] A screenshot in play and the title screen of nearly every MAME game, through ArcadeDB (adb.arcadeitalia.net)  [OFF] None downloaded"
+        }
+      ]
     },
     {
       "type": "section",

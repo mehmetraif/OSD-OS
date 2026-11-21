@@ -342,6 +342,11 @@ test("Arcade's rows without the headings Settings groups them under, each shown 
     assert.deepEqual(attract.shown_unless, { key: "attract_mode", value: "Off" });
     // A condition on the theme isn't passed on.
     assert.equal(arcade.find(r => r.key === "list_style").shown_unless, undefined);
+    // Game Pictures' own setting, by its names over the values saved.
+    const pictures = arcade.find(r => r.key === "pictures_source");
+    assert.deepEqual(pictures.options.map(([name]) => name), ["Both", "RetroAchievements", "progetto-SNAPS", "Off"]);
+    assert.deepEqual(pictures.options[0], ["Both", "RetroAchievements, then progetto-SNAPS"]);
+    assert.equal(pictures.default, "RetroAchievements, then progetto-SNAPS");
 
     // On the device, Enabled and then the groups' headings, in order, with
     // High Scores' own row named so, and a help line on every row.

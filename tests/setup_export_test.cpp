@@ -62,6 +62,10 @@ private slots:
                 { "key": "play_at_startup", "type": "list_single", "options_source": "dynamic" },
                 { "key": "border", "type": "toggle", "default": "ON" },
                 { "key": "achievements_account", "type": "module_view" },
+                { "key": "game_pictures", "type": "module_view", "settings": [
+                    { "key": "pictures_source", "type": "list_single",
+                      "options": [["Both", "RetroAchievements, then progetto-SNAPS"], ["Off", "Off"]],
+                      "default": "RetroAchievements, then progetto-SNAPS" } ] },
                 { "key": "server_url", "type": "text", "default": "" },
                 { "key": "subscriptions", "type": "text_list" },
                 { "key": "emulator_video", "type": "submenu", "settings": [
@@ -78,6 +82,11 @@ private slots:
         QCOMPARE(arcade.value(QStringLiteral("start_filter")).toString(), QStringLiteral("all"));
         QCOMPARE(arcade.value(QStringLiteral("border")), QJsonValue(true));
         QCOMPARE(arcade.value(QStringLiteral("vertical_monitor")).toString(), QStringLiteral("Horizontal"));
+        // A setting a module's own page holds (Game Pictures' Pictures
+        // From), by its saved value, not the name it is shown by.
+        QCOMPARE(arcade.value(QStringLiteral("pictures_source")).toString(),
+                 QStringLiteral("RetroAchievements, then progetto-SNAPS"));
+        QVERIFY(!arcade.contains(QStringLiteral("game_pictures")));
         QVERIFY(arcade.contains(QStringLiteral("menu_filters")));
         QVERIFY(arcade.contains(QStringLiteral("online_name")));
         // A typed line, unset as nothing typed, and a list of typed lines,

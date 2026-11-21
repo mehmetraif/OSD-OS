@@ -43,8 +43,8 @@ QJsonValue firstOption(const QJsonArray &options) {
 }
 
 // A module's rows as build-site.py's module_settings() keeps them: those
-// whose values are known without the device, submenus' rows flat under the
-// module, and the page's own rows for it.
+// whose values are known without the device, submenus' rows and those of a
+// module's own page flat under the module, and the page's own rows for it.
 void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, QJsonValue> &out) {
     const QJsonObject options = extra.value(QLatin1String("options")).toObject();
     const QJsonObject defaults = extra.value(QLatin1String("defaults")).toObject();
@@ -52,7 +52,9 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
         const QJsonObject row = v.toObject();
         const QString key = row.value(QLatin1String("key")).toString();
         const QString type = row.value(QLatin1String("type")).toString();
-        if (type == QLatin1String("submenu")) {
+        // A submenu's rows, and those a module's own page holds (Arcade's
+        // Game Pictures, its Pictures From), flat under the module.
+        if (type == QLatin1String("submenu") || type == QLatin1String("module_view")) {
             walkRows(row.value(QLatin1String("settings")).toArray(), extra, out);
             continue;
         }
