@@ -403,7 +403,45 @@ QString coreInfoText(bool lanCore = false);
 // hosting or joining (hosting says which), netplayFailure is why RetroArch
 // couldn't, after which it played the game alone, and hostLeft that, joining,
 // it was connected and the host left the game (NetplayLog).
+// How a game over the network went, as RetroArch's log says it, for one line
+// in the app's log as it ends (ArcadeBackend: "arcade: network game: ..."):
+// the peers and their ping, as RetroArch logs each player joining ("ann has
+// joined as player 2 (ping: 14 ms)", "You have joined with input devices 2,
+// 3 (ping: 23 ms)": the host's, joining); the clients that left; the lines
+// on stalls, catch-ups and savestates (RetroArch 1.20 logs those only in a
+// debug build, so taken loosely, by those words, for a RetroArch that does),
+// CRC mismatches, desyncs, pauses and netplay errors; and RetroAchievements:
+// whether the account signed in, or why not, and its lines saying hardcore
+// was paused, disabled or not active (taken loosely, by those words on a line
+// of [RCHEEVOS] or of hardcore), three at most.
+class NetplaySummary {
+public:
+    void read(const QString &line);
+    QString text() const;
+    QStringList peers() const { return m_peers; }
+    int left() const { return m_left; }
+    int crcMismatches() const { return m_crc; }
+    int desyncs() const { return m_desync; }
+    QStringList hardcore() const { return m_hardcore; }
+
+private:
+    QStringList m_peers;
+    int m_left = 0;
+    int m_stalls = 0;
+    int m_catchUps = 0;
+    int m_savestates = 0;
+    int m_crc = 0;
+    int m_desync = 0;
+    int m_paused = 0;
+    int m_errors = 0;
+    bool m_achievementsSeen = false;
+    bool m_signedIn = false;
+    QString m_loginFailure;
+    QStringList m_hardcore;
+};
+
 struct Run {
+    NetplaySummary netplay;       // over the network: how it went
     bool logged = false;          // there was a log to read
     bool started = false;         // FinalBurn Neo started the game
     QStringList missing;          // files it needed and found none of

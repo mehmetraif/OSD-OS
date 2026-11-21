@@ -2663,6 +2663,48 @@ private slots:
         QVERIFY(!libretro::isClientHangup(QStringLiteral("[INFO] [Netplay] Netplay disconnected")));
         QVERIFY(!libretro::isClientHangup(QStringLiteral("\"ann\" has disconnected")));
 
+        // A network game's summary, from RetroArch 1.20's own lines (and,
+        // loosely, a later one's on stalls, catch-ups and savestates); the
+        // account signed in, and hardcore paused or disabled as rcheevos and
+        // RetroArch say it.
+        {
+            libretro::NetplaySummary summary;
+            for (const char *line : {
+                     "[INFO] [RCHEEVOS]: player logged in successfully",
+                     "[INFO] [Netplay] Got connection from: \"ann\"",
+                     "[INFO] [Netplay] ann has joined as player 2 (ping: 14 ms)",
+                     "[INFO] [Netplay] bob (2) has joined with input devices 3, 4 (ping: 31 ms)",
+                     "[INFO] [Netplay] eve has joined as player 5",
+                     "[WARN] [Netplay] Netplay CRCs mismatch!",
+                     "[ERROR] [Netplay] Netplay savestate loading failed: Prepare for desync!",
+                     "[INFO] [Netplay] Netplay peer \"ann\" paused",
+                     "[INFO] [Netplay] Stalled waiting for a peer, catching up",
+                     "[INFO] [Netplay] \"ann\" has disconnected",
+                     "[INFO] [Netplay] A netplay client has disconnected",
+                     "[INFO] [RCHEEVOS]: Hardcore paused. Setting not allowed: fbneo-allow-patched-romsets=enabled",
+                     "[INFO] [RCHEEVOS]: Game 123 loaded, hardcore disabled",
+                     "[INFO] [RCHEEVOS]: Game 123 loaded, hardcore disabled",
+                     "[INFO] [RCHEEVOS]: Hardcore enabled",
+                     "[libretro INFO] [FBNeo] Driver successfully started" })
+                summary.read(QLatin1String(line));
+            QCOMPARE(summary.text(),
+                     QStringLiteral("peers: ann 14 ms, bob (2) 31 ms, eve; left 2; stalls 1, catch-ups 1, savestates 1, "
+                                    "CRC mismatches 1, desyncs 1, pauses 1, netplay errors 1; achievements: signed in, "
+                                    "\"Hardcore paused. Setting not allowed: fbneo-allow-patched-romsets=enabled\", "
+                                    "\"Game 123 loaded, hardcore disabled\""));
+            libretro::NetplaySummary joined;
+            for (const char *line : { "[INFO] [Netplay] You have joined with input devices 2, 3 (ping: 23 ms)",
+                                      "[INFO] [RCHEEVOS]: RetroAchievements login failed: No response from server",
+                                      "[INFO] [Netplay] Netplay disconnected" })
+                joined.read(QLatin1String(line));
+            QCOMPARE(joined.text(), QStringLiteral("peers: the host 23 ms; left 1; stalls 0, catch-ups 0, savestates 0, "
+                                                   "CRC mismatches 0, desyncs 0, pauses 0, netplay errors 0; achievements: "
+                                                   "not signed in (No response from server)"));
+            QCOMPARE(libretro::NetplaySummary().text(),
+                     QStringLiteral("peers: none logged; left 0; stalls 0, catch-ups 0, savestates 0, CRC mismatches 0, "
+                                    "desyncs 0, pauses 0, netplay errors 0; achievements: nothing logged"));
+        }
+
         // The host's OSD/OS: a claim never followed by a connection given up
         // once it is old enough, said in the log.
         {
@@ -7281,8 +7323,22 @@ private slots:
         const qint64 playedBefore = arcade.gameDetails(QStringLiteral("sf2")).value(QStringLiteral("playTime")).toLongLong();
         qputenv("RA_HOST_LEAVES", "1");
         QFile::remove(m_log);
+        static QStringList logged;
+        logged.clear();
+        const QtMessageHandler previous = qInstallMessageHandler(
+            [](QtMsgType, const QMessageLogContext &, const QString &message) { logged << message; });
         const QVariantList left = ended([&arcade] { return arcade.joinLanRoom(1); });
+        qInstallMessageHandler(previous);
         qunsetenv("RA_HOST_LEAVES");
+        // And the app's log says how it went, in one line, from RetroArch's.
+        const QStringList summary = logged.filter(QStringLiteral("arcade: network game: "));
+        QCOMPARE(summary.size(), 1);
+        QVERIFY2(summary.first().startsWith(QStringLiteral("arcade: network game: sf2, joined on the LAN, 0 min ")),
+                 qPrintable(summary.first()));
+        QVERIFY2(summary.first().endsWith(QStringLiteral(
+                     "; peers: the host 12 ms; left 1; stalls 0, catch-ups 0, savestates 0, CRC mismatches 1, desyncs 0, "
+                     "pauses 0, netplay errors 1; achievements: nothing logged")),
+                 qPrintable(summary.first()));
         QCOMPARE(left.value(1).toString(), QStringLiteral("stopped"));
         QCOMPARE(left.value(2).toString(), QStringLiteral("The host left the game"));
         QTRY_VERIFY(!claimed.isEmpty() && claimed.last() == libretro::claimRelease());

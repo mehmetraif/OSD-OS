@@ -142,6 +142,19 @@ Windows leaves its own Wi-Fi and power settings to you. Each of these is set onc
 
 The PC's packets also go ahead on Wi-Fi only under a QoS policy ([INSTALL.md → On Windows](https://github.com/mehmetraif/OSD-OS/blob/main/INSTALL.md#on-windows-x64)).
 
+### How a game went
+
+To tell whether a change (LAN Sync, a cable, another host) helped:
+
+- **Settings → Arcade → Show Ping**, ON, shows each player's ping on RetroArch's screen during the game. It is off by default.
+- As a game over the network ends, the app's log has one line on it, which **Quit → Save Logs** carries:
+
+  `arcade: network game: sf2, joined on the LAN, 12 min 40 s; peers: the host 12 ms; left 1; stalls 0, catch-ups 0, savestates 0, CRC mismatches 0, desyncs 0, pauses 0, netplay errors 0; achievements: signed in`
+
+  It says how the game was played, how long, each player's ping as they joined, the players who left, RetroArch's netplay errors and its lines on CRC mismatches, desyncs and savestates, and what RetroAchievements said: whether the account signed in, and any line saying hardcore was paused or disabled.
+- RetroArch 1.20 writes nothing in its log of stalls, catch-ups and the savestates it resends; those counts read 0 until a RetroArch that logs them. A CRC mismatch is logged only as RetroArch's warning, with its check frames off.
+- Another line, `arcade: system during the game:`, says how the machine itself fared.
+
 ### Coming back, and the host leaving
 
 Coin and Start together, or Esc, brings a player back to OSD/OS. When the host leaves the game, or stops answering for 10 seconds, OSD/OS ends the game on the machines joining and says `The host left the game`.

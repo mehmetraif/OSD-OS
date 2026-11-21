@@ -348,6 +348,10 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
             const libretro::Run run = libretro::readLog(retroarchHome() + QStringLiteral("/last.log"),
                                                         libretro::hosts(m_playingNetplay));
             m_account->takeRun(run);
+            // Over the network: how it went, as RetroArch's log says, in a
+            // line of the app's own log, which Save Logs carries.
+            if (m_playingNetplay != libretro::Launch::Netplay::None)
+                qInfo("arcade: network game: %s", qPrintable(networkGameLine(run.netplay)));
             // FinalBurn Neo shows its own error for a game it can't start,
             // and RetroArch goes on: a game is one it started, as its log
             // says (a log there to say so). Over the network, one RetroArch
@@ -3438,6 +3442,8 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     m_playing = name;
     m_playingEngine = QStringLiteral("fbneo");
     m_playingNetplay = netplay;
+    m_playingLanSync = launch.lanSync;
+    m_playingRelay = launch.relay;
     m_playClock.start();
     stopCoins();
     if (launch.coinPort != 0) {
@@ -4166,6 +4172,26 @@ void ArcadeBackend::stopCoins() {
     m_coinPort = 0;
     m_coinsFrom = -1;
     m_coinLogTail.clear();
+}
+
+QString ArcadeBackend::networkGameLine(const libretro::NetplaySummary &summary) const {
+    using Netplay = libretro::Launch::Netplay;
+    const QString sync = m_playingLanSync == libretro::Launch::LanSync::Follow ? QStringLiteral("Smooth")
+                                                                               : QStringLiteral("Responsive");
+    QString how;
+    switch (m_playingNetplay) {
+    case Netplay::Host: how = QStringLiteral("hosted online through ") + m_playingRelay; break;
+    case Netplay::Join: how = QStringLiteral("joined online"); break;
+    case Netplay::LanHost: how = QStringLiteral("hosted on the LAN, ") + sync; break;
+    case Netplay::LanJoin: how = QStringLiteral("joined on the LAN"); break;
+    case Netplay::None: break;
+    }
+    const qint64 seconds = (m_playClock.elapsed() + 500) / 1000;
+    return QStringLiteral("%1, %2, %3 min %4 s; %5")
+        .arg(m_playing, how)
+        .arg(seconds / 60)
+        .arg(seconds % 60)
+        .arg(summary.text());
 }
 
 void ArcadeBackend::watchNetplay() {

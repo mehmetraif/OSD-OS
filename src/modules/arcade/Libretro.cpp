@@ -1098,6 +1098,84 @@ void NetplayLog::read(const QString &line) {
     m_failure = netplayFailure(m_errors, m_hosting);
 }
 
+void NetplaySummary::read(const QString &line) {
+    const QString lower = line.toLower();
+    if (line.contains(QLatin1String("[RCHEEVOS]")) || lower.contains(QLatin1String("hardcore"))) {
+        m_achievementsSeen = m_achievementsSeen || line.contains(QLatin1String("[RCHEEVOS]"));
+        // rc_client's "<name> logged in successfully", RetroArch's
+        // "RetroAchievements: Logged in as ...".
+        if (lower.contains(QLatin1String("logged in")) && !lower.contains(QLatin1String("not logged in")))
+            m_signedIn = true;
+        if (const std::optional<QString> failure = loginFailure(line))
+            m_loginFailure = *failure;
+        static const QRegularExpression paused(QStringLiteral("hardcore.*(paus|disabl|not allowed|not active|netplay)|"
+                                                              "(paus|disabl)\\w* hardcore"),
+                                               QRegularExpression::CaseInsensitiveOption);
+        if (paused.match(line).hasMatch()) {
+            QString said = line.section(QLatin1String("[RCHEEVOS]:"), -1).trimmed();
+            if (said.size() > 100)
+                said = said.left(99) + QChar(0x2026);
+            if (!m_hardcore.contains(said) && m_hardcore.size() < 3)
+                m_hardcore << said;
+        }
+        return;
+    }
+    if (!line.contains(QLatin1String("[Netplay]")))
+        return;
+    // netplay_announce_play_spectate(): a player in, with the ping the
+    // handshake measured.
+    static const QRegularExpression joined(QStringLiteral("\\[Netplay\\] (?:(.+) has|You have) joined (?:as player \\d+|with input devices .*?)"
+                                                          "(?: \\(ping: (-?\\d+) ms\\))?\\s*$"));
+    const QRegularExpressionMatch join = joined.match(line);
+    if (join.hasMatch()) {
+        // "You have joined": a machine joining, the ping its host's.
+        QString who = join.captured(1).trimmed();
+        if (who.isEmpty())
+            who = QStringLiteral("the host");
+        who = who.left(32);
+        const QString ping = join.captured(2);
+        m_peers << (ping.isEmpty() || ping.startsWith(QLatin1Char('-')) ? who : who + QLatin1Char(' ') + ping + QStringLiteral(" ms"));
+        return;
+    }
+    if (isClientHangup(line) || line.contains(QLatin1String("[Netplay] Netplay disconnected")))
+        ++m_left;
+    if (lower.contains(QLatin1String("stall")))
+        ++m_stalls;
+    if (lower.contains(QLatin1String("catch")))
+        ++m_catchUps;
+    if (lower.contains(QLatin1String("savestate")) || lower.contains(QLatin1String("state load")))
+        ++m_savestates;
+    if (lower.contains(QLatin1String("crc")) && (lower.contains(QLatin1String("mismatch")) || lower.contains(QLatin1String("differ"))))
+        ++m_crc;
+    if (lower.contains(QLatin1String("desync")))
+        ++m_desync;
+    if (lower.contains(QLatin1String("paused")))
+        ++m_paused;
+    if (netplayError(line))
+        ++m_errors;
+}
+
+QString NetplaySummary::text() const {
+    QStringList parts;
+    parts << QStringLiteral("peers: ") + (m_peers.isEmpty() ? QStringLiteral("none logged") : m_peers.join(QStringLiteral(", ")));
+    parts << QStringLiteral("left %1").arg(m_left);
+    parts << QStringLiteral("stalls %1, catch-ups %2, savestates %3, CRC mismatches %4, desyncs %5, pauses %6, netplay errors %7")
+                 .arg(m_stalls).arg(m_catchUps).arg(m_savestates).arg(m_crc).arg(m_desync).arg(m_paused).arg(m_errors);
+    QString achievements = QStringLiteral("achievements: ");
+    if (!m_achievementsSeen && m_hardcore.isEmpty())
+        achievements += QStringLiteral("nothing logged");
+    else if (m_signedIn)
+        achievements += QStringLiteral("signed in");
+    else if (!m_loginFailure.isEmpty())
+        achievements += QStringLiteral("not signed in (") + m_loginFailure + QLatin1Char(')');
+    else
+        achievements += QStringLiteral("no sign-in logged");
+    for (const QString &said : m_hardcore)
+        achievements += QStringLiteral(", \"") + said + QLatin1Char('"');
+    parts << achievements;
+    return parts.join(QStringLiteral("; "));
+}
+
 Run readLog(const QString &path, bool hosting) {
     Run run;
     QFile file(path);
@@ -1121,6 +1199,7 @@ Run readLog(const QString &path, bool hosting) {
         }
         if (const std::optional<QString> failure = loginFailure(line))
             run.loginFailure = *failure;
+        run.netplay.read(line);
         netplay.read(line);
         if (line.contains(QLatin1String("[ERROR]")))
             run.error = line.section(QLatin1String("[ERROR]"), 1).trimmed();

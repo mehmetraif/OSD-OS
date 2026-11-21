@@ -921,6 +921,12 @@ private:
     // The relay a game hosted online goes through, by RetroArch's name: the
     // one saved, else relayForTimeZone()'s.
     QString relay() const;
+    // The line the app's log has of a network game as it ends, after
+    // "arcade: network game: ": the set, how it was played (hosted or
+    // joined, online through which relay, or on the LAN with which LAN
+    // Sync), how long, and what RetroArch's log said of it
+    // (libretro::NetplaySummary).
+    QString networkGameLine(const libretro::NetplaySummary &summary) const;
     // The monitor a game is played on, "Turned Right" or "Turned Left" for
     // one on its side, which its picture is turned against: Settings →
     // Screen → Monitor, a monitor that stays turned; else the game's own,
@@ -1315,6 +1321,8 @@ private:
     QString m_playing;
     QString m_playingEngine;      // "mame" or "fbneo"
     libretro::Launch::Netplay m_playingNetplay = libretro::Launch::Netplay::None;   // FinalBurn Neo's, hosted or joined
+    libretro::Launch::LanSync m_playingLanSync = libretro::Launch::LanSync::Follow;  // and how, and through which relay
+    QString m_playingRelay;
     // Over the network, RetroArch's log read as it grows (watchNetplay()):
     // how far, the line cut off at its end, and what its lines so far say.
     QTimer     *m_netplayWatch = nullptr;
