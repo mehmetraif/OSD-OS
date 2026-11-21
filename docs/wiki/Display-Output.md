@@ -41,23 +41,24 @@ The menu lists, in this order, the presets that are on the boot partition and th
 | HDMI | `hdmi` | ✓ | ✓ | ✓ |
 | Composite NTSC | `crt-ntsc` | AV jack | AV jack | TV pads |
 | Composite PAL | `crt-pal` | AV jack | AV jack | TV pads |
-| GPIO Composite NTSC | `crt-gpio-ntsc` | | | ✓ |
-| GPIO Composite PAL | `crt-gpio-pal` | | | ✓ |
-| SCART RGB NTSC | `scart-rgb-ntsc` (480i) | ✓ | ✓ | ✓ |
-| SCART RGB PAL | `scart-rgb-pal` (576i) | ✓ | ✓ | ✓ |
+| GPIO NTSC | `crt-gpio-ntsc` | | | ✓ |
+| GPIO PAL | `crt-gpio-pal` | | | ✓ |
+| SCART RGB 480i | `scart-rgb-ntsc` (480i) | ✓ | ✓ | ✓ |
+| SCART RGB 576i | `scart-rgb-pal` (576i) | ✓ | ✓ | ✓ |
 | SCART RGB 240p | `scart-rgb-240p` | ✓ | ✓ | |
 | SCART RGB 288p | `scart-rgb-288p` | ✓ | ✓ | |
-| JAMMA 240p 15 kHz (720x240) | `jamma-240p` | ✓ | ✓ | ✓ |
-| JAMMA 240p 15 kHz (320x240) | `jamma-240p-native` | ✓ | ✓ | ✓ |
-| JAMMA 240p 15 kHz (1920x240) | `jamma-240p-super` | ✓ | ✓ | ✓ |
-| JAMMA 288p 15 kHz (720x288) | `jamma-288p` | ✓ | ✓ | ✓ |
-| JAMMA 288p 15 kHz (1920x288) | `jamma-288p-super` | ✓ | ✓ | ✓ |
-| JAMMA 480i 15 kHz (720x480) | `jamma-480i` | ✓ | ✓ | |
-| JAMMA 480i 15 kHz (640x480) | `jamma-480i-640` | ✓ | ✓ | |
-| JAMMA 576i 15 kHz (720x576) | `jamma-576i` | ✓ | ✓ | |
-| JAMMA 25 kHz (496x384) | `jamma-25k` | ✓ | ✓ | ✓ |
-| JAMMA 31 kHz (640x480) | `jamma-31k` | ✓ | ✓ | ✓ |
+| JAMMA 720x240 | `jamma-240p` | ✓ | ✓ | ✓ |
+| JAMMA 320x240 | `jamma-240p-native` | ✓ | ✓ | ✓ |
+| JAMMA 1920x240 | `jamma-240p-super` | ✓ | ✓ | ✓ |
+| JAMMA 720x288 | `jamma-288p` | ✓ | ✓ | ✓ |
+| JAMMA 1920x288 | `jamma-288p-super` | ✓ | ✓ | ✓ |
+| JAMMA 720x480i | `jamma-480i` | ✓ | ✓ | |
+| JAMMA 640x480i | `jamma-480i-640` | ✓ | ✓ | |
+| JAMMA 720x576i | `jamma-576i` | ✓ | ✓ | |
+| JAMMA 25 kHz | `jamma-25k` | ✓ | ✓ | ✓ |
+| JAMMA 31 kHz | `jamma-31k` | ✓ | ✓ | ✓ |
 
+- **The names** put first what tells an output apart, so a name cut short on the row still does: a 15 kHz JAMMA mode its resolution (an **i** after an interlaced one), the 25 and 31 kHz ones their rate, SCART RGB its lines. The chooser's help line says the rest: the board or jack, the lines and the rate. Saved values and OSD/OS Setup's files keep the ids.
 - **A Pi 400 or a Pi 500** offers what a Pi 4 or a Pi 5 does, but for Composite NTSC and PAL.
 - **Untested outputs.** [os/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#display-output-hdmi-composite-or-scart) names only the Pi 4's HDMI and composite as tested on hardware. The others are starting points. Report what works, or needs a change, in an [issue](https://github.com/mehmetraif/OSD-OS/issues).
 - **A Pi 4 has one output on at a time.** Composite or RGB turns its HDMI off.
@@ -502,7 +503,7 @@ flowchart LR
 
 No cable to make: the board sits on the Pi's GPIO header, and the cabinet's JAMMA harness on the board's edge.
 
-1. Choose **JAMMA 240p 15 kHz (720x240)**, or the mode the cabinet's monitor takes ([The board's other modes](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-boards-other-modes)), with **At Next Start** or **Switch and Power Off**. Or copy its preset over `osdos-display.txt` from a computer ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)).
+1. Choose **JAMMA 720x240**, or the mode the cabinet's monitor takes ([The board's other modes](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#the-boards-other-modes)), with **At Next Start** or **Switch and Power Off**. Or copy its preset over `osdos-display.txt` from a computer ([Doing it by hand](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#doing-it-by-hand)).
 2. Move the Pi into the cabinet and switch it on.
 3. On **Keep this display output?**, push the joystick up to **Keep**, then press button 1.
 

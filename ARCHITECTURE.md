@@ -1018,7 +1018,7 @@ At the bar's right end are the status icons (`StatusIcons`, below), in the bar's
 
 It stands where every view has it on its own (`x: root.sw * 0.125`, `y: root.sh * 0.125`), so a view declares it without anchors; anchors a view gives win over that place.
 
-A title too long for the bar (a question naming a long display output, *Switch to JAMMA 240p 15 kHz (1920x240)?*) shows its start, then scrolls to its end and, after a pause, starts over while the bar is shown, as a `MenuRow`'s value does while its line is selected; the subtitle has no room beside it then, and is left out.
+A title too long for the bar (a question naming a long display output, *Switch to JAMMA 1920x240?*) shows its start, then scrolls to its end and, after a pause, starts over while the bar is shown, as a `MenuRow`'s value does while its line is selected; the subtitle has no room beside it then, and is left out.
 
 In a monitor layout's frame ([Menu Layout](#menu-layout-appmenu_layout)) the bar draws nothing and keeps its room (`handed`): it tells the frame what it holds (`root.chrome.shown()`), and the frame writes the title its own way, on Studio Monitor's tab, centred in Broadcast, as Flat Panel's path.
 

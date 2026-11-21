@@ -455,7 +455,7 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | set at all | Staged updates: Settings → System → Update installs them |
 | 2 | Exit 12: Quit offers Restart |
 | 3 | Exits 20 to 29: Settings offers Display Output |
-| 4 | Exit 30: JAMMA 240p 15 kHz (720x240) |
+| 4 | Exit 30: JAMMA 720x240 |
 | 5 | Exits 40 to 50 and `osdos-display.socket`: Switch and Power Off, At Next Start |
 | 6 | Exits 31 to 38 and 51 to 58: the JAMMA board's other modes |
 | 7 | The polkit rule and `osdos-wifi.socket`: Settings offers Wi-Fi |

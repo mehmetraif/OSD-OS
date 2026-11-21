@@ -120,7 +120,7 @@ cp "$T/boot/osdos-display-hdmi.txt" "$T/boot/osdos-display.txt"
 
 # A switch now: written, then a reboot; a Pi 5's SCART sync, not JAMMA's.
 on_exit 26
-check "exit 26 writes SCART RGB PAL" scart-rgb-pal "$(in_force)"
+check "exit 26 writes SCART RGB 576i" scart-rgb-pal "$(in_force)"
 check "exit 26 keeps HDMI to go back to" hdmi "$(previous)"
 check "exit 26 writes SCART's composite sync" yes "$(csync)"
 check "exit 26 reboots" reboot "$(asked)"
@@ -135,7 +135,7 @@ check "exit 29 brings SCART's sync back" yes "$(csync)"
 new_boot
 # The JAMMA board's other modes, 31-39, none with a composite sync.
 on_exit 31
-check "exit 31 writes JAMMA 240p 15 kHz (320x240)" jamma-240p-native "$(in_force)"
+check "exit 31 writes JAMMA 320x240" jamma-240p-native "$(in_force)"
 check "exit 31 writes no composite sync" no "$(csync)"
 check "exit 31 reboots" reboot "$(asked)"
 new_boot

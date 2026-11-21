@@ -143,7 +143,7 @@ private slots:
         const QStringList offered = ids(api4.options());
         QCOMPARE(offered.last(), QStringLiteral("jamma-240p"));
         QCOMPARE(api4.options().last().toMap().value(QStringLiteral("label")).toString(),
-                 QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
+                 QStringLiteral("JAMMA 720x240"));
         // Beside the board's own: a Pi 5's GPIO composite, a Pi 4's 240p SCART.
         QCOMPARE(offered.contains(QStringLiteral("crt-gpio-ntsc")), pi5());
         QCOMPARE(offered.contains(QStringLiteral("scart-rgb-240p")), !pi5());
@@ -187,7 +187,7 @@ private slots:
             if (id == QLatin1String("jamma-480i-640")) {
                 QCOMPARE(resolutionOf(m_boot.filePath(QStringLiteral("osdos-display-jamma-480i-640.txt"))),
                          QStringLiteral("640x480"));
-                QCOMPARE(m.value("label").toString(), QStringLiteral("JAMMA 480i 15 kHz (640x480)"));
+                QCOMPARE(m.value("label").toString(), QStringLiteral("JAMMA 640x480i"));
             }
         }
         if (!pi5())
@@ -202,15 +202,19 @@ private slots:
             if (m.value("id") == "jamma-240p") warning240 = m.value("warning").toString();
             // Each has its line for the chooser.
             QVERIFY2(!m.value("help").toString().isEmpty(), qPrintable(m.value("id").toString()));
-            // Each names its scan rate, then its preset's resolution.
+            // Each named by what tells it apart first: a 15 kHz mode by its
+            // preset's resolution (an i after an interlaced one's), the 25
+            // and 31 kHz ones by their rate.
             const QString id = m.value("id").toString();
             if (!id.startsWith(QLatin1String("jamma-")))
                 continue;
-            const QString rate = id == "jamma-25k" ? "25 kHz" : id == "jamma-31k" ? "31 kHz" : "15 kHz";
             const QString resolution = resolutionOf(m_boot.filePath(QStringLiteral("osdos-display-%1.txt").arg(id)));
             QVERIFY2(!resolution.isEmpty(), qPrintable(id));
-            QVERIFY2(m.value("label").toString().endsWith(rate + " (" + resolution + ")"),
-                     qPrintable(id + ": " + m.value("label").toString()));
+            const bool interlaced = id.contains(QLatin1String("480i")) || id.contains(QLatin1String("576i"));
+            const QString expected = id == "jamma-25k" ? QStringLiteral("JAMMA 25 kHz")
+                                     : id == "jamma-31k" ? QStringLiteral("JAMMA 31 kHz")
+                                     : "JAMMA " + resolution + (interlaced ? "i" : "");
+            QCOMPARE(m.value("label").toString(), expected);
         }
         QVERIFY(warning25.contains(QLatin1String("25 kHz")) && warning25.contains(QLatin1String("15 kHz")));
         QVERIFY(warning31.contains(QLatin1String("31 kHz")) && warning31.contains(QLatin1String("15 kHz")));
@@ -220,7 +224,7 @@ private slots:
         inForce(QStringLiteral("jamma-31k"));
         DisplayOutput on31(m_data.path());
         QCOMPARE(on31.current(), QStringLiteral("jamma-31k"));
-        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz (640x480)"));
+        QCOMPARE(on31.currentLabel(), QStringLiteral("JAMMA 31 kHz"));
         QVERIFY(DisplayOutput::isTube(on31.current(), QSize(640, 480)));
     }
 
@@ -229,7 +233,7 @@ private slots:
         qputenv("OSDOS_LAUNCHER_API", "4");
         DisplayOutput output(m_data.path());
         QCOMPARE(output.current(), QStringLiteral("jamma-240p"));
-        QCOMPARE(output.currentLabel(), QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
+        QCOMPARE(output.currentLabel(), QStringLiteral("JAMMA 720x240"));
     }
 
     // These before any test that switches: QCoreApplication::exit(),
@@ -254,7 +258,7 @@ private slots:
         QVERIFY(!output.busy());
         QCOMPARE(output.current(), QStringLiteral("hdmi"));
         QCOMPARE(output.next(), QStringLiteral("jamma-240p"));
-        QCOMPARE(output.nextLabel(), QStringLiteral("JAMMA 240p 15 kHz (720x240)"));
+        QCOMPARE(output.nextLabel(), QStringLiteral("JAMMA 720x240"));
         QCOMPARE(state().value(QStringLiteral("from")).toString(), QStringLiteral("HDMI"));
         QCOMPARE(state().value(QStringLiteral("to")).toString(), QStringLiteral("jamma-240p"));
 
@@ -339,7 +343,7 @@ private slots:
         QFile state(m_data.filePath(QStringLiteral("display-output.json")));
         QVERIFY(state.open(QIODevice::ReadOnly));
         const QJsonObject o = QJsonDocument::fromJson(state.readAll()).object();
-        QCOMPARE(o.value(QStringLiteral("from")).toString(), QStringLiteral("SCART RGB NTSC"));
+        QCOMPARE(o.value(QStringLiteral("from")).toString(), QStringLiteral("SCART RGB 480i"));
         QCOMPARE(o.value(QStringLiteral("to")).toString(), QStringLiteral("jamma-240p"));
         state.close();
         QFile::remove(state.fileName());
@@ -398,22 +402,22 @@ private slots:
             { "hdmi", "HDMI" },
             { "crt-ntsc", "Composite NTSC" },
             { "crt-pal", "Composite PAL" },
-            { "crt-gpio-ntsc", "GPIO Composite NTSC" },
-            { "crt-gpio-pal", "GPIO Composite PAL" },
-            { "scart-rgb-ntsc", "SCART RGB NTSC" },
-            { "scart-rgb-pal", "SCART RGB PAL" },
+            { "crt-gpio-ntsc", "GPIO NTSC" },
+            { "crt-gpio-pal", "GPIO PAL" },
+            { "scart-rgb-ntsc", "SCART RGB 480i" },
+            { "scart-rgb-pal", "SCART RGB 576i" },
             { "scart-rgb-240p", "SCART RGB 240p" },
             { "scart-rgb-288p", "SCART RGB 288p" },
-            { "jamma-240p", "JAMMA 240p 15 kHz (720x240)" },
-            { "jamma-240p-native", "JAMMA 240p 15 kHz (320x240)" },
-            { "jamma-240p-super", "JAMMA 240p 15 kHz (1920x240)" },
-            { "jamma-288p", "JAMMA 288p 15 kHz (720x288)" },
-            { "jamma-288p-super", "JAMMA 288p 15 kHz (1920x288)" },
-            { "jamma-480i", "JAMMA 480i 15 kHz (720x480)" },
-            { "jamma-480i-640", "JAMMA 480i 15 kHz (640x480)" },
-            { "jamma-576i", "JAMMA 576i 15 kHz (720x576)" },
-            { "jamma-25k", "JAMMA 25 kHz (496x384)" },
-            { "jamma-31k", "JAMMA 31 kHz (640x480)" },
+            { "jamma-240p", "JAMMA 720x240" },
+            { "jamma-240p-native", "JAMMA 320x240" },
+            { "jamma-240p-super", "JAMMA 1920x240" },
+            { "jamma-288p", "JAMMA 720x288" },
+            { "jamma-288p-super", "JAMMA 1920x288" },
+            { "jamma-480i", "JAMMA 720x480i" },
+            { "jamma-480i-640", "JAMMA 640x480i" },
+            { "jamma-576i", "JAMMA 720x576i" },
+            { "jamma-25k", "JAMMA 25 kHz" },
+            { "jamma-31k", "JAMMA 31 kHz" },
         };
         const QStringList notPi5{ "scart-rgb-240p", "scart-rgb-288p", "jamma-480i", "jamma-480i-640", "jamma-576i" };
         QStringList expected;

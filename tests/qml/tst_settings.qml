@@ -2474,7 +2474,7 @@ StandInRoot {
         // One too long for the bar shows its start, then scrolls to its
         // end and back, with no room for a subtitle; hidden, it stops.
         function test_titleTooLong() {
-            var text = "Switch to JAMMA 240p 15 kHz (1920x240)?"
+            var text = "Switch to a display output of a long name (1920x240)?"
             var bar = createTemporaryObject(appBar, root, { title: text, subtitle: "Now" })
             var title = findText(bar, text)
             verify(title !== null)
