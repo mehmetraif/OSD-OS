@@ -52,7 +52,7 @@
       "type": "action",
       "action_slot": "rescan",
       "done": "Reading the games again",
-      "description": "Asks MAME about every game in the folder again, then looks for every game's pictures, as Pictures From allows, a game a second, in the background"
+      "description": "Asks MAME about every game in the folder again, then looks for every game's pictures, as Game Pictures' Source allows, a game a second, in the background"
     },
     {
       "key": "check_roms",
@@ -231,11 +231,11 @@
       "label": "Game Pictures",
       "type": "module_view",
       "params": { "pictures": true },
-      "description": "Where the pictures come from (Pictures From), Download Pictures, which looks for every game's in the background, a game a second, and how many games have one",
+      "description": "Where the pictures come from (Source), Download Pictures, which looks for every game's in the background, a game a second, and how many games have one",
       "settings": [
         {
           "key": "pictures_source",
-          "label": "Pictures From",
+          "label": "Source",
           "type": "list_single",
           "options": [["Both", "RetroAchievements, then progetto-SNAPS"], ["RetroAchievements", "RetroAchievements"], ["progetto-SNAPS", "progetto-SNAPS"], ["Off", "Off"]],
           "default": "RetroAchievements, then progetto-SNAPS",

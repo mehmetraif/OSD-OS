@@ -53,7 +53,7 @@ void walkRows(const QJsonArray &rows, const QJsonObject &extra, QHash<QString, Q
         const QString key = row.value(QLatin1String("key")).toString();
         const QString type = row.value(QLatin1String("type")).toString();
         // A submenu's rows, and those a module's own page holds (Arcade's
-        // Game Pictures, its Pictures From), flat under the module.
+        // Game Pictures, its Source), flat under the module.
         if (type == QLatin1String("submenu") || type == QLatin1String("module_view")) {
             walkRows(row.value(QLatin1String("settings")).toArray(), extra, out);
             continue;

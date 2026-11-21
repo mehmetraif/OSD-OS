@@ -448,9 +448,9 @@ StandInRoot {
         function list_contains(module, list, path) { return false }
         function get_setting(module, key) { return saved[key] }
         // The module's settings as its manifest has them, the rows the
-        // views read of it: Game Pictures' own, Pictures From.
+        // views read of it: Game Pictures' own, Source.
         property var schema: [{ key: "game_pictures", type: "module_view", settings: [
-            { key: "pictures_source", label: "Pictures From", type: "list_single",
+            { key: "pictures_source", label: "Source", type: "list_single",
               options: [["Both", "RetroAchievements, then progetto-SNAPS"], ["RetroAchievements", "RetroAchievements"],
                         ["progetto-SNAPS", "progetto-SNAPS"], ["Off", "Off"]],
               default: "RetroAchievements, then progetto-SNAPS",
@@ -1428,12 +1428,12 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
-        // The Game Pictures page: Pictures From first, by its names over
+        // The Game Pictures page: Source first, by its names over
         // the values saved (Both for the old long one), ◄ ► changing and
         // saving it; Download Pictures under it, the cursor opening on it,
         // starting the look, whose way the row shows as it goes and how it
         // ended; then the games with a picture of all and each source as
-        // Pictures From and the key have it; back closes the page.
+        // Source and the key have it; back closes the page.
         function test_picturesPage() {
             arcadeBackend.pictureInfo = { games: 120, withPictures: 45, achievements: true, snaps: true, key: "none",
                                           writable: true }
@@ -1444,7 +1444,7 @@ StandInRoot {
             verify(findText(page, "No Web API Key") !== null)
             // Unset, the default's name; its help line the first sentence
             // and the bracket of the value on the row.
-            compare(page.labelOf("source"), "Pictures From")
+            compare(page.labelOf("source"), "Source")
             compare(page.shownValue("source", 0), "Both")
             keyClick(Qt.Key_Up)
             compare(page.currentKey, "source")
@@ -1496,7 +1496,7 @@ StandInRoot {
             compare(page.shownValue("source", 0), "Both")
         }
 
-        // Pictures From in Broadcast and Flat Panel: select starts a change,
+        // Source in Broadcast and Flat Panel: select starts a change,
         // ▲ ▼ step it with nothing saved, select saves it, back leaves it as
         // it was; in Flat Panel ◄ is back.
         function test_picturesPageTwoStep_data() {

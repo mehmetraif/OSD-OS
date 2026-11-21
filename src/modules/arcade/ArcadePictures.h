@@ -103,7 +103,7 @@ public:
     QVariantMap progress() const;
     // ArcadeBackend::downloadPictures(): the look through every game.
     void download();
-    // Settings → Arcade → Pictures From: "RetroAchievements",
+    // Settings → Arcade → Game Pictures → Source: "RetroAchievements",
     // "progetto-SNAPS", "Off", or both for anything else.
     void setSource(const QString &source);
     // Read the Games Again: every game's pictures looked for once the games
@@ -178,7 +178,7 @@ private:
     // RetroAchievements' key is kept, and wasn't refused.
     bool achievementsUsable() const;
     // progetto-SNAPS' pictures of a game without any (picturesOf()), through
-    // ArcadeDB, as Pictures From allows: its screenshot in play saved as
+    // ArcadeDB, as Game Pictures' Source allows: its screenshot in play saved as
     // snap/<set>.png, its title screen as titles/<set>.png, the way the
     // picture packs for MAME lay them out, never over a file there. Asked
     // about once: what ArcadeDB has of each set is noted in the snap
@@ -237,7 +237,7 @@ private:
     QHash<QString, QStringList> m_numbered;   // set → the pictures numbered after it there, in turn
     QHash<QString, QString> m_titles;   // set → its title screen in the games folder's titles
     QHash<QString, QString> m_shots;    // set → the first snapshot MAME took of it
-    // Settings → Arcade → Pictures From: which sources a game's pictures
+    // Settings → Arcade → Game Pictures → Source: which sources a game's pictures
     // come from.
     bool m_picturesAchievements = true;
     bool m_picturesSnaps = true;

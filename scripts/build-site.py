@@ -162,7 +162,7 @@ def module_settings(manifest, extra):
                 continue
             if kind == "module_view":
                 # A page of the module's own may hold a setting of its own
-                # (Arcade's Game Pictures, its Pictures From), there in its
+                # (Arcade's Game Pictures, its Source), there in its
                 # place among the rows.
                 walk(s.get("settings", []))
                 continue

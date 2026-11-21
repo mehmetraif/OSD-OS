@@ -373,6 +373,8 @@ test("Arcade's rows without the headings Settings groups them under, each shown 
     assert.equal(arcade.find(r => r.key === "list_style").shown_unless, undefined);
     // Game Pictures' own setting, by its names over the values saved.
     const pictures = arcade.find(r => r.key === "pictures_source");
+    // Named Source, short enough beside RetroAchievements in Camcorder.
+    assert.equal(pictures.label, "Source");
     assert.deepEqual(pictures.options.map(([name]) => name), ["Both", "RetroAchievements", "progetto-SNAPS", "Off"]);
     assert.deepEqual(pictures.options[0], ["Both", "RetroAchievements, then progetto-SNAPS"]);
     assert.equal(pictures.default, "RetroAchievements, then progetto-SNAPS");

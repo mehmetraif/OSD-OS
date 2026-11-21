@@ -240,7 +240,7 @@ public:
     // to do, a line each) }; {} for a set not in the folder.
     Q_INVOKABLE QVariantMap gameDetails(const QString &set);
     // A set's pictures downloaded as the game is shown (the Arcade screen, Game
-    // Details), as Settings → Arcade → Pictures From allows: those
+    // Details), as Settings → Arcade → Game Pictures → Source allows: those
     // RetroAchievements has of its game, or its parent's, with a Web API key
     // kept, into the snap folder (once, unless they have been, are being,
     // RetroAchievements has none this run, a try failed less than ten minutes
@@ -250,14 +250,14 @@ public:
     Q_INVOKABLE void wantPictures(const QString &set);
     // What Settings → Arcade → Game Pictures shows: { games (the folder's),
     // withPictures (those with a picture of any kind), achievements and
-    // snaps (whether Pictures From has each source on), key ("none",
+    // snaps (whether Game Pictures' Source has each source on), key ("none",
     // "refused", "works" or "given": the Web API key's state), writable (the
     // snap folder can be written in), snapFolder, titlesFolder }.
     Q_INVOKABLE QVariantMap picturesInfo() const;
     QVariantMap picturesProgress() const;
     // manifest: download_pictures (action), and the Game Pictures page's
     // Download Pictures: every game's pictures looked for, from the sources
-    // Pictures From allows (ArcadePictures::startPictureSweep()); one under way
+    // Game Pictures' Source allows (ArcadePictures::startPictureSweep()); one under way
     // starts anew.
     Q_INVOKABLE void downloadPictures();
     // Settings → Arcade → Check ROMs: whether every game's files are whole,

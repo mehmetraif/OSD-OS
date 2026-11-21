@@ -5762,7 +5762,7 @@ private slots:
     // never over a file there and each whole as it comes into the folder
     // (RetroAchievements' too), and notes in .arcadedb.json what ArcadeDB had
     // of each set, so that none is asked about again; a game shown is asked
-    // about by itself, after RetroAchievements; Pictures From can keep
+    // about by itself, after RetroAchievements; Game Pictures' Source can keep
     // either source out; the look's marker goes once every picture is had.
     void picturesFromArcadeDb() {
         QTemporaryDir data;
@@ -5935,7 +5935,7 @@ private slots:
         QTest::qWait(200);
         QVERIFY(standIn.asked.isEmpty());
 
-        // Pictures From RetroAchievements alone: ArcadeDB isn't asked about a
+        // Game Pictures' Source on RetroAchievements alone: ArcadeDB isn't asked about a
         // game still without a picture (one RetroAchievements hasn't); Off:
         // neither is.
         const QString module = QStringLiteral("com.osdos.arcade");

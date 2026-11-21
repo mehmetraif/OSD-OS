@@ -245,7 +245,7 @@ A game's pictures are, in this order:
 - With more than one, the Arcade screen shows the next every 4 seconds.
 - Without any, the frame says `No Picture` and the file it would be, with `No Web API Key` or `Web API Key Refused` where that is why.
 
-**Settings → Arcade → Game Pictures** opens on **Pictures From**, which sets where pictures are downloaded from: **Both** (the default: RetroAchievements, then progetto-SNAPS for the games still without a picture), **RetroAchievements**, **progetto-SNAPS**, or **Off**. Under it is **Download Pictures**, the cursor on it, then how many games have a picture.
+**Settings → Arcade → Game Pictures** opens on **Source**, which sets where pictures are downloaded from: **Both** (the default: RetroAchievements, then progetto-SNAPS for the games still without a picture), **RetroAchievements**, **progetto-SNAPS**, or **Off**. Under it is **Download Pictures**, the cursor on it, then how many games have a picture.
 
 #### Pictures from RetroAchievements
 
@@ -266,7 +266,7 @@ These need a **Web API Key** in **Settings → Arcade → RetroAchievements Acco
 
 #### Download Pictures
 
-**Settings → Arcade → Game Pictures → Download Pictures** looks for every game's pictures in the background, a game a second, as Pictures From allows.
+**Settings → Arcade → Game Pictures → Download Pictures** looks for every game's pictures in the background, a game a second, as Game Pictures' Source allows.
 
 - The Game Pictures page and the picture's frame say how far it has got (`Downloading 120/900`).
 - Games whose pictures couldn't be had are tried again ten minutes later, up to three looks in a row.
@@ -598,8 +598,8 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | Save High Scores | ON, OFF | ON | Keeps the games' high score tables ([High scores](#high-scores)) | `modules.com.osdos.arcade.high_scores` |
 | Online High Scores | Off, RetroAchievements | Off | FinalBurn Neo's games play in hardcore mode, with no save states, as RetroAchievements' leaderboards take only those; their scores go to RetroAchievements | `modules.com.osdos.arcade.online_high_scores` |
 | RetroAchievements Account | (page) | | Sign in and out, and the Web API key ([FinalBurn Neo](#finalburn-neo)) | |
-| Game Pictures | (page) | | Pictures From, Download Pictures, and how many games have a picture | |
-| Pictures From (on Game Pictures' page) | Both, RetroAchievements, progetto-SNAPS, Off | Both | Where pictures are downloaded from. **Both** is saved as `"RetroAchievements, then progetto-SNAPS"` | `modules.com.osdos.arcade.pictures_source` |
+| Game Pictures | (page) | | Source, Download Pictures, and how many games have a picture | |
+| Source (on Game Pictures' page) | Both, RetroAchievements, progetto-SNAPS, Off | Both | Where pictures are downloaded from. **Both** is saved as `"RetroAchievements, then progetto-SNAPS"` | `modules.com.osdos.arcade.pictures_source` |
 | **ONLINE AND LAN** | | | | |
 | Online Play | Off, On | Off | Play over the internet, in FinalBurn Neo | `modules.com.osdos.arcade.online_play` |
 | Relay Server | New York, Madrid, São Paulo, Singapore, Chuncheon | The nearest to the time zone | Where a game you host is relayed from. Unset, the one nearest the time zone of **Settings → System → Time Zone**: Madrid for Europe and Africa, São Paulo for South America, New York for the rest of the Americas, Chuncheon for Korea and Japan, Singapore for the rest of Asia and Oceania; New York for UTC. Shown while Online Play is On | `modules.com.osdos.arcade.relay_server` |

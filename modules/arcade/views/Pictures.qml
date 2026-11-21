@@ -26,12 +26,12 @@ KeyedPage {
         onTriggered: picturesRoot.revision++
     }
 
-    // Pictures From first, then Download Pictures, which the cursor opens
+    // Source first, then Download Pictures, which the cursor opens
     // on; what there is under them.
     keys: ["source", "download", "games", "achievements", "snaps"]
     Component.onCompleted: currentIndex = keys.indexOf("download")
 
-    // Pictures From: the row the manifest keeps in Game Pictures' own
+    // Source: the row the manifest keeps in Game Pictures' own
     // (its "settings"), which Settings' page doesn't show, as Settings has
     // it in a list's place: its choices' names over the values saved
     // (modules.<id>.pictures_source), the default where none is or one no
@@ -74,7 +74,7 @@ KeyedPage {
 
     function labelOf(key) {
         switch (key) {
-        case "source": return sourceRow ? sourceRow.label : "Pictures From"
+        case "source": return sourceRow ? sourceRow.label : "Source"
         case "games": return "Games With Pictures"
         case "achievements": return "RetroAchievements"
         case "snaps": return "progetto-SNAPS"
@@ -126,9 +126,9 @@ KeyedPage {
             return info.writable === false ? "The games folder's snap folder can't be written: no picture can be downloaded into it"
                  : "The games with a picture of any kind: snap/<set>.png, those numbered after the set, titles/<set>.png, or MAME's own snapshot"
         case "achievements":
-            return "Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with the Web API key of Settings → Arcade → RetroAchievements Account • Pictures From, above, says whether it is used"
+            return "Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with the Web API key of Settings → Arcade → RetroAchievements Account • Source, above, says whether it is used"
         case "snaps":
-            return "A screenshot in play and the title screen of nearly every MAME game, from progetto-SNAPS through ArcadeDB (adb.arcadeitalia.net), for the games still without a picture • Pictures From, above, says whether it is used"
+            return "A screenshot in play and the title screen of nearly every MAME game, from progetto-SNAPS through ArcadeDB (adb.arcadeitalia.net), for the games still without a picture • Source, above, says whether it is used"
         case "download":
             return active ? "Every game's pictures are being looked for in the background, a game a second; a game played holds it until the game ends"
                           : "Look for every game's pictures: RetroAchievements' first, then progetto-SNAPS' for the games still without any, a game a second in the background; a look cut short goes on at the next start"

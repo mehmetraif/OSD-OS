@@ -183,7 +183,7 @@ FocusScope {
                        + " published the games" },
         { key: "arcadedb", label: "ArcadeDB", value: "adb.arcadeitalia.net",
           description: "Arcade Database by motoschifo, adb.arcadeitalia.net, whose scraper service gives progetto-SNAPS'"
-                       + " pictures of a set on request, as Pictures From allows, one request at a time • Names and"
+                       + " pictures of a set on request, as Game Pictures' Source allows, one request at a time • Names and"
                        + " images for informational purposes only, under fair use; all copyrights and trademarks"
                        + " belong to their holders" }
     ]
