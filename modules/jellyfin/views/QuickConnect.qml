@@ -25,12 +25,6 @@ FocusScope {
     Connections {
         target: jellyfinBackend
 
-        function onQuickConnectCodeReady(c, s) {
-            qcRoot.code = c
-            qcRoot.secret = s
-            pollTimer.restart()
-        }
-
         function onQuickConnectApproved() {
             pollTimer.stop()
             qcRoot.approved = true
@@ -61,13 +55,8 @@ FocusScope {
             failed = true
             return
         }
-        // If code/secret already provided from Auth.qml, start polling
-        if (qcRoot.code !== "" && qcRoot.secret !== "") {
-            pollTimer.restart()
-            return
-        }
-        // Otherwise initiate a new quick connect
-        jellyfinBackend.quick_connect_initiate(serverUrl)
+        // Auth.qml asked for the code and opens this page with it.
+        pollTimer.restart()
     }
 
     focus: true
