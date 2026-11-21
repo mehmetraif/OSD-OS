@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.ambient_mode",
   "name": "Ambient:Mode",
+  "menu_order": 110,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",

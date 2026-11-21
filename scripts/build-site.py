@@ -197,18 +197,26 @@ def modules(extra):
         enabled = next((s for s in manifest.get("settings", []) if s.get("key") == "enabled"), {})
         mod_extra = extra["modules"].get(mid, {})
         group = manifest.get("settings_group", "")
-        out.append({
+        place = manifest.get("menu_order")
+        if isinstance(place, bool) or not isinstance(place, (int, float)):
+            place = None
+        out.append((place, {
             "id": mid,
             "name": manifest["name"],
-            # The main menu lists the modules in their folders' order.
             "folder": path.parent.name,
             "group": groups.get(group, groups[""]),
             "enabled": str(enabled.get("default", "ON")).upper() != "OFF",
             "settings": module_settings(manifest, mod_extra),
             "retroachievements": bool(mod_extra.get("retroachievements")),
-        })
+        }))
+    # The main menu's order, as AppCore makes it (AppCore::menuOrderBefore()):
+    # by group (TV / Movie, Arcade, the rest), within a group by the
+    # manifest's "menu_order", lower first and a module without one after
+    # those with one, then by name.
     order = list(dict.fromkeys(groups.values()))
-    return sorted(out, key=lambda m: (order.index(m["group"]), m["name"].lower()))
+    out.sort(key=lambda pm: (order.index(pm[1]["group"]), pm[0] is None, pm[0] or 0,
+                             pm[1]["name"].lower(), pm[1]["folder"]))
+    return [m for _, m in out]
 
 
 def preset_about(text):

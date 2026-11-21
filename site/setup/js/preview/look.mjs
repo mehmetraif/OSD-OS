@@ -69,8 +69,9 @@ export function lookOf(looks, settings) {
 
     const knobs = (effect, names) => Object.fromEntries(names.map(k => [k, Number(effect[k]) || 0]));
 
-    // The main menu's rows: the modules on, in their folders' order.
-    const modules = settings.modules.filter(m => m.enabled).sort((a, b) => a.folder < b.folder ? -1 : 1);
+    // The main menu's rows: the modules on, in the main menu's order, which
+    // the schema lists them in (scripts/build-site.py, as AppCore orders them).
+    const modules = settings.modules.filter(m => m.enabled);
     const arcadeModule = settings.modules.find(m => m.id === ARCADE);
     const arcadeValues = arcadeModule ? arcadeModule.values : {};
 

@@ -1412,6 +1412,81 @@ private slots:
         }
     }
 
+    // The modules in the main menu's order, made once as AppCore reads the
+    // manifests: by group as Camcorder's menu has them (TV / Movie, Arcade,
+    // the rest), within a group by the manifest's menu_order (lower first),
+    // then the modules without one (or with one that isn't a number) by
+    // name, whatever their folders are called. Everything that lists the
+    // modules takes them so: the main menu's rows (scan_for_modules()) and
+    // Settings' (get_installed_modules()), and the Arcade page opens on the
+    // arcade group's first, Arcade.
+    void modulesInTheMainMenusOrder() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QStringList menu{ "local_files", "playlists", "plex", "jellyfin", "emby", "youtube", "netflix",
+                                "prime_video", "nfc_reader", "weather", "ambient_mode", "arcade", "highscores",
+                                "scripts" };
+        QJsonObject on;
+        for (const QString &name : menu)
+            on.insert(QStringLiteral("com.osdos.") + name, QJsonObject{ { "enabled", true } });
+        QFile config(data.path() + QStringLiteral("/config.json"));
+        QVERIFY(config.open(QIODevice::WriteOnly));
+        config.write(QJsonDocument(QJsonObject{ { "modules", on } }).toJson());
+        config.close();
+        const auto ids = [](const QVariantList &rows, const char *field) {
+            QStringList out;
+            for (const QVariant &row : rows)
+                out << row.toMap().value(field).toString();
+            return out;
+        };
+        QStringList expected;
+        for (const QString &name : menu)
+            expected << QStringLiteral("com.osdos.") + name;
+        {
+            AppCore core(QStringLiteral(OSDOS_SOURCE_DIR), data.path());
+            QCOMPARE(ids(core.get_installed_modules().toList(), "id"), expected);
+            QSignalSpy loaded(&core, &AppCore::modulesLoaded);
+            core.scan_for_modules();
+            QCOMPARE(loaded.size(), 1);
+            QStringList rows;
+            for (const QVariant &row : loaded.first().first().toList())
+                rows << row.toMap().value("id").toString();
+            QCOMPARE(rows, expected);
+        }
+
+        // Folders named against the order, groups mixed, a module without a
+        // menu_order and one whose isn't a number.
+        QTemporaryDir app;
+        QVERIFY(app.isValid());
+        const auto module = [&](const QString &folder, const QString &name, const QString &group,
+                                const QJsonValue &order) {
+            QJsonObject manifest{ { "id", "test." + folder }, { "name", name },
+                                  { "entry_point_qml", "views/Root.qml" } };
+            if (!group.isEmpty())
+                manifest.insert("settings_group", group);
+            if (!order.isUndefined())
+                manifest.insert("menu_order", order);
+            QVERIFY(QDir().mkpath(app.path() + "/modules/" + folder));
+            QFile file(app.path() + "/modules/" + folder + "/manifest.json");
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(QJsonDocument(manifest).toJson());
+        };
+        module("a_tool", "Tool", "", 5);
+        module("b_zed", "Zed", "tv", QJsonValue::Undefined);
+        module("c_third", "Third", "tv", 20);
+        module("d_game", "Game", "arcade", 10);
+        module("e_first", "First", "tv", 10);
+        module("f_alpha", "alpha", "tv", QJsonValue::Undefined);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("g_mid: menu_order is not a number"));
+        module("g_mid", "Mid", "tv", QStringLiteral("15"));
+        module("h_radio", "Radio", "radio", 1);
+        module("i_second", "Second", "tv", 15);
+        AppCore core(app.path(), data.path());
+        QCOMPARE(ids(core.get_installed_modules().toList(), "id"),
+                 QStringList({ "test.e_first", "test.i_second", "test.c_third", "test.f_alpha", "test.g_mid",
+                               "test.b_zed", "test.d_game", "test.h_radio", "test.a_tool" }));
+    }
+
     // A module's action rows (a manifest's "type": "action", which a
     // settings page's select runs, views/ModuleSettings.qml): each of the
     // app's own modules' names its slot and says what it did ("done"), and

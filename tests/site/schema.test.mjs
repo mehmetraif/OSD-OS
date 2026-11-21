@@ -320,6 +320,18 @@ test("each module's rows are its manifest's, with values it takes", () => {
         assert.ok(manifests.has(id), `Start on Module's ${id}`);
 });
 
+// The modules in the main menu's order, as AppCore makes it: by group (TV /
+// Movie, Arcade, the rest), then by each manifest's menu_order. Setup's page,
+// its preview's main menu and Start on Module's choices take them so.
+test("the modules in the main menu's order", () => {
+    const menu = ["local_files", "playlists", "plex", "jellyfin", "emby", "youtube", "netflix", "prime_video",
+                  "nfc_reader", "weather", "ambient_mode", "arcade", "highscores", "scripts"]
+        .map(name => `com.osdos.${name}`);
+    assert.deepEqual(schema.modules.map(m => m.id), menu);
+    const startOn = valuesOf(appRows.find(r => r.key === "startup_module")).filter(v => v !== "None");
+    assert.deepEqual(startOn, menu);
+});
+
 test("defaults are among the values, and rows show with rows that are there", () => {
     const scopes = [["app", appRows], ...schema.modules.map(m => [m.id, m.settings])];
     for (const [scope, rows] of scopes) {

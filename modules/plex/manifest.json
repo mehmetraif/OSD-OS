@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.plex",
   "name": "Plex",
+  "menu_order": 30,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",

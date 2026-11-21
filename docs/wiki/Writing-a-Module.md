@@ -48,7 +48,8 @@ Five principles from CONTRIBUTING.md:
 | `icon` | | Its logo, relative to the module's folder |
 | `entry_point_qml` | Yes | Its router, relative to the module's folder: `views/Root.qml` |
 | `settings` | | Its settings, in the order Settings shows them. A module with none isn't listed in Settings |
-| `settings_group` | | Where Settings lists the page: `"tv"` under **Modules** on the **TV / Movie** page; `"arcade"` on the **Arcade** page, under the module's name as a heading; left out, under **Modules** on the **System** page |
+| `settings_group` | | Where Settings lists the page: `"tv"` under **Modules** on the **TV / Movie** page; `"arcade"` on the **Arcade** page, under the module's name as a heading; left out, under **Modules** on the **System** page. It is also the module's group on the main menu: TV / Movie's modules first, then Arcade's, then the rest |
+| `menu_order` | | A number: the module's place in its group on the main menu, lower first. The app's own go in tens (Local Files 10, Playlists 20, Plex 30 … Ambient:Mode 110; Arcade 10, High Scores 20; Scripts 10), so a number between two puts yours between them. Without one, the module comes after those with one, by name |
 
 A manifest that isn't JSON is skipped, with `[AppCore] Bad manifest.json in <folder>: <error>` in the log. One without `id` or `entry_point_qml` is skipped with `[AppCore] Skipping <folder>: manifest missing 'id' or 'entry_point_qml'`.
 

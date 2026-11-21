@@ -24,6 +24,10 @@ struct ModuleEntry {
     QString iconRel;     // relative to module folder, e.g. "assets/images/logo.svg"
     QVariantList settings;
     QString settingsGroup; // "tv", "arcade" or "": where Settings lists its page
+    // The manifest's "menu_order": its place in its group on the main menu,
+    // lower first; none (hasMenuOrder false) after those with one, by name.
+    double menuOrder = 0;
+    bool hasMenuOrder = false;
     // What its "enabled" toggle defaults to in the manifest (true without one).
     bool enabledByDefault = true;
 };
@@ -284,6 +288,9 @@ private:
     const ModuleEntry *findModule(const QString &moduleId) const;
     // APP_ROOT-relative QML entry point of a module ("modules/plex/views/Root.qml").
     static QString entryPointOf(const ModuleEntry &m);
+    // Whether a comes before b on the main menu: by group (TV / Movie, Arcade,
+    // the rest), then by menu_order, then by name.
+    static bool menuOrderBefore(const ModuleEntry &a, const ModuleEntry &b);
     QString moduleIdForBackend(QObject *backend) const;
     // Extra top-level menu rows a module's backend wants to contribute. Probed,
     // not connected — see the comment at the call site in scan_for_modules.
@@ -312,6 +319,8 @@ private:
     struct HeldSetting { QString moduleId; QString key; QVariant value; };
     QList<HeldSetting> m_held;
     QTimer *m_settle = nullptr;
+    // Every module with a manifest, in the main menu's order (menuOrderBefore()):
+    // what lists the modules takes them in this order.
     QList<ModuleEntry> m_modules;
     QMap<QString, QObject*> m_backends;
     QStringList m_statusIcons;

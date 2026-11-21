@@ -21,19 +21,22 @@ StandInRoot {
     property var menuModules: []
 
     // AppCore as the main menu uses it: the modules turned on, as
-    // scan_for_modules() sends them, each with its settings group.
+    // scan_for_modules() sends them, each with its settings group, in the
+    // main menu's order, which AppCore makes (by group, TV / Movie, Arcade,
+    // the rest, then by each manifest's menu_order): the menu keeps it in
+    // every layout and adds no order of its own.
     QtObject {
         id: appCore
         // The first row's name, which a test makes too long for the row.
-        property string firstName: "Arcade"
+        property string firstName: "Local Files"
         // The modules turned off, by their names: they have no row.
         property var turnedOff: []
         signal modulesLoaded(var modules)
         function scan_for_modules() {
-            modulesLoaded([{ name: firstName, entry_point: "modules/arcade/views/Root.qml", group: "arcade" },
-                           { name: "High Scores", entry_point: "modules/highscores/views/Root.qml", group: "arcade" },
-                           { name: "Local Files", entry_point: "modules/local_files/views/Root.qml", group: "tv" },
+            modulesLoaded([{ name: firstName, entry_point: "modules/local_files/views/Root.qml", group: "tv" },
                            { name: "Plex", entry_point: "modules/plex/views/Root.qml", group: "tv" },
+                           { name: "Arcade", entry_point: "modules/arcade/views/Root.qml", group: "arcade" },
+                           { name: "High Scores", entry_point: "modules/highscores/views/Root.qml", group: "arcade" },
                            { name: "Scripts", entry_point: "modules/scripts/views/Root.qml", group: "" }]
                           .filter(function(row) { return turnedOff.indexOf(row.name) < 0 }))
         }
@@ -69,7 +72,7 @@ StandInRoot {
             root.menuLayout = "Standard"
             root.setFrame([], 0, false)
             root.width = 640
-            appCore.firstName = "Arcade"
+            appCore.firstName = "Local Files"
             appCore.turnedOff = []
         }
         function cleanup() {
@@ -105,16 +108,17 @@ StandInRoot {
             return ""
         }
 
-        // Standard: every module's row in the order they come, then, after a
-        // gap the cursor passes over, a row for Settings; select opens a row,
-        // and back opens Settings too.
+        // Standard: every module's row in the order AppCore sends them (the
+        // video modules first, Arcade's after them, then the rest), then,
+        // after a gap the cursor passes over, a row for Settings; select
+        // opens a row, and back opens Settings too.
         function test_standard() {
             var menu = open()
-            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts", "", "Settings"])
+            compare(names(menu), ["Local Files", "Plex", "Arcade", "High Scores", "Scripts", "", "Settings"])
             verify(!menu.camcorder)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
-            compare(root.navigations[0].path, "modules/highscores/views/Root.qml")
+            compare(root.navigations[0].path, "modules/plex/views/Root.qml")
             keyClick(Qt.Key_Escape)
             compare(root.navigations[1].path, "views/Settings.qml")
             verify(hint(menu).indexOf("GROUPS") < 0)
@@ -126,7 +130,7 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             compare(root.navigations[2].path, "views/Settings.qml")
             keyClick(Qt.Key_Down)
-            compare(cursor(menu), "Arcade")
+            compare(cursor(menu), "Local Files")
         }
 
         // The cursor never rests on the gap before Settings' row, where
@@ -139,7 +143,7 @@ StandInRoot {
             return [{ tag: "Standard", layout: "Standard", after: "Settings", none: "Settings" },
                     { tag: "Broadcast", layout: "Broadcast", after: "Settings", none: "Settings" },
                     { tag: "Camcorder", layout: "Camcorder", after: "Local Files", none: "Settings" },
-                    { tag: "Flat Panel", layout: "Flat Panel", after: "Plex", none: "" }]
+                    { tag: "Flat Panel", layout: "Flat Panel", after: "High Scores", none: "" }]
         }
         function test_neverOnTheGap(data) {
             root.menuLayout = data.layout
@@ -165,13 +169,13 @@ StandInRoot {
             appCore.turnedOff = ["Scripts"]
             menu = open({ navListState: left })
             if (gapped)
-                compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "", "Settings"])
+                compare(names(menu), ["Local Files", "Plex", "Arcade", "High Scores", "", "Settings"])
             compare(cursor(menu), data.after)
             keyClick(Qt.Key_Return)
             compare(root.navigations.length, 2)
             compare(root.navigations[1].path, gapped ? "views/Settings.qml"
                                                      : data.layout === "Camcorder" ? "modules/local_files/views/Root.qml"
-                                                                                   : "modules/plex/views/Root.qml")
+                                                                                   : "modules/highscores/views/Root.qml")
 
             // No module on.
             loader.source = ""
@@ -275,7 +279,7 @@ StandInRoot {
             root.menuLayout = "Broadcast"
             var menu = open()
             compare(chromeOf(menu).title, "OSD/OS")
-            compare(names(menu), ["Arcade", "High Scores", "Local Files", "Plex", "Scripts", "", "Settings"])
+            compare(names(menu), ["Local Files", "Plex", "Arcade", "High Scores", "Scripts", "", "Settings"])
             keyClick(Qt.Key_Up)
             compare(cursor(menu), "Settings")
             keyClick(Qt.Key_Up)
@@ -345,8 +349,6 @@ StandInRoot {
         // row, in its group in Camcorder.
         function test_layoutChanged() {
             var menu = open()
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Down)
             compare(cursor(menu), "Plex")
             root.menuLayout = "Camcorder"

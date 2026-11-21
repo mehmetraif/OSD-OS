@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.highscores",
   "name": "High Scores",
+  "menu_order": 20,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "arcade",

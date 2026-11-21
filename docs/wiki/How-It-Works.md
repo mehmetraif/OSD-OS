@@ -55,7 +55,7 @@ From a source tree, run `APP_ROOT=$(pwd) ./build/osdos`. The full rules, and wha
 - **The settings** become the module's page in Settings, saved under `modules.<id>` in `config.json` ([manifest.json Reference](https://github.com/mehmetraif/OSD-OS/blob/main/ARCHITECTURE.md#manifestjson-reference)).
 - **`settings_group`** places that page: `"tv"` on the TV / Movie page, `"arcade"` on the Arcade page, none on the System page.
 - **Enabled or not**: `enabled` in `config.json`, else the manifest's default for `enabled`, else on.
-- **The main menu** (`views/ModuleList.qml`) gets the enabled modules from `scan_for_modules()`. A backend may add rows of its own (`get_menu_entries()`).
+- **The main menu** (`views/ModuleList.qml`) gets the enabled modules from `scan_for_modules()`, in groups (TV / Movie, Arcade, the rest) and within a group by each manifest's `menu_order`. A backend may add rows of its own (`get_menu_entries()`).
 
 ### A backend, in one line
 

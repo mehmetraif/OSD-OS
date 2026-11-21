@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.prime_video",
   "name": "Prime Video",
+  "menu_order": 80,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",

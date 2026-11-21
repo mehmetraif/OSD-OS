@@ -63,6 +63,13 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
         m.iconRel  = manifest["icon"].toString();
         m.settings = manifest["settings"].toArray().toVariantList();
         m.settingsGroup = manifest["settings_group"].toString();
+        if (manifest.value("menu_order").isDouble()) {
+            m.menuOrder = manifest.value("menu_order").toDouble();
+            m.hasMenuOrder = true;
+        } else if (manifest.contains("menu_order")) {
+            qWarning("[AppCore] %s: menu_order is not a number; the module goes after those with one",
+                     qPrintable(folder));
+        }
         // On unless the manifest's own "enabled" toggle says OFF.
         for (const QVariant &sv : std::as_const(m.settings)) {
             const QVariantMap s = sv.toMap();
@@ -74,6 +81,38 @@ AppCore::AppCore(const QString &appRoot, const QString &dataRoot, QObject *paren
         m_modules.append(m);
         qDebug("[AppCore] Loaded manifest: %s", qPrintable(id));
     }
+    // The main menu's order, made here once so that whatever lists the
+    // modules follows it without a sort of its own: the main menu in every
+    // Menu Layout, Settings' MODULES rows and its Arcade page's first module,
+    // Start on Module's choices.
+    std::stable_sort(m_modules.begin(), m_modules.end(), menuOrderBefore);
+}
+
+// The main menu's order: by group as Camcorder's menu has them (TV / Movie,
+// Arcade, then the rest: ModuleList.qml's groupLooks), within a group by the
+// manifest's "menu_order" (lower first; a module without one after those
+// with one), then by name. scripts/build-site.py lists OSD/OS Setup's
+// modules the same way.
+static int menuGroupRank(const QString &group) {
+    if (group == QLatin1String("tv"))
+        return 0;
+    if (group == QLatin1String("arcade"))
+        return 1;
+    return 2;
+}
+
+bool AppCore::menuOrderBefore(const ModuleEntry &a, const ModuleEntry &b) {
+    const int ga = menuGroupRank(a.settingsGroup), gb = menuGroupRank(b.settingsGroup);
+    if (ga != gb)
+        return ga < gb;
+    if (a.hasMenuOrder != b.hasMenuOrder)
+        return a.hasMenuOrder;
+    if (a.hasMenuOrder && a.menuOrder != b.menuOrder)
+        return a.menuOrder < b.menuOrder;
+    const int byName = QString::compare(a.name, b.name, Qt::CaseInsensitive);
+    if (byName != 0)
+        return byName < 0;
+    return a.folder < b.folder;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +211,9 @@ void AppCore::scan_for_modules() {
     //
     // Appended AFTER all module rows on purpose: module row indices then stay
     // stable, so the saved menu position still restores onto the same row when a
-    // contributed row is added or removed.
+    // contributed row is added or removed. Scripts, the one module that adds
+    // rows (its favourites), comes last in the main menu's order, so they follow
+    // its own row; in Camcorder they are in its group, More.
     for (const auto &m : m_modules) {
         if (!isModuleEnabled(m, modulesConfig)) continue;
         const QVariantList extras = menuEntriesForModule(m.id);

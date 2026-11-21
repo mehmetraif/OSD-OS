@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.netflix",
   "name": "Netflix",
+  "menu_order": 70,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",

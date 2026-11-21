@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.nfc_reader",
   "name": "NFC Reader",
+  "menu_order": 90,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",

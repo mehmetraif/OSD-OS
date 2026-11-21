@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.youtube",
   "name": "YouTube",
+  "menu_order": 60,
   "icon": "assets/images/logo.svg",
   "version": "1.0",
   "entry_point_qml": "views/Root.qml",

@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.scripts",
   "name": "Scripts",
+  "menu_order": 10,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings": [

@@ -155,7 +155,8 @@ test("the main menu's rows and the status icons, from the modules on", () => {
         { id: "com.osdos.plex", name: "Plex", folder: "plex", enabled: false, values: {} },
     ];
     let look = lookOf(looks, settings({ status_icons: "On" }, modules, { wifi: true, account: true }));
-    assert.deepEqual(look.menu.map(m => m.name), ["Arcade", "YouTube"]);
+    // In the order the schema lists them (the main menu's), not their folders'.
+    assert.deepEqual(look.menu.map(m => m.name), ["YouTube", "Arcade"]);
     assert.deepEqual(look.statusIcons, ["hiscore", "trophy", "network", "signal4"]);
     assert.deepEqual([look.arcade.listStyle, look.arcade.hintBar, look.arcade.helpLine], ["3D Curved", false, true]);
     // The trophy with an account to send the scores to; nothing with Status
@@ -173,11 +174,12 @@ test("the main menu's rows and the status icons, from the modules on", () => {
 // makes them (its settings group, TV / Movie, Arcade, More), the groups with
 // none left out, Settings' last.
 test("the main menu in Menu Layout's Camcorder: its groups, as the app makes them", () => {
+    // In the main menu's order, which the schema lists them in.
     const modules = [
+        { id: "com.osdos.plex", name: "Plex", folder: "plex", group: "TV / Movie", enabled: true, values: {} },
         { id: "com.osdos.youtube", name: "YouTube", folder: "youtube", group: "TV / Movie", enabled: true, values: {} },
         { id: ARCADE, name: "Arcade", folder: "arcade", group: "Arcade", enabled: true, values: {} },
         { id: "com.osdos.scripts", name: "Scripts", folder: "scripts", group: "Modules", enabled: true, values: {} },
-        { id: "com.osdos.plex", name: "Plex", folder: "plex", group: "TV / Movie", enabled: true, values: {} },
     ];
     let look = lookOf(looks, settings({}, modules));
     assert.equal(look.menuLayout, "Standard");
@@ -188,7 +190,7 @@ test("the main menu in Menu Layout's Camcorder: its groups, as the app makes the
                      [["TV / Movie", "tv", ["Plex", "YouTube"]], ["Arcade", "joystick", ["Arcade"]],
                       ["More", "apps", ["Scripts"]], ["Settings", "gear", ["Settings"]]]);
     // A group with nothing on is left out.
-    modules[1].enabled = false;
+    modules[2].enabled = false;
     assert.deepEqual(camcorderGroups(lookOf(looks, settings({}, modules)).menu).map(g => g.label),
                      ["TV / Movie", "More", "Settings"]);
 });
@@ -219,7 +221,8 @@ test("the main menu in Menu Layout's monitor layouts: Main.qml's colours, the ro
         };
         assert.equal(drawMainMenu(ctx, look, { logo: () => null, skin: () => null }, { index: 0, top: 0, since: 0 }, 0), null);
         assert.ok(fills.has(MENU_PALETTES[layout].ground), layout);
-        const rows = { "Studio Monitor": ["ARCADE"], "Broadcast": ["ARCADE...", "YOUTUBE...", "SETTINGS..."],
+        // Studio Monitor opens on the first row's group, TV / Movie's.
+        const rows = { "Studio Monitor": ["TV / MOVIE", "YOUTUBE"], "Broadcast": ["ARCADE...", "YOUTUBE...", "SETTINGS..."],
                        "Flat Panel": ["Arcade", "YouTube"] }[layout];
         for (const row of rows)
             assert.ok(texts.includes(row), `${layout}: ${row} in ${texts}`);

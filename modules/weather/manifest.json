@@ -1,6 +1,7 @@
 {
   "id": "com.osdos.weather",
   "name": "WEATHER",
+  "menu_order": 100,
   "icon": "assets/images/logo.svg",
   "entry_point_qml": "views/Root.qml",
   "settings_group": "tv",

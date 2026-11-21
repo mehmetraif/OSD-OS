@@ -62,9 +62,9 @@ On the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image
 
 ## The main menu
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu: OSD/OS's logo and name in the title bar, the status icons at its right, then the modules: AMBIENT:MODE, ARCADE, EMBY, HIGH SCORES, JELLYFIN, LOCAL FILES, NETFLIX, NFC READER, PLAYLISTS, and a ▼ for more" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/main-menu.png" width="100%" alt="The main menu: OSD/OS's logo and name in the title bar, the status icons at its right, then the modules: LOCAL FILES, PLAYLISTS, PLEX, JELLYFIN, EMBY, YOUTUBE, NETFLIX, PRIME VIDEO, NFC READER, and a ▼ for more" />
 
-The main menu lists the modules that are turned on, in the order of their folders' names. Select opens one; back opens Settings. In the Standard layout a **Settings** row at its foot opens it too, for a remote or a pad whose Back isn't set up yet.
+The main menu lists the modules that are turned on in groups: the TV / Movie modules first (Local Files, Playlists, Plex, Jellyfin, Emby, YouTube, Netflix, Prime Video, NFC Reader, Weather, Ambient:Mode), then Arcade and High Scores, then Scripts. The Camcorder and Studio Monitor layouts show the same groups as icons. Select opens one; back opens Settings. In the Standard layout a **Settings** row at its foot opens it too, for a remote or a pad whose Back isn't set up yet.
 
 - **On by default**: Local Files and Playlists.
 - **Turning one on**: the **Enabled** row on the module's Settings page. The video modules and Weather are on **TV / Movie**, Arcade and High Scores on **Arcade**, Scripts on **System**.
