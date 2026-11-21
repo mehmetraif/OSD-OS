@@ -323,6 +323,22 @@ void UpdateManager::reconcileStagingDir() {
     for (const QString &p : parts)
         dir.remove(p);
 
+    // A stage the launcher couldn't put in place: what it wrote of why, said
+    // once, the stage's files gone with it (the launcher took the stage's
+    // markers already). The update is offered again from a check.
+    QFile failed(dir.filePath(QStringLiteral("staged.sha256.failed")));
+    if (failed.exists()) {
+        const QString why = failed.open(QIODevice::ReadOnly)
+                                ? QString::fromUtf8(failed.readLine(512)).trimmed() : QString();
+        failed.close();
+        failed.remove();
+        clearStagingFiles();
+        setState(QStringLiteral("error"), why.isEmpty()
+                     ? QStringLiteral("The update could not be put in place.")
+                     : QStringLiteral("The update could not be put in place: %1.").arg(why));
+        return;
+    }
+
     const QJsonObject staged = readStaged();
     if (staged.isEmpty()) {
         clearStagingFiles();   // sweep payloads orphaned by a discarded stage

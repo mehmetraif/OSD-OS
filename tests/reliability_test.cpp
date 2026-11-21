@@ -452,6 +452,31 @@ private slots:
         QCOMPARE(manager.state(), QString("error"));
     }
 
+    // A stage the launcher couldn't put in place (scripts/install.sh writes
+    // staged.sha256.failed with why): told as the app starts, once, with
+    // the stage's files gone.
+    void failedStageIsReported() {
+        QTemporaryDir tmp;
+        const QString updates = tmp.path() + "/updates";
+        QVERIFY(QDir().mkpath(updates));
+        const auto write = [](const QString &path, const QByteArray &bytes) {
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+        };
+        QVERIFY(write(updates + "/staged.sha256.failed", "the download didn't match its checksum\n"));
+        QVERIFY(write(updates + "/OSD-OS-v9.9.9-linux-arm64.tar.gz", "payload"));
+        {
+            UpdateManager manager(tmp.path(), tmp.path());
+            QCOMPARE(manager.state(), QString("error"));
+            QCOMPARE(manager.errorMessage(),
+                     QString("The update could not be put in place: the download didn't match its checksum."));
+        }
+        QVERIFY(!QFile::exists(updates + "/staged.sha256.failed"));
+        QVERIFY(!QFile::exists(updates + "/OSD-OS-v9.9.9-linux-arm64.tar.gz"));
+        UpdateManager again(tmp.path(), tmp.path());
+        QCOMPARE(again.state(), QString("idle"));
+    }
+
     // Only a newer release is offered: not the release before a prerelease
     // running (which GitHub's "latest" passes over), nor the same one.
     void updateOffersOnlyNewerReleases() {

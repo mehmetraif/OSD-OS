@@ -71,6 +71,23 @@ check "a stage applied runs the new release" "2/2" "$(run | cut -d' ' -f1)"
 check "a stage applied leaves no stage" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
 check "a stage applied leaves no swap folders" "0" "$(leftovers)"
 
+# A stage that can't be put in place: the release there runs, the stage goes,
+# and staged.sha256.failed says why, for the app to tell.
+install_release 1
+stage_release 2
+echo damaged >> "$UPDATES/OSD-OS-2.tar.gz"
+check "a stage that doesn't match its checksum isn't applied" "1/1" "$(run | cut -d' ' -f1)"
+check "...and says why" "the download didn't match its checksum" "$(cat "$UPDATES/staged.sha256.failed" 2>&1)"
+check "...leaving no stage" "no" "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no)"
+install_release 1
+stage_release 2
+echo "not a tarball" > "$UPDATES/OSD-OS-2.tar.gz"
+( cd "$UPDATES" && sha256sum "OSD-OS-2.tar.gz" > staged.sha256 )
+check "a stage that doesn't unpack isn't applied" "1/1" "$(run | cut -d' ' -f1)"
+check "...and says why" "its release didn't unpack in full" "$(cat "$UPDATES/staged.sha256.failed" 2>&1)"
+check "...leaving no stage or swap folders" "no 0" \
+      "$([ -e "$UPDATES/staged.sha256" ] && echo yes || echo no) $(leftovers)"
+
 # A swap cut short with bin out of the way and the new one not yet in, or
 # with bin swapped and share not: never the new app on the old share. The
 # release before runs whole, or the stage, there until a swap is on the card,

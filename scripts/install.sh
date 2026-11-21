@@ -330,13 +330,16 @@ if [ -f "$UPDATES_DIR/staged.sha256" ] && [ -w "$INSTALL_DIR" ]; then
             # staged.json: with that left, the app would offer an Install
             # that applies nothing, until the next boot discarded the stage
             # (above). The app offers the update again, downloaded afresh;
-            # .failed says what became of this one.
+            # .failed says why this one wasn't put in place, which the app
+            # tells on its Software Update page.
             rm -rf "$INSTALL_DIR/.new" "$INSTALL_DIR/.old"
-            mv -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.sha256.failed" 2>/dev/null
-            rm -f "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
+            echo "its release didn't unpack in full" > "$UPDATES_DIR/staged.sha256.failed"
+            rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/$STAGED_TARBALL" "$UPDATES_DIR/staged.json"
         fi
     else
-        # Corrupt/partial stage — discard; the app re-offers the update.
+        # Corrupt/partial stage — discard, saying why; the app re-offers the
+        # update.
+        echo "the download didn't match its checksum" > "$UPDATES_DIR/staged.sha256.failed"
         rm -f "$UPDATES_DIR/staged.sha256" "$UPDATES_DIR/staged.json"
     fi
 fi
