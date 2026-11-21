@@ -566,6 +566,25 @@ private slots:
         const QJsonObject films{ { "key", "1" }, { "title", "Films" }, { "type", "movie" } };
         librariesSayWhyThereAreNone(backend, network, plexContainer({ { "Directory", QJsonArray{ films } } }));
     }
+    // A Plex library's menu asks the server one thing: whether the section
+    // has hubs, which is what RECOMMENDED is offered on.
+    void plexLibraryMenuAsksForHubsOnly() {
+        QTemporaryDir tmp;
+        PlexBackend backend(tmp.path(), tmp.path());
+        Network *network = signInPlex(backend, tmp.path());
+        QVERIFY(network);
+        QSignalSpy caps(&backend, &PlexBackend::capabilitiesLoaded);
+        backend.check_section_capabilities(QStringLiteral("1"));
+        QCOMPARE(network->replies.size(), 1);
+        QCOMPARE(network->last()->url().path(), QStringLiteral("/hubs/sections/1"));
+        network->last()->complete(plexContainer({ { "Hub", QJsonArray{ QJsonObject{ { "title", "Recently Added" } } } } }));
+        QCOMPARE(caps.count(), 1);
+        QVERIFY(caps.last().at(0).toMap().value(QStringLiteral("recommended")).toBool());
+        backend.check_section_capabilities(QStringLiteral("1"));
+        network->last()->fail(500);
+        QCOMPARE(caps.count(), 2);
+        QVERIFY(!caps.last().at(0).toMap().value(QStringLiteral("recommended")).toBool());
+    }
     void jellyfinFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<JellyfinBackend>("Jellyfin"); }
     void embyFailedPageLoadsAreLogged() { failedPageLoadsAreLogged<EmbyBackend>("Emby"); }
     // Plex's: an item, what is under it (a show's seasons, a season's
@@ -1958,18 +1977,16 @@ private slots:
         QCOMPARE(extras.count(), 2);
         QCOMPARE(extras.last().at(0).toList().size(), 1);
 
-        // Each library's menu is asked of the server in three requests.
+        // Each library's menu is asked of the server in one request.
         QSignalSpy menu(&backend, &PlexBackend::capabilitiesLoaded);
         backend.check_section_capabilities(QStringLiteral("1"));
-        const QList<Reply *> first = network->replies.mid(network->replies.size() - 3);
+        Reply *first = network->last();
         backend.check_section_capabilities(QStringLiteral("2"));
-        const QList<Reply *> second = network->replies.mid(network->replies.size() - 3);
-        for (Reply *reply : second)
-            reply->complete(plexContainer({}));
+        Reply *second = network->last();
+        second->complete(plexContainer({}));
         QCOMPARE(menu.count(), 1);
         QVERIFY(!menu.first().at(0).toMap().value(QStringLiteral("recommended")).toBool());
-        for (Reply *reply : first)
-            reply->complete(plexContainer({ { "Hub", QJsonArray{ QJsonObject{ { "title", "Recent" } } } } }));
+        first->complete(plexContainer({ { "Hub", QJsonArray{ QJsonObject{ { "title", "Recent" } } } } }));
         QCOMPARE(menu.count(), 1);
 
         QSignalSpy onDeck(&backend, &PlexBackend::inProgressEpisodeLoaded);

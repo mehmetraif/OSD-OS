@@ -1950,77 +1950,30 @@ void PlexBackend::load_folder(const QString &sectionId, const QString &folderKey
 }
 
 void PlexBackend::check_section_capabilities(const QString &sectionId) {
-    QString uri = serverUrl(), token = serverToken();
-
-    // The library asked about last is the one answered (m_capabilitiesRequest).
+    // Whether the section has hubs, which is all its menu (Library.qml) asks:
+    // the menu offers its other lists whatever they hold. The library asked
+    // about last is the one answered (m_capabilitiesRequest).
     const int request = ++m_capabilitiesRequest;
-    auto *caps = new QVariantMap{{"recommended",false},{"collections",false},{"playlists",false}};
-    auto *remaining = new int(3);
-    auto done = [this, request, caps, remaining]() {
-        (*remaining)--;
-        if (*remaining == 0) {
-            // Another library opened since: its menu is not this one's.
-            if (request == m_capabilitiesRequest)
-                emit capabilitiesLoaded(*caps);
-            delete caps;
-            delete remaining;
-        }
-    };
-    // Asked again with the token renewed, unless the library was left meanwhile.
-    auto again = [this, request, sectionId]() {
-        handle498([this, request, sectionId] {
-            if (request == m_capabilitiesRequest)
-                check_section_capabilities(sectionId);
-        });
-    };
-
-    // Hubs
-    QUrl hubsUrl(uri + "/hubs/sections/" + sectionId);
+    QUrl hubsUrl(serverUrl() + "/hubs/sections/" + sectionId);
     QUrlQuery hq; hq.addQueryItem("count","1"); hubsUrl.setQuery(hq);
-    auto *hubReply = plexGet(hubsUrl, token);
-    connect(hubReply, &QNetworkReply::finished, this, [hubReply, caps, done, again]() {
+    auto *hubReply = plexGet(hubsUrl, serverToken());
+    connect(hubReply, &QNetworkReply::finished, this, [this, hubReply, request, sectionId]() {
         hubReply->deleteLater();
+        bool recommended = false;
         if (hubReply->error() == QNetworkReply::NoError) {
             QJsonArray hubs = QJsonDocument::fromJson(hubReply->readAll())
                               .object()["MediaContainer"].toObject()["Hub"].toArray();
-            (*caps)["recommended"] = !hubs.isEmpty();
+            recommended = !hubs.isEmpty();
         } else if (hubReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            again();
+            // Asked again with the token renewed, unless the library was left meanwhile.
+            handle498([this, request, sectionId] {
+                if (request == m_capabilitiesRequest)
+                    check_section_capabilities(sectionId);
+            });
         }
-        done();
-    });
-
-    // Collections
-    QUrl collUrl(uri + "/library/sections/" + sectionId + "/collections");
-    QUrlQuery cq; cq.addQueryItem("X-Plex-Container-Size","0"); collUrl.setQuery(cq);
-    auto *collReply = plexGet(collUrl, token);
-    connect(collReply, &QNetworkReply::finished, this, [collReply, caps, done, again]() {
-        collReply->deleteLater();
-        if (collReply->error() == QNetworkReply::NoError) {
-            int total = QJsonDocument::fromJson(collReply->readAll())
-                        .object()["MediaContainer"].toObject()["totalSize"].toInt();
-            (*caps)["collections"] = total > 0;
-        } else if (collReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            again();
-        }
-        done();
-    });
-
-    // Playlists
-    QUrl plUrl(uri + "/playlists");
-    QUrlQuery pq; pq.addQueryItem("sectionID",sectionId); pq.addQueryItem("playlistType","video");
-    pq.addQueryItem("X-Plex-Container-Size","0"); plUrl.setQuery(pq);
-    auto *plReply = plexGet(plUrl, token);
-    connect(plReply, &QNetworkReply::finished, this, [plReply, caps, done, again]() {
-        plReply->deleteLater();
-        if (plReply->error() == QNetworkReply::NoError) {
-            int total = QJsonDocument::fromJson(plReply->readAll())
-                        .object()["MediaContainer"].toObject()["totalSize"].toInt();
-            (*caps)["playlists"] = total > 0;
-        } else if (plReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 498) {
-            again();
-        }
-        done();
+        // Another library opened since: its menu is not this one's.
+        if (request == m_capabilitiesRequest)
+            emit capabilitiesLoaded(QVariantMap{{"recommended", recommended}});
     });
 }
 
