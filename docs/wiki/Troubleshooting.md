@@ -450,7 +450,7 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | 1080p Playback (TV / Movie) | On a Raspberry Pi 3 |
 | Logo Image (TV / Movie) | Channel Logo isn't Off |
 | Orb Fog (Look → Effects) | The theme has the Arcade screen's Orb look |
-| Window Frame (Look) | OSD Background is Window |
+| OSD Frame (Look) | OSD Background is Box |
 | Text Effect, Background Effect, Screen Effect (Look → Effects) | The build has Qt Shader Tools and Qt draws on a GPU, not with its software renderer. Without them Transition lists no Ripple, Wave or Drop |
 | Selector Effect, and Fade and Cube (Look → Effects) | Always |
 | Display Output (Screen) | On the OSD/OS image, started by its service, on a Pi with more than one output |
@@ -460,7 +460,7 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | Wi-Fi (Network) | On Linux, in a build with Qt D-Bus, with NetworkManager running |
 | Bluetooth (Network) | On Linux, in a build with Qt D-Bus, with BlueZ running |
 | Network (the first screen) | Wi-Fi or Bluetooth can be used |
-| Startup From (Startup) | A favourite is set to Play at Startup |
+| Play From (Startup) | A favourite is set to Play at Startup |
 | Paste OSD/OS Setup (System) | There is a clipboard: on a computer, not on the image's console |
 
 A build without Qt Shader Tools says so when CMake configures it: `Qt Shader Tools not found — the shader effects will be unavailable` ([Building from source](https://github.com/mehmetraif/OSD-OS/wiki/Building-from-Source#qt-shader-tools)). More in [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects).

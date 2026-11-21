@@ -425,7 +425,7 @@ StandInRoot {
         function test_pages_data() {
             return [
                 { tag: "look", lines: ["Theme", "Color Scheme", "Skin", "Effects", "Menu Layout",
-                                       "OSD Background", "Window Frame", "Loading Effect", "Loading Colors", "Boot Colors",
+                                       "OSD Background", "OSD Frame", "Loading Effect", "Loading Colors", "Boot Colors",
                                        "Hint Bar", "Help Line",
                                        "Status Icons"] },
                 { tag: "effects", lines: ["Text Effect", "Background Effect", "Selector Effect", "Screen Effect",
@@ -434,8 +434,8 @@ StandInRoot {
                                          "Mouse Pointer", "Window Mode"] },
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
-                { tag: "startup", lines: ["Start On", "Play at Startup", "Startup From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard", "Export to OSD/OS Setup",
+                { tag: "startup", lines: ["Start On", "Play at Startup", "Play From", "Cabinet Lock"] },
+                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard Layout", "Export to OSD/OS Setup",
                                          "Paste OSD/OS Setup", "About", "# Modules", "Scripts", "Radio"] }
             ]
         }
@@ -451,20 +451,20 @@ StandInRoot {
         // help line says why. Its row set so, it is a row like the others.
         function test_dimmedRow() {
             var page = open({ group: "look" })
-            moveTo(page, "Window Frame")
-            var at = lines(page).indexOf("Window Frame")
-            compare(page.offReason(at), "Only with OSD Background on Window")
+            moveTo(page, "OSD Frame")
+            var at = lines(page).indexOf("OSD Frame")
+            compare(page.offReason(at), "Only with OSD Background on Box")
             var frame = menuRow(page, at)
             verify(frame.dimmed)
             verify(!frame.changes)
             var help = helpOf(page)
             verify(help.visible)
-            verify(help.text.indexOf("Only with OSD Background on Window") === 0, help.text)
+            verify(help.text.indexOf("Only with OSD Background on Box") === 0, help.text)
             keyClick(Qt.Key_Right)
             keyClick(Qt.Key_Left)
             keyClick(Qt.Key_Return)
             compare(appCore.values.osd_frame, undefined)
-            compare(row(page, "Window Frame").value, "On")
+            compare(row(page, "OSD Frame").value, "On")
             // OSD Background on Window: Window Frame's own.
             keyClick(Qt.Key_Up)
             compare(cursor(page), "OSD Background")
@@ -497,8 +497,8 @@ StandInRoot {
             compare(help.value, "None")
             verify(help.shownText.indexOf("[NONE] OSD/OS's own") > 0, help.shownText)
             // A dimmed row: why, first.
-            moveTo(page, "Window Frame")
-            compare(help.shownText, "Only with OSD Background on Window\nThe frame of the OSD Background's window\n[ON] A line in the color scheme's color")
+            moveTo(page, "OSD Frame")
+            compare(help.shownText, "Only with OSD Background on Box\nThe frame of the OSD Background's box\n[ON] A line in the color scheme's color")
             loader.source = ""
             // A key's bracket stays with the value's.
             page = open({ group: "tv" })
@@ -723,9 +723,9 @@ StandInRoot {
         function test_systemRows() {
             var page = open({ group: "system" })
             var tz = lines(page).indexOf("Time Zone")
-            compare(lines(page).slice(tz, tz + 2), ["Time Zone", "Keyboard"])
+            compare(lines(page).slice(tz, tz + 2), ["Time Zone", "Keyboard Layout"])
             compare(row(page, "Time Zone").value, "Europe/Istanbul")
-            compare(row(page, "Keyboard").value, "Turkish (Q)")
+            compare(row(page, "Keyboard Layout").value, "Turkish (Q)")
             // Off the image: dimmed, saying so and no more.
             compare(page.offReason(tz), "Only on the OSD/OS image")
             compare(page.offReason(tz + 1), "Only on the OSD/OS image")
@@ -788,7 +788,7 @@ StandInRoot {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             verify(picker.visible)
-            compare(picker.title, "Keyboard")
+            compare(picker.title, "Keyboard Layout")
             compare(picker.entries[picker.index].value, "tr")
             keyClick(Qt.Key_Right)
             compare(picker.entries[picker.index].value, "us")
@@ -2106,6 +2106,40 @@ StandInRoot {
                 keyClick(Qt.Key_Right)
                 compare(appCore.values.info_screen, "5")
             }
+            // "key" shown With ►, its help line's bracket the same; ► as
+            // the controller in use names it.
+            loader.source = ""
+            appCore.values = { info_screen: "key" }
+            page = open({ group: "tv" })
+            compare(row(page, "Info Screen").options[1], "With ►")
+            compare(row(page, "Info Screen").value, "With ►")
+            listOf(page).currentIndex = at
+            verify(helpOf(page).shownText.indexOf("[With ►] Only with right on a film") > 0, helpOf(page).shownText)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.info_screen, "1")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.info_screen, "key")
+        }
+
+        // OSD Background's Window shown as Box (saved as it was), OSD Frame
+        // going with it; Play From, Keyboard Layout by their new names.
+        function test_renamedRows() {
+            appCore.values = { osd_background: "Window" }
+            var page = open({ group: "look" })
+            compare(row(page, "OSD Background").options, ["Full", "Off", "Box"])
+            compare(row(page, "OSD Background").value, "Box")
+            compare(page.offReason(lines(page).indexOf("OSD Frame")), "")
+            moveTo(page, "OSD Background")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.osd_background, "Off")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.osd_background, "Window")
+            loader.source = ""
+            page = open({ group: "startup" })
+            verify(row(page, "Play From") !== undefined)
+            loader.source = ""
+            page = open({ group: "system" })
+            verify(row(page, "Keyboard Layout") !== undefined)
         }
 
         // Startup From, on Startup's page, is for a favourite that can be
@@ -2114,7 +2148,7 @@ StandInRoot {
         // dimmed, saying whose it is for, and ◄ ► leave it as it is.
         function test_startupFromRow() {
             var page = open({ group: "startup" })
-            var at = lines(page).indexOf("Startup From")
+            var at = lines(page).indexOf("Play From")
             compare(page.offReason(at), "Off while Play at Startup is None")
             var favorites = [{ module: "com.osdos.local_files", usable: true },
                              { module: "com.osdos.youtube", usable: true },
@@ -2126,7 +2160,7 @@ StandInRoot {
                 page = open({ group: "startup" })
                 compare(row(page, "Play at Startup").value, "Favourite")
                 compare(page.offReason(at), favorites[i].usable ? "" : "Only with a Local Files or YouTube favourite")
-                moveTo(page, "Startup From")
+                moveTo(page, "Play From")
                 compare(menuRow(page, at).dimmed, !favorites[i].usable)
                 keyClick(Qt.Key_Right)
                 compare(appCore.values.startup_from, favorites[i].usable ? "Beginning" : undefined)

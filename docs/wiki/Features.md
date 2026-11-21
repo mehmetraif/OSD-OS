@@ -34,7 +34,7 @@ OSD/OS has two sides, TV / Movie and Arcade, with the same controls, look and sy
 - **A remote, a keyboard or a gamepad**: the arrows, select and back on any of them. Settings → Controls sets each controller's buttons and labels and each player's pad, and learns unknown buttons ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)).
 - **A mouse pointer** that shows while the mouse moves and hides 5 seconds later (Settings → Screen → Mouse Pointer).
 - **Status icons** for Wi-Fi, Bluetooth and the arcade's HI, trophy, globe and network, turned off in Settings → Look → Status Icons ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#status-icons)).
-- **OSD Background** in Settings: Full, Off or Window, with Window Frame for the window ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
+- **OSD Background** in Settings: Full, Off or Box, with OSD Frame for the window ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings)).
 - **Themes** in Settings: the color scheme, the skin, the effects and the menu music at once. Nine come with it; a new one is a folder ([Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes)).
 - **Effects**, never over a video: text, background, selector and screen effects, and transitions between windows ([Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects)).
 - **Menu music** under the menus: the theme's, or your own recording, MIDI file or tracker module ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)).

@@ -165,22 +165,24 @@ function lookRows(items) {
         type: "list_single",
         key: "osd_background",
         label: "OSD Background",
-        options: ["Full", "Off", "Window"],
-        value: root.osdBackgroundOf(appSettings["osd_background"]),
-        description: "What the menus are drawn on\n[FULL] The color scheme's background, all over  [OFF] None, the menus on black like a deck's on-screen display  [WINDOW] A framed window of it behind the menus, black around it",
+        // Window shown as Box, saved as it was.
+        options: ["Full", "Off", "Box"],
+        values: ["Full", "Off", "Window"],
+        value: ({ Full: "Full", Off: "Off", Window: "Box" })[root.osdBackgroundOf(appSettings["osd_background"])],
+        description: "What the menus are drawn on\n[FULL] The color scheme's background, all over  [OFF] None, the menus on black like a deck's on-screen display  [BOX] A framed box of it behind the menus, black around it",
         moduleId: ""
     })
 
-    // Window Frame — the frame of OSD Background's window, for Window
+    // OSD Frame — the frame of OSD Background's box, for Box
     // alone (shownWith). Read in Main.qml, drawn by OsdGround.
     items.push({
         type: "list_single",
         key: "osd_frame",
-        label: "Window Frame",
+        label: "OSD Frame",
         options: ["On", "Off", "Shadow"],
         value: root.osdFrameOf(appSettings["osd_frame"]),
-        description: "The frame of the OSD Background's window\n[ON] A line in the color scheme's color  [OFF] None  [SHADOW] The line and a shadow below and to the right, like a DOS window's",
-        shownWith: { key: "osd_background", value: "Window" },
+        description: "The frame of the OSD Background's box\n[ON] A line in the color scheme's color  [OFF] None  [SHADOW] The line and a shadow below and to the right, like a DOS window's",
+        shownWith: { key: "osd_background", value: "Box" },
         moduleId: ""
     })
 
@@ -641,7 +643,7 @@ function startupRows(items) {
     items.push({
         type: "list_single",
         key: "startup_from",
-        label: "Startup From",
+        label: "Play From",
         options: ["Resume", "Beginning"],
         value: appSettings["startup_from"] === "Beginning" ? "Beginning" : "Resume",
         description: "Where the favourite played at startup begins, without asking\n[RESUME] Where it was stopped  [BEGINNING] From the start",
@@ -723,7 +725,7 @@ function systemRows(items) {
     items.push({
         type: "submenu",
         key: "keyboard",
-        label: "Keyboard",
+        label: "Keyboard Layout",
         value: !system ? "" : system.busy ? "Setting" : system.keyboardName !== "" ? system.keyboardName : "Not Set",
         description: "The keyboard's layout at Exit to Terminal, where a name and a password are typed: OSD/OS's own menus take any keyboard as it is",
         unavailable: systemOff,
@@ -902,7 +904,9 @@ function videoRows(items) {
     // once the cursor has rested on it that many seconds. One control, like
     // the screen saver's.
     var infoVals = ["off", "key", "1", "2", "3", "5"]
-    var infoOpts = ["Off", "Key", "1 sec", "2 sec", "3 sec", "5 sec"]
+    // With ►: ► as the controller in use names it (root.hints).
+    var withKey = "With " + String(root.hints.browse || "[►]").replace(/^\[|\]$/g, "")
+    var infoOpts = ["Off", withKey, "1 sec", "2 sec", "3 sec", "5 sec"]
     var infoIdx = infoVals.indexOf(appSettings["info_screen"] || "3")
     // Theirs alone: with none of the three turned on there is no tree
     // to show it in, and the row says so.
@@ -915,7 +919,7 @@ function videoRows(items) {
         options: infoOpts,
         values: infoVals,
         value: infoOpts[infoIdx < 0 ? infoVals.indexOf("3") : infoIdx],
-        description: "A film's details in Netflix, Prime Video and YouTube: with right on a film, and with a time also on its own once the cursor has rested on the film that long\n[KEY] Only with right on a film  [OFF] Never",
+        description: "A film's details in Netflix, Prime Video and YouTube: with right on a film, and with a time also on its own once the cursor has rested on the film that long\n[" + withKey + "] Only with right on a film  [OFF] Never",
         unavailable: infoRead ? "" : "Only with Netflix, Prime Video or YouTube enabled",
         moduleId: ""
     })

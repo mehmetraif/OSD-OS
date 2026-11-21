@@ -199,7 +199,7 @@ Select on a file puts it at the top of Recently Watched and plays it in mpv, ful
 | The file is playing behind the menus (Transparent Background) | It comes back full screen, without asking |
 | A playlist, with **Shuffle Playback** on **Always** | Shuffled, from the start |
 | A single still image | Shown at once |
-| The favourite played at startup | No question: **Startup From** decides |
+| The favourite played at startup | No question: **Play From** decides |
 | A saved position, **Resume Playback** on **Ask** | **Resume playback?** `Resume from 1:23` / `Start from the beginning`. A playlist: `Resume video 3 at 1:23`, plus `Shuffle` when Shuffle Playback is Ask (then **Start playback?**) |
 | A saved position, **Resume Playback** on **Always** | Resumes at once. A playlist with Shuffle Playback on Ask still asks: `Resume video 3 at 1:23` / `Shuffle` |
 | No saved position (or **Resume Playback** on **Never**), a playlist, Shuffle Playback on **Ask** | **Start playback?** `Play in order` / `Shuffle` |

@@ -169,7 +169,7 @@ Select **Search**, type on the on-screen keyboard and choose OK. The results are
 A video's info screen shows its title, channel, date and description, then CHANNEL, DATE, LENGTH and VIEWS.
 
 - It opens with ► on a video, or by itself once the cursor rests on one.
-- **Settings → TV / Movie → Info Screen** sets when: after 1, 2, 3 (the default) or 5 seconds, **Key** for ► only, or **Off**.
+- **Settings → TV / Movie → Info Screen** sets when: after 1, 2, 3 (the default) or 5 seconds, **With ►** for ► only, or **Off**.
 - Length and views take a few seconds on a Pi.
 - Select plays. ▲ ▼ close it and move through the list. ◄ or back closes it. ► offers the options.
 
@@ -299,7 +299,7 @@ Settings → TV / Movie → **YouTube**:
 | Delete Recently Watched | Select | | Asks first, then deletes `youtube_history.json`: Recently Watched and every resume point. | |
 | Sign Out | Select | | Asks first, then deletes the sign-in's browser profile. Dimmed while signed out; does nothing while the browser is open. | |
 
-App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Startup From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
+App [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings) that act on YouTube: **Info Screen** (`app.info_screen`: `off`, `key`, `1`, `2`, `3`, `5`), **Play at Startup** (`app.startup_favorite`), **Play From** (`app.startup_from`), **Scaling** (`app.video_scaling`) and **Transparent Background**.
 
 ## Files and config keys
 

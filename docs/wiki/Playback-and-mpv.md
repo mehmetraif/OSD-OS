@@ -295,7 +295,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 <img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/resume.png" width="100%" alt="Resume: pick up where you left off, or start from the beginning" />
 
 - A module's Resume Playback is **Ask**, **Always** or **Never**.
-- A favourite played at startup never asks: it starts where Settings → Startup → Startup From says.
+- A favourite played at startup never asks: it starts where Settings → Startup → Play From says.
 - The point reaches mpv as `--start=<seconds>`, for the first video only: a looped video or the next in a playlist starts from the beginning.
 
 ## The loading screen

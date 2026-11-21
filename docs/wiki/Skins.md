@@ -5,8 +5,8 @@ A skin gives the shapes of the window's frame, the title bar, the hint bar and t
 ## What a skin dresses
 
 <table>
-<tr><th width="50%">Skin: DOS, Window Frame: Shadow</th><th width="50%">Skin: Rounded</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-dos.png" width="100%" alt="Skin: DOS, Window Frame: Shadow" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-rounded.png" width="100%" alt="Skin: Rounded" /></td></tr>
+<tr><th width="50%">Skin: DOS, OSD Frame: Shadow</th><th width="50%">Skin: Rounded</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-dos.png" width="100%" alt="Skin: DOS, OSD Frame: Shadow" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-rounded.png" width="100%" alt="Skin: Rounded" /></td></tr>
 </table>
 
 <table>
@@ -16,7 +16,7 @@ A skin gives the shapes of the window's frame, the title bar, the hint bar and t
 
 | Part | Key | Where it shows | Without the skin's picture |
 |---|---|---|---|
-| The window's frame | `window` | With Settings → Look → OSD Background: Window, and Window Frame On or Shadow. Drawn over the whole window | A line an art pixel wide round the window |
+| The window's frame | `window` | With Settings → Look → OSD Background: Box, and OSD Frame On or Shadow. Drawn over the whole window | A line an art pixel wide round the window |
 | The title bar | `titleBar` | At the top of every screen, behind the title | A solid bar |
 | The hint bar | `hintBar` | At the foot of every screen and dialog, unless Settings → Look → Hint Bar is Off | A solid bar |
 | The selected line | `selection` | Every selected line: the menus, the tree's cursor, a question's answers | A solid bar |
@@ -271,7 +271,7 @@ It prints each picture and its size (`hintbar.png: 8x7`). It stops at a drawing 
 
 4. **Draw it**: change the drawings in `make-pictures.py` and run it, or edit the PNGs in a pixel editor.
 
-5. **Choose it**: open Settings again and set **Skin** to My Skin. For the frame, set **OSD Background** to Window and **Window Frame** to On or Shadow.
+5. **Choose it**: open Settings again and set **Skin** to My Skin. For the frame, set **OSD Background** to Box and **OSD Frame** to On or Shadow.
 
 6. **See a change**: choosing the skin again reads `skin.json` again. A picture changed under the same file name shows after a restart (Settings → Quit), or under a new file name.
 
@@ -361,7 +361,7 @@ Where to read the log: [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes
 | What you see | Why | What to do |
 |---|---|---|
 | The skin isn't in Settings → Look → Skin | Settings was open when the folder was made. Or `skin.json` isn't JSON (logged), is misnamed, or isn't in the data folder's `skins` | Open Settings again. Fix the JSON |
-| No frame round the window | OSD Background isn't Window, or Window Frame is Off. Or the skin has no `window`, or its picture couldn't be used (logged) | Settings → Look → OSD Background: Window, Window Frame: On or Shadow |
+| No frame round the window | OSD Background isn't Box, or OSD Frame is Off. Or the skin has no `window`, or its picture couldn't be used (logged) | Settings → Look → OSD Background: Box, OSD Frame: On or Shadow |
 | A pattern along an edge is uneven | `"stretch"` stretches an edge as a whole | `"tile": "repeat"` or `"round"` |
 | The whole picture is stretched, corners and all | `border` is missing, not a whole number, or not one number or four | Give a whole number, or four |
 | An icon doesn't change | Its name isn't the one OSD/OS looks for (a module's is its folder's name: `local_files`). Or the file couldn't be used (logged) | Check the [names](#icons) |
@@ -369,5 +369,5 @@ Where to read the log: [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes
 ## See also
 
 - [Themes](https://github.com/mehmetraif/OSD-OS/wiki/Themes) and [Effects](https://github.com/mehmetraif/OSD-OS/wiki/Effects): the rest of the look
-- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look): Skin, OSD Background and Window Frame
+- [Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#look): Skin, OSD Background and OSD Frame
 - [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files): the data folder and its `skins`

@@ -280,11 +280,11 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `color_scheme`, `skin`, `text_effect`, `background_effect`, `selector_effect`, `screen_effect`, `transition`, `menu_music` | The theme's parts | string: `""` for THEME, `"Off"`, or a name (`skin` takes a folder name) |
 | `menu_music_file` | Music File | string: a full path, `""` for none |
 | `menu_music_volume` | Music Volume | number, 0 to 100 |
-| `osd_background`, `osd_frame` | OSD Background, Window Frame | string |
+| `osd_background`, `osd_frame` | OSD Background, OSD Frame | string |
 | `menu_layout` | Menu Layout | string: `"Standard"`, `"Camcorder"`, `"Studio Monitor"`, `"Broadcast"`, `"Flat Panel"` |
 | `startup_module` | Start On | string: a module id, or `"None"` |
 | `startup_favorite` | Play at Startup | object `{ "module", "path", "name" }`, or `""` |
-| `startup_from` | Startup From | string: `"Resume"` or `"Beginning"` |
+| `startup_from` | Play From | string: `"Resume"` or `"Beginning"` |
 | `cabinet_lock` | Cabinet Lock | string: `"On"` or `"Off"` |
 | `unlock_buttons` | Cabinet Lock → Unlock Buttons | array of one to four `{ "input", "name" }`. `input`: a pad's button by its player (`"p1/start"`, `"p2/dpup"`), or a key by its Qt key code (`"key/49"` for 1). `name`: what the page shows (`"P1 START"`) |
 | `monitor` | Monitor | string: `"Horizontal"`, `"Turned Right"`, `"Turned Left"` |
@@ -350,7 +350,7 @@ When each part is read:
 | What | When it is read |
 |---|---|
 | The look, Hint Bar, Help Line, Mouse Pointer, Window Mode, Screen Saver, Audio Output, Controls, Cabinet Lock, the modules' folders | At start, then at each change made in Settings |
-| `display_index`, Start On, Play at Startup, Startup From | At start |
+| `display_index`, Start On, Play at Startup, Play From | At start |
 | Scaling, Video Levels, Channel Logo, Logo Image, Screen Saver's script, 1080p Playback, `mpv_video_args`, Transparent Background on or off | As each video starts; Scaling and Video Levels also at once on a video playing behind the menus |
 | A module's other settings | When the module needs them: most as a video starts or a list opens |
 

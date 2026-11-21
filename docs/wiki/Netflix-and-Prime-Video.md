@@ -93,7 +93,7 @@ A list shows 20 titles, the most popular first, with **More…** for the next pa
 
 ### Info screens
 
-The info screen opens with ► on a title, or by itself once the cursor rests on one. **Settings → TV / Movie → Info Screen** sets when: after 1, 2, 3 or 5 seconds, **Key** for ► only, or **Off**.
+The info screen opens with ► on a title, or by itself once the cursor rests on one. **Settings → TV / Movie → Info Screen** sets when: after 1, 2, 3 or 5 seconds, **With ►** for ► only, or **Off**.
 
 - It shows the title, year and length (or seasons), the story, then GENRE, DIRECTOR or CREATOR, CAST and RATING (TMDB's average out of 10).
 - Select plays. ▲ ▼ close it and move through the list. ◄ or back closes it. ► offers the options.

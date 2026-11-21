@@ -152,7 +152,7 @@ In Netflix, Prime Video and YouTube a title has an info screen: a **PLAY ►** b
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
-| Info Screen (Settings → TV / Movie) | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | **Key**: with ► on a title (or play/pause, I, or a remote's Info key). **1–5 sec**: also by itself, once the cursor has rested on a title that long. **Off**: none; ► gives the options | `app.info_screen` (`off`, `key`, `1`, `2`, `3`, `5`) |
+| Info Screen (Settings → TV / Movie) | Off, With ►, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | **With ►**: with ► on a title (or play/pause, I, or a remote's Info key). **1–5 sec**: also by itself, once the cursor has rested on a title that long. **Off**: none; ► gives the options | `app.info_screen` (`off`, `key`, `1`, `2`, `3`, `5`) |
 
 ## Options
 
@@ -182,7 +182,7 @@ Favorites and Recently Watched are each module's own lists, kept in `lists.json`
 | Setting (Settings → Startup) | Values | Default | What it does | Config key |
 |---|---|---|---|---|
 | Play at Startup | None, or the favourite's name | None | Shows the favourite; here it can only be turned off | `app.startup_favorite` (`{ "module", "path", "name" }`, or `""`) |
-| Startup From | Resume, Beginning | Resume | Where it begins. Dimmed without a favourite | `app.startup_from` |
+| Play From | Resume, Beginning | Resume | Where it begins. Dimmed without a favourite | `app.startup_from` |
 | Start On | None, or a module that is on | None | Opens that module instead of the main menu. The favourite goes first | `app.startup_module` (a module id, such as `com.osdos.youtube`) |
 
 ## Playing a video
@@ -287,7 +287,7 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 - **Stopping it.** Play/pause on the main menu stops it (`[SPACE]:STOP` in the hint bar).
 - **It also ends** when its playlist has played out, when you play anything else, and when you turn the setting off.
 - It ends too when something else takes the screen: a script, an Arcade game, Netflix or Prime Video's browser.
-- **With OSD Background on Window**, only the window lies over the video.
+- **With OSD Background on Box**, only the window lies over the video.
 - The effects and the menu music rest while a video plays behind the menus. The screen saver comes over the menus as usual, and the video plays on under it.
 
 | Setting | Values | Default | What it does | Config key |
@@ -362,7 +362,7 @@ Back on the main menu opens Settings. A line has its value between the arrows th
 
 - ▲ ▼ move, round from the bottom to the top. ◄ ► change the value, saved at once.
 - Select, or ►, opens a line that ends in ►. Select turns a slider on or off.
-- Nothing is hidden: a line that can't be used is dimmed, and the help line says why (`Only with OSD Background on Window`).
+- Nothing is hidden: a line that can't be used is dimmed, and the help line says why (`Only with OSD Background on Box`).
 - The first screen has a line for each page, then Quit: **TV / Movie**, **Arcade**, **Look**, **Screen**, **Sound**, **Controls**, **Network**, **Startup** and **System**.
 - Look → **Menu Layout** offers Standard, Camcorder, Studio Monitor, Broadcast and Flat Panel. In Broadcast and Flat Panel a value changes in two steps: select, ▲ ▼, then select to save or back to leave it. The layout stays on the pages opened from Settings and inside the modules.
 

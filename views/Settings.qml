@@ -1028,7 +1028,7 @@ FocusScope {
             // A card not yet given a zone is on Etc/UTC, the list's UTC.
             systemPicker.open(system.timeZone === "Etc/UTC" ? "UTC" : system.timeZone)
         } else {
-            systemPicker.title = "Keyboard"
+            systemPicker.title = "Keyboard Layout"
             systemPicker.message = "The keyboard's layout at Exit to Terminal"
             systemPicker.groupName = "LETTER"
             systemPicker.entries = system.keyboards.map(function(k) {

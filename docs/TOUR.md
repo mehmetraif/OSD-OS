@@ -238,7 +238,7 @@ Settings → Arcade → **LAN Play** and **Online Play**: up to six players acro
 
 <table>
 <tr><th width="50%">Dimmed rows</th><th width="50%">Look</th></tr>
-<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with dimmed rows, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, OSD Background, Window Frame, Boot Colors" /></td></tr>
+<tr><td><img src="screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with dimmed rows, the help line saying why" /></td><td><img src="screenshots/settings-look.png" width="100%" alt="Settings → Look: Theme, Color Scheme, Skin, Effects, OSD Background, OSD Frame, Boot Colors" /></td></tr>
 <tr><td>A row that can't be used here is dimmed, never hidden, and the help line says why.</td><td>The whole look at once with Theme, or each part on its own row.</td></tr>
 </table>
 
@@ -273,8 +273,8 @@ Settings → Look → Menu Layout draws Settings and the main menu as a list (ab
 #### The look and the screen
 
 <table>
-<tr><th width="50%">OSD Background: Window</th><th width="50%">OSD Background: Off</th></tr>
-<tr><td><img src="screenshots/osd-window.png" width="100%" alt="OSD Background: Window" /></td><td><img src="screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td></tr>
+<tr><th width="50%">OSD Background: Box</th><th width="50%">OSD Background: Off</th></tr>
+<tr><td><img src="screenshots/osd-window.png" width="100%" alt="OSD Background: Box" /></td><td><img src="screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td></tr>
 <tr><td>The menus in a framed window of the color scheme's background, black around it. Over a video behind the menus, the picture shows whole around the window.</td><td>No background: the menus on black, like a deck's on-screen display with nothing playing, in the scheme's lighter color.</td></tr>
 </table>
 
@@ -365,7 +365,7 @@ Settings → Look → Theme sets the whole look at once: the color scheme, the s
 </table>
 
 <table>
-<tr><th width="50%">Skin: DOS, Window Frame: Shadow</th><th width="50%">Skin: Rounded</th></tr>
-<tr><td><img src="screenshots/skin-dos.png" width="100%" alt="Skin: DOS, Window Frame: Shadow" /></td><td><img src="screenshots/skin-rounded.png" width="100%" alt="Skin: Rounded" /></td></tr>
-<tr><td>A skin dresses the window, apart from the color scheme: DOS gives it a double line. Window Frame, offered with OSD Background's Window, adds a DOS window's shadow, a half tone of the window's color (over a video, it darkens the picture), or takes the frame away.</td><td>Rounded rounds the window's corners and the ends of its bars and of the selected line. A skin gives the shapes, and can draw icons of its own; the color scheme still gives the colors.</td></tr>
+<tr><th width="50%">Skin: DOS, OSD Frame: Shadow</th><th width="50%">Skin: Rounded</th></tr>
+<tr><td><img src="screenshots/skin-dos.png" width="100%" alt="Skin: DOS, OSD Frame: Shadow" /></td><td><img src="screenshots/skin-rounded.png" width="100%" alt="Skin: Rounded" /></td></tr>
+<tr><td>A skin dresses the window, apart from the color scheme: DOS gives it a double line. OSD Frame, offered with OSD Background's Box, adds a DOS window's shadow, a half tone of the window's color (over a video, it darkens the picture), or takes the frame away.</td><td>Rounded rounds the window's corners and the ends of its bars and of the selected line. A skin gives the shapes, and can draw icons of its own; the color scheme still gives the colors.</td></tr>
 </table>

@@ -112,7 +112,7 @@ Each is a folder in [assets/themes](https://github.com/mehmetraif/OSD-OS/tree/ma
 
 ### Theme and the rows under it
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, WINDOW FRAME dimmed, BOOT COLORS THEME" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, OSD FRAME dimmed, BOOT COLORS THEME" />
 
 **Theme** lists None (the default) and every theme by name. It is saved as `app.osd_theme`: the theme's folder name, `""` for None.
 
@@ -354,7 +354,7 @@ In `theme.json`, 28 characters at most:
 
 ### 4. Choose it
 
-Open Settings and set **Theme** to My Theme. To see the skin's window frame, set **OSD Background** to Window and **Window Frame** to On or Shadow.
+Open Settings and set **Theme** to My Theme. To see the skin's window frame, set **OSD Background** to Box and **OSD Frame** to On or Shadow.
 
 The template's text numbers (`shimmer`, `glow`) don't show, because its screen shader doesn't draw them. Take its `screen` line out to see them.
 
@@ -486,7 +486,7 @@ More: [Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configurat
 | The theme isn't in Settings → Look → Theme | Settings was open when the folder was made. Or `theme.json` isn't JSON (logged), is misnamed, or isn't in the data folder's `themes`. Or it holds only window pictures and is under Skin | Open Settings again. Fix the JSON: a trailing comma is the usual cause |
 | Video 1's colours instead of its own | Color Scheme isn't THEME. Or `colors` isn't two `#rrggbb` (logged) or names no scheme: a typo, or a custom scheme added without a restart | Choose the theme again. Check the spelling |
 | One part doesn't show | Its row isn't THEME. A name is misspelt (not logged). A file is out of the folder or of the wrong type (logged) | Check the row, the spelling, the log |
-| No window frame | OSD Background isn't Window, or Window Frame is Off | Settings → Look → OSD Background: Window, Window Frame: On or Shadow |
+| No window frame | OSD Background isn't Box, or OSD Frame is Off | Settings → Look → OSD Background: Box, OSD Frame: On or Shadow |
 | Text, Background and Screen Effect are dimmed; no Ripple, Wave or Drop | No Qt Shader Tools in this build, or Qt draws without a GPU | [Above](#theme-and-the-rows-under-it) |
 | The menus vanish with a theme's screen shader; the log has `Failed to build graphics pipeline state` (after `No GLSL shader code found` with OpenGL) | The `.qsb` lacks the variant for this graphics API: OpenGL on the Pi and Linux, Metal on a Mac | Take the theme out ([below](#getting-back-from-a-theme-that-hides-the-menus)), then compile with the full command |
 | No music | Menu Music isn't THEME, the theme has none, or it couldn't play | The `[MenuMusic]` line in the log |

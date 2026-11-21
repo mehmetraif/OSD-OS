@@ -23,7 +23,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 - The hint bar names only the keys the selected row takes: **OPEN** on a row ending in ►, **CHANGE** on a list, **ON/OFF** where select turns a slider on or off, **ON/OFF** and **SETTINGS** on a module's row, and only back on a dimmed row.
 - No row is hidden. One that can't be used is dimmed, and its help line starts with why; a page opens on its first row that can be used. The first screen's Network row is dimmed where neither Wi-Fi nor Bluetooth can be used (a Mac, Windows) ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#rows-dimmed-in-settings)).
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with Window Frame selected and dimmed rows for Orb Fog and Window Frame, the help line starting: Only with OSD Background on Window" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-dimmed.png" width="100%" alt="Settings → Look with OSD Frame selected and dimmed rows for Orb Fog and OSD Frame, the help line starting: Only with OSD Background on Box" />
 
 ## TV / Movie
 
@@ -33,7 +33,7 @@ Back on the main menu opens Settings (`[ESC]:SETTINGS` in the hint bar), and so 
 |---|---|---|---|---|
 | Scaling | Letterbox, 14:9, Pan & Scan, Anamorphic | Letterbox | How a 16:9 picture fills a 4:3 screen, in every module whose own Scaling is Default. **Letterbox**: bars above and below. **14:9**: thinner bars, the sides cut a little. **Pan & Scan**: no bars, the sides cut. **Anamorphic**: squeezed, for a TV set to 16:9. CROP in the deck menu changes it during a video | `app.video_scaling` |
 | Transparent Background | Off, or a slider from TRANSPARENT to SOLID, 0 to 100 in steps of 10 | Off | Plays the video inside OSD/OS's own window: back returns to the menus with the picture behind them, and the main menu's first row returns to the video. The slider sets how solid the menus are; at SOLID the picture is hidden but plays on. Select turns it on (at 40) or off. Needs libmpv | `app.transparent_background`: a number from 0 to 100, or `"Off"` |
-| Info Screen | Off, Key, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **Key**: with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
+| Info Screen | Off, With ►, 1 sec, 2 sec, 3 sec, 5 sec | 3 sec | A film's details in Netflix, Prime Video and YouTube. **With ►** (saved as `key`): with ► on a film. **A number**: also by itself once the cursor has rested that long. **Off**: ► offers the film's options instead. Dimmed while none of the three is turned on | `app.info_screen`: `off`, `key`, `1`, `2`, `3` or `5` |
 | Video Levels | Auto, Limited, Full | Auto | The colour range mpv sends: **Limited** if blacks look crushed, **Full** if they look grey | `app.video_output_levels` |
 | 1080p Playback | On, Off | On | Raspberry Pi 3 only. **On**: smooth 1080p; 14:9 and Pan & Scan show the whole picture, and the deck menu has no CROP. **Off**: cropping works, 1080p stutters | `app.smooth_playback` |
 | Channel Logo | Off, Top Left, Top Right, Bottom Left, Bottom Right, All Corners | Off | A logo in a corner of the picture while a video plays | `app.video_logo`: `off`, `tl`, `tr`, `bl`, `br` or `all` |
@@ -68,7 +68,7 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 
 `SETTINGS | LOOK`. A theme sets the part rows: Color Scheme, Skin, the effects and Menu Music.
 
-<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, WINDOW FRAME dimmed, BOOT COLORS THEME" />
+<img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/settings-look.png" width="100%" alt="Settings → Look: THEME NONE, ORB FOG dimmed, COLOR SCHEME VIDEO 1, SKIN NONE, EFFECTS, OSD BACKGROUND FULL, OSD FRAME dimmed, BOOT COLORS THEME" />
 
 - **THEME** in a part row (saved as `""`) means the theme's. **Off** (saved as `"Off"`) means none. A choice of its own (saved by its name) replaces the theme's.
 - Choosing a theme sets every part row back to THEME.
@@ -82,8 +82,8 @@ Under **MODULES** is a row for each module of the TV / Movie group (`"settings_g
 | Skin | THEME (with a theme), None, DOS, Rounded, and those in the data folder's `skins` | THEME; without a theme, None | The shapes of the window's frame, bars and selected line, and its icons ([Skins](https://github.com/mehmetraif/OSD-OS/wiki/Skins)) | `app.skin`: the skin's folder name (`dos`, `rounded`), `"Off"` for None, `""` for THEME |
 | Effects | A page | | [Below](#effects) | |
 | Menu Layout | Standard, Camcorder, Studio Monitor, Broadcast, Flat Panel | Standard | How the menus are laid out: Settings, the main menu and the pages and modules opened from them ([below](#menu-layout)) | `app.menu_layout` |
-| OSD Background | Full, Off, Window | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Window**: a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
-| Window Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Window | `app.osd_frame` |
+| OSD Background | Full, Off, Box | Full | What the menus are drawn on. **Full**: the scheme's background over the whole screen. **Off**: black, the menus in the scheme's lighter colour. **Box** (saved as `Window`): a framed window of the scheme's background, black or a playing video around it | `app.osd_background` |
+| OSD Frame | On, Off, Shadow | On | The window's frame: a line (or the skin's frame), none, or the line with a shadow at the right and the foot. Only with OSD Background on Box | `app.osd_frame` |
 | Loading Effect | On, Off | On | A tape's noise and tracking bands on the loading screen | `app.loading_effect` |
 | Loading Colors | Menu, Blue | Menu | The loading screen in the menus' colors, a theme's or the color scheme's, or white on blue | `app.loading_colors`: `Theme` (Menu) or `Default` (Blue) |
 | Boot Colors | Menu, Blue | Menu | The OSD/OS image's boot screen in the menus' colors, a theme's or the color scheme's, or white on blue. Dimmed elsewhere: only the image has a boot screen | `app.boot_colors`: `Theme` (Menu) or `Default` (Blue) |
@@ -159,11 +159,11 @@ The eight colour schemes, by their two colours (`primary` on `surface`):
 
 Your own come from two files in the data folder: `custom_color_schemes.json` adds any number by name, and `custom_color_scheme.json` adds one called **Custom** ([Configuration files](https://github.com/mehmetraif/OSD-OS/wiki/Configuration-Files#custom-color-schemes)).
 
-### OSD Background and Window Frame
+### OSD Background and OSD Frame
 
 <table>
-<tr><th width="33%">OSD Background: Window</th><th width="33%">OSD Background: Off</th><th width="33%">Window Frame: Shadow</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/osd-window.png" width="100%" alt="OSD Background: Window" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-dos.png" width="100%" alt="Skin: DOS, Window Frame: Shadow" /></td></tr>
+<tr><th width="33%">OSD Background: Box</th><th width="33%">OSD Background: Off</th><th width="33%">OSD Frame: Shadow</th></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/osd-window.png" width="100%" alt="OSD Background: Box" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/osd-off.png" width="100%" alt="OSD Background: Off" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/skin-dos.png" width="100%" alt="Skin: DOS, OSD Frame: Shadow" /></td></tr>
 <tr><td>A framed window of the scheme's background, black around it.</td><td>The menus on black, in the scheme's lighter colour.</td><td>Skin DOS gives the frame a double line; Shadow adds a shadow.</td></tr>
 </table>
 
@@ -332,7 +332,7 @@ Problems are in [Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Trou
 |---|---|---|---|---|
 | Start On | None, then each module that is turned on, by name | None | Opens that module straight after start. A module turned off later is never opened | `app.startup_module`: the module's id, such as `com.osdos.local_files`; `"None"` |
 | Play at Startup | None, or the name of the favourite chosen | None | A favourite played straight after start, ahead of Start On. Choose it in its module (► on the entry, then **Play at Startup**); here you can only turn it off | `app.startup_favorite`: `{ "module", "path", "name" }`, or `""` for None |
-| Startup From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite of Local Files' or YouTube's, whose players resume | `app.startup_from` |
+| Play From | Resume, Beginning | Resume | Where that favourite begins, without asking. Only with a Play at Startup favourite of Local Files' or YouTube's, whose players resume | `app.startup_from` |
 | Cabinet Lock | A page: On, Off | Off | Keeps OSD/OS on Start On's module ([below](#cabinet-lock)) | `app.cabinet_lock`: `"On"` or `"Off"`; the buttons `app.unlock_buttons` |
 
 The Scripts module's **Auto-Run On Startup** needs Start On set to Scripts ([Scripts](https://github.com/mehmetraif/OSD-OS/wiki/Scripts)).
@@ -373,7 +373,7 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 | Update | A page | | Checks for a newer release, downloads it and installs it | None |
 | System Information | A page; its value the device's name | | The device's name on the network, which it renames, then its model, OS, memory, storage, temperature and network addresses | None: the device's name is the system's hostname |
 | Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image (from a launcher at level 10); elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
-| Keyboard | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
+| Keyboard Layout | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
 | Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
 | About | A page | | What OSD/OS is made of and its licenses | None |
