@@ -367,6 +367,7 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 ### The local network
 
 - The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`.
+- **A cable and Wi-Fi both up**: each answers only for its own address (`/etc/sysctl.d/90-osdos-arp.conf`: `net.ipv4.conf.all.arp_ignore = 1`, `arp_announce = 2`), so another machine sends a game meant for the cable over the cable, not to the Pi's Wi-Fi. `ip neigh show <the Pi's cable address>` on another Linux machine (`arp -a` on Windows) shows the cable's MAC address, as `ip -br link` on the Pi names it.
 - Settings → System → System Information renames the device. Give each OSD/OS on one network its own name.
 - Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
 

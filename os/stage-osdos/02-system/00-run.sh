@@ -37,6 +37,10 @@ install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
 # Wi-Fi sends from its video queue (the file says why; nftables reads it).
 install -m 644 files/osdos-netplay-priority.nft "${LIB}/netplay-priority.nft"
 install -m 644 files/osdos-netplay-priority.service "${ETC}/systemd/system/"
+# With a cable and Wi-Fi both up, each interface answers only for its own
+# address, so that a game meant for the cable never comes over Wi-Fi
+# (osdos-arp.conf says why).
+install -D -m 644 files/osdos-arp.conf "${ETC}/sysctl.d/90-osdos-arp.conf"
 
 # OSD/OS Setup: the settings made on its page, from osdos-setup.json on the
 # boot partition, applied once as the card starts: OSD/OS's own before the
