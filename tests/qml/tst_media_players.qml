@@ -1442,9 +1442,10 @@ StandInRoot {
             compare(backend.stops, stops + 4)
         }
 
-        // The subtitle mpv is started on, direct-played: one in the file
-        // itself is numbered as mpv numbers it, the file's own first and
-        // sidecars after, whatever the server lists before it. Plex loads
+        // The subtitle mpv is started on, direct-played: OFF is none at all
+        // (-2), and one in the file itself is numbered as mpv numbers it, the
+        // file's own first and sidecars after, whatever the server lists
+        // before it. Plex loads
         // every sidecar, Jellyfin and Emby the one chosen only.
         function test_subtitleTrackAsMpvNumbersIt_data() {
             var plexSubs = [{ id: "0", displayTitle: "OFF" },
@@ -1458,7 +1459,8 @@ StandInRoot {
                               { id: "3", displayTitle: "English PGS" },
                               { id: "4", displayTitle: "French PGS" }]
             var plexFiles = ["http://plex/s/21.srt", "http://plex/s/23.srt"]
-            return [{ tag: "plex first in the file", module: "plex", subs: plexSubs, sel: "22", track: 1, files: plexFiles },
+            return [{ tag: "plex off", module: "plex", subs: plexSubs, sel: "0", track: -2, files: plexFiles },
+                    { tag: "plex first in the file", module: "plex", subs: plexSubs, sel: "22", track: 1, files: plexFiles },
                     { tag: "plex second in the file", module: "plex", subs: plexSubs, sel: "24", track: 2, files: plexFiles },
                     { tag: "plex sidecar", module: "plex", subs: plexSubs, sel: "23", track: 0,
                       files: ["http://plex/s/23.srt", "http://plex/s/21.srt"] },
@@ -1481,6 +1483,16 @@ StandInRoot {
             compare(mpvController.loads, 1)
             compare(mpvController.subTracks[0], data.track)
             compare(mpvController.subFiles[0], data.files)
+        }
+
+        // A Plex transcode's subtitle is burnt into the picture: mpv shows
+        // none of its own (-2).
+        function test_plexTranscodeShowsNoSubtitleTrack() {
+            open("plex", "Player.qml", { streamUrl: "http://plex/transcode/10.m3u8", plexToken: "token",
+                                         ratingKey: "10", partKey: "/library/parts/10", title: "Episode 1",
+                                         isTranscoding: true })
+            compare(mpvController.loads, 1)
+            compare(mpvController.subTracks[0], -2)
         }
 
         // The view's on-screen keyboard.

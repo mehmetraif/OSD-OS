@@ -202,7 +202,9 @@ FocusScope {
         }
         var subTrack
         if (subtitleIdx === 0)
-            subTrack = -1
+            // OFF: none shown (--sid=no). The sidecars are loaded all the same,
+            // for mpv's own subtitle cycle to reach.
+            subTrack = -2
         else if (selectedSubUrl)
             subTrack = 0
         else {
@@ -226,8 +228,9 @@ FocusScope {
         if (isTranscoding) {
             // Transcode covers the full timeline (requested at offset 0), so seek mpv
             // to the resume point. This keeps everything before offsetMs seekable, so
-            // the user can rewind past the resume point.
-            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0, 0, -1, [], [], false, -1, 0.0, plexToken)
+            // the user can rewind past the resume point. Its subtitle, if any, is
+            // burnt into the picture: no track for mpv to show (-2, --sid=no).
+            mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0, 0, -2, [], [], false, -1, 0.0, plexToken)
         } else {
             var sub = buildSubArgs()
             mpvController.loadAndPlay(streamUrl, offsetMs / 1000.0,
