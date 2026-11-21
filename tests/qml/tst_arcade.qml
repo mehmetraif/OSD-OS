@@ -1453,7 +1453,11 @@ StandInRoot {
             compare(page.keys, ["source", "download", "games", "achievements", "snaps"])
             compare(page.currentKey, "download")
             verify(findText(page, "45/120") !== null)
-            verify(findText(page, "No Web API Key") !== null)
+            // Short enough beside its label in Camcorder (about 24 letters
+            // in all), the help line saying which key.
+            verify(findText(page, "No Key", true) !== null)
+            verify(page.labelOf("achievements").length + page.valueOf("achievements").length <= 24)
+            verify(page.descriptionOf("achievements").indexOf("No Web API key: none is set in Settings → Arcade → RetroAchievements Account") === 0)
             // Unset, the default's name; its help line the first sentence
             // and the bracket of the value on the row.
             compare(page.labelOf("source"), "Source")
@@ -1490,7 +1494,9 @@ StandInRoot {
                                           writable: true }
             arcadeBackend.gamesChanged()
             tryVerify(function() { return findText(page, "117/120") !== null }, 1000)
-            verify(findText(page, "Key Refused") !== null)
+            verify(findText(page, "Refused", true) !== null)
+            verify(page.labelOf("achievements").length + page.valueOf("achievements").length <= 24)
+            verify(page.descriptionOf("achievements").indexOf("Web API key refused") === 0)
             verify(findText(page, "Off") !== null)
             compare(root.backs, 0)
             keyClick(Qt.Key_Escape)

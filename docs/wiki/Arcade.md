@@ -245,7 +245,7 @@ A game's pictures are, in this order:
 - With more than one, the Arcade screen shows the next every 4 seconds.
 - Without any, the frame says `No Picture` and the file it would be, with `No Web API Key` or `Web API Key Refused` where that is why.
 
-**Settings → Arcade → Game Pictures** opens on **Source**, which sets where pictures are downloaded from: **Both** (the default: RetroAchievements, then progetto-SNAPS for the games still without a picture), **RetroAchievements**, **progetto-SNAPS**, or **Off**. Under it is **Download Pictures**, the cursor on it, then how many games have a picture.
+**Settings → Arcade → Game Pictures** opens on **Source**, which sets where pictures are downloaded from: **Both** (the default: RetroAchievements, then progetto-SNAPS for the games still without a picture), **RetroAchievements**, **progetto-SNAPS**, or **Off**. Under it is **Download Pictures**, the cursor on it, then how many games have a picture, and whether each source is in use: **RetroAchievements** reads `No Key` without a Web API key and `Refused` when RetroAchievements turned the key down, its help line saying which.
 
 #### Pictures from RetroAchievements
 

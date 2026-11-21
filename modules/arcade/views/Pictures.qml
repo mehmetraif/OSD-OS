@@ -96,9 +96,11 @@ KeyedPage {
     function valueOf(key) {
         switch (key) {
         case "games": return info.games > 0 ? info.withPictures + "/" + info.games : "None"
+        // Short enough beside RetroAchievements in Camcorder; the help line
+        // says which key.
         case "achievements":
-            return !info.achievements ? "Off" : info.key === "none" ? "No Web API Key"
-                 : info.key === "refused" ? "Key Refused" : "On"
+            return !info.achievements ? "Off" : info.key === "none" ? "No Key"
+                 : info.key === "refused" ? "Refused" : "On"
         case "snaps": return info.snaps ? "On" : "Off"
         case "download": return progressValue()
         }
@@ -126,7 +128,10 @@ KeyedPage {
             return info.writable === false ? "The games folder's snap folder can't be written: no picture can be downloaded into it"
                  : "The games with a picture of any kind: snap/<set>.png, those numbered after the set, titles/<set>.png, or MAME's own snapshot"
         case "achievements":
-            return "Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with the Web API key of Settings → Arcade → RetroAchievements Account • Source, above, says whether it is used"
+            return (info.achievements && info.key === "none" ? "No Web API key: none is set in Settings → Arcade → RetroAchievements Account • "
+                    : info.achievements && info.key === "refused" ? "Web API key refused: RetroAchievements turned down the one in Settings → Arcade → RetroAchievements Account • "
+                    : "")
+                   + "Its title screen, a screenshot in play and its box art, of the games RetroAchievements has, with the Web API key of Settings → Arcade → RetroAchievements Account • Source, above, says whether it is used"
         case "snaps":
             return "A screenshot in play and the title screen of nearly every MAME game, from progetto-SNAPS through ArcadeDB (adb.arcadeitalia.net), for the games still without a picture • Source, above, says whether it is used"
         case "download":
