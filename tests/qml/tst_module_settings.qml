@@ -1120,6 +1120,38 @@ StandInRoot {
             compare(cursor(page), "video")
         }
 
+        // A slider dimmed (shown_with, as the Arcade's Info Background is in
+        // the Orb look) shows no bar and leaves no empty lines for it: the
+        // next row is right under its line, and its bar's lines open once
+        // it can be used.
+        function test_sliderDimmedTakesNoRoom() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "ground", label: "Info Background", type: "slider", default: 100, step: 10,
+                  start_text: "TRANSPARENT", end_text: "SOLID", shown_with: { key: "enabled", value: "ON" } },
+                { key: "video", label: "Video", type: "list_single", options: ["Auto", "OpenGL"], default: "Auto" }
+            ]
+            var page = open()
+            var list = null
+            for (var i = 0; i < page.children.length; i++) {
+                if (page.children[i].shownHeight !== undefined)
+                    list = page.children[i]
+            }
+            verify(list !== null)
+            var gap = function() {
+                list.forceLayout()
+                return list.itemAtIndex(2).y - list.itemAtIndex(1).y
+            }
+            verify(!!page.schemaItems[1]._off)
+            compare(gap(), root.menuRowHeight)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.enabled, true)
+            verify(!page.schemaItems[1]._off)
+            verify(gap() > root.menuRowHeight, "the bar's lines: " + gap())
+            keyClick(Qt.Key_Left)
+            compare(gap(), root.menuRowHeight)
+        }
+
         // A slider's steps are its value at once, on the page and in the
         // settings, but config.json isn't written at each: they are held
         // (save_setting_soon()) and written once, as the page is left; a

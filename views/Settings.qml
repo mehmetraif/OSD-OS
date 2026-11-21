@@ -661,8 +661,13 @@ FocusScope {
         function toggleSlider() {
             var row = settingsItems[currentIndex]
             var on = !row.on
-            if (settingsRoot.save(row, on ? row.value : row.offValue))
-                replaceCurrentRow(Object.assign({}, row, { on: on }))
+            if (!settingsRoot.save(row, on ? row.value : row.offValue))
+                return
+            replaceCurrentRow(Object.assign({}, row, { on: on }))
+            // Its bar's lines come and go with it (SettingRow): the rows
+            // under it laid out again, and the bar brought into view.
+            forceLayout()
+            show(currentIndex)
         }
 
         // A list row's choice, one step back (-1) or on (1), saved and shown;
@@ -848,7 +853,7 @@ FocusScope {
         // A line that leads to a page ends in a ►; a list's choice, which
         // ◄ ► change, stands between a ◄ and a ►. A slider's setting is the
         // deck's tape bar under its line, ◄ ► moving the ▼ between the two
-        // ends; off, or dimmed, its lines stay, empty. In a monitor layout
+        // ends; off, or dimmed, it is its line alone. In a monitor layout
         // a slider is its line alone, its value a number (shownValue()).
         delegate: SettingRow {
             id: rowItem

@@ -165,7 +165,9 @@ StandInRoot {
         // A Raspberry Pi 3's decode profile, whose smooth 1080p can't crop.
         property bool pi3: false
         function hasSmoothPlaybackTradeoff() { return pi3 }
-        function embeddedAvailable() { return true }
+        // libmpv there, for Transparent Background.
+        property bool embedded: true
+        function embeddedAvailable() { return embedded }
     }
     // DisplayOutput as the page uses it: a Pi 4's outputs while available,
     // the one in force and the one written for the next start, and what
@@ -339,6 +341,7 @@ StandInRoot {
             displayOutput.asked = []
             root.transitionPresets = ["Fade"]
             mpvController.pi3 = false
+            mpvController.embedded = true
             root.theme = {}
             root.unusableTransitions = []
             audioOutput.available = false
@@ -635,11 +638,19 @@ StandInRoot {
             compare(page.offReason(all.indexOf("Menu Music")), "")
             compare(page.offReason(all.indexOf("Music File")), "Only with Menu Music on File")
             compare(page.offReason(all.indexOf("Music Volume")), "Off while Menu Music is Off")
+            // Dimmed, its line alone: no bar, and no empty lines for one.
+            var list = listOf(page)
+            var volumeHeight = function() {
+                list.forceLayout()
+                return list.itemAtIndex(all.indexOf("Music Volume")).height
+            }
+            compare(volumeHeight(), root.menuRowHeight)
             moveTo(page, "Menu Music")
             keyClick(Qt.Key_Right)
             compare(appCore.values.menu_music, "File")
             compare(page.offReason(all.indexOf("Music File")), "")
             compare(page.offReason(all.indexOf("Music Volume")), "")
+            verify(volumeHeight() > root.menuRowHeight, "its bar's lines")
         }
 
         // A slider's steps (Music Volume) are its value at once, on the row
@@ -950,6 +961,55 @@ StandInRoot {
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Right)
             compare(appCore.values.transparent_background, 40)
+        }
+
+        // A slider's bar takes its lines under the row only while it is
+        // shown: Transparent Background off, or dimmed without libmpv, is its
+        // line alone, Info Screen right under it, in every Menu Layout; on,
+        // its bar's lines open under it (but in a monitor layout, where a
+        // slider is always its line alone), and close again as it goes off.
+        function test_sliderOffTakesNoRoom_data() {
+            var rows = []
+            for (var layout of ["Standard", "Camcorder", "Studio Monitor", "Broadcast", "Flat Panel"]) {
+                rows.push({ tag: layout + " off", layout: layout, embedded: true })
+                rows.push({ tag: layout + " dimmed", layout: layout, embedded: false })
+            }
+            return rows
+        }
+        function test_sliderOffTakesNoRoom(data) {
+            root.menuLayout = data.layout
+            mpvController.embedded = data.embedded
+            var page = open({ group: "tv" })
+            var list = listOf(page)
+            var at = lines(page).indexOf("Transparent Background")
+            compare(lines(page)[at + 1], "Info Screen")
+            compare(page.offReason(at) !== "", !data.embedded)
+            var gap = function() {
+                list.forceLayout()
+                return list.itemAtIndex(at + 1).y - list.itemAtIndex(at).y
+            }
+            compare(gap(), root.menuRowHeight)
+            compare(list.itemAtIndex(at).height, root.menuRowHeight)
+            // On and off again, the cursor kept on its row; in Broadcast
+            // and Flat Panel, which change a value in two steps, it stays one
+            // line either way.
+            verify(!page.inIcons())
+            if (!data.embedded || root.twoStep)
+                return
+            moveTo(page, "Transparent Background")
+            keyClick(Qt.Key_Right)
+            compare(row(page, "Transparent Background").on, true)
+            compare(cursor(page), "Transparent Background")
+            var monitor = root.monitorFramed === true
+            if (monitor)
+                compare(gap(), root.menuRowHeight)
+            else
+                verify(gap() > root.menuRowHeight, "the bar's lines under it: " + gap())
+            var bar = list.itemAtIndex(at)
+            verify(bar.y + bar.height <= list.contentY + list.height + 1, "the bar in view")
+            keyClick(Qt.Key_Return)
+            compare(row(page, "Transparent Background").on, false)
+            compare(gap(), root.menuRowHeight)
         }
 
         // A module's row (TV / Movie's, System's) says whether the module is
