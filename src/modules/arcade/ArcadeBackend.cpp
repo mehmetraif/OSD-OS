@@ -379,6 +379,9 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                               || exitCode == kDeviceError || exitCode == kNoSuchSystem
                               || exitCode == kInvalidConfig));
         }
+        // What the system did for the game put back, and said should the Pi
+        // have run short of power or slowed down meanwhile.
+        notice = GameSystem::joined(notice, m_gameSystem->ended());
         if (!notice.isEmpty())
             qWarning("[Arcade] %s: %s", qPrintable(m_playing), qPrintable(notice));
         if (!refused && !m_playing.isEmpty())
@@ -394,7 +397,6 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
         m_lan->stopClaims();
         m_lan->releaseClaimed();
         m_playing.clear();
-        m_gameSystem->ended();
         emit finished(exitCode, reason, notice);
         resumeMame();
     });

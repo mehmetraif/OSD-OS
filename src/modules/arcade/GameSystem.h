@@ -1,6 +1,7 @@
 #pragma once
 #include <QByteArray>
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 class AppCore;
@@ -13,6 +14,11 @@ class QLocalSocket;
 // system's own timers wait on. The connection is held for the whole game:
 // should the app die or its service stop mid-game, the helper sees it close
 // and puts everything back all the same.
+//
+// The helper also reads what the Pi did meanwhile (its clock, its
+// temperature, its throttling, and in a network game on Wi-Fi the radio's
+// scans), which ended() logs as one line, "arcade: system during the game:
+// ...", and of which it returns what is worth a sentence on screen.
 //
 // ArcadeBackend calls started() once RetroArch or MAME is running and
 // ended() when it has ended; everywhere else (a computer, a Pi without the
@@ -31,8 +37,19 @@ public:
 
     // A game has started; network: it plays over the network.
     void started(bool network);
-    // The game has ended: everything the helper changed put back.
-    void ended();
+    // The game has ended: everything the helper changed put back, and what
+    // the Pi did during it logged. Returns a sentence for the player when
+    // the Pi ran short of power or slowed itself down during it, the first
+    // time each is so this run; else "".
+    QString ended();
+
+    // The sentence for the helper's notice= flags ("power", "throttled",
+    // "power,throttled"; "" for "none").
+    static QString noticeFor(const QString &flags);
+    // notice and more, one after the other.
+    static QString joined(const QString &notice, const QString &more);
+    // How long ended() waits for the helper's line.
+    static constexpr int kEndWaitMs = 1500;
 
     // The setting as saved, On by default.
     bool fullSpeedWanted() const;
@@ -40,10 +57,15 @@ public:
 private:
     void close();
     void readAnswer();
+    QString noticeOnce(const QString &flags);
 
     AppCore *m_appCore = nullptr;
     QLocalSocket *m_socket = nullptr;
     QByteArray m_reply;
     // The helper's answer to the game's start was logged.
     bool m_startLogged = false;
+    // Why the helper couldn't be asked, for the line at the end.
+    QString m_why;
+    // The sentences already said this run.
+    QSet<QString> m_told;
 };

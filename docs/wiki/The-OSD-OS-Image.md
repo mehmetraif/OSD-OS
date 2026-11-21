@@ -509,11 +509,19 @@ While a game of the Arcade module plays in RetroArch or MAME, OSD/OS holds a con
 
 - **The CPU at full speed.** Each CPU frequency policy's governor is set to `performance`, and the one it had is kept in `/run/osdos-game/governors`. An emulator's load sits where the default governor moves the clock up and down, and a frame late on one machine is a wait or a rollback for all of them in a network game. The Arcade module's setting `cpu_full_speed`, `"Off"` in `config.json` (`modules.com.osdos.arcade`), turns it off. A Pi already at 75 °C or more, or throttled by its firmware as the game starts, keeps its governor, since the clock at full speed only brings its throttling sooner: the journal and OSD/OS's log say why (`CPU governor for the game kept at …`).
 - **The flag** `/run/osdos-game/playing`, there for the length of the game, which the system's own jobs can wait on.
+- **What the Pi did during the game**, read every two seconds from the kernel's files (the CPU's temperature, its clock, and the firmware's throttling bits; every ten seconds through `vcgencmd` on a kernel without `get_throttled`), and in a network game on Wi-Fi the radio's scans and roams (`iw event`) with the band and the signal at the start and the end (`iw dev wlan0 link`). At the game's end OSD/OS's log has one line of it:
+
+  ```
+  arcade: system during the game: governor performance, clock 1800 MHz, throttling none, highest 61.2 °C, Wi-Fi wlan0 5 GHz (5180 MHz), signal -58 dBm at the start, -61 dBm at the end, 0 scans, 0 roams, roamoff 1
+  ```
+
+  The throttling is what the firmware saw during the game: under-voltage, the clock capped, throttled, the soft temperature limit. When the Pi ran short of power or slowed itself down during a game, the screen after it says so, the first time each happens after OSD/OS starts. The radio's firmware may also scan by itself without telling the kernel, which the count can't see.
 - **Everything put back** as the game ends, and also when OSD/OS's connection closes without its end (the app gone), when the request's unit is stopped (a shutdown), and when `osdos.service` stops (its `ExecStopPost`, `osdos-stop`, puts back what a helper killed outright left).
 
 ```sh
 cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor   # performance during a game
 journalctl -u 'osdos-game@*' -b                              # what each game's request did
+journalctl -u osdos -b | grep 'arcade: system during the game'  # what the Pi did in each game
 ```
 
 ### Exit to Terminal

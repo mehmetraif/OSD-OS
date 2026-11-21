@@ -35,7 +35,9 @@ awk -v marker=STOP_HELPER '
                       -e "s#^GAME_FLAG=/run/osdos-game/playing\$#GAME_FLAG=$T/run/osdos-game/playing#" \
                       -e "s#^CPUFREQ=/sys/devices/system/cpu/cpufreq\$#CPUFREQ=$T/cpufreq#" \
                       -e "s#^THERMAL=/sys/class/thermal\$#THERMAL=$T/thermal#" \
-                      -e "s#^FIRMWARE=/sys/devices/platform\$#FIRMWARE=$T/platform#" > "$T/osdos-stop"
+                      -e "s#^FIRMWARE=/sys/devices/platform\$#FIRMWARE=$T/platform#" \
+                      -e "s#^NET=/sys/class/net\$#NET=$T/net#" \
+                      -e "s#^MODULES=/sys/module\$#MODULES=$T/module#" > "$T/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/iso3166.tab" "$T/osdos-stop" || { echo "FAIL: osdos-stop's list of countries not found in $INSTALL_SH"; exit 1; }
 grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts not found in $INSTALL_SH"; exit 1; }
@@ -44,7 +46,7 @@ grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboa
 grep -q "^SHADOW=$T/etc/shadow\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/shadow not found in $INSTALL_SH"; exit 1; }
 # systemctl names the app's service's user as app-user has it, and fails a
 # command while <command>-fails is there (enable-fails, start-fails, ...).
-for v in GAME_RUN GAME_FLAG CPUFREQ THERMAL FIRMWARE; do
+for v in GAME_RUN GAME_FLAG CPUFREQ THERMAL FIRMWARE NET MODULES; do
     grep -q "^$v=$T/" "$T/osdos-stop" || { echo "FAIL: osdos-stop's $v not found in $INSTALL_SH"; exit 1; }
 done
 printf '#!/bin/sh\necho "$*" >> "%s/systemctl"\n[ "$1" != show ] || cat "%s/app-user" 2> /dev/null\n[ ! -e "%s/$1-fails" ]\n' \
@@ -598,6 +600,116 @@ for bad in 'start' 'start fast' 'start full-speed wifi' 'start full-speed networ
     check "game: '$bad': no flag" down "$(playing)"
 done
 check "game: nothing sent" "nothing asked" "$(PATH="$T/bin:$PATH" "$T/osdos-stop" game < /dev/null 2> /dev/null)"
+
+# What the Pi did during a game, said at its end: the governor, the clock,
+# the throttling bits the game saw or set, the highest temperature, and in a
+# network game the route's interface, and on Wi-Fi its band, its signal at
+# the start and the end and the radio's scans and roams (stand-ins for ip
+# and iw: the route, the link and the radio's events as they print them).
+told()   { sed -n 2p "$T/game-out"; }
+journal() { tail -n1 "$T/stderr"; }
+echo 1800000 > "$T/cpufreq/policy0/scaling_cur_freq"
+mkdir -p "$T/net/eth0" "$T/net/wlan0/wireless" "$T/module/brcmfmac/parameters"
+echo 1 > "$T/module/brcmfmac/parameters/roamoff"
+printf '#!/bin/sh\ncat "%s/route"\n' "$T" > "$T/bin/ip"
+# iw dev wlan0 link: the link as iw prints it; iw event -t: the radio's
+# events, then on until it is stopped.
+cat > "$T/bin/iw" << EOF
+#!/bin/sh
+case "\$1" in
+    dev) cat "$T/iw-link" ;;
+    event) cat "$T/iw-events"; exec sleep 60 ;;
+esac
+EOF
+chmod +x "$T/bin/ip" "$T/bin/iw"
+link() {  # frequency, signal
+    printf 'Connected to 02:00:00:00:00:01 (on wlan0)\n\tSSID: home\n\tfreq: %s\n\tRX: 1 bytes (1 packets)\n\tsignal: %s dBm\n' \
+        "$1" "$2" > "$T/iw-link"
+}
+
+pi_is ondemand 52000 0
+game_start 'start full-speed' > /dev/null
+echo 63400 > "$T/thermal/thermal_zone0/temp"
+sleep 2.5
+echo 1500000 > "$T/cpufreq/policy0/scaling_cur_freq"
+echo 58000 > "$T/thermal/thermal_zone0/temp"
+game_end
+check "game: its end says what the Pi did" \
+      "notice=none governor performance, clock 1500-1800 MHz, throttling none, highest 63.4 °C" "$(told)"
+check "game: ...and so does the journal" \
+      "osdos-stop game: the game ended, the system as it was: governor performance, clock 1500-1800 MHz, throttling none, highest 63.4 °C" \
+      "$(journal)"
+echo 1800000 > "$T/cpufreq/policy0/scaling_cur_freq"
+
+# Throttled or short of power since the game began: by the firmware's bits
+# since boot that the game set.
+pi_is ondemand 50000 0
+game_start 'start full-speed' > /dev/null
+echo 50000 > "$T/platform/soc/soc:firmware/get_throttled"
+game_end
+check "game: short of power and throttled during it" \
+      "notice=power,throttled governor performance, clock 1800 MHz, throttling 0x5 (under-voltage, throttled), highest 50.0 °C" \
+      "$(told)"
+# Set before the game: not the game's.
+game_start 'start full-speed' > /dev/null
+game_end
+check "game: what was there before it isn't the game's" "notice=none" "$(told | cut -d' ' -f1)"
+pi_is ondemand 50000 0
+game_start 'start full-speed' > /dev/null
+echo 20002 > "$T/platform/soc/soc:firmware/get_throttled"
+game_end
+check "game: the clock capped is throttling" "notice=throttled" "$(told | cut -d' ' -f1)"
+pi_is ondemand 50000 0
+game_start 'start as-is' > /dev/null
+echo 10001 > "$T/platform/soc/soc:firmware/get_throttled"
+game_end
+check "game: short of power only" \
+      "notice=power governor ondemand, clock 1800 MHz, throttling 0x1 (under-voltage), highest 50.0 °C" "$(told)"
+
+# A network game over Wi-Fi.
+pi_is ondemand 50000 0
+echo "default via 192.168.1.1 dev wlan0 proto dhcp src 192.168.1.20 metric 600" > "$T/route"
+link 5180.0 -58
+printf '%s\n' "1700000000.100000: wlan0 (phy #0): scan started" \
+    "1700000000.200000: wlan0 (phy #0): scan finished: 5180 5200, \"\"" \
+    "1700000030.100000: wlan0 (phy #0): scan started" \
+    "1700000031.100000: wlan0 (phy #0): roamed to 02:00:00:00:00:02" \
+    "1700000040.100000: wlan1 (phy #1): scan started" > "$T/iw-events"
+game_start 'start full-speed network' > /dev/null
+sleep 0.3
+link 5180.0 -61
+game_end
+check "game: a network game over Wi-Fi: its band, signal, scans and roams" \
+      "notice=none governor performance, clock 1800 MHz, throttling none, highest 50.0 °C, Wi-Fi wlan0 5 GHz (5180 MHz), signal -58 dBm at the start, -61 dBm at the end, 2 scans, 1 roams, roamoff 1" \
+      "$(told)"
+link 2437 -70
+: > "$T/iw-events"
+game_start 'start full-speed network' > /dev/null
+: > "$T/iw-link"
+game_end
+check "game: on 2.4 GHz, and gone at the end" \
+      "Wi-Fi wlan0 2.4 GHz (2437 MHz), signal -70 dBm at the start, not connected at the end, 0 scans, 0 roams, roamoff 1" \
+      "$(told | sed 's/.*°C, //')"
+# Over a cable, or without a route, there is no Wi-Fi to count.
+echo "default via 192.168.1.1 dev eth0 proto dhcp src 192.168.1.21 metric 100" > "$T/route"
+game_start 'start full-speed network' > /dev/null
+game_end
+check "game: a network game over a cable" "network over eth0" "$(told | sed 's/.*°C, //')"
+: > "$T/route"
+game_start 'start full-speed network' > /dev/null
+game_end
+check "game: a network game without a route" "network: no default route" "$(told | sed 's/.*°C, //')"
+# A game alone says nothing of the network.
+game_start 'start full-speed' > /dev/null
+game_end
+check "game: a game alone says nothing of the network" "highest 50.0 °C" "$(told | sed 's/.*, //')"
+# The connection closed (the app gone): the journal has it, nobody else.
+game_start 'start full-speed' > /dev/null
+game_close
+check "game: closed, nothing more on the connection" "" "$(told)"
+check "game: ...the journal has it" \
+      "osdos-stop game: the game ended, the system as it was: governor performance, clock 1800 MHz, throttling none, highest 50.0 °C" \
+      "$(journal)"
 
 # Neither a stop from outside nor a crash touches anything.
 for code in 143 1 SEGV; do

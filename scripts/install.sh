@@ -831,12 +831,21 @@ system_setting() {
 # (Settings turned that off), "network" after either for a network game.
 # Answered "ok" and the governor the game plays under, the flag the system's
 # timers look for (GAME_FLAG) is up, and the old governors are kept in
-# GAME_RUN. "end" from the app, its connection closing (the app gone), this
+# GAME_RUN. Meanwhile, every two seconds, the Pi's temperature, clock and
+# throttling are read, and in a network game over Wi-Fi the radio's scans
+# and roams counted (iw event). "end" from the app is answered with one line
+# of what the Pi did during the game ("notice=" what is worth saying on
+# screen, none, power, throttled or power,throttled, then the rest), which
+# the journal has too. "end", the connection closing (the app gone), this
 # unit stopped, or the app's service stopped (osdos-stop's ExecStopPost
 # below) puts everything back and takes the flag down.
 GAME_RUN=/run/osdos-game
 GAME_FLAG=/run/osdos-game/playing
 CPUFREQ=/sys/devices/system/cpu/cpufreq
+THERMAL=/sys/class/thermal
+FIRMWARE=/sys/devices/platform
+NET=/sys/class/net
+MODULES=/sys/module
 # Hotter than this at the start (millidegrees Celsius), a Pi keeps its
 # governor: performance would only bring the firmware's throttling at 80 °C
 # (85 °C on a Pi 5) sooner.
@@ -858,8 +867,87 @@ game_undo() {
     rm -rf "${GAME_RUN:?}"
 }
 
+# Where the Pi's numbers are, found once: GAME_ZONE, the CPU's thermal zone,
+# and GAME_THROTTLE_FILE, the firmware's get_throttled (gone from kernel
+# 6.12 on, where vcgencmd asks the firmware instead).
+game_find() {
+    local zone file
+    GAME_ZONE=""
+    for zone in "$THERMAL"/thermal_zone*; do
+        [ "$(cat "$zone/type" 2> /dev/null)" = cpu-thermal ] && { GAME_ZONE=$zone; break; }
+    done
+    GAME_THROTTLE_FILE=""
+    for file in "$FIRMWARE"/soc*/*firmware/get_throttled; do
+        [ -r "$file" ] && { GAME_THROTTLE_FILE=$file; break; }
+    done
+    GAME_VCGENCMD=""
+    command -v vcgencmd > /dev/null && GAME_VCGENCMD=1
+}
+# What the Pi is at: GAME_TEMP (millidegrees, "" without a CPU thermal
+# zone), GAME_CLOCK (kHz, "" without CPU frequency scaling) and, with
+# "throttling", GAME_THROTTLED, the firmware's get_throttled bits (0 where
+# it can't be asked). Files are read by the shell itself: no program is
+# started for them, every two seconds through the game.
+game_look() {
+    local value
+    GAME_TEMP=""
+    [ -n "$GAME_ZONE" ] && read -r GAME_TEMP 2> /dev/null < "$GAME_ZONE/temp"
+    [[ "$GAME_TEMP" =~ ^[0-9]+$ ]] || GAME_TEMP=""
+    GAME_CLOCK=""
+    read -r GAME_CLOCK 2> /dev/null < "$CPUFREQ/policy0/scaling_cur_freq"
+    [[ "$GAME_CLOCK" =~ ^[0-9]+$ ]] || GAME_CLOCK=""
+    [ "${1:-}" = throttling ] || return 0
+    GAME_THROTTLED=0
+    if [ -n "$GAME_THROTTLE_FILE" ]; then
+        read -r value 2> /dev/null < "$GAME_THROTTLE_FILE"
+    elif [ -n "$GAME_VCGENCMD" ]; then
+        value=$(vcgencmd get_throttled 2> /dev/null)
+        value=${value#throttled=0x}
+    fi
+    [[ "${value:-}" =~ ^[0-9a-fA-F]+$ ]] && GAME_THROTTLED=$((16#$value))
+    return 0
+}
+# The highest temperature, the clock's lowest and highest, and the
+# throttling bits seen now (0 to 3) during the game, from one look.
+game_note() {
+    [ -n "$GAME_TEMP" ] && { [ -z "$TEMP_MAX" ] || [ "$GAME_TEMP" -gt "$TEMP_MAX" ]; } && TEMP_MAX=$GAME_TEMP
+    if [ -n "$GAME_CLOCK" ]; then
+        { [ -z "$CLOCK_MIN" ] || [ "$GAME_CLOCK" -lt "$CLOCK_MIN" ]; } && CLOCK_MIN=$GAME_CLOCK
+        { [ -z "$CLOCK_MAX" ] || [ "$GAME_CLOCK" -gt "$CLOCK_MAX" ]; } && CLOCK_MAX=$GAME_CLOCK
+    fi
+    [ "${1:-}" = throttling ] && SEEN=$((SEEN | (GAME_THROTTLED & 0xf)))
+    return 0
+}
+game_degrees() {
+    printf '%d.%d °C' $(($1 / 1000)) $((($1 % 1000) / 100))
+}
+# get_throttled's bits by name: under-voltage, the clock capped, throttled,
+# the soft temperature limit.
+game_bits() {
+    local names=""
+    (($1 & 1)) && names+=", under-voltage"
+    (($1 & 2)) && names+=", clock capped"
+    (($1 & 4)) && names+=", throttled"
+    (($1 & 8)) && names+=", soft temperature limit"
+    printf '0x%x (%s)' "$1" "${names#, }"
+}
+# The Wi-Fi link: "<frequency in MHz> <signal in dBm>" as iw has it, or "".
+game_link() {
+    iw dev "$1" link 2> /dev/null | awk '
+        $1 == "freq:"   { f = int($2) }
+        $1 == "signal:" { s = $2 }
+        END { if (f != "") print f, s }'
+}
+game_band() {
+    if [ "$1" -lt 3000 ]; then echo 2.4 GHz
+    elif [ "$1" -lt 5925 ]; then echo 5 GHz
+    else echo 6 GHz; fi
+}
+
 game() {
-    local line want words word network="" policy now kept=""
+    local line want words word network="" policy now kept="" governor
+    local dev="" link_start="" link_end="" iw_pid="" scans roams roamoff wifi="" during
+    local TEMP_MAX="" CLOCK_MIN="" CLOCK_MAX="" SEEN=0 start_bits end_bits samples=0 flags summary
     IFS= read -r -t 5 -n 64 line || [ -n "$line" ] || { refuse "nothing asked"; return; }
     read -r -a words <<< "$line"
     [ "${words[0]:-}" = start ] || { refuse "nothing this does"; return; }
@@ -874,7 +962,9 @@ game() {
     [ -d "$GAME_RUN" ] && game_undo
     mkdir -p "$GAME_RUN" && : > "$GAME_FLAG" || { refuse "$GAME_RUN couldn't be written"; return; }
     trap 'game_undo; exit 0' TERM INT HUP
-    game_look
+    game_find
+    game_look throttling
+    start_bits=$GAME_THROTTLED
     now=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
     if [ -z "$now" ]; then
         kept="no CPU frequency scaling"
@@ -892,54 +982,101 @@ game() {
                 || echo "osdos-stop game: ${policy##*/} couldn't be set to performance" >&2
         done
     fi
-    GAME_GOVERNOR=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
+    governor=$(cat "$CPUFREQ/policy0/scaling_governor" 2> /dev/null)
     if [ -n "$kept" ]; then
         echo "osdos-stop game: the governor kept at $kept" >&2
         echo "ok kept $kept"
     else
-        echo "ok ${GAME_GOVERNOR:-performance}"
+        echo "ok ${governor:-performance}"
     fi
-    # Then the game, until "end" or the connection's end (read fails).
+    # A network game: the interface of the default route, and on Wi-Fi its
+    # link and the radio's events, to count the scans and roams it makes
+    # mid-game (those its firmware makes by itself, without telling the
+    # kernel, can't be seen this way).
+    if [ -n "$network" ]; then
+        dev=$(ip -o -4 route show default 2> /dev/null | awk '{ for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+        if [ -z "$dev" ]; then
+            wifi="network: no default route"
+        elif [ ! -d "$NET/$dev/wireless" ]; then
+            wifi="network over $dev"
+        elif ! command -v iw > /dev/null; then
+            wifi="Wi-Fi $dev not measured (no iw)"
+        else
+            link_start=$(game_link "$dev")
+            iw event -t < /dev/null > "$GAME_RUN/wifi-events" 2> /dev/null &
+            iw_pid=$!
+        fi
+    fi
+    game_look
+    game_note
+    # Then the game, until "end" or the connection's end (read fails), the
+    # Pi looked at every two seconds; the throttling every ten where only
+    # vcgencmd can say it.
     while :; do
         if IFS= read -r -t 2 -n 64 line; then
             [ "$line" = end ] && break
         elif [ $? -le 128 ]; then
+            line=""
             break
+        else
+            samples=$((samples + 1))
+            if [ -n "$GAME_THROTTLE_FILE" ] || [ $((samples % 5)) -eq 0 ]; then
+                game_look throttling
+                game_note throttling
+            else
+                game_look
+                game_note
+            fi
         fi
     done
+    game_look throttling
+    game_note throttling
+    end_bits=$GAME_THROTTLED
+    # What happened during the game: the bits seen now, and the "since
+    # boot" bits (16 to 19) the game set.
+    during=$((SEEN | (((end_bits & ~start_bits) >> 16) & 0xf)))
+    if [ -n "$iw_pid" ]; then
+        kill "$iw_pid" 2> /dev/null
+        wait "$iw_pid" 2> /dev/null
+        link_end=$(game_link "$dev")
+        scans=$(grep -c "^[0-9.]*: $dev (.*): scan started" "$GAME_RUN/wifi-events")
+        roams=$(grep -ci "^[0-9.]*: $dev (.*): .*roam" "$GAME_RUN/wifi-events")
+        roamoff=$(cat "$MODULES/brcmfmac/parameters/roamoff" 2> /dev/null)
+        if [ -n "$link_start" ]; then
+            wifi="Wi-Fi $dev $(game_band "${link_start%% *}") (${link_start%% *} MHz), signal ${link_start#* } dBm at the start"
+            if [ -n "$link_end" ]; then
+                wifi+=", ${link_end#* } dBm at the end"
+            else
+                wifi+=", not connected at the end"
+            fi
+        else
+            wifi="Wi-Fi $dev not connected at the start"
+        fi
+        wifi+=", $scans scans, $roams roams${roamoff:+, roamoff $roamoff}"
+    fi
     game_undo
     trap - TERM INT HUP
-    echo "osdos-stop game: the game ended; the system is as it was" >&2
-}
-# What the Pi is at: GAME_TEMP (millidegrees, "" where there is no CPU
-# thermal zone) and GAME_THROTTLED, the firmware's get_throttled bits (0
-# where neither its file nor vcgencmd is there).
-THERMAL=/sys/class/thermal
-FIRMWARE=/sys/devices/platform
-game_look() {
-    local zone value
-    GAME_TEMP=""
-    for zone in "$THERMAL"/thermal_zone*; do
-        [ "$(cat "$zone/type" 2> /dev/null)" = cpu-thermal ] || continue
-        read -r GAME_TEMP < "$zone/temp" 2> /dev/null || GAME_TEMP=""
-        break
-    done
-    [[ "$GAME_TEMP" =~ ^[0-9]+$ ]] || GAME_TEMP=""
-    GAME_THROTTLED=0
-    for value in "$FIRMWARE"/soc*/*firmware/get_throttled; do
-        [ -r "$value" ] || continue
-        read -r value < "$value" 2> /dev/null
-        [[ "$value" =~ ^[0-9a-fA-F]+$ ]] && GAME_THROTTLED=$((16#$value))
-        return
-    done
-    if command -v vcgencmd > /dev/null; then
-        value=$(vcgencmd get_throttled 2> /dev/null)
-        value=${value#throttled=0x}
-        [[ "$value" =~ ^[0-9a-fA-F]+$ ]] && GAME_THROTTLED=$((16#$value))
+    flags=none
+    (( during & 1 )) && flags=power
+    (( during & 0xe )) && { [ "$flags" = none ] && flags=throttled || flags+=,throttled; }
+    summary="governor ${governor:-none}"
+    if [ -n "$CLOCK_MIN" ]; then
+        if [ "$CLOCK_MIN" = "$CLOCK_MAX" ]; then
+            summary+=", clock $((CLOCK_MAX / 1000)) MHz"
+        else
+            summary+=", clock $((CLOCK_MIN / 1000))-$((CLOCK_MAX / 1000)) MHz"
+        fi
     fi
-}
-game_degrees() {
-    printf '%d.%d °C' $(($1 / 1000)) $((($1 % 1000) / 100))
+    if [ "$during" -eq 0 ]; then
+        summary+=", throttling none"
+    else
+        summary+=", throttling $(game_bits "$during")"
+    fi
+    [ -n "$TEMP_MAX" ] && summary+=", highest $(game_degrees "$TEMP_MAX")"
+    [ -n "$wifi" ] && summary+=", $wifi"
+    echo "osdos-stop game: the game ended, the system as it was: $summary" >&2
+    # Answered only to "end": a connection that closed has no one to read it.
+    [ "$line" = end ] && echo "notice=$flags $summary"
 }
 
 MODE="${1:-}"
@@ -1038,6 +1175,10 @@ NETWORK
 # hostnamectl and systemctl talk to their daemons over D-Bus, whose socket is
 # a file's: the unit itself has no network of its own.
 PrivateNetwork=yes
+NETWORK
+            game) cat << 'NETWORK' ;;
+# No PrivateNetwork=: in a network game it reads the route and the Wi-Fi
+# link (ip, iw) of the host's network, not one of the unit's own.
 NETWORK
             system) cat << 'NETWORK' ;;
 # timedatectl talks to its daemon over D-Bus, whose socket is a file's: the

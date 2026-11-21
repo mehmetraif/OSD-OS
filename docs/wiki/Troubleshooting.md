@@ -284,6 +284,8 @@ A problem with the list shows under the tree, or on the screen itself when there
 | Back does nothing on the Arcade screen, and the main menu can't be reached | Settings → Startup → **Cabinet Lock** is on | Hold the unlock buttons together for three seconds. If they are forgotten or gone, turn the lock off from outside ([Cabinet Lock](https://github.com/mehmetraif/OSD-OS/wiki/Settings#cabinet-lock)) |
 | The Arcade screen moves from game to game by itself | Settings → Arcade → **Attract Mode** is on | Any button or key ends it; set Attract Mode to Off |
 
+A game that stutters on a Raspberry Pi: after each game the log has a line of what the Pi did during it, its CPU governor, its clock, its throttling, its highest temperature and, in a network game over Wi-Fi, the band, the signal and the radio's scans (`journalctl -u osdos -b | grep 'arcade: system during the game'`; [The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). Throttling there with a temperature near 80 °C asks for a heatsink or a fan; `under-voltage`, for a power supply made for the Pi. The screen after such a game says so once.
+
 The module's and MAME's lines: `journalctl -u osdos -b | grep -E 'Arcade|Scripts|DisplayHandoff'`. RetroArch's log of the last FinalBurn Neo game is `~/.local/share/OSD-OS/arcade/retroarch/last.log`. More in [Arcade → Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#troubleshooting).
 
 ## High Scores
