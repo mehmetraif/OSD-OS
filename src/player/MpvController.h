@@ -97,8 +97,9 @@ public:
     Q_INVOKABLE void clearOsdPrompt();
 
     // True only on devices whose smooth-playback decode path can't crop/zoom (the
-    // Pi 3 DRM-overlay path). Settings uses this to show the "Smooth Playback"
-    // toggle only where the smoothness-vs-crop trade-off actually exists.
+    // Pi 3 DRM-overlay path). Settings offers its "1080p Playback" row only
+    // where the smoothness-vs-crop trade-off actually exists, and marks it
+    // unavailable elsewhere.
     Q_INVOKABLE bool hasSmoothPlaybackTradeoff() const;
 
     // The module whose views are open (Main.qml, as its loader changes), for
@@ -462,8 +463,8 @@ private:
     };
     static ScalingProperties scalingProperties(const QString &scaling);
     // True when the active decode path can't crop (Pi 3 overlay path with smooth
-    // playback ON): --panscan blanks the video there. Gates auto-crop and tells
-    // the OSC scripts to hide their CROP button.
+    // playback ON): --panscan blanks the video there. Gates the Scalings that
+    // crop and tells the OSC scripts to hide their CROP button.
     bool cropUnavailable() const;
     // App-level "video_output_levels" setting (default "Auto"). Returns the mpv
     // value for --video-output-levels ("limited"/"full"), or empty on Auto/unset.
@@ -497,7 +498,7 @@ private:
     bool            m_saverShown   = false;
     // The VideoSurface is on screen (setVideoShown).
     bool            m_videoShown   = true;
-    // loadAndPlay() starts its session a tick later (see there): the
+    // loadAndPlay() starts its session a tick later (see play()): the
     // session asked for last, and whether one is on its way, starting where.
     int             m_launchSerial = 0;
     bool            m_launchPending = false;

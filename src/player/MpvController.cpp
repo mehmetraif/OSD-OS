@@ -74,7 +74,7 @@ constexpr int kPictureRemoteMs = 45000;
 // is worth what the mpv was doing in the log.
 constexpr int kLeftEarlyMs = 4000;
 // loadAndPlay() starts its session this long later, so that its player's
-// loading screen is drawn first (see there), as relaunch() starts one again;
+// loading screen is drawn first (see play()), as relaunch() starts one again;
 // from there it looks this often for the screen to be free
 // (whenScreenFree()).
 constexpr int kLaunchTickMs = 50;
@@ -485,12 +485,10 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
         });
     });
 
-    // Watchdog: fires every 10 s; logs a warning if no IPC time-pos event has
-    // arrived for 30 s while connected — strong indicator of a playback freeze.
-    // Exempt while paused: time-pos is legitimately silent then (a long pause is
-    // a normal state now that the screen saver runs over it), and the unpause
-    // property-change event refreshes m_lastIpcEventMs so the 30 s window
-    // restarts fresh on resume.
+    // The watchdog is exempt while paused: time-pos is legitimately silent then
+    // (a long pause is a normal state, the screen saver running over it), and
+    // the unpause property-change event refreshes m_lastIpcEventMs so the 30 s
+    // window restarts fresh on resume.
     m_watchdogTimer = new QTimer(this);
     m_watchdogTimer->setInterval(kWatchdogTickMs);
     connect(m_watchdogTimer, &QTimer::timeout, this, [this] {
@@ -649,9 +647,7 @@ QStringList MpvController::scriptArgs(const PlaybackRequest &request, bool embed
     }
     // Point mpv's ytdl_hook at the same user-updatable yt-dlp the app resolves,
     // so both agree on one copy even when it isn't on the global PATH (the
-    // SteamOS story). Merged into the single --script-opts below — a second
-    // --script-opts flag would replace, not append, clobbering the entries above.
-    // The comma guard mirrors the subinfo-file constraint (a path with a comma
+    // SteamOS story). The comma guard mirrors the subinfo-file constraint (a path with a comma
     // would break the join); realistically never hit.
     if (asksForYtdl(request.extraArgs)) {
         const QString ytdlPath = ytdlp::locate(m_dataRoot);
@@ -1636,11 +1632,8 @@ void MpvController::sendKey(const QString &key, bool autoRepeat) {
         return;
     }
     // A key held: down in mpv, which repeats it at its own pace (the
-    // --input-ar-* options, sessionArgs()) for as long as it is, so that a
-    // player slow to act on them is never left a queue of presses to work
-    // through once the key is up. Sent as a press each, a held ◄ went on
-    // seeking, and a held volume key on turning, after the finger had come
-    // off. Each repeat that comes keeps it down (kHeldKeyMs); the key's
+    // --input-ar-* options, play()) for as long as it is (the header says
+    // why). Each repeat that comes keeps it down (kHeldKeyMs); the key's
     // release (releaseKeys()) or the end of its repeats lets it go. A key
     // whose binding doesn't repeat (the deck menu's ▲ ▼) is held for nothing.
     if (m_keyDown != key) {
@@ -1718,15 +1711,15 @@ void MpvController::onIpcReadyRead() {
         // property-change is the hot path (fires many times per second), so test
         // it first; only other events pay for the end-file check below.
         if (event != "property-change") {
-            // mpv reports why playback ended: "eof" (played to the end),
-            // "quit"/"stop" (user exited), "error", etc. Remember the last one
-            // so onProcessFinished can distinguish a natural finish from a quit.
             // The start's watch: opened, what plays has a shorter while to
             // show its first picture; shown, it is over (watchStart()).
             if (event == "file-loaded" && !m_started && m_startTimer->isActive())
                 m_startTimer->start(startTimeoutMs(m_launchMedia, m_launchArgs, true));
             else if (event == "playback-restart")
                 noteStarted();
+            // mpv reports why playback ended: "eof" (played to the end),
+            // "quit"/"stop" (user exited), "error", etc. Remember the last one
+            // so onProcessFinished can distinguish a natural finish from a quit.
             if (event == "end-file") {
                 m_lastEndFileReason = obj["reason"].toString();
                 if (m_lastEndFileReason == QLatin1String("error"))
@@ -2065,8 +2058,9 @@ void MpvController::setScreen(bool tube, const QSize &size) {
 }
 
 bool MpvController::autoCropEnabled() const {
-    // Default OFF: only an explicit "On" opts in. Stored by Settings as a string
-    // ("On"/"Off") via the list_single row, so compare on the string form.
+    // Default OFF: only an explicit "On" opts in. Stored as a string ("On"/"Off")
+    // by the list_single row Settings had for it before Scaling, so compare on
+    // the string form.
     if (!m_appCore)
         return false;
     const QVariant v = m_appCore->get_setting(QString(), "auto_crop");
@@ -2115,14 +2109,14 @@ QString MpvController::videoOutputLevels() const {
 bool MpvController::cropUnavailable() const {
     // The Pi 3 smooth (overlay-plane) path is the one decode path that can't
     // crop/zoom: --panscan blanks the video there. (Ignores the mpv_video_args
-    // override, same as the auto-crop gate — the setting still reflects intent.)
+    // override — the setting still reflects intent.)
     return m_videoProfile == VideoProfile::Pi3 && smoothPlaybackEnabled();
 }
 
 bool MpvController::hasSmoothPlaybackTradeoff() const {
     // Only the Pi 3 overlay path sacrifices crop/zoom for smoothness. Every other
     // profile (Pi 4 copy path, Pi 5/generic --vo=drm, desktop) can already crop, so
-    // the toggle would be a no-op there and is hidden.
+    // the toggle would be a no-op there, and Settings marks it unavailable.
     return m_videoProfile == VideoProfile::Pi3;
 }
 
