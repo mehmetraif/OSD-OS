@@ -2118,6 +2118,30 @@ StandInRoot {
             compare(localFilesBackend.positions["/films/list.m3u"], { pos: 90000, plPos: 2 })
         }
 
+        // A Local Files playlist left at its third video with no time in it
+        // (a slideshow's pictures have none, or it stopped as the video
+        // began) resumes there: asked, always, and at startup.
+        function test_aPlaylistResumesAtItsVideoWithNoTime_data() {
+            return [{ tag: "asked", settings: { resume_playback: "ask", shuffle_playback: "no" }, asks: true },
+                    { tag: "always", settings: { resume_playback: "yes", shuffle_playback: "no" } },
+                    { tag: "at startup", settings: { resume_playback: "ask", shuffle_playback: "no" }, startup: true }]
+        }
+        function test_aPlaylistResumesAtItsVideoWithNoTime(data) {
+            appCore.settings = data.settings
+            localFilesBackend.positions = { "/films/list.m3u": { pos: 0, plPos: 2 } }
+            var player = open("local_files", "Player.qml", { filePath: "/films/list.m3u", title: "list.m3u",
+                                                            startup: !!data.startup })
+            if (data.asks) {
+                var prompt = promptOf(player)
+                verify(prompt.visible)
+                compare(prompt.choices[0].label, "Resume video 3 at 0:00")
+                keyClick(Qt.Key_Return)
+            }
+            compare(mpvController.loads, 1)
+            compare(mpvController.starts[0], 0)
+            compare(mpvController.playlistStarts[0], 2)
+        }
+
         // CLOSE VIDEO in a player's menu (YouTube's, Local Files',
         // Playlists'): the video stopped, then the module left at once for
         // the main menu (the router's leaveModule), not one view back; with

@@ -398,7 +398,8 @@ FocusScope {
             var held = appCore.get_setting("", "startup_from") === "Beginning"
                        ? ({}) : localFilesBackend.getSavedPosition(filePath)
             var heldPos = held.pos || 0
-            play(heldPos, heldPos > 0 && held.plPos !== undefined ? held.plPos : -1, false)
+            var heldPl = held.plPos !== undefined && held.plPos !== null ? held.plPos : -1
+            play(heldPos, heldPos > 0 || heldPl > 0 ? heldPl : -1, false)
             return
         }
 
@@ -412,13 +413,17 @@ FocusScope {
             savedPl   = (saved.plPos !== undefined && saved.plPos !== null) ? saved.plPos : -1
         }
 
+        // A place to resume: a time, or a playlist's video past its first,
+        // which a list stopped as a video began (a slideshow's, whose
+        // pictures have no time) saves with a time of 0.
+        var resumable = savedPos > 0 || savedPl > 0
         if (resumeSetting === "yes" && !askShuffle) {
-            play(savedPos > 0 ? savedPos : 0, savedPos > 0 ? savedPl : -1, false)
+            play(resumable ? savedPos : 0, resumable ? savedPl : -1, false)
             return
         }
 
         var opts = []
-        if (savedPos > 0) {
+        if (resumable) {
             opts.push({ label: savedPl >= 0
                             ? "Resume video " + (savedPl + 1) + " at " + root.formatTime(savedPos)
                             : "Resume from " + root.formatTime(savedPos),
