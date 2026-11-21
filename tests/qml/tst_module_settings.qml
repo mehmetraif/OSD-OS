@@ -1765,6 +1765,55 @@ StandInRoot {
             compare(root.navigations[0].params, { signIn: true })
         }
 
+        // A page that names a setting opens the settings page on that row
+        // (ModuleRouter.openSettings(): focusKey), found by its key among
+        // the rows as the page makes them, dimmed rows and headings among
+        // them: Weather's Location, Netflix's TMDB Key. Back on the page
+        // from one of its own, the cursor is where it was left; a key the
+        // page hasn't, its first row.
+        function test_opensOnTheRowNamed_data() {
+            return [{ tag: "weather, location", focus: "location", at: 2, schema: [
+                        { type: "section", label: "Places" },
+                        { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                        { key: "location", label: "Location", type: "text", default: "" },
+                        { key: "other_places", label: "Other Locations", type: "text_list" },
+                        { key: "units", label: "Units", type: "list_single", options: ["Metric", "US"], default: "Metric" }] },
+                    { tag: "netflix, tmdb key", focus: "tmdb_api_key", at: 2, schema: [
+                        { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                        { key: "sign_in", label: "Sign In", type: "module_view", account: true, params: { signIn: true } },
+                        { key: "tmdb_api_key", label: "TMDB Key", type: "text", secret: true, default: "" },
+                        { key: "catalog_language", label: "Catalog Language", type: "list_single",
+                          options: ["English", "Turkish"], default: "English" },
+                        { key: "sign_out", label: "Sign Out", type: "action", action_slot: "signOut",
+                          confirm: "Sign out of Netflix?", requires_auth: true }] },
+                    { tag: "a row of the page after a dimmed one", focus: "video_scaling", at: 3, schema: [
+                        { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                        { key: "sign_out", label: "Sign Out", type: "action", action_slot: "signOut",
+                          requires_auth: true },
+                        { key: "sign_in", label: "Sign In", type: "module_view", account: true },
+                        { key: "video_scaling", label: "Scaling", type: "list_single",
+                          options: ["Default", "Letterbox"], default: "Default" }] }]
+        }
+        function test_opensOnTheRowNamed(data) {
+            appCore.schema = data.schema
+            appCore.authState = "none"
+            var openOn = function(params) {
+                loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                                 { navParams: Object.assign({ moduleId: "com.osdos.test", alsoModules: [] }, params) })
+                loader.item.forceActiveFocus()
+                return loader.item
+            }
+            var page = openOn({ focusKey: data.focus })
+            compare(cursor(page), data.focus)
+            compare(cursorIndex(page), data.at)
+            loader.source = ""
+            page = openOn({ focusKey: data.focus, navListState: { currentIndex: data.schema.length - 1 } })
+            compare(cursorIndex(page), data.schema.length - 1)
+            loader.source = ""
+            page = openOn({ focusKey: "nothing" })
+            compare(cursorIndex(page), data.schema[0].type === "section" ? 1 : 0)
+        }
+
         // A module_view row whose page holds a value (Arcade's Online Name)
         // shows it as SIGN IN shows who is signed in: the one choice its
         // options_slot sends, nothing until that comes, and each new one

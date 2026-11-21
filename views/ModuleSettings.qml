@@ -802,7 +802,10 @@ FocusScope {
 
     Component.onCompleted: {
         core = appCore
-        loadSettings()
+        // Opened on a row (ModuleRouter.openSettings(): a page that names a
+        // setting), the cursor on it, by its key, wherever the page puts
+        // it among its headings; back on the page, where it was left.
+        loadSettings(navListState.currentIndex === undefined && navParams.focusKey ? navParams.focusKey : undefined)
         // Kick off loading dynamic option lists for any dynamic settings
         requestOptions(true)
     }

@@ -75,10 +75,9 @@ StandInRoot {
             compare(root.shellNavigations, ["views/ModuleSettings.qml"])
             compare(root.shellParams[0].moduleId, "com.osdos.router_test")
             compare(root.shellParams[0].focusKey, "location")
-            compare(root.shellParams[0].navListState.currentIndex, 2)
-            // A key it hasn't: the page's first row.
-            router().openSettings("nothing")
-            compare(root.shellParams[1].navListState.currentIndex, 0)
+            // The page finds the row by its key, not by a place the router
+            // works out.
+            compare(root.shellParams[0].navListState, undefined)
         }
 
         // The first view, from the module's own folder (viewsUrl), not from
