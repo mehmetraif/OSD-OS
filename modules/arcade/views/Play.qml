@@ -296,7 +296,7 @@ FocusScope {
                   : playRoot.online.hosting ? (playRoot.online.lan ? ["Hosting on this network: others join from LAN Games"]
                                                                      .concat(playRoot.hostingNote).join("\n")
                                                                    : "Hosting online: others join from RetroArch's lobby")
-                  : "Joining " + (playRoot.online.host || "a player") + "'s game "
+                  : "Joining " + Words.possessive(playRoot.online.host || "a player") + " game "
                     + (playRoot.online.lan ? "on this network" : "online")
             textFormat: Text.PlainText
             color: root.primaryColor

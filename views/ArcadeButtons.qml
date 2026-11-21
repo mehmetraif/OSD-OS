@@ -560,7 +560,7 @@ FocusScope {
         PromptScreen {
             objectName: "summaryPrompt"
             title: "Save these buttons?"
-            message: "They become " + pageRoot.name + "'s Custom layout"
+            message: "They become " + Words.possessive(pageRoot.name) + " Custom layout"
             choices: summary.answers
             currentIndex: pageRoot.sumIndex
             onHovered: function(index) { pageRoot.sumIndex = index }

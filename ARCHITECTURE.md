@@ -1063,6 +1063,10 @@ The keys a player's view sends on to mpv as its video plays, one table for every
 
 What was typed on Jellyfin's and Emby's Connect to Server forms, kept while the app runs (a `.pragma library` in `qmldir`, as `MpvKeys` is): `TypedFields.get(moduleId)` and `TypedFields.keep(moduleId, { server, user, method })`, so that back from the form and in again finds it as it was left. Never a password, and never written to disk: the address signed in at is the module's own `server_url`.
 
+### Words (`views/Components/Words.js`)
+
+Words built from a name the app doesn't know in advance, a `.pragma library` in `qmldir` as `MpvKeys` is: `Words.possessive(name)` is the name with its possessive, `Plex's`, and the apostrophe alone after a final s, `Local Files'`. The video's own menu (`PlayerMenu`'s Back to <module>), a pad's Custom layout (`ArcadeButtons.qml`) and an online game's host (the Arcade's `Play.qml`) write theirs with it.
+
 ### Hints (`views/Components/Hints.js`)
 
 The keys as every view takes and names them, a `.pragma library` in `qmldir` as `MpvKeys` is, behind `Main.qml`'s own two (and `StandInRoot`'s, in the tests): `root.isBack(event)`, whether a key is back (Esc, as a pad's back comes too, Backspace, or a remote's Back), and `root.hintLine(parts)`, a hint bar's line from `root.hints`, each part a hint's name and what the key does (`"back:BACK"`), a part `""` left out, the parts a space apart. A binding on `root.hintLine()` follows the hints from the keyboard's to a pad's.

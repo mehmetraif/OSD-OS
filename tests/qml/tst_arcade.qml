@@ -2700,6 +2700,16 @@ StandInRoot {
             compare(findText(screen, "FinalBurn Neo Not Installed"), null)
         }
 
+        // A host's name ending in s takes the apostrophe alone.
+        function test_playJoinsANameEndingInS() {
+            var play = open("Play.qml", { game: "sf2", title: "Street Fighter II (james)",
+                                          online: { room: 1, host: "james", lan: true } })
+            verify(findText(play, "Joining james' game on this network") !== null)
+            tryCompare(play, "phase", "running", 3000)
+            arcadeBackend.running = false
+            arcadeBackend.finished(0, "ok", "")
+        }
+
         // A room on the local network joined from the game's screen says
         // whose game it is and joins it at its host; a game hosted there
         // says so and hosts it; and with Start Info Screen off, the router

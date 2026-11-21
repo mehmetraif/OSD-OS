@@ -1130,6 +1130,7 @@ StandInRoot {
             verify(page.summing && !page.capturing && !prompt.visible)
             compare(inputManager.capturing, "")
             verify(findText(page, "Save these buttons?") !== null)
+            compare(findChild(page, "summaryPrompt").message, "They become 8BitDo Pro 2's Custom layout")
             var grid = findChild(page, "summaryGrid")
             compare(findChild(grid, "gridCell-1").name, "X")
             compare(findChild(grid, "gridCell-coin").name, "BACK")

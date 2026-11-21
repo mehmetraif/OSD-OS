@@ -2838,8 +2838,10 @@ StandInRoot {
             compare(menu.rows.map(function(r) { return r.label || "" }),
                     ["Back to " + name, "Stop, to Main Menu", "", "Scaling"].concat(data.own))
             compare(menu.rows[2].gap, true)
-            compare(menu.rows[0].description, data.behind ? "To " + name + "'s lists, the video playing on behind them"
-                                                          : "To " + name + "'s lists. The video stops where it is")
+            // A name ending in s takes the apostrophe alone.
+            var owner = { youtube: "YouTube's", local_files: "Local Files'", playlists: "Playlists'" }[data.module]
+            compare(menu.rows[0].description, data.behind ? "To " + owner + " lists, the video playing on behind them"
+                                                          : "To " + owner + " lists. The video stops where it is")
             compare(menu.rows[1].description, "Ends the video and goes to the main menu")
             var hintBar = function() {
                 for (var j = 0; j < menu.children.length; j++) {

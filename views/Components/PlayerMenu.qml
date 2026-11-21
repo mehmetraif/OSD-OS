@@ -1,4 +1,5 @@
 import QtQuick
+import "Words.js" as Words
 
 // A video's own menu: back during playback opens it over the picture, which
 // goes on playing (Transparent Background; MpvController's player menu, see
@@ -96,8 +97,8 @@ FocusScope {
     function exits() {
         var behind = typeof mpvController !== "undefined" && !!mpvController && mpvController.videoActive
         return [{ type: "action", label: "Back to " + moduleName, action: "browse",
-                  description: behind ? "To " + moduleName + "'s lists, the video playing on behind them"
-                                      : "To " + moduleName + "'s lists. The video stops where it is" },
+                  description: behind ? "To " + Words.possessive(moduleName) + " lists, the video playing on behind them"
+                                      : "To " + Words.possessive(moduleName) + " lists. The video stops where it is" },
                 { type: "action", label: "Stop, to Main Menu", action: "close",
                   description: "Ends the video and goes to the main menu" }]
     }
