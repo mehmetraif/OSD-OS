@@ -123,6 +123,11 @@ public:
     // Needs libmpv, opened at run time: embeddedAvailable() says whether it is
     // there (Settings offers the setting only then).
     Q_INVOKABLE bool embeddedAvailable() const;
+    // Whether a value of "transparent_background" asks for it: a solidity, 0
+    // to 100, or On or Dim, its first values; Off (the default when unset)
+    // and anything else is off. The one reading of it, the app's own here
+    // and Settings' through Main.qml's backgroundOn().
+    Q_INVOKABLE bool asksForTransparentBackground(const QVariant &value) const;
     bool videoActive() const;
     bool background() const { return m_background; }
     // Whether back is this controller's now, whichever view has the keys: a

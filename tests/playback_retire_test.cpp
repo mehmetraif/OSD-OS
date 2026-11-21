@@ -402,6 +402,18 @@ private slots:
         QCOMPARE(EmbeddedMpv::fencesNotMade(), before + 1);
     }
 
+    // Transparent Background's values, read the one way the app plays by and
+    // Settings shows (Main.qml asks the controller): a solidity, or its first
+    // words, On and Dim, is on; Off, unset or anything else is off.
+    void transparentBackgroundIsReadOneWay() {
+        for (const QVariant &on : { QVariant(QStringLiteral("40")), QVariant(QStringLiteral(" 0 ")), QVariant(100),
+                                    QVariant(QStringLiteral("On")), QVariant(QStringLiteral("dim")) })
+            QVERIFY2(m_mpv->asksForTransparentBackground(on), qPrintable(on.toString()));
+        for (const QVariant &off : { QVariant(), QVariant(QString()), QVariant(QStringLiteral("Off")),
+                                     QVariant(QStringLiteral("50%")), QVariant(QStringLiteral("Solid")) })
+            QVERIFY2(!m_mpv->asksForTransparentBackground(off), qPrintable(off.toString()));
+    }
+
     void runFilesAreTheUsersOwn() {
         const auto read = [](const QString &path) {
             QFile file(path);

@@ -1228,10 +1228,10 @@ Window {
     // behind them, 0 (TRANSPARENT) to 100 (SOLID: none of it shows, but it
     // plays on, sound and all), or "Off", the default when unset (back stops
     // the video, as it always has). Its first values were words: On (0) and
-    // Dim (60). Read as MpvController::transparentBackground() reads it.
+    // Dim (60). Whether it is on, as the app plays by it, is the controller's
+    // to say.
     function backgroundOn(raw) {
-        var s = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase()
-        return s === "on" || s === "dim" || !isNaN(parseInt(s))
+        return mpvController.asksForTransparentBackground(raw)
     }
     function menuLayoutOf(raw) {
         return menuLayouts.indexOf(raw) >= 0 ? raw : "Standard"

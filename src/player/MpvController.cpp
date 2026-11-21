@@ -2147,13 +2147,14 @@ bool MpvController::transparentBackground() const {
 }
 
 bool MpvController::transparentBackgroundAsked() const {
-    if (!m_appCore)
-        return false;
+    return m_appCore && asksForTransparentBackground(m_appCore->get_setting(QString(), "transparent_background"));
+}
+
+bool MpvController::asksForTransparentBackground(const QVariant &value) const {
     // How solid the menus' ground is over the picture, 0 to 100, Settings'
     // TRANSPARENT … SOLID slider (SOLID hides the picture, which plays on), or
-    // Off, the default when unset. Its first values were words: On (clear)
-    // and Dim (60). Main.qml's backgroundOn() reads it the same way.
-    const QString v = m_appCore->get_setting(QString(), "transparent_background").toString().trimmed();
+    // Off. Its first values were words: On (clear) and Dim (60).
+    const QString v = value.toString().trimmed();
     bool on = v.compare(QStringLiteral("On"), Qt::CaseInsensitive) == 0
               || v.compare(QStringLiteral("Dim"), Qt::CaseInsensitive) == 0;
     if (!on)

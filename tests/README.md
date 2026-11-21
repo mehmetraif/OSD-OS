@@ -184,6 +184,7 @@ A C++ test built with the app's sources links those several tests share, built o
   - A YouTube card's yt-dlp format (`ytdlFormatForResolution()`, through `ytdlp::format()`, `util/YtDlpFormat.h`), character for character: H.264 first at 480, 720 or 1080 lines, 480 for any other resolution.
 - **playback_retire** (`playback_retire_test.cpp`, Linux only). A video is asked for while another plays in an mpv process, against a stand-in for mpv: a shell script first on `PATH` that writes down when it starts, is told to quit and exits.
   - mpv is given the context's OpenGL functions as they are, but `glFenceSync`: one that makes no fence (mpv 0.40 leaves one behind for every picture, a file descriptor each on a Pi 4), and none where the context has none.
+  - Transparent Background's value is read one way, for playing and for Settings (`asksForTransparentBackground()`): a solidity, `On` or `Dim` is on; `Off`, unset, `50%` or another word is off.
   - What mpv is handed (its control socket, log, key bindings and fontconfig file) is in the run-time folder (`XDG_RUNTIME_DIR`, the test's own), with nothing of it in the temp folder; the bindings' file is whole and its owner's alone, written again when it is gone or holds something else, and left out of mpv's options when it can't be written.
   - The app goes on while the old player quits, and the new one starts only once it has gone.
   - Of several videos asked for in a row, only the last plays.
