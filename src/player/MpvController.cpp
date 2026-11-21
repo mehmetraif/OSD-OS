@@ -88,6 +88,10 @@ constexpr int kReconnectNoteMs = 3000;
 // position for the second while it plays: a possible freeze, for the log.
 constexpr int kWatchdogTickMs = 10000;
 constexpr int kWatchdogSilenceMs = 30000;
+// mpv tells the position at every frame (24 to 60 times a second); the views
+// hear it at most this often (reportPosition()), at once where it must be
+// exact.
+constexpr int kPositionReportMs = 250;
 // The key bindings every session's mpv gets, a process's and an embedded
 // session's alike (--input-conf). Back ends the video (backFromProcess), and
 // opens its player's menu if it has one; with Transparent Background it
@@ -503,6 +507,10 @@ MpvController::MpvController(const QString &appRoot, const QString &dataRoot,
     m_startTimer = new QTimer(this);
     m_startTimer->setSingleShot(true);
     connect(m_startTimer, &QTimer::timeout, this, &MpvController::startTimedOut);
+
+    m_positionTimer = new QTimer(this);
+    m_positionTimer->setSingleShot(true);
+    connect(m_positionTimer, &QTimer::timeout, this, &MpvController::flushPosition);
 }
 
 MpvController::~MpvController() {
@@ -1138,7 +1146,7 @@ void MpvController::endAtOnce(const QString &reason) {
 // (offCommandLine(): a server's token), what it said was up over the picture
 // (its deck menu, its screen saver) forgotten, and the position and duration
 // it got to handed out and zeroed.
-void MpvController::closeIpc(bool drain, int *pos, int *dur) {
+void MpvController::closeIpc(bool drain, int *pos, int *dur, bool *owed) {
     m_ipcWanted = false;
     m_reconnecting = false;
     m_commandsWaiting.clear();
@@ -1150,6 +1158,16 @@ void MpvController::closeIpc(bool drain, int *pos, int *dur) {
     m_startTimer->stop();
     if (drain && m_ipc->state() == QLocalSocket::ConnectedState)
         onIpcReadyRead();
+    // Where it got to, as its views last heard it: drained, it is told now,
+    // as its last position would have been as it came.
+    const bool due = std::exchange(m_positionDue, false);
+    m_positionTimer->stop();
+    if (due && drain)
+        emit positionChanged(m_position);
+    if (owed)
+        *owed = due && !drain;
+    m_positionNow = true;
+    m_positionClock.invalidate();
     m_ipc->abort();
     QFile::remove(m_socketPath);
     QFile::remove(m_privateOptionsPath);
@@ -1717,6 +1735,13 @@ void MpvController::onIpcReadyRead() {
                 m_startTimer->start(startTimeoutMs(m_launchMedia, m_launchArgs, true));
             else if (event == "playback-restart")
                 noteStarted();
+            // A seek's result is shown at once: the position as it lands
+            // (playback-restart), and the next that comes from either.
+            if (event == "seek" || event == "playback-restart") {
+                if (event == "playback-restart")
+                    flushPosition();
+                m_positionNow = true;
+            }
             // mpv reports why playback ended: "eof" (played to the end),
             // "quit"/"stop" (user exited), "error", etc. Remember the last one
             // so onProcessFinished can distinguish a natural finish from a quit.
@@ -1764,8 +1789,11 @@ void MpvController::onIpcReadyRead() {
         if (name == "pause") {
             m_paused = data.toBool();
             // Paused before its first picture: no longer a start to wait for.
-            if (m_paused)
+            // Paused, its views have where it stopped, exactly.
+            if (m_paused) {
                 noteStarted();
+                flushPosition();
+            }
             continue;
         }
         if (name == "core-idle") {
@@ -1787,7 +1815,7 @@ void MpvController::onIpcReadyRead() {
             if (m_position > 0)
                 noteStarted();
             if (report)
-                emit positionChanged(m_position);
+                reportPosition();
         } else if (name == "duration") {
             m_duration = ms(val);
             if (report)
@@ -1798,6 +1826,10 @@ void MpvController::onIpcReadyRead() {
             // plays (null, skipped above), and an end in that gap would hand
             // its player the last video's position for this one.
             if (m_playlistPos >= 0 && int(val) != m_playlistPos) {
+                // The last video's last position told first, as it came;
+                // the next one's first at once.
+                flushPosition();
+                m_positionNow = true;
                 m_position = 0;
                 m_duration = 0;
             }
@@ -1822,6 +1854,39 @@ QString MpvController::endOfSilent(int positionMs, int durationMs) {
     qWarning("[MpvController] The video played without sound: the sound card could not be opened");
     const bool playedOut = durationMs > 0 && positionMs >= qMin(durationMs - 1000, int(durationMs * 0.98));
     return playedOut ? QStringLiteral("eof") : QStringLiteral("stopped");
+}
+
+// The position to the views (positionChanged): at once where it must be
+// exact (the first of a session or of a playlist's video, as its loading
+// screen goes; a seek's; paused), else at most every kPositionReportMs, the
+// latest as that while is up. What it saves is exact all the same: a stop,
+// an end and a pause tell the one waiting first (flushPosition()), and
+// position() is always mpv's latest.
+void MpvController::reportPosition() {
+    const bool now = m_positionNow || m_paused || !m_positionClock.isValid()
+                     || m_positionClock.elapsed() >= kPositionReportMs;
+    if (now) {
+        // At once until there is one to show (mpv says 0 first).
+        if (m_position > 0)
+            m_positionNow = false;
+        emitPosition();
+        return;
+    }
+    m_positionDue = true;
+    if (!m_positionTimer->isActive())
+        m_positionTimer->start(int(qMax<qint64>(1, kPositionReportMs - m_positionClock.elapsed())));
+}
+
+void MpvController::flushPosition() {
+    if (m_positionDue)
+        emitPosition();
+}
+
+void MpvController::emitPosition() {
+    m_positionDue = false;
+    m_positionTimer->stop();
+    m_positionClock.start();
+    emit positionChanged(m_position);
 }
 
 void MpvController::onProcessFinished() {
@@ -2322,15 +2387,19 @@ void MpvController::endEmbedded(const QString &reason) {
     if (end.wasMenu || !end.wasBackground) {
         const int serial = m_launchSerial;
         QTimer::singleShot(0, this, [this, serial, end, reason]() {
-            if (serial == m_launchSerial)
-                emit playbackEnded(end.pos, end.dur, reason);
+            if (serial != m_launchSerial)
+                return;
+            // Where it got to, as it last came, before its end.
+            if (end.owed)
+                emit positionChanged(end.pos);
+            emit playbackEnded(end.pos, end.dur, reason);
         });
     }
 }
 
 MpvController::EmbeddedEnd MpvController::closeEmbeddedSession(bool drain) {
     EmbeddedEnd end;
-    closeIpc(drain, &end.pos, &end.dur);
+    closeIpc(drain, &end.pos, &end.dur, &end.owed);
     m_sessionArgs.clear();
     m_sessionNote.clear();
     end.wasBackground = m_background;
@@ -2370,6 +2439,9 @@ void MpvController::onEmbeddedFinished(const QString &lastEndReason) {
 void MpvController::detachToMenus() {
     if (!m_embedded || !m_embedded->running() || m_background)
         return;
+    // Where it is, exactly, before it goes behind the menus: no module's
+    // views hear it there.
+    flushPosition();
     m_background = true;
     m_detachPositionMs = m_position;
     m_playerMenu = m_sessionNote.value(QStringLiteral("menu")).toBool();
@@ -2412,6 +2484,7 @@ void MpvController::leavePlayerMenu() {
     // is now, and goes back to its module's menus, the picture going on
     // behind them. Chosen again from there, it carries on (takeBack()).
     m_detachPositionMs = m_position;
+    flushPosition();
     emit playbackEnded(m_position, m_duration, QStringLiteral("stopped"));
 }
 
@@ -2468,7 +2541,7 @@ void MpvController::reattach(float startSeconds) {
     emit durationChanged(m_duration);
     if (m_playlistPos >= 0)
         emit playlistPosChanged(m_playlistPos);
-    emit positionChanged(m_position);
+    emitPosition();
 }
 
 bool MpvController::takeBack() {

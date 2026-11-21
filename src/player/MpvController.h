@@ -389,7 +389,17 @@ private:
     // back, then playbackEnded(0, 0, reason) for the launch still current.
     void endAtOnce(const QString &reason);
     // The IPC down after a session, the position and duration it got to out.
-    void closeIpc(bool drain, int *pos, int *dur);
+    // A position not reported yet goes to the views now when drained (the
+    // session's mpv ended, its player is told next), else is handed back as
+    // owed, or dropped where nobody is to be told (the next session asked).
+    void closeIpc(bool drain, int *pos, int *dur, bool *owed = nullptr);
+    // mpv's position as it comes (every frame) reaches the views at most every
+    // kPositionReportMs: at once when it is the first of a session or of a
+    // playlist's video, a seek's or a pause's; otherwise the latest is told
+    // as that while is up. flushPosition() tells one waiting at once.
+    void reportPosition();
+    void flushPosition();
+    void emitPosition();
     // Transparent Background is on, and libmpv is there to play inside the app.
     bool transparentBackground() const;
     // The setting alone, without opening libmpv to see whether it is there.
@@ -410,6 +420,9 @@ private:
     struct EmbeddedEnd {
         int pos = 0;
         int dur = 0;
+        // Its last position not reported yet (reportPosition()), for its
+        // player to hear before the end.
+        bool owed = false;
         bool wasBackground = false;
         bool wasMenu = false;
     };
@@ -576,6 +589,13 @@ private:
     // onIpcReadyRead's playback-restart handling for why the option can't just stay set.
     bool          m_pendingStartClear = false;
     int           m_position     = 0;
+    // Its reports to the views (reportPosition()): when the last was made,
+    // that one is waiting to be, the timer that makes it, and that the next
+    // is to be made at once.
+    QElapsedTimer m_positionClock;
+    bool          m_positionDue  = false;
+    bool          m_positionNow  = true;
+    QTimer       *m_positionTimer = nullptr;
     int           m_duration     = 0;
     int           m_playlistPos  = -1;
     bool          m_headlessMode = false;

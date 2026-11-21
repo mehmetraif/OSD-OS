@@ -950,6 +950,28 @@ private slots:
         QCOMPARE(probe.state(), QLocalSocket::ConnectedState);
     }
 
+    // A video played inside the window reports its position over the same
+    // control connection: at thirty frames a second its views hear it four
+    // times a second, the first at once, and position() is mpv's latest.
+    void anEmbeddedVideosPositionReachesTheViewsFourTimesASecond() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        QSignalSpy positions(m_mpv, &MpvController::positionChanged);
+        playPicture("color=c=gray:s=64x48:r=30");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->position() > 0, 15000);
+        QTRY_VERIFY_WITH_TIMEOUT(!positions.isEmpty() && positions.last().first().toInt() > 0, 100);
+        const int first = positions.count();
+        QTest::qWait(2000);
+        const int heard = positions.count() - first;
+        QVERIFY2(heard >= 5 && heard <= 10, qPrintable(QString::number(heard)));
+        QVERIFY(m_mpv->position() >= positions.last().first().toInt());
+    }
+
     // Transparent Background: a video behind the menus, taken back by its
     // player (takeBack()), carries on where it is, whatever its player saved
     // as back left it (nothing in its first seconds, nothing near its end):
@@ -1817,6 +1839,100 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
         QVERIFY(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty());
         QCOMPARE(events().count(QStringLiteral("options old")), 1);
+    }
+
+    // mpv tells the position at every frame; its views hear it at most
+    // every quarter second. Exact all the same: the first (the loading
+    // screen's hand-over), a seek's result, a pause's, a playlist's last
+    // video's before the next, and the last before the end, which its player
+    // saves; the latest always comes.
+    void thePositionReachesTheViewsFourTimesASecond() {
+        QSignalSpy ended(m_mpv, &MpvController::playbackEnded);
+        QSignalSpy positions(m_mpv, &MpvController::positionChanged);
+        QList<int> heard;  // the positions as the views heard them, in order
+        int heardAtEnd = -1;
+        connect(m_mpv, &MpvController::positionChanged, this, [&](int ms) { heard << ms; });
+        connect(m_mpv, &MpvController::playlistPosChanged, this, [&](int pos) { heard << -1000 - pos; });
+        connect(m_mpv, &MpvController::playbackEnded, this,
+                [&](int, int, const QString &) { heardAtEnd = heard.isEmpty() ? -1 : heard.last(); });
+        play("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QLocalServer control;
+        QVERIFY(listen(control));
+        QTRY_VERIFY_WITH_TIMEOUT(control.hasPendingConnections(), 5000);
+        QScopedPointer<QLocalSocket> socket(control.nextPendingConnection());
+        const auto tell = [&](const QByteArray &line) {
+            socket->write(line + '\n');
+            socket->flush();
+        };
+        const auto at = [&](double seconds) {
+            tell("{\"event\":\"property-change\",\"id\":1,\"name\":\"time-pos\",\"data\":"
+                 + QByteArray::number(seconds, 'f', 3) + '}');
+        };
+        const auto last = [&]() { return heard.isEmpty() ? -1 : heard.last(); };
+        tell("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":0}");
+        // mpv's 0 first, then its first picture's: each at once.
+        at(0.0);
+        QTRY_COMPARE_WITH_TIMEOUT(positions.count(), 1, 2000);
+        at(0.04);
+        QTRY_COMPARE_WITH_TIMEOUT(positions.count(), 2, 100);
+        QCOMPARE(last(), 40);
+
+        // A second and a half of frames, sixty a second: six or seven
+        // reports, not ninety, the last frame's among them.
+        for (int frame = 1; frame <= 90; ++frame) {
+            at(0.04 + frame / 60.0);
+            QTest::qWait(16);
+        }
+        QTest::qWait(300);
+        const int frames = positions.count() - 2;
+        QVERIFY2(frames >= 4 && frames <= 8, qPrintable(QString::number(frames)));
+        QCOMPARE(last(), 1540);
+        QCOMPARE(m_mpv->position(), 1540);
+
+        // A seek's result, while a report would otherwise wait: at once.
+        at(2.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 2000, 100);
+        tell("{\"event\":\"seek\"}");
+        at(30.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 30000, 100);
+        at(30.02);
+        tell("{\"event\":\"playback-restart\"}");
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 30020, 100);
+        at(30.04);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 30040, 100);
+
+        // Paused: where it stopped, at once.
+        QTest::qWait(300);
+        at(31.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 31000, 100);
+        at(31.5);
+        tell("{\"event\":\"property-change\",\"id\":4,\"name\":\"pause\",\"data\":true}");
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 31500, 100);
+        tell("{\"event\":\"property-change\",\"id\":4,\"name\":\"pause\",\"data\":false}");
+
+        // On to the playlist's next video: the last one's last position
+        // first, as it came, then the next one's first at once.
+        QTest::qWait(300);
+        at(40.0);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 40000, 100);
+        at(40.5);
+        tell("{\"event\":\"property-change\",\"id\":3,\"name\":\"playlist-pos\",\"data\":1}");
+        QTRY_COMPARE_WITH_TIMEOUT(last(), -1001, 100);
+        QCOMPARE(heard.at(heard.size() - 2), 40500);
+        at(0.5);
+        QTRY_COMPARE_WITH_TIMEOUT(last(), 500, 100);
+
+        // Stopped a moment after a report: its player hears the last
+        // position before the end, and the end has it too.
+        at(5.0);
+        at(5.1);
+        QTest::qWait(30);
+        QCOMPARE(last(), 500);
+        m_mpv->stop();
+        QTRY_COMPARE_WITH_TIMEOUT(ended.count(), 1, 5000);
+        QCOMPARE(heardAtEnd, 5100);
+        QCOMPARE(ended.first().at(0).toInt(), 5100);
     }
 
     // A playlist gone on to its next video ends before that one has a

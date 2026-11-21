@@ -170,7 +170,10 @@ FocusScope {
         if (at < 0 || films.length < 2)
             return
         var next = films[(at + delta + films.length) % films.length]
-        rememberPosition(lastKnownPositionMs, lastKnownDurationMs, lastKnownPlaylistPos, "stopped")
+        // Where it is this moment: the position the views hear comes at
+        // most every quarter second, mpv's latest is the controller's.
+        rememberPosition(mpvController.position || lastKnownPositionMs, lastKnownDurationMs,
+                         lastKnownPlaylistPos, "stopped")
         appCore.add_to_list(moduleRoot.moduleId, "recent",
                             { name: next.name, path: next.path, isFolder: false }, 30)
         filePath = next.path

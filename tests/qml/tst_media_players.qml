@@ -2166,7 +2166,13 @@ StandInRoot {
             // Where C was asked to start, until mpv says otherwise.
             compare(player.lastKnownPositionMs, 90000)
             verify(!promptOf(player).visible)
+            // Saved where mpv is this moment, not where its last report to
+            // the views (every quarter second) said.
+            player.lastKnownPositionMs = 95000
+            mpvController.position = 95240
             keyClick(Qt.Key_PageUp)
+            mpvController.position = 0
+            compare(localFilesBackend.positions["/films/C.mkv"].pos, 95240)
             compare(mpvController.urls[2], "/films/A.mkv")
             keyClick(Qt.Key_PageDown)
             compare(mpvController.urls[3], "/films/C.mkv")
