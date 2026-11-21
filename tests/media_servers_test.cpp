@@ -1110,7 +1110,8 @@ private slots:
     // subtitles as sidecars or embedded, burnt in for a transcode, and
     // Emby's always as sidecars, its image ones burnt in for a transcode;
     // Jellyfin's Direct Play bitrate at 1000 Mbps, Emby's in its profile,
-    // which it needs; a quality's caps for a transcode. Direct Play's URL
+    // which it needs; a quality's caps for a transcode, and a Direct Play
+    // the server can't give asked for again as one. Direct Play's URL
     // carries Emby's token and not Jellyfin's; a transcode's is held to the
     // height asked for.
     void playbackInfoIsAskedEachServersWay() {
@@ -1149,6 +1150,38 @@ private slots:
         QCOMPARE(emReady.last().at(0).toString(),
                  QStringLiteral("http://server/Videos/film/stream?static=true&mediaSourceId=film&PlaySessionId=ps"
                                 "&api_key=token"));
+
+        // Direct Play asked, and the source can't be (a bitrate limit the
+        // server holds the user to): no transcode built on the Direct Play
+        // profile, whose subtitles the server would not burn in, but
+        // PlaybackInfo asked again for a transcode, the same tracks with it.
+        const QByteArray denied = QJsonDocument(QJsonObject{
+            { "PlaySessionId", "ps1" },
+            { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "TranscodingUrl",
+                "/videos/film/master.m3u8?PlaySessionId=ps1&SubtitleStreamIndex=2&SubtitleMethod=External" } } } } }).toJson();
+        for (auto [backend, network, ready] : { std::tuple<EmbyApiBackend *, Network *, QSignalSpy *>{ &jellyfin, jf, &jfReady },
+                                                std::tuple<EmbyApiBackend *, Network *, QSignalSpy *>{ &emby, em, &emReady } }) {
+            const qsizetype told = ready->count();
+            backend->get_playback_url(QStringLiteral("film"), QStringLiteral("film"), 1, 2);
+            const qsizetype asked = network->replies.size();
+            network->last()->complete(denied);
+            QCOMPARE(ready->count(), told);
+            QCOMPARE(network->replies.size(), asked + 1);
+            const QJsonObject again = sentBody(network->last());
+            QVERIFY(again["DeviceProfile"].toObject()["DirectPlayProfiles"].toArray().isEmpty());
+            QVERIFY(!again["EnableDirectPlay"].toBool());
+            QCOMPARE(again["AudioStreamIndex"].toInt(), 1);
+            QCOMPARE(again["SubtitleStreamIndex"].toInt(), 2);
+            QCOMPARE(subtitleMethods(again, "pgssub"), QStringLiteral("Encode"));
+            QCOMPARE(subtitleMethods(again, "subrip"),
+                     backend == &jellyfin ? QStringLiteral("Encode") : QStringLiteral("External"));
+            network->last()->complete(QJsonDocument(QJsonObject{
+                { "PlaySessionId", "ps1" },
+                { "MediaSources", QJsonArray{ QJsonObject{ { "Id", "film" }, { "TranscodingUrl",
+                    "/videos/film/master.m3u8?PlaySessionId=ps1&SubtitleStreamIndex=2" } } } } }).toJson());
+            QCOMPARE(ready->count(), told + 1);
+            QVERIFY(ready->last().at(0).toString().contains(QLatin1String("master.m3u8")));
+        }
 
         setVideoQuality(tmp.path(), "720p");
         jellyfin.get_playback_url(QStringLiteral("film"), QStringLiteral("film"), -1, 2);

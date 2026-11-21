@@ -1008,6 +1008,11 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
 
         // Transcode path — used for the bitrate tiers, and as a graceful
         // fallback when the server reports the source can't be direct-played.
+        // That fallback is asked for again as a transcode: the TranscodingUrl
+        // here was built on the Direct Play profile, whose subtitles are
+        // External or Embed, so the server would burn none in, where the
+        // player takes a transcode's subtitle as burnt in (Jellyfin) or an
+        // image one as burnt in (Emby): the chosen subtitle never showed.
         if (directPlay) {
             // TranscodeReasons is an array of strings on older servers, a
             // comma-joined flags string on 10.9+.
@@ -1023,6 +1028,8 @@ void EmbyApiBackend::requestPlayback(const QString &itemId, const QString &media
                      source["SupportsDirectPlay"].toBool(),
                      source["SupportsDirectStream"].toBool(),
                      reasons.isEmpty() ? "no TranscodeReasons given" : qPrintable(reasons));
+            requestPlayback(itemId, mediaSourceId, audioStreamIndex, subtitleStreamIndex, true, sdrCap);
+            return;
         }
         QString transcodeUrl = source["TranscodingUrl"].toString();
         if (transcodeUrl.isEmpty()) {
