@@ -1548,7 +1548,7 @@ StandInRoot {
             compare(appCore.calls.settings, 1)
             keyClick(Qt.Key_Up)
             compare(lines(page)[0], "Display Output")
-            compare(row(page, "Screen Saver").value, "60")
+            compare(row(page, "Screen Saver").value, "1 min")
             compare(appCore.calls.settings, 2)
             keyClick(Qt.Key_Up)
             keyClick(Qt.Key_Down)
@@ -1998,6 +1998,38 @@ StandInRoot {
             keyClick(Qt.Key_Return)
             compare(root.navigations[root.navigations.length - 1].path, "views/SystemInfo.qml")
             systemInfo.deviceName = "den-tv"
+        }
+
+        // Screen Saver: Off, 1, 2, 5 or 10 min, saved in seconds; 5 min where
+        // it was never saved; 30, 60 or 120 saved before read as they are,
+        // shown as the nearest, and not written until another is chosen.
+        function test_screenSaverRow() {
+            var page = open({ group: "screen" })
+            var saver = row(page, "Screen Saver")
+            compare(saver.options, ["Off", "1 min", "2 min", "5 min", "10 min"])
+            compare(saver.value, "5 min")
+            moveTo(page, "Screen Saver")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.screensaver_timeout, "600")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.screensaver_timeout, "OFF")
+            compare(row(page, "Screen Saver").value, "Off")
+            loader.source = ""
+            var old = [["30", "1 min"], ["60", "1 min"], ["120", "2 min"], ["OFF", "Off"]]
+            for (var i = 0; i < old.length; i++) {
+                appCore.values = { screensaver_timeout: old[i][0] }
+                appCore.writes = 0
+                page = open({ group: "screen" })
+                compare(row(page, "Screen Saver").value, old[i][1], old[i][0])
+                loader.source = ""
+                compare(appCore.values.screensaver_timeout, old[i][0])
+                compare(appCore.writes, 0)
+            }
+            appCore.values = { screensaver_timeout: "30" }
+            page = open({ group: "screen" })
+            moveTo(page, "Screen Saver")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.screensaver_timeout, "120")
         }
 
         function test_partRowsInForce() {

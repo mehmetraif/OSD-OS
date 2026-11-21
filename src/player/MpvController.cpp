@@ -588,12 +588,14 @@ QStringList MpvController::scriptArgs(const PlaybackRequest &request, bool embed
     if (m_hasMediaKeysScript)
         args << QString("--script=%1").arg(m_appRoot + "/scripts/mpv-media-keys.lua");
 
-    // Screen saver Lua script — only loaded when the user has opted in via the
-    // screensaver_timeout setting (a positive number of seconds; "OFF" parses
-    // to 0 and disables). The timeout reaches the script via scriptOpts below.
+    // Screen saver Lua script — loaded while the screensaver_timeout setting
+    // is a positive number of seconds, five minutes when never saved ("OFF"
+    // parses to 0 and disables). The timeout reaches the script via scriptOpts below.
     int screensaverTimeout = 0;
     if (m_appCore) {
-        const int n = m_appCore->get_setting(QString(), "screensaver_timeout").toString().toInt();
+        // Never saved: five minutes, as Settings → Screen → Screen Saver has it.
+        const QString saved = m_appCore->get_setting(QString(), "screensaver_timeout").toString();
+        const int n = saved.isEmpty() ? 300 : saved.toInt();
         const QString ssScript = m_appRoot + "/scripts/mpv-screensaver.lua";
         if (n > 0 && QFile::exists(ssScript)) {
             screensaverTimeout = n;

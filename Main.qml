@@ -809,7 +809,8 @@ Window {
             break
         case "screensaver_timeout":
             // Seconds, or "OFF" (parseInt's NaN): the tracker starts disabled.
-            var seconds = parseInt(value)
+            // Never saved: five minutes (SettingsPages.js's Screen Saver).
+            var seconds = value === undefined || value === null || value === "" ? 300 : parseInt(value)
             if (seconds > 0) {
                 idleTracker.threshold = seconds
                 idleTracker.enabled = true

@@ -296,7 +296,7 @@ Every key Settings writes, with its row. The values and defaults are on [Setting
 | `loading_colors`, `boot_colors` | Loading Colors, Boot Colors | string: `"Theme"` (when unset), shown Menu, or `"Default"`, shown Blue |
 | `video_logo` | Channel Logo | string: `"off"`, `"tl"`, `"tr"`, `"bl"`, `"br"`, `"all"` |
 | `video_logo_image` | Logo Image | string: a full path, `""` for OSD/OS's logo |
-| `screensaver_timeout` | Screen Saver | string: `"OFF"`, `"30"`, `"60"`, `"120"` |
+| `screensaver_timeout` | Screen Saver | string: `"OFF"`, or seconds: `"60"`, `"120"`, `"300"` (when unset), `"600"`; `"30"` saved by an older OSD/OS is read as it is, shown as 1 min |
 | `mouse_pointer` | Mouse Pointer | string: `"off"`, `"2"`, `"5"`, `"10"`, `"30"`, `"always"` |
 | `window_mode` | Window Mode | string: `"Off"` or `"On"`. Windows and Linux or BSD desktops only |
 | `info_screen` | Info Screen | string: `"off"`, `"key"`, `"1"`, `"2"`, `"3"`, `"5"` |

@@ -403,15 +403,34 @@ function screenRows(items) {
         moduleId: ""
     })
 
-    // SCREEN SAVER — single control: OFF disables, a number sets the
-    // timeout for both menu idle and playback pause (handled inside mpv).
+    // SCREEN SAVER — single control: OFF disables, a number of seconds sets
+    // the timeout for both menu idle and playback pause (handled inside
+    // mpv); five minutes when never saved (Main.qml, MpvController). A
+    // number saved before these (30, 60, 120) is read as it is, shown as the
+    // nearest of them, and kept until another is chosen.
+    var saverVals = ["OFF", "60", "120", "300", "600"]
+    var saverOpts = ["Off", "1 min", "2 min", "5 min", "10 min"]
+    var saverSaved = appSettings["screensaver_timeout"]
+    var saverAt = saverVals.indexOf("300")
+    if (saverSaved !== undefined && saverSaved !== null && String(saverSaved) !== "") {
+        var saverSec = parseInt(saverSaved)
+        saverAt = 0
+        if (saverSec > 0) {
+            saverAt = 1
+            for (var sv = 2; sv < saverVals.length; sv++) {
+                if (Math.abs(parseInt(saverVals[sv]) - saverSec) < Math.abs(parseInt(saverVals[saverAt]) - saverSec))
+                    saverAt = sv
+            }
+        }
+    }
     items.push({
         type: "list_single",
         key: "screensaver_timeout",
         label: "Screen Saver",
-        options: ["OFF", "30", "60", "120"],
-        value: appSettings["screensaver_timeout"] || "OFF",
-        description: "Prevent CRT burn-in after seconds of inactivity or pause",
+        options: saverOpts,
+        values: saverVals,
+        value: saverOpts[saverAt],
+        description: "A picture moving over the screen after this long without a key, in the menus or on a paused video, against a CRT's burn-in\n[OFF] Never",
         moduleId: ""
     })
 

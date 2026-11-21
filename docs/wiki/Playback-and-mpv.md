@@ -81,7 +81,7 @@ A video whose sound card couldn't be opened plays without sound. It ends as it p
 - [Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls) has every key and button.
 - **The deck menu** is drawn by mpv (`scripts/mpv-osc.lua`; Ambient:Mode has `mpv-osc-ambient.lua`). [Using OSD/OS](https://github.com/mehmetraif/OSD-OS/wiki/Using-OSD-OS#the-decks-menu) lists its buttons.
 - `scripts/mpv-media-keys.lua` handles the media keys.
-- `scripts/mpv-screensaver.lua` puts the bouncing logo over a paused video, unless Settings → Screen → Screen Saver is OFF.
+- `scripts/mpv-screensaver.lua` puts the bouncing logo over a paused video, unless Settings → Screen → Screen Saver is Off.
 
 ### A full command line on a Pi 4
 

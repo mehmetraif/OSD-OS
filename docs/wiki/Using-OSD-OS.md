@@ -331,7 +331,7 @@ With Settings → TV / Movie → **Transparent Background**, back from a video r
 
 | Setting (Settings → Screen) | Values | Default | Config key |
 |---|---|---|---|
-| Screen Saver | OFF, 30, 60, 120 (seconds) | OFF | `app.screensaver_timeout` |
+| Screen Saver | Off, 1 min, 2 min, 5 min, 10 min | 5 min | `app.screensaver_timeout`: seconds, or `OFF` |
 
 ## The hint bar and the help line
 
