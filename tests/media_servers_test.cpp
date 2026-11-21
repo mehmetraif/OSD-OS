@@ -1800,6 +1800,8 @@ private slots:
         QCOMPARE(failed.count(), 2);
         // No answer has no status to say: the network's own word.
         QCOMPARE(failed.last().at(0).toString(), QStringLiteral("SERVER EXCHANGE FAILED: Connection refused"));
+        // None of the failed exchanges took the place of the server signed in to.
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("https://away.example:8920"));
     }
 
     // A sign-in whose account didn't come once the code was claimed (plex.tv
@@ -2058,6 +2060,23 @@ private slots:
             QCOMPARE(languages.first().at(1).toString(), QStringLiteral("spa"));
             QCOMPARE(languages.first().at(2).toString(), QStringLiteral("Always"));
         }
+    }
+
+    // An Emby sign-in becomes the server signed in to only once it succeeds.
+    void embySignInTakesTheServerOnceItSucceeds() {
+        QTemporaryDir tmp;
+        EmbyBackend backend(tmp.path());
+        Network *network = signIn(backend);
+        backend.authenticate(QStringLiteral("http://other"), QStringLiteral("name"), QStringLiteral("pw"));
+        QCOMPARE(network->last()->url().host(), QStringLiteral("other"));
+        network->last()->fail(401);
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("http://server"));
+        QCOMPARE(backend.m_accessToken, QStringLiteral("token"));
+        backend.authenticate(QStringLiteral("http://other"), QStringLiteral("name"), QStringLiteral("pw"));
+        network->last()->complete(QJsonDocument(QJsonObject{
+            { "AccessToken", "token2" }, { "User", QJsonObject{ { "Id", "user2" }, { "Name", "name" } } } }).toJson());
+        QCOMPARE(backend.m_serverUrl, QStringLiteral("http://other"));
+        QCOMPARE(backend.m_accessToken, QStringLiteral("token2"));
     }
 };
 

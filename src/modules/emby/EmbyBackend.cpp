@@ -116,10 +116,6 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
         return;
     }
 
-    // Set the server URL up front so ignoreSslErrors() can match the host of the
-    // in-flight reply against it (self-signed LAN certs).
-    m_serverUrl = normalized;
-
     QUrl url(normalized + "/Users/AuthenticateByName");
     QJsonObject body;
     body["Username"] = username;
@@ -132,9 +128,11 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
     authorize(req, QString());
 
     auto *reply = m_nam->post(req, payload);
-    ignoreSslErrors(reply);
+    // The server's host for a self-signed LAN cert: it becomes the server
+    // signed in to only once the sign-in has succeeded.
+    ignoreSslErrors(reply, url.host());
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, normalized]() {
         reply->deleteLater();
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         QByteArray respBody = reply->readAll();
@@ -158,6 +156,7 @@ void EmbyBackend::authenticate(const QString &serverUrl, const QString &username
             return;
         }
 
+        m_serverUrl   = normalized;
         m_accessToken = token;
         m_userId      = user["Id"].toString();
         m_userName    = user["Name"].toString();
@@ -313,10 +312,6 @@ void EmbyBackend::connect_select_server(const QString &serverUrl, const QString 
 
 void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &accessKey,
                                      const QString &fallbackUrl) {
-    // Set the server URL up front so ignoreSslErrors() matches the exchange
-    // reply's host (self-signed LAN servers).
-    m_serverUrl = serverUrl;
-
     QUrl url(serverUrl + "/Connect/Exchange");
     { QUrlQuery q; q.addQueryItem("format", "json"); q.addQueryItem("ConnectUserId", m_connectUserId); url.setQuery(q); }
 
@@ -328,8 +323,9 @@ void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &ac
     req.setRawHeader("X-Emby-Authorization", authorization(QString()).toLatin1());
 
     auto *reply = m_nam->get(req);
-    ignoreSslErrors(reply);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, accessKey, fallbackUrl]() {
+    // The server's host for a self-signed LAN cert, as in authenticate().
+    ignoreSslErrors(reply, url.host());
+    connect(reply, &QNetworkReply::finished, this, [this, reply, serverUrl, accessKey, fallbackUrl]() {
         reply->deleteLater();
         int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         // No exchange at this address (nothing there, or something else that
@@ -357,6 +353,7 @@ void EmbyBackend::exchangeConnectKey(const QString &serverUrl, const QString &ac
             return;
         }
 
+        m_serverUrl   = serverUrl;
         m_userId      = localUserId;
         m_accessToken = token;
         m_serverName  = m_serverUrl; // real name fetched in persistConnectAuthAndFinish
