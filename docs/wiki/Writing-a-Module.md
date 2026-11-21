@@ -1014,19 +1014,12 @@ QTEST_GUILESS_MAIN(HelloChannelTest)
 #include "hello_channel_test.moc"
 ```
 
-Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and what it needs:
+Add it to `tests/CMakeLists.txt`, after the `looks` test, with `AppCore` and what it needs (`osdos_test_core`):
 
 ```cmake
 # Hello Channel's backend, and registerModule's wiring of it (AppCore).
-add_executable(hello_channel_test
-    hello_channel_test.cpp
-    ../src/AppCore.cpp
-    ../src/util/SetupFile.cpp
-    ../src/util/LegacyNames.cpp
-    ../src/modules/hello_channel/HelloChannelBackend.cpp)
-target_include_directories(hello_channel_test PRIVATE ../src)
-target_link_libraries(hello_channel_test PRIVATE Qt6::Core Qt6::Network Qt6::Qml Qt6::Test)
-add_test(NAME hello_channel COMMAND hello_channel_test)
+osdos_cpp_test(hello_channel SOURCES ../src/modules/hello_channel/HelloChannelBackend.cpp
+    LIBRARIES osdos_test_core Qt6::Network Qt6::Qml)
 ```
 
 and run it:
