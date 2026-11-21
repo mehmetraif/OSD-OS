@@ -975,6 +975,13 @@ FocusScope {
         always: moduleSettingsRoot.notice !== ""
         text: moduleSettingsRoot.notice !== "" ? moduleSettingsRoot.notice
               : (currentRow && currentRow._off ? currentRow._off + "\n" : "") + ((currentRow && currentRow.description) || "")
+        // The value on the row, or the one being chosen in the two-step
+        // layouts: the line shows the row's first sentence and that value's
+        // [ ] alone, as Settings' does.
+        value: moduleSettingsRoot.notice !== "" || !currentRow || !moduleSettingsRoot.hasValue(currentRow) ? ""
+               : moduleSettingsRoot.editIndex === settingsList.currentIndex
+                 ? moduleSettingsRoot.steppedValue(currentRow, moduleSettingsRoot.editSteps)
+                 : moduleSettingsRoot.currentDisplayValue(currentRow)
     }
 
     // The keys that do something on the row under the cursor, and what:

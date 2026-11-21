@@ -400,6 +400,31 @@ StandInRoot {
         // A toggle's and a list's value stand between the ◄ and ► that
         // change them; a submenu's line ends in a ►, and ► opens it as select
         // does; a slider's line has neither (its bar has the arrows).
+        // The help line shows the row's first sentence and the [ ] of the
+        // value now on the row alone, following ◄ ►; a row without a value
+        // (an action) shows its line whole.
+        function test_helpFollowsTheValue() {
+            appCore.schema = [
+                { key: "mode", label: "Mode", type: "list_single", options: ["Slow", "Fast"], "default": "Slow",
+                  description: "How it plays.\n[SLOW] Takes its time  [FAST] Hurries" },
+                { key: "wipe", label: "Wipe", type: "action", slot: "wipe",
+                  description: "Forgets it all. [SLOW] is no value of this row" }
+            ]
+            var page = open()
+            var help = findChild(page, "helpLine")
+            compare(help.value, "Slow")
+            verify(help.shownText.indexOf("How it plays.") === 0, help.shownText)
+            verify(help.shownText.indexOf("[SLOW] Takes its time") > 0, help.shownText)
+            verify(help.shownText.indexOf("[FAST]") < 0, help.shownText)
+            keyClick(Qt.Key_Right)
+            tryCompare(help, "value", "Fast")
+            verify(help.shownText.indexOf("[FAST] Hurries") > 0, help.shownText)
+            verify(help.shownText.indexOf("[SLOW]") < 0, help.shownText)
+            keyClick(Qt.Key_Down)
+            compare(help.value, "")
+            compare(help.shownText, help.text)
+        }
+
         function test_marks() {
             appCore.values = { screen: "Arcade" }
             appCore.schema = arcadeRows.concat([
