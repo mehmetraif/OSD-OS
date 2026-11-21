@@ -748,13 +748,10 @@ FocusScope {
                 return
             if (!openFolder()) activate()
             break
-        case Qt.Key_Escape:
-        case Qt.Key_Backspace:
-        case Qt.Key_Back:
-            if (!closeFolder()) leaveRequested()
-            break
         default:
-            return
+            if (!root.isBack(event))
+                return
+            if (!closeFolder()) leaveRequested()
         }
         event.accepted = true
     }

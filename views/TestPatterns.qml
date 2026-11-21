@@ -159,13 +159,10 @@ FocusScope {
                 patternsRoot.showInfo()
             }
             break
-        case Qt.Key_Escape:
-        case Qt.Key_Backspace:
-        case Qt.Key_Back:
-            patternsRoot.goBack()
-            break
         default:
-            return
+            if (!root.isBack(event))
+                return
+            patternsRoot.goBack()
         }
         event.accepted = true
     }
