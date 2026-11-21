@@ -18,7 +18,8 @@ class PlexBackend : public QObject {
     Q_OBJECT
 public:
     // The module's settings are read and saved through appCore; without one
-    // (the tests) there are none, and none are saved.
+    // (the tests) there are none, and none are saved. appRoot is taken as the
+    // other modules' backends take it; Plex reads nothing from it.
     explicit PlexBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore = nullptr,
                          QObject *parent = nullptr);
 
@@ -224,7 +225,6 @@ private:
     QString serverUrl() const;
     QString serverToken() const;
     QString accountToken() const;
-    QString userToken() const;
     QString videoQuality() const;
     QString clientId() const;   // UUID, stored in plex_auth.json
 
@@ -397,7 +397,6 @@ private:
     // HTTP helper — POST with JSON body
     QNetworkReply* plexPostJson(const QUrl &url, const QString &token, const QByteArray &body);
 
-    QString m_appRoot;
     QString m_dataRoot;
     AppCore *m_appCore = nullptr;
     QNetworkAccessManager *m_nam;

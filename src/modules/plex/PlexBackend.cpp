@@ -60,10 +60,9 @@ static const QString kPlexPlatform = QStringLiteral("Linux");
 // Construction
 // ---------------------------------------------------------------------------
 
-PlexBackend::PlexBackend(const QString &appRoot, const QString &dataRoot, AppCore *appCore,
+PlexBackend::PlexBackend(const QString &, const QString &dataRoot, AppCore *appCore,
                          QObject *parent)
     : QObject(parent)
-    , m_appRoot(appRoot)
     , m_dataRoot(dataRoot)
     , m_appCore(appCore)
     , m_nam(new QNetworkAccessManager(this))
@@ -752,7 +751,6 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
 
             QJsonObject a = loadAuth();
             a["active_user_id"]    = userId;
-            a["active_user_token"] = masterToken; // always master JWT for plex.tv API
 
             if (owner) {
                 // Swap JWT-bearing entries for the legacy switch token so PMS accepts them
@@ -828,12 +826,6 @@ void PlexBackend::performUserSwitch(const QString &userId, const QString &pin,
 
 QString PlexBackend::accountToken() const {
     return loadAuth()["auth_token"].toString();
-}
-
-QString PlexBackend::userToken() const {
-    QJsonObject auth = loadAuth();
-    QString t = auth["active_user_token"].toString();
-    return t.isEmpty() ? auth["auth_token"].toString() : t;
 }
 
 QString PlexBackend::videoQuality() const {
@@ -1266,14 +1258,12 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
 
             for (const auto &si : pending) {
                 probeConnections(si.connections, [this, si, serverList, remaining, users, allServerTokens](QString uri) {
-                    bool isLocal = !uri.isEmpty(); // probe only tries local; non-empty = LAN
-                    bool isRelay = false;
                     if (uri.isEmpty()) {
                         // No local connection found. Prefer relay (Plex's own proxy,
                         // works for both API calls and file streaming from WAN).
                         for (const auto &cv : si.connections) {
                             QJsonObject c = cv.toObject();
-                            if (c["relay"].toBool()) { uri = c["uri"].toString(); isRelay = true; break; }
+                            if (c["relay"].toBool()) { uri = c["uri"].toString(); break; }
                         }
                         // Owned servers often have no relay entry — fall back to a
                         // WAN IPv4 direct URL so the server still appears in the list.
@@ -1296,8 +1286,6 @@ void PlexBackend::fetchUsersAndServers(const QString &token) {
                         s["machineId"] = si.clientIdentifier;
                         s["name"]      = si.name;
                         s["uri"]       = uri;
-                        s["local"]     = isLocal;
-                        s["relay"]     = isRelay;
                         serverList->append(s);
                     }
                     (*remaining)--;
