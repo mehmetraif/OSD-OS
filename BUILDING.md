@@ -270,7 +270,7 @@ sudo apt-get install -y build-essential cmake pkgconf \
 
 Qt 6 can come from your distro (`qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-shadertools-dev qml6-module-qtquick*`) or from the [Qt online installer](https://www.qt.io/download-qt-installer) with Qt Shader Tools (set `CMAKE_PREFIX_PATH` to it, matching CI's Qt 6.7). For the Orb look, add Qt Quick 3D, and **Qt Quick Timeline with it**: `linuxdeploy-plugin-qt` bundles every module of Qt Quick 3D, and AssetUtils' library links against Timeline's, so without Timeline that library is left out and the [audit](#host-library-audit) stops the build. CI's Qt has `qtshadertools qtquick3d qtquicktimeline`.
 
-> **The bundled `mpv` must be modern (≥ 0.38)** — the app's "forced subtitles only" option (`--subs-with-matching-audio=forced`) was added in mpv 0.38, and distro packages are often older (Ubuntu 24.04 ships 0.37, 22.04 ships 0.34.1). If your distro's mpv is too old, build one first and point `MPV_BIN` at it:
+> **The bundled `mpv` should be modern (≥ 0.38)** — the app's "forced subtitles only" option (`--subs-with-matching-audio=forced`) was added in mpv 0.38, and distro packages are often older (Ubuntu 24.04 ships 0.37, 22.04 ships 0.34.1). An older mpv still plays (the app asks it its options once and gives it `--subs-fallback-forced=always` alone for Forced Only), but picks forced subtitles less finely. If your distro's mpv is too old, build one first and point `MPV_BIN` at it:
 >
 > ```bash
 > MPV_BIN=$(scripts/build-mpv.sh) scripts/build-appimage.sh --configure

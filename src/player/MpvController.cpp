@@ -29,6 +29,9 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QDebug>
+#include <QProcess>
+#include <QHash>
+#include <QMutex>
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -137,6 +140,48 @@ bool webAddress(const QString &word) {
 QByteArray configLine(const char *option, const QString &value) {
     const QByteArray bytes = value.toUtf8();
     return QByteArray(option) + "=%" + QByteArray::number(bytes.size()) + '%' + bytes + '\n';
+}
+
+// Whether the mpv at `bin` takes "forced" for --subs-with-matching-audio,
+// which came with mpv 0.38: an older one refuses the whole command line for
+// it ("option parameter could not be parsed"), and the video never starts.
+// Its own list of options says (--list-options: a Flag before, Choices with
+// "forced" since), asked once for each mpv binary (its path, size and time),
+// on its first video with Forced Only subtitles. One that can't be asked is
+// taken to.
+bool takesForcedSubtitles(const QString &bin) {
+    if (bin.isEmpty())
+        return true;
+    static QMutex mutex;
+    static QHash<QString, bool> known;
+    const QFileInfo info(bin);
+    const QString key = info.absoluteFilePath() + QLatin1Char('|') + QString::number(info.size())
+                        + QLatin1Char('|') + QString::number(info.lastModified().toMSecsSinceEpoch());
+    const QMutexLocker locker(&mutex);
+    const auto found = known.constFind(key);
+    if (found != known.constEnd())
+        return *found;
+    bool takes = true;
+    QProcess ask;
+    ask.setProcessChannelMode(QProcess::MergedChannels);
+    ask.start(bin, { QStringLiteral("--no-config"), QStringLiteral("--list-options") });
+    if (ask.waitForStarted(2000) && ask.waitForFinished(5000)) {
+        for (const QByteArray &line : ask.readAll().split('\n')) {
+            const QByteArray option = line.trimmed();
+            if (option.startsWith("--subs-with-matching-audio ")) {
+                takes = option.contains("forced");
+                break;
+            }
+        }
+    } else {
+        ask.kill();
+        ask.waitForFinished(1000);
+    }
+    if (!takes)
+        qInfo("[MpvController] %s is older than mpv 0.38 (no \"forced\" for --subs-with-matching-audio): "
+              "Forced Only subtitles go by --subs-fallback-forced=always alone", qPrintable(bin));
+    known.insert(key, takes);
+    return takes;
 }
 
 // The last value an option was given among these, "" if none.
@@ -691,9 +736,16 @@ QStringList MpvController::trackArgs(const PlaybackRequest &request, bool embedd
     else if (subTrack < -1)
         // subs disabled or provided via transcode
         args << QStringLiteral("--sid=no");
-    else if (subTrack == -1)
-        // forced subs only
-        args << QStringLiteral("--subs-with-matching-audio=forced") << QStringLiteral("--subs-fallback-forced=always");
+    else if (subTrack == -1) {
+        // forced subs only. An mpv older than 0.38 has no "forced" for the
+        // first, and refuses to start with it: the second alone, its nearest
+        // (it selects a forced track in the audio's language, whatever the
+        // preferred languages, and nothing else). libmpv only leaves out an
+        // option it refuses (EmbeddedMpv::start()).
+        if (embedded || takesForcedSubtitles(mpvbin::locate()))
+            args << QStringLiteral("--subs-with-matching-audio=forced");
+        args << QStringLiteral("--subs-fallback-forced=always");
+    }
     else if (subTrack == 0) {
         // Always display subs, even if the audio and subtitle languages match
         args << QStringLiteral("--subs-with-matching-audio=yes") << QStringLiteral("--subs-fallback=yes");

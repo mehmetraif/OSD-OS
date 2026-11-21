@@ -38,6 +38,16 @@
 
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
+if [ "$2" = --list-options ]; then
+  echo "options $FAKE_MPV_SUBS" >> "$log"
+  if [ "$FAKE_MPV_SUBS" = old ]; then
+    echo ' --subs-with-matching-audio       Flag (default: yes)'
+  else
+    echo ' --subs-with-matching-audio       Choices: no forced yes (default: yes)'
+  fi
+  echo ' --subs-fallback-forced           Choices: no yes always (default: yes)'
+  exit 0
+fi
 media=""
 for a in "$@"; do
   case "$a" in
@@ -1754,6 +1764,45 @@ private slots:
         QCOMPARE(MpvController::startTimeoutMs({ QUrl::fromLocalFile(streams).toString() }, none, true), 45000);
         QCOMPARE(MpvController::startTimeoutMs({ files }, ytdl, false), 90000);
         QCOMPARE(MpvController::startTimeoutMs({ files }, ytdl, true), 45000);
+    }
+
+    // Forced Only subtitles: "forced" for --subs-with-matching-audio, with
+    // --subs-fallback-forced=always, where mpv takes it (0.38 and later);
+    // an older mpv, which refuses to start with it, gets the second alone.
+    // Each mpv is asked once, by its own list of options.
+    void forcedSubtitlesAsTheInstalledMpvTakesThem() {
+        const auto forcedOnly = [this](const char *film) {
+            m_mpv->loadAndPlay(m_dir.path() + QStringLiteral("/") + QLatin1String(film) + QStringLiteral(".mp4"), 0,
+                               0, -1, {});
+        };
+        forcedOnly("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+        QVERIFY(arguments().contains(QStringLiteral("--subs-fallback-forced=always")));
+        forcedOnly("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+        // (Asked already, should an earlier test have played with them.)
+        QVERIFY(events().count(QStringLiteral("options ")) <= 1);
+
+        // Another mpv, older, first on PATH.
+        const QString old = m_dir.path() + QStringLiteral("/bin-old");
+        QVERIFY(QDir().mkpath(old));
+        QVERIFY(QFile::copy(m_dir.path() + QStringLiteral("/bin/mpv"), old + QStringLiteral("/mpv")));
+        const QByteArray path = qgetenv("PATH");
+        qputenv("PATH", old.toUtf8() + ':' + path);
+        qputenv("FAKE_MPV_SUBS", "old");
+        const auto restore = qScopeGuard([path] { qputenv("PATH", path); qunsetenv("FAKE_MPV_SUBS"); });
+        forcedOnly("C");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
+        QVERIFY2(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty(),
+                 qPrintable(arguments().join(QLatin1Char(' '))));
+        QVERIFY(arguments().contains(QStringLiteral("--subs-fallback-forced=always")));
+        QCOMPARE(events().count(QStringLiteral("options old")), 1);
+        forcedOnly("D");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
+        QVERIFY(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty());
+        QCOMPARE(events().count(QStringLiteral("options old")), 1);
     }
 
     // A playlist gone on to its next video ends before that one has a

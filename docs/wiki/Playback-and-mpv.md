@@ -278,7 +278,7 @@ A player tells mpv which tracks to start with; the deck menu's AUDIO and SUBTITL
 | Subtitles in files beside the stream | `--sub-file=<url>` for each: a Plex, Jellyfin or Emby server's |
 
 - **Module settings**: Auto Show Subtitles and Subtitle Language (Local Files, NFC Reader); Subtitles (Playlists); Subtitles, Subtitle Language and Audio Language (YouTube). Each module's page has the values.
-- The forced-only flags need mpv 0.38 or later.
+- `--subs-with-matching-audio=forced` came with mpv 0.38, and an older mpv refuses to start with it. OSD/OS asks each mpv once (`mpv --list-options`) and gives one older than 0.38 `--subs-fallback-forced=always` alone, its nearest: a forced track in the audio's language, and nothing else.
 - A server's sidecar subtitles show their real names in the deck menu (`osdos-mpv-subinfo.json` in the run-time folder).
 - **How subtitles look** is mpv's: `sub-scale`, `sub-font-size` and the like in `mpv.conf` apply to the process.
 
@@ -353,7 +353,7 @@ audio-device=alsa/default:CARD=Headphones
 
 ## Installing a modern mpv
 
-OSD/OS needs **mpv 0.38 or later**: an older mpv refuses to start with Forced Only subtitles' `--subs-with-matching-audio=forced`. Check with `mpv --version`.
+OSD/OS is made for **mpv 0.38 or later**. An older one plays, with Forced Only subtitles by `--subs-fallback-forced=always` alone (it has no `forced` choice for `--subs-with-matching-audio`, which OSD/OS then leaves out). Check with `mpv --version`.
 
 | System | mpv |
 |---|---|
