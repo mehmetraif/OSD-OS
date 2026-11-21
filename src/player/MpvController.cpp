@@ -526,7 +526,7 @@ MpvController::~MpvController() {
     }
     QFile::remove(m_privateOptionsPath);
     QFile::remove(m_privateMediaPath);
-    // Quitting mid-playback on a headless Pi used to leave the VT switched away
+    // Quitting mid-playback on a headless Pi would leave the VT switched away
     // and DRM master dropped — a black screen or a stray text console. Restore
     // synchronously here: terminate() above has already released mpv's hold on
     // the device, and we're exiting, so there's no point deferring 200 ms.
@@ -601,11 +601,9 @@ QStringList MpvController::scriptArgs(const PlaybackRequest &request, bool embed
     if (!logo.corner.isEmpty())
         args << QString("--script=%1").arg(m_appRoot + "/scripts/mpv-logo.lua");
 
-    // Still-image playback only: mpv's KMS output (--vo=drm) won't repaint the
-    // primary plane between two consecutive same-size/format stills, so a photo
-    // playlist freezes on the first frame while the clock advances. This script
-    // nudges a render-affecting property on each playlist advance to force a
-    // page-flip. Loaded only for image content, so video playback is untouched.
+    // Still-image playback only: the script that has mpv's KMS output repaint
+    // for each still of a photo playlist (it says why). Video playback is
+    // untouched.
     if (request.imageContent) {
         const QString slideshowScript = m_appRoot + "/scripts/mpv-slideshow-redraw.lua";
         if (QFile::exists(slideshowScript))
@@ -752,11 +750,11 @@ QStringList MpvController::trackArgs(const PlaybackRequest &request, bool embedd
     else if (subTrack == 0) {
         // Always display subs, even if the audio and subtitle languages match
         args << QStringLiteral("--subs-with-matching-audio=yes") << QStringLiteral("--subs-fallback=yes");
+        // Sub files given: mpv selects the first of them by itself.
         if (request.subFiles.isEmpty())
             // use embedded or auto-matched sub
             args << QStringLiteral("--sid=auto");
     }
-    // else: external sub(s) loaded, subTrack==0 → mpv auto-selects first loaded sub
     if (!request.subLangs.isEmpty())
         args << QString("--slang=%1").arg(request.subLangs.join(QStringLiteral(",")));
 
@@ -1662,14 +1660,13 @@ void MpvController::releaseKeys() {
     sendCommand({"keyup", key});
 }
 
-// Back used to go to mpv as any key, whose input.conf maps it to osdos-menu,
-// which came back over the control connection to detachToMenus() or
-// backFromProcess(): a round trip through mpv's input queue and the socket,
-// and nothing at all while the connection was down or being made again. The
-// deck's own menu and the screen saver still take it while they are up
-// (their bindings are forced, and they say when they show); otherwise it is
-// acted on here, at once. A keyboard's own Esc to an mpv process still comes
-// the old way.
+// Back is acted on here, at once, not sent to mpv as any key: input.conf
+// maps that to osdos-menu, which comes back over the control connection to
+// detachToMenus() or backFromProcess(), a round trip through mpv's input
+// queue and the socket, and nothing at all while the connection is down or
+// being made again. The deck's own menu and the screen saver still take it
+// while they are up (their bindings are forced, and they say when they
+// show). A keyboard's own Esc to an mpv process still comes that way.
 //
 // What became of each back is said in the log: it is the one key that leaves
 // a video, and a back that did nothing is otherwise nowhere to be seen.
