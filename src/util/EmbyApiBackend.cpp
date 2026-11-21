@@ -549,7 +549,7 @@ void EmbyApiBackend::load_items(const QString &parentId, const QString &includeT
     q.addQueryItem("parentId", parentId);
     q.addQueryItem("recursive", "true");
     // Browse rows only need title/year/overview/played state. Skip the heavy
-    // per-item MediaSources/MediaStreams here (now that the list is unbounded) —
+    // per-item MediaSources/MediaStreams here (the list is unbounded) —
     // Item.qml re-fetches full detail via load_item_detail when an item is opened.
     q.addQueryItem("fields", "Overview,Genres,UserData,SortName");
     if (!includeTypes.isEmpty())
