@@ -279,7 +279,7 @@ Every gamepad's starting map can also be set in the data folder's `input.cfg`.
 
 <table>
 <tr><th width="50%">Wi-Fi</th><th width="50%">The country</th></tr>
-<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/wifi.png" width="100%" alt="Wi-Fi: COUNTRY, SEARCH and NETWORK NOT LISTED, then the saved networks, HOME connected, and the others, each with its lock and its signal in bars" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/wifi-country.png" width="100%" alt="The Wi-Fi country's chooser, the countries by name, Turkey chosen" /></td></tr>
+<tr><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/wifi.png" width="100%" alt="Wi-Fi, the address and 2.4 GHz in its title bar: COUNTRY, SEARCH and NETWORK NOT LISTED, then the saved networks, HOME connected, and the others, each with its lock and its signal in bars, ARCADE HALL selected, its help line opening with On 2.4 GHz" /></td><td><img src="https://raw.githubusercontent.com/mehmetraif/OSD-OS/main/docs/screenshots/wifi-country.png" width="100%" alt="The Wi-Fi country's chooser, the countries by name, Turkey chosen" /></td></tr>
 <tr><td>Each network with its lock and its signal in bars.</td><td>▲ ▼ move a country at a time, ◄ ► from letter to letter.</td></tr>
 </table>
 
