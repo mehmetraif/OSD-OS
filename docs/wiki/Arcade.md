@@ -496,12 +496,12 @@ FinalBurn Neo is a second arcade emulator, played here in RetroArch as a libretr
 Sign in under **Settings → Arcade → RetroAchievements Account**:
 
 1. Make an account at retroachievements.org.
-2. Type **User**, then **Password**, then **Sign In**. **Status** says **Checking** for a moment, then **Signed In**.
-   - **Not Signed In**: RetroAchievements' reason is under **Password** (`Invalid User/Password combination`). Type it again.
+2. Type **User Name**, then **Password** (each reads **Not Set** until it is typed), then **Sign In**, which is dimmed until both are typed. The **Account** line says **Not Signed In**, then **Signing In** for a moment, then your user name.
+   - **Not Signed In** again: RetroAchievements' reason is under **Password** (`Invalid User/Password combination`). Type it again.
    - **At the Next Game**: no connection. RetroArch signs in as the next FinalBurn Neo game starts.
-3. Type the **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**. It is not the password. The page says **Working**, **Kept** while it can't be checked, or **Refused**.
+3. Type the **Web API Key**: your account's key, from retroachievements.org's **Settings** page, under **Keys**. It is not the password. The page says **Working**, **Set** while it can't be checked, or **Refused**.
 
-The key is for the leaderboards, the games' pictures and the achievements in Game Details. **Forget Web API Key** removes it; **Sign Out** forgets the account and its token. The password is never saved. On the OSD/OS image and a Raspberry Pi, the RetroArch that comes with OSD/OS sends it over https, and only to a server whose certificate it has checked. A system's own RetroArch built without TLS, as Debian's and Ubuntu's packages are, sends it over plain HTTP: use one you use nowhere else there.
+The key is for the leaderboards, the games' pictures and the achievements in Game Details. **Forget Web API Key** removes it; **Sign Out** forgets the account and its token. Each asks first ("Forget the Web API key?", "Sign out of RetroAchievements?"), with **Cancel** under the cursor. The password is never saved. On the OSD/OS image and a Raspberry Pi, the RetroArch that comes with OSD/OS sends it over https, and only to a server whose certificate it has checked. A system's own RetroArch built without TLS, as Debian's and Ubuntu's packages are, sends it over plain HTTP: use one you use nowhere else there.
 
 **RA Hi-Score.** With Online High Scores on RetroAchievements and a key, the Arcade screen's box shows each FinalBurn Neo game's leaderboard, kept ten minutes. For a game with no leaderboard, or while it is read or can't be, the box shows this machine's own table. With no table either, it says `Reading…`, or `Not Reachable` without a connection or with a key refused.
 

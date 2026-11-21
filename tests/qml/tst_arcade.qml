@@ -1435,76 +1435,121 @@ StandInRoot {
             compare(root.backs, 1)
         }
 
-        // The account's page: the user and password typed (the password a
-        // star a letter, both cases kept), Sign In hands them over, and Sign
-        // Out brings them back; the key asked about as the page opens.
+        // The account's page: one Account line, what is still to type
+        // Not Set (never None), Sign In dimmed with why until both are
+        // typed; the user and password typed (the password a star a letter,
+        // both cases kept), Sign In hands them over; Sign Out and Forget Web
+        // API Key ask first, Cancel under the cursor; the key asked about as
+        // the page opens. Fake values only.
         function test_accountPage() {
             var page = open("Account.qml")
-            verify(findText(page, "None") !== null)
+            compare(page.keys, ["state", "user", "password", "signIn", "key"])
+            verify(findText(page, "Not Signed In", true) !== null)
+            compare(findText(page, "None", true), null)
+            compare(page.valueOf("user"), "Not Set")
+            compare(page.valueOf("password"), "Not Set")
+            compare(page.valueOf("key"), "Not Set")
             compare(arcadeBackend.keyChecks, 1)
+            // Sign In dimmed, the help line saying why, select doing nothing.
             keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)   // User
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Down)
+            compare(page.currentKey, "signIn")
+            verify(findText(page, "Type your user name and password first") !== null)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return findText(page, "RetroAchievements User") !== null }, 1000)
+            compare(arcadeBackend.signIns, [])
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Up)     // User Name
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return findText(page, "RetroAchievements User Name") !== null }, 1000)
             for (var i = 0; i < "Player".length; ++i)
                 keyClick("Player"[i])
             keyClick(Qt.Key_Return)
             tryVerify(function() { return findText(page, "Player", true) !== null }, 1000)
+            compare(page.offOf("signIn"), "Type your user name and password first")
             keyClick(Qt.Key_Down)   // Password
             keyClick(Qt.Key_Return)
             for (var j = 0; j < "Se".length; ++j)
                 keyClick("Se"[j])
             verify(findText(page, "**", true) !== null)
             keyClick(Qt.Key_Return)
+            compare(page.offOf("signIn"), "")
             keyClick(Qt.Key_Down)   // Sign In
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.signIns, ["Player:Se"])
             tryVerify(function() { return findText(page, "At the Next Game") !== null }, 1000)
-            verify(findText(page, "Sign Out", true) !== null)
-            // Sign In gone, the cursor on the account's first line; the
-            // password gone from the page.
-            compare(page.keys, ["state", "status", "signOut", "key"])
+            tryVerify(function() { return findText(page, "Sign Out", true) !== null }, 1000)
+            compare(page.keys, ["state", "signOut", "key"])
             compare(page.typedPassword, "")
             // The key, kept by the backend and never shown; refused, the
-            // page says so; forgotten, its line goes.
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
-            keyClick(Qt.Key_Down)
+            // page says so.
+            page.currentIndex = page.keys.indexOf("key")
             keyClick(Qt.Key_Return)
             tryVerify(function() { return findText(page, "Web API Key") !== null }, 1000)
             keyClick("A")
             keyClick("b")
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.keyGiven, "Ab")
-            tryVerify(function() { return findText(page, "Kept", true) !== null }, 1000)
+            tryVerify(function() { return findText(page, "Set", true) !== null }, 1000)
             compare(findText(page, "Ab", true), null)
-            // RetroAchievements took it.
             arcadeBackend.achievementsKeyWorks = true
             tryVerify(function() { return findText(page, "Working", true) !== null }, 1000)
             arcadeBackend.achievementsKeyWorks = false
-            compare(page.keys, ["state", "status", "signOut", "key", "forgetKey"])
+            compare(page.keys, ["state", "signOut", "key", "forgetKey"])
             arcadeBackend.achievementsKeyRefused = true
             tryVerify(function() { return findText(page, "Refused", true) !== null }, 1000)
             verify(findText(page, "refused the key") !== null)
+            // Forget Web API Key asks, Cancel under the cursor: Cancel, and
+            // back, keep it; Forget forgets it, and its line goes.
+            var question = findChild(page, "question")
+            keyClick(Qt.Key_Down)
+            compare(page.currentKey, "forgetKey")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            verify(findText(question, "Forget the Web API key?") !== null)
+            compare(question.choiceIndex, 0)
+            compare(question.choices[0].label, "Cancel")
+            compare(question.choices[1].label, "Forget")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.keyGiven, "Ab")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return !question.visible }, 1000)
+            compare(arcadeBackend.keyGiven, "Ab")
+            compare(root.backs, 0)
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
             compare(arcadeBackend.keyGiven, "")
-            tryVerify(function() { return page.keys.length === 4 }, 1000)
-            compare(page.keys[3], "key")
-            // Its line gone, the cursor on the first; signed out, the lines
-            // to sign in again.
-            keyClick(Qt.Key_Down)
+            tryVerify(function() { return page.keys.length === 3 }, 1000)
+            compare(page.keys[2], "key")
+            // Sign Out asks the same way; signed out, the lines to sign in
+            // again.
+            page.currentIndex = page.keys.indexOf("signOut")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
+            verify(findText(question, "Sign out of RetroAchievements?") !== null)
+            compare(question.choiceIndex, 0)
+            compare(question.choices[1].label, "Sign Out")
+            keyClick(Qt.Key_Return)
+            compare(arcadeBackend.achievementsState, "pending")
+            keyClick(Qt.Key_Return)
+            tryVerify(function() { return question.visible }, 1000)
             keyClick(Qt.Key_Down)
             keyClick(Qt.Key_Return)
-            tryVerify(function() { return page.keys.length === 6 }, 1000)
-            compare(page.keys, ["state", "status", "user", "password", "signIn", "key"])
-            // Signed in again, RetroArch signing in at once: the page says
-            // so; refused, it says why, the user kept and the cursor on the
-            // password, to type it again.
+            tryVerify(function() { return page.keys.length === 5 }, 1000)
+            compare(page.keys, ["state", "user", "password", "signIn", "key"])
+            verify(findText(page, "Not Signed In", true) !== null)
+            // Signed in again, RetroArch signing in at once: the Account
+            // line says so; refused, it says why, the user kept and the
+            // cursor on the password, to type it again.
             arcadeBackend.achievementsUser = "Player"
             arcadeBackend.achievementsState = "checking"
-            tryVerify(function() { return findText(page, "Checking", true) !== null }, 1000)
-            compare(page.keys, ["state", "status", "signOut", "key"])
+            tryVerify(function() { return findText(page, "Signing In", true) !== null }, 1000)
+            compare(page.keys, ["state", "signOut", "key"])
             page.typedUser = ""
             arcadeBackend.achievementsMessage = "Invalid User/Password combination. Please try again"
             arcadeBackend.achievementsState = "failed"
@@ -1512,6 +1557,9 @@ StandInRoot {
             compare(page.currentKey, "password")
             compare(page.typedUser, "Player")
             verify(findText(page, "Invalid User/Password combination") !== null)
+            // Signed in: the Account line is the user's name.
+            arcadeBackend.achievementsState = "signedIn"
+            tryVerify(function() { return findText(page, "Player", true) !== null }, 1000)
         }
 
         // Pictures of the repository's, as a game's: a screenshot (4:3) and
