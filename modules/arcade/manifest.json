@@ -280,7 +280,7 @@
       "options": ["Smooth", "Responsive"],
       "default": "Smooth",
       "shown_with": { "key": "lan_play", "value": "On" },
-      "description": "How a game you host on the network keeps its machines together: the host's choice, which every machine joining takes\n[SMOOTH] Your machine plays the game and the others follow it: a slow machine or Wi-Fi never makes the others' picture or sound skip. A joining player's buttons answer a few frames later\n[RESPONSIVE] Every machine plays ahead on a guess of the others' buttons and corrects itself: buttons answer sooner, but a slow machine's picture and sound skip, and the others wait for it"
+      "description": "How a game you host on the network keeps its machines together: the host's choice, which every machine joining takes\n[SMOOTH] Your machine plays the game and the others follow it at its speed, so the fastest machine on a cable should host. A slow machine joining or Wi-Fi never makes the others' picture or sound skip. A joining player's buttons answer a few frames later\n[RESPONSIVE] Every machine plays ahead on a guess of the others' buttons and corrects itself: buttons answer sooner, but a slow machine's picture and sound skip, and the others wait for it"
     },
     {
       "key": "online_name",
