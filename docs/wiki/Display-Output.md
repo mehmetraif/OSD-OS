@@ -194,7 +194,7 @@ PAL, 576 lines, 4:3 (`crt-pal`): the same with `sdtv_mode=2` and `# osdos-mode: 
 
 | Line | What it does |
 |---|---|
-| `enable_tvout=1` | Turns composite on. On a Pi 4 it turns HDMI off |
+| `enable_tvout=1` | Turns composite on. On a Pi 4 it turns HDMI off, and runs the whole system a little slower: Raspberry Pi documents that composite holds a clock others depend on. In a LAN game on Smooth, such a Pi is better joining than hosting ([Online and LAN Play → Speed](https://github.com/mehmetraif/OSD-OS/wiki/Online-and-LAN-Play#speed)) |
 | `sdtv_mode=0` / `2` | NTSC / PAL |
 | `sdtv_aspect=1` | 4:3 |
 | `[pi5]` `dtoverlay=vc4-kms-v3d,cma-512,composite=1` | A Pi 5's full KMS driver, with a 512 MB memory pool (CMA) and its composite encoder on |

@@ -110,6 +110,12 @@ Cave's CV1000 games (Akai Katana, Mushihime-sama, DoDonPachi DaiFukkatsu, Espgal
 
 On a Pi that hosts over Wi-Fi, `iw dev wlan0 station dump | grep -E 'tx retries|tx failed|signal'` shows how often what it sends has to go again.
 
+**What Smooth costs**, beside a joining player's buttons coming a few frames late:
+
+- **The machines joining also wait on the host's screen.** The host plays at its own screen's rate and the others play the frames it sends. A host whose screen runs at 59.94 Hz, as many TVs and CRTs do, sends a frame fewer every 17 seconds or so than a joiner at 60 Hz plays, and the joiner waits for it. Screens of one rate on every machine, the host's above all, keep that from happening.
+- **Not every frame comes in time even so.** In OSD/OS's own measurement, six machines of mixed speeds following their host for 18 seconds had 57 frames come late, against 1440 with every machine playing ahead with no input latency and 252 with a frame of it.
+- **A Raspberry Pi 4 on composite is slower** as a whole than on HDMI: Raspberry Pi's documentation has composite on a Pi 4 hold a clock others depend on, which slows the whole system a little, and the image's raised graphics clock (`gpu_freq`) may not hold there. Let such a Pi join rather than host. `vcgencmd measure_clock core` and `vcgencmd measure_clock v3d` on composite and on HDMI show the clocks it runs at ([Display Output → Composite](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#composite-the-av-jack-or-a-pi-5s-tv-pads)).
+
 Online, a game plays ahead with no latency, and a machine that can't keep up takes up to four frames.
 
 For a smooth game:
