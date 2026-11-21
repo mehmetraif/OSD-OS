@@ -330,7 +330,7 @@ Settings → Network → **Wi-Fi** joins a network ([Settings](https://github.co
 | **wrong password?** | The password, or a network whose password changed | Select it: **New Password**, or Forget it and join it again |
 | **it gave no address (DHCP)** | The router answered but gave no address | Restart the router; check how many devices it lets in |
 | **it is out of reach** | The network isn't heard, or doesn't say its name | Search again, or join it with **Network Not Listed** |
-| A LAN game stutters, a stream's buffer runs dry, SSH pauses, or Wi-Fi drops after a while | The Wi-Fi radio's power saving is on (`iw dev wlan0 get power_save` says `on`) | A current image keeps the radio awake. Elsewhere add `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` with the two lines `[connection]` and `wifi.powersave = 2`, then `sudo systemctl restart NetworkManager`. Should a Bluetooth pad stop connecting after it, take the file out |
+| A LAN game stutters, a stream's buffer runs dry, SSH pauses, or Wi-Fi drops after a while | The Wi-Fi radio's power saving is on (`iw dev wlan0 get power_save` says `on`) | A current image keeps the radio awake, and so does `install.sh` run again. Elsewhere add `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` with the two lines `[connection]` and `wifi.powersave = 2`, then `sudo systemctl restart NetworkManager`. Should a Bluetooth pad stop connecting after it, take the file out |
 
 To join from a shell (it needs `sudo`, so an image built with a password):
 

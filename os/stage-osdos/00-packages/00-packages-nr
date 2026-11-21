@@ -17,3 +17,6 @@ fluidsynth timgm6mb-soundfont openmpt123
 # (Settings → Network → Wi-Fi, 02-system). network-manager pulls it in already; named
 # so it stays.
 polkitd
+# nftables, which marks a network game's packets for Wi-Fi's video queue
+# (osdos-netplay-priority.service, 02-system), as install.sh installs it.
+nftables

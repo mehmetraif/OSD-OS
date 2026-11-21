@@ -417,6 +417,7 @@ On the OSD/OS image it asks neither, and keeps the image's own service. The inst
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0` |
 | The `bluetooth` group | Adds the user OSD/OS runs as |
 | A polkit rule | With a service: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, for Settings → Network → Wi-Fi |
+| The network, as the image has it | The image's own files at the release's tag: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` (Wi-Fi without power saving, from the next connection), and `osdos-netplay-priority.service` with `/usr/lib/osdos/netplay-priority.nft` and `nftables` (a network game's packets marked CS4 for Wi-Fi's video queue). A release without them, or GitHub not answering, leaves the system as it is, and says so |
 | The app | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against its SHA-256, into `/opt/osdos` (`bin`, `lib`, `share`), owned by the user OSD/OS runs as |
 | 240-MP | A 240-MP install (`/opt/240mp`, `240mp.service`) is removed. OSD/OS moves its data folder over on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland, X11, or straight on the screen (Qt's EGLFS) |
@@ -677,6 +678,9 @@ sudo rm -f /etc/systemd/system/osdos-name.socket /etc/systemd/system/osdos-name@
 sudo rm -f /etc/systemd/system/osdos-system.socket /etc/systemd/system/osdos-system@.service
 sudo rm -f /etc/systemd/system/osdos-game.socket /etc/systemd/system/osdos-game@.service
 sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
+sudo systemctl disable --now osdos-netplay-priority.service
+sudo rm -f /etc/systemd/system/osdos-netplay-priority.service /usr/lib/osdos/netplay-priority.nft
+sudo rm -f /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos
 sudo rm -f /usr/local/bin/osdos /etc/udev/rules.d/99-osdos-tty.rules

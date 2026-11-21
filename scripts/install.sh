@@ -497,6 +497,42 @@ LAUNCHER_SCRIPT
 
 sudo chmod +x "${LAUNCHER}"
 
+# ── The image's network settings for games and streams ────────────────────────
+# Wi-Fi without power saving (NetworkManager's osdos-wifi-powersave.conf), and
+# a network game's packets marked CS4 for Wi-Fi's video queue
+# (osdos-netplay-priority.service, with the rules nft reads), as the OSD/OS
+# image has them: the image's own files, os/stage-osdos/02-system/files at
+# this release's tag, never a copy of their text here. On a desktop Pi too,
+# which then keeps its Wi-Fi awake as well. A release from before them, or no
+# answer from GitHub, leaves the system as it is, and says so.
+# NETWORK_FILES_BEGIN
+IMAGE_FILES="https://raw.githubusercontent.com/${REPO}/${VERSION}/os/stage-osdos/02-system/files"
+NETWORK_DIR="${TMP_DIR}/image-files"
+mkdir -p "${NETWORK_DIR}"
+network_file() {
+    curl -fsSL --retry 3 -o "${NETWORK_DIR}/$1" "${IMAGE_FILES}/$1" && [ -s "${NETWORK_DIR}/$1" ]
+}
+if network_file osdos-wifi-powersave.conf; then
+    # From the next connection, or the next start.
+    sudo install -D -m 644 "${NETWORK_DIR}/osdos-wifi-powersave.conf" \
+        /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
+    echo "Wi-Fi's power saving is off from the next connection."
+else
+    echo "Warning: osdos-wifi-powersave.conf couldn't be read from ${VERSION}: Wi-Fi's power saving is left as it is." >&2
+fi
+if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priority.service; then
+    sudo apt-get install -y nftables || echo "Warning: nftables couldn't be installed: network games' packets go unmarked." >&2
+    sudo install -D -m 644 "${NETWORK_DIR}/osdos-netplay-priority.nft" /usr/lib/osdos/netplay-priority.nft
+    sudo install -m 644 "${NETWORK_DIR}/osdos-netplay-priority.service" /etc/systemd/system/osdos-netplay-priority.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable osdos-netplay-priority.service
+    sudo systemctl restart osdos-netplay-priority.service \
+        || echo "Warning: osdos-netplay-priority.service didn't start: network games' packets go unmarked (journalctl -u osdos-netplay-priority)." >&2
+else
+    echo "Warning: the network game's marking couldn't be read from ${VERSION}: its packets go unmarked." >&2
+fi
+# NETWORK_FILES_END
+
 # ── Optional: systemd autostart ───────────────────────────────────────────────
 # The service is written when it is asked for, never over the OSD/OS image's
 # own. The helpers around it (osdos-stop, the sockets the app asks root

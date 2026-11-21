@@ -354,7 +354,7 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 
 - **In OSD/OS**: Settings → Network → Wi-Fi ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#wi-fi)). The polkit rule `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` lets OSD/OS's user use NetworkManager.
 - **The country**: Raspberry Pi OS keeps Wi-Fi off until it is set. Settings → Network → Wi-Fi asks for it. An image built with `WPA_COUNTRY` has it, and in `network-config` it is `regulatory-domain`.
-- **Power saving is off**: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` holds `wifi.powersave = 2` under `[connection]`. `iw dev wlan0 get power_save` says `off` once connected.
+- **Power saving is off**: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` holds `wifi.powersave = 2` under `[connection]`. `iw dev wlan0 get power_save` says `off` once connected. `install.sh` writes the same file, and the marking below, on Raspberry Pi OS.
 - **A network game's packets go first**: `osdos-netplay-priority.service` has nftables read `/usr/lib/osdos/netplay-priority.nft`. Its table, `inet osdos_netplay`, marks TCP to and from RetroArch's port 55435 at private network addresses as CS4, which Wi-Fi sends from its video queue.
 - **To see or remove that marking**: `sudo nft list table inet osdos_netplay` shows the rules, and `sudo systemctl disable --now osdos-netplay-priority.service` removes them.
 - **Before the first boot**: add the network to `network-config` on **bootfs** ([Installation → Wi-Fi by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config)).
