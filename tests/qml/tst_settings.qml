@@ -257,8 +257,10 @@ StandInRoot {
         signal changed()
         function setTimeZone(zone) { asked = asked.concat(["time-zone " + zone]); return true }
         function setKeyboard(code) { asked = asked.concat(["keyboard " + code]); return true }
-        // SSH: on or off, why no one could sign in yet, and asked.
+        // SSH: on or off, why it can't be set here, why no one could sign
+        // in yet, and asked.
         property bool ssh: false
+        property string sshOff: ""
         property string sshNote: ""
         function setSsh(on) { asked = asked.concat(["ssh " + (on ? "on" : "off")]); return true }
         function clearMessage() { message = "" }
@@ -337,6 +339,7 @@ StandInRoot {
             systemSettings.message = ""
             systemSettings.asked = []
             systemSettings.ssh = false
+            systemSettings.sshOff = ""
             systemSettings.sshNote = ""
             bootProgress.available = true
             displayOutput.available = false
@@ -2207,6 +2210,36 @@ StandInRoot {
             systemSettings.message = "SSH not turned off: the helper couldn't stop it"
             verify(named(page, "systemNotice").visible)
             keyClick(Qt.Key_Return)
+            systemSettings.available = false
+        }
+
+        // SSH where the card's helper is older than SSH (an app updated in
+        // place over an older image): dimmed with why, showing what systemd
+        // has, and ◄ ► ask nothing, so the row can't read as stuck on Off.
+        function test_sshRowOverAnOlderHelper() {
+            var why = "The card's system is older than the app: SSH can be set here once it has a new image"
+            systemSettings.available = true
+            systemSettings.sshOff = why
+            var page = open({ group: "system" })
+            compare(row(page, "SSH").value, "Off")
+            compare(page.offReason(lines(page).indexOf("SSH")), why)
+            moveTo(page, "SSH")
+            verify(helpOf(page).shownText.indexOf(why) === 0, helpOf(page).shownText)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Return)
+            compare(systemSettings.asked, [])
+            compare(row(page, "SSH").value, "Off")
+            // On by the setup card's file: shown so, still not changed here.
+            loader.source = ""
+            systemSettings.ssh = true
+            page = open({ group: "system" })
+            compare(row(page, "SSH").value, "On")
+            moveTo(page, "SSH")
+            keyClick(Qt.Key_Left)
+            compare(systemSettings.asked, [])
+            loader.source = ""
+            systemSettings.sshOff = ""
             systemSettings.available = false
         }
 

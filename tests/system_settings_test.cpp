@@ -265,6 +265,35 @@ private slots:
         qputenv("OSDOS_LAUNCHER_API", "10");
         QLocalServer server;
         QVERIFY(server.listen(run.path() + QStringLiteral("/osdos-system.sock")));
+
+        // A launcher at level 10, its helper older than SSH (the image's,
+        // which an app updated in place keeps): the time zone and the
+        // keyboard can be set, SSH shows what systemd has and says why it
+        // can't be changed here, and nothing is asked of the helper, which
+        // would answer "nothing this sets".
+        {
+            SystemSettings settings;
+            QVERIFY(settings.available());
+            QVERIFY(settings.ssh());
+            QVERIFY(settings.sshOff().startsWith(QStringLiteral("The card's system is older than the app")));
+            QVERIFY(!settings.setSsh(false));
+            QVERIFY(!settings.busy());
+            QCOMPARE(settings.message(), QString());
+            QCoreApplication::processEvents();
+            QVERIFY(!server.hasPendingConnections());
+        }
+        qputenv("OSDOS_LAUNCHER_API", "11");
+        // No ssh.service: nothing to turn on.
+        QVERIFY(QFile::rename(m_root.path() + QStringLiteral("/usr/lib/systemd/system/ssh.service"),
+                              m_root.path() + QStringLiteral("/usr/lib/systemd/system/ssh.service.away")));
+        {
+            SystemSettings settings;
+            QCOMPARE(settings.sshOff(), QStringLiteral("SSH isn't installed on this system"));
+            QVERIFY(!settings.ssh());
+            QVERIFY(!settings.setSsh(true));
+        }
+        QVERIFY(QFile::rename(m_root.path() + QStringLiteral("/usr/lib/systemd/system/ssh.service.away"),
+                              m_root.path() + QStringLiteral("/usr/lib/systemd/system/ssh.service")));
         QByteArrayList asked;
         QByteArray reply = "ok\n";
         connect(&server, &QLocalServer::newConnection, &server, [&server, &asked, &reply, &enable] {
@@ -286,6 +315,7 @@ private slots:
         // What systemd has: on, then off once read again.
         SystemSettings settings;
         QVERIFY(settings.available());
+        QCOMPARE(settings.sshOff(), QString());
         QVERIFY(settings.ssh());
         QCOMPARE(settings.sshNote(), QString());
         QSignalSpy changed(&settings, &SystemSettings::changed);

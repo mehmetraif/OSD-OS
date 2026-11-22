@@ -18,9 +18,12 @@
 namespace {
 
 // Launcher API 10: osdos-stop sets the time zone and the keyboard, through
-// osdos-system.socket (and SSH, where its osdos-stop has it: one before
-// answers "nothing this sets").
+// osdos-system.socket.
 constexpr int kSystemApi = 10;
+// Launcher API 11: its osdos-stop turns SSH on and off too. One before
+// answers "nothing this sets": it is the image's, and stays as it was when
+// the app is updated in place.
+constexpr int kSshApi = 11;
 // timedatectl, or raspi-config writing the console's keyboard.
 constexpr int kTimeoutMs = 30 * 1000;
 
@@ -34,6 +37,11 @@ QString systemRoot() {
 SystemSettings::SystemSettings(QObject *parent)
     : QObject(parent), m_available(rootrequest::available(QStringLiteral("system"), kSystemApi)),
       m_keyboardsFile(QStringLiteral(":/setup/schema-extra.json")) {
+    if (m_available && legacy::envInt("LAUNCHER_API") < kSshApi)
+        m_sshOff = QStringLiteral("The card's system is older than the app: SSH can be set here once it has"
+                                  " a new image (or install.sh is run again); OSD/OS Setup's file sets it meanwhile");
+    else if (m_available && systemlocale::ssh(systemRoot()) < 0)
+        m_sshOff = QStringLiteral("SSH isn't installed on this system");
     refresh();
 }
 
@@ -144,7 +152,7 @@ bool SystemSettings::setKeyboard(const QString &code) {
 }
 
 bool SystemSettings::setSsh(bool on) {
-    if (on == m_ssh)
+    if (!m_sshOff.isEmpty() || on == m_ssh)
         return false;
     return on ? send(QStringLiteral("ssh"), QStringLiteral("on"), QStringLiteral("SSH on"),
                      QStringLiteral("SSH not turned on"))

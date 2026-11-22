@@ -374,7 +374,7 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 | System Information | A page; its value the device's name | | The device's name on the network, which it renames, then its model, OS, memory, storage, temperature and network addresses | None: the device's name is the system's hostname |
 | Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image (from a launcher at level 10); elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
 | Keyboard Layout | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
-| SSH | On, Off | The image's | Lets a computer on your network sign in to the device over SSH; its password and keys are set with [OSD/OS Setup](https://osdos.tv/setup/). While on, the help line says why no one could sign in yet, if so. On the OSD/OS image; elsewhere dimmed | None: the system's SSH service |
+| SSH | On, Off | The image's | Lets a computer on your network sign in to the device over SSH; its password and keys are set with [OSD/OS Setup](https://osdos.tv/setup/). While on, the help line says why no one could sign in yet, if so. On the OSD/OS image; elsewhere dimmed, and dimmed with the reason on a card whose system is older than the app ([below](#ssh)) | None: the system's SSH service |
 | Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
 | About | A page | | What OSD/OS is made of and its licenses | None |
@@ -386,6 +386,7 @@ Turns `ssh.service` on and starts it, or turns it off and stops it, through the 
 - **Only on or off.** `pi`'s password, the keys that log in and whether a password logs in at all stay as [OSD/OS Setup](https://osdos.tv/setup/) set them, and a later card's SSH setting wins over this row, as it did before. Nothing here sets or shows a password or a key.
 - **Set a password or a key with OSD/OS Setup first** shows under the row once it has turned SSH on, when nobody could sign in yet: `pi` has no password (an image built without one) and no key in `~/.ssh/authorized_keys`.
 - Turning SSH off leaves a session that is already open running; new ones are refused.
+- **The card's system is older than the app** shows, the row dimmed and reading what the system has, where OSD/OS was updated in place on a card written before SSH could be set from here: the stop helper that turns it on is the image's (or `install.sh`'s), and an update of the app leaves it as it was. Write the new image to the card, or run `install.sh` again; until then [OSD/OS Setup](https://osdos.tv/setup/)'s file turns SSH on or off at the next start.
 
 ### Paste OSD/OS Setup
 
