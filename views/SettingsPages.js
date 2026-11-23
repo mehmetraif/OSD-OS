@@ -741,8 +741,10 @@ function systemRows(items) {
     // row's toggle in Settings.qml's setChoice()): Setting while on its way,
     // a refusal said as Time Zone's is. Its note, why no one could sign in
     // yet (no password or key set), opens the help line while it is on. No
-    // password here: OSD/OS Setup sets it and the keys.
+    // password here: OSD/OS Setup sets it and the keys. Dimmed, showing what
+    // systemd has, where the card's helper is older than SSH (sshOff).
     var sshOn = !!(system && system.ssh)
+    var sshOff = system && system.sshOff ? String(system.sshOff) : ""
     var sshNote = system && system.sshNote ? String(system.sshNote) : ""
     items.push({
         type: "list_single",
@@ -754,7 +756,7 @@ function systemRows(items) {
         description: (sshOn && sshNote !== "" ? sshNote + "\n" : "")
                      + "Lets a computer on your network sign in to this device; its password and keys are set with OSD/OS Setup"
                      + "\n[ON] SSH runs  [OFF] SSH is stopped",
-        unavailable: systemOff,
+        unavailable: systemOff || sshOff,
         moduleId: ""
     })
     // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which
