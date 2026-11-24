@@ -4,6 +4,10 @@ description: >
   runner. The runner's image ships Microsoft's apt repositories (azure-cli,
   prod), which intermittently serve broken signatures and fail
   `apt-get update`; no build here needs them, so they are dropped first.
+  The packages' downloads are kept in GitHub's cache between runs, so that
+  a run fetches from Ubuntu's mirror only what changed since the last one:
+  the mirror for the runners has served them at under 100 kB/s at times,
+  and the regression job's 200 MB then outlasted the job's time limit.
 
 inputs:
   packages:
@@ -17,11 +21,38 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install the packages
+    # The cache is the runner's system, its architecture and the packages
+    # asked for; each run saves under a key of its own (cache keys can't be
+    # written over), and restores the newest of the same packages.
+    - name: The packages' cache
+      id: key
       shell: bash
       env:
         PACKAGES: ${{ inputs.packages }}
         NO_INSTALL_RECOMMENDS: ${{ inputs.no-install-recommends }}
+      run: |
+        # A word per package, as the install below reads them; no globbing.
+        set -f
+        list="$(printf '%s\n' $PACKAGES "recommends=$NO_INSTALL_RECOMMENDS" | sort | sha256sum | cut -c1-16)"
+        prefix="apt-${ImageOS:-linux}-${RUNNER_ARCH}-${list}-"
+        echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+        echo "key=${prefix}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" >> "$GITHUB_OUTPUT"
+        echo "dir=${HOME}/.cache/osdos-apt" >> "$GITHUB_OUTPUT"
+
+    - name: Restore the packages' downloads
+      uses: actions/cache/restore@v6.1.0
+      with:
+        path: ~/.cache/osdos-apt
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.prefix }}
+
+    - name: Install the packages
+      id: install
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        NO_INSTALL_RECOMMENDS: ${{ inputs.no-install-recommends }}
+        ARCHIVES: ${{ steps.key.outputs.dir }}
       run: |
         # A word per package; read stops at the end, which it reports.
         read -r -d '' -a packages <<< "$PACKAGES" || true
@@ -33,6 +64,30 @@ runs:
         if [ "$NO_INSTALL_RECOMMENDS" = true ]; then
           options+=(--no-install-recommends)
         fi
+        # apt keeps its downloads in the cache's folder rather than its own,
+        # which the runner's user can't hand to the cache.
+        mkdir -p "$ARCHIVES/partial"
+        cached=(-o "Dir::Cache::Archives=$ARCHIVES")
+        before="$(find "$ARCHIVES" -maxdepth 1 -name '*.deb' -printf '%f\n' | sort | sha256sum)"
         sudo rm -f /etc/apt/sources.list.d/microsoft-prod.* /etc/apt/sources.list.d/azure-cli.*
         sudo apt-get update
-        sudo apt-get install "${options[@]}" "${packages[@]}"
+        sudo apt-get "${cached[@]}" install "${options[@]}" "${packages[@]}"
+        # Versions the mirror no longer has are dropped, so the cache
+        # doesn't grow with every update; what's left is the runner's to
+        # read and save.
+        sudo apt-get "${cached[@]}" autoclean
+        sudo rm -rf "$ARCHIVES/partial" "$ARCHIVES/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$ARCHIVES"
+        after="$(find "$ARCHIVES" -maxdepth 1 -name '*.deb' -printf '%f\n' | sort | sha256sum)"
+        if [ "$before" != "$after" ]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+        echo "$(find "$ARCHIVES" -maxdepth 1 -name '*.deb' | wc -l) packages' downloads kept"
+
+    # Saved only when this run fetched something the cache hadn't.
+    - name: Keep the packages' downloads
+      if: steps.install.outputs.changed == 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: ~/.cache/osdos-apt
+        key: ${{ steps.key.outputs.key }}

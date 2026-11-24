@@ -1332,6 +1332,13 @@ StandInRoot {
             var shown = Math.floor(rows.height / rowHeight + 0.001)
             verify(shown < 20, "more rows than show: " + shown)
             var settled = function(y) { return Math.abs(rows.contentY - y) < 0.5 }
+            // A glide is over once the ListView's highlight, which the rows
+            // follow, has reached the cursor's row: within half a pixel of
+            // the end it can still be on its way, by a frame or more on a
+            // slow machine, and a key pressed then races it.
+            var glided = function(y) {
+                return settled(y) && Math.abs(view.highlightItem.y - view.currentItem.y) < 0.01
+            }
             // Within the rows shown nothing moves but the cursor.
             for (var i = 0; i < shown - 1; i++)
                 keyClick(Qt.Key_Down)
@@ -1353,7 +1360,7 @@ StandInRoot {
             compare(list.currentIndex, shown)
             var below = rows.originY + (shown + 1) * rowHeight - rows.height
             verify(rows.contentY < below - 0.5, "gliding, not there at once: " + rows.contentY)
-            tryVerify(function() { return settled(below) }, 1000)
+            tryVerify(function() { return glided(below) }, 2000)
 
             // Held: each press a row on at once, the rows following.
             for (i = 0; i < 5; i++)
@@ -1362,19 +1369,20 @@ StandInRoot {
             compare(list.currentIndex, shown + 5)
             below += 5 * rowHeight
             verify(rows.contentY < below - 0.5)
-            tryVerify(function() { return settled(below) }, 2000)
+            tryVerify(function() { return glided(below) }, 3000)
             // And back up past the top of what shows: gliding too. The top
             // is the first row shown whole: where the rows' height is no
             // whole number of rows (a layout's frame under another font),
             // the row above it shows in part, and the cursor on that one
             // would move the rows already.
             var top = Math.ceil((rows.contentY - rows.originY) / rowHeight - 0.001)
+            var at = rows.contentY
             while (list.currentIndex > top)
                 keyClick(Qt.Key_Up)
-            tryVerify(function() { return settled(below) }, 1000)
+            tryVerify(function() { return glided(at) }, 3000)
             keyClick(Qt.Key_Up)
             verify(rows.contentY > rows.originY + (top - 1) * rowHeight + 0.5)
-            tryVerify(function() { return settled(rows.originY + (top - 1) * rowHeight) }, 1000)
+            tryVerify(function() { return glided(rows.originY + (top - 1) * rowHeight) }, 2000)
 
             // Round the top to the last row: at once.
             list.currentIndex = 0
