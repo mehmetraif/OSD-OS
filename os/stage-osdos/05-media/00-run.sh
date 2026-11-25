@@ -43,3 +43,11 @@ install -m 644 files/osdos-media-folders.service "${UNITS}/"
 sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/g" "${UNITS}/osdos-media-folders.service"
 install -d "${UNITS}/media-OSD\\x2dOS.mount.wants"
 ln -sf /etc/systemd/system/osdos-media-folders.service "${UNITS}/media-OSD\\x2dOS.mount.wants/"
+
+# The partition checked before it is mounted only when it needs it: its
+# VolumeDirty flag set, or no exFAT boot sector (media-check, run by
+# osdos-media-check.service, also wanted by its mount and ordered before it).
+# Its fstab line has no pass (01-run-chroot.sh), so no full fsck at every boot.
+install -D -m 755 files/media-check "${ROOTFS_DIR}/usr/lib/osdos/media-check"
+install -m 644 files/osdos-media-check.service "${UNITS}/"
+ln -sf /etc/systemd/system/osdos-media-check.service "${UNITS}/media-OSD\\x2dOS.mount.wants/"

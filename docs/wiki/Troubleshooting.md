@@ -400,7 +400,7 @@ A video on a drive that was pulled out drops out of Recently Watched and Favorit
 | Films copied on, not in Local Files | Local Files opens the partition's **Movies** folder (`/media/OSD-OS/Movies`), unless its Media Folder names another | Move them into **Movies**, or choose Settings → TV / Movie → Local Files → Media Folder → Default Folder |
 | Offline playlists fail, naming the folder | A card flashed with an old image mounts the partition read-only (`ro` in `/etc/fstab`) | Flash the current image, or change `ro` to `rw,noexec,nosuid,nodev` and the line's last `0` to `2` |
 
-The partition is checked with `fsck.exfat` at every boot. More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card).
+The partition is checked with `fsck.exfat` before it is mounted when it was left untidy (switched off at the wall mid-write, or pulled from a Windows PC without ejecting it), not at every boot; `journalctl -b -u osdos-media-check` says whether it was this boot. A computer that leaves it untidy without setting exFAT's flag for it leaves it unchecked: [The OSD/OS image → How it is mounted](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#how-it-is-mounted) says how to check it by hand. More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card).
 
 ## A theme or skin isn't listed, or is partly ignored
 

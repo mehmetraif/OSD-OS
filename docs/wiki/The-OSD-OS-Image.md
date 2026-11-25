@@ -185,6 +185,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-setup-app.service`, `osdos-setup.service` | Run only with an `osdos-setup.json` on the boot partition |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, unless an arcade game plays |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
+| `osdos-media-check.service` | Checks the film partition before it is mounted, only when it was left untidy ([How it is mounted](#how-it-is-mounted)) |
 | `osdos-media-folders.service` | Makes **Movies** on the film partition as it is mounted |
 | `osdos-netplay-priority.service` | Enabled. Marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](#wi-fi)) |
 | `osdos-firewall.service` | Enabled. Lets only the home network connect, from before the network comes up ([Firewall](#firewall)) |
@@ -295,10 +296,18 @@ With less than **2 GiB** left, or with `OSDOS_ROOT_SIZE=0`, there is no film par
 `/etc/fstab` has this line (`1000` is the first user's id):
 
 ```text
-LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=3s  0  2
+LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=3s  0  0
 ```
 
-It is mounted read-write, nothing on it can run, and `fsck.exfat` checks it at every boot. A card without the partition holds the boot 3 seconds at most.
+It is mounted read-write and nothing on it can run. A card without the partition holds the boot 3 seconds at most.
+
+The line has no check of its own (its last field is `0`): a full `fsck.exfat` at every boot cost a card with thousands of files seconds before the app could start. `osdos-media-check.service` runs before the mount instead, and `/usr/lib/osdos/media-check` reads the flag exFAT keeps in its boot sector while the partition is written to (VolumeDirty, bit 1 of VolumeFlags at byte 106), which a clean unmount by Linux or Windows clears:
+
+- clear: no check, a few milliseconds;
+- set (the Pi switched off at the wall mid-write, a card pulled from a Windows PC without ejecting it, or a check cut short): `fsck.exfat` checks and repairs it, as the boot's own check would have (`fsck.repair=` on the kernel's command line: `yes` on the image, so `-y`), for 10 minutes at most;
+- no exFAT boot sector to read: checked too.
+
+Whatever goes wrong there, the partition is mounted as before and the app starts. `journalctl -b -u osdos-media-check` has one line saying which it was: `clean (VolumeFlags 0x0000); check skipped`, `dirty (VolumeFlags 0x0002); checked (fsck.exfat -y): exit status 0, clean` (or the status fsck gave), or `unreadable`. `fsck.mode=force` on the kernel's command line checks it at every boot, `fsck.mode=skip` never. To check it by hand: `sudo systemctl stop osdos.service 'media-OSD\x2dOS.mount'`, then `sudo fsck.exfat -y /dev/disk/by-label/OSD-OS` and `sudo reboot`.
 
 The Playlists module downloads into a **Playlists** folder in **Movies** (its Download Folder setting can name another).
 
@@ -658,7 +667,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked CS4 for Wi-Fi's video queue |
 | `/etc/systemd/system/osdos-firewall.service`, `/usr/lib/osdos/firewall.nft` | The firewall: only the home network may connect |
 | `/etc/avahi/avahi-daemon.conf` | `osdos.local` by IPv4 alone (`use-ipv6=no`, `publish-aaaa-on-ipv4=no`), wide-area DNS-SD off (`enable-wide-area=no`) |
-| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted`, `yt-dlp-compile` | The image's helpers |
+| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `media-check`, `yt-dlp-wanted`, `yt-dlp-compile` | The image's helpers |
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |
 | `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` | Wi-Fi power saving off |
@@ -694,6 +703,7 @@ journalctl -u osdos -b                    # this boot
 journalctl -u osdos -f                    # as it happens
 journalctl -u osdos -b | grep '\[boot\]'   # the boot screen's timings
 journalctl -u 'osdos-usb-mount@*'         # USB drives
+journalctl -b -u osdos-media-check        # the film partition's check
 journalctl -u osdos-yt-dlp-update         # yt-dlp's updates
 journalctl -u osdos-jamma                 # a JAMMA board's controls
 journalctl -u 'osdos-display@*'           # Display Output's At Next Start
@@ -823,7 +833,7 @@ The parts are the folders of [`os/stage-osdos`](https://github.com/mehmetraif/OS
 | `02-system` | The service, its helpers and sockets, the polkit rule, Wi-Fi power saving, the network game marking and the firewall (`nftables`), `osdos.local` by IPv4, OSD/OS Setup, the JAMMA controls, the boot order, the masked and disabled units | |
 | `03-boot` | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay, the quiet `cmdline.txt` | |
 | `04-streaming` | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
-| `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
+| `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-check.service`, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
 | `06-youtube` | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build; Deno, pinned (today `v2.9.8`); the update timer | `OSDOS_YOUTUBE=0` |
 | `07-usb` | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
 | `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names, and the app's own RetroArch started once | `OSDOS_ARCADE=0` |

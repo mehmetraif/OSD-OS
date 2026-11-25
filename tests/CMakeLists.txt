@@ -436,6 +436,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # yt-dlp-compile), on a stand-in zipapp: it runs the same from its .pyc
     # files, keeps its first line and mode, and a rebuild that fails half-way
     # leaves it as it was; the stage and the update unit run it. Needs Python 3.
+    # The film partition's check before it is mounted (os/stage-osdos/05-media:
+    # media-check): only a dirty or unreadable exFAT boot sector checked, on
+    # an image made in a file with a stand-in fsck.exfat; never failing; the
+    # unit before the mount and the fstab line without a pass.
+    add_test(NAME media_check COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/media_check_test.sh
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/05-media)
+
     add_test(NAME yt_dlp_compile COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/yt_dlp_compile_test.sh
                                           ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/06-youtube)
 endif()
