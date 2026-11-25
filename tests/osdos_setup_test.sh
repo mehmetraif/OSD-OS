@@ -412,6 +412,31 @@ apply
 check "a hard link: deleted" "no" "$(there "$BOOT/osdos-setup.json")"
 check "a hard link: the other name's file not wiped" "same" "$(cmp -s "$T/elsewhere.json" "$T/elsewhere.orig" && echo same)"
 
+# The pending copy, root's between the two stages, holds the Wi-Fi password
+# (and, until the app's stage has set it, RetroAchievements'): each copy a
+# new one replaces is overwritten with zeros once the new one is in place,
+# and the last before it is deleted. Read through descriptors held open on
+# them from before.
+rm -f "$PENDING"
+printf '{ "osdos_setup": 1, "wifi": { "ssid": "Loft", "password": "wipe me too please" } }\n' > "$BOOT/osdos-setup.json"
+: > "$T/out"
+check "pending wiped: app stage" "0" "$(stage app)"
+size=$(stat -c %s "$PENDING")
+exec 3< "$PENDING"
+# The next start's app stage, as after a power cut, writes it anew.
+check "pending wiped: the app stage again" "0" "$(stage app)"
+check "pending wiped: the copy replaced, zeros where its bytes were" "$size 0" \
+    "$(head -c "$size" <&3 | wc -c) $(head -c "$size" "/proc/$$/fd/3" | tr -d '\0' | wc -c)"
+exec 3<&-
+check "pending wiped: the new copy has what is left" "osdos_setup wifi" "$(keys)"
+size=$(stat -c %s "$PENDING")
+exec 3< "$PENDING"
+stage system > /dev/null
+check "pending wiped: gone after the system stage" "no" "$(there "$PENDING")"
+check "pending wiped: zeros where its bytes were, as many" "$size 0" \
+    "$(head -c "$size" <&3 | wc -c) $(head -c "$size" "/proc/$$/fd/3" | tr -d '\0' | wc -c)"
+exec 3<&-
+
 # A start cut short after the app's stage: the next start's app stage sets
 # nothing twice, and the system's says all of it once.
 printf '{ "osdos_setup": 1, "device": { "name": "attic-tv" }, "config": { "app": { "hint_bar": "Off" } } }\n' \

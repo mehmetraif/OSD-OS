@@ -63,7 +63,7 @@ Raspberry Pi Imager 2 offers no OS customisation for an image chosen with **Use 
 [OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what a card starts with ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) has the steps). Its file, `osdos-setup.json`, goes on the boot partition (**bootfs**). `/usr/local/sbin/osdos-setup` applies it in two stages:
 
 1. **`osdos-setup-app.service`**, before OSD/OS starts, moves the file to `/var/lib/osdos-setup/pending.json` (root's alone), and overwrites it on bootfs with zeros before deleting it, so that its passwords don't stay in the partition's free space (as far as the SD card's controller allows: it may keep the old cells until it reuses them). It sets OSD/OS's settings and the RetroAchievements account.
-2. **`osdos-setup.service`**, once OSD/OS is on screen, sets the rest. The boot screen lists it as **SETTINGS**: `[ OK ]` when all was set, `[FAIL]` when anything wasn't. It then writes `osdos-setup.log` on the boot partition, without passwords.
+2. **`osdos-setup.service`**, once OSD/OS is on screen, sets the rest, then overwrites `pending.json` with zeros and deletes it (each earlier copy of it was overwritten as a new one took its place), so that the Wi-Fi password it held doesn't stay on the card's free space either. The boot screen lists it as **SETTINGS**: `[ OK ]` when all was set, `[FAIL]` when anything wasn't. It then writes `osdos-setup.log` on the boot partition, without passwords.
 
 The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. Each part is applied on its own:
 
@@ -678,7 +678,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/run/osdos/ready` | Written at OSD/OS's first frame |
 | `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock`, `/run/osdos-system.sock` | The four sockets |
 | `/run/osdos-display-boot.txt` | The display preset this boot started on |
-| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set |
+| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set (root's alone; overwritten with zeros before it goes) |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` |
 | `/media/OSD-OS` | The film partition: `Movies`, `Games/Arcade` |
 | `/media/usb/<label>` | USB drives, read-only |

@@ -72,7 +72,7 @@ A manual install gets Wi-Fi without power saving and the game's marking as well:
 2. Copy `osdos-setup.json` there. With a display output chosen, also copy `osdos-display.txt` over the one there, so that a CRT has its picture from the first start.
 3. Start the Pi. `/usr/local/sbin/osdos-setup` applies the file in two stages:
    - `osdos-setup-app.service`, before the app starts, takes the file off the boot partition at once (root's alone from then on, in `/var/lib/osdos-setup`; on the partition it is overwritten with zeros before it is deleted, so that its passwords don't stay in the free space, as far as the SD card's controller lets them go) and sets what the app reads as it starts: its settings and the RetroAchievements account.
-   - `osdos-setup.service`, once the app is on screen, sets the rest while the boot screen shows **SETTINGS** (`[ OK ]` when all of it was set, `[FAIL]` when anything wasn't), then writes `osdos-setup.log` on the boot partition: what was done, and why anything wasn't. A display output that changes restarts the Pi once.
+   - `osdos-setup.service`, once the app is on screen, sets the rest while the boot screen shows **SETTINGS** (`[ OK ]` when all of it was set, `[FAIL]` when anything wasn't), overwrites the pending copy with zeros and deletes it (as each earlier copy was overwritten once a new one replaced it), then writes `osdos-setup.log` on the boot partition: what was done, and why anything wasn't. A display output that changes restarts the Pi once.
 
 A cabinet's file (**Arcade Cabinet** on the page) starts on the Arcade screen: its Start On is the Arcade, which is turned on with it. The page also puts the TV / Movie settings out of sight (a switch shows them) and lists the JAMMA outputs first.
 
