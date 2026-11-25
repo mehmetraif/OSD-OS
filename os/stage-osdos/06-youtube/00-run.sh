@@ -15,8 +15,8 @@
 YTDLP_URL=https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download
 # Deno, pinned like pi-gen: bump deliberately, with files/deno-LICENSE.md from
 # the same tag.
-DENO_VERSION=v2.9.7
-DENO_SHA256=c832298b1ad4422481334855f6003e0f54145762c5a134f20a489511d2f65bbf
+DENO_VERSION=v2.9.8
+DENO_SHA256=d49596c20b9788cf8f5d8ddf644103d4bde56ed239753f0bdb92ba9361d51905
 
 DOWNLOADS=$(mktemp -d)
 trap 'rm -rf "${DOWNLOADS}"' EXIT
