@@ -77,7 +77,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: The release built for
         id: release
@@ -88,7 +88,7 @@ jobs:
       # LAN core beside it.
       - name: Restore FinalBurn Neo's core
         id: fbneo
-        uses: actions/cache/restore@v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fbneo
           key: fbneo-openbsd-${{ env.OPENBSD_RELEASE }}-${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo-cores.sh', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
@@ -106,7 +106,7 @@ jobs:
       # which the FreeBSD build runs too: the build, the tests, the cores,
       # the package, and the package installed, tried and removed.
       - name: Build, test and package in an OpenBSD VM
-        uses: vmactions/openbsd-vm@v1
+        uses: vmactions/openbsd-vm@f1ca8bc8ecc5b6ef7218e5b914836e067e1546d3 # v1.4.9
         with:
           release: ${{ env.OPENBSD_RELEASE }}
           envs: 'VERSION'
@@ -130,13 +130,13 @@ jobs:
       # so that a run after a failed one doesn't build it again.
       - name: Keep FinalBurn Neo's core
         if: always() && steps.fbneo.outputs.cache-hit != 'true' && hashFiles('fbneo/share/osdos/fbneo/fbneo-arcade.dat') != ''
-        uses: actions/cache/save@v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fbneo
           key: ${{ steps.fbneo.outputs.cache-primary-key }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: osdos-openbsd-amd64
           path: OSD-OS-*-openbsd-amd64.tgz

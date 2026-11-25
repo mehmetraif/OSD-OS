@@ -32,7 +32,7 @@ runs:
     # Kept from a run before for the same commit, script and test.
     - name: Restore RetroArch
       id: cache
-      uses: actions/cache/restore@v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: retroarch-built
         key: retroarch-${{ steps.what.outputs.image }}-${{ runner.arch }}-${{ steps.what.outputs.commit }}-${{ hashFiles('scripts/build-retroarch.sh', 'tests/retroarch_tls_test.sh', 'tests/retroarch_tls/**') }}
@@ -78,7 +78,7 @@ runs:
     # Only one that passed is kept.
     - name: Keep RetroArch
       if: steps.cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v6.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: retroarch-built
         key: ${{ steps.cache.outputs.cache-primary-key }}
