@@ -20,6 +20,15 @@ fi
 # serial lead into an appliance.
 systemctl mask getty@tty1.service autovt@.service serial-getty@ttyAMA10.service
 
+# Raspberry Pi OS's switches on the boot partition, which anyone with the card
+# can write: an empty file named ssh (sshswitch.service) turns SSH on with
+# whatever password the card has, and userconf.txt (userconfig.service) sets
+# a user and its password. OSD/OS Setup's file does both, with its own rules
+# (os/stage-osdos/02-system/files/osdos-setup). Masked whether or not this
+# release of Raspberry Pi OS has them: masking a unit that isn't there only
+# leaves a link to /dev/null in its place.
+systemctl mask sshswitch.service userconfig.service
+
 # udisks2: nothing on the image asks it for anything. USB drives are mounted
 # by OSD/OS's own rule (stage 07-usb), and there is no desktop. Masked, as
 # D-Bus would otherwise start it the moment anything looked for it.

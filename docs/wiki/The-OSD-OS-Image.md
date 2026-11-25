@@ -77,7 +77,8 @@ The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. 
 | OSD/OS's settings | Merged into `~/.local/share/OSD-OS/config.json` |
 | The RetroAchievements account | `~/.local/share/OSD-OS/arcade/retroachievements-setup.json`. RetroArch signs in once the network is up, tried every 30 seconds, ten times at most |
 
-- SSH password login needs `pi`'s password set in the same file. SSH is not turned on without a key or that password.
+- SSH password login needs `pi`'s password set in the same file, and **Password Login** turned on on the page, where it starts off. SSH is not turned on without a key or that password.
+- The page takes a password of 8 characters at least that isn't one of the first anyone guesses (`raspberry`, `password`, `12345678`, the user's name…). The card only sees its hash, so the page alone checks it.
 - Settings → System → SSH turns the service on or off later on the device, and leaves the card's password login and keys as they are; the next card's SSH setting wins over it.
 - A file that can't be read is deleted, and the log says why.
 - The file can also go on a card that has already started.
@@ -197,6 +198,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
 | `udisks2.service` | Masked |
+| `sshswitch.service`, `userconfig.service` | Masked: an empty `ssh` file or a `userconf.txt` on the boot partition turns nothing on. OSD/OS Setup's file takes their place |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `fstrim.timer`, `cron.service` | Disabled. To trim the card by hand: `sudo fstrim -av` |
 | `rpi-connect-lite` | Purged |
 
@@ -411,7 +413,7 @@ Settings → Network → Bluetooth pairs and connects keyboards, gamepads and re
 
 ## SSH
 
-SSH is off on the image as it comes (`ENABLE_SSH=0`). Four ways to have it:
+SSH is off on the image as it comes (`ENABLE_SSH=0`). An empty `ssh` file or a `userconf.txt` on the boot partition does nothing on this image (`sshswitch.service` and `userconfig.service` are masked): OSD/OS Setup's file takes their place. Four ways to have it:
 
 - **OSD/OS Setup** turns it on, with password login or keys only.
 - **Settings → System → SSH** turns the service on or off on the device ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)). It changes nothing else: someone signs in with the password or the keys OSD/OS Setup (or the image's build) gave `pi`.
@@ -426,6 +428,29 @@ ssh pi@osdos.local
 
 The address in Settings' title bar works in place of `osdos.local`.
 
+### sshd's rules
+
+The image's `/etc/ssh/sshd_config.d/90-osdos.conf` sets how sshd lets anyone in, once SSH is on. It is read after OSD/OS Setup's `00-osdos-setup.conf` and cloud-init's `50-cloud-init.conf`, and sshd keeps the first value it reads, so theirs win:
+
+| Setting | Value | So |
+|---|---|---|
+| `PasswordAuthentication` | `no` | Only a key logs in, unless an OSD/OS Setup card with **Password Login** on, or Imager's customisation, says otherwise. An image built with `ENABLE_SSH=1`, a `FIRST_USER_PASS` and not `PUBKEY_ONLY_SSH=1` has `yes` |
+| `KbdInteractiveAuthentication` | `no` | A password goes through password login alone |
+| `PermitRootLogin` | `no` | |
+| `AllowGroups` | `sudo` | `pi` and the users Imager creates; no system account |
+| `MaxAuthTries` | `3` | Three tries a connection. A computer that offers more than two keys before the right one: `ssh -o IdentitiesOnly=yes -i ~/.ssh/<key> pi@osdos.local` |
+| `LoginGraceTime` | `20` | 20 seconds to sign in |
+| `MaxStartups` | `3:50:10` | Past three connections not signed in yet, new ones refused more and more often, all of them at ten |
+
+Settings → System → **SSH** turned on with no card's password login thus lets keys alone in: never the password every card of an image built with one shares. To see what sshd takes:
+
+```sh
+sudo sshd -T | grep -i -e passwordauthentication -e kbdinteractive -e permitrootlogin -e allowgroups -e maxauthtries
+ls /etc/ssh/sshd_config.d/
+```
+
+A Pi set up with `install.sh` keeps its sshd as you have it: none of this is installed there.
+
 ## The user, its password and sudo
 
 - The first user is `pi` (`FIRST_USER_NAME`). OSD/OS runs as it, whatever user Raspberry Pi Imager creates.
@@ -434,7 +459,7 @@ The address in Settings' title bar works in place of `osdos.local`.
 
 | Built | Logging in as `pi` | Exit to Terminal | `sudo` |
 |---|---|---|---|
-| With `FIRST_USER_PASS` (in CI, the secret `OS_FIRST_USER_PASS`) | With that password, on the console and over SSH | A login prompt | Asks for that password |
+| With `FIRST_USER_PASS` (in CI, the secret `OS_FIRST_USER_PASS`) | With that password on the console; over SSH only with `ENABLE_SSH=1`, or once a card turns Password Login on with a password of its own | A login prompt | Asks for that password |
 | Without one (the account is locked) | Over SSH with a key only (`PUBKEY_SSH_FIRST_USER`, `ENABLE_SSH=1`) | Logs `pi` in by itself | Unusable |
 
 For `sudo` on an image built without a password, give `pi` a password on OSD/OS Setup, or log in as the user Imager's customisation creates.

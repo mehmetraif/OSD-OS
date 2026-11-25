@@ -357,6 +357,15 @@ On the OSD/OS image, Settings → System → **Firewall** is on: only the home n
 
 Locked out of SSH by it? The row is at the TV, with the remote: the firewall never keeps the device's own menus out. On a Pi set up with `install.sh` it is off until the row turns it on.
 
+## SSH on the image
+
+| What happens | Cause | Fix |
+|---|---|---|
+| SSH asks for a password and refuses it | The image lets a password in only when an OSD/OS Setup card turned **Password Login** on ([sshd's rules](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#sshds-rules)): SSH turned on from Settings, or by a card with keys alone, takes a key | On [OSD/OS Setup](https://osdos.tv/setup/), set **pi's Password** and turn **SSH** and **Password Login** on, or give a key; copy the file to **bootfs** and start the Pi |
+| `Too many authentication failures` | The computer offers more keys than the image's three tries before the right one | `ssh -o IdentitiesOnly=yes -i ~/.ssh/<key> pi@osdos.local` |
+| `Permission denied` for a user of your own | Only the users of the `sudo` group sign in | `sudo usermod -aG sudo <user>`, from `pi` |
+| An empty `ssh` file on **bootfs** doesn't turn SSH on | Raspberry Pi OS's switch is off on the image | An OSD/OS Setup card with SSH on, or Settings → System → **SSH** |
+
 ## Two OSD/OS on one network
 
 Every OSD/OS image starts as `osdos`, so two of them share a name on the network and in LAN Play. Give each a name: select on **Device Name** in **Settings → System → System Information** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation.

@@ -59,7 +59,8 @@ PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # The parts the app reads as it starts, set before it does.
 APP_PARTS = ("config", "retroachievements", "favorites")
 # First of sshd's drop-ins, as sshd keeps the first value it reads: another's
-# PasswordAuthentication (cloud-init's 50-cloud-init.conf) can't undo it.
+# PasswordAuthentication (cloud-init's 50-cloud-init.conf, the image's own
+# 90-osdos.conf, which has none) can't undo it.
 SSHD_CONF = "/etc/ssh/sshd_config.d/00-osdos-setup.conf"
 # NetworkManager's own switches, read as it starts. pi-gen leaves Wi-Fi off
 # there on an image built without a country (WirelessEnabled=false), and
@@ -390,8 +391,10 @@ class Setup:
         # login off (pi-gen's PUBKEY_ONLY_SSH) mustn't win over its being on.
         try:
             if password_login:
+                # Through PasswordAuthentication alone, PAM's as UsePAM has it:
+                # keyboard-interactive stays off, as the image's own 90-osdos.conf has it.
                 self.write_root(self.path(SSHD_CONF), f"# OSD/OS Setup: {self.user}'s password logs in too.\n"
-                                                      "PasswordAuthentication yes\n", 0o644)
+                                                      "PasswordAuthentication yes\nKbdInteractiveAuthentication no\n", 0o644)
             else:
                 self.write_root(self.path(SSHD_CONF), "# OSD/OS Setup: only the keys in ~/.ssh/authorized_keys log in.\n"
                                                       "PasswordAuthentication no\nKbdInteractiveAuthentication no\n", 0o644)

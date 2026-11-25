@@ -386,6 +386,7 @@ Turns `ssh.service` on and starts it, or turns it off and stops it, through the 
 
 - **Only on or off.** `pi`'s password, the keys that log in and whether a password logs in at all stay as [OSD/OS Setup](https://osdos.tv/setup/) set them, and a later card's SSH setting wins over this row, as it did before. Nothing here sets or shows a password or a key.
 - **Set a password or a key with OSD/OS Setup first** shows under the row once it has turned SSH on, when nobody could sign in yet: `pi` has no password (an image built without one) and no key in `~/.ssh/authorized_keys`.
+- A password logs in only when an OSD/OS Setup card turned **Password Login** on (or Raspberry Pi Imager's customisation did): otherwise only a key does, whatever password `pi` has ([sshd's rules](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#sshds-rules)).
 - Turning SSH off leaves a session that is already open running; new ones are refused.
 - **The card's system is older than the app** shows, the row dimmed and reading what the system has, where OSD/OS was updated in place on a card written before SSH could be set from here: the stop helper that turns it on is the image's (or `install.sh`'s), and an update of the app leaves it as it was. Write the new image to the card, or run `install.sh` again; until then [OSD/OS Setup](https://osdos.tv/setup/)'s file turns SSH on or off at the next start.
 

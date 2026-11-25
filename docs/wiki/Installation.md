@@ -144,6 +144,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 - The file can also go on a card that has already been started.
 - The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is overwritten with zeros and deleted from the card as the Pi starts. A copy left on your computer, or in its recycle bin, stays there.
 - A display output chosen for another kind of Pi is not applied, and the log says so.
+- **pi's Password** has 8 characters at least, and isn't one of the first anyone guesses (`raspberry`, `password`, `12345678`, the user's name…). **Password Login** starts off: a key is the safer way in.
 - SSH stays as the card set it until Settings → System → **SSH** turns it off or on; the password and the keys stay the card's either way, and a later card's SSH setting wins again.
 
 [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied. A computer takes part of the settings too ([below](#osdos-setup-on-a-computer)).
@@ -219,8 +220,8 @@ Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and 
 The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Power) or SSH.
 
 - **The password.** A release image's `pi` has the password of the repository secret `OS_FIRST_USER_PASS`, if the release was built with one. Without one, Exit to Terminal logs `pi` in by itself, without `sudo`.
-- **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`.
-- **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a password or a key to log in with; then Settings → System → **SSH** turns it off and on again on the device. Or from a shell with `sudo`:
+- **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`: 8 characters at least, and not one as easy to guess as `raspberry`.
+- **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a key to log in with, or a password with **Password Login** turned on (it starts off); then Settings → System → **SSH** turns it off and on again on the device. A password logs in over SSH only when a card turned Password Login on: otherwise only a key does, whatever password `pi` has. An empty `ssh` file on the boot partition does nothing on this image. Or from a shell with `sudo`:
 
   ```sh
   sudo systemctl enable --now ssh

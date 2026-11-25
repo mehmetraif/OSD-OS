@@ -408,6 +408,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                       ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                       ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
 
+    # Who can log in to the image (os/stage-osdos/02-system): sshd's drop-in
+    # after OSD/OS Setup's and cloud-init's, the first value of each setting
+    # kept, and the boot partition's switches for SSH and a user masked.
+    add_test(NAME image_logins COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/image_logins_test.sh
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system)
+
     # The launcher (scripts/install.sh) on a stand-in install: a staged update
     # applied, or one cut short by a power cut put right, and a Pi 5 waiting
     # for its display preset's output.

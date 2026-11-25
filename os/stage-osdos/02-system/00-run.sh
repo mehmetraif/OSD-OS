@@ -76,6 +76,19 @@ for unit in osdos-setup-app.service osdos-setup.service; do
 	sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/${unit}"
 done
 
+# sshd's rules for when SSH is on (files/osdos-sshd.conf says why), after
+# OSD/OS Setup's drop-in and cloud-init's, which win over it. No password logs
+# in unless a card or Raspberry Pi Imager says so; or unless the image is
+# built for it, with SSH on, a password of its own (FIRST_USER_PASS) and
+# PUBKEY_ONLY_SSH not 1, which would otherwise leave such an image without a
+# way in.
+password_authentication=no
+if [ "${ENABLE_SSH:-0}" = "1" ] && [ "${OSDOS_LOCK_FIRST_USER:-0}" != "1" ] && [ "${PUBKEY_ONLY_SSH:-0}" != "1" ]; then
+	password_authentication=yes
+fi
+install -D -m 644 files/osdos-sshd.conf "${ETC}/ssh/sshd_config.d/90-osdos.conf"
+sed -i "s/@PASSWORD_AUTHENTICATION@/${password_authentication}/" "${ETC}/ssh/sshd_config.d/90-osdos.conf"
+
 # A Raspberry Pi to JAMMA board's controls (osdos-jamma, in the app's folder):
 # its service, which does nothing without the JAMMA display preset, the kernel
 # modules it reads and plays through, and /dev/uinput for the input group, as

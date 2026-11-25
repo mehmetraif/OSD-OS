@@ -203,6 +203,8 @@ printf '{ "osdos_setup": 1, "system": { "password_hash": "%s", "ssh": { "enabled
 apply
 check "password login: on, ahead of any other drop-in" "PasswordAuthentication yes" \
     "$(grep '^PasswordAuthentication' "$SSHD_CONF")"
+check "password login: keyboard-interactive still off" "KbdInteractiveAuthentication no" \
+    "$(grep '^KbdInteractiveAuthentication' "$SSHD_CONF")"
 check "password login: said so" "1" "$(logged "SSH: on, password login on")"
 check "password login: content" "0 0" "$status"
 

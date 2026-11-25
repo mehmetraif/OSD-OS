@@ -46,10 +46,29 @@ export function checkWifi(ssid, password) {
     return "";
 }
 
-// --- pi's password: what the system takes (libxcrypt refuses one of 512
-// bytes or more, and the account could never be logged into).
-export function checkPassword(password) {
-    return new TextEncoder().encode(password).length > 511 ? "A password has 511 bytes at most" : "";
+// --- pi's password: one that a guess doesn't find at once, as it may log
+// in over SSH, and that the system takes (libxcrypt refuses one of 512 bytes
+// or more, and the account could never be logged into). Only the page can
+// say so: the card sees the hash alone.
+export const PASSWORD_MIN_LENGTH = 8;
+// The first guesses at a Raspberry Pi's or at this one's, said in one place:
+// the user's name is guessed too (checkPassword's user).
+export const OBVIOUS_PASSWORDS = ["raspberry", "raspberrypi", "password", "password1", "12345678", "123456789",
+                                  "1234567890", "87654321", "qwertyui", "qwerty123", "osdos123",
+                                  "osdos-os", "osdososd"];
+export const PASSWORD_RULE = `${PASSWORD_MIN_LENGTH} characters at least, and not one as easy to guess as raspberry or the user's name`;
+
+export function checkPassword(password, user = "pi") {
+    if (password === "")
+        return "";
+    if (new TextEncoder().encode(password).length > 511)
+        return "A password has 511 bytes at most";
+    if ([...password].length < PASSWORD_MIN_LENGTH)
+        return `A password has ${PASSWORD_MIN_LENGTH} characters at least`;
+    const plain = password.toLowerCase();
+    if (OBVIOUS_PASSWORDS.includes(plain) || plain === String(user).toLowerCase())
+        return "Too easy to guess: one of the first passwords anyone tries";
+    return "";
 }
 
 // --- An SSH public key as sshd takes it, and as the card checks it
@@ -405,7 +424,8 @@ export function buildSetup(state) {
     if (state.passwordHash)
         system.password_hash = state.passwordHash;
     if (state.sshEnabled === true || state.sshEnabled === false) {
-        system.ssh = { enabled: state.sshEnabled, password_login: state.sshPasswordLogin !== false };
+        // Password login only when asked for: off unless turned on.
+        system.ssh = { enabled: state.sshEnabled, password_login: state.sshPasswordLogin === true };
         // The keys with SSH on alone.
         const keys = state.sshEnabled ? keyLines(state.sshKeys) : [];
         if (keys.length)
