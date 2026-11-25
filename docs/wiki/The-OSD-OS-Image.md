@@ -386,6 +386,8 @@ Settings → Network → Bluetooth pairs and connects keyboards, gamepads and re
   ExecStartPre=+-/usr/sbin/rfkill unblock bluetooth
   ```
 
+- The drop-in `/etc/systemd/system/bluetooth.service.d/osdos-noplugin.conf` starts bluetoothd without the profiles nothing on the image uses: sound (`a2dp`, `avrcp`, and LE Audio's `bap`, `bass`, `mcp`, `vcp`, `micp`, `ccp`, `csip`, `asha`), networking (`network`), the SIM access profile (`sap`) and `midi`. Its `ExecStart` is the packaged unit's own line with `--noplugin=…` added, written as the image is built; a unit whose line can't be read is left as it is. Keyboards, gamepads and remotes keep their HID profiles (`input`, `hog`), with battery and device information. `systemctl cat bluetooth` shows the drop-in, and `ps -o args= -C bluetoothd` the option.
+
 ## SSH
 
 SSH is off on the image as it comes (`ENABLE_SSH=0`). Four ways to have it:

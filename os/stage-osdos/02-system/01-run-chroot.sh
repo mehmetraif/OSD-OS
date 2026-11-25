@@ -31,6 +31,31 @@ if getent group bluetooth > /dev/null; then
 	usermod -aG bluetooth "${FIRST_USER_NAME}"
 fi
 
+# bluetoothd without the profiles for sound, networking and the rest nothing
+# here uses: OSD/OS pairs keyboards, gamepads and remotes, which input and hog
+# (HID) serve, with battery and deviceinfo, and plays no sound over Bluetooth.
+# Fewer profiles, less of BlueZ that a device in range can reach. Written from
+# the packaged unit's own ExecStart line, so the daemon's path is never
+# guessed; a unit without exactly one, or a drop-in that sets its own, leaves
+# bluetoothd as it is. --noplugin ignores names this BlueZ hasn't.
+NOPLUGIN=a2dp,avrcp,network,sap,bap,bass,mcp,vcp,micp,ccp,csip,asha,midi
+DROPIN=/etc/systemd/system/bluetooth.service.d/osdos-noplugin.conf
+rm -f "${DROPIN}"
+start=$(grep '^ExecStart=.' /usr/lib/systemd/system/bluetooth.service 2> /dev/null || true)
+if [ "$(printf '%s' "${start}" | grep -c '^')" = 1 ] && [ "${start#*--noplugin}" = "${start}" ] \
+		&& ! cat /usr/lib/systemd/system/bluetooth.service.d/*.conf \
+			/etc/systemd/system/bluetooth.service.d/*.conf 2> /dev/null | grep -q '^ExecStart='; then
+	install -d "${DROPIN%/*}"
+	cat > "${DROPIN}" << EOF
+# OSD/OS image: bluetoothd without the audio and networking profiles; HID, battery and device information stay.
+[Service]
+ExecStart=
+${start} --noplugin=${NOPLUGIN}
+EOF
+else
+	echo "bluetooth.service's ExecStart couldn't be read: bluetoothd keeps every plugin" >&2
+fi
+
 # Raspberry Pi Connect's remote-access agent: not wanted on an appliance.
 if dpkg -s rpi-connect-lite > /dev/null 2>&1; then
 	apt-get purge -y rpi-connect-lite
