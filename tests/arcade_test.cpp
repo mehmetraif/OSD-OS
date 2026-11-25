@@ -1009,7 +1009,8 @@ private slots:
             QStringLiteral("play pacman -rompath %1;%1/bios -homepath %2 -cfg_directory %2/cfg"
                            " -nvram_directory %2/nvram -input_directory %2/inp -state_directory %2/sta"
                            " -snapshot_directory %2/snap -diff_directory %2/diff"
-                           " -ctrlrpath %2/ctrlr -ctrlr osdos -skip_gameinfo -samplepath %1/samples"
+                           " -ctrlrpath %2/ctrlr -ctrlr osdos -skip_gameinfo -comm_localhost 127.0.0.1"
+                           " -samplepath %1/samples"
                            " -pluginspath %3 -plugin hiscore").arg(m_games, home, plugins) }));
         QCOMPARE(logLines(QStringLiteral("cwd")), QStringList({ QStringLiteral("cwd ") + home }));
         // The output's card, for SDL, on a Pi 5.

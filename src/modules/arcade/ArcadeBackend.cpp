@@ -2586,6 +2586,12 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     args << QStringLiteral("-ctrlrpath") << m_home + QStringLiteral("/ctrlr")
          << QStringLiteral("-ctrlr") << QStringLiteral("osdos")
          << QStringLiteral("-skip_gameinfo");
+    // The link boards of the games that have one (CPS-2's Communication
+    // setting, Model 1/2/3, System 32 and others) listen on this machine
+    // alone: MAME's default is every address, and OSD/OS links no two
+    // machines through MAME. Both MAMEs it runs with (0.276 and Homebrew's
+    // newer one) know the option.
+    args << QStringLiteral("-comm_localhost") << QStringLiteral("127.0.0.1");
     // The sounds some early games play from recordings (Donkey Kong's,
     // Space Invaders'), in a samples folder beside the games.
     const QString samples = otherFolder(QStringLiteral("samples"));

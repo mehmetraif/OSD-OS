@@ -698,13 +698,14 @@ mame galaga \
     -diff_directory ~/.local/share/OSD-OS/arcade/diff \
     -ctrlrpath ~/.local/share/OSD-OS/arcade/ctrlr -ctrlr osdos \
     -skip_gameinfo \
+    -comm_localhost 127.0.0.1 \
     -samplepath /media/OSD-OS/Games/Arcade/samples \
     -pluginspath /usr/share/games/mame/plugins -plugin hiscore \
     -aspect 4:3 -nounevenstretch -unevenstretchx \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-`;…/bios` and the arguments after `-skip_gameinfo` are given only when they apply. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
+`-comm_localhost 127.0.0.1` keeps the link board of a game that has one (CPS-2's Communication setting, Model 1/2/3, System 32) listening on the machine itself rather than on every address: OSD/OS never links two machines through MAME. `;…/bios` and the arguments after `-comm_localhost` are given only when they apply. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
 
 Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, and reads the `mame.ini` there.
 
