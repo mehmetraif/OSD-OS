@@ -688,7 +688,7 @@ function startModuleThere() {
 }
 
 // SYSTEM: the update, this device's System Information, the system's
-// time zone and keyboard layout, OSD/OS Setup's settings, About, and the
+// time zone and keyboard layout, SSH and the firewall, OSD/OS Setup's settings, About, and the
 // modules of no group, each a page.
 function systemRows(items) {
     items.push({
@@ -738,7 +738,7 @@ function systemRows(items) {
     })
     // SSH — the image's SSH server on or off, as the system has it
     // (systemSettings.ssh), set through its root helper (setSsh(), the
-    // row's toggle in Settings.qml's setChoice()): Setting while on its way,
+    // row's toggle in Settings.qml's setChoice(), by its key): Setting while on its way,
     // a refusal said as Time Zone's is. Its note, why no one could sign in
     // yet (no password or key set), opens the help line while it is on. No
     // password here: OSD/OS Setup sets it and the keys. Dimmed, showing what
@@ -757,6 +757,28 @@ function systemRows(items) {
                      + "Lets a computer on your network sign in to this device; its password and keys are set with OSD/OS Setup"
                      + "\n[ON] SSH runs  [OFF] SSH is stopped",
         unavailable: systemOff || sshOff,
+        moduleId: ""
+    })
+    // FIREWALL — the image's inbound filter on or off, as the system has it
+    // (systemSettings.firewall), set through its root helper as SSH is
+    // (setFirewall()). Its note, the rules not in force although it is on,
+    // opens the help line. Dimmed, showing what systemd has, where the
+    // card's helper is older than it or the system lacks it or nftables
+    // (firewallOff).
+    var firewallOn = !!(system && system.firewall)
+    var firewallOff = system && system.firewallOff ? String(system.firewallOff) : ""
+    var firewallNote = system && system.firewallNote ? String(system.firewallNote) : ""
+    items.push({
+        type: "list_single",
+        key: "firewall",
+        systemSetting: true,
+        label: "Firewall",
+        options: ["Off", "On"],
+        value: system && system.busy ? "Setting" : firewallOn ? "On" : "Off",
+        description: (firewallOn && firewallNote !== "" ? firewallNote + "\n" : "")
+                     + "Which devices can connect to this one, over SSH or to a LAN game it hosts"
+                     + "\n[ON] Only devices on your home network can connect  [OFF] Anything that reaches this device can connect",
+        unavailable: systemOff || firewallOff,
         moduleId: ""
     })
     // EXPORT TO OSD/OS SETUP — this device's settings as QR codes, which

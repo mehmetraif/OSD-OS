@@ -5,7 +5,8 @@
 # Information's device name socket, Settings → System's time zone and keyboard
 # socket and the polkit rule that lets the app's
 # user use NetworkManager (all but the service taken from scripts/install.sh
-# by os/build.sh), the network's settings for games and streams, OSD/OS
+# by os/build.sh), the network's settings for games and streams, the filter
+# that lets only the home network connect, osdos.local by IPv4, OSD/OS
 # Setup's file applied at start, and the boot order:
 # the units below hold back until the app is on screen, then start one after
 # another.
@@ -37,6 +38,22 @@ install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
 # Wi-Fi sends from its video queue (the file says why; nftables reads it).
 install -m 644 files/osdos-netplay-priority.nft "${LIB}/netplay-priority.nft"
 install -m 644 files/osdos-netplay-priority.service "${ETC}/systemd/system/"
+# Only the home network may connect: what comes in from any other address is
+# dropped, on IPv4 and IPv6, from before the network comes up (the file says
+# what is let in and why; Settings → System → Firewall turns it off and on).
+install -m 644 files/osdos-firewall.nft "${LIB}/firewall.nft"
+install -m 644 files/osdos-firewall.service "${ETC}/systemd/system/"
+# osdos.local by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses
+# nor answers over IPv6, so that the name never leads a computer to the global
+# IPv6 address, which the filter above refuses. Raspberry Pi OS's own file,
+# two of its lines changed; a build whose file has neither line stops here.
+AVAHI="${ETC}/avahi/avahi-daemon.conf"
+sed -i -E -e 's/^#?[[:space:]]*use-ipv6=.*/use-ipv6=no/' \
+	-e 's/^#?[[:space:]]*publish-aaaa-on-ipv4=.*/publish-aaaa-on-ipv4=no/' "${AVAHI}"
+if ! grep -qx 'use-ipv6=no' "${AVAHI}" || ! grep -qx 'publish-aaaa-on-ipv4=no' "${AVAHI}"; then
+	echo "${AVAHI}: use-ipv6 or publish-aaaa-on-ipv4 not found: osdos.local would lead to IPv6" >&2
+	exit 1
+fi
 # With a cable and Wi-Fi both up, each interface answers only for its own
 # address, so that a game meant for the cable never comes over Wi-Fi
 # (osdos-arp.conf says why).

@@ -366,7 +366,7 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 
 ## System
 
-`SETTINGS | SYSTEM`: Update, System Information, the time zone, the keyboard layout and SSH, OSD/OS Setup and About, then under **MODULES** the modules of no group ([Modules](#modules)). The page opens on Update; off the OSD/OS image the image's rows are dimmed, saying **Only on the OSD/OS image**.
+`SETTINGS | SYSTEM`: Update, System Information, the time zone, the keyboard layout, SSH and the firewall, OSD/OS Setup and About, then under **MODULES** the modules of no group ([Modules](#modules)). The page opens on Update; off the OSD/OS image the image's rows are dimmed, saying **Only on the OSD/OS image**.
 
 | Setting | Values | Default | What it does | Config key |
 |---|---|---|---|---|
@@ -375,6 +375,7 @@ To turn the lock off from outside (forgotten buttons, a pad that is gone), eithe
 | Time Zone | A list of the system's time zones; ◄ ► step by region | The system's | The time zone the clock goes by. On the OSD/OS image (from a launcher at level 10); elsewhere it shows the system's, dimmed | None: `timedatectl` keeps it |
 | Keyboard Layout | A list of layouts; ◄ ► step by letter | The system's | The keyboard's layout at Exit to Terminal, where a name and a password are typed. As Time Zone | None: `/etc/default/keyboard` |
 | SSH | On, Off | The image's | Lets a computer on your network sign in to the device over SSH; its password and keys are set with [OSD/OS Setup](https://osdos.tv/setup/). While on, the help line says why no one could sign in yet, if so. On the OSD/OS image; elsewhere dimmed, and dimmed with the reason on a card whose system is older than the app ([below](#ssh)) | None: the system's SSH service |
+| Firewall | On, Off | On on the image, Off on a Pi set up with `install.sh` | Which devices can connect to this one. **On**: only devices on your home network can connect (SSH, a LAN game it hosts). **Off**: anything that reaches this device can. While on with its rules not in force, the help line says so. On the OSD/OS image and `install.sh`'s Pi; elsewhere dimmed, and dimmed with the reason on a card whose system is older than the app or that lacks nftables ([below](#firewall)) | None: the system's `osdos-firewall.service` |
 | Export to OSD/OS Setup | A page | | This device's settings as QR codes for a phone ([below](#export-to-osdos-setup)) | None |
 | Paste OSD/OS Setup | An action | | Sets the settings copied on [OSD/OS Setup](https://osdos.tv/setup/) ([below](#paste-osdos-setup)). Only where there is a clipboard, so not on the image | Those it sets |
 | About | A page | | What OSD/OS is made of and its licenses | None |
@@ -387,6 +388,16 @@ Turns `ssh.service` on and starts it, or turns it off and stops it, through the 
 - **Set a password or a key with OSD/OS Setup first** shows under the row once it has turned SSH on, when nobody could sign in yet: `pi` has no password (an image built without one) and no key in `~/.ssh/authorized_keys`.
 - Turning SSH off leaves a session that is already open running; new ones are refused.
 - **The card's system is older than the app** shows, the row dimmed and reading what the system has, where OSD/OS was updated in place on a card written before SSH could be set from here: the stop helper that turns it on is the image's (or `install.sh`'s), and an update of the app leaves it as it was. Write the new image to the card, or run `install.sh` again; until then [OSD/OS Setup](https://osdos.tv/setup/)'s file turns SSH on or off at the next start.
+
+### Firewall
+
+Turns `osdos-firewall.service` on and starts it, or turns it off and stops it, through the stop helper, as SSH ([The OSD/OS image → Firewall](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#firewall)).
+
+- **On** lets in only the home network's kinds of address (`10.x`, `172.16`–`172.31`, `192.168.x`, `169.254.x`, IPv6's `fe80::` and `fc00::`–`fdff::`), and the answers to what the device itself asked for: streams, updates, the media servers and online games are untouched. Everything else that tries to connect is dropped, on IPv4 and IPv6.
+- **Off** where your home network uses other addresses (public ones, or a provider's `100.64.x`), or to reach the device over a VPN or its global IPv6 address ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#a-computer-cant-reach-the-pi)).
+- On the OSD/OS image it is on from the first start. On a Raspberry Pi OS set up with `install.sh` it is installed and left off: that system is its owner's, who may run other services on it.
+- What the row shows is the system's, read from it, not from `config.json`. **Its rules aren't loaded** opens the help line where it is on but its rules failed to load: anything can connect until they do (`journalctl -u osdos-firewall`).
+- **The card's system is older than the app** shows, the row dimmed and reading what the system has, on a card whose stop helper is older than the firewall (launcher API under 12); **nftables isn't installed on this system** where `nft` is missing. As for SSH: a new image, or `install.sh` run again.
 
 ### Paste OSD/OS Setup
 

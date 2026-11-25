@@ -55,6 +55,8 @@ Every system plays arcade games with the same engines, so machines stay in step 
 
 **Host LAN Game**, in a game's options, starts the game for others on your network to join. It isn't put in the lobby and goes through no relay. A game that can't be hosted ends the same way: `Could not host the game: Failed to bind port 55435`, the port taken.
 
+**Who can join.** A game hosted on the OSD/OS image has no password, and its port answers whoever reaches it. Settings → System → **Firewall**, on there from the first start, lets in only machines at the home network's addresses (`192.168.x`, `10.x`, `172.16`–`172.31`, and the link-local ones): every machine on your network, by cable or Wi-Fi, and nobody from the internet, even where a router forwards the port or gives the Pi a public address. LAN Play goes over IPv4, so a joiner on the same network always comes from one of those. A network on other addresses (a provider's `100.64.x`, public ones) or a machine joining over a VPN needs Firewall off on the host ([The OSD/OS image → Firewall](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#firewall)). On a Raspberry Pi OS set up with `install.sh` the firewall is off until the row turns it on. [Online play](#online-play) goes out to a relay, so the firewall changes nothing there.
+
 ### Players
 
 Up to six players play across the machines, in the games that take them, seated in the order they come in.

@@ -391,6 +391,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                            ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system
                                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/modules/arcade/Libretro.h)
 
+    # The image's inbound filter (osdos-firewall): what the input chain
+    # takes, the unit before the network and its place in the stage, avahi by
+    # IPv4 alone, LAN Play's sockets on IPv4, and the rules given to nft (and
+    # loaded twice in a network namespace of the test's own) where it is here
+    # and root.
+    add_test(NAME firewall COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/firewall_test.sh
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/../src/modules/arcade/LanRooms.cpp)
+
     # OSD/OS Setup's file applied as the card starts (osdos-setup, the
     # image's), on a stand-in card with the image's osdos-stop: a whole file,
     # the same again, parts it refuses, files it can't read. Needs Python 3.

@@ -91,7 +91,8 @@ check "...and restarted after they are enabled, to take it" "enable $sockets|res
 # The image's network settings (its "network settings for games and streams"
 # block): the image's own files fetched at the release's tag, by a stand-in
 # curl that serves them from this repository, and put where the image has
-# them, the marking's unit enabled; and a release without them, or GitHub
+# them, the marking's unit enabled and the firewall's installed but left
+# off; and a release without them, or GitHub
 # not answering, leaves the system as it is.
 IMAGE_FILES_DIR="$(cd "$(dirname "$INSTALL_SH")/../os/stage-osdos/02-system/files" && pwd)"
 {
@@ -114,9 +115,12 @@ bash "$T/network.sh" > /dev/null 2>&1
 check "network: the image's files fetched at the release's tag" \
       "https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-wifi-powersave.conf
 https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-netplay-priority.nft
-https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-netplay-priority.service" \
+https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-netplay-priority.service
+https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-firewall.nft
+https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-firewall.service" \
       "$(cat "$T/curl")"
-for f in osdos-wifi-powersave.conf osdos-netplay-priority.nft osdos-netplay-priority.service; do
+for f in osdos-wifi-powersave.conf osdos-netplay-priority.nft osdos-netplay-priority.service \
+         osdos-firewall.nft osdos-firewall.service; do
     check "network: $f is the image's own" same \
           "$(cmp -s "$T/tmp/image-files/$f" "$IMAGE_FILES_DIR/$f" && echo same || echo different)"
 done
@@ -127,7 +131,18 @@ install -D -m 644 $T/tmp/image-files/osdos-netplay-priority.nft /usr/lib/osdos/n
 install -m 644 $T/tmp/image-files/osdos-netplay-priority.service /etc/systemd/system/osdos-netplay-priority.service
 systemctl daemon-reload
 systemctl enable osdos-netplay-priority.service
-systemctl restart osdos-netplay-priority.service" "$(cat "$T/sudo")"
+systemctl restart osdos-netplay-priority.service
+install -D -m 644 $T/tmp/image-files/osdos-firewall.nft /usr/lib/osdos/firewall.nft
+install -m 644 $T/tmp/image-files/osdos-firewall.service /etc/systemd/system/osdos-firewall.service
+systemctl daemon-reload
+systemctl try-reload-or-restart osdos-firewall.service
+systemctl is-enabled --quiet osdos-firewall.service" "$(cat "$T/sudo")"
+# The firewall installed, never enabled: this system is its owner's.
+check "network: the firewall is never enabled here" "" \
+      "$(grep -e '^systemctl enable osdos-firewall' -e '^systemctl start osdos-firewall' "$T/sudo")"
+check "network: the firewall's unit reads the rules where they are put" \
+      "ExecStart=/usr/sbin/nft -f /usr/lib/osdos/firewall.nft" \
+      "$(grep '^ExecStart=' "$IMAGE_FILES_DIR/osdos-firewall.service")"
 # The unit reads the rules where they are put.
 check "network: the unit reads the rules where they are put" \
       "ExecStart=/usr/sbin/nft -f /usr/lib/osdos/netplay-priority.nft" \
@@ -136,7 +151,7 @@ rm -rf "$T/tmp"; mkdir -p "$T/tmp"
 : > "$T/sudo"; rm -f "$T/curl-answers"
 out=$(bash "$T/network.sh" 2>&1) || out="exited $?"
 check "network: nothing fetched, nothing changed" "" "$(cat "$T/sudo")"
-check "network: ...and said, the install going on" 2 "$(grep -c '^Warning: ' <<< "$out")"
+check "network: ...and said, the install going on" 3 "$(grep -c '^Warning: ' <<< "$out")"
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures check(s) failed"

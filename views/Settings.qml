@@ -681,12 +681,16 @@ FocusScope {
             var opts = row.options
             if (newIdx < 0 || opts[newIdx] === row.value)
                 return
-            // The system's own (SSH): asked of the system, which says how it
-            // went (Setting, then as it is, or why not); nothing of the app's
-            // saved. Not again while one is on its way.
+            // The system's own (SSH, Firewall): asked of the system, which
+            // says how it went (Setting, then as it is, or why not); nothing
+            // of the app's saved. Not again while one is on its way.
             if (row.systemSetting) {
-                if (settingsRoot.system && !settingsRoot.system.busy)
-                    settingsRoot.system.setSsh(opts[newIdx] === "On")
+                if (settingsRoot.system && !settingsRoot.system.busy) {
+                    if (row.key === "firewall")
+                        settingsRoot.system.setFirewall(opts[newIdx] === "On")
+                    else
+                        settingsRoot.system.setSsh(opts[newIdx] === "On")
+                }
                 return
             }
             if (!settingsRoot.save(row, row.values ? row.values[newIdx] : opts[newIdx]))

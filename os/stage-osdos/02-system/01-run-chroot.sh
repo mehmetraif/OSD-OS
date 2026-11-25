@@ -6,7 +6,7 @@
 # The sockets the app asks root through (00-run.sh): all of them.
 sockets=(/etc/systemd/system/osdos-*.socket)
 systemctl enable osdos.service osdos-cloud-init-once.service osdos-jamma.service "${sockets[@]##*/}" \
-	osdos-setup-app.service osdos-setup.service osdos-netplay-priority.service
+	osdos-setup-app.service osdos-setup.service osdos-netplay-priority.service osdos-firewall.service
 
 # Built without a password (os/build.sh): the app still runs as this user, but
 # nobody logs in as it. Raspberry Pi Imager's OS customisation creates the

@@ -342,6 +342,21 @@ sudo nmcli device wifi connect "MyHomeWiFi" password "my-wifi-password"
 
 Setting Wi-Fi before the first boot is in [Installation → Wi-Fi by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config). More in [The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi).
 
+## A computer can't reach the Pi
+
+On the OSD/OS image, Settings → System → **Firewall** is on: only the home network's kinds of address can connect (`10.x`, `172.16`–`172.31`, `192.168.x`, `169.254.x`, IPv6's `fe80::` and `fc00::`–`fdff::`). What the Pi itself connects to (streams, updates, the media servers, online games) is untouched.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| `ssh pi@osdos.local` or a LAN game's join waits, then times out | The computer is on a network outside those addresses: a provider's `100.64.x`, public addresses on the LAN, a guest network routed in from elsewhere | Settings → System → **Firewall** → **Off** |
+| It works from home, not over a VPN (WireGuard, Tailscale, ZeroTier) | The VPN gives the computer an address outside those (Tailscale's are `100.64.x`) | **Firewall** → **Off**, and let the VPN decide who reaches the Pi |
+| `ssh` to the Pi's IPv6 address times out, its IPv4 address works | A global IPv6 address (`2xxx:` or `3xxx:`) is refused; `osdos.local` gives IPv4 alone | Use the IPv4 address in System Information, or `ssh -4`. A router whose own names (`osdos.fritz.box`, `osdos.lan`) give IPv6 first does the same: `ssh -4`, or **Firewall** → **Off** |
+| `osdos.local` doesn't resolve at all | A network with IPv6 alone: the image publishes `osdos.local` by IPv4 alone | Use the address in System Information |
+| The row says **Its rules aren't loaded** | The firewall is on, but nftables didn't load its rules: anything can connect | `journalctl -u osdos-firewall -b` says why; `sudo systemctl restart osdos-firewall` tries again |
+| The Firewall row is dimmed | A card whose system is older than the app, a system without nftables, or `install.sh` couldn't fetch it | Write a new image, or run `install.sh` again |
+
+Locked out of SSH by it? The row is at the TV, with the remote: the firewall never keeps the device's own menus out. On a Pi set up with `install.sh` it is off until the row turns it on.
+
 ## Two OSD/OS on one network
 
 Every OSD/OS image starts as `osdos`, so two of them share a name on the network and in LAN Play. Give each a name: select on **Device Name** in **Settings → System → System Information** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation.
@@ -461,6 +476,7 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | Window Mode (Screen) | On Windows, or a Linux or BSD desktop (X11 or Wayland) |
 | Audio Output (Sound) | On Linux with ALSA's cards (`/proc/asound/cards`) and no sound server |
 | Music File, Music Volume (Sound) | Menu Music is File; Menu Music isn't Off |
+| Time Zone, Keyboard Layout, SSH, Firewall (System) | On the OSD/OS image, or a Raspberry Pi OS set up with `install.sh`, run by its service. SSH needs launcher level 11 and `ssh.service`; Firewall launcher level 12, `osdos-firewall.service` and nftables ([A computer can't reach the Pi](#a-computer-cant-reach-the-pi)) |
 | Wi-Fi (Network) | On Linux, in a build with Qt D-Bus, with NetworkManager running |
 | Bluetooth (Network) | On Linux, in a build with Qt D-Bus, with BlueZ running |
 | Network (the first screen) | Wi-Fi or Bluetooth can be used |

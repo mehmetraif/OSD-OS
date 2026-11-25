@@ -1,0 +1,41 @@
+[Unit]
+Description=OSD/OS: only the home network may connect to this device
+# Drops what comes in from anywhere but the home network's addresses, on IPv4
+# and IPv6 (osdos-firewall.nft says what is let in and why). Settings → System
+# → Firewall turns it on and off (osdos-stop system-setting firewall).
+#
+# Loaded before the network comes up (network-pre.target, which
+# NetworkManager and the other network services start after), so that no
+# address is ever up without it, and taken away only once they have stopped.
+# Early in the boot, as nftables.service is: the rules name no interface, and
+# the loopback, the only one they name, is always there. After
+# nftables.service, should the system's own rules be enabled too: its "flush
+# ruleset" would otherwise take this table with it.
+#
+# Nothing depends on it and nothing waits for it but the network: OSD/OS
+# starts whether it loads or not. Without nft it doesn't run (the network is
+# then unfiltered, as it was); rules that can't be read fail the unit, which
+# the journal says (journalctl -u osdos-firewall), and Settings → System →
+# Firewall says so on the device.
+DefaultDependencies=no
+Wants=network-pre.target
+Before=network-pre.target
+After=nftables.service
+ConditionPathExists=/usr/sbin/nft
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# A oneshot waits forever by default: never longer than this for the rules.
+TimeoutStartSec=30s
+# /run/osdos-firewall is there while the rules are loaded, and gone once the
+# unit stops or fails: how the app tells "on" from "on, but not loaded".
+RuntimeDirectory=osdos-firewall
+ExecStart=/usr/sbin/nft -f /usr/lib/osdos/firewall.nft
+# Read again in place: the table is made anew in one transaction, never left
+# open between the two.
+ExecReload=/usr/sbin/nft -f /usr/lib/osdos/firewall.nft
+ExecStop=-/usr/sbin/nft delete table inet osdos_firewall
+
+[Install]
+WantedBy=multi-user.target

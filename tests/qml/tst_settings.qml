@@ -263,6 +263,12 @@ StandInRoot {
         property string sshOff: ""
         property string sshNote: ""
         function setSsh(on) { asked = asked.concat(["ssh " + (on ? "on" : "off")]); return true }
+        // The firewall, as SSH: on or off, why it can't be set here, why it
+        // is on in name alone, and asked.
+        property bool firewall: false
+        property string firewallOff: ""
+        property string firewallNote: ""
+        function setFirewall(on) { asked = asked.concat(["firewall " + (on ? "on" : "off")]); return true }
         function clearMessage() { message = "" }
     }
     // MenuMusic as Music File's row asks it: why a file can't play here.
@@ -341,6 +347,9 @@ StandInRoot {
             systemSettings.ssh = false
             systemSettings.sshOff = ""
             systemSettings.sshNote = ""
+            systemSettings.firewall = false
+            systemSettings.firewallOff = ""
+            systemSettings.firewallNote = ""
             bootProgress.available = true
             displayOutput.available = false
             displayOutput.next = ""
@@ -461,7 +470,7 @@ StandInRoot {
                 { tag: "sound", lines: ["Audio Output", "Menu Music", "Music File", "Music Volume"] },
                 { tag: "network", lines: ["Wi-Fi", "Bluetooth"] },
                 { tag: "startup", lines: ["Start On", "Play at Startup", "Play From", "Cabinet Lock"] },
-                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard Layout", "SSH",
+                { tag: "system", lines: ["Update", "System Information", "Time Zone", "Keyboard Layout", "SSH", "Firewall",
                                          "Export to OSD/OS Setup",
                                          "Paste OSD/OS Setup", "About", "# Modules", "Scripts", "Radio"] }
             ]
@@ -1185,6 +1194,8 @@ StandInRoot {
             // System's Modules heading has neither.
             loader.source = ""
             page = open({ group: "system" })
+            // Below the rows a page shows at once: brought into view first.
+            listOf(page).positionViewAtIndex(lines(page).indexOf("# Modules"), ListView.Contain)
             var heading = menuRow(page, lines(page).indexOf("# Modules"))
             verify(!heading.opens)
             verify(!heading.changes)
@@ -2240,6 +2251,82 @@ StandInRoot {
             compare(systemSettings.asked, [])
             loader.source = ""
             systemSettings.sshOff = ""
+            systemSettings.available = false
+        }
+
+        // Firewall, beside SSH: dimmed off the image; on it, ◄ ► ask the
+        // system to turn it on or off (never SSH, nothing of the app's
+        // saved), the row saying Setting meanwhile and following the system,
+        // a refusal said; while on with its rules not in force, the help line
+        // opens with why.
+        function test_firewallRow() {
+            var page = open({ group: "system" })
+            var all = lines(page)
+            compare(all.indexOf("Firewall"), all.indexOf("SSH") + 1)
+            compare(page.offReason(all.indexOf("Firewall")), "Only on the OSD/OS image")
+            moveTo(page, "Firewall")
+            keyClick(Qt.Key_Right)
+            compare(systemSettings.asked, [])
+            loader.source = ""
+            systemSettings.available = true
+            page = open({ group: "system" })
+            compare(row(page, "Firewall").value, "Off")
+            moveTo(page, "Firewall")
+            verify(helpOf(page).shownText.indexOf("Which devices can connect to this one") === 0, helpOf(page).shownText)
+            verify(helpOf(page).shownText.indexOf("[OFF] Anything that reaches this device can connect") > 0,
+                   helpOf(page).shownText)
+            keyClick(Qt.Key_Right)
+            compare(systemSettings.asked, ["firewall on"])
+            compare(appCore.values.firewall, undefined)
+            systemSettings.busy = true
+            systemSettings.changed()
+            compare(row(page, "Firewall").value, "Setting")
+            keyClick(Qt.Key_Left)
+            compare(systemSettings.asked, ["firewall on"])
+            systemSettings.firewall = true
+            systemSettings.busy = false
+            systemSettings.changed()
+            compare(row(page, "Firewall").value, "On")
+            compare(row(page, "SSH").value, "Off")
+            compare(cursor(page), "Firewall")
+            verify(helpOf(page).shownText.indexOf("[ON] Only devices on your home network can connect") > 0,
+                   helpOf(page).shownText)
+            // On, its rules not in force: why, first.
+            systemSettings.firewallNote = "Its rules aren't loaded: anything can connect for now"
+            systemSettings.changed()
+            verify(helpOf(page).shownText.indexOf("Its rules aren't loaded: anything can connect for now\n") === 0,
+                   helpOf(page).shownText)
+            keyClick(Qt.Key_Left)
+            compare(systemSettings.asked, ["firewall on", "firewall off"])
+            systemSettings.message = "Firewall not turned off: it didn't stop"
+            verify(named(page, "systemNotice").visible)
+            compare(named(page, "systemNotice").promptText, "Firewall not turned off")
+            keyClick(Qt.Key_Return)
+            systemSettings.available = false
+        }
+
+        // The firewall where the card's helper is older than it, or the
+        // system lacks it: dimmed with why, showing what systemd has, and
+        // ◄ ► ask nothing.
+        function test_firewallRowOverAnOlderHelper() {
+            var why = "The card's system is older than the app: the firewall can be set here once it has a new image"
+            systemSettings.available = true
+            systemSettings.firewallOff = why
+            systemSettings.firewall = true
+            var page = open({ group: "system" })
+            compare(row(page, "Firewall").value, "On")
+            compare(page.offReason(lines(page).indexOf("Firewall")), why)
+            compare(page.offReason(lines(page).indexOf("SSH")), "")
+            moveTo(page, "Firewall")
+            verify(helpOf(page).shownText.indexOf(why) === 0, helpOf(page).shownText)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Return)
+            compare(systemSettings.asked, [])
+            compare(row(page, "Firewall").value, "On")
+            loader.source = ""
+            systemSettings.firewallOff = ""
+            systemSettings.firewall = false
             systemSettings.available = false
         }
 

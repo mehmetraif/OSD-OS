@@ -5,11 +5,11 @@
 
 #include <optional>
 
-// Settings → System's Time Zone, Keyboard and SSH.
+// Settings → System's Time Zone, Keyboard, SSH and Firewall.
 // - What the system has is read from its files (system/SystemLocale.h):
 //   /etc/localtime's zone, /etc/default/keyboard's layout, the console's,
 //   in which a name and a password are typed at Exit to Terminal, and
-//   whether systemd starts ssh.service.
+//   whether systemd starts ssh.service and osdos-firewall.service.
 // - On the OSD/OS image a new one goes to osdos-system.socket, where
 //   osdos-stop (scripts/install.sh) sets it as root (launcher API 10):
 //   "time-zone <zone>", "keyboard <layout>", "ssh on" or "ssh off" on a
@@ -17,7 +17,10 @@
 //   is the image's (or install.sh's), not the app's, so an app updated in
 //   place over an older image has one that doesn't know it; there the row
 //   shows what systemd has and says why it can't be changed (sshOff).
-//   Elsewhere the rows only show what the system has, and SSH is off.
+//   The firewall, "firewall on" or "firewall off", from launcher API 12
+//   alone, likewise (firewallOff).
+//   Elsewhere the rows only show what the system has, and SSH and the
+//   firewall are off.
 // - timeZones is every zone the system's time zone database lists by country
 //   (zone.tab) and UTC, by name: [{ name, region }], the region what stands
 //   before the first slash. keyboards is OSD/OS Setup's list of layouts
@@ -46,6 +49,18 @@ class SystemSettings : public QObject {
     // the app's user has no key in ~/.ssh/authorized_keys and, as the helper
     // said when SSH was turned on here, no password.
     Q_PROPERTY(QString sshNote READ sshNote NOTIFY changed)
+    // The firewall enabled (osdos-firewall.service: only the home network's
+    // addresses may connect), as systemd has it; on the image, and on a Pi
+    // set up with install.sh, which installs it off.
+    Q_PROPERTY(bool firewall READ firewall NOTIFY changed)
+    // Why the firewall can't be turned on or off from here although the rest
+    // can, in a line, or empty: the helper is older than it (launcher API
+    // under 12), or the system has no osdos-firewall.service or no nft.
+    // Empty off the image, as sshOff.
+    Q_PROPERTY(QString firewallOff READ firewallOff CONSTANT)
+    // On, but its rules aren't in force (the unit failed to load them), in a
+    // line, or empty.
+    Q_PROPERTY(QString firewallNote READ firewallNote NOTIFY changed)
     // A change on its way.
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     // How the last change went, in a line, for the help line.
@@ -62,6 +77,9 @@ public:
     bool ssh() const { return m_ssh; }
     QString sshOff() const { return m_sshOff; }
     QString sshNote() const { return m_sshNote; }
+    bool firewall() const { return m_firewall; }
+    QString firewallOff() const { return m_firewallOff; }
+    QString firewallNote() const { return m_firewallNote; }
     bool busy() const { return m_busy; }
     QString message() const { return m_message; }
 
@@ -76,6 +94,9 @@ public:
     // the helper. False when it isn't sent: not available (or sshOff),
     // another on its way, or as the system has it already.
     Q_INVOKABLE bool setSsh(bool on);
+    // The firewall on (enabled and started) or off (disabled and stopped),
+    // sent to the helper, as setSsh().
+    Q_INVOKABLE bool setFirewall(bool on);
     Q_INVOKABLE void clearMessage();
 
 signals:
@@ -101,6 +122,9 @@ private:
     // The helper said, as SSH was last turned on here, that the app's user
     // has no password to log in with.
     bool m_sshNoPassword = false;
+    bool m_firewall = false;
+    QString m_firewallOff;
+    QString m_firewallNote;
     bool m_busy = false;
     QString m_message;
     mutable std::optional<QVariantList> m_timeZones;

@@ -1,0 +1,64 @@
+#!/usr/sbin/nft -f
+# OSD/OS image: only the home network may connect to this device.
+#
+# Every listener on the Pi answers on every address, IPv4 and IPv6: SSH when
+# it is on, a LAN game's host (RetroArch's netplay, TCP and UDP 55435,
+# libretro::kLanPort, with no password), the seats it gives the machines
+# joining it (UDP 55436, libretro::kLanClaimPort), avahi (UDP 5353). With a
+# global IPv6 address behind a router that doesn't filter, a forwarded port,
+# a DMZ or a public IPv4 address, all of them would answer the internet too.
+#
+# So what comes in is taken only when it is:
+# - an answer to what this machine sent (connection tracking): DNS, NTP,
+#   updates, streams, the media servers, an online game through its relay;
+# - from this machine itself (the loopback: the network pad RetroArch reads
+#   player 1's coins from, mpv's and the app's own sockets);
+# - ICMP and ICMPv6, which IPv6 can't do without (neighbour discovery,
+#   router advertisements) and which says "too big" and "unreachable";
+# - a DHCP or DHCPv6 server's answer, wherever it comes from (a lease
+#   renewed, or one offered by a relay);
+# - anything from the home network's kinds of address: the private IPv4
+#   networks (RFC 1918), IPv4's link-local (169.254/16), IPv6's link-local
+#   (fe80::/10) and its unique local addresses (fc00::/7).
+#
+# By source rather than by port, on purpose: a LAN game's room query, the
+# room's answer and mDNS's answers are unicast replies to a broadcast or a
+# multicast, which connection tracking does not match, and every one of
+# them comes from a home address. A home network on other addresses (public
+# ones, or a carrier's 100.64/10), or a computer reaching the Pi over its
+# global IPv6 address or a VPN, is refused: Settings → System → Firewall Off
+# takes the table away (osdos-firewall.service).
+#
+# Nothing is forwarded by the Pi (it shares no connection and makes no
+# hotspot), so there is no forward chain.
+#
+# A table of its own, made anew each time this is read and in the same
+# transaction, so that reading it twice does no harm, nothing else's rules
+# are touched, and there is no moment without it while it is read again.
+table inet osdos_firewall
+delete table inet osdos_firewall
+
+table inet osdos_firewall {
+	set home4 {
+		type ipv4_addr
+		flags interval
+		elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 }
+	}
+	set home6 {
+		type ipv6_addr
+		flags interval
+		elements = { fe80::/10, fc00::/7 }
+	}
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		ct state established,related accept
+		iif "lo" accept
+		meta l4proto { icmp, ipv6-icmp } accept
+		meta nfproto ipv4 udp sport 67 udp dport 68 accept
+		meta nfproto ipv6 udp sport 547 udp dport 546 accept
+		ip saddr @home4 accept
+		ip6 saddr @home6 accept
+	}
+}

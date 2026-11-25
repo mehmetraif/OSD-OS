@@ -186,11 +186,12 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
 | `osdos-media-folders.service` | Makes **Movies** on the film partition as it is mounted |
 | `osdos-netplay-priority.service` | Enabled. Marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](#wi-fi)) |
+| `osdos-firewall.service` | Enabled. Lets only the home network connect, from before the network comes up ([Firewall](#firewall)) |
 | `osdos-jamma.service` | Enabled. A JAMMA board's controls as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)). Exits without the JAMMA display preset |
 | `osdos-display.socket` | Enabled. Display Output's At Next Start |
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
-| `osdos-system.socket` | Enabled. The time zone, the keyboard and SSH on or off |
+| `osdos-system.socket` | Enabled. The time zone, the keyboard, SSH on or off and the firewall on or off |
 | `osdos-game.socket` | Enabled. An arcade game's CPU governor, and the flag the timers wait on ([The game's socket](#the-games-socket)) |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
@@ -368,10 +369,30 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 
 ### The local network
 
-- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`.
+- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`, by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses nor answers over IPv6 (`/etc/avahi/avahi-daemon.conf`: `use-ipv6=no`, `publish-aaaa-on-ipv4=no`), so the name never leads a computer to the Pi's global IPv6 address, which the [firewall](#firewall) refuses. On a network with IPv6 alone, `osdos.local` doesn't resolve: use the address in System Information.
 - **A cable and Wi-Fi both up**: each answers only for its own address (`/etc/sysctl.d/90-osdos-arp.conf`: `net.ipv4.conf.all.arp_ignore = 1`, `arp_announce = 2`), so another machine sends a game meant for the cable over the cable, not to the Pi's Wi-Fi. `ip neigh show <the Pi's cable address>` on another Linux machine (`arp -a` on Windows) shows the cable's MAC address, as `ip -br link` on the Pi names it.
 - Settings → System → System Information renames the device. Give each OSD/OS on one network its own name.
 - Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
+
+### Firewall
+
+Every listener on the Pi answers on every address, IPv4 and IPv6: SSH when it is on, a hosted LAN game (RetroArch on TCP and UDP 55435, with no password; OSD/OS's seat claims on UDP 55436), RetroArch's network pad during a single-player game with credits, avahi. Where the Pi has a global IPv6 address behind a router that doesn't filter it, a forwarded port, a DMZ or a public IPv4 address, the internet could reach all of them. So only the home network may connect:
+
+- **`osdos-firewall.service`** has nftables read `/usr/lib/osdos/firewall.nft` before the network comes up (`Before=network-pre.target`, which NetworkManager starts after), and takes its table away once the network's services have stopped. Its table, `inet osdos_firewall`, has an input chain whose policy is drop.
+- **What it lets in**: answers to what the Pi sent (connection tracking: DNS, NTP, updates, streams, the media servers, an online game through its relay); the loopback; ICMP and ICMPv6 (neighbour discovery and router advertisements); a DHCP server's answer (UDP from port 67 to 68) and a DHCPv6 server's (547 to 546), wherever they come from; and everything from the home network's kinds of address: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `fe80::/10` and `fc00::/7`.
+- **By source, not by port**: a LAN game's room query and the rooms' answers, the seats' claims and mDNS's answers are unicast replies to a broadcast or a multicast, which connection tracking doesn't match. Every one of them comes from a home address.
+- **No forward chain**: the Pi shares no connection and makes no hotspot.
+- **What it refuses**: anything from another address. A home network on public addresses or a carrier's `100.64.0.0/10`, a computer that reaches the Pi over its global IPv6 address, and a VPN on other addresses need Firewall off ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#a-computer-cant-reach-the-pi)).
+- **Off and on**: Settings → System → **Firewall** ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)). From a shell, `sudo systemctl disable --now osdos-firewall` turns it off and `sudo systemctl enable --now osdos-firewall` on.
+- **When it can't load**: OSD/OS starts all the same, the network comes up unfiltered, and the row's help line says **Its rules aren't loaded**. Without nft the unit doesn't run.
+- **`install.sh`** installs it on Raspberry Pi OS and leaves it off: that system is its owner's. The row turns it on.
+
+```sh
+systemctl is-enabled osdos-firewall       # enabled, or disabled
+systemctl is-active osdos-firewall        # active once the rules are loaded
+sudo nft list table inet osdos_firewall   # the rules in force
+journalctl -u osdos-firewall -b           # why they didn't load, if they didn't
+```
 
 ### Bluetooth
 
@@ -397,7 +418,7 @@ SSH is off on the image as it comes (`ENABLE_SSH=0`). Four ways to have it:
 - **Raspberry Pi Imager's customisation** enables it, with the user it creates.
 - **An image built with `ENABLE_SSH=1`** has it. `PUBKEY_SSH_FIRST_USER` adds a public key for `pi`, and `PUBKEY_ONLY_SSH=1` turns password logins off.
 
-Then, from a computer on the same network:
+Then, from a computer on the same network (the [firewall](#firewall) lets the home network's addresses in, and no others):
 
 ```sh
 ssh pi@osdos.local
@@ -471,8 +492,9 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | 9 | Exits 39 and 59: JAMMA 480i at 640 across |
 | 10 | `osdos-system.socket`: Settings → System sets the time zone and the keyboard |
 | 11 | `osdos-game.socket`: an arcade game has the CPU at full speed |
+| 12 | `firewall on` and `firewall off` through `osdos-system.socket`: Settings → System offers Firewall |
 
-The image's launcher is level 11, as `install.sh`'s is.
+The image's launcher is level 12, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -504,8 +526,10 @@ Settings → System → **Time Zone**, **Keyboard** and **SSH** go through `osdo
 
 For SSH it takes `ssh on` or `ssh off` and nothing else. On is `systemctl enable ssh.service`, then `systemctl start ssh.service` (enabled again only for as long as it starts: one that doesn't is disabled again); off is `systemctl disable ssh.service`, then `systemctl stop ssh.service`. It never touches `pi`'s password, `~/.ssh/authorized_keys` or `/etc/ssh/sshd_config.d/00-osdos-setup.conf`: whether a password logs in stays as OSD/OS Setup left it, and the next card's SSH setting wins over the row. Turned on, it answers `ok no-password` where the user OSD/OS runs as (`osdos.service`'s `User=`) has no password in `/etc/shadow` (none, or locked), which the row shows as **Set a password or a key with OSD/OS Setup first** when that user has no key either; nothing else of the password leaves it.
 
+For the [firewall](#firewall) it takes `firewall on` or `firewall off` and nothing else, refused where `osdos-firewall.service` or `/usr/sbin/nft` isn't there. On is `systemctl enable osdos-firewall.service`, then `systemctl start` (disabled again should its rules not load); off is `systemctl disable`, then `systemctl stop`, which takes the table away. Only through `systemctl`: the request's unit has no network of its own, and the rules are the service's to load. The journal says what the system lets in after each.
+
 ```sh
-journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard or SSH did
+journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard, SSH or the firewall did
 systemctl is-enabled ssh             # enabled, or disabled
 systemctl is-active ssh              # active, or inactive
 ```
@@ -597,6 +621,8 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/usr/local/sbin/osdos-setup` | Applies OSD/OS Setup's file |
 | `/etc/systemd/system/` | The `osdos` units above, and the drop-ins `osdos.service.d/osdos-media.conf` and `<unit>.d/osdos-defer.conf` |
 | `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked CS4 for Wi-Fi's video queue |
+| `/etc/systemd/system/osdos-firewall.service`, `/usr/lib/osdos/firewall.nft` | The firewall: only the home network may connect |
+| `/etc/avahi/avahi-daemon.conf` | `osdos.local` by IPv4 alone (`use-ipv6=no`, `publish-aaaa-on-ipv4=no`) |
 | `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted` | The image's helpers |
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |
@@ -759,7 +785,7 @@ The parts are the folders of [`os/stage-osdos`](https://github.com/mehmetraif/OS
 |---|---|---|
 | `00-packages` | What `install.sh` installs, without `qt6-wayland`, plus alsa-utils | |
 | `01-app` | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
-| `02-system` | The service, its helpers and sockets, the polkit rule, Wi-Fi power saving, the network game marking (`nftables`), OSD/OS Setup, the JAMMA controls, the boot order, the masked and disabled units | |
+| `02-system` | The service, its helpers and sockets, the polkit rule, Wi-Fi power saving, the network game marking and the firewall (`nftables`), `osdos.local` by IPv4, OSD/OS Setup, the JAMMA controls, the boot order, the masked and disabled units | |
 | `03-boot` | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay, the quiet `cmdline.txt` | |
 | `04-streaming` | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
 | `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |

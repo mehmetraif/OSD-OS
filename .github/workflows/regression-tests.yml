@@ -58,7 +58,7 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/apt-packages
         with:
-          packages: build-essential lua5.4 cmake qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev libminizip-dev dbus-daemon
+          packages: build-essential lua5.4 cmake qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev libminizip-dev dbus-daemon nftables
       - name: Configure application
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build application
@@ -69,6 +69,18 @@ jobs:
         run: cmake --build build-tests --parallel 2
       - name: Run regression tests
         run: ctest --test-dir build-tests --verbose --timeout 60
+      # The image's nftables rules given to the kernel's nftables to check, and
+      # the firewall's loaded twice in a network namespace of its own: only
+      # root may, and the tests above run as the runner's user, where they
+      # leave that part out ("note: ..."). Here it must not be left out.
+      - name: Check the image's nftables rules
+        run: |
+          for t in "netplay_priority_test.sh src/modules/arcade/Libretro.h" "firewall_test.sh src/modules/arcade/LanRooms.cpp"; do
+            set -- $t
+            out=$(sudo bash "tests/$1" os/stage-osdos/02-system "$2")
+            echo "$out"
+            if grep -q '^note:' <<< "$out"; then exit 1; fi
+          done
 
   # Raspberry Pi OS, as the OS image is made of it (os/README.md): Debian 13
   # "trixie" with Raspberry Pi's archive on top, arm64. Its Qt (6.8) and mpv

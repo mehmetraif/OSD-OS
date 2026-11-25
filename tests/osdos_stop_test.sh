@@ -7,8 +7,9 @@
 # database's list of countries, and the device name's (osdos-stop
 # device-name), on a stand-in /etc/hosts, and the time zone's and the
 # keyboard's (osdos-stop system-setting), against stand-ins for the time zone
-# database and XKB's layouts, and SSH's (osdos-stop system-setting ssh), on a
-# stand-in /etc/shadow. systemctl, raspi-config, hostnamectl and timedatectl
+# database and XKB's layouts, SSH's (osdos-stop system-setting ssh), on a
+# stand-in /etc/shadow, and the firewall's (osdos-stop system-setting
+# firewall), with stand-ins for its unit and nft. systemctl, raspi-config, hostnamectl and timedatectl
 # are stand-ins that only note what they were asked.
 #   osdos_stop_test.sh <scripts/install.sh> <os/stage-osdos/03-boot/files>
 set -u
@@ -30,6 +31,8 @@ awk -v marker=STOP_HELPER '
                       -e "s#^ZONES=/usr/share/zoneinfo\$#ZONES=$T/zoneinfo#" \
                       -e "s#^LAYOUTS=/usr/share/X11/xkb/symbols\$#LAYOUTS=$T/xkb#" \
                       -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
+                      -e "s#^FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service\$#FIREWALL_UNIT=$T/etc/osdos-firewall.service#" \
+                      -e "s#^NFT=/usr/sbin/nft\$#NFT=$T/bin/nft#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" \
                       -e "s#^GAME_RUN=/run/osdos-game\$#GAME_RUN=$T/run/osdos-game#" \
                       -e "s#^GAME_FLAG=/run/osdos-game/playing\$#GAME_FLAG=$T/run/osdos-game/playing#" \
@@ -44,6 +47,8 @@ grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts 
 grep -q "^ZONES=$T/zoneinfo\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's time zones not found in $INSTALL_SH"; exit 1; }
 grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboard layouts not found in $INSTALL_SH"; exit 1; }
 grep -q "^SHADOW=$T/etc/shadow\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/shadow not found in $INSTALL_SH"; exit 1; }
+grep -q "^FIREWALL_UNIT=$T/etc/osdos-firewall.service\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's firewall unit not found in $INSTALL_SH"; exit 1; }
+grep -q "^NFT=$T/bin/nft\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's nft not found in $INSTALL_SH"; exit 1; }
 # systemctl names the app's service's user as app-user has it, and fails a
 # command while <command>-fails is there (enable-fails, start-fails, ...).
 for v in GAME_RUN GAME_FLAG CPUFREQ THERMAL FIRMWARE NET MODULES; do
@@ -479,6 +484,58 @@ touch "$T/stop-fails"
 check "stop failing is a refusal" "it didn't stop" "$(ssh_setting 'ssh off')"
 rm "$T/stop-fails"
 check "after SSH, still no reboot" "" "$(grep -e reboot -e poweroff "$T/systemctl")"
+
+# The firewall, while the app runs: on, its unit enabled and started; off,
+# disabled and stopped; through systemctl alone (nft is never run here: the
+# request's unit has no network of its own), and nothing else. The journal
+# says what the system now lets in.
+printf '[Unit]\nDescription=OSD/OS firewall\n' > "$T/etc/osdos-firewall.service"
+printf '#!/bin/sh\necho "nft $*" >> "%s/systemctl"\n' "$T" > "$T/bin/nft"
+chmod +x "$T/bin/nft"
+check "firewall on: answers ok" ok "$(ssh_setting 'firewall on')"
+check "firewall on: enabled, then started" $'enable osdos-firewall.service\nstart osdos-firewall.service' "$(changed)"
+check "firewall on: the journal says so" \
+      "osdos-stop system-setting: firewall on: only the home network's addresses can connect" "$(cat "$T/stderr")"
+check "firewall off: answers ok" ok "$(ssh_setting 'firewall off')"
+check "firewall off: disabled, then stopped" $'disable osdos-firewall.service\nstop osdos-firewall.service' "$(changed)"
+check "firewall off: the journal says so" \
+      "osdos-stop system-setting: firewall off: anything that reaches this device can connect" "$(cat "$T/stderr")"
+# Only on or off: nothing else reaches systemctl.
+for bad in '' 'yes' 'ON' 'on off' 'on;reboot' '$(reboot)' 'restart' 'on ' 'mask' 'reload'; do
+    check "firewall: '$bad' isn't on or off" "the firewall is only on or off" "$(ssh_setting "firewall $bad")"
+    check "firewall: '$bad': systemctl not asked" "" "$(cat "$T/systemctl")"
+done
+check "firewall alone is neither" "the firewall is only on or off" "$(ssh_setting 'firewall')"
+# Its rules not loaded now: refused, and not left enabled for the next start.
+touch "$T/start-fails"
+check "firewall: rules not loaded is a refusal" "its rules couldn't be loaded" "$(ssh_setting 'firewall on')"
+check "firewall: rules not loaded, disabled again" \
+      $'enable osdos-firewall.service\nstart osdos-firewall.service\ndisable osdos-firewall.service' "$(changed)"
+rm "$T/start-fails"
+touch "$T/enable-fails"
+check "firewall: enable failing is a refusal" "systemctl couldn't enable it" "$(ssh_setting 'firewall on')"
+check "firewall: enable failing, not started" "enable osdos-firewall.service" "$(changed)"
+rm "$T/enable-fails"
+touch "$T/disable-fails"
+check "firewall: disable failing is a refusal" "systemctl couldn't disable it" "$(ssh_setting 'firewall off')"
+check "firewall: disable failing, not stopped" "disable osdos-firewall.service" "$(changed)"
+rm "$T/disable-fails"
+touch "$T/stop-fails"
+check "firewall: stop failing is a refusal" "it didn't stop" "$(ssh_setting 'firewall off')"
+rm "$T/stop-fails"
+# Without nft it can't be turned on, and can still be turned off.
+chmod -x "$T/bin/nft"
+check "firewall on, no nft: refused" "nftables isn't installed" "$(ssh_setting 'firewall on')"
+check "firewall on, no nft: systemctl not asked" "" "$(changed)"
+check "firewall off, no nft: ok" ok "$(ssh_setting 'firewall off')"
+chmod +x "$T/bin/nft"
+# Without its unit (a system set up before it): neither.
+rm "$T/etc/osdos-firewall.service"
+check "firewall on, no unit: refused" "the firewall isn't installed" "$(ssh_setting 'firewall on')"
+check "firewall off, no unit: refused" "the firewall isn't installed" "$(ssh_setting 'firewall off')"
+check "firewall, no unit: systemctl not asked" "" "$(cat "$T/systemctl")"
+check "the helper never runs nft itself" "" "$(grep '^nft ' "$T/systemctl")"
+check "after the firewall, still no reboot" "" "$(grep -e reboot -e poweroff "$T/systemctl")"
 
 # An arcade game's CPU governor (osdos-stop game, through osdos-game.socket),
 # on a stand-in for the kernel's files: one CPU frequency policy, the CPU's

@@ -303,7 +303,9 @@ INSTALL_DIR="/opt/osdos"
 #    osdos-system.socket, so Settings → System offers Time Zone and Keyboard.
 # 11: osdos-stop also sets the CPU's governor for an arcade game and puts it
 #    back after, through osdos-game.socket, so the Arcade module asks for it.
-export OSDOS_LAUNCHER_API=11
+# 12: osdos-stop also turns the firewall (osdos-firewall.service) on and off
+#    through osdos-system.socket, so Settings → System offers Firewall.
+export OSDOS_LAUNCHER_API=12
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -521,7 +523,8 @@ sudo chmod +x "${LAUNCHER}"
 # Wi-Fi without power saving (NetworkManager's osdos-wifi-powersave.conf), and
 # a network game's packets marked CS4 for Wi-Fi's video queue
 # (osdos-netplay-priority.service, with the rules nft reads), as the OSD/OS
-# image has them: the image's own files, os/stage-osdos/02-system/files at
+# image has them, and the image's inbound filter, installed but off (below):
+# the image's own files, os/stage-osdos/02-system/files at
 # this release's tag, never a copy of their text here. On a desktop Pi too,
 # which then keeps its Wi-Fi awake as well. A release from before them, or no
 # answer from GitHub, leaves the system as it is, and says so.
@@ -550,6 +553,24 @@ if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priorit
         || echo "Warning: osdos-netplay-priority.service didn't start: network games' packets go unmarked (journalctl -u osdos-netplay-priority)." >&2
 else
     echo "Warning: the network game's marking couldn't be read from ${VERSION}: its packets go unmarked." >&2
+fi
+# The image's inbound filter (osdos-firewall.service: only the home network's
+# addresses may connect), installed but left off: this system is its owner's,
+# who may run services for other networks on it. Settings → System → Firewall
+# turns it on. One turned on before is kept on, its rules read again in place.
+if network_file osdos-firewall.nft && network_file osdos-firewall.service; then
+    sudo install -D -m 644 "${NETWORK_DIR}/osdos-firewall.nft" /usr/lib/osdos/firewall.nft
+    sudo install -m 644 "${NETWORK_DIR}/osdos-firewall.service" /etc/systemd/system/osdos-firewall.service
+    sudo systemctl daemon-reload
+    sudo systemctl try-reload-or-restart osdos-firewall.service \
+        || echo "Warning: osdos-firewall.service's rules couldn't be read again (journalctl -u osdos-firewall)." >&2
+    if sudo systemctl is-enabled --quiet osdos-firewall.service; then
+        echo "The firewall stays on: only the home network can connect."
+    else
+        echo "The firewall is installed and off: Settings → System → Firewall turns it on."
+    fi
+else
+    echo "Warning: the firewall couldn't be read from ${VERSION}: Settings → System → Firewall can't turn it on." >&2
 fi
 # NETWORK_FILES_END
 
@@ -634,7 +655,7 @@ if [ -n "${SERVICE_USER}" ]; then
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
 # device-name, by osdos-name.socket: Settings → System → System Information's
 # Device Name; with system-setting, by osdos-system.socket: Settings → System's
-# Time Zone, Keyboard and SSH; with game, by osdos-game.socket: an arcade
+# Time Zone, Keyboard, SSH and Firewall; with game, by osdos-game.socket: an arcade
 # game's CPU governor, for the length of the game.
 
 # What comes in is read as the C locale reads it, whatever the system's
@@ -802,7 +823,7 @@ device_name() {
     echo ok
 }
 
-# Settings → System's Time Zone, Keyboard and SSH: a line from the app, through the
+# Settings → System's Time Zone, Keyboard, SSH and Firewall: a line from the app, through the
 # socket, "time-zone Europe/Istanbul" or "keyboard tr", and "ok" back, or why
 # not. A time zone only as the time zone database names one (letters, digits,
 # _ + and -, two slashes at most) and has one, a keyboard only as XKB names a
@@ -817,9 +838,17 @@ device_name() {
 # left them. Turned on, the answer is "ok no-password" where the app's user
 # (osdos.service's) has no password to log in with, for the app to say that
 # nobody can yet without a key; never the password, nor anything of it.
+# And the firewall, "firewall on" or "firewall off" and nothing else:
+# osdos-firewall.service (only the home network's addresses may connect)
+# enabled and started, or disabled and stopped, now and for every start
+# after; refused where its unit or nft isn't there. Only through systemctl:
+# this unit has no network of its own (PrivateNetwork=), and the rules are
+# the service's to load. The journal says what the system now lets in.
 ZONES=/usr/share/zoneinfo
 LAYOUTS=/usr/share/X11/xkb/symbols
 SHADOW=/etc/shadow
+FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service
+NFT=/usr/sbin/nft
 # Whether the app's user has a password: its field of /etc/shadow neither
 # empty nor locked (! or *). Taken as yes where the user or the file can't
 # be told, so that nothing is said for want of knowing.
@@ -869,6 +898,28 @@ system_setting() {
                     return
                     ;;
             esac
+            ;;
+        firewall)
+            case "$value" in
+                on|off) ;;
+                *) refuse "the firewall is only on or off"; return ;;
+            esac
+            [ -f "$FIREWALL_UNIT" ] || { refuse "the firewall isn't installed"; return; }
+            if [ "$value" = on ]; then
+                [ -x "$NFT" ] || { refuse "nftables isn't installed"; return; }
+                systemctl enable osdos-firewall.service < /dev/null >&2 || { refuse "systemctl couldn't enable it"; return; }
+                # Not left enabled for the next start when its rules can't be loaded now.
+                if ! systemctl start osdos-firewall.service < /dev/null >&2; then
+                    systemctl disable osdos-firewall.service < /dev/null >&2
+                    refuse "its rules couldn't be loaded"
+                    return
+                fi
+                echo "osdos-stop $MODE: firewall on: only the home network's addresses can connect" >&2
+            else
+                systemctl disable osdos-firewall.service < /dev/null >&2 || { refuse "systemctl couldn't disable it"; return; }
+                systemctl stop osdos-firewall.service < /dev/null >&2 || { refuse "it didn't stop"; return; }
+                echo "osdos-stop $MODE: firewall off: anything that reaches this device can connect" >&2
+            fi
             ;;
         *)
             refuse "nothing this sets"
@@ -1184,7 +1235,7 @@ STOP_HELPER
         "display|next-start|display output for the next start|Settings → Screen → Display Output"
         "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
         "name|device-name|device name|Settings → System → System Information"
-        "system|system-setting|time zone and keyboard|Settings → System"
+        "system|system-setting|time zone, keyboard, SSH and firewall|Settings → System"
         "game|game|CPU governor for a game|Arcade"
     )
     # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is
