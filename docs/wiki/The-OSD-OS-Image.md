@@ -48,6 +48,7 @@ Against Raspberry Pi OS Lite with `scripts/install.sh` and its autostart service
 | Settings → Screen → Display Output | Not offered | Offered |
 | Bluetooth blocked by rfkill | Stays blocked | Unblocked |
 | Wi-Fi power saving | On | Off ([Wi-Fi](#wi-fi)) |
+| Swap | Compressed in RAM (zram), with a file on the card it writes idle pages back to | Compressed in RAM only |
 
 The rest is the same: the launcher, the in-app updater, Exit to Terminal and the data folder `~/.local/share/OSD-OS`.
 
@@ -598,6 +599,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |
 | `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` | Wi-Fi power saving off |
+| `/etc/rpi/swap.conf.d/osdos.conf` | Swap in compressed RAM only (`[Main]`, `Mechanism=zram`): no swap file on the card. `swapon --show` lists `/dev/zram0` alone |
 | `/etc/modules-load.d/osdos-jamma.conf` | The JAMMA controls' kernel modules (`i2c-dev`, `uinput`) |
 | `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | `/dev/tty0` for the `tty` group, USB drives, `/dev/uinput` for the `input` group |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |

@@ -110,6 +110,18 @@ cat > "${ETC}/systemd/system/NetworkManager-wait-online.service.d/osdos.conf" <<
 Environment=NM_ONLINE_TIMEOUT=20
 EOF
 
+# Swap in memory only: rpi-swap (pi-gen's stage2) makes compressed swap in
+# RAM, zram, and by default a swap file on the card beside it that idle pages
+# are written back to on a timer: writes to the card at random times, which
+# the image keeps away elsewhere (the timers 01-run-chroot.sh disables). zram
+# alone needs no file, and rpi-swap deletes one left there (swap.conf(5)).
+install -d "${ETC}/rpi/swap.conf.d"
+cat > "${ETC}/rpi/swap.conf.d/osdos.conf" << 'EOF'
+# OSD/OS image: swap in compressed RAM only, never on the card (swap.conf(5)).
+[Main]
+Mechanism=zram
+EOF
+
 # Bluetooth is switched on and off in Settings → Network → Bluetooth, through BlueZ, and
 # rfkill has no business keeping it off. Raspberry Pi OS starts every radio
 # blocked (raspberrypi-sys-mods sets rfkill.default_state=0, so Wi-Fi stays off

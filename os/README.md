@@ -27,6 +27,7 @@ Compared with flashing Raspberry Pi OS Lite and running `scripts/install.sh` ([I
   - no apt, man-db, e2scrub or dpkg-backup timers (they wake the SD card at random times, mid-movie included);
   - no `fstrim.timer`, whose weekly trim of the card, caught up soon after a boot that missed it, can hold its writes for seconds as a game starts. To trim by hand: `sudo fstrim -av`;
   - no cron;
+  - no swap on the card. Raspberry Pi OS's `rpi-swap` makes compressed swap in RAM (zram) and, by default, a swap file on the card beside it, which idle pages are written back to on a timer. The image keeps zram alone (`/etc/rpi/swap.conf.d/osdos.conf`: `Mechanism=zram` under `[Main]`), and `rpi-swap` deletes a swap file left there. `swapon --show` lists `/dev/zram0` only;
   - no Raspberry Pi Connect agent.
 
   cloud-init applies Raspberry Pi Imager's settings on the first boot and is then switched off, because otherwise its stages delay every boot.
