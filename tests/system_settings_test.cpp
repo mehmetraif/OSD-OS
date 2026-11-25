@@ -328,8 +328,11 @@ private slots:
         QVERIFY(!settings.setSsh(false));
         QVERIFY(asked.isEmpty());
 
-        // On, with no password for the app's user (the helper's word) and no
-        // key: said why nobody can sign in yet.
+        // On, with no password that logs in (the helper's word: the app's
+        // user has none, or sshd takes none) and no key: said why nobody can
+        // sign in yet, in so many words.
+        const QString kNoWayIn =
+            QStringLiteral("No way in yet: give a key, or a password with Password Login, on OSD/OS Setup");
         reply = "ok no-password\n";
         QSignalSpy busy(&settings, &SystemSettings::busyChanged);
         QVERIFY(settings.setSsh(true));
@@ -342,7 +345,7 @@ private slots:
         QCOMPARE(asked, QByteArrayList({ "ssh on\n" }));
         QVERIFY(settings.ssh());
         QCOMPARE(settings.message(), QStringLiteral("SSH on"));
-        QCOMPARE(settings.sshNote(), QStringLiteral("Set a password or a key with OSD/OS Setup first"));
+        QCOMPARE(settings.sshNote(), kNoWayIn);
         QVERIFY(!settings.setSsh(true));
         QCOMPARE(asked.size(), 1);
         // A key in ~/.ssh/authorized_keys (a comment and a line that isn't
@@ -353,13 +356,36 @@ private slots:
         keys.write("# none yet\nnot a key\n");
         keys.close();
         settings.refresh();
-        QCOMPARE(settings.sshNote(), QStringLiteral("Set a password or a key with OSD/OS Setup first"));
+        QCOMPARE(settings.sshNote(), kNoWayIn);
         QVERIFY(keys.open(QIODevice::Append));
         keys.write("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented den@laptop\n");
         keys.close();
         settings.refresh();
         QCOMPARE(settings.sshNote(), QString());
         QVERIFY(keys.remove());
+        // A key with options before it (restrict, from="…") is a way in too,
+        // and so is one in authorized_keys2, which Debian's sshd reads; a
+        // key commented out and a type with too little after it aren't.
+        QVERIFY(keys.open(QIODevice::WriteOnly));
+        keys.write("# ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented old\nssh-ed25519 AAAA\n");
+        keys.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), kNoWayIn);
+        QVERIFY(keys.open(QIODevice::Append));
+        keys.write("restrict,from=\"192.168.1.0/24\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented den@laptop\n");
+        keys.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), QString());
+        QVERIFY(keys.remove());
+        QFile keys2(home.path() + QStringLiteral("/.ssh/authorized_keys2"));
+        QVERIFY(keys2.open(QIODevice::WriteOnly));
+        keys2.write("ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYinvented attic\n");
+        keys2.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), QString());
+        QVERIFY(keys2.remove());
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), kNoWayIn);
 
         // Off: nothing to say.
         reply = "ok\n";

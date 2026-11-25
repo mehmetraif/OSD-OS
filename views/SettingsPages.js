@@ -740,7 +740,8 @@ function systemRows(items) {
     // (systemSettings.ssh), set through its root helper (setSsh(), the
     // row's toggle in Settings.qml's setChoice(), by its key): Setting while on its way,
     // a refusal said as Time Zone's is. Its note, why no one could sign in
-    // yet (no password or key set), opens the help line while it is on. No
+    // yet (no key, and no password that logs in: none set, or sshd's
+    // password login off), opens the help line while it is on. No
     // password here: OSD/OS Setup sets it and the keys. Dimmed, showing what
     // systemd has, where the card's helper is older than SSH (sshOff).
     var sshOn = !!(system && system.ssh)

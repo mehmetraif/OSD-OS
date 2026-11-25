@@ -88,4 +88,25 @@ inline QStringList sshKeys(const QString &home) {
     return keys;
 }
 
+// Whether any line of home's ~/.ssh/authorized_keys or authorized_keys2
+// (Debian's sshd reads both) holds a key that may log in, options before
+// it or not (restrict, from="…"), as the card's setup counts one
+// (KEY_LINE in osdos-setup): not a comment, and a type then at least 16
+// characters of its key.
+inline bool hasSshKey(const QString &home) {
+    static const QRegularExpression kKeyLine(
+        QStringLiteral("(^|\\s)(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp[0-9]+"
+                       "|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\\.com) [A-Za-z0-9+/=]{16,}"));
+    for (const char *name : { "/.ssh/authorized_keys", "/.ssh/authorized_keys2" }) {
+        const QStringList lines =
+            QString::fromUtf8(filetext::readText(home + QLatin1String(name), 256 * 1024)).split(QLatin1Char('\n'));
+        for (const QString &line : lines) {
+            const QString text = line.trimmed();
+            if (!text.startsWith(QLatin1Char('#')) && kKeyLine.match(text).hasMatch())
+                return true;
+        }
+    }
+    return false;
+}
+
 } // namespace systemlocale

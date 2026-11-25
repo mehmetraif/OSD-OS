@@ -842,9 +842,13 @@ device_name() {
 # started, or disabled and stopped, now and for every start after. Only
 # whether it runs: the password, the keys and whether a password logs in
 # (/etc/ssh/sshd_config.d/00-osdos-setup.conf) stay as OSD/OS Setup's file
-# left them. Turned on, the answer is "ok no-password" where the app's user
-# (osdos.service's) has no password to log in with, for the app to say that
-# nobody can yet without a key; never the password, nor anything of it.
+# left them. Turned on, the answer is "ok no-password" where no password
+# can log in: the app's user (osdos.service's) has none, or sshd takes none
+# (its PasswordAuthentication no, as the image's own drop-in has it unless a
+# card or Raspberry Pi Imager says otherwise, and no keyboard-interactive
+# through PAM). The app, which can read its user's ~/.ssh where this unit
+# can't (ProtectHome=), then says nobody can sign in yet without a key.
+# Never the password, nor anything of it.
 # And the firewall, "firewall on" or "firewall off" and nothing else:
 # osdos-firewall.service (only the home network's addresses may connect)
 # enabled and started, or disabled and stopped, now and for every start
@@ -854,6 +858,8 @@ device_name() {
 ZONES=/usr/share/zoneinfo
 LAYOUTS=/usr/share/X11/xkb/symbols
 SHADOW=/etc/shadow
+SSHD=/usr/sbin/sshd
+SSH_DIR=/etc/ssh
 FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service
 NFT=/usr/sbin/nft
 # Whether the app's user has a password: its field of /etc/shadow neither
@@ -865,6 +871,66 @@ app_user_has_password() {
     [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] && [ -r "$SHADOW" ] || return 0
     awk -F: -v user="$user" '$1 == user { found = 1; usable = $2 != "" && $2 !~ /^[!*]/ }
                              END { exit !(usable || !found) }' "$SHADOW"
+}
+# The lines of sshd's configuration in the order sshd reads them, for when
+# sshd -T can't say: sshd_config, an Include's files where the line stands
+# (a name without a / is under /etc/ssh; a pattern's files in the order of
+# their names), three deep at most. A file's lines stop at its first Match,
+# whose settings hold for some connections only.
+sshd_config_lines() {
+    local line key words pattern file
+    [ -r "$1" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line#"${line%%[![:space:]]*}"}"
+        key="${line%%[[:space:]=]*}"
+        case "${key,,}" in
+            match) return 0 ;;
+            include)
+                [ "$2" -lt 3 ] || continue
+                read -ra words <<< "${line:${#key}}"
+                for pattern in "${words[@]}"; do
+                    [[ "$pattern" == /* ]] || pattern="$SSH_DIR/$pattern"
+                    while IFS= read -r file; do
+                        sshd_config_lines "$file" $(($2 + 1))
+                    done < <(compgen -G "$pattern" | sort)
+                done
+                ;;
+            *) printf '%s\n' "$line" ;;
+        esac
+    done < "$1"
+}
+# sshd's effective settings, "<keyword> <value>" a line, the keyword and the
+# value in lower case as sshd -T prints them: from sshd -T itself (no
+# connection named, so no Match applies), else from its files, the first
+# value read of each winning, as sshd keeps it.
+sshd_settings() {
+    if [ -x "$SSHD" ] && "$SSHD" -T < /dev/null 2> /dev/null; then
+        return
+    fi
+    sshd_config_lines "$SSH_DIR/sshd_config" 0 | awk '
+        {
+            n = match($0, /[ \t=]/)
+            if (n < 2) next
+            key = tolower(substr($0, 1, n - 1))
+            if (key == "challengeresponseauthentication") key = "kbdinteractiveauthentication"
+            value = substr($0, n)
+            sub(/^[ \t]*=?[ \t]*/, "", value)
+            sub(/[ \t].*/, "", value)
+            if (value != "" && !(key in seen)) { seen[key] = 1; print key, tolower(value) }
+        }'
+}
+# Whether sshd takes a password: PasswordAuthentication, or
+# keyboard-interactive through PAM, as it has them (OpenSSH's own defaults
+# where nothing says: yes, yes, and no PAM). Taken as yes where it can't be
+# told, so that nothing is said for want of knowing.
+sshd_setting() {  # keyword, the value where none is set
+    awk -v key="$1" -v otherwise="$2" '$1 == key { print $2; found = 1; exit }
+                                       END { if (!found) print otherwise }' <<< "$SSHD_SETTINGS"
+}
+sshd_takes_password() {
+    SSHD_SETTINGS="$(sshd_settings)"
+    [ "$(sshd_setting passwordauthentication yes)" != no ] && return 0
+    [ "$(sshd_setting kbdinteractiveauthentication yes)" != no ] && [ "$(sshd_setting usepam no)" = yes ]
 }
 system_setting() {
     local line what value
@@ -935,7 +1001,7 @@ system_setting() {
     esac
     # On the card before the answer: the root file system only.
     sync -f /etc
-    if [ "$what" = ssh ] && [ "$value" = on ] && ! app_user_has_password; then
+    if [ "$what" = ssh ] && [ "$value" = on ] && { ! app_user_has_password || ! sshd_takes_password; }; then
         echo "ok no-password"
         return
     fi

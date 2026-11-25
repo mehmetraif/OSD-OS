@@ -59,10 +59,12 @@ void SystemSettings::refresh() {
     const QString layout = systemlocale::keyboard(systemRoot());
     // Off the image SSH is nothing of the app's.
     const bool ssh = m_available && systemlocale::ssh(systemRoot()) == 1;
-    // Nobody to sign in: no password, as the helper said, and no key, as the
-    // app's user's own file has none.
-    const QString note = ssh && m_sshNoPassword && systemlocale::sshKeys(QDir::homePath()).isEmpty()
-                             ? QStringLiteral("Set a password or a key with OSD/OS Setup first")
+    // Nobody to sign in: no password logs in, as the helper said (the app's
+    // user has none, or sshd takes none), and no key, as the app's user's
+    // own files have none.
+    const QString note = ssh && m_sshNoPassword && !systemlocale::hasSshKey(QDir::homePath())
+                             ? QStringLiteral("No way in yet: give a key, or a password with Password Login,"
+                                              " on OSD/OS Setup")
                              : QString();
     // The firewall, as SSH; on but its rules not in force, said so.
     const bool firewall = m_available && systemlocale::firewall(systemRoot()) == 1;
@@ -199,8 +201,9 @@ bool SystemSettings::send(const QString &what, const QString &value, const QStri
                      [this, what, value, done, notDone](const rootrequest::Answer &answer) {
         m_busy = false;
         emit busyChanged();
-        // SSH turned on: whether the app's user has a password to log in
-        // with, as the helper says ("ok no-password"), for sshNote.
+        // SSH turned on: whether a password can log in, as the helper says
+        // ("ok no-password": the app's user has none, or, from launcher API
+        // 12, sshd takes none), for sshNote.
         if (answer.ok && what == QLatin1String("ssh") && value == QLatin1String("on"))
             m_sshNoPassword = answer.note == QLatin1String("no-password");
         // As the system has it now, whatever the answer.

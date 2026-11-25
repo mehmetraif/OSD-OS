@@ -2208,13 +2208,13 @@ StandInRoot {
             compare(row(page, "SSH").value, "Setting")
             keyClick(Qt.Key_Left)
             compare(systemSettings.asked, ["ssh on"])
-            systemSettings.sshNote = "No password or key is set yet"
+            systemSettings.sshNote = "No way in yet: give a key, or a password with Password Login, on OSD/OS Setup"
             systemSettings.ssh = true
             systemSettings.busy = false
             systemSettings.changed()
             compare(row(page, "SSH").value, "On")
             compare(cursor(page), "SSH")
-            verify(helpOf(page).shownText.indexOf("No password or key is set yet\n") === 0, helpOf(page).shownText)
+            verify(helpOf(page).shownText.indexOf("No way in yet: give a key, or a password with Password Login, on OSD/OS Setup\n") === 0, helpOf(page).shownText)
             verify(helpOf(page).shownText.indexOf("[ON] SSH runs") > 0, helpOf(page).shownText)
             keyClick(Qt.Key_Left)
             compare(systemSettings.asked, ["ssh on", "ssh off"])

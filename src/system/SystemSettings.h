@@ -47,7 +47,10 @@ class SystemSettings : public QObject {
     Q_PROPERTY(QString sshOff READ sshOff CONSTANT)
     // Why nobody could sign in yet although SSH is on, in a line, or empty:
     // the app's user has no key in ~/.ssh/authorized_keys and, as the helper
-    // said when SSH was turned on here, no password.
+    // said when SSH was turned on here, no password logs in: the user has
+    // none, or (a helper of launcher API 12) sshd's effective
+    // PasswordAuthentication is no and no keyboard-interactive through PAM
+    // takes one.
     Q_PROPERTY(QString sshNote READ sshNote NOTIFY changed)
     // The firewall enabled (osdos-firewall.service: only the home network's
     // addresses may connect), as systemd has it; on the image, and on a Pi
@@ -119,8 +122,8 @@ private:
     bool m_ssh = false;
     QString m_sshOff;
     QString m_sshNote;
-    // The helper said, as SSH was last turned on here, that the app's user
-    // has no password to log in with.
+    // The helper said, as SSH was last turned on here, that no password
+    // logs in.
     bool m_sshNoPassword = false;
     bool m_firewall = false;
     QString m_firewallOff;

@@ -8,7 +8,7 @@
 # device-name), on a stand-in /etc/hosts, and the time zone's and the
 # keyboard's (osdos-stop system-setting), against stand-ins for the time zone
 # database and XKB's layouts, SSH's (osdos-stop system-setting ssh), on a
-# stand-in /etc/shadow, and the firewall's (osdos-stop system-setting
+# stand-in /etc/shadow and stand-ins for sshd -T and sshd's files, and the firewall's (osdos-stop system-setting
 # firewall), with stand-ins for its unit and nft. systemctl, raspi-config, hostnamectl and timedatectl
 # are stand-ins that only note what they were asked.
 #   osdos_stop_test.sh <scripts/install.sh> <os/stage-osdos/03-boot/files>
@@ -31,6 +31,8 @@ awk -v marker=STOP_HELPER '
                       -e "s#^ZONES=/usr/share/zoneinfo\$#ZONES=$T/zoneinfo#" \
                       -e "s#^LAYOUTS=/usr/share/X11/xkb/symbols\$#LAYOUTS=$T/xkb#" \
                       -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
+                      -e "s#^SSHD=/usr/sbin/sshd\$#SSHD=$T/bin/sshd#" \
+                      -e "s#^SSH_DIR=/etc/ssh\$#SSH_DIR=$T/ssh#" \
                       -e "s#^FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service\$#FIREWALL_UNIT=$T/etc/osdos-firewall.service#" \
                       -e "s#^NFT=/usr/sbin/nft\$#NFT=$T/bin/nft#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" \
@@ -47,6 +49,8 @@ grep -q "$T/etc/hosts" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/hosts 
 grep -q "^ZONES=$T/zoneinfo\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's time zones not found in $INSTALL_SH"; exit 1; }
 grep -q "^LAYOUTS=$T/xkb\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's keyboard layouts not found in $INSTALL_SH"; exit 1; }
 grep -q "^SHADOW=$T/etc/shadow\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/shadow not found in $INSTALL_SH"; exit 1; }
+grep -q "^SSHD=$T/bin/sshd\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's sshd not found in $INSTALL_SH"; exit 1; }
+grep -q "^SSH_DIR=$T/ssh\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's /etc/ssh not found in $INSTALL_SH"; exit 1; }
 grep -q "^FIREWALL_UNIT=$T/etc/osdos-firewall.service\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's firewall unit not found in $INSTALL_SH"; exit 1; }
 grep -q "^NFT=$T/bin/nft\$" "$T/osdos-stop" || { echo "FAIL: osdos-stop's nft not found in $INSTALL_SH"; exit 1; }
 # systemctl names the app's service's user as app-user has it, and fails a
@@ -450,6 +454,65 @@ for locked in '!' '!$6$invented$cAfEcAfEcAfE' '*' ''; do
 done
 check "ssh on: nothing of the password in the journal" "" "$(grep -e invented -e cAfE "$T/stderr")"
 check "ssh off, no password: only ok" ok "$(ssh_setting 'ssh off')"
+printf 'pi:%s:19000:0:99999:7:::\n' '$6$invented$cAfEcAfEcAfE' > "$T/etc/shadow"
+# pi has a password, but whether it logs in is sshd's to say: sshd -T's
+# effective settings first (a stand-in that prints sshd-T while it is there
+# and fails otherwise), then sshd's own files, the first value of each
+# winning; "ok no-password" where neither PasswordAuthentication nor
+# keyboard-interactive through PAM takes one.
+printf '#!/bin/sh\necho "sshd $*" >> "%s/sshd-asked"\n[ -f "%s/sshd-T" ] || exit 255\ncat "%s/sshd-T"\n' \
+    "$T" "$T" "$T" > "$T/bin/sshd"
+chmod +x "$T/bin/sshd"
+sshd_T() { printf 'port 22\nusepam %s\npasswordauthentication %s\nkbdinteractiveauthentication %s\n' "$@" > "$T/sshd-T"; }
+sshd_T yes no no
+: > "$T/sshd-asked"
+check "sshd -T: no password login: nobody without a key" "ok no-password" "$(ssh_setting 'ssh on')"
+check "sshd -T: asked for its settings alone" "sshd -T" "$(cat "$T/sshd-asked")"
+check "sshd -T: on all the same" $'enable ssh.service\nstart ssh.service' "$(changed)"
+sshd_T yes yes no
+check "sshd -T: password login" ok "$(ssh_setting 'ssh on')"
+sshd_T yes no yes
+check "sshd -T: keyboard-interactive through PAM takes a password" ok "$(ssh_setting 'ssh on')"
+sshd_T no no yes
+check "sshd -T: keyboard-interactive without PAM takes none" "ok no-password" "$(ssh_setting 'ssh on')"
+: > "$T/sshd-asked"
+check "sshd -T: not asked for SSH off" "ok" "$(ssh_setting 'ssh off')"
+check "sshd -T: not asked for SSH off, really" "" "$(cat "$T/sshd-asked")"
+# sshd -T failing (no host keys yet, say): sshd's files, in its order, the
+# first value winning: OSD/OS Setup's drop-in before cloud-init's and the
+# image's, the main file's own lines after its Include where they stand.
+rm "$T/sshd-T"
+mkdir -p "$T/ssh/sshd_config.d"
+printf '%s\n' '# as Debian has it' 'Include /etc/ssh/sshd_config.d/*.conf' '#PasswordAuthentication yes' \
+    'KbdInteractiveAuthentication no' 'UsePAM yes' > "$T/ssh/sshd_config"
+sed -i "s#/etc/ssh/#$T/ssh/#" "$T/ssh/sshd_config"
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > "$T/ssh/sshd_config.d/90-osdos.conf"
+check "sshd's files: the image's alone, no password" "ok no-password" "$(ssh_setting 'ssh on')"
+printf 'PasswordAuthentication yes\n' > "$T/ssh/sshd_config.d/00-osdos-setup.conf"
+check "sshd's files: a card's password login first" ok "$(ssh_setting 'ssh on')"
+printf 'PasswordAuthentication no\n' > "$T/ssh/sshd_config.d/00-osdos-setup.conf"
+printf 'PasswordAuthentication yes\n' > "$T/ssh/sshd_config.d/50-cloud-init.conf"
+check "sshd's files: a card's keys only first, over Imager's" "ok no-password" "$(ssh_setting 'ssh on')"
+rm "$T/ssh/sshd_config.d/00-osdos-setup.conf"
+check "sshd's files: Imager's password login over the image's" ok "$(ssh_setting 'ssh on')"
+# Written as sshd takes them: in capitals, with =, indented, the old name of
+# keyboard-interactive; a Match's lines for some connections only; and an
+# Include under /etc/ssh by a name without a /.
+printf '  passwordauthentication=NO\n' > "$T/ssh/sshd_config.d/50-cloud-init.conf"
+printf 'Match User guest\n    PasswordAuthentication yes\n' > "$T/ssh/sshd_config.d/10-match.conf"
+check "sshd's files: =, capitals, a Match not taken" "ok no-password" "$(ssh_setting 'ssh on')"
+printf 'ChallengeResponseAuthentication yes\n' > "$T/ssh/sshd_config.d/20-old.conf"
+check "sshd's files: keyboard-interactive by its old name, through PAM" ok "$(ssh_setting 'ssh on')"
+rm "$T/ssh/sshd_config.d/20-old.conf"
+printf 'Include sshd_config.d/*.conf\nUsePAM yes\n' > "$T/ssh/sshd_config"
+printf 'KbdInteractiveAuthentication yes\n' > "$T/ssh/sshd_config.d/95-kbd.conf"
+check "sshd's files: the first keyboard-interactive wins" "ok no-password" "$(ssh_setting 'ssh on')"
+printf 'PasswordAuthentication no\n' > "$T/ssh/sshd_config.d/90-osdos.conf"
+check "sshd's files: an Include by a name under /etc/ssh" ok "$(ssh_setting 'ssh on')"
+# Nothing to read: OpenSSH's own default, a password logs in.
+rm -rf "$T/ssh" "$T/bin/sshd"
+check "sshd's files: none, a password logs in" ok "$(ssh_setting 'ssh on')"
+check "sshd: nothing of the password in the journal" "" "$(grep -e invented -e cAfE "$T/stderr")"
 # Where whose the app is, or its password, can't be told: nothing said.
 : > "$T/app-user"
 check "ssh on, the app's user unknown: ok" ok "$(ssh_setting 'ssh on')"

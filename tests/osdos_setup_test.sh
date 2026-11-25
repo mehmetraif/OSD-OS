@@ -44,6 +44,7 @@ awk -v marker=STOP_HELPER '
                       -e "s#/run/osdos-display-boot.txt#$T/run/osdos-display-boot.txt#g" \
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/usr/share/zoneinfo/iso3166.tab#g" \
                       -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
+                      -e "s#^SSHD=/usr/sbin/sshd\$#SSHD=$T/bin/sshd#" -e "s#^SSH_DIR=/etc/ssh\$#SSH_DIR=$T/etc/ssh#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/bin/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
 for tool in systemctl raspi-config timedatectl; do
@@ -55,6 +56,12 @@ printf '#!/bin/sh\necho "chpasswd $* $(cat)" >> "%s/asked"\n' "$T" > "$T/bin/chp
 printf '#!/bin/sh\necho "hostnamectl $*" >> "%s/asked"\necho "$2" > "%s/etc/hostname"\n' "$T" "$T" > "$T/bin/hostnamectl"
 chmod +x "$T"/bin/*
 cp "$PRESETS"/osdos-display-*.txt "$BOOT/"
+# sshd's files as the image has them (no sshd to ask: its files are read),
+# its own drop-in after the card's, with no password login.
+printf 'Include sshd_config.d/*.conf\nKbdInteractiveAuthentication no\nUsePAM yes\n' > "$T/etc/ssh/sshd_config"
+sed 's/@PASSWORD_AUTHENTICATION@/no/' "$(dirname "$SETUP")/osdos-sshd.conf" > "$T/etc/ssh/sshd_config.d/90-osdos.conf"
+grep -q '^PasswordAuthentication no$' "$T/etc/ssh/sshd_config.d/90-osdos.conf" \
+    || { echo "FAIL: the image's sshd drop-in not found beside $SETUP"; exit 1; }
 cp "$BOOT/osdos-display-hdmi.txt" "$BOOT/osdos-display.txt"
 mkdir -p "$T/usr/lib/osdos"
 cp "$PRESETS/display-presets.json" "$T/usr/lib/osdos/"
@@ -196,6 +203,11 @@ check "again: said why" "1" "$(logged "SSH: on, keys only: password login needs 
 check "again: the output as it was, no restart" "0" "$(asked "systemctl --no-block reboot")"
 check "again: said so" "1" "$(logged "Display output: scart-rgb-pal")"
 check "again: what wasn't as asked fails the system stage" "0 1" "$status"
+# SSH turned on from the device now (Settings → System → SSH): sshd takes no
+# password, as the card said, and the app is told so, to say that only a key
+# gets in.
+check "keys only, from the device: no password logs in" "ok no-password" \
+    "$(printf 'ssh on\n' | PATH="$T/bin:$PATH" "$T/bin/osdos-stop" system-setting 2>> "$T/err")"
 
 # Password login with the password set in the same file: on.
 printf '{ "osdos_setup": 1, "system": { "password_hash": "%s", "ssh": { "enabled": true } } }\n' "$HASH" \
