@@ -45,13 +45,20 @@ install -m 644 files/osdos-firewall.nft "${LIB}/firewall.nft"
 install -m 644 files/osdos-firewall.service "${ETC}/systemd/system/"
 # osdos.local by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses
 # nor answers over IPv6, so that the name never leads a computer to the global
-# IPv6 address, which the filter above refuses. Raspberry Pi OS's own file,
-# two of its lines changed; a build whose file has neither line stops here.
+# IPv6 address, which the filter above refuses. And without wide-area DNS-SD
+# (service discovery asked of unicast DNS servers), which nothing here uses
+# and which has open flaws in avahi 0.8. Raspberry Pi OS's own file, three of
+# its lines changed; a build whose file lacks any of them stops here.
 AVAHI="${ETC}/avahi/avahi-daemon.conf"
 sed -i -E -e 's/^#?[[:space:]]*use-ipv6=.*/use-ipv6=no/' \
-	-e 's/^#?[[:space:]]*publish-aaaa-on-ipv4=.*/publish-aaaa-on-ipv4=no/' "${AVAHI}"
+	-e 's/^#?[[:space:]]*publish-aaaa-on-ipv4=.*/publish-aaaa-on-ipv4=no/' \
+	-e 's/^#?[[:space:]]*enable-wide-area=.*/enable-wide-area=no/' "${AVAHI}"
 if ! grep -qx 'use-ipv6=no' "${AVAHI}" || ! grep -qx 'publish-aaaa-on-ipv4=no' "${AVAHI}"; then
 	echo "${AVAHI}: use-ipv6 or publish-aaaa-on-ipv4 not found: osdos.local would lead to IPv6" >&2
+	exit 1
+fi
+if ! grep -qx 'enable-wide-area=no' "${AVAHI}"; then
+	echo "${AVAHI}: enable-wide-area not found: wide-area DNS-SD would stay on" >&2
 	exit 1
 fi
 # With a cable and Wi-Fi both up, each interface answers only for its own

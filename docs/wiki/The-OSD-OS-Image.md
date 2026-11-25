@@ -369,7 +369,7 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 
 ### The local network
 
-- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`, by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses nor answers over IPv6 (`/etc/avahi/avahi-daemon.conf`: `use-ipv6=no`, `publish-aaaa-on-ipv4=no`), so the name never leads a computer to the Pi's global IPv6 address, which the [firewall](#firewall) refuses. On a network with IPv6 alone, `osdos.local` doesn't resolve: use the address in System Information.
+- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`, by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses nor answers over IPv6 (`/etc/avahi/avahi-daemon.conf`: `use-ipv6=no`, `publish-aaaa-on-ipv4=no`), so the name never leads a computer to the Pi's global IPv6 address, which the [firewall](#firewall) refuses. On a network with IPv6 alone, `osdos.local` doesn't resolve: use the address in System Information. Wide-area DNS-SD, which asks unicast DNS servers for services and which nothing here uses, is off (`enable-wide-area=no`).
 - **A cable and Wi-Fi both up**: each answers only for its own address (`/etc/sysctl.d/90-osdos-arp.conf`: `net.ipv4.conf.all.arp_ignore = 1`, `arp_announce = 2`), so another machine sends a game meant for the cable over the cable, not to the Pi's Wi-Fi. `ip neigh show <the Pi's cable address>` on another Linux machine (`arp -a` on Windows) shows the cable's MAC address, as `ip -br link` on the Pi names it.
 - Settings → System → System Information renames the device. Give each OSD/OS on one network its own name.
 - Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
@@ -622,7 +622,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/etc/systemd/system/` | The `osdos` units above, and the drop-ins `osdos.service.d/osdos-media.conf` and `<unit>.d/osdos-defer.conf` |
 | `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked CS4 for Wi-Fi's video queue |
 | `/etc/systemd/system/osdos-firewall.service`, `/usr/lib/osdos/firewall.nft` | The firewall: only the home network may connect |
-| `/etc/avahi/avahi-daemon.conf` | `osdos.local` by IPv4 alone (`use-ipv6=no`, `publish-aaaa-on-ipv4=no`) |
+| `/etc/avahi/avahi-daemon.conf` | `osdos.local` by IPv4 alone (`use-ipv6=no`, `publish-aaaa-on-ipv4=no`), wide-area DNS-SD off (`enable-wide-area=no`) |
 | `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted` | The image's helpers |
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |

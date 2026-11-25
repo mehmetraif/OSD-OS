@@ -73,20 +73,25 @@ grep -q 'install -m 644 files/osdos-firewall.service "${ETC}/systemd/system/"' "
     || fail "00-run.sh doesn't install the unit"
 grep -q 'osdos-firewall.service' "$STAGE/01-run-chroot.sh" || fail "01-run-chroot.sh doesn't enable the unit"
 
-# avahi by IPv4 alone: the stage's own lines run on Raspberry Pi OS's file,
-# as Debian ships it (in short), change those two lines and no others.
+# avahi by IPv4 alone and without wide-area DNS-SD: the stage's own lines run
+# on Raspberry Pi OS's file, as Debian ships it (in short), change those
+# three lines and no others.
 mkdir -p "$T/etc/avahi"
 printf '%s\n' '[server]' '#host-name=foo' 'use-ipv4=yes' 'use-ipv6=yes' 'ratelimit-burst=1000' '' \
+    '[wide-area]' 'enable-wide-area=yes' '' \
     '[publish]' 'publish-hinfo=no' '#publish-aaaa-on-ipv4=yes' '#publish-a-on-ipv6=no' > "$T/etc/avahi/avahi-daemon.conf"
 cp "$T/etc/avahi/avahi-daemon.conf" "$T/before.conf"
-awk '/^AVAHI=/ { on = 1 } on { print } on && /^fi$/ { exit }' "$STAGE/00-run.sh" > "$T/avahi.sh"
+awk '/^AVAHI=/ { on = 1 } on { print } on && /^fi$/ && ++ends == 2 { exit }' "$STAGE/00-run.sh" > "$T/avahi.sh"
 grep -q 'use-ipv6=no' "$T/avahi.sh" || fail "00-run.sh's avahi lines not found"
 ETC="$T/etc" bash -e "$T/avahi.sh" || fail "00-run.sh's avahi lines failed on Raspberry Pi OS's file"
-[ "$(diff "$T/before.conf" "$T/etc/avahi/avahi-daemon.conf" | grep '^>')" = $'> use-ipv6=no\n> publish-aaaa-on-ipv4=no' ] \
+[ "$(diff "$T/before.conf" "$T/etc/avahi/avahi-daemon.conf" | grep '^>')" = $'> use-ipv6=no\n> enable-wide-area=no\n> publish-aaaa-on-ipv4=no' ] \
     || fail "avahi's file isn't changed as it should be: $(diff "$T/before.conf" "$T/etc/avahi/avahi-daemon.conf")"
-# A file with neither line stops the build rather than leave IPv6 on.
+# A file with neither line stops the build rather than leave IPv6 on, and so
+# does one without the wide-area line.
 printf '[server]\nuse-ipv4=yes\n' > "$T/etc/avahi/avahi-daemon.conf"
 ETC="$T/etc" bash -e "$T/avahi.sh" 2> /dev/null && fail "a file without the lines doesn't stop the build"
+printf '[server]\nuse-ipv6=yes\n\n[publish]\n#publish-aaaa-on-ipv4=yes\n' > "$T/etc/avahi/avahi-daemon.conf"
+ETC="$T/etc" bash -e "$T/avahi.sh" 2> /dev/null && fail "a file without the wide-area line doesn't stop the build"
 grep -qx 'avahi-daemon' "$STAGE/00-packages-nr" || fail "the stage doesn't name avahi-daemon"
 
 # LAN Play's sockets are IPv4's (the room query and its answers, the seats'
