@@ -1,6 +1,7 @@
 #include "AppCore.h"
 #include "audio/AudioOutput.h"
 #include "modules/playlists/ServerDownload.h"
+#include <QStorageInfo>
 #include "modules/weather/WeatherBackend.h"
 #include "update/UpdateManager.h"
 #include "util/AtomicFile.h"
@@ -956,6 +957,79 @@ private slots:
         QCOMPARE(finished.first().at(0).toBool(), !failWrite);
         QCOMPARE(contents(target), failWrite ? QByteArray("previous-good-file") : payload);
         if (failWrite) QVERIFY(!finished.first().at(2).toString().isEmpty());
+    }
+
+    // A server's download stopped where it would fill the card: one that
+    // sends more than it announced (its body framed by chunks, its
+    // Content-Length a thousand bytes) fails saying so, the file before kept;
+    // a body by chunks with no size said, and a compressed one larger once
+    // unpacked than its Content-Length, download whole; one that would leave
+    // less than the floor of free space fails before a byte is written.
+    void serverDownloadLimits_data() {
+        QTest::addColumn<QByteArray>("headers");
+        QTest::addColumn<QByteArray>("body");
+        QTest::addColumn<bool>("noRoom");
+        QTest::addColumn<QString>("reason");
+        const QByteArray payload(3 * 1024 * 1024, 'x');
+        const auto chunked = [](const QByteArray &data) {
+            QByteArray out;
+            for (qsizetype at = 0; at < data.size(); at += 65536) {
+                const QByteArray piece = data.mid(at, 65536);
+                out += QByteArray::number(piece.size(), 16) + "\r\n" + piece + "\r\n";
+            }
+            return out + "0\r\n\r\n";
+        };
+        QTest::newRow("more-than-announced")
+            << QByteArray("Content-Length: 1000\r\nTransfer-Encoding: chunked\r\n") << chunked(payload) << false
+            << QString("larger than the server said it was");
+        QTest::newRow("chunked-without-size") << QByteArray("Transfer-Encoding: chunked\r\n") << chunked(payload) << false
+                                              << QString();
+        const QByteArray packed = qCompress(payload).mid(4);
+        QTest::newRow("compressed")
+            << QByteArray("Content-Encoding: deflate\r\nContent-Length: " + QByteArray::number(packed.size()) + "\r\n")
+            << packed << false << QString();
+        QTest::newRow("no-room") << QByteArray("Content-Length: " + QByteArray::number(payload.size()) + "\r\n") << payload
+                                 << true << QString("not enough free space: less than %1 MB would be left");
+    }
+    void serverDownloadLimits() {
+        QFETCH(QByteArray, headers);
+        QFETCH(QByteArray, body);
+        QFETCH(bool, noRoom);
+        QFETCH(QString, reason);
+        QTemporaryDir tmp;
+        const QString base = tmp.path() + "/movie", target = base + ".mp4";
+        QVERIFY(writeFileAtomically(target, "previous-good-file"));
+        QTcpServer server;
+        QVERIFY(server.listen(QHostAddress::LocalHost));
+        connect(&server, &QTcpServer::newConnection, &server, [&]() {
+            auto *socket = server.nextPendingConnection();
+            connect(socket, &QTcpSocket::readyRead, socket, [socket, headers, body]() {
+                socket->readAll();
+                socket->write("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\n" + headers + "Connection: close\r\n\r\n"
+                              + body);
+                socket->disconnectFromHost();
+            });
+        });
+        const auto floor = qScopeGuard([] { ServerDownload::setFreeSpaceFloor(-1); });
+        // More than the volume has: no download leaves that much.
+        const qint64 floorBytes = QStorageInfo(tmp.path()).bytesAvailable() + (qint64(1) << 40);
+        if (noRoom) {
+            ServerDownload::setFreeSpaceFloor(floorBytes);
+            reason = reason.arg(floorBytes >> 20);
+        }
+        auto *download = ServerDownload::start(QNetworkRequest(QUrl(QString("http://127.0.0.1:%1/file").arg(server.serverPort()))), base, this);
+        QSignalSpy finished(download, &ServerDownload::finished);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 10000);
+        QCOMPARE(finished.first().at(0).toBool(), reason.isEmpty());
+        QCOMPARE(finished.first().at(2).toString(), reason);
+        if (reason.isEmpty()) {
+            QCOMPARE(contents(target), QByteArray(3 * 1024 * 1024, 'x'));
+        } else {
+            QCOMPARE(contents(target), QByteArray("previous-good-file"));
+            QVERIFY(!finished.first().at(3).toBool());
+            // No part file left beside it.
+            QCOMPARE(QDir(tmp.path()).entryList(QDir::Files), QStringList{"movie.mp4"});
+        }
     }
 
     // Audio Output's note without a USB sound card to play through: nothing
