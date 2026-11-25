@@ -15,7 +15,7 @@ Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/In
 ### What it is built on
 
 - **Raspberry Pi OS Lite (64-bit)**, based on **Debian 13 "trixie"**, arm64. Its kernel, firmware, drivers and patched FFmpeg are unchanged.
-- **pi-gen**, Raspberry Pi's image builder, at a pinned commit of its `arm64` branch (`PI_GEN_REF` in [`os/build.sh`](https://github.com/mehmetraif/OSD-OS/blob/main/os/build.sh), today `4d8ee447dd3d37e8b0ef8752e460d9082d9d435d`).
+- **pi-gen**, Raspberry Pi's image builder, at a pinned commit of its `arm64` branch (`PI_GEN_REF` in [`os/build.sh`](https://github.com/mehmetraif/OSD-OS/blob/main/os/build.sh), today `c0d2c9f2cffc08bc56850b0a3eb23178f4226e8a`).
 - **One stage of OSD/OS's own**, [`os/stage-osdos`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos), on top.
 - The release name is **OSD/OS** (`PI_GEN_RELEASE`), written to `/boot/firmware/issue.txt`.
 
@@ -283,6 +283,7 @@ With less than **2 GiB** left, or with `OSDOS_ROOT_SIZE=0`, there is no film par
 
 - A card needs about 10.5 GiB (11.3 GB as cards are sold) for a film partition. A 16 GB card gets about 6 GiB of films, a 32 GB card about 21 GiB.
 - The partition table is MBR: on a disk over 2 TiB the partitions stop at 2 TiB.
+- The disk keeps its identifier, which `root=PARTUUID=` in `cmdline.txt` and `/etc/fstab` name: pi-gen writes a few bytes of boot code into the image's MBR, without which the `parted` in the initramfs would give the disk a new one as it grows the system partition.
 - On a USB disk the system boots from, the film partition is `sda3` instead of `mmcblk0p3`.
 
 ### How it is mounted
@@ -687,7 +688,7 @@ Then the image:
 FIRST_USER_PASS='choose-a-password' os/build.sh OSD-OS-dev-linux-arm64.tar.gz
 ```
 
-The image lands in `os/work/pi-gen/deploy/`, as `image_<date>-osdos.img.xz` with `<date>-osdos.info`.
+The image lands in `os/work/pi-gen/deploy/`, as `image_<date>-osdos.img.xz` with `<date>-osdos.info` (its packages), `<date>-osdos.os.json` (its sizes and SHA-256 sums, as Raspberry Pi Imager's list takes them) and `release_notes.txt` (Raspberry Pi OS's, not OSD/OS's). The workflow keeps the `.img.xz` and the `.info`.
 
 ### Its settings
 

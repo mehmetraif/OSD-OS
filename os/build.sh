@@ -66,7 +66,7 @@ fi
 # The arm64 branch of pi-gen builds the 64-bit images; pinned so a build is
 # reproducible. Bump deliberately.
 PI_GEN_REPO=${PI_GEN_REPO:-https://github.com/RPi-Distro/pi-gen}
-PI_GEN_REF=${PI_GEN_REF:-4d8ee447dd3d37e8b0ef8752e460d9082d9d435d}
+PI_GEN_REF=${PI_GEN_REF:-c0d2c9f2cffc08bc56850b0a3eb23178f4226e8a}
 WORK=${WORK:-${HERE}/work}
 PIGEN="${WORK}/pi-gen"
 STAGE="${PIGEN}/stage-osdos"

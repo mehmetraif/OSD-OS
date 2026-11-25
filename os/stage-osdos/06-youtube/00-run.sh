@@ -36,7 +36,18 @@ fetch "${DOWNLOADS}/SHA2-256SUMS" "${YTDLP_URL}/SHA2-256SUMS"
 fetch "${DOWNLOADS}/deno.zip" \
 	"https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-aarch64-unknown-linux-gnu.zip"
 echo "${DENO_SHA256}  ${DOWNLOADS}/deno.zip" | sha256sum -c -
-bsdtar -xf "${DOWNLOADS}/deno.zip" -C "${DOWNLOADS}" deno
+# Unpacked by the image's own unzip (00-packages-nr), as pi-gen's build host
+# has no zip reader: its depends and Dockerfile list zip, not unzip or bsdtar.
+# In /var/tmp, which on_chroot leaves as it is (it mounts a tmpfs over /tmp).
+UNPACK=/var/tmp/osdos-deno
+rm -rf "${ROOTFS_DIR}${UNPACK}"
+install -d "${ROOTFS_DIR}${UNPACK}"
+install -m 644 "${DOWNLOADS}/deno.zip" "${ROOTFS_DIR}${UNPACK}/deno.zip"
+on_chroot << CHROOT || { rm -rf "${ROOTFS_DIR}${UNPACK}"; echo "Could not unpack Deno" >&2; exit 1; }
+unzip -q -o "${UNPACK}/deno.zip" deno -d "${UNPACK}"
+CHROOT
+mv "${ROOTFS_DIR}${UNPACK}/deno" "${DOWNLOADS}/deno"
+rm -rf "${ROOTFS_DIR}${UNPACK}"
 
 DATA_BIN="/home/${FIRST_USER_NAME}/.local/share/OSD-OS/bin"
 install -d "${ROOTFS_DIR}${DATA_BIN}"
