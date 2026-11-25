@@ -33,6 +33,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QThreadPool>
 #include <QtTest>
 #include <sys/stat.h>
 
@@ -43,8 +44,19 @@ if [ "$2" = --list-options ]; then
   echo "options $FAKE_MPV_SUBS" >> "$log"
   if [ "$FAKE_MPV_SUBS" = old ]; then
     echo ' --subs-with-matching-audio       Flag (default: yes)'
+    echo ' --load-auto-profiles             Choices: no yes auto (default: auto)'
+    echo ' --load-osd-console               Flag (default: yes)'
+    echo ' --load-stats-overlay             Flag (default: yes)'
   else
     echo ' --subs-with-matching-audio       Choices: no forced yes (default: yes)'
+    echo ' --load-auto-profiles             Choices: no yes auto (default: auto)'
+    echo ' --load-commands                  Flag (default: yes)'
+    echo ' --load-console                   Flag (default: yes)'
+    echo ' --load-osd-console               alias for --load-console'
+    echo ' --load-positioning               Flag (default: yes)'
+    echo ' --load-scripts                   Flag (default: yes)'
+    echo ' --load-select                    Flag (default: yes)'
+    echo ' --load-stats-overlay             Flag (default: yes)'
   fi
   echo ' --subs-fallback-forced           Choices: no yes always (default: yes)'
   exit 0
@@ -318,12 +330,25 @@ class PlaybackRetireTest : public QObject {
     }
     // What the app keeps of mpv's list of options, in its data folder.
     QString optionsFile() const { return m_dir.path() + QStringLiteral("/mpv-options.json"); }
-    // The data folder's answer for this binary, as the app writes it.
-    static QJsonObject optionsFor(const QString &bin, bool forced, qint64 sizeOff = 0) {
-        const QFileInfo info(bin);
-        return { { "version", 1 }, { "mpv", info.absoluteFilePath() }, { "size", double(info.size() + sizeOff) },
-                 { "modified", double(info.lastModified().toMSecsSinceEpoch()) }, { "forcedSubtitles", forced } };
+    // Written in its place, once the app's own write of an answer (on the
+    // thread pool) is done.
+    bool writeOptions(const QByteArray &text) const {
+        QThreadPool::globalInstance()->waitForDone();
+        return write(optionsFile(), text);
     }
+    // The data folder's answer for this binary, as the app writes it.
+    static QJsonObject optionsFor(const QString &bin, bool forced, qint64 sizeOff = 0,
+                                  const QStringList &loadOptions = kNewLoadOptions) {
+        const QFileInfo info(bin);
+        return { { "version", 2 }, { "mpv", info.absoluteFilePath() }, { "size", double(info.size() + sizeOff) },
+                 { "modified", double(info.lastModified().toMSecsSinceEpoch()) }, { "forcedSubtitles", forced },
+                 { "loadOptions", QJsonArray::fromStringList(loadOptions) } };
+    }
+    // The options that keep mpv's own scripts from loading that the
+    // stand-in lists, as a newer mpv does, in the app's order.
+    static inline const QStringList kNewLoadOptions = {
+        "load-stats-overlay", "load-console", "load-osd-console", "load-select", "load-positioning", "load-commands" };
+    QStringList loadOptions() const { return arguments().filter(QRegularExpression(QStringLiteral("^--load-"))); }
 
 private slots:
     void threeFilmsWithoutStopKeepControlsOnNewest() {
@@ -1927,7 +1952,7 @@ private slots:
         // Kept: "old" there, where this binary would say "forced".
         const QString kept = anotherMpv("bin-kept");
         QVERIFY(!kept.isEmpty());
-        QVERIFY(write(optionsFile(), QJsonDocument(optionsFor(kept, false)).toJson()));
+        QVERIFY(writeOptions(QJsonDocument(optionsFor(kept, false)).toJson()));
         forcedOnly("A");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
         QCOMPARE(events().count(QStringLiteral("options kept")), 0);
@@ -1937,7 +1962,7 @@ private slots:
         // Another binary's (its size differs): asked, and the file is its.
         const QString stale = anotherMpv("bin-stale");
         QVERIFY(!stale.isEmpty());
-        QVERIFY(write(optionsFile(), QJsonDocument(optionsFor(stale, false, 1)).toJson()));
+        QVERIFY(writeOptions(QJsonDocument(optionsFor(stale, false, 1)).toJson()));
         forcedOnly("B");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
         QCOMPARE(events().count(QStringLiteral("options kept")), 1);
@@ -1947,11 +1972,114 @@ private slots:
         // Cut short: asked.
         const QString cut = anotherMpv("bin-cut");
         QVERIFY(!cut.isEmpty());
-        QVERIFY(write(optionsFile(), QJsonDocument(optionsFor(cut, false)).toJson().left(40)));
+        QVERIFY(writeOptions(QJsonDocument(optionsFor(cut, false)).toJson().left(40)));
         forcedOnly("C");
         QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
         QCOMPARE(events().count(QStringLiteral("options kept")), 2);
         QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+    }
+
+    // Headless (no DISPLAY or WAYLAND_DISPLAY: the OSD/OS image, a Pi's
+    // console), mpv reads no keyboard or mouse of its own, and its own
+    // statistics page, console, menus, mouse pan and zoom and command list
+    // are left unloaded, by the options this mpv lists: none before its
+    // list is known, which isn't waited for. auto_profiles stays (the user's
+    // mpv.conf may have a profile-cond), and so does everything on a
+    // desktop, where mpv's window has the keyboard.
+    void mpvsOwnScriptsAreLeftOutWithoutAKeyboard() {
+        const QByteArray path = qgetenv("PATH");
+        const QByteArray display = qgetenv("DISPLAY");
+        const QByteArray wayland = qgetenv("WAYLAND_DISPLAY");
+        const auto restore = qScopeGuard([=] {
+            qputenv("PATH", path);
+            qunsetenv("FAKE_MPV_SUBS");
+            display.isEmpty() ? qunsetenv("DISPLAY") : qputenv("DISPLAY", display);
+            wayland.isEmpty() ? qunsetenv("WAYLAND_DISPLAY") : qputenv("WAYLAND_DISPLAY", wayland);
+        });
+        qunsetenv("DISPLAY");
+        qunsetenv("WAYLAND_DISPLAY");
+        qputenv("FAKE_MPV_SUBS", "scripts");
+        QVERIFY(!anotherMpv("bin-scripts").isEmpty());
+        // Subtitles off: nothing else asks for the list.
+        m_mpv->loadAndPlay({ { "url", m_dir.path() + QStringLiteral("/A.mp4") }, { "subTrack", -2 } });
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY2(loadOptions().isEmpty(), qPrintable(loadOptions().join(QLatin1Char(' '))));
+        QCOMPARE(events().count(QStringLiteral("options scripts")), 0);
+
+        m_mpv->warmUp();
+        QTRY_COMPARE_WITH_TIMEOUT(events().count(QStringLiteral("options scripts")), 1, 5000);
+        play("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QCOMPARE(loadOptions(), QStringList({ "--load-stats-overlay=no", "--load-console=no", "--load-select=no",
+                                              "--load-positioning=no", "--load-commands=no" }));
+
+        // mpv 0.37's names, and only those it has.
+        qputenv("FAKE_MPV_SUBS", "old");
+        QVERIFY(!anotherMpv("bin-scripts-old").isEmpty());
+        m_mpv->warmUp();
+        QTRY_COMPARE_WITH_TIMEOUT(events().count(QStringLiteral("options old")), 1, 5000);
+        play("C");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
+        QCOMPARE(loadOptions(), QStringList({ "--load-stats-overlay=no", "--load-osd-console=no" }));
+
+        // An mpv that lists none of them gets none.
+        qputenv("FAKE_MPV_SUBS", "none");
+        const QString none = anotherMpv("bin-scripts-none");
+        QVERIFY(!none.isEmpty());
+        QVERIFY(writeOptions(QJsonDocument(optionsFor(none, true, 0, {})).toJson()));
+        play("D");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
+        QVERIFY(loadOptions().isEmpty());
+
+        // A desktop: as before.
+        qputenv("FAKE_MPV_SUBS", "scripts");
+        QVERIFY(!anotherMpv("bin-scripts-desktop").isEmpty());
+        m_mpv->warmUp();
+        QTRY_COMPARE_WITH_TIMEOUT(events().count(QStringLiteral("options scripts")), 2, 5000);
+        qputenv("DISPLAY", ":0");
+        play("E");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start E"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--fullscreen")));
+        QVERIFY(loadOptions().isEmpty());
+    }
+
+    // Inside the window (libmpv), the same scripts and auto_profiles are
+    // left unloaded: no keys but the app's reach it, and it reads no
+    // mpv.conf. Asked of its core over its own socket, as another client.
+    void anEmbeddedVideoLoadsNoneOfMpvsUnusedScripts() {
+        if (!EmbeddedMpv::available())
+            QSKIP("libmpv isn't installed here");
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        AppCore core(data.path(), data.path());
+        useEmbedded(core, data.path());
+        const auto end = qScopeGuard([this] { delete m_mpv; m_mpv = nullptr; });
+        playPicture("color=c=gray:s=64x48:r=10");
+        QTRY_VERIFY_WITH_TIMEOUT(m_mpv->videoActive(), 10000);
+        QLocalSocket probe;
+        QTRY_VERIFY_WITH_TIMEOUT((probe.state() == QLocalSocket::ConnectedState
+                                  || (probe.connectToServer(socketPath()), probe.waitForConnected(500))), 10000);
+        int asked = 0;
+        auto property = [&probe, &asked](const char *name) {
+            const int id = ++asked;
+            probe.write(QJsonDocument(QJsonObject{ { "command", QJsonArray{ "get_property_string", name } },
+                                                   { "request_id", id } }).toJson(QJsonDocument::Compact) + '\n');
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 3000) {
+                if (!probe.canReadLine() && !probe.waitForReadyRead(200))
+                    continue;
+                const QJsonObject answer = QJsonDocument::fromJson(probe.readLine()).object();
+                if (answer.value("request_id").toInt() == id)
+                    return answer.value("data").toVariant();
+            }
+            return QVariant(QStringLiteral("no answer"));
+        };
+        QCOMPARE(property("load-stats-overlay").toString(), QStringLiteral("no"));
+        QCOMPARE(property("load-auto-profiles").toString(), QStringLiteral("no"));
+        // mpv 0.39 and later name the console's load-console.
+        const QString console = property("load-console").toString();
+        QCOMPARE(console.isEmpty() ? property("load-osd-console").toString() : console, QStringLiteral("no"));
     }
 
     // mpv tells the position at every frame; its views hear it at most

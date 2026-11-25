@@ -649,6 +649,22 @@ bool EmbeddedMpv::start(const QStringList &args) {
     set(QStringLiteral("vo"), QStringLiteral("libmpv"));
     set(QStringLiteral("idle"), QStringLiteral("once"));
     set(QStringLiteral("input-default-bindings"), QStringLiteral("yes"));
+    // mpv's own scripts that nothing here reaches: only the app's keys come
+    // to libmpv (MpvKeys.js's, over its control connection), none of them
+    // bound to the statistics page, the console, its menus, its mouse pan
+    // and zoom or its command list, and libmpv reads no mpv.conf, whose
+    // profile-cond auto_profiles would apply. Each its time and memory at
+    // every session. Set where this libmpv has the option, quietly where it
+    // hasn't (an older or newer one: the console's was load-osd-console
+    // before mpv 0.39).
+    auto off = [&](const char *name) {
+        return a.setOptionString(mpv, name, "no") >= 0;
+    };
+    for (const char *name : { "load-stats-overlay", "load-select", "load-positioning", "load-commands",
+                              "load-auto-profiles" })
+        off(name);
+    if (!off("load-console"))
+        off("load-osd-console");
 
     // A list option given more than once on the command line (--script,
     // --sub-file, ...) adds to its list there. Here the lists are gathered and

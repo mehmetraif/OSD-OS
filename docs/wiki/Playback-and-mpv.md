@@ -136,6 +136,7 @@ libmpv gets the process's command line as options and a playlist, with these dif
 - The decoder flags are the embedded ones (the second table below).
 - No `mpv.conf` is read, and `mpv_video_args` isn't used.
 - An option this libmpv doesn't know is left out with a warning, `[EmbeddedMpv] --name=value: <mpv's error>`.
+- mpv's own statistics page, console, menus, mouse pan and zoom, command list and auto profiles aren't loaded: no key but OSD/OS's reaches libmpv, and it reads no `mpv.conf`.
 
 ### How the picture is drawn
 
@@ -196,7 +197,7 @@ On mpv's command line a later flag overrides an earlier one, and the command lin
 
 | Layer | Flags | Set by |
 |---|---|---|
-| App constants | `--input-ipc-server`, `--log-file`, `--osc`, `--osd-level`, `--script`, `--input-conf`, `--input-ar-delay`, `--input-ar-rate`, `--video-sync`, `--no-input-terminal`, `--fullscreen`, `--no-native-fs` | OSD/OS only |
+| App constants | `--input-ipc-server`, `--log-file`, `--osc`, `--osd-level`, `--script`, `--input-conf`, `--input-ar-delay`, `--input-ar-rate`, `--video-sync`, `--no-input-terminal`, `--fullscreen`, `--no-native-fs`, and with no display server `--load-stats-overlay=no`, `--load-console=no` (`--load-osd-console=no` before mpv 0.39), `--load-select=no`, `--load-positioning=no`, `--load-commands=no`, each where the mpv lists it | OSD/OS only |
 | Per video | `--start`, `--playlist-start`, `--aid`, `--sid` and the subtitle flags, `--sub-file`, `--slang`, `--script-opts`, `--loop-playlist`, `--shuffle`, `--image-display-duration`, `--no-audio`, `--ytdl`, and a module's own (`--ytdl-format`, `--http-header-fields`, `--speed` …) | The player, from its module's settings |
 | Presentation | `--audio-device` (Audio Output), `--panscan` or `--keepaspect` (Scaling), `--video-output-levels=limited` or `full` (Video Levels), `--monitoraspect=4:3` (a CRT's output), `--video-rotate` (Monitor) | You, in Settings |
 | Device decode | `--vo`, `--gpu-context`, `--hwdec`, `--drm-device`, `--drm-connector`, `--drm-mode` | OSD/OS by device; you, with `mpv_video_args` |

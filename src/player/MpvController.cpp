@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcessEnvironment>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -151,9 +152,23 @@ QByteArray configLine(const char *option, const QString &value) {
 // --subs-with-matching-audio, which came with mpv 0.38; an older one refuses
 // the whole command line for it ("option parameter could not be parsed"),
 // and the video never starts (a Flag before, Choices with "forced" since).
+// `loadOptions`: which of kLoadOptions it lists, each an option that keeps
+// one of mpv's own Lua scripts from loading (unusedScriptsOff()).
 struct MpvTraits {
     bool forcedSubtitles = true;
+    QStringList loadOptions;
 };
+
+// mpv's own scripts that a session without a keyboard or mouse of mpv's own
+// has no use for: the statistics page (`i`), the console (`` ` ``) and, in
+// newer mpv, its menus (select), its pan and zoom by mouse (positioning) and
+// its command list (commands). Each is reached only by a key or a click
+// that goes to mpv itself; none by OSD/OS's own scripts, key bindings or
+// commands. The console's option was load-osd-console before mpv 0.39.
+// auto_profiles isn't among them: it applies a profile-cond in the user's
+// mpv.conf, which the process reads.
+const char *const kLoadOptions[] = { "load-stats-overlay", "load-console", "load-osd-console",
+                                     "load-select", "load-positioning", "load-commands" };
 
 // Its stamp: the binary's path, size and time. Another mpv, or this one
 // updated, is asked anew.
@@ -175,9 +190,10 @@ MpvStamp stampOf(const QString &bin) {
 }
 
 // The answer kept in the data folder from one run to the next, for the last
-// mpv asked: {"version", "mpv", "size", "modified", "forcedSubtitles"}. One
-// of another version or stamp, or that can't be read, counts for none.
-constexpr int kTraitsVersion = 1;
+// mpv asked: {"version", "mpv", "size", "modified", "forcedSubtitles",
+// "loadOptions"}. One of another version or stamp, or that can't be read,
+// counts for none.
+constexpr int kTraitsVersion = 2;
 
 QString traitsFile(const QString &dataRoot) {
     return dataRoot.isEmpty() ? QString() : dataRoot + QStringLiteral("/mpv-options.json");
@@ -192,9 +208,19 @@ bool readTraits(const QString &file, const MpvStamp &stamp, MpvTraits *traits) {
         || !(MpvStamp{ o.value(QLatin1String("mpv")).toString(),
                        qint64(o.value(QLatin1String("size")).toDouble(-1)),
                        qint64(o.value(QLatin1String("modified")).toDouble()) } == stamp)
-        || !o.value(QLatin1String("forcedSubtitles")).isBool())
+        || !o.value(QLatin1String("forcedSubtitles")).isBool()
+        || !o.value(QLatin1String("loadOptions")).isArray())
         return false;
     traits->forcedSubtitles = o.value(QLatin1String("forcedSubtitles")).toBool();
+    traits->loadOptions.clear();
+    for (const QJsonValue &name : o.value(QLatin1String("loadOptions")).toArray()) {
+        // Only those this build knows: the file is never a way to put
+        // anything else on mpv's command line.
+        const QString option = name.toString();
+        if (std::any_of(std::begin(kLoadOptions), std::end(kLoadOptions),
+                        [&option](const char *known) { return option == QLatin1String(known); }))
+            traits->loadOptions << option;
+    }
     return true;
 }
 
@@ -205,7 +231,8 @@ void writeTraits(const QString &file, const MpvStamp &stamp, const MpvTraits &tr
                          { QStringLiteral("mpv"), stamp.path },
                          { QStringLiteral("size"), double(stamp.size) },
                          { QStringLiteral("modified"), double(stamp.modified) },
-                         { QStringLiteral("forcedSubtitles"), traits.forcedSubtitles } };
+                         { QStringLiteral("forcedSubtitles"), traits.forcedSubtitles },
+                         { QStringLiteral("loadOptions"), QJsonArray::fromStringList(traits.loadOptions) } };
     writeFileAtomically(file, QJsonDocument(o).toJson(QJsonDocument::Compact));
 }
 
@@ -259,12 +286,17 @@ MpvTraits mpvTraits(const QString &bin, const QString &dataRoot) {
     const bool answered = ask.waitForStarted(2000) && ask.waitForFinished(5000)
                           && ask.exitStatus() == QProcess::NormalExit;
     if (answered) {
+        QList<QByteArray> listed;
         for (const QByteArray &line : ask.readAll().split('\n')) {
             const QByteArray option = line.trimmed();
-            if (option.startsWith("--subs-with-matching-audio ")) {
+            if (option.startsWith("--subs-with-matching-audio "))
                 traits.forcedSubtitles = option.contains("forced");
-                break;
-            }
+            if (option.startsWith("--load-"))
+                listed << option.mid(2, option.indexOf(' ') - 2);
+        }
+        for (const char *name : kLoadOptions) {
+            if (listed.contains(QByteArray(name)))
+                traits.loadOptions << QLatin1String(name);
         }
     } else {
         ask.kill();
@@ -281,6 +313,20 @@ MpvTraits mpvTraits(const QString &bin, const QString &dataRoot) {
         QThreadPool::globalInstance()->start([file, stamp, traits] { writeTraits(file, stamp, traits); });
     }
     return traits;
+}
+
+// The options that keep mpv's own scripts a session has no use for from
+// loading (kLoadOptions), as many as this mpv lists: an option it doesn't
+// know would stop it from starting. The console's by its newer name where
+// both are listed.
+QStringList unusedScriptsOff(const MpvTraits &traits) {
+    QStringList args;
+    for (const QString &name : traits.loadOptions) {
+        if (name == QLatin1String("load-osd-console") && traits.loadOptions.contains(QStringLiteral("load-console")))
+            continue;
+        args << QStringLiteral("--") + name + QStringLiteral("=no");
+    }
+    return args;
 }
 
 // The last value an option was given among these, "" if none.
@@ -1608,6 +1654,16 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
 #endif
         }
     }
+    // Headless, mpv reads no keyboard or mouse of its own (only the keys
+    // sent over its control connection, MpvKeys.js's): the scripts of its
+    // own reached by nothing else are left unloaded, where this mpv is
+    // known to list their options (asked ahead, warmUp(); never waited for
+    // here). Ahead of mpv_video_args, which keeps the last word. On a
+    // desktop, mpv's window has the keyboard, and `i` still shows its
+    // statistics.
+    MpvTraits traits;
+    if (m_headlessMode && knownTraits(bin, m_dataRoot, &traits))
+        args << unusedScriptsOff(traits);
     appendVideoArgs(args);
     if (m_headlessMode)
         args << "--no-input-terminal";
