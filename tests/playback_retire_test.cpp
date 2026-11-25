@@ -1501,7 +1501,7 @@ private slots:
                  }),
                  QStringList{ QStringLiteral("[LivePlayer] channel 5 News: playback failed: TUNE FAILED: Error transferring "
                                              "https://plex.example:32400 - server replied: Forbidden; "
-                                             "asked with X-Plex-Token=REDACTED") });
+                                             "asked with X-Plex-Token:REDACTED") });
     }
 
     // A sign-in in an address (scheme://user:password@host, or in its query:
@@ -1641,7 +1641,21 @@ private slots:
         row("Emby's key", "https://nas.example/Videos/7/stream?api_key=made-up",
             "https://nas.example/Videos/7/stream?ApiKey=REDACTED");
         row("Plex's token", "--http-header-fields=X-Plex-Token:made-up https://nas.example:32400/a?X-Plex-Token=made-up",
-            "--http-header-fields=X-Plex-Token=REDACTED https://nas.example:32400/a?X-Plex-Token=REDACTED");
+            "--http-header-fields=X-Plex-Token:REDACTED https://nas.example:32400/a?X-Plex-Token=REDACTED");
+        // Plex's token as a header line and in JSON, as save-logs.sh blanks
+        // it: the separator, its spaces and the quotes kept, the value gone
+        // up to a "&", a space or a quote, a ";" of its own with it.
+        row("Plex's token as a header with a space", "> X-Plex-Token: made-up\r\n> Accept: */*",
+            "> X-Plex-Token: REDACTED\r\n> Accept: */*");
+        row("Plex's token in JSON", "{\"X-Plex-Token\": \"made-up\", \"x\": 1}",
+            "{\"X-Plex-Token\": \"REDACTED\", \"x\": 1}");
+        row("Plex's token with a ; of its own", "X-Plex-Token: made-up;made-up-too x",
+            "X-Plex-Token: REDACTED x");
+        row("Plex's token, its name and nothing on the line", "X-Plex-Token:\nmade-up-not-a-token",
+            "X-Plex-Token:\nmade-up-not-a-token");
+        row("RetroAchievements' token", "GET https://ra.example/dorequest.php?r=login2&u=me&t=made-up;made-up done",
+            "GET https://ra.example/dorequest.php?r=login2&u=me&t=REDACTED done");
+        kept("keys that only end in a t", "https://nas.example/a?at=1&cat=2&t=");
         row("Jellyfin's header", "--http-header-fields=Authorization:MediaBrowser Token=\"made-up\"",
             "--http-header-fields=Authorization:MediaBrowser Token=\"REDACTED\"");
     }

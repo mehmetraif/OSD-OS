@@ -75,6 +75,7 @@ printf '%s\n' "the run before" "GET http://jellyfin.local/Videos/1/stream?api_ke
     "no address: Started user@1000.service - User Manager for UID 1000." \
     "an API key written anywhere: headers api-key=SECRET30 API_KEY=SECRET31&x=1" \
     "Plex's token as a header: X-Plex-Token: SECRET32 then X-Plex-Token:SECRET33 and \"X-Plex-Token\": \"SECRET34\"" \
+    "a ; in a token: X-Plex-Token: SECRET36;SECRET37 and http://ra.example/a?u=me;t=SECRET38;SECRET39&x=1" \
     "Jellyfin's header: Authorization: MediaBrowser Client=\"OSD/OS\", Token=\"SECRET35\"" > "$data/osdos-previous.log"
 printf '%s\n' "retroarch" "GET https://ra.example/dorequest.php?r=login2&u=me&t=SECRET1 done" \
     "http://plex.local/library?X-Plex-Token=SECRET2" > "$data/arcade/retroarch/last.log"
@@ -136,6 +137,7 @@ no sign-in: http://[fe80::1]:8096/Users/@me file:///media/films/a@b.mkv
 no address: Started user@1000.service - User Manager for UID 1000.
 an API key written anywhere: headers api-key=HIDDEN API_KEY=HIDDEN&x=1
 Plex's token as a header: X-Plex-Token: HIDDEN then X-Plex-Token:HIDDEN and \"X-Plex-Token\": \"HIDDEN\"
+a ; in a token: X-Plex-Token: HIDDEN and http://ra.example/a?u=me;t=HIDDEN&x=1
 Jellyfin's header: Authorization: MediaBrowser Client=\"OSD/OS\", Token=\"HIDDEN\"" "$(cat "$folder/app-previous-run.log")"
 check "RetroArch's log, its tokens and a sign-in that isn't UTF-8 blanked" "retroarch
 GET https://ra.example/dorequest.php?r=login2&u=me&t=HIDDEN done
