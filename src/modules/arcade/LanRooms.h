@@ -1,6 +1,7 @@
 #pragma once
 #include "Libretro.h"
 #include <QHash>
+#include <QHostAddress>
 #include <QList>
 #include <QObject>
 #include <QSet>
@@ -9,6 +10,7 @@
 #include <functional>
 #include <optional>
 
+class QNetworkDatagram;
 class QProcess;
 class QTimer;
 class QUdpSocket;
@@ -99,6 +101,13 @@ public:
     void setPeerSource(std::function<std::optional<QSet<QString>>()> source) { m_peerSource = std::move(source); }
     void setClaimGrace(int ms) { m_claimGrace = ms; }
     void setClaimCheckInterval(int ms) { m_claimCheckMs = ms; }
+    // An answer to the ask for ports as it is read off the socket: taken
+    // only from a sender on the local network (libretro::isLanSender()), as
+    // the rooms' answers and the claims are; true once the game starts on
+    // it. Public for a test's datagram from a sender it can't send from.
+    bool takePortsAnswer(const QNetworkDatagram &answer);
+    // For tests: whether the second release of address's ports is waiting.
+    bool releasing(const QString &address) const { return m_releasesAgain.contains(QHostAddress(address).toString()); }
 
 signals:
     void roomsRead();

@@ -2748,6 +2748,52 @@ private slots:
             lan.stopClaims();
         }
 
+        // Joining: the host's answer taken from the local network alone, as
+        // the rooms' answers and the claims are. Ports from another machine
+        // there are given back to it; from the internet, a carrier's shared
+        // addresses, a link-local address or IPv6 nothing is read, and
+        // nothing sent back. The host's own layout and ports start the game.
+        {
+            LanRooms lan;
+            QUdpSocket other;
+            QVERIFY(other.bind(QHostAddress::LocalHost, 0));
+            lan.setClaimPort(other.localPort());
+            int answered = 0;
+            std::optional<libretro::PortRange> given;
+            libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
+            connect(&lan, &LanRooms::portsAnswered, &lan,
+                    [&](const std::optional<libretro::PortRange> &ports, libretro::Launch::Layout said) {
+                        ++answered;
+                        given = ports;
+                        layout = said;
+                    });
+            // The host this machine joins: another address of this one.
+            QVERIFY(lan.askForPorts(QStringLiteral("127.0.0.2"), 1));
+            const auto from = [](const char *address, const QByteArray &data) {
+                QNetworkDatagram datagram(data);
+                datagram.setSender(QHostAddress(QLatin1String(address)), 55436);
+                return datagram;
+            };
+            for (const char *forged : { "203.0.113.9", "8.8.8.8", "100.64.0.1", "169.254.1.1", "fd00::1", "fe80::1" }) {
+                QVERIFY2(!lan.takePortsAnswer(from(forged, libretro::claimLayout(libretro::Launch::Layout::Panel))), forged);
+                QVERIFY2(!lan.takePortsAnswer(from(forged, libretro::claimAnswer({ 2, 1 }))), forged);
+                QVERIFY2(!lan.releasing(QLatin1String(forged)), forged);
+            }
+            QVERIFY(!lan.takePortsAnswer(from("127.0.0.1", libretro::claimAnswer({ 4, 1 }))));
+            QVERIFY(lan.releasing(QStringLiteral("127.0.0.1")));
+            QTRY_VERIFY(other.hasPendingDatagrams());
+            QCOMPARE(other.receiveDatagram().data(), libretro::claimRelease());
+            QCOMPARE(answered, 0);
+            QVERIFY(!lan.takePortsAnswer(from("127.0.0.2", libretro::claimLayout(libretro::Launch::Layout::Panel))));
+            QTest::ignoreMessage(QtInfoMsg,
+                                 "[Arcade] 127.0.0.2 gives this machine's 1 player(s) 1 port(s) from 3, on the panel layout");
+            QVERIFY(lan.takePortsAnswer(from("127.0.0.2", libretro::claimAnswer({ 3, 1 }))));
+            QCOMPARE(answered, 1);
+            QVERIFY(given);
+            QCOMPARE(given->first, 3);
+            QCOMPARE(layout, libretro::Launch::Layout::Panel);
+        }
+
         // A host's answer to the query on the local network: its game, who
         // hosts it, what it plays in, and where it is joined, at the address
         // it answered from and the port it gives.

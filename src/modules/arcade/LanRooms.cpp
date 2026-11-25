@@ -250,6 +250,17 @@ bool LanRooms::askAgain() {
 }
 
 void LanRooms::readPortsAnswer() {
+    while (m_claimAsk->hasPendingDatagrams()) {
+        if (takePortsAnswer(m_claimAsk->receiveDatagram(64)))
+            return;
+    }
+}
+
+bool LanRooms::takePortsAnswer(const QNetworkDatagram &answer) {
+    // From the local network alone, as the rooms' answers and the claims
+    // are taken: nothing from elsewhere is read, nor sent its ports back.
+    if (!libretro::isLanSender(answer.senderAddress()))
+        return false;
     // The host's layout and its ports have both come: the game starts.
     const auto start = [this](const libretro::PortRange &ports) {
         m_claimWait->stop();
@@ -258,47 +269,44 @@ void LanRooms::readPortsAnswer() {
               m_asking->layout == libretro::Launch::Layout::Panel ? "panel" : "classic");
         answerPorts(ports);
     };
-    while (m_claimAsk->hasPendingDatagrams()) {
-        const QNetworkDatagram answer = m_claimAsk->receiveDatagram(64);
-        const QHostAddress from(answer.senderAddress().toIPv4Address());
-        const bool fromHost = m_asking && from == QHostAddress(m_asking->host);
-        // The host's layout comes ahead of the ports (an older OSD/OS says
-        // none: Classic), each a datagram of its own: ports that come first
-        // wait a moment for it.
-        if (const std::optional<libretro::Launch::Layout> layout = libretro::readClaimLayout(answer.data())) {
-            if (!fromHost)
-                continue;
-            m_asking->layout = *layout;
-            m_asking->layoutSaid = true;
-            if (const std::optional<libretro::PortRange> waiting = m_asking->ports) {
-                start(*waiting);
-                return;
-            }
-            continue;
+    const QHostAddress from(answer.senderAddress().toIPv4Address());
+    const bool fromHost = m_asking && from == QHostAddress(m_asking->host);
+    // The host's layout comes ahead of the ports (an older OSD/OS says
+    // none: Classic), each a datagram of its own: ports that come first
+    // wait a moment for it.
+    if (const std::optional<libretro::Launch::Layout> layout = libretro::readClaimLayout(answer.data())) {
+        if (!fromHost)
+            return false;
+        m_asking->layout = *layout;
+        m_asking->layoutSaid = true;
+        if (const std::optional<libretro::PortRange> waiting = m_asking->ports) {
+            start(*waiting);
+            return true;
         }
-        const std::optional<libretro::PortRange> ports = libretro::readClaimAnswer(answer.data());
-        // Neither, passed over: OSD/OS 0.0.28 to 0.0.32 said first that it
-        // played at the game's own rate (OSDOS PACE game).
-        if (!ports)
-            continue;
-        // One that comes too late, or from another host: its ports given
-        // back. But not the ports this machine plays on: a host asked twice
-        // answers twice, the second answer coming once the game has started
-        // on the first, and giving those back had the host hand them to the
-        // next machine too.
-        if (!fromHost) {
-            if (ports->first > 0 && from != QHostAddress(m_claimedFrom))
-                releaseClaim(from.toString());
-            continue;
-        }
-        if (!m_asking->layoutSaid) {
-            m_asking->ports = ports;
-            m_claimWait->start(kLayoutWaitMs);
-            continue;
-        }
-        start(*ports);
-        return;
+        return false;
     }
+    const std::optional<libretro::PortRange> ports = libretro::readClaimAnswer(answer.data());
+    // Neither, passed over: OSD/OS 0.0.28 to 0.0.32 said first that it
+    // played at the game's own rate (OSDOS PACE game).
+    if (!ports)
+        return false;
+    // One that comes too late, or from another host: its ports given
+    // back. But not the ports this machine plays on: a host asked twice
+    // answers twice, the second answer coming once the game has started
+    // on the first, and giving those back had the host hand them to the
+    // next machine too.
+    if (!fromHost) {
+        if (ports->first > 0 && from != QHostAddress(m_claimedFrom))
+            releaseClaim(from.toString());
+        return false;
+    }
+    if (!m_asking->layoutSaid) {
+        m_asking->ports = ports;
+        m_claimWait->start(kLayoutWaitMs);
+        return false;
+    }
+    start(*ports);
+    return true;
 }
 
 void LanRooms::answerPorts(const std::optional<libretro::PortRange> &ports) {
