@@ -46,8 +46,11 @@ dir="$logs/$(date +%Y-%m-%d_%H-%M-%S)"
 mkdir -p "$dir" || exit 1
 
 # A secret in an address blanked on the way, as the app's own log does
-# (redactSecrets()), whatever wrote the line: a media server's token (t=,
-# token=, X-Plex-Token=, api_key=), and the sign-in before a host
+# (src/util/RedactSecrets.h, whose every pattern is here too), whatever wrote
+# the line: a media server's token (t=, token=, api_key=; an API key written
+# anywhere, api-key=, ApiKey= or API_KEY=, in any case; Plex's X-Plex-Token,
+# in a query or as a header, "X-Plex-Token: ..."; and Jellyfin's and Emby's
+# Token="..." in their Authorization header), and the sign-in before a host
 # (scheme://user:password@host), the host kept. That sign-in in two steps:
 # with a password (a name, a colon, and what follows is no port number), up
 # to the word's last @, so that a password written with its own @, /, ? or #
@@ -62,6 +65,9 @@ mkdir -p "$dir" || exit 1
 hide() {
     LC_ALL=C sed -E \
         -e 's/([?&;]([Tt]|[Tt]oken|X-Plex-Token|api_?key|[Aa]pi[Kk]ey)=)[^&;[:space:]"]*/\1HIDDEN/g' \
+        -e 's/(api[_-]?key=)[^&[:space:]]+/\1HIDDEN/gI' \
+        -e 's/(X-Plex-Token"?[[:space:]]*[=:][[:space:]]*"?)[^&;[:space:]"]+/\1HIDDEN/g' \
+        -e 's/Token="[^"]+"/Token="HIDDEN"/g' \
         -e 's|://[^/?#[:space:]:@["]*:[0-9]*[^0-9/?#[:space:]][^[:space:]]*@|://HIDDEN@|g' \
         -e 's|://[^/?#[:space:]]*@|://HIDDEN@|g' \
         -e 's/([?&;]([[:alnum:]_.-]*(password|passwd|pwd|token)|pass|pw|username|user|login)=)[^&[:space:]]+/\1HIDDEN/gI'
