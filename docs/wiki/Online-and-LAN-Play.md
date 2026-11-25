@@ -172,7 +172,7 @@ Coin and Start together, or Esc, brings a player back to OSD/OS. When the host l
 ### Names, and how games are found
 
 - **Online Name** is the name the others see. Unset, it is the device's name on the local network ([System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
-- OSD/OS asks every network it is on, with a broadcast to UDP port 55435, and each RetroArch hosting there answers.
+- OSD/OS asks every network it is on, with a broadcast to UDP port 55435, and each RetroArch hosting there answers. The port the answers come back to is open for that second alone, and the one a machine joining asks the host for its ports from only until the host answers.
 - A game hosted online (**Host Online Game**) isn't found this way: host it with **Host LAN Game**.
 - Both machines need an address of a private network: `192.168.x.x`, `10.x.x.x`, or `172.16.x.x` to `172.31.x.x`. A router gives one. OSD/OS takes the games' answers, and a host's word on the ports a machine joining plays on, from those addresses alone.
 - Two machines joined by a cable alone need one set by hand on each (`192.168.50.1` and `192.168.50.2`, say).

@@ -2768,7 +2768,10 @@ private slots:
                         layout = said;
                     });
             // The host this machine joins: another address of this one.
+            QCOMPARE(lan.askPort(), quint16(0));
             QVERIFY(lan.askForPorts(QStringLiteral("127.0.0.2"), 1));
+            const quint16 asked = lan.askPort();
+            QVERIFY(asked != 0);
             const auto from = [](const char *address, const QByteArray &data) {
                 QNetworkDatagram datagram(data);
                 datagram.setSender(QHostAddress(QLatin1String(address)), 55436);
@@ -2783,6 +2786,12 @@ private slots:
             QVERIFY(lan.releasing(QStringLiteral("127.0.0.1")));
             QTRY_VERIFY(other.hasPendingDatagrams());
             QCOMPARE(other.receiveDatagram().data(), libretro::claimRelease());
+            // Sent again a moment later, then its socket closed.
+            QVERIFY(lan.releaseSocketOpen());
+            QTRY_VERIFY(other.hasPendingDatagrams());
+            QCOMPARE(other.receiveDatagram().data(), libretro::claimRelease());
+            QTRY_VERIFY(!lan.releaseSocketOpen());
+            QVERIFY(!lan.releasing(QStringLiteral("127.0.0.1")));
             QCOMPARE(answered, 0);
             QVERIFY(!lan.takePortsAnswer(from("127.0.0.2", libretro::claimLayout(libretro::Launch::Layout::Panel))));
             QTest::ignoreMessage(QtInfoMsg,
@@ -2792,6 +2801,71 @@ private slots:
             QVERIFY(given);
             QCOMPARE(given->first, 3);
             QCOMPARE(layout, libretro::Launch::Layout::Panel);
+            // Answered: the ask's socket closed, its port free for anyone.
+            QCOMPARE(lan.askPort(), quint16(0));
+            {
+                QUdpSocket again;
+                QVERIFY2(again.bind(QHostAddress(QHostAddress::AnyIPv4), asked), qPrintable(again.errorString()));
+            }
+            // Never answered (asked three times, a quarter of a second
+            // each): closed as it gives up, and the host told to give back
+            // what an answer that comes later would have had given back.
+            answered = 0;
+            QVERIFY(lan.askForPorts(QStringLiteral("127.0.0.2"), 1));
+            const quint16 unanswered = lan.askPort();
+            QVERIFY(unanswered != 0);
+            QTRY_COMPARE_WITH_TIMEOUT(answered, 1, 3000);
+            QVERIFY(!given);
+            QCOMPARE(lan.askPort(), quint16(0));
+            QVERIFY(lan.releasing(QStringLiteral("127.0.0.2")));
+            {
+                QUdpSocket again;
+                QVERIFY2(again.bind(QHostAddress(QHostAddress::AnyIPv4), unanswered), qPrintable(again.errorString()));
+            }
+            // A host that can't be asked at all: nothing left bound.
+            QVERIFY(!lan.askForPorts(QStringLiteral("not an address"), 1));
+            QCOMPARE(lan.askPort(), quint16(0));
+        }
+
+        // The LAN query's socket: bound for the second its answers are
+        // listened for, closed once they have been (its port free for
+        // anyone), and bound afresh for the next query; closed too as LAN
+        // Play is turned off with a query under way. An answer to it is
+        // still heard.
+        {
+            QUdpSocket hosts;
+            QVERIFY(hosts.bind(QHostAddress::LocalHost, 0));
+            connect(&hosts, &QUdpSocket::readyRead, &hosts, [&hosts] {
+                while (hosts.hasPendingDatagrams()) {
+                    const QNetworkDatagram query = hosts.receiveDatagram();
+                    if (query.data() == libretro::lanQuery())
+                        hosts.writeDatagram(lanAnswer("ann", "sf2", 55435), query.senderAddress(), query.senderPort());
+                }
+            });
+            LanRooms lan;
+            lan.setDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
+            lan.setListenTime(200);
+            QSignalSpy read(&lan, &LanRooms::roomsRead);
+            QCOMPARE(lan.queryPort(), quint16(0));
+            lan.query();
+            const quint16 first = lan.queryPort();
+            QVERIFY(first != 0);
+            QVERIFY(read.wait(3000));
+            QCOMPARE(lan.rooms().size(), qsizetype(1));
+            QCOMPARE(lan.queryPort(), quint16(0));
+            {
+                QUdpSocket again;
+                QVERIFY2(again.bind(QHostAddress(QHostAddress::AnyIPv4), first), qPrintable(again.errorString()));
+            }
+            lan.query();
+            QVERIFY(lan.queryPort() != 0);
+            QVERIFY(read.wait(3000));
+            QCOMPARE(lan.rooms().size(), qsizetype(1));
+            QCOMPARE(lan.queryPort(), quint16(0));
+            lan.query();
+            QVERIFY(lan.queryPort() != 0);
+            lan.forget();
+            QCOMPARE(lan.queryPort(), quint16(0));
         }
 
         // A host's answer to the query on the local network: its game, who

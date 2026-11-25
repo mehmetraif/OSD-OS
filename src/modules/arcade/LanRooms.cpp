@@ -96,6 +96,8 @@ void LanRooms::query() {
     // A query out: its answers are still being listened for.
     if (m_lanListen->isActive())
         return;
+    // A socket of its own for each query, closed once its answers have been
+    // listened for (finishLanRead()): nothing stays bound between them.
     if (!m_lanSocket) {
         m_lanSocket = new QUdpSocket(this);
         connect(m_lanSocket, &QUdpSocket::readyRead, this, &LanRooms::readLanAnswers);
@@ -125,6 +127,7 @@ void LanRooms::query() {
 
 void LanRooms::forget() {
     m_lanListen->stop();
+    closeSocket(m_lanSocket);
     m_lanHeard.clear();
     m_lanRooms.clear();
     m_lanMissed.clear();
@@ -162,7 +165,19 @@ void LanRooms::readLanAnswers() {
     }
 }
 
+void LanRooms::closeSocket(QUdpSocket *&socket) {
+    if (!socket)
+        return;
+    // Its own signal may be what is being handled: freed once that is done.
+    socket->disconnect(this);
+    socket->close();
+    std::exchange(socket, nullptr)->deleteLater();
+}
+
 void LanRooms::finishLanRead() {
+    // The query's time is up: what comes after it isn't taken, and the
+    // socket isn't left bound until the next.
+    closeSocket(m_lanSocket);
     const QString problem = m_lanFailure.isEmpty() ? QString()
                             : QStringLiteral("The local network can't be reached: ") + m_lanFailure;
     if (!problem.isEmpty() && problem != m_lanProblem)
@@ -202,19 +217,20 @@ void LanRooms::finishLanRead() {
 bool LanRooms::askForPorts(const QString &host, int players) {
     // A second release of this host's ports not sent yet would give up the
     // ones about to be asked for.
-    if (QTimer *again = m_releasesAgain.take(QHostAddress(host).toString()))
+    if (QTimer *again = m_releasesAgain.take(QHostAddress(host).toString())) {
         delete again;
+        closeReleaseSocket();
+    }
     m_asking = Asking{ host, players };
     if (askAgain())
         return true;
     m_asking.reset();
+    closeSocket(m_claimAsk);
     return false;
 }
 
 bool LanRooms::askAgain() {
-    if (!m_claimAsk) {
-        m_claimAsk = new QUdpSocket(this);
-        connect(m_claimAsk, &QUdpSocket::readyRead, this, &LanRooms::readPortsAnswer);
+    if (!m_claimWait) {
         m_claimWait = new QTimer(this);
         m_claimWait->setSingleShot(true);
         // Not answered: asked again, then joined without an answer. Ports
@@ -228,18 +244,25 @@ bool LanRooms::askAgain() {
                 answerPorts(ports);
                 return;
             }
-            if (!askAgain())
-                answerPorts(std::nullopt);
+            if (askAgain())
+                return;
+            // Its socket closed with no answer: one coming later would find
+            // none to give its ports back from, so the host is told now, as
+            // it would have been then (a host that never heard the ask, or
+            // RetroArch alone, has nothing to give back).
+            if (m_asking->asked > 0)
+                releaseClaim(m_asking->host);
+            answerPorts(std::nullopt);
         });
     }
-    const QHostAddress host(m_asking->host);
-    // Asking afresh: what is left of the answers to an earlier join (a
-    // second answer never read) isn't this one's. A socket not bound yet
-    // (the first join) has none, and Qt warns of being asked.
-    if (m_asking->asked == 0 && m_claimAsk->state() == QAbstractSocket::BoundState) {
-        while (m_claimAsk->hasPendingDatagrams())
-            m_claimAsk->receiveDatagram(0);
+    // A socket of its own for each join's ask, closed once it has its answer
+    // or has given up (answerPorts()): what an earlier ask was answered
+    // later never reaches this one, and nothing stays bound between them.
+    if (!m_claimAsk) {
+        m_claimAsk = new QUdpSocket(this);
+        connect(m_claimAsk, &QUdpSocket::readyRead, this, &LanRooms::readPortsAnswer);
     }
+    const QHostAddress host(m_asking->host);
     if (m_asking->asked >= kClaimAskings || host.isNull()
         || (m_claimAsk->state() != QAbstractSocket::BoundState && !m_claimAsk->bind(QHostAddress(QHostAddress::AnyIPv4), 0))
         || m_claimAsk->writeDatagram(libretro::claimQuery(m_asking->players), host, m_claimPort) < 0)
@@ -250,7 +273,7 @@ bool LanRooms::askAgain() {
 }
 
 void LanRooms::readPortsAnswer() {
-    while (m_claimAsk->hasPendingDatagrams()) {
+    while (m_claimAsk && m_claimAsk->hasPendingDatagrams()) {
         if (takePortsAnswer(m_claimAsk->receiveDatagram(64)))
             return;
     }
@@ -311,6 +334,7 @@ bool LanRooms::takePortsAnswer(const QNetworkDatagram &answer) {
 
 void LanRooms::answerPorts(const std::optional<libretro::PortRange> &ports) {
     const Asking asking = *std::exchange(m_asking, std::nullopt);
+    closeSocket(m_claimAsk);
     emit portsAnswered(ports, asking.layout);
 }
 
@@ -328,6 +352,7 @@ void LanRooms::releaseClaim(const QString &address, bool now) {
     delete m_releasesAgain.take(key);
     if (now) {
         m_releaseSocket->writeDatagram(libretro::claimRelease(), host, m_claimPort);
+        closeReleaseSocket();
         return;
     }
     // Again a moment later: a datagram lost on the way would keep the ports
@@ -340,9 +365,17 @@ void LanRooms::releaseClaim(const QString &address, bool now) {
         m_releasesAgain.remove(key);
         again->deleteLater();
         m_releaseSocket->writeDatagram(libretro::claimRelease(), host, m_claimPort);
+        closeReleaseSocket();
     });
     m_releasesAgain.insert(key, again);
     again->start(kReleaseAgainMs);
+}
+
+void LanRooms::closeReleaseSocket() {
+    // Sent from, never read: bound only while a second release waits, so
+    // nothing stays bound once the ports are given back.
+    if (m_releasesAgain.isEmpty())
+        closeSocket(m_releaseSocket);
 }
 
 bool LanRooms::startClaims(int own, int most, int each, libretro::Launch::Layout layout) {
@@ -456,4 +489,12 @@ void LanRooms::stopClaims() {
     m_claimSocket = nullptr;
     delete m_claimCheck;
     m_claimCheck = nullptr;
+}
+
+quint16 LanRooms::queryPort() const {
+    return m_lanSocket && m_lanSocket->state() == QAbstractSocket::BoundState ? m_lanSocket->localPort() : 0;
+}
+
+quint16 LanRooms::askPort() const {
+    return m_claimAsk && m_claimAsk->state() == QAbstractSocket::BoundState ? m_claimAsk->localPort() : 0;
 }
