@@ -29,6 +29,18 @@ systemctl mask getty@tty1.service autovt@.service serial-getty@ttyAMA10.service
 # leaves a link to /dev/null in its place.
 systemctl mask sshswitch.service userconfig.service
 
+# sudo asks for the password, always: Exit to Terminal logs pi in by itself
+# on an image built without one, and that shell must not be root's. pi-gen
+# has given the first user a passwordless rule (010_pi-nopasswd), and
+# cloud-init writes one for the users it creates (90-cloud-init-users, which
+# osdos-cloud-init-once.service takes the NOPASSWD out of after the first
+# boot). The build stops if any rule without a password is left.
+rm -f /etc/sudoers.d/010_pi-nopasswd /etc/sudoers.d/90-cloud-init-users
+if grep -rIlE '^[^#]*NOPASSWD' /etc/sudoers /etc/sudoers.d 2> /dev/null; then
+	echo "The files above still let someone use sudo without a password: the image would give root away." >&2
+	exit 1
+fi
+
 # udisks2: nothing on the image asks it for anything. USB drives are mounted
 # by OSD/OS's own rule (stage 07-usb), and there is no desktop. Masked, as
 # D-Bus would otherwise start it the moment anything looked for it.

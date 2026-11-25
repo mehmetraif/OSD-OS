@@ -181,7 +181,7 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos.service` | Enabled. OSD/OS, as the first user (`pi`) |
 | `NetworkManager.service`, `bluetooth.service`, `avahi-daemon.service`, `ssh.service` (with `ENABLE_SSH=1`) | Held back until OSD/OS's first frame, then started in that order |
 | `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) |
-| `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
+| `osdos-cloud-init-once.service` | After the first boot, takes `NOPASSWD` out of cloud-init's sudoers rule, then writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
 | `osdos-setup-app.service`, `osdos-setup.service` | Run only with an `osdos-setup.json` on the boot partition |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, unless an arcade game plays |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
@@ -463,6 +463,13 @@ A Pi set up with `install.sh` keeps its sshd as you have it: none of this is ins
 | Without one (the account is locked) | Over SSH with a key only (`PUBKEY_SSH_FIRST_USER`, `ENABLE_SSH=1`) | Logs `pi` in by itself | Unusable |
 
 For `sudo` on an image built without a password, give `pi` a password on OSD/OS Setup, or log in as the user Imager's customisation creates.
+
+`sudo` always asks for the password. The build removes pi-gen's passwordless rule (`/etc/sudoers.d/010_pi-nopasswd`) and stops if any `NOPASSWD` is left in `/etc/sudoers` or `/etc/sudoers.d`. cloud-init writes one for the users Imager's customisation creates (`/etc/sudoers.d/90-cloud-init-users`): `osdos-cloud-init-once.service` takes its `NOPASSWD` out after the first boot, and the rule stays, with the user's password. Nothing on the image or in the app runs `sudo`. To check:
+
+```sh
+sudo grep -r NOPASSWD /etc/sudoers /etc/sudoers.d    # nothing
+sudo -k; sudo true                                   # asks for the password
+```
 
 ## Quitting, restarting and Exit to Terminal
 

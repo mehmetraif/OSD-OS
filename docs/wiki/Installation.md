@@ -220,6 +220,7 @@ Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and 
 The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Power) or SSH.
 
 - **The password.** A release image's `pi` has the password of the repository secret `OS_FIRST_USER_PASS`, if the release was built with one. Without one, Exit to Terminal logs `pi` in by itself, without `sudo`.
+- **`sudo`** always asks for the password, on the image as on any user Imager's customisation creates.
 - **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`: 8 characters at least, and not one as easy to guess as `raspberry`.
 - **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a key to log in with, or a password with **Password Login** turned on (it starts off); then Settings → System → **SSH** turns it off and on again on the device. A password logs in over SSH only when a card turned Password Login on: otherwise only a key does, whatever password `pi` has. An empty `ssh` file on the boot partition does nothing on this image. Or from a shell with `sudo`:
 

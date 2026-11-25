@@ -4,8 +4,9 @@
 # Setup's (00-osdos-setup.conf) and cloud-init's (50-cloud-init.conf), with
 # sshd's rule that the first value read of a setting is the one kept: no
 # password logs in unless a card or Raspberry Pi Imager says so, or the image
-# was built for it; and Raspberry Pi OS's boot-partition switches for SSH and
-# a user masked. sshd
+# was built for it; sudo never without a password (the build stops at a
+# NOPASSWD rule; cloud-init's loses its NOPASSWD after the first boot); and
+# Raspberry Pi OS's boot-partition switches for SSH and a user masked. sshd
 # itself isn't run: `sshd -T` on a Pi says what it takes.
 #   image_logins_test.sh <os/stage-osdos/02-system>
 set -u
@@ -79,6 +80,50 @@ printf 'PasswordAuthentication yes\n' > "$T/sshd_config.d/50-cloud-init.conf"
 check "Imager's password login: kept" "yes" "$(setting PasswordAuthentication)"
 check "the applier says the card's drop-in comes first" "1" \
       "$(grep -c "^SSHD_CONF = \"/etc/ssh/sshd_config.d/$card_name\"" "$STAGE/files/osdos-setup")"
+
+# --- sudo. The chroot's step on a stand-in /etc: pi-gen's and cloud-init's
+# passwordless rules removed; the build stopped by any other.
+awk '/^rm -f \/etc\/sudoers.d\/010_pi-nopasswd/ { on = 1 } on { print } on && /^fi$/ { exit }' \
+    "$STAGE/01-run-chroot.sh" | sed "s#/etc/sudoers#$T/etc/sudoers#g" > "$T/sudo.sh"
+grep -q NOPASSWD "$T/sudo.sh" || { echo "FAIL: the sudo step not found in $STAGE/01-run-chroot.sh"; exit 1; }
+sudoers() {  # files to make, each name=line (sudoers=line: added to /etc/sudoers); then the step's exit status
+    rm -rf "$T/etc"; mkdir -p "$T/etc/sudoers.d"
+    printf 'root ALL=(ALL:ALL) ALL\n%%sudo ALL=(ALL:ALL) ALL\n@includedir /etc/sudoers.d\n' > "$T/etc/sudoers"
+    for f in "$@"; do
+        case "$f" in
+            sudoers=*) printf '%s\n' "${f#*=}" >> "$T/etc/sudoers" ;;
+            *)         printf '%s\n' "${f#*=}" > "$T/etc/sudoers.d/${f%%=*}" ;;
+        esac
+    done
+    bash -e "$T/sudo.sh" > /dev/null 2>&1
+    echo $?
+}
+check "pi-gen's and cloud-init's rules: removed, the build goes on" "0" \
+      "$(sudoers '010_pi-nopasswd=pi ALL=(ALL) NOPASSWD: ALL' '90-cloud-init-users=bob ALL=(ALL) NOPASSWD:ALL' \
+                 '010_at-export=Defaults env_keep += "http_proxy"')"
+check "...the files gone, the others kept" "010_at-export" "$(ls "$T/etc/sudoers.d")"
+check "a rule without a password in another file: the build stops" "1" "$(sudoers '020_kiosk=kiosk ALL=(ALL) NOPASSWD: ALL')"
+check "...in /etc/sudoers itself too" "1" "$(sudoers 'sudoers=pi ALL=(ALL) NOPASSWD: ALL')"
+check "one in a comment: the build goes on" "0" "$(sudoers '020_note=# pi ALL=(ALL) NOPASSWD: ALL')"
+
+# cloud-init's, written as the first boot creates Imager's user: the
+# first-boot unit takes NOPASSWD out of it before cloud-init is switched off,
+# the rule and its mode kept; nothing done without one.
+UNIT="$STAGE/files/osdos-cloud-init-once.service"
+cmd=$(sed -n "s#^ExecStart=/bin/sh -c '\(.*90-cloud-init-users.*\)'\$#\1#p" "$UNIT" | sed 's/\$\$/$/g')
+check "the first-boot unit edits cloud-init's rule first" \
+      "ExecStart=/bin/sh ExecStart=/usr/bin/touch" "$(grep '^ExecStart=' "$UNIT" | sed 's/ .*//' | paste -sd' ')"
+mkdir -p "$T/cloud"
+printf '# User rules for bob\nbob ALL=(ALL) NOPASSWD:ALL\n' > "$T/cloud/90-cloud-init-users"
+chmod 440 "$T/cloud/90-cloud-init-users"
+sh -c "$(printf '%s' "$cmd" | sed "s#/etc/sudoers.d#$T/cloud#")"
+check "cloud-init's rule: with its password" "# User rules for bob
+bob ALL=(ALL) ALL" "$(cat "$T/cloud/90-cloud-init-users")"
+check "...its mode as sudo wants it" "440" "$(stat -c %a "$T/cloud/90-cloud-init-users")"
+rm -f "$T/cloud/90-cloud-init-users"
+status=0
+sh -c "$(printf '%s' "$cmd" | sed "s#/etc/sudoers.d#$T/cloud#")" || status=$?
+check "no rule of cloud-init's: nothing done, no failure" "0 no" "$status $([ -e "$T/cloud/90-cloud-init-users" ] && echo yes || echo no)"
 
 # --- The boot partition's switches, masked with the gettys.
 check "sshswitch and userconfig masked" "1" \
