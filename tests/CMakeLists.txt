@@ -369,6 +369,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME save_logs COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/save_logs_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/save-logs.sh)
 
+    # The web player (scripts/web-player.sh) with stand-ins for uname and
+    # Chromium: the browser's version in the user agent on Arm, asked once
+    # and kept in the data folder until the browser changes.
+    add_test(NAME web_player COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/web_player_test.sh
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/web-player.sh)
+
     # FinalBurn Neo's source unpacked and both cores built in order
     # (scripts/build-fbneo-cores.sh), with stand-ins for curl and the builds;
     # and each system's settings (scripts/fbneo-make.sh), -ffp-contract=off

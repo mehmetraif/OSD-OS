@@ -147,7 +147,7 @@ web-player.sh --close <service>
 ```
 
 - With a desktop (`WAYLAND_DISPLAY` or `DISPLAY` set), the browser opens over OSD/OS. Without one, it runs inside `cage`, which needs the user in the `video` and `input` groups.
-- On an Arm board the browser tells the sites it is ChromeOS, which these players require. `OSDOS_WEB_PLAYER_UA` sets another user agent.
+- On an Arm board the browser tells the sites it is ChromeOS, which these players require, with its own version: asked of it once and kept in the data folder's `web-player-browser` until the browser changes. `OSDOS_WEB_PLAYER_UA` sets another user agent.
 - **Scaling** enlarges the player's picture: 8/7 for 14:9, 4/3 for Pan & Scan, 4/3 taller for Anamorphic. Letterbox adds nothing. It doesn't apply on a Mac.
 
 ## Settings

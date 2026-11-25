@@ -163,6 +163,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `bin/mame` | Found first, before `mame` on `PATH` and `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
 | `arcade/`, `highscores/` | Listed in [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps) and [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps) |
 | `<service>/browser/` | A Chromium profile per service, with its sign-in. Sign Out deletes it |
+| `web-player-browser` | On Arm Linux, the browser's version for the web players' user agent: its file and time, then the version. Asked of the browser again when it changes; safe to delete |
 | `updates/` | The downloaded release with `staged.json` and `staged.sha256` (written at Apply), `staged.sha256.failed` (why the launcher couldn't put it in place, told once on the Software Update page), unfinished `*.part` downloads, and on an AppImage or a Mac the helper script and its `apply.log` |
 
 ## config.json
