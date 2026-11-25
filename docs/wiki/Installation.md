@@ -131,7 +131,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 
 ### OSD/OS Setup: settings on the card before the first boot
 
-[OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what the card starts with, for a **TV** or an **Arcade Cabinet**. Nothing you type leaves your browser. It sets the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH, the time zone, the keyboard, every setting of OSD/OS and the RetroAchievements account.
+[OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what the card starts with, for a **TV** or an **Arcade Cabinet**. Nothing you type leaves your browser. It sets the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH, the firewall, the time zone, the keyboard, every setting of OSD/OS and the RetroAchievements account.
 
 1. Choose your settings, then **Download for the card (zip)**. It holds `osdos-setup.json` and, with a display output chosen, `osdos-display.txt`.
 2. After flashing, take the card out and put it back in. The computer shows the boot partition as a drive called **bootfs**.
@@ -146,6 +146,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 - A display output chosen for another kind of Pi is not applied, and the log says so.
 - **pi's Password** has 8 characters at least, and isn't one of the first anyone guesses (`raspberry`, `password`, `12345678`, the user's name…). **Password Login** starts off: a key is the safer way in.
 - SSH stays as the card set it until Settings → System → **SSH** turns it off or on; the password and the keys stay the card's either way, and a later card's SSH setting wins again.
+- **Firewall** (under Logins, after SSH) is left as the card has it unless you set it. On: only devices on your home network can connect. Off: anything that reaches the Pi can, for a network on other addresses (public ones, a carrier's `100.64.x`, a VPN). Settings → System → **Firewall** changes it later, and a later card's setting wins again.
 
 [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied. A computer takes part of the settings too ([below](#osdos-setup-on-a-computer)).
 

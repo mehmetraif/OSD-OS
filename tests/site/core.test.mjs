@@ -200,6 +200,25 @@ test("a cabinet's file: its kind, and the Arcade it starts on turned on", () => 
                      { password_hash: "$6$ab$x", ssh: { enabled: true, password_login: true } });
 });
 
+test("the firewall: in the file only when set, and read back the same way", () => {
+    // Unset (the page's own start) leaves the card's as it is.
+    for (const unset of [null, undefined])
+        assert.deepEqual(core.buildSetup({ firewallEnabled: unset }), { osdos_setup: 1 }, String(unset));
+    for (const enabled of [true, false]) {
+        const setup = core.buildSetup({ firewallEnabled: enabled, sshEnabled: true, sshKeys: "ssh-ed25519 AAAA" });
+        assert.deepEqual(setup.system.firewall, { enabled });
+        assert.deepEqual(Object.keys(setup.system), ["ssh", "firewall"], "after SSH");
+        const back = core.readSetup(JSON.stringify(setup));
+        assert.equal(back.firewallEnabled, enabled);
+        assert.deepEqual(core.buildSetup(back), setup, "made again, the same file");
+    }
+    // As the card takes it: an object with a true or a false, nothing else.
+    for (const firewall of [true, "off", { enabled: "false" }, { enabled: 0 }, {}, null])
+        assert.equal(core.readSetup(JSON.stringify({ osdos_setup: 1, system: { firewall } })).firewallEnabled, undefined,
+                     JSON.stringify(firewall));
+    assert.equal(core.readSetup(JSON.stringify({ osdos_setup: 1 })).firewallEnabled, undefined);
+});
+
 test("a file read back as the card would read it", () => {
     const read = core.readSetup(JSON.stringify({
         osdos_setup: 1,

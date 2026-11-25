@@ -45,8 +45,17 @@ awk -v marker=STOP_HELPER '
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/usr/share/zoneinfo/iso3166.tab#g" \
                       -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
                       -e "s#^SSHD=/usr/sbin/sshd\$#SSHD=$T/bin/sshd#" -e "s#^SSH_DIR=/etc/ssh\$#SSH_DIR=$T/etc/ssh#" \
+                      -e "s#^FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service\$#FIREWALL_UNIT=$T/etc/systemd/system/osdos-firewall.service#" \
+                      -e "s#^NFT=/usr/sbin/nft\$#NFT=$T/usr/sbin/nft#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/bin/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
+grep -q "^FIREWALL_UNIT=$T/" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop's firewall unit not found in $INSTALL_SH"; exit 1; }
+grep -q "^NFT=$T/" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop's nft not found in $INSTALL_SH"; exit 1; }
+# The firewall's unit and nft, as the image has them.
+mkdir -p "$T/etc/systemd/system" "$T/usr/sbin"
+printf '[Unit]\nDescription=OSD/OS firewall\n' > "$T/etc/systemd/system/osdos-firewall.service"
+printf '#!/bin/sh\necho "nft $*" >> "%s/asked"\n' "$T" > "$T/usr/sbin/nft"
+chmod +x "$T/usr/sbin/nft"
 for tool in systemctl raspi-config timedatectl; do
     printf '#!/bin/sh\necho "%s $*" >> "%s/asked"\n' "$tool" "$T" > "$T/bin/$tool"
 done
@@ -247,6 +256,51 @@ apply
 check "no password, no key: SSH not turned on" "0" "$(asked "systemctl enable ssh.service")"
 check "no password, no key: said why" "1" \
     "$(logged "SSH: not turned on: password login needs pi's password, set in the same file, or else a key")"
+
+# The firewall, after SSH: on or off through osdos-stop, as Settings →
+# System → Firewall has it done; nothing at all unless the file says which.
+firewall_asked() { grep -c -e 'osdos-firewall' -e '^nft ' "$T/asked"; }
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": false } } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "firewall off: disabled, then stopped" $'systemctl disable osdos-firewall.service\nsystemctl stop osdos-firewall.service' \
+    "$(grep osdos-firewall "$T/asked")"
+check "firewall off: said so" "1" "$(logged "Firewall: off")"
+check "firewall off: content" "0 0" "$status"
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": true }, "timezone": "Europe/Istanbul" } }\n' \
+    > "$BOOT/osdos-setup.json"
+apply
+check "firewall on: enabled, then started" $'systemctl enable osdos-firewall.service\nsystemctl start osdos-firewall.service' \
+    "$(grep osdos-firewall "$T/asked")"
+check "firewall on: nft not run by the helper" "0" "$(grep -c '^nft ' "$T/asked")"
+check "firewall on: said so, after SSH's place and before the time zone" $'Firewall: on\nTime zone: Europe/Istanbul' \
+    "$(grep -e '^Firewall' -e '^Time zone' "$BOOT/osdos-setup.log")"
+check "firewall on: content" "0 0" "$status"
+for nothing in '{}' '{ "enabled": "yes" }' '{ "enabled": 1 }' '"on"' 'true' 'null'; do
+    printf '{ "osdos_setup": 1, "system": { "firewall": %s, "timezone": "UTC" } }\n' "$nothing" > "$BOOT/osdos-setup.json"
+    : > "$T/usr/share/zoneinfo/UTC"
+    apply
+    check "firewall $nothing: nothing asked" "0" "$(firewall_asked)"
+    check "firewall $nothing: nothing said" "0" "$(grep -c '^Firewall' "$BOOT/osdos-setup.log")"
+done
+# What the helper refuses is said with its reason, and fails the stage.
+mv "$T/etc/systemd/system/osdos-firewall.service" "$T/firewall.away"
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": true } } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "no firewall unit: said why" "1" "$(logged "Firewall: not set: the firewall isn't installed")"
+check "no firewall unit: the system stage fails" "0 1" "$status"
+mv "$T/firewall.away" "$T/etc/systemd/system/osdos-firewall.service"
+# A card whose helper is older than the firewall answers "nothing this
+# sets": said so, and the rest set all the same.
+cp "$T/bin/osdos-stop" "$T/osdos-stop.new"
+printf '#!/bin/sh\nread -r line\necho "osdos-stop $1 $line" >> "%s/asked"\necho "nothing this sets"\n' "$T" > "$T/bin/osdos-stop"
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": false }, "timezone": "Europe/Istanbul" } }\n' \
+    > "$BOOT/osdos-setup.json"
+apply
+check "an older helper: asked as the app asks" "1" "$(asked "osdos-stop system-setting firewall off")"
+check "an older helper: said the card can't" "1" "$(logged "Firewall: not set: this card's system can't set it")"
+check "an older helper: the rest set" "1" "$(logged "Time zone: Europe/Istanbul")"
+check "an older helper: the system stage fails" "0 1" "$status"
+mv "$T/osdos-stop.new" "$T/bin/osdos-stop"
 
 # The page's model left at another Pi's: what counts is the outputs this one
 # has.

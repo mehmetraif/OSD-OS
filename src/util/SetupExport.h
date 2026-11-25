@@ -65,9 +65,13 @@ struct System {
     int     ssh = -1;       // -1 unknown, 0 off, 1 on
     bool    sshPasswordLogin = false;
     QStringList sshKeys;    // ~/.ssh/authorized_keys' public keys
+    // The firewall (osdos-firewall.service) as systemd has it: -1 where it
+    // isn't there to be set, 0 off, 1 on. The system's, not config.json's.
+    int     firewall = -1;
 };
-// The time zone, the keyboard and SSH as Linux's files under root ("" for /)
-// say, the user's keys in home; the rest is left for the caller.
+// The time zone, the keyboard, SSH and the firewall as Linux's files under
+// root ("" for /) say, the user's keys in home; the rest is left for the
+// caller.
 void readSystem(System &system, const QString &root, const QString &home);
 
 // The page's file (osdos_setup 1) of config.json's settings on the form, the

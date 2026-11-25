@@ -73,6 +73,7 @@ The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. 
 | Wi-Fi | `/etc/NetworkManager/system-connections/osdos-setup-<network>-<id>.nmconnection` |
 | `pi`'s password | `chpasswd -e`, with the SHA-512 crypt hash (100,000 rounds) the page made |
 | SSH | `ssh.service` on or off; keys in `pi`'s `~/.ssh/authorized_keys`; password login in `/etc/ssh/sshd_config.d/00-osdos-setup.conf` |
+| The firewall | `osdos-stop system-setting`, `firewall on` or `firewall off`, as Settings → System → Firewall has it done, after SSH. Left as it is when the file doesn't say. The log says `Firewall: on` or `Firewall: off`, or why not |
 | The time zone, the keyboard | `timedatectl set-timezone`; `raspi-config nonint do_configure_keyboard` |
 | OSD/OS's settings | Merged into `~/.local/share/OSD-OS/config.json` |
 | The RetroAchievements account | `~/.local/share/OSD-OS/arcade/retroachievements-setup.json`. RetroArch signs in once the network is up, tried every 30 seconds, ten times at most |
@@ -394,7 +395,7 @@ Every listener on the Pi answers on every address, IPv4 and IPv6: SSH when it is
 - **By source, not by port**: a LAN game's room query and the rooms' answers, the seats' claims and mDNS's answers are unicast replies to a broadcast or a multicast, which connection tracking doesn't match. Every one of them comes from a home address.
 - **No forward chain**: the Pi shares no connection and makes no hotspot.
 - **What it refuses**: anything from another address. A home network on public addresses or a carrier's `100.64.0.0/10`, a computer that reaches the Pi over its global IPv6 address, and a VPN on other addresses need Firewall off ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#a-computer-cant-reach-the-pi)).
-- **Off and on**: Settings → System → **Firewall** ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)). From a shell, `sudo systemctl disable --now osdos-firewall` turns it off and `sudo systemctl enable --now osdos-firewall` on.
+- **Off and on**: Settings → System → **Firewall** ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)), or an [OSD/OS Setup](#osdos-setup) card with **Firewall** set (`system.firewall`), before anything can reach the Pi. From a shell, `sudo systemctl disable --now osdos-firewall` turns it off and `sudo systemctl enable --now osdos-firewall` on.
 - **When it can't load**: OSD/OS starts all the same, the network comes up unfiltered, and the row's help line says **Its rules aren't loaded**. Without nft the unit doesn't run.
 - **`install.sh`** installs it on Raspberry Pi OS and leaves it off: that system is its owner's. The row turns it on.
 

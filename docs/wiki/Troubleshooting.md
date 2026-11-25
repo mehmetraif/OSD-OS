@@ -348,7 +348,7 @@ On the OSD/OS image, Settings → System → **Firewall** is on: only the home n
 
 | What you see | Cause | Fix |
 |---|---|---|
-| `ssh pi@osdos.local` or a LAN game's join waits, then times out | The computer is on a network outside those addresses: a provider's `100.64.x`, public addresses on the LAN, a guest network routed in from elsewhere | Settings → System → **Firewall** → **Off** |
+| `ssh pi@osdos.local` or a LAN game's join waits, then times out | The computer is on a network outside those addresses: a provider's `100.64.x`, public addresses on the LAN, a guest network routed in from elsewhere | Settings → System → **Firewall** → **Off**, or, before the card's first start, **Firewall** off on [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) (`osdos-setup.log` on **bootfs** then says `Firewall: off`) |
 | It works from home, not over a VPN (WireGuard, Tailscale, ZeroTier) | The VPN gives the computer an address outside those (Tailscale's are `100.64.x`) | **Firewall** → **Off**, and let the VPN decide who reaches the Pi |
 | `ssh` to the Pi's IPv6 address times out, its IPv4 address works | A global IPv6 address (`2xxx:` or `3xxx:`) is refused; `osdos.local` gives IPv4 alone | Use the IPv4 address in System Information, or `ssh -4`. A router whose own names (`osdos.fritz.box`, `osdos.lan`) give IPv6 first does the same: `ssh -4`, or **Firewall** → **Off** |
 | `osdos.local` doesn't resolve at all | A network with IPv6 alone: the image publishes `osdos.local` by IPv4 alone | Use the address in System Information |

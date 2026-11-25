@@ -25,6 +25,8 @@ function fresh() {
         passwordPlain: "", passwordHash: "",
         // Password login off until turned on: a key is the safer way in.
         sshEnabled: null, sshPasswordLogin: false, sshKeys: "",
+        // The firewall left as the card has it until chosen.
+        firewallEnabled: null,
         timezone: "", keyboard: "",
         // raToken: a device's sign-in, its token, brought by its Export to
         // OSD/OS Setup in place of the password it doesn't keep.
@@ -314,8 +316,8 @@ function markChanged(id, changed) {
 
 // Time zones as the card has them: the zone list's names (build-site.py
 // reads them from the time zone database), not a browser's older ones. pi's
-// password and SSH in Logins, the time zone in Basic, the keyboard in
-// Advanced alone.
+// password, SSH and the firewall in Logins, the time zone in Basic, the
+// keyboard in Advanced alone.
 function system() {
     const logins = shows("logins"), basic = shows("basic"), keyboard = shows("advanced");
     if (!logins && !basic && !keyboard)
@@ -343,6 +345,11 @@ function system() {
                 el("label", { for: "ssh-keys", class: "label", text: "SSH Keys" }),
                 el("textarea", { id: "ssh-keys", placeholder: "ssh-ed25519 AAAA… one public key a line", spellcheck: "false",
                                  oninput: e => { state.sshKeys = e.target.value; } }, state.sshKeys)) : null,
+            line("Firewall", toggle(state.firewallEnabled === true, value => { state.firewallEnabled = value; render(); },
+                                    { id: "firewall", unset: state.firewallEnabled === null }),
+                 { id: "firewall", changed: state.firewallEnabled !== null,
+                   help: "On: only devices on your home network can connect. Off: anything that reaches it can.",
+                   onReset: () => { state.firewallEnabled = null; render(); } }),
         ] : null,
         basic ? line("Time Zone", select(zones, state.timezone, value => { state.timezone = value; render(); },
                                          { id: "timezone", leave: "Leave as it is" }),
@@ -744,6 +751,8 @@ function carried(read) {
         out.push(read.sshPasswordLogin ? "SSH on, with password login" : "SSH on");
     if (core.keyLines(read.sshKeys).length)
         out.push("SSH keys");
+    if (read.firewallEnabled === false)
+        out.push("the firewall off");
     if (read.wifiPassword)
         out.push("a Wi-Fi password");
     if (read.raPassword)

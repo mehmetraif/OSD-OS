@@ -14,8 +14,9 @@ stages, each a service of its own:
   --stage system  osdos-setup.service, once the app is on screen, whose boot
                   screen shows it as SETTINGS. Sets the rest: the device's
                   name, the Wi-Fi and its country, the app user's password,
-                  SSH, the time zone, the keyboard, and the display output,
-                  last, with a restart when the picture has to change. Then
+                  SSH, the firewall, the time zone, the keyboard, and the
+                  display output, last, with a restart when the picture has
+                  to change. Then
                   the pending file goes, overwritten with zeros first (as
                   each copy of it is once a new one replaces it), and
                   osdos-setup.log on bootfs says what was done and why
@@ -217,6 +218,7 @@ class Setup:
                            ("Wi-Fi", lambda: self.wifi(wifi)),
                            ("Password", lambda: self.password(system)),
                            ("SSH", lambda: self.ssh(system)),
+                           ("Firewall", lambda: self.firewall(system)),
                            ("Time zone", lambda: self.timezone(system)),
                            ("Keyboard", lambda: self.keyboard(system)),
                            ("Display output", lambda: self.display(part("display")))):
@@ -425,6 +427,23 @@ class Setup:
             self.fail(f"SSH: on, keys only: password login needs {self.user}'s password, set in the same file")
         else:
             self.say("SSH: on, " + ("password login on" if password_login else "keys only"))
+
+    def firewall(self, system):
+        """The firewall (osdos-firewall.service: only the home network's
+        addresses may connect) on or off, through osdos-stop, as Settings →
+        System → Firewall has it done; nothing unless the file says which."""
+        firewall = system.get("firewall")
+        if not isinstance(firewall, dict) or not isinstance(firewall.get("enabled"), bool):
+            return
+        word = "on" if firewall["enabled"] else "off"
+        why = self.ask("system-setting", f"firewall {word}")
+        if why == "nothing this sets":
+            # A helper from before the firewall (launcher API under 12).
+            self.fail("Firewall: not set: this card's system can't set it")
+        elif why:
+            self.fail(f"Firewall: not set: {why}")
+        else:
+            self.say(f"Firewall: {word}")
 
     def timezone(self, system):
         zone = system.get("timezone")

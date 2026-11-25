@@ -362,7 +362,7 @@ export const VIEWS = [
     { id: "basic", name: "Basic",
       about: "How it starts: the device, the Pi and its display output, the time zone, the theme, the module it opens on, the modules on, and the arcade's Online Play and LAN Play." },
     { id: "logins", name: "Logins",
-      about: "What it signs in with: Wi-Fi, pi's password and SSH, the media servers' addresses, the RetroAchievements account and the online name." },
+      about: "What it signs in with: Wi-Fi, pi's password, SSH and the firewall, the media servers' addresses, the RetroAchievements account and the online name." },
     { id: "advanced", name: "Advanced", about: "Every setting." },
 ];
 // Whether a view shows a line of the form that is in `part` ("basic" or
@@ -389,6 +389,8 @@ export function withStartupModule(config) {
 //     display: { preset },
 //     wifi:    { country, ssid, password, hidden },
 //     system:  { password_hash, ssh: { enabled, password_login, authorized_keys: [] },
+//                firewall: { enabled },   only the home network may connect, or
+//                                         anything that reaches it
 //                timezone, keyboard },
 //     retroachievements: { user, password, key },   the Arcade's account; or a
 //                        token for the password, as OSD/OS's Export to
@@ -431,6 +433,9 @@ export function buildSetup(state) {
         if (keys.length)
             system.ssh.authorized_keys = keys;
     }
+    // On or off only when chosen: unset leaves the card's as it is.
+    if (state.firewallEnabled === true || state.firewallEnabled === false)
+        system.firewall = { enabled: state.firewallEnabled };
     for (const key of ["timezone", "keyboard"]) {
         if (state[key])
             system[key] = state[key];
@@ -511,6 +516,8 @@ export function readSetup(text) {
             const keys = Array.isArray(system.ssh.authorized_keys) ? system.ssh.authorized_keys : [];
             state.sshKeys = keys.filter(k => typeof k === "string").join("\n");
         }
+        if (isPlainObject(system.firewall) && typeof system.firewall.enabled === "boolean")
+            state.firewallEnabled = system.firewall.enabled;
         for (const key of ["timezone", "keyboard"]) {
             if (typeof system[key] === "string") state[key] = system[key];
         }

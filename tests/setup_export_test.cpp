@@ -173,6 +173,7 @@ private slots:
         system.keyboard = QStringLiteral("tr");
         system.ssh = 1;
         system.sshKeys = { QStringLiteral("ssh-ed25519 AAAAC3Nza me@pc") };
+        system.firewall = 0;
         const QJsonObject account = json(R"({ "user": "player", "token": "tok123", "key": "Key9" })");
 
         const QJsonObject setup = setupexport::build(config, form, account, system);
@@ -185,7 +186,8 @@ private slots:
         QCOMPARE(setup.value(QStringLiteral("system")).toObject(),
                  json(R"({ "timezone": "Europe/Istanbul", "keyboard": "tr",
                            "ssh": { "enabled": true, "password_login": false,
-                                    "authorized_keys": ["ssh-ed25519 AAAAC3Nza me@pc"] } })"));
+                                    "authorized_keys": ["ssh-ed25519 AAAAC3Nza me@pc"] },
+                           "firewall": { "enabled": false } })"));
         QCOMPARE(setup.value(QStringLiteral("retroachievements")).toObject(), account);
         // At their defaults (On, and ON for true, a list with no lines), not
         // on the form (volume, engines), or a module the page hasn't: left
@@ -205,7 +207,8 @@ private slots:
         // A computer's: its settings and the account alone.
         const QJsonObject computer = setupexport::build(config, form, QJsonObject(), setupexport::System());
         QCOMPARE(QStringList(computer.keys()), QStringList({ QStringLiteral("config"), QStringLiteral("osdos_setup") }));
-        // The board only with the output; SSH off without its keys.
+        // The board only with the output; SSH off without its keys; the
+        // firewall on as it is, and left out where it isn't there.
         setupexport::System off;
         off.model = QStringLiteral("pi4");
         off.ssh = 0;
@@ -214,6 +217,9 @@ private slots:
         QVERIFY(!offSetup.contains(QStringLiteral("device")));
         QCOMPARE(offSetup.value(QStringLiteral("system")).toObject(),
                  json(R"({ "ssh": { "enabled": false, "password_login": false } })"));
+        off.firewall = 1;
+        QCOMPARE(setupexport::build(QJsonObject(), form, QJsonObject(), off).value(QStringLiteral("system")).toObject(),
+                 json(R"({ "ssh": { "enabled": false, "password_login": false }, "firewall": { "enabled": true } })"));
     }
 
     // The time zone, the keyboard and SSH, from Linux's files.
@@ -227,8 +233,21 @@ private slots:
         setupexport::readSystem(system, root.path(), home.path());
         QCOMPARE(system.timezone, QStringLiteral("Europe/Istanbul"));
         QCOMPARE(system.keyboard, QStringLiteral("tr"));
-        // No SSH there to turn on.
+        // No SSH there to turn on, nor a firewall.
         QCOMPARE(system.ssh, -1);
+        QCOMPARE(system.firewall, -1);
+        // The firewall as systemd has it, where its unit and nft are there.
+        writeFile(root.path() + QStringLiteral("/etc/systemd/system/osdos-firewall.service"), "[Unit]\n");
+        setupexport::readSystem(system, root.path(), home.path());
+        QCOMPARE(system.firewall, -1);
+        writeFile(root.path() + QStringLiteral("/usr/sbin/nft"), "");
+        setupexport::readSystem(system, root.path(), home.path());
+        QCOMPARE(system.firewall, 0);
+        QVERIFY(QDir().mkpath(root.path() + QStringLiteral("/etc/systemd/system/multi-user.target.wants")));
+        QVERIFY(QFile::link(QStringLiteral("/etc/systemd/system/osdos-firewall.service"),
+                            root.path() + QStringLiteral("/etc/systemd/system/multi-user.target.wants/osdos-firewall.service")));
+        setupexport::readSystem(system, root.path(), home.path());
+        QCOMPARE(system.firewall, 1);
 
         writeFile(root.path() + QStringLiteral("/usr/lib/systemd/system/ssh.service"), "[Unit]\n");
         setupexport::readSystem(system, root.path(), home.path());
