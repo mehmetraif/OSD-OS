@@ -837,6 +837,12 @@ Under an ARCADE heading (a `"type": "section"` row the cursor steps over) come t
 
 A new row in Settings is one for `site/setup/schema-extra.json` too; a module's rows come with its manifest. `tests/site/schema.test.mjs` fails on a row the app doesn't have, a look it doesn't offer or a default that isn't among its values.
 
+## Updates (UpdateManager) and the QML cache
+
+`src/update/UpdateManager` checks GitHub's latest release, downloads the system's file into the data folder's `updates/` and applies it: on Linux with the launcher (`staged.sha256` arms the stage, and the launcher from `scripts/install.sh` swaps it into `/opt/osdos` as the app starts again), an AppImage in place, a Mac through a helper script that swaps the bundle once the app has quit.
+
+Qt keeps the compiled QML in the cache folder's `qmlcache`, by each file's path and time, so a new build compiles every file again as it is first loaded: the first start's menus before their first frame (12.9 s on a Pi 4 against 2 with the cache), and each page as it first opens. The image's build compiles it all ahead (`osdos --compile-qml`, `stage-osdos/01-app`). An update can't, from the old version: the new binary and QML are only in place once the launcher has swapped them in, as the new version starts. So `QmlWarmUp` (`src/update/QmlWarmUp.h`) does it on the first run of a new build once the menus are idle: 20 s after their first frame, while no video or game has the screen (`DisplayHandoff::held()`, `MpvController::videoActive()`), a copy of the app runs `--compile-qml` at the lowest priority (nice 19, `SCHED_IDLE` on Linux, `IDLE_PRIORITY_CLASS` on Windows), is stopped when something starts playing and started again once it is over, and is given up on after 10 minutes. The build is told by its stamp (the binary's path, size and time, the QML folder and its `Main.qml`'s time, Qt's version), kept as compiled in the cache folder's `qmlcache-built.json` by `--compile-qml` itself and by `QmlWarmUp` once it is done, so a build already compiled (the image's) starts nothing. A compile that fails fails nothing: each page is compiled as it opens, as before, and the next run tries again. Not in an AppImage, whose files are at another path each run.
+
 ## C++ Backend Patterns
 
 Backends are `QObject` subclasses registered via `registerModule(...)` before the engine loads.

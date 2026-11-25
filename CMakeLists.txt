@@ -152,6 +152,7 @@ add_executable(osdos
     src/input/IdleTracker.cpp
     src/input/JammaPins.cpp
     src/update/UpdateManager.cpp
+    src/update/QmlWarmUp.cpp
     src/boot/BootProgress.cpp
     src/display/DisplayOutput.cpp
     src/audio/AudioOutput.cpp

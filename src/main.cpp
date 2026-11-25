@@ -41,6 +41,7 @@
 #include "fx/SelectorFx.h"
 #include "input/InputManager.h"
 #include "input/IdleTracker.h"
+#include "update/QmlWarmUp.h"
 #include "update/UpdateManager.h"
 #include "boot/BootProgress.h"
 #include "display/DisplayOutput.h"
@@ -160,6 +161,9 @@ static int compileQml(const QString &appRoot) {
     std::printf("osdos: %d QML file(s) compiled into %s in %lld ms, %d not\n", compiled,
                 qPrintable(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/qmlcache")),
                 static_cast<long long>(clock.elapsed()), failed);
+    // This build's QML compiled: its first run has none to compile ahead
+    // (QmlWarmUp).
+    QmlWarmUp::markBuilt(QmlWarmUp::markerPath(), QmlWarmUp::stamp(QCoreApplication::applicationFilePath(), appRoot));
     return 0;
 }
 
@@ -625,6 +629,27 @@ int main(int argc, char *argv[]) {
         QObject::connect(rootWindow, &QQuickWindow::frameSwapped, &bootProgress,
                          &BootProgress::markReady, Qt::SingleShotConnection);
     QTimer::singleShot(5000, &bootProgress, &BootProgress::markReady);
+
+    // A new build (an update, a new install): every QML file compiled into
+    // the cache once the menus are up and idle, by a copy of the app
+    // (--compile-qml) at the lowest priority, so that the pages opened from
+    // here on and every start after this one find them compiled rather than
+    // compile each as it opens (QmlWarmUp.h says why not before this start).
+    // Stopped while a video or a game has the screen. Not in an AppImage,
+    // whose files are at another path each run: the cache never finds them.
+    QmlWarmUp qmlWarmUp(QCoreApplication::applicationFilePath(), { QStringLiteral("--compile-qml") },
+                        QmlWarmUp::markerPath(), QmlWarmUp::stamp(QCoreApplication::applicationFilePath(), appRoot));
+    qmlWarmUp.setBusy([&displayHandoff, &mpvController] {
+        return displayHandoff.held() || mpvController.videoActive();
+    });
+    if (!qEnvironmentVariableIsSet("APPIMAGE")) {
+        constexpr int kSettleMs = 20000;
+        if (rootWindow)
+            QObject::connect(rootWindow, &QQuickWindow::frameSwapped, &qmlWarmUp,
+                             [&qmlWarmUp] { qmlWarmUp.start(kSettleMs); }, Qt::SingleShotConnection);
+        else
+            qmlWarmUp.start(kSettleMs);
+    }
 
     // The main thread watched once the event loop runs (util/Diagnostics):
     // stuck 5 s, where it is goes to the journal and stall-report.txt. Under

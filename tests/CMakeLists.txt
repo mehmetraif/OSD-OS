@@ -50,7 +50,7 @@ endfunction()
 
 osdos_cpp_test(reliability
     SOURCES ../src/modules/playlists/ServerDownload.cpp ../src/modules/weather/WeatherBackend.cpp
-            ../src/update/UpdateManager.cpp ../src/util/LogFile.cpp
+            ../src/update/UpdateManager.cpp ../src/update/QmlWarmUp.cpp ../src/util/LogFile.cpp
     DEFINITIONS APP_VERSION="test" OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
     LIBRARIES osdos_test_audio Qt6::Concurrent Qt6::Network Qt6::Qml)
 # What a view says under "… is not installed", for the system OSD/OS runs

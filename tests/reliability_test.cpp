@@ -3,6 +3,7 @@
 #include "modules/playlists/ServerDownload.h"
 #include <QStorageInfo>
 #include "modules/weather/WeatherBackend.h"
+#include "update/QmlWarmUp.h"
 #include "update/UpdateManager.h"
 #include "util/AtomicFile.h"
 #include "util/CachedJsonFile.h"
@@ -759,6 +760,148 @@ private slots:
         QVERIFY(!QFileInfo::exists(ran));
     }
 #endif
+
+    // A new build's QML compiled ahead once the menus are idle (QmlWarmUp),
+    // by a stand-in for `osdos --compile-qml` that notes each start, its
+    // niceness, and its end: started once for a build, at the lowest
+    // priority, and the build kept as compiled, so that the next run starts
+    // nothing; a build changed since (its Main.qml) compiled again. While
+    // something is busy nothing starts, and one under way is stopped and
+    // started again once it isn't. One that fails or takes too long is given
+    // up on for the run, the build not kept: the next run tries again.
+    void qmlOfANewBuildCompiledAheadOnce() {
+#ifndef Q_OS_UNIX
+        QSKIP("The stand-in for the compile is a shell script");
+#else
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString log = tmp.path() + "/log";
+        const QString compile = tmp.path() + "/compile";
+        writeFileAtomically(compile, QStringLiteral(
+            "#!/bin/sh\n"
+            "echo \"start $1 $(cut -d' ' -f19 /proc/$$/stat 2>/dev/null)\" >> '%1'\n"
+            "[ -n \"$SLOW\" ] && sleep \"$SLOW\"\n"
+            "echo end >> '%1'\n"
+            "echo 'osdos: 3 QML file(s) compiled'\n"
+            "exit ${CODE:-0}\n").arg(log).toUtf8());
+        QVERIFY(QFile::setPermissions(compile, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const QString app = tmp.path() + "/app";
+        QVERIFY(QDir().mkpath(app));
+        writeFileAtomically(app + "/Main.qml", "import QtQuick\nItem {}\n");
+        const QString marker = tmp.path() + "/cache/qmlcache-built.json";
+        const auto lines = [&log](const char *word) {
+            const QList<QByteArray> all = contents(log).split('\n');
+            return int(std::count_if(all.cbegin(), all.cend(), [word](const QByteArray &l) { return l.startsWith(word); }));
+        };
+        const auto warmUp = [&](QmlWarmUp &w) {
+            w.setPollMs(50);
+            w.setTimeoutMs(10000);
+        };
+        const QString stamp = QmlWarmUp::stamp(compile, app);
+
+        {
+            QmlWarmUp w(compile, { "--compile-qml" }, marker, stamp);
+            warmUp(w);
+            QSignalSpy finished(&w, &QmlWarmUp::finished);
+            w.start(0);
+            QTRY_COMPARE(finished.count(), 1);
+            QCOMPARE(finished.first().first().toBool(), true);
+            QCOMPARE(lines("start"), 1);
+            QCOMPARE(lines("end"), 1);
+            QVERIFY2(contents(log).startsWith("start --compile-qml"), contents(log).constData());
+#ifdef Q_OS_LINUX
+            QVERIFY2(contents(log).startsWith("start --compile-qml 19\n"), contents(log).constData());
+#endif
+            QVERIFY(QmlWarmUp::built(marker, stamp));
+        }
+        // The next run: nothing.
+        {
+            QmlWarmUp w(compile, { "--compile-qml" }, marker, stamp);
+            warmUp(w);
+            QSignalSpy finished(&w, &QmlWarmUp::finished);
+            w.start(0);
+            QTest::qWait(300);
+            QCOMPARE(lines("start"), 1);
+            QCOMPARE(finished.count(), 0);
+        }
+        // Main.qml changed (an update's files): compiled again.
+        {
+            QFile main(app + "/Main.qml");
+            QVERIFY(main.open(QIODevice::ReadWrite));
+            QVERIFY(main.setFileTime(QDateTime::currentDateTime().addSecs(60), QFileDevice::FileModificationTime));
+        }
+        const QString changed = QmlWarmUp::stamp(compile, app);
+        QVERIFY(changed != stamp);
+        QVERIFY(!QmlWarmUp::built(marker, changed));
+
+        // Busy: nothing; then a start, stopped when busy again, started
+        // again once idle, compiled.
+        bool busy = true;
+        qputenv("SLOW", "1");
+        {
+            QmlWarmUp w(compile, { "--compile-qml" }, marker, changed);
+            warmUp(w);
+            w.setBusy([&busy] { return busy; });
+            QSignalSpy finished(&w, &QmlWarmUp::finished);
+            w.start(0);
+            QTest::qWait(300);
+            QCOMPARE(lines("start"), 1);
+            busy = false;
+            QTRY_COMPARE(lines("start"), 2);
+            busy = true;
+            QTRY_VERIFY(!w.running());
+            QTest::qWait(1500);
+            QCOMPARE(lines("end"), 1);  // stopped before its end
+            QCOMPARE(finished.count(), 0);
+            QVERIFY(!QmlWarmUp::built(marker, changed));
+            busy = false;
+            QTRY_COMPARE_WITH_TIMEOUT(finished.count(), 1, 5000);
+            QCOMPARE(finished.first().first().toBool(), true);
+            QCOMPARE(lines("start"), 3);
+            QCOMPARE(lines("end"), 2);
+            QVERIFY(QmlWarmUp::built(marker, changed));
+        }
+        qunsetenv("SLOW");
+
+        // Failed, or too long: given up on for the run, nothing kept.
+        QVERIFY(QFile::remove(marker));
+        qputenv("CODE", "1");
+        {
+            QmlWarmUp w(compile, { "--compile-qml" }, marker, changed);
+            warmUp(w);
+            QSignalSpy finished(&w, &QmlWarmUp::finished);
+            w.start(0);
+            QTRY_COMPARE(finished.count(), 1);
+            QCOMPARE(finished.first().first().toBool(), false);
+            QVERIFY(!QFileInfo::exists(marker));
+            QTest::qWait(200);
+            QCOMPARE(lines("start"), 4);
+        }
+        qunsetenv("CODE");
+        qputenv("SLOW", "5");
+        {
+            QmlWarmUp w(compile, { "--compile-qml" }, marker, changed);
+            warmUp(w);
+            w.setTimeoutMs(300);
+            QSignalSpy finished(&w, &QmlWarmUp::finished);
+            w.start(0);
+            QTRY_COMPARE(finished.count(), 1);
+            QCOMPARE(finished.first().first().toBool(), false);
+            QVERIFY(!w.running());
+            QVERIFY(!QFileInfo::exists(marker));
+        }
+        qunsetenv("SLOW");
+        // A program that isn't there: given up on, nothing else.
+        {
+            QmlWarmUp w(tmp.path() + "/none", { "--compile-qml" }, marker, changed);
+            warmUp(w);
+            QSignalSpy finished(&w, &QmlWarmUp::finished);
+            w.start(0);
+            QTRY_COMPARE(finished.count(), 1);
+            QCOMPARE(finished.first().first().toBool(), false);
+        }
+#endif
+    }
 
     // The files made for a run and handed to mpv (util/RuntimeFiles.h) go in
     // a folder of the user's own: the session's run-time folder; where that

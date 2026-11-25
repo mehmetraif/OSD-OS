@@ -613,6 +613,7 @@ Settings → System → **Update** installs a newer release ([Installation → U
 
 - The download is `OSD-OS-<version>-linux-arm64.tar.gz`, kept in `~/.local/share/OSD-OS/updates`.
 - **Apply & Restart** has the launcher swap the new version into `/opt/osdos`. Settings stay.
+- The first start of the new version compiles the menus' QML before their first frame, as the image's very first start would without its build's compile. About 20 seconds after the menus are up, while nothing plays, a copy of OSD/OS compiles all the rest at the lowest priority (`[QmlWarmUp]` in the journal), so the pages opened from then on, and every start after, aren't held up by it.
 - An update brings OSD/OS alone. A package a newer release needs comes with a newer image, or with `install.sh` run again.
 - Qt Quick 3D is such a package: a card flashed before 0.0.31 needs it installed once ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)).
 - An image built from a branch has a `dev` app. Its Update screen says **Dev build — self-update is disabled.**

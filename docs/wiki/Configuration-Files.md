@@ -454,14 +454,20 @@ OSD/OS carries over what a 240-MP install left:
 
 ## The cache folder
 
-OSD/OS caches one kind of file: menu music made into a WAV from a MIDI file (FluidSynth) or from a tracker's module mpv can't play (openmpt123).
+OSD/OS caches menu music made into a WAV from a MIDI file (FluidSynth) or from a tracker's module mpv can't play (openmpt123), and Qt keeps its compiled QML there.
 
 | System | Cache folder |
 |---|---|
-| Linux, the OSD/OS image | `~/.cache/OSD-OS/menu-music/`, or `$XDG_CACHE_HOME/OSD-OS/menu-music/` |
-| macOS | `~/Library/Caches/OSD-OS/menu-music/` |
+| Linux, the OSD/OS image | `~/.cache/OSD-OS/`, or `$XDG_CACHE_HOME/OSD-OS/` |
+| macOS | `~/Library/Caches/OSD-OS/` |
 
-Only the newest WAV is kept, and a changed file is made again. Deleting the folder is always safe.
+| In it | What it holds |
+|---|---|
+| `menu-music/` | Only the newest WAV; a changed file is made again |
+| `qmlcache/` | Qt's compiled QML, by each file's path and time |
+| `qmlcache-built.json` | The build whose QML has all been compiled: the `osdos` binary's path, size and time, the QML folder and its `Main.qml`'s time, and Qt's version. A new build (an update) compiles its QML once the menus are idle, at the lowest priority, then writes it |
+
+Deleting the folder is always safe.
 
 ## Logs and temporary files
 
