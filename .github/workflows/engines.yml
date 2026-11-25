@@ -94,6 +94,24 @@ jobs:
             echo "::notice::Debian has MAME ${mame}, which mamedev has no Windows build of"
             mame=$MAME_VERSION
           fi
+          # The SHA-256 of that Windows build, which the app checks the
+          # download against: the release's own SHA256SUMS line for the file.
+          # A MAME raised without one fails the job rather than keep the old
+          # version's hash for the new file.
+          mame_sha256=$MAME_WIN_SHA256
+          if [ "$mame" != "$MAME_VERSION" ]; then
+            tag="mame${mame//./}"
+            file="${tag}b_64bit.exe"
+            if ! sums=$(curl -fsSL --retry 3 "https://github.com/mamedev/mame/releases/download/${tag}/SHA256SUMS"); then
+              echo "::error::MAME ${mame}'s release has no SHA256SUMS to check ${file} by" >&2
+              exit 1
+            fi
+            mame_sha256=$(printf '%s\n' "$sums" | awk -v f="$file" '$2 == f || $2 == "*" f { print tolower($1) }')
+            if ! [[ "$mame_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::MAME ${mame}'s SHA256SUMS has no single SHA-256 for ${file}" >&2
+              exit 1
+            fi
+          fi
           # FinalBurn Neo's newest commit, and its date as the core's build
           # makes it (git's committer date, yymmdd), so that the version
           # matches libretro's own build of the same commit.
@@ -106,6 +124,7 @@ jobs:
             echo "retroarch=$retroarch"
             echo "retroarch_commit=$retroarch_commit"
             echo "mame=$mame"
+            echo "mame_sha256=$mame_sha256"
             echo "commit=$commit"
             echo "date=$date"
           } >> "$GITHUB_OUTPUT"
@@ -118,6 +137,7 @@ jobs:
           RETROARCH: ${{ steps.newest.outputs.retroarch }}
           RETROARCH_AT: ${{ steps.newest.outputs.retroarch_commit }}
           MAME: ${{ steps.newest.outputs.mame }}
+          MAME_SHA256: ${{ steps.newest.outputs.mame_sha256 }}
           COMMIT: ${{ steps.newest.outputs.commit }}
           DATE: ${{ steps.newest.outputs.date }}
         run: |
@@ -126,6 +146,7 @@ jobs:
                  -e "s/^RETROARCH_COMMIT=.*/RETROARCH_COMMIT=${RETROARCH_AT}/" \
                  -e "s/^\\(# RetroArch's commit at that version's tag (v\\)[0-9.]*)/\\1${RETROARCH})/" \
                  -e "s/^MAME_VERSION=.*/MAME_VERSION=${MAME}/" \
+                 -e "s/^MAME_WIN_SHA256=.*/MAME_WIN_SHA256=${MAME_SHA256}/" \
                  -e "s/^FBNEO_COMMIT=.*/FBNEO_COMMIT=${COMMIT}/" \
                  -e "s/^FBNEO_DATE=.*/FBNEO_DATE=${DATE}/" scripts/engines.env
           if git diff --quiet scripts/engines.env; then

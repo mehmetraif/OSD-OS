@@ -460,11 +460,11 @@ With **Save High Scores** on (the default), MAME runs with its hiscore plugin, w
 
 **Download MAME**, on Windows only, shows while no MAME is found.
 
-- It fetches MAME 0.276 for 64-bit Windows from mamedev's releases on GitHub, some 100 MB.
+- It fetches MAME 0.276 for 64-bit Windows from mamedev's releases on GitHub, some 100 MB, and checks it against the SHA-256 mamedev publishes for it before any of it is unpacked.
 - It unpacks into `arcade/mame` in the data folder, which takes up to half a gigabyte of memory and about 700 MB of disk.
 - The row is then **Download MAME Again**, which replaces that folder whole.
 - The same download starts with select on the `MAME is not installed` screen, where it says `DOWNLOAD MAME`.
-- A download that fails says why and leaves what was there: `github.com answered 404`, `The file is not a 7z archive`, `The download has no mame.exe`, or a disk that couldn't take it.
+- A download that fails says why and leaves what was there: `github.com answered 404`, `The file is not a 7z archive`, `The download has no mame.exe`, `The download is not the file expected` (its SHA-256 isn't the release's), or a disk that couldn't take it.
 
 ## FinalBurn Neo
 
@@ -527,7 +527,7 @@ OSD/OS's core is in the bundle on a Mac and beside `osdos.exe` on Windows. Elsew
 
 A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is loaded in place of OSD/OS's: delete it to have OSD/OS's back.
 
-**Download RetroArch**, on Windows only, shows while no RetroArch is found. It works as Download MAME does ([MAME's page](#mames-page)).
+**Download RetroArch**, on Windows only, shows while no RetroArch is found. It works as Download MAME does ([MAME's page](#mames-page)), except that libretro publishes no SHA-256 for its build, so the file is not checked against one (the log says so).
 
 - It fetches RetroArch 1.20.0 for 64-bit Windows from libretro's build server, some 200 MB.
 - It unpacks into `arcade/retroarch/RetroArch-Win64` in the data folder, which takes some 400 MB of memory and about 750 MB of disk.

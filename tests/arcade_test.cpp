@@ -14,6 +14,7 @@
 #include "modules/arcade/RomCheck.h"
 #include "util/DisplayHandoff.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -4866,11 +4867,13 @@ private slots:
         });
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
         // libretro's source as on a 64-bit Windows, its archive on the
-        // stand-in.
-        const auto source = [&base, &data](const char *archive) {
+        // stand-in, with the SHA-256 of what the stand-in serves.
+        const auto source = [&base, &data, &files](const char *archive) {
             ProgramInstaller::Source s = ProgramInstaller::retroarch(data.path());
             s.available = true;
             s.archive = QUrl(base + QLatin1String(archive));
+            s.sha256 = QString::fromLatin1(
+                QCryptographicHash::hash(files.value(archive), QCryptographicHash::Sha256).toHex());
             return s;
         };
         const QString program = libretro::downloadedRetroArch(data.path());
@@ -4933,6 +4936,40 @@ private slots:
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The download has no retroarch.exe"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
+        // The archive whole but not the file expected, its SHA-256 another:
+        // refused before any of it is unpacked, the one before kept.
+        ProgramInstaller::Source wrong = source("/stable/1.20.0/windows/x86_64/RetroArch.7z");
+        const QString archiveSha = wrong.sha256;
+        wrong.sha256 = QString(64, QLatin1Char('0'));
+        installer.start(wrong);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(),
+                 QStringLiteral("The download is not the file expected: its SHA-256 is %1, not %2")
+                     .arg(archiveSha, wrong.sha256));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // Its SHA-256 given in capitals, as some lists have it: the same.
+        ProgramInstaller::Source capitals = source("/stable/1.20.0/windows/x86_64/RetroArch.7z");
+        capitals.sha256 = capitals.sha256.toUpper();
+        installer.start(capitals);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
+        // None known, as for libretro's builds: installed unchecked, and
+        // said so in the log.
+        writeFile(program, "the one before");
+        ProgramInstaller::Source unchecked = source("/stable/1.20.0/windows/x86_64/RetroArch.7z");
+        unchecked.sha256.clear();
+        QTest::ignoreMessage(QtWarningMsg,
+                             "[Arcade] RetroArch's download is not checked: no SHA-256 is known for RetroArch.7z");
+        installer.start(unchecked);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QCOMPARE(finished.last().at(0).toBool(), true);
+        QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
+        QCOMPARE(leftovers(), QStringList());
+        writeFile(program, "the one before");
         // A machine libretro builds none for: this one, as the source stands.
         installer.start(ProgramInstaller::retroarch(data.path()));
         QVERIFY2(finished.last().at(1).toString().startsWith(QStringLiteral("There is no RetroArch build for this machine")),
@@ -4946,6 +4983,8 @@ private slots:
         QCOMPARE(pinned.version, QStringLiteral("1.20.0"));
         QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://buildbot.libretro.com/stable/1.20.0/windows/x86_64/RetroArch.7z")));
         QCOMPARE(pinned.program, QStringLiteral("retroarch.exe"));
+        // libretro publishes no SHA-256 for it (scripts/engines.env).
+        QCOMPARE(pinned.sha256, QString());
         QCOMPARE(pinned.target, home);
     }
 
@@ -4980,11 +5019,13 @@ private slots:
         });
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
         // mamedev's source as on a 64-bit Windows, its archive on the
-        // stand-in.
-        const auto source = [&base, &data](const char *archive) {
+        // stand-in, with the SHA-256 of what the stand-in serves.
+        const auto source = [&base, &data, &files](const char *archive) {
             ProgramInstaller::Source s = ProgramInstaller::mame(data.path());
             s.available = true;
             s.archive = QUrl(base + QLatin1String(archive));
+            s.sha256 = QString::fromLatin1(
+                QCryptographicHash::hash(files.value(archive), QCryptographicHash::Sha256).toHex());
             return s;
         };
         const QString program = mame::downloadedMame(data.path());
@@ -5040,6 +5081,31 @@ private slots:
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The file is not a 7z archive"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
+        // The release's file with the SHA-256 engines.env has for 0.276's
+        // (scripts/engines.env), which the stand-in isn't: refused before
+        // anything of it is unpacked or run, the one before kept.
+        ProgramInstaller::Source wrong = source("/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe");
+        const QString archiveSha = wrong.sha256;
+        wrong.sha256 = ProgramInstaller::mame(data.path()).sha256;
+        installer.start(wrong);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(),
+                 QStringLiteral("The download is not the file expected: its SHA-256 is %1, not %2")
+                     .arg(archiveSha, wrong.sha256));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // None known: installed unchecked, and said so in the log.
+        ProgramInstaller::Source unchecked = source("/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe");
+        unchecked.sha256.clear();
+        QTest::ignoreMessage(QtWarningMsg,
+                             "[Arcade] MAME's download is not checked: no SHA-256 is known for mame0276b_64bit.exe");
+        installer.start(unchecked);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for MAME for Windows"));
+        QCOMPARE(leftovers(), QStringList());
+        writeFile(program, "the one before");
         // A machine mamedev builds none for: this one, as the source stands.
         installer.start(ProgramInstaller::mame(data.path()));
         QVERIFY(finished.last().at(1).toString().startsWith(QStringLiteral("There is no MAME build for this machine")));
@@ -5052,6 +5118,8 @@ private slots:
         QCOMPARE(pinned.version, QStringLiteral("0.276"));
         QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe")));
         QCOMPARE(pinned.program, QStringLiteral("mame.exe"));
+        // The SHA-256 of that file in the release's SHA256SUMS.
+        QCOMPARE(pinned.sha256, QStringLiteral("12499709a4cfea351b997762c2e6399f7edc70855ec68efbc419024b51f9ffcc"));
         QCOMPARE(pinned.target, home);
     }
 
