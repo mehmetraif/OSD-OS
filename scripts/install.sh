@@ -524,16 +524,23 @@ sudo chmod +x "${LAUNCHER}"
 # a network game's packets marked CS4 for Wi-Fi's video queue
 # (osdos-netplay-priority.service, with the rules nft reads), as the OSD/OS
 # image has them, and the image's inbound filter, installed but off (below):
-# the image's own files, os/stage-osdos/02-system/files at
-# this release's tag, never a copy of their text here. On a desktop Pi too,
-# which then keeps its Wi-Fi awake as well. A release from before them, or no
-# answer from GitHub, leaves the system as it is, and says so.
+# the image's own files (os/stage-osdos/02-system/files),
+# never a copy of their text here, taken from the release's tarball
+# (share/osdos/system, CMakeLists.txt), which was checked against GitHub's
+# digest above: nothing a root unit is made of comes unchecked from the
+# network. On a desktop Pi too, which then keeps its Wi-Fi awake as well. A
+# release whose tarball doesn't carry them (one from before) leaves the system
+# as it is, and says so.
 # NETWORK_FILES_BEGIN
-IMAGE_FILES="https://raw.githubusercontent.com/${REPO}/${VERSION}/os/stage-osdos/02-system/files"
 NETWORK_DIR="${TMP_DIR}/image-files"
 mkdir -p "${NETWORK_DIR}"
+# The tarball's own members, ./usr/local/share/osdos/system/<file>, read
+# from the checked download, not from what was unpacked into INSTALL_DIR,
+# which the app's user can write.
+tar -xzf "${TMP_DIR}/${TARBALL}" -C "${NETWORK_DIR}" --no-same-owner --strip-components=6 \
+    --wildcards './usr/local/share/osdos/system/*' 2> /dev/null || true
 network_file() {
-    curl -fsSL --retry 3 -o "${NETWORK_DIR}/$1" "${IMAGE_FILES}/$1" && [ -s "${NETWORK_DIR}/$1" ]
+    [ -f "${NETWORK_DIR}/$1" ] && [ ! -L "${NETWORK_DIR}/$1" ] && [ -s "${NETWORK_DIR}/$1" ]
 }
 if network_file osdos-wifi-powersave.conf; then
     # From the next connection, or the next start.
@@ -541,7 +548,7 @@ if network_file osdos-wifi-powersave.conf; then
         /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
     echo "Wi-Fi's power saving is off from the next connection."
 else
-    echo "Warning: osdos-wifi-powersave.conf couldn't be read from ${VERSION}: Wi-Fi's power saving is left as it is." >&2
+    echo "Warning: ${TARBALL} has no osdos-wifi-powersave.conf (a release from before it): Wi-Fi's power saving is left as it is." >&2
 fi
 if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priority.service; then
     sudo apt-get install -y nftables || echo "Warning: nftables couldn't be installed: network games' packets go unmarked." >&2
@@ -552,7 +559,7 @@ if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priorit
     sudo systemctl restart osdos-netplay-priority.service \
         || echo "Warning: osdos-netplay-priority.service didn't start: network games' packets go unmarked (journalctl -u osdos-netplay-priority)." >&2
 else
-    echo "Warning: the network game's marking couldn't be read from ${VERSION}: its packets go unmarked." >&2
+    echo "Warning: ${TARBALL} has no network game's marking (a release from before it): its packets go unmarked." >&2
 fi
 # The image's inbound filter (osdos-firewall.service: only the home network's
 # addresses may connect), installed but left off: this system is its owner's,
