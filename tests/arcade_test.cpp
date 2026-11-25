@@ -5118,6 +5118,12 @@ private slots:
         QCOMPARE(pinned.version, QStringLiteral("0.276"));
         QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe")));
         QCOMPARE(pinned.program, QStringLiteral("mame.exe"));
+        // The Windows build's name by version: b_64bit.exe up to 0.280,
+        // b_x64.exe from 0.281, as engines.yml has it too.
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.276")), QStringLiteral("mame0276b_64bit.exe"));
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.280")), QStringLiteral("mame0280b_64bit.exe"));
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.281")), QStringLiteral("mame0281b_x64.exe"));
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.289")), QStringLiteral("mame0289b_x64.exe"));
         // The SHA-256 of that file in the release's SHA256SUMS.
         QCOMPARE(pinned.sha256, QStringLiteral("12499709a4cfea351b997762c2e6399f7edc70855ec68efbc419024b51f9ffcc"));
         QCOMPARE(pinned.target, home);

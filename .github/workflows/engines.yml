@@ -88,9 +88,20 @@ jobs:
               retroarch_commit=$RETROARCH_COMMIT
             fi
           fi
+          # mamedev's 64-bit Windows build of a version, as the app asks for
+          # it (ProgramInstaller::mameWindowsFile()): mameNNNNb_64bit.exe up
+          # to 0.280, mameNNNNb_x64.exe from 0.281.
+          mame_windows_file() {
+            local tag="mame${1//./}"
+            if [[ "$1" =~ ^0\.([0-9]+)$ ]] && (( 10#${BASH_REMATCH[1]} < 281 )); then
+              echo "${tag}b_64bit.exe"
+            else
+              echo "${tag}b_x64.exe"
+            fi
+          }
           tag="mame${mame//./}"
           if [ "$mame" != "$MAME_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
-              "https://github.com/mamedev/mame/releases/download/${tag}/${tag}b_64bit.exe"; then
+              "https://github.com/mamedev/mame/releases/download/${tag}/$(mame_windows_file "$mame")"; then
             echo "::notice::Debian has MAME ${mame}, which mamedev has no Windows build of"
             mame=$MAME_VERSION
           fi
@@ -101,7 +112,7 @@ jobs:
           mame_sha256=$MAME_WIN_SHA256
           if [ "$mame" != "$MAME_VERSION" ]; then
             tag="mame${mame//./}"
-            file="${tag}b_64bit.exe"
+            file=$(mame_windows_file "$mame")
             if ! sums=$(curl -fsSL --retry 3 "https://github.com/mamedev/mame/releases/download/${tag}/SHA256SUMS"); then
               echo "::error::MAME ${mame}'s release has no SHA256SUMS to check ${file} by" >&2
               exit 1

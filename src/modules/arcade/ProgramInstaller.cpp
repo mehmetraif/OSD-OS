@@ -10,6 +10,7 @@
 #include <QNetworkAccessManager>
 #include <QPromise>
 #include <QSysInfo>
+#include <QVersionNumber>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace {
@@ -75,16 +76,26 @@ ProgramInstaller::Source ProgramInstaller::retroarch(const QString &dataRoot) {
     return source;
 }
 
+QString ProgramInstaller::mameWindowsFile(const QString &version) {
+    // mamedev's release mameNNNN has the 64-bit Windows build as
+    // mameNNNNb_64bit.exe up to 0.280 and as mameNNNNb_x64.exe from 0.281,
+    // when an ARM build (mameNNNNb_arm64.exe) came beside it.
+    const QString tag = QStringLiteral("mame") + QString(version).remove(QLatin1Char('.'));
+    const bool x64 = QVersionNumber::fromString(version) >= QVersionNumber(0, 281);
+    return tag + (x64 ? QStringLiteral("b_x64.exe") : QStringLiteral("b_64bit.exe"));
+}
+
 ProgramInstaller::Source ProgramInstaller::mame(const QString &dataRoot) {
-    // mamedev's release mame0276 has mame0276b_64bit.exe, the 64-bit Windows
-    // build, a self-extracting archive with mame.exe at its top, beside the
-    // sources (mame0276s.exe) and the ARM build.
+    // mamedev's release of the version: its 64-bit Windows build
+    // (mameWindowsFile()), a self-extracting archive with mame.exe at its
+    // top, beside the sources (mameNNNNs.exe). 0.276 has no ARM build.
     Source source;
     source.name = QStringLiteral("MAME");
     source.version = QLatin1String(kMameVersion);
     source.available = windows64();
     const QString tag = QStringLiteral("mame") + QString(source.version).remove(QLatin1Char('.'));
-    source.archive = QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/%1/%1b_64bit.exe").arg(tag));
+    source.archive = QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/%1/%2")
+                              .arg(tag, mameWindowsFile(source.version)));
     source.sha256 = QLatin1String(kMameSha256);
     source.program = QStringLiteral("mame.exe");
     source.target = QFileInfo(mame::downloadedMame(dataRoot)).absolutePath();

@@ -72,6 +72,9 @@ public:
     // libretro's RetroArch and mamedev's MAME, for a 64-bit Windows.
     static Source retroarch(const QString &dataRoot);
     static Source mame(const QString &dataRoot);
+    // The name of the 64-bit Windows build in mamedev's release of a
+    // version: mame0276b_64bit.exe up to 0.280, mame0281b_x64.exe from 0.281.
+    static QString mameWindowsFile(const QString &version);
 
     explicit ProgramInstaller(QObject *parent = nullptr);
 
