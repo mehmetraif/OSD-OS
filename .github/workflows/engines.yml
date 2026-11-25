@@ -58,17 +58,48 @@ jobs:
           set -euo pipefail
           . scripts/engines.env
           # Debian trixie's version of a source package, upstream's part of
-          # it: 1.20.0 of 1.20.0+dfsg-2.
+          # it: 1.20.0 of 1.20.0+dfsg-2, 0.276 of 0.276+dfsg.1-1+deb13u1.
+          # Read from qa.debian.org's madison (lines "pkg | version | suite
+          # | architectures"), else from ftp-master's API, which answers the
+          # same in JSON ([{pkg: {suite: {version: {architectures: [...]}}}}])
+          # where qa.debian.org fails (it has answered HTTP 500 for mame).
+          # Nothing printed when neither gives the package's source; an
+          # answer whose version isn't one fails the job.
           debian() {
-            curl -fsSL --retry 3 "https://qa.debian.org/madison.php?package=$1&s=trixie&text=on" \
-              | awk -F'|' '$3 ~ /trixie/ && $4 ~ /source/ { gsub(/ /, "", $2); print $2; exit }' \
-              | sed -e 's/^[0-9]*://' -e 's/[+~-].*$//'
+            local answer full=""
+            if answer=$(curl -fsSL --retry 3 "https://qa.debian.org/madison.php?package=$1&s=trixie&text=on"); then
+              full=$(printf '%s\n' "$answer" \
+                | awk -F'|' '$3 ~ /trixie/ && $4 ~ /source/ { gsub(/ /, "", $2); print $2; exit }')
+            fi
+            if [ -z "$full" ]; then
+              echo "::warning::qa.debian.org gave no version of $1; reading ftp-master's instead" >&2
+              if answer=$(curl -fsSL --retry 3 "https://api.ftp-master.debian.org/madison?package=$1&s=trixie&f=json"); then
+                full=$(printf '%s\n' "$answer" | jq -r --arg p "$1" '
+                  [.[] | .[$p] // empty | .[] | to_entries[]
+                   | select(.value.architectures | index("source")) | .key]
+                  | unique | if length == 1 then .[0] else empty end' 2>/dev/null) || full=""
+              fi
+            fi
+            [ -n "$full" ] || return 0
+            local upstream
+            upstream=$(printf '%s\n' "$full" | sed -e 's/^[0-9]*://' -e 's/[+~-].*$//')
+            if ! [[ "$upstream" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+              echo "::error::Debian gives $1 as '${full}', which is not a version this workflow can read" >&2
+              return 1
+            fi
+            echo "$upstream"
           }
-          retroarch=$(debian retroarch)
-          mame=$(debian mame)
+          retroarch=$(debian retroarch) || exit 1
+          mame=$(debian mame) || exit 1
+          # Neither source answering for one leaves it as it is, and
+          # FinalBurn Neo is still raised; the run fails at its end
+          # (debian_failed) so that it is seen.
+          debian_failed=false
           if [ -z "$retroarch" ] || [ -z "$mame" ]; then
-            echo "Debian's versions could not be read" >&2
-            exit 1
+            echo "::error::Debian's versions could not be read (retroarch: ${retroarch:-none}, mame: ${mame:-none}); what could not be read stays as it is" >&2
+            debian_failed=true
+            retroarch=${retroarch:-$RETROARCH_VERSION}
+            mame=${mame:-$MAME_VERSION}
           fi
           # A version OSD/OS can't download for Windows yet stays as it is.
           if [ "$retroarch" != "$RETROARCH_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
@@ -138,6 +169,7 @@ jobs:
             echo "mame_sha256=$mame_sha256"
             echo "commit=$commit"
             echo "date=$date"
+            echo "debian_failed=$debian_failed"
           } >> "$GITHUB_OUTPUT"
           echo "RetroArch ${RETROARCH_VERSION} -> ${retroarch}, MAME ${MAME_VERSION} -> ${mame}," \
                "FinalBurn Neo ${FBNEO_COMMIT:0:7} -> ${commit:0:7} (${date})"
@@ -176,6 +208,7 @@ jobs:
           MAME: ${{ steps.newest.outputs.mame }}
           COMMIT: ${{ steps.newest.outputs.commit }}
           DATE: ${{ steps.newest.outputs.date }}
+          DEBIAN_FAILED: ${{ steps.newest.outputs.debian_failed }}
         run: |
           set -euo pipefail
           # The version it rises from: engines.env as checked out, before
@@ -198,6 +231,11 @@ jobs:
 
           RetroArch rises from ${RETROARCH_BEFORE}: scripts/retroarch-fixes.patch is made against ${RETROARCH_BEFORE}'s commit and must be made again for ${RETROARCH} before this is merged. Until then the Linux arm64 RetroArch's build (retroarch.yml) stops where the patch does not apply. Upstream's later versions carry some of its fixes already; the bind of the network gamepad to 127.0.0.1 is OSD/OS's own and has to stay."
           fi
+          if [ "$DEBIAN_FAILED" = true ]; then
+            body+="
+
+          Debian's versions could not be read on this run (the run's log says which), so what could not be read stays as it was."
+          fi
           if [ -z "$(gh pr list --head engines/raise --state open --json number --jq '.[].number')" ]; then
             gh pr create --head engines/raise --base "${{ github.event.repository.default_branch }}" --title "$title" --body "$body"
           else
@@ -206,3 +244,11 @@ jobs:
           for workflow in fbneo.yml windows.yml freebsd.yml openbsd.yml retroarch.yml; do
             gh workflow run "$workflow" --ref engines/raise
           done
+
+      # FinalBurn Neo was raised without Debian's versions: the run fails
+      # here, after it, so that a source gone wrong doesn't pass unseen.
+      - name: Debian's versions were read
+        if: steps.newest.outputs.debian_failed == 'true'
+        run: |
+          echo "::error::Debian's versions of retroarch and mame could not be read; see the step 'The newest each can be'" >&2
+          exit 1
