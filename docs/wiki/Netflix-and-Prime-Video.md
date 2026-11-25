@@ -134,6 +134,7 @@ Backspace and Right Shift don't count as back while the browser is open. On a Ma
 
 - Each service keeps its sign-in in its own Chromium profile in the data folder: `netflix/browser` and `prime_video/browser`.
 - **Sign Out** deletes that profile. It does nothing while the browser is open.
+- On a Raspberry Pi the profiles are on the SD card, and whoever has the card has the sign-ins in them: sign out of both services before the card leaves the house.
 - Without `wtype` (or on a desktop), close the browser with `Ctrl+W` after signing in, or wait half a minute before holding back. Otherwise the sign-in may not be saved.
 
 ## Chromium, Widevine and cage
