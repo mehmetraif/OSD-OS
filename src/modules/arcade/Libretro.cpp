@@ -835,9 +835,14 @@ QString configText(const Launch &launch) {
     }
     if (launch.netplay == Launch::Netplay::Host) {
         // In the lobby, through a relay: a home connection takes no calls.
+        // And no port asked of the router (UPnP) for the internet to call
+        // in on: OSD/OS hosts online through a relay alone, and RetroArch
+        // 1.20 only tries that unrelayed, so this is the line that keeps it
+        // so whatever a RetroArch's own default.
         set("netplay_public_announce", on(true));
         set("netplay_use_mitm_server", on(true));
         set("netplay_mitm_server", launch.relay.isEmpty() ? QStringLiteral("nyc") : launch.relay);
+        set("netplay_nat_traversal", on(false));
     } else if (launch.netplay == Launch::Netplay::LanHost) {
         // On the local network alone, straight: a host that isn't relayed
         // answers the queries made there (readLanAnswer()). Not in the

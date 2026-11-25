@@ -2359,8 +2359,10 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("cheevos_username")));
         QVERIFY(!config.contains(QStringLiteral("video_driver")));
         QVERIFY(!config.contains(QStringLiteral("input_driver ")));
+        // Through the relay, and no port asked of the router (UPnP).
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "netplay_nat_traversal = \"false\"",
                                   "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         // The core's options from OSD/OS's file for the network alone, no
@@ -6993,6 +6995,7 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "netplay_nat_traversal = \"false\"",
                                   "netplay_input_latency_frames_min = \"2\"", "netplay_ping_show = \"true\"",
                                   "video_max_swapchain_images = \"2\"", "audio_latency = \"48\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
