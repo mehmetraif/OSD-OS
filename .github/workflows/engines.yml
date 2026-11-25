@@ -18,9 +18,11 @@ name: Engines
 #   LAN core's patch has to apply to it.
 #
 # GitHub starts no workflow for a push or a pull request made with this
-# workflow's own token, so the branch's checks (those four and retroarch.yml)
-# are started here by hand, on the branch, once it is pushed: their results
-# are the pull request's, as its head commit's.
+# workflow's own token, so the branch's checks (those four, retroarch.yml and
+# the regression tests, regression-tests.yml) are started here by hand, on
+# the branch, once it is pushed: their results are the pull request's, as its
+# head commit's. The pull request's description gives the reviewer FinalBurn
+# Neo's range of commits and what changed in the parts OSD/OS leans on.
 #
 # A rise is a pull request on the branch engines/raise, made again on each
 # run while it is open. Merged, the next release brings the new engines to
@@ -157,16 +159,22 @@ jobs:
           # FinalBurn Neo's newest commit, and its date as the core's build
           # makes it (git's committer date, yymmdd), so that the version
           # matches libretro's own build of the same commit.
-          git init -q fbneo
-          git -C fbneo fetch -q --depth 1 --filter=blob:none https://github.com/libretro/FBNeo.git master
-          commit=$(git -C fbneo rev-parse FETCH_HEAD)
-          date=$(git -C fbneo log -1 --format=%cd --date=format:%y%m%d FETCH_HEAD)
-          rm -rf fbneo
+          # The clone, without its files' contents (a partial clone of
+          # origin, which fetches them as they are wanted), is kept outside
+          # the checkout for the pull request's account of the change.
+          fbneo=$RUNNER_TEMP/fbneo
+          rm -rf "$fbneo"
+          git init -q "$fbneo"
+          git -C "$fbneo" remote add origin https://github.com/libretro/FBNeo.git
+          git -C "$fbneo" fetch -q --depth 1 --filter=blob:none origin master
+          commit=$(git -C "$fbneo" rev-parse FETCH_HEAD)
+          date=$(git -C "$fbneo" log -1 --format=%cd --date=format:%y%m%d FETCH_HEAD)
           {
             echo "retroarch=$retroarch"
             echo "retroarch_commit=$retroarch_commit"
             echo "mame=$mame"
             echo "mame_sha256=$mame_sha256"
+            echo "old_commit=$FBNEO_COMMIT"
             echo "commit=$commit"
             echo "date=$date"
             echo "debian_failed=$debian_failed"
@@ -200,6 +208,55 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # For the reviewer: FinalBurn Neo's commits from the one before to the
+      # new one, and what changed in the parts OSD/OS leans on (the CV1000
+      # driver and its epic12 blitter, which the LAN patch changes; the
+      # libretro front end, which the rest of it changes; the archive readers
+      # and libchdr, which read the sets), from the clone the step above
+      # kept: the history between the two fetched, the files' contents as
+      # the diff wants them.
+      - name: What changed in FinalBurn Neo
+        id: changes
+        if: steps.raise.outputs.changed == 'true'
+        env:
+          OLD: ${{ steps.newest.outputs.old_commit }}
+          NEW: ${{ steps.newest.outputs.commit }}
+        run: |
+          set -euo pipefail
+          fbneo=$RUNNER_TEMP/fbneo
+          notes=$RUNNER_TEMP/fbneo-changes.md
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+          if [ "$OLD" = "$NEW" ]; then
+            echo "FinalBurn Neo stays at libretro/FBNeo@${NEW}." > "$notes"
+            exit 0
+          fi
+          paths=(src/burn/drv/cave/d_cv1k.cpp 'src/burn/devices/epic12*' src/burner/libretro
+                 src/burner/unzip.c src/burner/un7z.cpp src/dep/libs/libchdr)
+          if ! git -C "$fbneo" fetch -q --depth 1 --filter=blob:none origin "$OLD" ||
+             ! since=$(git -C "$fbneo" log -1 --format=%cI "$OLD") ||
+             ! git -C "$fbneo" fetch -q --filter=blob:none --shallow-since="$since" origin "$NEW" ||
+             ! count=$(git -C "$fbneo" rev-list --count "${OLD}..${NEW}") ||
+             ! files=$(git -C "$fbneo" diff --name-only "$OLD" "$NEW" | wc -l) ||
+             ! stat=$(git -C "$fbneo" diff --stat=100 "$OLD" "$NEW" -- "${paths[@]}"); then
+            echo "::warning::FinalBurn Neo's changes from ${OLD:0:7} to ${NEW:0:7} could not be read"
+            echo "FinalBurn Neo's changes from ${OLD} to ${NEW} could not be read on this run: see the run's log, and compare https://github.com/libretro/FBNeo/compare/${OLD}...${NEW} by hand." > "$notes"
+            exit 0
+          fi
+          ancestry="the new commit follows the one before"
+          if ! git -C "$fbneo" merge-base --is-ancestor "$OLD" "$NEW"; then
+            ancestry="the new commit does not follow the one before: the branch was rewritten, so read the comparison with care"
+          fi
+          {
+            echo "FinalBurn Neo ${OLD:0:7}..${NEW:0:7}: ${count} commits, ${files} files changed; ${ancestry} (https://github.com/libretro/FBNeo/compare/${OLD}...${NEW})."
+            echo
+            echo "What changed in the parts OSD/OS leans on (${paths[*]}):"
+            echo
+            echo '```'
+            if [ -n "$stat" ]; then echo "$stat"; else echo "nothing"; fi
+            echo '```'
+          } > "$notes"
+          cat "$notes"
+
       - name: Pull request
         if: steps.raise.outputs.changed == 'true'
         env:
@@ -209,6 +266,7 @@ jobs:
           COMMIT: ${{ steps.newest.outputs.commit }}
           DATE: ${{ steps.newest.outputs.date }}
           DEBIAN_FAILED: ${{ steps.newest.outputs.debian_failed }}
+          NOTES: ${{ steps.changes.outputs.notes }}
         run: |
           set -euo pipefail
           # The version it rises from: engines.env as checked out, before
@@ -224,6 +282,8 @@ jobs:
 
           - FinalBurn Neo: libretro/FBNeo@${COMMIT} (${DATE}), built for every package by this pull request's checks.
           - RetroArch ${RETROARCH} and MAME ${MAME}: Debian trixie's, the OSD/OS image's, which Windows downloads too. The Linux arm64 package's own RetroArch, with TLS, is built from the same version's tag by this pull request's checks.
+
+          $(cat "$NOTES")
 
           Merged, the next release brings them to every machine."
           if [ "$RETROARCH" != "$RETROARCH_BEFORE" ]; then
@@ -241,7 +301,7 @@ jobs:
           else
             gh pr edit engines/raise --title "$title" --body "$body"
           fi
-          for workflow in fbneo.yml windows.yml freebsd.yml openbsd.yml retroarch.yml; do
+          for workflow in fbneo.yml windows.yml freebsd.yml openbsd.yml retroarch.yml regression-tests.yml; do
             gh workflow run "$workflow" --ref engines/raise
           done
 

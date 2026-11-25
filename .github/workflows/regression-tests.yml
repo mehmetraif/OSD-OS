@@ -3,10 +3,13 @@ name: Regression tests
 # Builds the app and the regression tests (tests/, see tests/README.md) on
 # both Linux architectures, and runs the tests; then once more on the Pi's own
 # system, Raspberry Pi OS, with its newer Qt and mpv. The release workflow
-# runs it too, and publishes nothing unless it passes.
+# runs it too, and publishes nothing unless it passes. The engines' raise
+# (engines.yml) starts it by hand on its branch, whose pull request, opened
+# with that workflow's own token, starts no pull_request run.
 
 on:
   workflow_call:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: &paths
