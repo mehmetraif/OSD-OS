@@ -10,7 +10,8 @@
 # hostnamectl, raspi-config, systemctl, chpasswd and timedatectl are
 # stand-ins that only note what they were asked. A whole file: off the boot
 # partition at the first stage, root's alone until the second has applied
-# it, nothing of its passwords in the log; the same again, changing nothing
+# it, nothing of its passwords in the log, its bytes on the boot partition
+# overwritten with zeros before it goes; the same again, changing nothing
 # more; files it takes only part of, or none of; and a start cut short.
 # Every name and password is an invented one.
 #   osdos_setup_test.sh <osdos-setup> <scripts/install.sh> <os/stage-osdos/03-boot/files>
@@ -383,6 +384,31 @@ check "no password of it kept" "" "$(grep -r -l hunter22 "$T/var" "$BOOT")"
 printf '\xef\xbb\xbf{ "osdos_setup": 1, "device": { "name": "bom-tv" } }\n' > "$BOOT/osdos-setup.json"
 apply
 check "a BOM: read" "bom-tv" "$(cat "$T/etc/hostname")"
+
+# The file's bytes overwritten with zeros before it goes, so that its
+# plain-text passwords aren't left in the partition's free space: read
+# through a descriptor held open on it from before, the same file, it holds
+# zeros alone, as long as it was.
+printf '{ "osdos_setup": 1, "wifi": { "ssid": "Loft", "password": "wipe me please" } }\n' > "$BOOT/osdos-setup.json"
+size=$(stat -c %s "$BOOT/osdos-setup.json")
+exec 3< "$BOOT/osdos-setup.json"
+apply
+check "wiped: the file gone" "no" "$(there "$BOOT/osdos-setup.json")"
+check "wiped: zeros where its bytes were, as many" "$size 0" \
+    "$(head -c "$size" <&3 | wc -c) $(head -c "$size" "/proc/$$/fd/3" | tr -d '\0' | wc -c)"
+exec 3<&-
+# A link is deleted, never followed; a file with another name (a hard link,
+# which bootfs can't have) is deleted, and the other name's file not wiped.
+printf '{ "osdos_setup": 1, "device": { "name": "link-tv" } }\n' > "$T/elsewhere.json"
+cp "$T/elsewhere.json" "$T/elsewhere.orig"
+ln -s "$T/elsewhere.json" "$BOOT/osdos-setup.json"
+apply
+check "a link: deleted" "no" "$(there "$BOOT/osdos-setup.json")"
+check "a link: what it points to not wiped" "same" "$(cmp -s "$T/elsewhere.json" "$T/elsewhere.orig" && echo same)"
+ln "$T/elsewhere.json" "$BOOT/osdos-setup.json"
+apply
+check "a hard link: deleted" "no" "$(there "$BOOT/osdos-setup.json")"
+check "a hard link: the other name's file not wiped" "same" "$(cmp -s "$T/elsewhere.json" "$T/elsewhere.orig" && echo same)"
 
 # A start cut short after the app's stage: the next start's app stage sets
 # nothing twice, and the system's says all of it once.

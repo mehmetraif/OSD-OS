@@ -51,6 +51,9 @@ import uuid
 
 SETUP_VERSION = 1
 MAX_SIZE = 1024 * 1024
+# The most of a file on bootfs overwritten before it goes (wipe()): far more
+# than the page makes, little enough to write as the card starts.
+WIPE_MAX = 16 * MAX_SIZE
 # Raspberry Pi OS's own PATH for services, where osdos-stop is too.
 PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # The parts the app reads as it starts, set before it does.
@@ -270,6 +273,10 @@ class Setup:
         return True
 
     def remove_file(self):
+        # Its plain-text passwords (Wi-Fi's, RetroAchievements') overwritten
+        # where they are first, rather than left in the partition's free
+        # space, where anyone with the card could read them back.
+        wipe(self.file)
         try:
             os.remove(self.file)
         except OSError as e:
@@ -736,6 +743,35 @@ def sync_folder(folder):
             os.close(dir_fd)
     except OSError:
         pass
+
+
+def wipe(path):
+    """A file's bytes overwritten with zeros where they lie, and on the card,
+    before it is deleted. Best effort: an SD card's controller may write the
+    zeros to other cells and keep the old ones until it reuses them, which
+    nothing short of erasing the card reaches; a FAT file system writes them
+    where the file is. A link is never followed (O_NOFOLLOW), and only a
+    plain file with no other name is touched (a hard link, which the boot
+    partition can't have, could be another file of root's); one bigger than
+    any the page makes is deleted as it is. Never fails: the delete that
+    follows says what went wrong."""
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > WIPE_MAX:
+            return
+        zeros = bytes(64 * 1024)
+        left = st.st_size
+        while left > 0:
+            left -= os.write(fd, zeros[:min(left, len(zeros))])
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def write_atomically(path, data, mode=None):

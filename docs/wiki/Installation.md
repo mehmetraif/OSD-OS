@@ -142,7 +142,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 - Only what you change on the page goes into the file.
 - **Export** saves `osdos-setup.json` alone. **Import** reads it back, or reads OSD/OS's own `config.json`.
 - The file can also go on a card that has already been started.
-- The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is deleted from the card once applied.
+- The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is overwritten with zeros and deleted from the card as the Pi starts. A copy left on your computer, or in its recycle bin, stays there.
 - A display output chosen for another kind of Pi is not applied, and the log says so.
 - SSH stays as the card set it until Settings → System → **SSH** turns it off or on; the password and the keys stay the card's either way, and a later card's SSH setting wins again.
 

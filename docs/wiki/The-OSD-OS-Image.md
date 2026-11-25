@@ -62,7 +62,7 @@ Raspberry Pi Imager 2 offers no OS customisation for an image chosen with **Use 
 
 [OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what a card starts with ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) has the steps). Its file, `osdos-setup.json`, goes on the boot partition (**bootfs**). `/usr/local/sbin/osdos-setup` applies it in two stages:
 
-1. **`osdos-setup-app.service`**, before OSD/OS starts, moves the file to `/var/lib/osdos-setup/pending.json` (root's alone). It sets OSD/OS's settings and the RetroAchievements account.
+1. **`osdos-setup-app.service`**, before OSD/OS starts, moves the file to `/var/lib/osdos-setup/pending.json` (root's alone), and overwrites it on bootfs with zeros before deleting it, so that its passwords don't stay in the partition's free space (as far as the SD card's controller allows: it may keep the old cells until it reuses them). It sets OSD/OS's settings and the RetroAchievements account.
 2. **`osdos-setup.service`**, once OSD/OS is on screen, sets the rest. The boot screen lists it as **SETTINGS**: `[ OK ]` when all was set, `[FAIL]` when anything wasn't. It then writes `osdos-setup.log` on the boot partition, without passwords.
 
 The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. Each part is applied on its own:
