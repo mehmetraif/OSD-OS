@@ -36,7 +36,10 @@ source is in Ubuntu's archive.
 The Linux arm64 tarball, and so the OSD/OS image, also carries RetroArch
 (GPL v3, OSD/OS's own `LICENSE`), built by `scripts/build-retroarch.sh` from
 https://github.com/libretro/RetroArch at the commit `scripts/engines.env`
-names, unchanged, with TLS. The licences of the libraries built into it from
+names, with TLS. It is a modified RetroArch: `scripts/retroarch-fixes.patch`
+in OSD/OS's source changes it before the build, with fixes from RetroArch's
+and BearSSL's later commits and the network gamepad bound to 127.0.0.1; the
+patch's header lists each change. The licences of the libraries built into it from
 its source (BearSSL, FLAC, rcheevos, SPIRV-Cross and others) are beside it,
 in `share/osdos/retroarch/licenses.txt`.
 

@@ -7,7 +7,11 @@ name: Engines
 # - RetroArch and MAME: Debian trixie's, the OSD/OS image's, the lowest that
 #   any distribution of OSD/OS has. A version Debian has raised is taken once
 #   OSD/OS can download it for Windows as well: libretro's stable build of
-#   RetroArch and mamedev's release of MAME.
+#   RetroArch and mamedev's release of MAME. The Linux arm64 package's own
+#   RetroArch is built from that version's tag with scripts/retroarch-fixes.patch,
+#   which is made against the commit it rises from: its build
+#   (retroarch.yml) stops until the patch is made again for the new one, and
+#   the pull request says so.
 # - FinalBurn Neo: the newest commit of libretro's FBNeo, which OSD/OS builds
 #   for every package. The pull request's own checks build it on every
 #   system (fbneo.yml, windows.yml, freebsd.yml, openbsd.yml), and the CV1000
@@ -142,6 +146,9 @@ jobs:
           DATE: ${{ steps.newest.outputs.date }}
         run: |
           set -euo pipefail
+          # The version it rises from: engines.env as checked out, before
+          # the step above raised it.
+          RETROARCH_BEFORE=$(git show HEAD:scripts/engines.env | sed -n 's/^RETROARCH_VERSION=//p')
           title="chore: arcade engines raised to FinalBurn Neo ${COMMIT:0:7}, RetroArch ${RETROARCH} and MAME ${MAME}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -154,6 +161,11 @@ jobs:
           - RetroArch ${RETROARCH} and MAME ${MAME}: Debian trixie's, the OSD/OS image's, which Windows downloads too. The Linux arm64 package's own RetroArch, with TLS, is built from the same version's tag by this pull request's checks.
 
           Merged, the next release brings them to every machine."
+          if [ "$RETROARCH" != "$RETROARCH_BEFORE" ]; then
+            body="${body}
+
+          RetroArch rises from ${RETROARCH_BEFORE}: scripts/retroarch-fixes.patch is made against ${RETROARCH_BEFORE}'s commit and must be made again for ${RETROARCH} before this is merged. Until then the Linux arm64 RetroArch's build (retroarch.yml) stops where the patch does not apply. Upstream's later versions carry some of its fixes already; the bind of the network gamepad to 127.0.0.1 is OSD/OS's own and has to stay."
+          fi
           if [ -z "$(gh pr list --head engines/raise --state open --json number --jq '.[].number')" ]; then
             gh pr create --head engines/raise --base "${{ github.event.repository.default_branch }}" --title "$title" --body "$body"
           else

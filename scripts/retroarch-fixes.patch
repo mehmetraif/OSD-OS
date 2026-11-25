@@ -1,0 +1,205 @@
+# OSD/OS's changes to RetroArch 1.20.0 (commit
+# ab3b175848fa6cd8b2340809631e30bc0fe1d136, the v1.20.0 tag), which
+# scripts/build-retroarch.sh applies before it builds the Linux arm64
+# package's RetroArch. Each part, with where it comes from:
+#
+# 1. network/netplay/netplay_frontend.c, netplay_handshake_pre_sync() and
+#    the NETPLAY_CMD_MODE case of netplay_get_cmd(): the joining side
+#    refuses a client number the host sends that is out of range, or that
+#    is not its own in a mode change addressed to it, before it indexes
+#    its per-client arrays with it. Upstream 9a19e7a94d4891657d1d57f61f69c5aec317343d
+#    ("netplay: validate assigned client number before use"), ported by
+#    hand: 1.20.0 keeps the host's pause as netplay->remote_paused where
+#    master has NETPLAY_FLAG_REMOTE_PAUSED.
+# 2. input/input_driver.c, input_remote_init_network(): the network
+#    gamepad's UDP socket is bound to 127.0.0.1 instead of every address,
+#    so that only this machine can press its buttons. OSD/OS's own.
+# 3. libretro-common/streams/file_stream.c, filestream_vscanf(): an
+#    out-of-bounds read through an uninitialised length (CVE-2025-9136).
+#    Upstream b0999db885a0f1530f0e968c7450a4f0aa624b65 ("properly
+#    initialize variable (#17555)").
+# 4. network/netplay/netplay_frontend.c, netplay_handle_slaves(): a NULL
+#    dereference when a frame's input is replayed. Upstream
+#    8fd7aa48c61891aa93f995e4e04bdf50a57a6677 ("network/netplay/netplay_frontend:
+#    NULL-check istate_out in frame real_input copy path").
+# 5. deps/bearssl-0.6 (BearSSL 0.6, RetroArch's TLS here): a CBC record
+#    whose length is not a whole number of blocks is refused
+#    (src/ssl/ssl_rec_cbc.c), and the X.509 and private-key decoders stop
+#    at their first error (src/x509/). BearSSL upstream
+#    7bea48e5e850ab4cafbe68d3765cdaba13a86d6f ("Fixed bug in handling
+#    incoming records with invalid length") and
+#    3479195d052cc59db5358730ff3ad829abb7aced ("Fixed chunked decoding in
+#    case of errors"), from https://www.bearssl.org/git/BearSSL, with
+#    their paths under deps/bearssl-0.6.
+#
+# None of it changes RetroArch's version, its netplay protocol or what two
+# machines send each other: a RetroArch built with it plays with a stock
+# 1.20.0. Made on 2026-11-25 with git diff against the tag; applied with
+# patch -p1.
+
+diff --git a/deps/bearssl-0.6/src/ssl/ssl_rec_cbc.c b/deps/bearssl-0.6/src/ssl/ssl_rec_cbc.c
+index c080604..2ae3558 100644
+--- a/deps/bearssl-0.6/src/ssl/ssl_rec_cbc.c
++++ b/deps/bearssl-0.6/src/ssl/ssl_rec_cbc.c
+@@ -70,7 +70,7 @@ cbc_check_length(const br_sslrec_in_cbc_context *cc, size_t rlen)
+ 		min_len += blen;
+ 		max_len += blen;
+ 	}
+-	return min_len <= rlen && rlen <= max_len;
++	return min_len <= rlen && rlen <= max_len && (rlen & (blen - 1)) == 0;
+ }
+ 
+ /*
+diff --git a/deps/bearssl-0.6/src/x509/skey_decoder.c b/deps/bearssl-0.6/src/x509/skey_decoder.c
+index f4e43e7..d3d7ac7 100644
+--- a/deps/bearssl-0.6/src/x509/skey_decoder.c
++++ b/deps/bearssl-0.6/src/x509/skey_decoder.c
+@@ -94,6 +94,9 @@ void
+ br_skey_decoder_push(br_skey_decoder_context *ctx,
+ 	const void *data, size_t len)
+ {
++	if (ctx->err != 0) {
++		return;
++	}
+ 	ctx->hbuf = data;
+ 	ctx->hlen = len;
+ 	br_skey_decoder_run(&ctx->cpu);
+diff --git a/deps/bearssl-0.6/src/x509/skey_decoder.t0 b/deps/bearssl-0.6/src/x509/skey_decoder.t0
+index 5b59421..7f4135b 100644
+--- a/deps/bearssl-0.6/src/x509/skey_decoder.t0
++++ b/deps/bearssl-0.6/src/x509/skey_decoder.t0
+@@ -43,6 +43,9 @@ void
+ br_skey_decoder_push(br_skey_decoder_context *ctx,
+ 	const void *data, size_t len)
+ {
++	if (ctx->err != 0) {
++		return;
++	}
+ 	ctx->hbuf = data;
+ 	ctx->hlen = len;
+ 	br_skey_decoder_run(&ctx->cpu);
+diff --git a/deps/bearssl-0.6/src/x509/x509_decoder.c b/deps/bearssl-0.6/src/x509/x509_decoder.c
+index 8dd970f..d87e576 100644
+--- a/deps/bearssl-0.6/src/x509/x509_decoder.c
++++ b/deps/bearssl-0.6/src/x509/x509_decoder.c
+@@ -103,6 +103,9 @@ void
+ br_x509_decoder_push(br_x509_decoder_context *ctx,
+ 	const void *data, size_t len)
+ {
++	if (ctx->err != 0) {
++		return;
++	}
+ 	ctx->hbuf = data;
+ 	ctx->hlen = len;
+ 	br_x509_decoder_run(&ctx->cpu);
+diff --git a/deps/bearssl-0.6/src/x509/x509_decoder.t0 b/deps/bearssl-0.6/src/x509/x509_decoder.t0
+index 0bf276f..036f501 100644
+--- a/deps/bearssl-0.6/src/x509/x509_decoder.t0
++++ b/deps/bearssl-0.6/src/x509/x509_decoder.t0
+@@ -52,6 +52,9 @@ void
+ br_x509_decoder_push(br_x509_decoder_context *ctx,
+ 	const void *data, size_t len)
+ {
++	if (ctx->err != 0) {
++		return;
++	}
+ 	ctx->hbuf = data;
+ 	ctx->hlen = len;
+ 	br_x509_decoder_run(&ctx->cpu);
+diff --git a/input/input_driver.c b/input/input_driver.c
+index e47a935..ce81332 100644
+--- a/input/input_driver.c
++++ b/input/input_driver.c
+@@ -1312,7 +1312,8 @@ static bool input_remote_init_network(input_remote_t *handle,
+    RARCH_LOG("Bringing up remote interface on port %hu.\n",
+          (unsigned short)port);
+ 
+-   if ((fd = socket_init((void**)&res, port, NULL, SOCKET_TYPE_DATAGRAM, AF_INET)) < 0)
++   /* OSD/OS: the network gamepad listens on this machine only. */
++   if ((fd = socket_init((void**)&res, port, "127.0.0.1", SOCKET_TYPE_DATAGRAM, AF_INET)) < 0)
+       goto error;
+ 
+    handle->net_fd[user] = fd;
+diff --git a/libretro-common/streams/file_stream.c b/libretro-common/streams/file_stream.c
+index f6be820..ca867d0 100644
+--- a/libretro-common/streams/file_stream.c
++++ b/libretro-common/streams/file_stream.c
+@@ -240,7 +240,7 @@ int filestream_vscanf(RFILE *stream, const char* format, va_list *args)
+    {
+       if (*format == '%')
+       {
+-         int sublen;
++         int sublen       = 0;
+          char* subfmtiter = subfmt;
+          bool asterisk    = false;
+ 
+diff --git a/network/netplay/netplay_frontend.c b/network/netplay/netplay_frontend.c
+index b12a324..526e2d9 100644
+--- a/network/netplay/netplay_frontend.c
++++ b/network/netplay/netplay_frontend.c
+@@ -1749,6 +1749,7 @@ static bool netplay_handshake_pre_sync(netplay_t *netplay,
+    uint32_t local_sram_size = 0, remote_sram_size;
+    size_t i, j;
+    ssize_t recvd;
++   bool paused;
+    char new_nick[NETPLAY_NICK_LEN];
+    retro_ctx_memory_info_t mem_info;
+    settings_t *settings = config_get_ptr();
+@@ -1789,11 +1790,15 @@ static bool netplay_handshake_pre_sync(netplay_t *netplay,
+    RECV(&client_num, sizeof(client_num))
+       return false;
+    client_num = ntohl(client_num);
+-   if (client_num & NETPLAY_CMD_SYNC_BIT_PAUSED)
++   paused     = (client_num & NETPLAY_CMD_SYNC_BIT_PAUSED) != 0;
++   client_num &= ~NETPLAY_CMD_SYNC_BIT_PAUSED;
++   if (client_num == 0 || client_num >= MAX_CLIENTS)
+    {
+-      netplay->remote_paused = true;
+-      client_num ^= NETPLAY_CMD_SYNC_BIT_PAUSED;
++      RARCH_ERR("[Netplay] Received invalid client number in NETPLAY_CMD_SYNC.\n");
++      return false;
+    }
++   if (paused)
++      netplay->remote_paused = true;
+    netplay->self_client_num = client_num;
+ 
+    /* Set our frame counters as requested */
+@@ -5661,6 +5666,13 @@ static bool netplay_get_cmd(netplay_t *netplay,
+             return netplay_cmd_nak(netplay, connection);
+          }
+ 
++         if ((mode & NETPLAY_CMD_MODE_BIT_YOU)
++               && client_num != netplay->self_client_num)
++         {
++            RARCH_ERR("[Netplay] Received NETPLAY_CMD_MODE for an unexpected client number.\n");
++            return netplay_cmd_nak(netplay, connection);
++         }
++
+          frame   = ntohl(payload.frame);
+          devices = ntohl(payload.devices);
+          memcpy(netplay->device_share_modes, payload.share_modes,
+@@ -6606,8 +6618,22 @@ static void netplay_handle_slaves(netplay_t *netplay)
+                   /* Copy the previous input */
+                   istate_out = netplay_input_state_for(&frame->real_input[device],
+                         client_num, istate_in->size, true, false);
+-                  memcpy(istate_out->data, istate_in->data,
+-                        istate_in->size * sizeof(uint32_t));
++                  /* NULL-check: netplay_input_state_for can return
++                   * NULL either on an internal calloc OOM or when
++                   * a 'must_create' request finds an existing slot
++                   * with different size.  The memcpy through
++                   * istate_out->data below NULL-derefs either way.
++                   * Other callsites (3078, 3087, 3095, 3148, 3185,
++                   * 5477, 5766, 8025) NULL-check and continue;
++                   * match that convention.  Skipping just this one
++                   * device-slot copy is consistent with how the
++                   * outer loop handles other per-device failures -
++                   * the frame's have_real gets set below as a
++                   * 'we tried' signal and the next sync pass will
++                   * retry. */
++                  if (istate_out)
++                     memcpy(istate_out->data, istate_in->data,
++                           istate_in->size * sizeof(uint32_t));
+                }
+             }
+             frame->have_real[client_num] = true;
