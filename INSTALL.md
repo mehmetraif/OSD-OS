@@ -97,7 +97,6 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 
     # Drivers & Video
     dtoverlay=vc4-fkms-v3d,cma-256
-    dtoverlay=rpivid-v4l2
 
     # Overclocking
     over_voltage=2
@@ -154,7 +153,6 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 
     # Drivers & Video
     dtoverlay=vc4-fkms-v3d,cma-256
-    dtoverlay=rpivid-v4l2
 
     # Overclocking
     over_voltage=2

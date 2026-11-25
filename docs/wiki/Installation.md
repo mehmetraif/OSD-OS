@@ -301,7 +301,6 @@ sdram_freq=500
 
 # Drivers & Video
 dtoverlay=vc4-fkms-v3d,cma-256
-dtoverlay=rpivid-v4l2
 
 # Overclocking
 over_voltage=2
@@ -359,7 +358,6 @@ sdram_freq=500
 
 # Drivers & Video
 dtoverlay=vc4-fkms-v3d,cma-256
-dtoverlay=rpivid-v4l2
 
 # Overclocking
 over_voltage=2
