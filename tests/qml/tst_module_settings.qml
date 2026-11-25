@@ -914,7 +914,11 @@ StandInRoot {
             var page = open()
             keyClick(Qt.Key_Down)
             appCore.saveFails = true
+            // A list's step is held (save_setting_soon()): once its write
+            // has failed, as AppCore's timer has it, the row is back on
+            // what is saved.
             keyClick(Qt.Key_Right)
+            verify(!appCore.flush_settings())
             compare(appCore.values.screen, undefined)
             compare(page.currentDisplayValue(page.schemaItems[1]), "Original")
             compare(usable(page), ["enabled", "screen", "video"])
@@ -1186,6 +1190,81 @@ StandInRoot {
             compare(appCore.held.length, 0)
             loader.source = ""
             compare(appCore.writes, 2)
+        }
+
+        // A list's ◄ ► steps are its value at once, on the page and in the
+        // settings, and held as a slider's are: written once, as the page is
+        // left, not at each step. A list whose backend acts on it at once
+        // (apply_slot), a toggle, and a value set in two steps (Broadcast)
+        // are written at once.
+        function test_choiceStepsWrittenOnce() {
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "size", label: "Size", type: "list_single", options: ["Small", "Medium", "Large"],
+                  default: "Small" }
+            ]
+            var page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.size, "Medium")
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.size, "Large")
+            compare(page.currentDisplayValue(page.schemaItems[1]), "Large")
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.size, "Medium")
+            compare(appCore.writes, 0)
+            compare(appCore.held.length, 1)
+            loader.source = ""
+            compare(appCore.writes, 1)
+            compare(appCore.held.length, 0)
+            compare(appCore.values.size, "Medium")
+
+            // A toggle: at once, and what is held with it.
+            page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Right)
+            compare(appCore.held.length, 1)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.enabled, true)
+            compare(appCore.writes, 2)
+            compare(appCore.held.length, 0)
+            loader.source = ""
+            compare(appCore.writes, 2)
+
+            // A list its backend acts on at once: on the card first.
+            appCore.schema = [
+                { key: "user", label: "Current User", type: "list_single", options_source: "dynamic",
+                  options_slot: "userOptions", apply_slot: "applyUser" }
+            ]
+            appCore.actions = []
+            page = open()
+            appCore.dynamicOptionsReady("com.osdos.test", "user", [{ id: "a", label: "A" }, { id: "b", label: "B" }])
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.user, "b")
+            compare(appCore.writes, 3)
+            compare(appCore.held.length, 0)
+            compare(appCore.actions.filter(function(a) { return a === "applyUser" }).length, 1)
+            loader.source = ""
+            compare(appCore.writes, 3)
+
+            // Two steps: written as it is confirmed.
+            appCore.schema = [
+                { key: "enabled", label: "Enabled", type: "toggle", default: "OFF" },
+                { key: "size", label: "Size", type: "list_single", options: ["Small", "Medium", "Large"],
+                  default: "Small" }
+            ]
+            root.menuLayout = "Broadcast"
+            page = open()
+            keyClick(Qt.Key_Down)
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(appCore.values.size !== "Medium")
+            compare(appCore.writes, 4)
+            compare(appCore.held.length, 0)
+            loader.source = ""
+            root.menuLayout = "Standard"
         }
 
         // Steps the card can't take: once the write has failed (AppCore's

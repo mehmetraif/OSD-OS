@@ -119,6 +119,7 @@ StandInRoot {
                 m[module][key] = value
                 moduleValues = m
                 writes++
+                held = []
                 return true
             }
             var v = Object.assign({}, values)
@@ -736,11 +737,78 @@ StandInRoot {
 
             // A page left with nothing held writes nothing.
             page = open({ group: "sound" })
+            loader.source = ""
+            compare(appCore.writes, 1)
+        }
+
+        // A list's ◄ ► steps (Menu Music, Scaling) are its value at once, on
+        // the row and in the settings, and held as a slider's are: written
+        // once, as the page is left, or with the next row saved at once,
+        // not at each step. A value set in a monitor layout's second step,
+        // and a module's row turned on or off, are written at once.
+        function test_choiceStepsWrittenOnce() {
+            appCore.values = { menu_music: "Off", menu_music_volume: 60 }
+            var page = open({ group: "sound" })
             moveTo(page, "Menu Music")
+            var shown = []
+            for (var i = 0; i < 3; i++) {
+                keyClick(Qt.Key_Right)
+                shown.push(row(page, "Menu Music").value)
+                compare(appCore.values.menu_music, row(page, "Menu Music").values
+                        ? row(page, "Menu Music").values[row(page, "Menu Music").options.indexOf(shown[i])] : shown[i])
+            }
+            verify(shown[0] !== "Off" && shown[1] !== shown[0], JSON.stringify(shown))
+            compare(appCore.writes, 0)
+            compare(appCore.held, ["menu_music"])
             keyClick(Qt.Key_Left)
+            compare(row(page, "Menu Music").value, shown[1])
+            compare(appCore.writes, 0)
+            // Leaving the page (back, or a page opened from it) writes it.
+            loader.source = ""
+            compare(appCore.writes, 1)
+            compare(appCore.held, [])
+
+            // Held, then another row saved at once: one write has both.
+            page = open({ group: "tv" })
+            moveTo(page, "Scaling")
+            keyClick(Qt.Key_Right)
+            compare(appCore.held, ["video_scaling"])
+            compare(appCore.writes, 1)
+            moveTo(page, "Plex")
+            keyClick(Qt.Key_Right)
             compare(appCore.writes, 2)
+            compare(appCore.held, [])
             loader.source = ""
             compare(appCore.writes, 2)
+
+            // A monitor layout's second step: the value set, written at once.
+            root.menuLayout = "Broadcast"
+            appCore.values = { menu_layout: "Broadcast", menu_music: "Off" }
+            page = open({ group: "sound" })
+            moveTo(page, "Menu Music")
+            keyClick(Qt.Key_Return)
+            keyClick(Qt.Key_Up)
+            keyClick(Qt.Key_Return)
+            verify(appCore.values.menu_music !== "Off")
+            compare(appCore.writes, 3)
+            compare(appCore.held, [])
+            loader.source = ""
+            root.menuLayout = "Standard"
+        }
+
+        // A list's steps the card couldn't take (AppCore's settingsNotSaved,
+        // once the write has failed): the row is back on what is saved.
+        function test_choiceStepsNotSaved() {
+            appCore.values = { menu_music: "Off", menu_music_volume: 60 }
+            var page = open({ group: "sound" })
+            moveTo(page, "Menu Music")
+            keyClick(Qt.Key_Right)
+            verify(row(page, "Menu Music").value !== "Off")
+            appCore.values = { menu_music: "Off", menu_music_volume: 60 }
+            appCore.held = []
+            appCore.settingsNotSaved()
+            compare(row(page, "Menu Music").value, "Off")
+            compare(cursor(page), "Menu Music")
         }
 
         // Steps the card couldn't take (AppCore's settingsNotSaved, once the

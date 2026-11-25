@@ -605,6 +605,26 @@ private slots:
         QCOMPARE(stored("", "transparent_background").toInt(), 60);
     }
 
+    // Every way the app stops (Quit, Restart, Shut Down, Exit to Terminal,
+    // an update's restart, a stop signal: each QCoreApplication::exit())
+    // writes what is held as its event loop ends, before main() returns and
+    // the launcher, the update's helper or the reboot read anything: a
+    // list's ◄ ► step (Settings' Menu Music) a moment before is on the card.
+    void heldSettingIsWrittenAsTheAppStops() {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        AppCore core(tmp.path(), tmp.path());
+        QVERIFY(core.save_setting_soon("", "menu_music", "File"));
+        QVERIFY(core.save_setting_soon("com.osdos.local_files", "auto_subtitles", "on"));
+        QVERIFY(!QFile::exists(tmp.path() + "/config.json"));
+        QTimer::singleShot(0, qApp, [] { QCoreApplication::exit(3); });
+        QCOMPARE(QCoreApplication::exec(), 3);
+        // As the next process reads it, the AppCore still there.
+        AppCore next(tmp.path(), tmp.path());
+        QCOMPARE(next.get_setting("", "menu_music").toString(), QString("File"));
+        QCOMPARE(next.get_setting("com.osdos.local_files", "auto_subtitles").toString(), QString("on"));
+    }
+
     // Steps a full card can't take (a file size limit, which holds for root
     // too): told as they are made, and once the write fails the settings
     // are as config.json has them again, each told so with its saved value,

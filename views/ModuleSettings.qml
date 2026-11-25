@@ -690,8 +690,14 @@ FocusScope {
     }
 
     // A row's value a step on (1) or back (-1); or, saved from a value
-    // changed in two steps, as many steps as it was moved.
-    function cycleValue(index, direction) {
+    // changed in two steps, as many steps as it was moved. `soon`, a ◄ ►
+    // step: a list's choice is in force at once and written to config.json
+    // as a slider's is, once the steps rest or the page is left
+    // (AppCore::save_setting_soon()), not at each step, each write synced to
+    // the card on the app's thread. Its backend reads it through AppCore,
+    // which has what is held; nothing outside the app reads it from the
+    // file right after a step.
+    function cycleValue(index, direction, soon) {
         var item = schemaItems[index]
         if (!item || item._off) return
 
@@ -706,7 +712,10 @@ FocusScope {
                 if (opts.length === 0) return
                 var curIdx = chosenIndex(item)
                 var newIdx = ((curIdx + direction) % opts.length + opts.length) % opts.length
-                if (store(item, opts[newIdx].id) && item.apply_slot) {
+                // A row whose backend acts on it at once (apply_slot: Plex's
+                // user and server) is written at once: only a value on the
+                // card is acted on, as one that can't be written isn't.
+                if (store(item, opts[newIdx].id, soon === true && !item.apply_slot) && item.apply_slot) {
                     appCore.invoke_module_action(moduleOf(item), item.apply_slot)
                 }
             } else {
@@ -714,7 +723,7 @@ FocusScope {
                 if (opts.length === 0) return
                 // From the value shown: an unset one shows its default.
                 var ci = Math.max(0, staticIndex(item, opts))
-                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length].id)
+                store(item, opts[((ci + direction) % opts.length + opts.length) % opts.length].id, soon === true)
             }
             settingsList.forceLayout()
         } else if (item.type === "slider") {
@@ -920,7 +929,7 @@ FocusScope {
                 }
                 return
             }
-            moduleSettingsRoot.cycleValue(currentIndex, -1)
+            moduleSettingsRoot.cycleValue(currentIndex, -1, true)
         }
         Keys.onRightPressed: {
             var item = schemaItems[currentIndex]
@@ -929,7 +938,7 @@ FocusScope {
             if (moduleSettingsRoot.opens(item))
                 openRow(item)
             else if (!root.twoStep)
-                moduleSettingsRoot.cycleValue(currentIndex, 1)
+                moduleSettingsRoot.cycleValue(currentIndex, 1, true)
         }
 
         Keys.onReturnPressed: {

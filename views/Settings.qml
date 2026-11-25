@@ -321,8 +321,9 @@ FocusScope {
 
     // A row's value saved, and kept in appSettings, which the rows are made
     // from: a page's rows made again as the icons come back to it show what
-    // was just set. `soon`, a slider's step, written once the steps rest
-    // (AppCore::save_setting_soon()). False when it couldn't be saved.
+    // was just set. `soon`, a slider's or a list's ◄ ► step, written once
+    // the steps rest (AppCore::save_setting_soon()). False when it couldn't
+    // be saved.
     function save(row, value, soon) {
         saving = true
         var saved = soon ? appCore.save_setting_soon(row.moduleId, row.key, value)
@@ -529,8 +530,11 @@ FocusScope {
         textFormat: TextEdit.PlainText
     }
 
-    // A slider's steps wait to be written to config.json until they rest
-    // (moveSlider()): leaving the page writes them at once. AppCore as the
+    // A slider's and a list's ◄ ► steps wait to be written to config.json
+    // until they rest (moveSlider(), cycleList()): leaving the page (back, or
+    // a page opened from it) writes them at once, as the app's quitting does
+    // (AppCore, aboutToQuit: Quit, Restart, Shut Down, an update's restart, a
+    // stop signal). AppCore as the
     // page opened, for that: the context property may read null while the
     // view Loader tears down.
     property var core: null
@@ -671,12 +675,19 @@ FocusScope {
         }
 
         // A list row's choice, one step back (-1) or on (1), saved and shown;
-        // the label shown, the parallel value saved when there is one.
+        // the label shown, the parallel value saved when there is one. A ◄ ►
+        // step is in force at once and written to config.json as a slider's
+        // is (moveSlider()): once the steps rest or the page is left, not at
+        // each, each write synced to the card on the app's thread. Nothing
+        // outside the app reads one of these rows from the file right after
+        // a step, and the app's own readers get what is held (AppCore).
+        // A value set at once (a monitor layout's second step) is written
+        // at once.
         function cycleList(direction) {
             var opts = settingsItems[currentIndex].options
-            setChoice((opts.indexOf(settingsItems[currentIndex].value) + direction + opts.length) % opts.length)
+            setChoice((opts.indexOf(settingsItems[currentIndex].value) + direction + opts.length) % opts.length, true)
         }
-        function setChoice(newIdx) {
+        function setChoice(newIdx, soon) {
             var row = settingsItems[currentIndex]
             var opts = row.options
             if (newIdx < 0 || opts[newIdx] === row.value)
@@ -693,7 +704,7 @@ FocusScope {
                 }
                 return
             }
-            if (!settingsRoot.save(row, row.values ? row.values[newIdx] : opts[newIdx]))
+            if (!settingsRoot.save(row, row.values ? row.values[newIdx] : opts[newIdx], soon === true))
                 return
             replaceCurrentRow(Object.assign({}, row, { value: opts[newIdx] }))
             if (row.key === "osd_theme")

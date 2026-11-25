@@ -82,7 +82,7 @@ The types, as Settings shows and saves them:
 | `type` | In Settings | Saved as |
 |---|---|---|
 | `toggle` | `ON` or `OFF`; ◄ ► and select flip it | `true` or `false` |
-| `list_single` with `options` | ◄ ► step through the choices, round the ends | The choice's text |
+| `list_single` with `options` | ◄ ► step through the choices, round the ends. Each step reaches `onSettingChanged()` and `get_setting()` at once; `config.json` has it once the steps rest (a dynamic list with an `apply_slot` is written at each step) | The choice's text |
 | `list_single` with `"options_source": "dynamic"` | The backend's labels. Unset, the row shows the first choice, so put the default first | The choice's `id` |
 | `multiselect_submenu` | Select opens a page of the backend's choices, each switched on or off. A heading (`{ "label": "Genres", "heading": true }`) turns the choices under it on or off together | `{ "<id>": true, … }` under the key, saved whole at every change. A choice is on until switched off, unless sent with `"default": false` |
 | `submenu` | Select opens its rows on a page of their own, titled `MODULE / LABEL` | Its rows' keys, flat under `modules.<id>` |
