@@ -3085,7 +3085,7 @@ private slots:
         // The whole lobby: every room, newest first, as it can be shown; a
         // room FinalBurn Neo hosts that can be joined among them.
         const QList<libretro::Room> whole = libretro::readWholeLobby(lobby);
-        QCOMPARE(whole.size(), 11);
+        QCOMPARE(whole.size(), 12);
         const libretro::Room &kart = whole.at(0);
         QCOMPARE(kart.id, 22);
         QCOMPARE(kart.rom, QStringLiteral("Super Mario Kart (USA)"));
@@ -3106,17 +3106,51 @@ private slots:
         QStringList ids;
         for (const libretro::Room &room : whole)
             ids << QString::number(room.id) + (room.joinable ? QStringLiteral("+") : QString());
-        QCOMPARE(ids, QStringList({ "22", "21", "20", "19", "18+", "17", "16", "15", "14+", "11+", "10" }));
+        QCOMPARE(ids, QStringList({ "22", "21", "20", "19", "18+", "17", "16", "15", "14+", "13", "11+", "10" }));
         // What the lobby doesn't say, as such; the relay another runs by its
         // name; a name that can't be a set's none, the host's name as it is.
-        QCOMPARE(whole.at(9).players, -1);
-        QVERIFY(!whole.at(9).created.isValid());
-        QVERIFY(whole.at(9).relay.isEmpty());
+        QCOMPARE(whole.at(10).players, -1);
+        QVERIFY(!whole.at(10).created.isValid());
+        QVERIFY(whole.at(10).relay.isEmpty());
         QCOMPARE(whole.at(8).relay, QStringLiteral("198.51.100.7"));
         QVERIFY(whole.at(2).game.isEmpty());
         QCOMPARE(whole.at(2).rom, QStringLiteral("../../etc/passwd"));
         QVERIFY(!whole.at(7).connectable);
         QCOMPARE(whole.at(4).host, QStringLiteral("img src=http://192.0.2.99/a.pngz"));
+        // A room reached straight at an address inside a network (here a
+        // home network's) isn't joined from a public list, and says so.
+        QCOMPARE(whole.at(9).id, 13);
+        QVERIFY(whole.at(9).insideAddress);
+        QVERIFY(whole.at(9).joinAddress.isEmpty());
+        QVERIFY(!whole.at(9).joinable);
+        QVERIFY(!whole.at(1).insideAddress);
+        // Each such address, and a name, refused straight; an address on the
+        // internet joined; a relayed room joined at its relay whatever its
+        // host's address.
+        const auto straight = [](const char *ip, int hostMethod = 0, const char *relay = "") {
+            return libretro::readWholeLobby(QByteArray("[{\"fields\": {\"id\": 1, \"game_name\": \"sf2\", "
+                                                       "\"core_name\": \"FinalBurn Neo\", \"retroarch_version\": \"1.22.2\", "
+                                                       "\"port\": 55435, \"mitm_port\": 55435, \"mitm_session\": \"c2Vzc2lvbg==\", \"ip\": \"")
+                                            + ip + "\", \"host_method\": " + QByteArray::number(hostMethod)
+                                            + ", \"mitm_ip\": \"" + relay + "\"}}]")
+                .value(0);
+        };
+        for (const char *inside : { "192.168.1.40", "10.0.0.2", "172.20.1.1", "127.0.0.1", "127.8.8.8", "169.254.3.4",
+                                    "100.64.1.1", "0.0.0.0", "224.0.0.251", "255.255.255.255", "::1", "::", "fe80::1",
+                                    "fd00::2", "fc12::1", "ff02::1", "::ffff:192.168.1.40", "localhost",
+                                    "router.lan" }) {
+            const libretro::Room room = straight(inside);
+            QVERIFY2(!room.joinable && room.joinAddress.isEmpty() && room.insideAddress, inside);
+        }
+        for (const char *outside : { "203.0.113.7", "8.8.8.8", "172.32.0.1", "100.128.0.1", "2001:db8::7" }) {
+            const libretro::Room room = straight(outside);
+            QVERIFY2(room.joinable && !room.insideAddress, outside);
+            QCOMPARE(room.joinAddress, QLatin1String(outside) + QStringLiteral("|55435"));
+        }
+        const libretro::Room relayed = straight("192.168.1.40", 3, "us-east1.relay.retroarch.com");
+        QVERIFY(relayed.joinable);
+        QVERIFY(!relayed.insideAddress);
+        QCOMPARE(relayed.joinAddress, QStringLiteral("us-east1.relay.retroarch.com|55435|c2Vzc2lvbg=="));
         // An answer with more rooms than the lobby ever lists: the newest
         // thousand.
         QByteArray crowded = "[";
@@ -6647,7 +6681,7 @@ private slots:
             order << QString::number(r.value(QStringLiteral("id")).toInt());
             byId.insert(r.value(QStringLiteral("id")).toInt(), r);
         }
-        QCOMPARE(order, QStringList({ "20", "15", "18", "14", "21", "19", "17", "11", "10", "16", "22" }));
+        QCOMPARE(order, QStringList({ "20", "15", "18", "14", "21", "19", "17", "13", "11", "10", "16", "22" }));
         const auto why = [&byId](int id) { return byId.value(id).value(QStringLiteral("why")).toString(); };
         QVERIFY(byId.value(11).value(QStringLiteral("joinable")).toBool());
         QCOMPARE(why(11), QString());
@@ -6661,6 +6695,7 @@ private slots:
         QCOMPARE(why(17), QStringLiteral("Its host's RetroArch can't be joined from here"));
         QCOMPARE(why(19), QStringLiteral("The lobby gives no address it can be joined at"));
         QCOMPARE(why(21), QStringLiteral("The lobby gives no address it can be joined at"));
+        QCOMPARE(why(13), QStringLiteral("The lobby gives an address inside a network, not on the internet"));
         QCOMPARE(why(18), QStringLiteral("kof98 isn't in your games folder"));
         QCOMPARE(byId.value(18).value(QStringLiteral("title")).toString(), QStringLiteral("kof98.zip"));
         QVERIFY(byId.value(18).value(QStringLiteral("set")).toString().isEmpty());
@@ -6737,7 +6772,7 @@ private slots:
         QCOMPARE(filters.value(3).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Online Games"));
         QCOMPARE(filters.value(3).toMap().value(QStringLiteral("count")).toInt(), 1);
         QCOMPARE(filters.value(4).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
-        QCOMPARE(filters.value(4).toMap().value(QStringLiteral("count")).toInt(), 11);
+        QCOMPARE(filters.value(4).toMap().value(QStringLiteral("count")).toInt(), 12);
         QCOMPARE(arcade.filterStatus(QStringLiteral("favorites")).value(QStringLiteral("name")).toString(),
                  QStringLiteral("No Favorites"));
         QCOMPARE(arcade.filterStatus(QStringLiteral("recent")).value(QStringLiteral("name")).toString(),

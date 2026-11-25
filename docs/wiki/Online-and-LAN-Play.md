@@ -203,7 +203,7 @@ Games on the local network play on a core OSD/OS builds for them: `osdos_lan_lib
 - **A room's page** has what the lobby says of it, with ✓ on the core and versions that are yours. Select opens it in the tree; on the Arcade screen, select held does, or select on a room you can't join. **Join** comes first on it.
 - **Read again**: the lobby is read as Arcade opens, and every 20 seconds while it is shown.
 
-A room's page says why it can't be joined: another core's, a host whose connection takes no players, a password, a RetroArch that can't be joined, or a game not in your folder. A room whose core version isn't yours can still be joined, though the game may fall out of step.
+A room's page says why it can't be joined: another core's, a host whose connection takes no players, a password, a RetroArch that can't be joined, an address inside a network rather than on the internet (a room that isn't relayed is joined straight at the address the lobby gives, and OSD/OS doesn't follow a public list into your own network), or a game not in your folder. A room whose core version isn't yours can still be joined, though the game may fall out of step.
 
 | Setting | What it is |
 |---|---|

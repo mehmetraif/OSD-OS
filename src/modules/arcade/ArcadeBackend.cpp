@@ -3739,6 +3739,7 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
         why = QStringLiteral("It asks for a password");
     else if (!room.joinable)
         why = room.game.isEmpty() ? QStringLiteral("Its game isn't named as a set")
+              : room.insideAddress ? QStringLiteral("The lobby gives an address inside a network, not on the internet")
               : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
                                            : QStringLiteral("Its host's RetroArch can't be joined from here");
     else if (!ready)

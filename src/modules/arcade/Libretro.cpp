@@ -1340,6 +1340,13 @@ QList<Room> readWholeLobby(const QByteArray &json) {
             room.relay = relayName(text("mitm_ip"));
         } else {
             room.joinAddress = joinAddressOf(text("ip"), fields.value(QLatin1String("port")).toInt(), QString());
+            // Straight to an address inside a network (the host's own, or
+            // one the lobby was told): not one anyone is sent to from a
+            // public list. A relayed room is joined at its relay.
+            if (!room.joinAddress.isEmpty() && !isPublicAddress(text("ip"))) {
+                room.joinAddress.clear();
+                room.insideAddress = true;
+            }
         }
         room.joinable = room.core == QLatin1String("FinalBurn Neo") && room.connectable
                         && fields.value(QLatin1String("is_retroarch")).toBool(true)
@@ -1418,6 +1425,27 @@ bool isLanSender(const QHostAddress &address) {
     bool ipv4 = false;
     const quint32 number = address.toIPv4Address(&ipv4);
     return ipv4 && (isLanAddress(number) || address.isLoopback());
+}
+
+bool isPublicAddress(const QString &address) {
+    QHostAddress ip;
+    if (!ip.setAddress(address))
+        return false;
+    bool ipv4 = false;
+    const quint32 number = ip.toIPv4Address(&ipv4);
+    if (ipv4) {
+        const quint32 first = number >> 24;
+        return first != 0 && first != 127 && first < 224 && !isLanAddress(number)
+               && (number & 0xFFFF0000) != 0xA9FE0000    // 169.254/16
+               && (number & 0xFFC00000) != 0x64400000;   // 100.64/10
+    }
+    if (ip.protocol() != QAbstractSocket::IPv6Protocol)
+        return false;
+    const Q_IPV6ADDR bytes = ip.toIPv6Address();
+    return !ip.isLoopback() && ip != QHostAddress(QHostAddress::AnyIPv6)
+           && (bytes[0] & 0xFE) != 0xFC                               // fc00::/7
+           && !(bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80)        // fe80::/10
+           && bytes[0] != 0xFF;                                       // ff00::/8
 }
 
 static_assert(kMostPorts == controllers::kPlayers, "a port for each player the menus have a controller for");

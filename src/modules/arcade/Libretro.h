@@ -555,6 +555,10 @@ struct Room {
     bool    password = false;
     bool    spectatePassword = false;
     bool    connectable = true;   // as RetroArch's menu reads it: unless the lobby says not
+    // Reached straight at an address that isn't one on the internet
+    // (isPublicAddress()): one inside a network, which a public list has no
+    // business sending anyone to. Never joined; joinAddress "".
+    bool    insideAddress = false;
     // One RetroArch joins with FinalBurn Neo: its core, connectable, hosted
     // in a RetroArch the menu lists rooms of (1.9.1 on), for a set, at an
     // address.
@@ -593,6 +597,13 @@ bool isLanAddress(quint32 ipv4);
 // Whether an answer from address is taken: from a host on the local network,
 // as RetroArch takes them (isLanAddress()), or from this machine.
 bool isLanSender(const QHostAddress &address);
+// Whether address, as the lobby gives a room reached straight, is one on the
+// internet that the room can be joined at: an IP address (no name), and not
+// one inside a network (a private one, isLanAddress(), or IPv6's unique local
+// fc00::/7), this machine's (127/8, ::1), a link's own (169.254/16,
+// fe80::/10), a carrier's shared ones (100.64/10), none (0/8, ::), or a
+// multicast, reserved or broadcast one (224/3, ff00::/8).
+bool isPublicAddress(const QString &address);
 
 // Six players over the network, a host's and each joiner's together.
 // RetroArch gives the machine hosting port 1 and each machine joining one

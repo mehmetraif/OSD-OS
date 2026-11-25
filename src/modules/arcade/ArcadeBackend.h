@@ -1234,6 +1234,10 @@ private:
     // and the read under way.
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_lobbyReply = nullptr;
+    // Plain HTTP, as RetroArch itself reads and announces to it
+    // (FILE_PATH_LOBBY_LIBRETRO_URL): the lobby answers no HTTPS. What it
+    // says is taken as anyone could have written it (readWholeLobby()), and
+    // a room reached straight is joined only at an address on the internet.
     QUrl m_lobbyUrl{ QStringLiteral("http://lobby.libretro.com/list") };
     QList<libretro::Room> m_rooms;
     QList<libretro::Room> m_lobby;   // every room, m_rooms among them
