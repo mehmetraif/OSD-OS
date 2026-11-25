@@ -64,11 +64,18 @@ UNITS="${ROOTFS_DIR}/etc/systemd/system"
 install -m 644 files/osdos-yt-dlp-update.service files/osdos-yt-dlp-update.timer "${UNITS}/"
 sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/g" "${UNITS}/osdos-yt-dlp-update.service"
 install -D -m 755 files/yt-dlp-wanted "${ROOTFS_DIR}/usr/lib/osdos/yt-dlp-wanted"
+# The bytecode put into yt-dlp's zip (yt-dlp-compile), here and after each
+# update: Python compiles nothing it imports from a zip once and for all, so a
+# zip of sources is compiled again at every run. Compiled by the image's own
+# Python, the one that runs it. Root's, outside the folders the app's user
+# can write, like yt-dlp-wanted.
+install -D -m 755 files/yt-dlp-compile "${ROOTFS_DIR}/usr/lib/osdos/yt-dlp-compile"
 RULE="${ROOTFS_DIR}/etc/polkit-1/rules.d/50-osdos-yt-dlp-update.rules"
 install -D -m 644 files/50-osdos-yt-dlp-update.rules "${RULE}"
 sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${RULE}"
 
 on_chroot << CHROOT
+/usr/lib/osdos/yt-dlp-compile "${DATA_BIN}/yt-dlp"
 chown -R "${FIRST_USER_NAME}:" "/home/${FIRST_USER_NAME}/.local"
 systemctl enable osdos-yt-dlp-update.timer
 CHROOT

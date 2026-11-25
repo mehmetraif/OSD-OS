@@ -616,6 +616,8 @@ The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt
 - The YouTube module starts the update itself the first time it opens.
 - `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
 - It runs as `pi` with no way to more privileges and the system out of its reach (`NoNewPrivileges`, `ProtectSystem=full`, the kernel's settings, modules and control groups protected, no setuid, `LockPersonality`): it writes only its own folder. `systemctl show osdos-yt-dlp-update -p NoNewPrivileges -p ProtectSystem` shows them.
+- After each run, new build or not, `/usr/lib/osdos/yt-dlp-compile` puts the bytecode into the zip, so that yt-dlp starts without compiling its sources first: about 0.4 s sooner on a PC by measure, an estimated 1.5 to 2 s on a Pi 4, for every video, search and Info Screen. A zip compiled already for this Python is left alone; a game started meanwhile stops the rebuild, the file as it was. The journal has a line for it: `compiled for /usr/bin/python3`, `compiled already`, or `left as it was:` and why (the zip then runs from its sources, as before).
+- After an update by hand (`~/.local/share/OSD-OS/bin/yt-dlp --update`), `/usr/lib/osdos/yt-dlp-compile ~/.local/share/OSD-OS/bin/yt-dlp` compiles it at once; otherwise the next run of the timer does.
 
 ### The system's packages
 
@@ -656,7 +658,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked CS4 for Wi-Fi's video queue |
 | `/etc/systemd/system/osdos-firewall.service`, `/usr/lib/osdos/firewall.nft` | The firewall: only the home network may connect |
 | `/etc/avahi/avahi-daemon.conf` | `osdos.local` by IPv4 alone (`use-ipv6=no`, `publish-aaaa-on-ipv4=no`), wide-area DNS-SD off (`enable-wide-area=no`) |
-| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted` | The image's helpers |
+| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted`, `yt-dlp-compile` | The image's helpers |
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |
 | `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` | Wi-Fi power saving off |

@@ -30,7 +30,7 @@ Subscriptions and Channels list videos without yt-dlp or Deno. Playing needs the
 Nothing to install. The image has:
 
 - yt-dlp's nightly build at `/home/pi/.local/share/OSD-OS/bin/yt-dlp`.
-- `osdos-yt-dlp-update.timer`: runs `yt-dlp --update` two minutes after each boot, then daily, while the YouTube module is on or a playlist has a YouTube video.
+- `osdos-yt-dlp-update.timer`: runs `yt-dlp --update` two minutes after each boot, then daily, while the YouTube module is on or a playlist has a YouTube video, and then puts yt-dlp's compiled bytecode into its zip (`/usr/lib/osdos/yt-dlp-compile`), so that each video and search starts sooner.
 - Deno in `/usr/local/bin/deno`, and `ffmpeg`.
 
 To check or update over SSH:

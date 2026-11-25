@@ -1,0 +1,266 @@
+#!/usr/bin/python3 -I
+"""Puts compiled bytecode into yt-dlp's zipapp, so that it starts sooner.
+
+yt-dlp's build for Linux is a zip of its sources with a "#!/usr/bin/env
+python3" line in front. Python writes no bytecode for what it imports from a
+zip, so every run (each YouTube video through mpv's ytdl hook, each search,
+list and Info Screen) parses and compiles the sources it imports again. This
+rebuilds the zip with a .pyc beside every .py, compiled by the Python that runs
+it, with the hash-based "unchecked" invalidation mode: imported as they are,
+with no look at the source's time (which a zip keeps only to two seconds). The
+sources stay, so a different Python (whose .pyc files would not match) falls
+back to them, and yt-dlp's --update, which only compares versions and writes
+the new build over the file, keeps working on it.
+
+All or nothing: the new zip is built in a folder of its own beside the file,
+checked (it opens, and runs --version), and only then put in the file's place
+by a rename, with the file's mode. On any failure the file stays as it was. A
+zip already compiled for this Python is left alone, so a run after an update
+that found nothing new costs one look at the zip's index.
+
+    yt-dlp-compile [--force] [--python PYTHON] [--stop-if PATH] FILE
+
+--python  the Python to compile with: by default the one the zip's first line
+          names (python3 on the PATH for "env python3").
+--stop-if a file whose appearance stops the rebuild (the file left as it was,
+          exit 0): /run/osdos-game/playing, so that it never competes with an
+          arcade game started meanwhile.
+
+Exits 0 when the file is compiled (now or already) or the rebuild was stopped,
+1 when it could not be rebuilt (the file as it was).
+"""
+
+import os
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
+
+# Each .pyc starts with the magic number of its Python's bytecode (4 bytes),
+# then 4 bytes of flags: 0b01 is hash-based without a check of the source.
+UNCHECKED_HASH = (1).to_bytes(4, "little")
+TMP_PREFIX = ".yt-dlp-compile-"
+# A folder of an earlier run cut short (power cut, killed): removed once it is
+# this old, since no run takes so long.
+STALE_SECONDS = 3600
+CHECK_TIMEOUT = 300
+
+
+class Stopped(Exception):
+    pass
+
+
+def log(message):
+    print(f"yt-dlp-compile: {message}", file=sys.stderr, flush=True)
+
+
+def shebang_of(path):
+    with open(path, "rb") as f:
+        head = f.read(4096)
+    if not head.startswith(b"#!"):
+        return b""
+    end = head.find(b"\n")
+    if end < 0:
+        raise ValueError("its first line has no end")
+    return head[: end + 1]
+
+
+def python_of(shebang):
+    words = shebang[2:].decode("utf-8", "replace").split()
+    if not words:
+        return shutil.which("python3")
+    if os.path.basename(words[0]) == "env":
+        names = [w for w in words[1:] if not w.startswith("-")]
+        return shutil.which(names[0]) if names else None
+    return words[0]
+
+
+def magic_of(python):
+    out = subprocess.run(
+        [python, "-I", "-c", "import importlib.util, sys; sys.stdout.write(importlib.util.MAGIC_NUMBER.hex())"],
+        check=True, capture_output=True, text=True, timeout=60).stdout
+    return bytes.fromhex(out.strip())
+
+
+def compiled(zf, magic):
+    """Whether every .py in the zip has a .pyc beside it from this Python."""
+    names = set(zf.namelist())
+    sources = [n for n in names if n.endswith(".py")]
+    if not sources:
+        return False
+    for name in sources:
+        pyc = name + "c"
+        if pyc not in names:
+            return False
+        with zf.open(pyc) as f:
+            if f.read(8) != magic + UNCHECKED_HASH:
+                return False
+    return True
+
+
+def remove_stale(directory):
+    now = time.time()
+    for entry in os.scandir(directory):
+        if entry.name.startswith(TMP_PREFIX) and entry.is_dir(follow_symlinks=False):
+            try:
+                if now - entry.stat(follow_symlinks=False).st_mtime > STALE_SECONDS:
+                    shutil.rmtree(entry.path)
+            except OSError:
+                pass
+
+
+def run(command, stop_if, timeout):
+    """Runs command; stops it, and raises Stopped, if stop_if appears."""
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            out, _ = proc.communicate(timeout=1)
+            return proc.returncode, out.decode("utf-8", "replace")
+        except subprocess.TimeoutExpired:
+            pass
+        if (stop_if and os.path.exists(stop_if)) or time.monotonic() > deadline:
+            proc.kill()
+            proc.communicate()
+            if stop_if and os.path.exists(stop_if):
+                raise Stopped()
+            raise RuntimeError(f"{command[-1]} took longer than {timeout} s")
+
+
+def safe_name(name):
+    parts = name.split("/")
+    return not (name.startswith("/") or "\\" in name or ".." in parts or ":" in parts[0])
+
+
+def rebuild(path, python, stop_if):
+    path = os.path.realpath(path)
+    directory = os.path.dirname(path)
+    shebang = shebang_of(path)
+    python = python or python_of(shebang)
+    if not python:
+        raise RuntimeError("no Python found for the zip's first line")
+    magic = magic_of(python)
+    st = os.stat(path)
+
+    with zipfile.ZipFile(path) as zf:
+        infos = zf.infolist()
+        if not FORCE and compiled(zf, magic):
+            log(f"{path} is compiled already")
+            return
+        for info in infos:
+            if not safe_name(info.filename):
+                raise RuntimeError(f"the zip names {info.filename!r}")
+        sources = {i.filename for i in infos if i.filename.endswith(".py")}
+        if not sources:
+            raise RuntimeError("the zip holds no Python sources")
+
+        remove_stale(directory)
+        # Beside the file, so that the rename stays on its filesystem.
+        work = tempfile.mkdtemp(prefix=TMP_PREFIX, dir=directory)
+        try:
+            tree = os.path.join(work, "tree")
+            os.mkdir(tree)
+            for info in infos:
+                # The .pyc files of an earlier build are made again below.
+                if info.filename.endswith(".pyc") and info.filename[:-1] in sources:
+                    continue
+                zf.extract(info, tree)
+            if stop_if and os.path.exists(stop_if):
+                raise Stopped()
+
+            # One process, at the unit's low priority: a film may be playing.
+            # Its file names are the zip's, as Python would give them
+            # compiling from it.
+            code, out = run([python, "-I", "-m", "compileall", "-q", "-b",
+                             "--invalidation-mode", "unchecked-hash",
+                             "-s", tree, "-p", path, tree], stop_if, CHECK_TIMEOUT * 4)
+            if code != 0:
+                raise RuntimeError(f"compileall failed ({code}): {out.strip()[-2000:]}")
+
+            new = os.path.join(work, "yt-dlp")
+            with open(new, "wb") as f:
+                f.write(shebang)
+                with zipfile.ZipFile(f, "w") as out_zf:
+                    for info in infos:
+                        name = info.filename
+                        if name.endswith(".pyc") and name[:-1] in sources:
+                            continue
+                        out_zf.writestr(info, zf.read(info))
+                        if name in sources:
+                            with open(os.path.join(tree, *name.split("/")) + "c", "rb") as pyc:
+                                data = pyc.read()
+                            if data[:8] != magic + UNCHECKED_HASH:
+                                raise RuntimeError(f"{name}c is not this Python's unchecked-hash bytecode")
+                            pyc_info = zipfile.ZipInfo(name + "c", date_time=info.date_time)
+                            pyc_info.compress_type = zipfile.ZIP_DEFLATED
+                            pyc_info.external_attr = 0o644 << 16
+                            out_zf.writestr(pyc_info, data)
+                f.flush()
+                os.fsync(f.fileno())
+
+            with zipfile.ZipFile(new) as check:
+                bad = check.testzip()
+                if bad is not None:
+                    raise RuntimeError(f"the new zip's {bad} is damaged")
+                if not compiled(check, magic):
+                    raise RuntimeError("the new zip lacks a .pyc")
+            code, out = run([python, "-I", new, "--version"], stop_if, CHECK_TIMEOUT)
+            if code != 0:
+                raise RuntimeError(f"the new zip does not run ({code}): {out.strip()[-2000:]}")
+
+            os.chmod(new, stat.S_IMODE(st.st_mode))
+            if os.geteuid() == 0:
+                os.chown(new, st.st_uid, st.st_gid)
+            if stop_if and os.path.exists(stop_if):
+                raise Stopped()
+            # The file as it was until here: replaced in one step.
+            os.replace(new, path)
+            dir_fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+    log(f"{path} compiled for {python} (version {out.strip()})")
+
+
+FORCE = False
+
+
+def main(argv):
+    global FORCE
+    usage = "usage: yt-dlp-compile [--force] [--python PYTHON] [--stop-if PATH] FILE"
+    python = stop_if = path = None
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg == "--force":
+            FORCE = True
+        elif arg == "--python" and args:
+            python = args.pop(0)
+        elif arg == "--stop-if" and args:
+            stop_if = args.pop(0)
+        elif path is None and not arg.startswith("--"):
+            path = arg
+        else:
+            print(usage, file=sys.stderr)
+            return 2
+    if path is None:
+        print(usage, file=sys.stderr)
+        return 2
+    try:
+        rebuild(path, python, stop_if)
+    except Stopped:
+        log(f"stopped: {stop_if} appeared; {path} left as it was")
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError) as e:
+        log(f"{path} left as it was: {e}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

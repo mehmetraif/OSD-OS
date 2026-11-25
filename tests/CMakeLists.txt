@@ -431,6 +431,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME image_packages COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/image_packages_test.sh
                                          ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                          ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/00-packages/00-packages-nr)
+
+    # yt-dlp's zip rebuilt with its bytecode inside (os/stage-osdos/06-youtube:
+    # yt-dlp-compile), on a stand-in zipapp: it runs the same from its .pyc
+    # files, keeps its first line and mode, and a rebuild that fails half-way
+    # leaves it as it was; the stage and the update unit run it. Needs Python 3.
+    add_test(NAME yt_dlp_compile COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/yt_dlp_compile_test.sh
+                                          ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/06-youtube)
 endif()
 
 # The runner's engine has the app's provider of the pixel symbols' pictures
