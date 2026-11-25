@@ -40,7 +40,7 @@ It is off at first: turn it on in **Settings → Arcade → Enabled**.
    - on the OSD/OS image, `Games/Arcade` on the card's OSD-OS partition (`/media/OSD-OS/Games/Arcade`);
    - elsewhere, `Games/Arcade` in the data folder's `media` folder;
    - or the folder **Settings → Arcade → Games Folder** names.
-3. **Sets for this MAME.** A ROM set has to match the MAME that plays it: the image's is 0.276.
+3. **Sets for this MAME.** A ROM set has to match the MAME that plays it: the image's is 0.276, and so are Debian trixie's and the one **Download MAME** brings on Windows. Homebrew on a Mac and the BSDs' packages bring a MAME of their own, which follows MAME's releases and is newer today, so sets made for 0.276 may not all play there, nor theirs on the image: MAME renames, splits and redumps sets from one version to the next. `mame -version` in a terminal says which one a machine has. FinalBurn Neo, which comes with OSD/OS, is the same everywhere.
 4. **Turn it on**: **Settings → Arcade → Enabled**.
 5. **FinalBurn Neo** (optional), for online high scores and play with others. Its core comes with OSD/OS; it needs RetroArch.
 

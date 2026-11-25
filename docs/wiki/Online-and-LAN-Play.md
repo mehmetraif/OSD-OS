@@ -32,10 +32,11 @@ Every OSD/OS machine plays FinalBurn Neo's arcade games with the others: over th
 
 ## The same engines on every machine
 
-Every system plays arcade games with the same engines, so machines stay in step and take the same ROM sets.
+Every system plays network games with the same FinalBurn Neo, so machines stay in step and take the same ROM sets for them. MAME is the same on the image, Debian trixie and Windows only (below).
 
 - **FinalBurn Neo comes with OSD/OS** on every system, built from one commit of it. Machines whose cores differ drift apart in a game, and RetroArch drops one of them.
-- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages. The image and the Raspberry Pi tarball also bring that RetroArch built by OSD/OS with TLS, for [RetroAchievements](https://github.com/mehmetraif/OSD-OS/wiki/Arcade), and play in it. That build carries a few fixes from RetroArch's and BearSSL's later code (`scripts/retroarch-fixes.patch` in OSD/OS's source), none of which changes its version or its netplay protocol, so it plays with any other RetroArch 1.20.0.
+- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages.
+- **MAME on a Mac and on the BSDs** is the system's own: Homebrew's, FreeBSD's or OpenBSD's package, which follows MAME's releases and is newer than the image's today. MAME's sets change from one version to the next (sets are renamed, split or redumped), so a ROM set that plays in MAME on the image may not in a newer MAME, and the other way round. Network play is FinalBurn Neo's alone, so this changes nothing for playing together; it matters when you copy a games folder between machines. The image and the Raspberry Pi tarball also bring that RetroArch built by OSD/OS with TLS, for [RetroAchievements](https://github.com/mehmetraif/OSD-OS/wiki/Arcade), and play in it. That build carries a few fixes from RetroArch's and BearSSL's later code (`scripts/retroarch-fixes.patch` in OSD/OS's source), none of which changes its version or its netplay protocol, so it plays with any other RetroArch 1.20.0.
 - **The newest core**: **Settings → Arcade → FinalBurn Neo → Upgrade to Latest** puts libretro's newest core in place of OSD/OS's. Play with others on OSD/OS's version: **Back to OSD/OS's Version** goes back to it.
 
 ## LAN play
