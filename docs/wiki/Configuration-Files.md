@@ -155,6 +155,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `input.cfg`, `gamecontrollerdb.txt` | Gamepad remapping, read again when it changes; extra SDL mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
 | `display-output.json` | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted afterwards |
 | `osdos-setup.json` | Settings from [OSD/OS Setup](https://osdos.tv/setup/). At the next start OSD/OS merges its `config` into `config.json` and deletes it. One beside the app is taken the same way |
+| `mpv-options.json` | What the mpv binary takes of the options OSD/OS may give it, from its `--list-options`, with the binary's path, size and time. Asked again when mpv is replaced; safe to delete |
 | `crash-report.txt`, `stall-report.txt` | The latest crash, or freeze of 5 seconds, only ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `themes/`, `skins/` | One with the folder name of one of OSD/OS's replaces it |
 | `soundfonts/` | For a MIDI file with no SoundFont of its name beside it: the first `.sf2` here by name ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) |

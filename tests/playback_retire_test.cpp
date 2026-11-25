@@ -39,6 +39,7 @@
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
 if [ "$2" = --list-options ]; then
+  [ -n "$FAKE_MPV_LIST_DELAY" ] && sleep "$FAKE_MPV_LIST_DELAY"
   echo "options $FAKE_MPV_SUBS" >> "$log"
   if [ "$FAKE_MPV_SUBS" = old ]; then
     echo ' --subs-with-matching-audio       Flag (default: yes)'
@@ -296,6 +297,32 @@ class PlaybackRetireTest : public QObject {
         qputenv("MPV_HOME", home.toUtf8());
         QFile system(QStringLiteral("/etc/mpv/mpv.conf"));
         return !(system.open(QIODevice::ReadOnly) && system.readAll().contains("aspect"));
+    }
+    // An mpv of its own (a copy of the stand-in) first on PATH: one this run
+    // hasn't asked yet, as each binary is asked once by its path, size and
+    // time.
+    QString anotherMpv(const char *folder) {
+        const QString dir = m_dir.path() + QLatin1Char('/') + QLatin1String(folder);
+        if (!QDir().mkpath(dir))
+            return {};
+        const QString bin = dir + QStringLiteral("/mpv");
+        QFile::remove(bin);
+        if (!QFile::copy(m_dir.path() + QStringLiteral("/bin/mpv"), bin))
+            return {};
+        qputenv("PATH", dir.toUtf8() + ':' + qgetenv("PATH"));
+        return bin;
+    }
+    void forcedOnly(const char *film) {
+        m_mpv->loadAndPlay({ { "url", m_dir.path() + QStringLiteral("/") + QLatin1String(film) + QStringLiteral(".mp4") },
+                             { "audioTrack", 0 }, { "subTrack", -1 } });
+    }
+    // What the app keeps of mpv's list of options, in its data folder.
+    QString optionsFile() const { return m_dir.path() + QStringLiteral("/mpv-options.json"); }
+    // The data folder's answer for this binary, as the app writes it.
+    static QJsonObject optionsFor(const QString &bin, bool forced, qint64 sizeOff = 0) {
+        const QFileInfo info(bin);
+        return { { "version", 1 }, { "mpv", info.absoluteFilePath() }, { "size", double(info.size() + sizeOff) },
+                 { "modified", double(info.lastModified().toMSecsSinceEpoch()) }, { "forcedSubtitles", forced } };
     }
 
 private slots:
@@ -1853,6 +1880,78 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(happened("start D"), 5000);
         QVERIFY(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty());
         QCOMPARE(events().count(QStringLiteral("options old")), 1);
+    }
+
+    // mpv's list of options is asked ahead, off the app's thread, a moment
+    // after the menus are up (warmUp()), so the first video with Forced
+    // Only subtitles asks nothing; and the answer goes in the data folder.
+    void theOptionsAreAskedAheadOffTheAppsThread() {
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([path] {
+            qputenv("PATH", path); qunsetenv("FAKE_MPV_SUBS"); qunsetenv("FAKE_MPV_LIST_DELAY"); });
+        const QString bin = anotherMpv("bin-ahead");
+        QVERIFY(!bin.isEmpty());
+        qputenv("FAKE_MPV_SUBS", "ahead");
+        qputenv("FAKE_MPV_LIST_DELAY", "1");
+        QElapsedTimer clock;
+        clock.start();
+        m_mpv->warmUp();
+        QVERIFY2(clock.elapsed() < 500, qPrintable(QString::number(clock.elapsed())));
+        QTRY_COMPARE_WITH_TIMEOUT(events().count(QStringLiteral("options ahead")), 1, 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(contents(optionsFile()).contains(QFileInfo(bin).absoluteFilePath().toUtf8()), 3000);
+        QCOMPARE(QJsonDocument::fromJson(contents(optionsFile())).object(), optionsFor(bin, true));
+        forcedOnly("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+        QCOMPARE(events().count(QStringLiteral("options ahead")), 1);
+
+        // A video that starts while the answer is being asked waits for it,
+        // and asks nothing more.
+        const QString other = anotherMpv("bin-ahead-late");
+        QVERIFY(!other.isEmpty());
+        qputenv("FAKE_MPV_SUBS", "old");
+        m_mpv->warmUp();
+        forcedOnly("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QVERIFY(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty());
+        QCOMPARE(events().count(QStringLiteral("options old")), 1);
+    }
+
+    // The next run asks nothing: the answer in the data folder stands for
+    // the binary of its path, size and time, and for no other; a file that
+    // can't be read counts for none.
+    void theOptionsAreKeptInTheDataFolder() {
+        const QByteArray path = qgetenv("PATH");
+        const auto restore = qScopeGuard([path] { qputenv("PATH", path); qunsetenv("FAKE_MPV_SUBS"); });
+        qputenv("FAKE_MPV_SUBS", "kept");
+        // Kept: "old" there, where this binary would say "forced".
+        const QString kept = anotherMpv("bin-kept");
+        QVERIFY(!kept.isEmpty());
+        QVERIFY(write(optionsFile(), QJsonDocument(optionsFor(kept, false)).toJson()));
+        forcedOnly("A");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start A"), 5000);
+        QCOMPARE(events().count(QStringLiteral("options kept")), 0);
+        QVERIFY(arguments().filter(QStringLiteral("--subs-with-matching-audio")).isEmpty());
+        QVERIFY(arguments().contains(QStringLiteral("--subs-fallback-forced=always")));
+
+        // Another binary's (its size differs): asked, and the file is its.
+        const QString stale = anotherMpv("bin-stale");
+        QVERIFY(!stale.isEmpty());
+        QVERIFY(write(optionsFile(), QJsonDocument(optionsFor(stale, false, 1)).toJson()));
+        forcedOnly("B");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start B"), 5000);
+        QCOMPARE(events().count(QStringLiteral("options kept")), 1);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
+        QTRY_COMPARE_WITH_TIMEOUT(QJsonDocument::fromJson(contents(optionsFile())).object(), optionsFor(stale, true), 3000);
+
+        // Cut short: asked.
+        const QString cut = anotherMpv("bin-cut");
+        QVERIFY(!cut.isEmpty());
+        QVERIFY(write(optionsFile(), QJsonDocument(optionsFor(cut, false)).toJson().left(40)));
+        forcedOnly("C");
+        QTRY_VERIFY_WITH_TIMEOUT(happened("start C"), 5000);
+        QCOMPARE(events().count(QStringLiteral("options kept")), 2);
+        QVERIFY(arguments().contains(QStringLiteral("--subs-with-matching-audio=forced")));
     }
 
     // mpv tells the position at every frame; its views hear it at most
