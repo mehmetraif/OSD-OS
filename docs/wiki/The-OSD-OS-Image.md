@@ -583,6 +583,7 @@ The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt
 - It is also skipped without a connection within five minutes, and while an arcade game plays (`/run/osdos-game/playing`, [The game's socket](#the-games-socket)).
 - The YouTube module starts the update itself the first time it opens.
 - `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
+- It runs as `pi` with no way to more privileges and the system out of its reach (`NoNewPrivileges`, `ProtectSystem=full`, the kernel's settings, modules and control groups protected, no setuid, `LockPersonality`): it writes only its own folder. `systemctl show osdos-yt-dlp-update -p NoNewPrivileges -p ProtectSystem` shows them.
 
 ### The system's packages
 

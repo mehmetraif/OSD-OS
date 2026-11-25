@@ -23,3 +23,17 @@ ExecStart=/home/@FIRST_USER_NAME@/.local/share/OSD-OS/bin/yt-dlp --update
 # Out of the way of a film that is playing.
 Nice=19
 IOSchedulingClass=idle
+# It runs code it has just downloaded, so it is given nothing it doesn't use.
+# It writes only its own folder, ~/.local/share/OSD-OS/bin (the new build
+# beside the old, then put in its place), and reads the app's settings in
+# ~/.local/share/OSD-OS (yt-dlp-wanted): /usr, /boot and /etc read-only, no
+# way to more privileges than the user's (no setuid, no file capabilities),
+# and the kernel's settings, modules and control groups out of its reach.
+# Each of these leaves the home folder and the network as they were.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
