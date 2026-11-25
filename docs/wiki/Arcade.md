@@ -673,6 +673,7 @@ Everything MAME writes is in `arcade` in the data folder: `~/.local/share/OSD-OS
 | `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games, kept a week |
 | `arcade/badges/` | The achievements' badges, when the games folder's `snap` can't be written |
 | `arcade/pictures-wanted` | The marker of a Download Pictures look under way |
+| `arcade/engine-versions.json` | The versions of RetroArch and the FinalBurn Neo cores online play compares rooms against, with each file's path, size and time; read again when one of them changes. Safe to delete |
 | `arcade/retroarch/` | RetroArch's folder for FinalBurn Neo's games, readable by you alone. The rows below are in it |
 | `retroarch.cfg`, `info/fbneo_libretro.info` | RetroArch's settings and the core's information, written before each game |
 | `last.log`, `system/fbneo` | What RetroArch said in the last game; links to the BIOS sets |

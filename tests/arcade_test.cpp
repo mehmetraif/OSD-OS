@@ -8339,6 +8339,94 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArch"), QStringLiteral("1.22.3"), 5000);
     }
 
+    // The versions read are kept in the arcade folder (engine-versions.json)
+    // by the stamp of the file each was read from: the next run asks none
+    // of them, its RetroArch's and cores' as soon as online play looks;
+    // a file changed since, of a stamp it doesn't keep, is asked again, the
+    // rest kept; and a kept file that can't be read counts for none.
+    void ownVersionsAreKeptForTheNextRun() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString askedRetroArch = data.path() + QStringLiteral("/asked-retroarch");
+        const QString askedCore = data.path() + QStringLiteral("/asked-core");
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"),
+                  QStringLiteral("#!/bin/sh\necho >> '%1'\necho 'Version: 1.22.2 (Git 0a1b2c3)'\n")
+                      .arg(askedRetroArch).toUtf8());
+        writeFile(libretro::downloadedCore(data.path()), "core");
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, QStringLiteral("#!/bin/sh\necho \"$2\" >> '%1'\n"
+                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n")
+                                .arg(askedCore).toUtf8());
+        for (const char *program : { "/bin/retroarch", "/bin/coreinfo" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const auto lines = [](const QString &path) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
+        };
+        const QString kept = data.path() + QStringLiteral("/arcade/engine-versions.json");
+        // A run: online play on, the lobby (not reached) looked at.
+        const auto run = [&](const std::function<void(ArcadeBackend &)> &then) {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
+            arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
+            arcade.setVersionReadTimeout(3000);
+            arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+            arcade.refreshRooms();
+            then(arcade);
+            // Its file written (off the app's thread) before the next run.
+            QThreadPool::globalInstance()->waitForDone();
+        };
+        const auto ours = [](ArcadeBackend &arcade, const char *key) {
+            return arcade.lobby().value(QLatin1String(key)).toString();
+        };
+
+        run([&](ArcadeBackend &arcade) {
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourRetroArchState"), QStringLiteral("read"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourCoreState"), QStringLiteral("read"), 5000);
+        });
+        QCOMPARE(lines(askedRetroArch), 1);
+        QCOMPARE(lines(askedCore), 1);
+        QVERIFY(QFileInfo::exists(kept));
+
+        // The next run: read at once, nothing asked.
+        run([&](ArcadeBackend &arcade) {
+            QCOMPARE(ours(arcade, "yourRetroArchState"), QStringLiteral("read"));
+            QCOMPARE(ours(arcade, "yourRetroArch"), QStringLiteral("1.22.2"));
+            QCOMPARE(ours(arcade, "yourCoreState"), QStringLiteral("read"));
+            QCOMPARE(ours(arcade, "yourCore"), QStringLiteral("v1.0.0.03 6e7c2a1"));
+            QTest::qWait(300);
+        });
+        QCOMPARE(lines(askedRetroArch), 1);
+        QCOMPARE(lines(askedCore), 1);
+
+        // The core replaced (another size): asked again; RetroArch kept.
+        writeFile(libretro::downloadedCore(data.path()), "a newer core");
+        run([&](ArcadeBackend &arcade) {
+            QCOMPARE(ours(arcade, "yourRetroArch"), QStringLiteral("1.22.2"));
+            QCOMPARE(ours(arcade, "yourCoreState"), QStringLiteral("reading"));
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourCoreState"), QStringLiteral("read"), 5000);
+        });
+        QCOMPARE(lines(askedRetroArch), 1);
+        QCOMPARE(lines(askedCore), 2);
+        run([](ArcadeBackend &) {});
+        QCOMPARE(lines(askedCore), 2);
+
+        // A kept file that can't be read: everything asked again.
+        writeFile(kept, "{ \"version\": 1, \"retroarch\": ");
+        run([&](ArcadeBackend &arcade) {
+            QCOMPARE(ours(arcade, "yourRetroArchState"), QStringLiteral("reading"));
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourRetroArchState"), QStringLiteral("read"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourCoreState"), QStringLiteral("read"), 5000);
+        });
+        QCOMPARE(lines(askedRetroArch), 2);
+        QCOMPARE(lines(askedCore), 3);
+        // And written whole again.
+        QCOMPARE(QJsonDocument::fromJson([&] { QFile f(kept); f.open(QIODevice::ReadOnly); return f.readAll(); }())
+                     .object().value(QStringLiteral("retroarch")).toObject().value(QStringLiteral("version")).toString(),
+                 QStringLiteral("1.22.2"));
+    }
+
     // A game started while MAME is asked about the sets stops that MAME and
     // holds the asking until it has ended: MAME isn't run beside a game. The
     // sets the stopped MAME hadn't answered for are asked about first.
