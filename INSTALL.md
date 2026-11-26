@@ -97,7 +97,6 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 
     # Drivers & Video
     dtoverlay=vc4-fkms-v3d,cma-256
-    dtoverlay=rpivid-v4l2
 
     # Overclocking
     over_voltage=2
@@ -154,7 +153,6 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 
     # Drivers & Video
     dtoverlay=vc4-fkms-v3d,cma-256
-    dtoverlay=rpivid-v4l2
 
     # Overclocking
     over_voltage=2
@@ -192,7 +190,7 @@ However, if you already have Raspberry Pi OS set up and working for your TV then
 
     This will install all of the needed dependencies (note: over WiFi it will take about 20 mins to complete) 
 
-    It also sets up the network as the OSD/OS image has it, from the image's own files: Wi-Fi without power saving (`/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf`), and a network game's packets marked for Wi-Fi's video queue (`osdos-netplay-priority.service`, with `nftables`). On a desktop Pi too, whose Wi-Fi then stays awake as well.
+    It also sets up the network as the OSD/OS image has it, from the image's own files, which the release's tarball carries (checked against GitHub's SHA-256 with the rest of it): Wi-Fi without power saving (`/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf`), and a network game's packets marked for Wi-Fi's video queue (`osdos-netplay-priority.service`, with `nftables`). On a desktop Pi too, whose Wi-Fi then stays awake as well. It also installs the image's firewall (`osdos-firewall.service`: only the home network's addresses may connect), but leaves it off, as this is your own system and may run services for other networks: **Settings → System → Firewall** turns it on (and off again). Once on, it stays on when `install.sh` is run again. With it on, a computer reaching the Pi over a VPN, its global IPv6 address, or from a network outside `10.x`, `172.16`–`172.31` and `192.168.x` is refused ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#a-computer-cant-reach-the-pi)).
 
     **Optional** 
     - You will get an option at the end of the install script that asks: `Install systemd autostart service? [y/N]` 
@@ -296,6 +294,8 @@ At this point you can type `osdos` at any time to start up the app.  And if you 
     sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
     sudo systemctl disable --now osdos-netplay-priority.service
     sudo rm -f /etc/systemd/system/osdos-netplay-priority.service /usr/lib/osdos/netplay-priority.nft
+    sudo systemctl disable --now osdos-firewall.service
+    sudo rm -f /etc/systemd/system/osdos-firewall.service /usr/lib/osdos/firewall.nft
     sudo rm -f /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
     sudo systemctl daemon-reload
     ```

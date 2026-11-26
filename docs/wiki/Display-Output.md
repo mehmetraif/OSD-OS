@@ -144,7 +144,7 @@ include osdos-display.txt
 
 Then come the `[pi3]`, `[pi3+]` and `[pi4]` sections, with the same driver and overclocking lines as an app install's ([Installation → 2. config.txt, for a CRT or for HDMI](https://github.com/mehmetraif/OSD-OS/wiki/Installation#2-configtxt-for-a-crt-or-for-hdmi)).
 
-- A Pi 3 and a Pi 4 run fake KMS (`dtoverlay=vc4-fkms-v3d,cma-256`). The Pi 4 adds its HEVC decoder (`dtoverlay=rpivid-v4l2`).
+- A Pi 3 and a Pi 4 run fake KMS (`dtoverlay=vc4-fkms-v3d,cma-256`). The Pi 4's HEVC decoder needs no overlay: Raspberry Pi's kernel enables it by itself, and has no `rpivid-v4l2` overlay any more.
 - A Pi 5 runs full KMS (`vc4-kms-v3d`), set in the preset.
 
 ## The outputs, preset by preset

@@ -24,6 +24,8 @@ constexpr int kSystemApi = 10;
 // answers "nothing this sets": it is the image's, and stays as it was when
 // the app is updated in place.
 constexpr int kSshApi = 11;
+// Launcher API 12: its osdos-stop turns the firewall on and off too.
+constexpr int kFirewallApi = 12;
 // timedatectl, or raspi-config writing the console's keyboard.
 constexpr int kTimeoutMs = 30 * 1000;
 
@@ -42,6 +44,13 @@ SystemSettings::SystemSettings(QObject *parent)
                                   " a new image (or install.sh is run again); OSD/OS Setup's file sets it meanwhile");
     else if (m_available && systemlocale::ssh(systemRoot()) < 0)
         m_sshOff = QStringLiteral("SSH isn't installed on this system");
+    if (m_available && legacy::envInt("LAUNCHER_API") < kFirewallApi)
+        m_firewallOff = QStringLiteral("The card's system is older than the app: the firewall can be set here once it"
+                                       " has a new image (or install.sh is run again)");
+    else if (m_available && !QFileInfo::exists(systemRoot() + QStringLiteral("/usr/sbin/nft")))
+        m_firewallOff = QStringLiteral("nftables isn't installed on this system");
+    else if (m_available && systemlocale::firewall(systemRoot()) < 0)
+        m_firewallOff = QStringLiteral("The firewall isn't installed on this system: install.sh installs it");
     refresh();
 }
 
@@ -50,17 +59,28 @@ void SystemSettings::refresh() {
     const QString layout = systemlocale::keyboard(systemRoot());
     // Off the image SSH is nothing of the app's.
     const bool ssh = m_available && systemlocale::ssh(systemRoot()) == 1;
-    // Nobody to sign in: no password, as the helper said, and no key, as the
-    // app's user's own file has none.
-    const QString note = ssh && m_sshNoPassword && systemlocale::sshKeys(QDir::homePath()).isEmpty()
-                             ? QStringLiteral("Set a password or a key with OSD/OS Setup first")
+    // Nobody to sign in: no password logs in, as the helper said (the app's
+    // user has none, or sshd takes none), and no key, as the app's user's
+    // own files have none.
+    const QString note = ssh && m_sshNoPassword && !systemlocale::hasSshKey(QDir::homePath())
+                             ? QStringLiteral("No way in yet: give a key, or a password with Password Login,"
+                                              " on OSD/OS Setup")
                              : QString();
-    if (zone == m_timeZone && layout == m_keyboard && ssh == m_ssh && note == m_sshNote)
+    // The firewall, as SSH; on but its rules not in force, said so.
+    const bool firewall = m_available && systemlocale::firewall(systemRoot()) == 1;
+    const QString firewallNote = firewall && !systemlocale::firewallLoaded(systemRoot())
+                                     ? QStringLiteral("Its rules aren't loaded: anything can connect for now"
+                                                      " (journalctl -u osdos-firewall)")
+                                     : QString();
+    if (zone == m_timeZone && layout == m_keyboard && ssh == m_ssh && note == m_sshNote && firewall == m_firewall
+        && firewallNote == m_firewallNote)
         return;
     m_timeZone = zone;
     m_keyboard = layout;
     m_ssh = ssh;
     m_sshNote = note;
+    m_firewall = firewall;
+    m_firewallNote = firewallNote;
     emit changed();
 }
 
@@ -160,6 +180,15 @@ bool SystemSettings::setSsh(bool on) {
                      QStringLiteral("SSH not turned off"));
 }
 
+bool SystemSettings::setFirewall(bool on) {
+    if (!m_firewallOff.isEmpty() || on == m_firewall)
+        return false;
+    return on ? send(QStringLiteral("firewall"), QStringLiteral("on"), QStringLiteral("Firewall on"),
+                     QStringLiteral("Firewall not turned on"))
+              : send(QStringLiteral("firewall"), QStringLiteral("off"), QStringLiteral("Firewall off"),
+                     QStringLiteral("Firewall not turned off"));
+}
+
 // osdos-stop system-setting, as root, behind the socket: which and its value
 // on a line, "ok" or why not back.
 bool SystemSettings::send(const QString &what, const QString &value, const QString &done, const QString &notDone) {
@@ -172,8 +201,9 @@ bool SystemSettings::send(const QString &what, const QString &value, const QStri
                      [this, what, value, done, notDone](const rootrequest::Answer &answer) {
         m_busy = false;
         emit busyChanged();
-        // SSH turned on: whether the app's user has a password to log in
-        // with, as the helper says ("ok no-password"), for sshNote.
+        // SSH turned on: whether a password can log in, as the helper says
+        // ("ok no-password": the app's user has none, or, from launcher API
+        // 12, sshd takes none), for sshNote.
         if (answer.ok && what == QLatin1String("ssh") && value == QLatin1String("on"))
             m_sshNoPassword = answer.note == QLatin1String("no-password");
         // As the system has it now, whatever the answer.

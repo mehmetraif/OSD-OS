@@ -1,6 +1,7 @@
 #pragma once
 #include "Libretro.h"
 #include <QHash>
+#include <QHostAddress>
 #include <QList>
 #include <QObject>
 #include <QSet>
@@ -9,6 +10,7 @@
 #include <functional>
 #include <optional>
 
+class QNetworkDatagram;
 class QProcess;
 class QTimer;
 class QUdpSocket;
@@ -35,7 +37,8 @@ public:
     // The query sent, unless one's answers are still listened for: the
     // answers taken as they come for the time they are listened for, then
     // roomsRead() (at once, once this call is done with, for a query that
-    // couldn't be sent).
+    // couldn't be sent). The query goes from a socket of its own, closed
+    // once its answers have been listened for (or by forget()).
     void query();
     // The rooms the last query found, those without a password of
     // FinalBurn Neo's, in the order they were first heard (and of them, a
@@ -55,7 +58,9 @@ public:
     // of a second each; portsAnswered() once it has said which this
     // machine's player 1 takes, with the layout it said before them
     // (Classic, from an older OSD/OS that says none, after a moment), or
-    // hasn't (nullopt). False when the host can't be asked at all.
+    // hasn't (nullopt), when the host is sent a release of whatever it
+    // claimed. False when the host can't be asked at all. The ask goes from
+    // a socket of its own, closed once it is answered or given up on.
     bool askForPorts(const QString &host, int players);
     // Whether this machine's way to the local network is Wi-Fi: no cable's
     // interface up with an address of a private network
@@ -99,6 +104,18 @@ public:
     void setPeerSource(std::function<std::optional<QSet<QString>>()> source) { m_peerSource = std::move(source); }
     void setClaimGrace(int ms) { m_claimGrace = ms; }
     void setClaimCheckInterval(int ms) { m_claimCheckMs = ms; }
+    // An answer to the ask for ports as it is read off the socket: taken
+    // only from a sender on the local network (libretro::isLanSender()), as
+    // the rooms' answers and the claims are; true once the game starts on
+    // it. Public for a test's datagram from a sender it can't send from.
+    bool takePortsAnswer(const QNetworkDatagram &answer);
+    // For tests: the local ports the LAN query and the ask for ports are
+    // bound to while their answers are listened for, 0 once they are closed.
+    quint16 queryPort() const;
+    quint16 askPort() const;
+    bool releaseSocketOpen() const { return m_releaseSocket != nullptr; }
+    // For tests: whether the second release of address's ports is waiting.
+    bool releasing(const QString &address) const { return m_releasesAgain.contains(QHostAddress(address).toString()); }
 
 signals:
     void roomsRead();
@@ -115,6 +132,8 @@ private:
     void answerPorts(const std::optional<libretro::PortRange> &ports);
     void answerClaims();
     void checkClaims();
+    void closeSocket(QUdpSocket *&socket);
+    void closeReleaseSocket();
     void expireClaims(const QSet<QString> &connected);
 
     // The socket the query goes out of and the answers come to, where it

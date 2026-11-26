@@ -7,3 +7,6 @@
 # downloads one for an offline playlist: above 360p YouTube sends them apart.
 # os/build.sh skips all of it with OSDOS_YOUTUBE=0.
 python3 python3-pycryptodome python3-requests python3-brotli ffmpeg
+# unzip unpacks Deno's zip in the image (00-run.sh). Raspberry Pi OS Lite has
+# it already; named so it stays.
+unzip

@@ -136,6 +136,7 @@ libmpv gets the process's command line as options and a playlist, with these dif
 - The decoder flags are the embedded ones (the second table below).
 - No `mpv.conf` is read, and `mpv_video_args` isn't used.
 - An option this libmpv doesn't know is left out with a warning, `[EmbeddedMpv] --name=value: <mpv's error>`.
+- mpv's own statistics page, console, menus, mouse pan and zoom, command list and auto profiles aren't loaded: no key but OSD/OS's reaches libmpv, and it reads no `mpv.conf`.
 
 ### How the picture is drawn
 
@@ -185,7 +186,7 @@ OSD/OS reads the board's model from `/proc/device-tree/model` and picks the flag
 
 - On macOS and Windows every video, in an mpv process or inside the app, is also given `--osd-fonts-dir` with the app's `assets/fonts`, so the deck menu is drawn in the VCR font. On Linux mpv finds it through fontconfig instead.
 - Where plain ALSA plays (the image, Raspberry Pi OS Lite), a video inside the app and the menu music are also given `--ao=alsa`, so mpv doesn't try PipeWire, PulseAudio, JACK and sndio first.
-- **Pi 4.** `drm-copy` decodes HEVC; it needs `dtoverlay=rpivid-v4l2` under `[pi4]` in `config.txt`, as the image has it. `v4l2m2m-copy` decodes H.264. VP9 and AV1 decode in software.
+- **Pi 4.** `drm-copy` decodes HEVC, on the decoder Raspberry Pi's kernel enables by itself (no `dtoverlay` line: the `rpivid-v4l2` overlay is gone, and a `config.txt` that still names it should lose the line). `v4l2m2m-copy` decodes H.264. VP9 and AV1 decode in software.
 - **Pi 3.** With Settings → TV / Movie → 1080p Playback **On** (the default), 1080p H.264 is smooth but can't be cropped. 14:9 and Pan & Scan then show the whole picture, and the deck menu has no CROP. **Off** crops, for videos of 720p and below. Inside the app the picture can always be cropped.
 - **Pi 5.** The launcher exports `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR` and `OSDOS_DRM_MODE`, so mpv plays on the output the display preset names ([Display Output](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output)).
 - **A Pi running a desktop** gets the desktop line, which has none of the Pi's decoders: set `mpv_video_args` (below).
@@ -196,7 +197,7 @@ On mpv's command line a later flag overrides an earlier one, and the command lin
 
 | Layer | Flags | Set by |
 |---|---|---|
-| App constants | `--input-ipc-server`, `--log-file`, `--osc`, `--osd-level`, `--script`, `--input-conf`, `--input-ar-delay`, `--input-ar-rate`, `--video-sync`, `--no-input-terminal`, `--fullscreen`, `--no-native-fs` | OSD/OS only |
+| App constants | `--input-ipc-server`, `--log-file`, `--osc`, `--osd-level`, `--script`, `--input-conf`, `--input-ar-delay`, `--input-ar-rate`, `--video-sync`, `--no-input-terminal`, `--fullscreen`, `--no-native-fs`, and with no display server `--load-stats-overlay=no`, `--load-console=no` (`--load-osd-console=no` before mpv 0.39), `--load-select=no`, `--load-positioning=no`, `--load-commands=no`, each where the mpv lists it | OSD/OS only |
 | Per video | `--start`, `--playlist-start`, `--aid`, `--sid` and the subtitle flags, `--sub-file`, `--slang`, `--script-opts`, `--loop-playlist`, `--shuffle`, `--image-display-duration`, `--no-audio`, `--ytdl`, and a module's own (`--ytdl-format`, `--http-header-fields`, `--speed` …) | The player, from its module's settings |
 | Presentation | `--audio-device` (Audio Output), `--panscan` or `--keepaspect` (Scaling), `--video-output-levels=limited` or `full` (Video Levels), `--monitoraspect=4:3` (a CRT's output), `--video-rotate` (Monitor) | You, in Settings |
 | Device decode | `--vo`, `--gpu-context`, `--hwdec`, `--drm-device`, `--drm-connector`, `--drm-mode` | OSD/OS by device; you, with `mpv_video_args` |
@@ -407,7 +408,7 @@ A video that can't play ends on a **Playback failed** notice: the reason, mpv's 
 
 - `grep -i 'hardware decoding' /tmp/runtime-pi/osdos-mpv.log` says which decoder played. No line means software decoding.
 - **A Pi running a desktop**: set `"mpv_video_args": "--hwdec=v4l2m2m-copy"`.
-- **HEVC on a Pi 4** needs `dtoverlay=rpivid-v4l2` in `config.txt`, and Raspberry Pi OS's own FFmpeg. VP9 and AV1 have no hardware decoder there.
+- **HEVC on a Pi 4** needs Raspberry Pi OS's own FFmpeg; the kernel enables the decoder itself, with no overlay. VP9 and AV1 have no hardware decoder there.
 - **A video that showed no picture** was tried again in software. The log says `[MpvController] The video plays without the hardware decoder`.
 
 ### A black screen

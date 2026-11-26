@@ -60,7 +60,7 @@ Each video's line shows its title and a value:
 | `NOT ALLOWED` | Offline lists | The server doesn't let your user download it |
 | `MISSING` | Both | A Local Files file that is gone. On an online list also a server video while you are signed out |
 
-The help line gives a failed download's reason after the title: `the server doesn't let this user download it`, `no yt-dlp`, `signed out`, `can't write to /media/OSD-OS/Movies/Playlists`, or yt-dlp's own error.
+The help line gives a failed download's reason after the title: `the server doesn't let this user download it`, `no yt-dlp`, `signed out`, `can't write to /media/OSD-OS/Movies/Playlists`, `not enough free space: less than 200 MB would be left`, or yt-dlp's own error.
 
 Select on a video opens its choices:
 
@@ -237,6 +237,7 @@ A server video downloads as its original file from `/Items/<id>/Download`, signe
 - **Your user must be allowed to download.** Without the right, the server answers 401 or 403 and the video shows **NOT ALLOWED**. Once an administrator has given the right, select **Retry Downloads**.
 - **You must be signed in.** Otherwise the download fails with `signed out`: sign in again in the Jellyfin or Emby module and select **Retry Downloads**.
 - A transfer that stops moving for 30 seconds fails.
+- A download that runs more than a megabyte past the size the server gave for it fails with `larger than the server said it was`, and one that would leave less than 200 MB free where it is saved fails with `not enough free space: less than 200 MB would be left`. Free some space, then select **Retry Downloads**.
 - A server download that fails or is cut short starts again from the beginning.
 
 ### One at a time

@@ -40,7 +40,7 @@ It is off at first: turn it on in **Settings → Arcade → Enabled**.
    - on the OSD/OS image, `Games/Arcade` on the card's OSD-OS partition (`/media/OSD-OS/Games/Arcade`);
    - elsewhere, `Games/Arcade` in the data folder's `media` folder;
    - or the folder **Settings → Arcade → Games Folder** names.
-3. **Sets for this MAME.** A ROM set has to match the MAME that plays it: the image's is 0.276.
+3. **Sets for this MAME.** A ROM set has to match the MAME that plays it: the image's is 0.276, and so are Debian trixie's and the one **Download MAME** brings on Windows. Homebrew on a Mac and the BSDs' packages bring a MAME of their own, which follows MAME's releases and is newer today, so sets made for 0.276 may not all play there, nor theirs on the image: MAME renames, splits and redumps sets from one version to the next. `mame -version` in a terminal says which one a machine has. FinalBurn Neo, which comes with OSD/OS, is the same everywhere.
 4. **Turn it on**: **Settings → Arcade → Enabled**.
 5. **FinalBurn Neo** (optional), for online high scores and play with others. Its core comes with OSD/OS; it needs RetroArch.
 
@@ -460,11 +460,11 @@ With **Save High Scores** on (the default), MAME runs with its hiscore plugin, w
 
 **Download MAME**, on Windows only, shows while no MAME is found.
 
-- It fetches MAME 0.276 for 64-bit Windows from mamedev's releases on GitHub, some 100 MB.
+- It fetches MAME 0.276 for 64-bit Windows from mamedev's releases on GitHub, some 100 MB, and checks it against the SHA-256 mamedev publishes for it before any of it is unpacked.
 - It unpacks into `arcade/mame` in the data folder, which takes up to half a gigabyte of memory and about 700 MB of disk.
 - The row is then **Download MAME Again**, which replaces that folder whole.
 - The same download starts with select on the `MAME is not installed` screen, where it says `DOWNLOAD MAME`.
-- A download that fails says why and leaves what was there: `github.com answered 404`, `The file is not a 7z archive`, `The download has no mame.exe`, or a disk that couldn't take it.
+- A download that fails says why and leaves what was there: `github.com answered 404`, `The file is not a 7z archive`, `The download has no mame.exe`, `The download is not the file expected` (its SHA-256 isn't the release's), or a disk that couldn't take it.
 
 ## FinalBurn Neo
 
@@ -527,7 +527,7 @@ OSD/OS's core is in the bundle on a Mac and beside `osdos.exe` on Windows. Elsew
 
 A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is loaded in place of OSD/OS's: delete it to have OSD/OS's back.
 
-**Download RetroArch**, on Windows only, shows while no RetroArch is found. It works as Download MAME does ([MAME's page](#mames-page)).
+**Download RetroArch**, on Windows only, shows while no RetroArch is found. It works as Download MAME does ([MAME's page](#mames-page)), except that libretro publishes no SHA-256 for its build, so the file is not checked against one (the log says so).
 
 - It fetches RetroArch 1.20.0 for 64-bit Windows from libretro's build server, some 200 MB.
 - It unpacks into `arcade/retroarch/RetroArch-Win64` in the data folder, which takes some 400 MB of memory and about 750 MB of disk.
@@ -673,6 +673,7 @@ Everything MAME writes is in `arcade` in the data folder: `~/.local/share/OSD-OS
 | `arcade/retroachievements-games.json` | RetroAchievements' list of arcade games, kept a week |
 | `arcade/badges/` | The achievements' badges, when the games folder's `snap` can't be written |
 | `arcade/pictures-wanted` | The marker of a Download Pictures look under way |
+| `arcade/engine-versions.json` | The versions of RetroArch and the FinalBurn Neo cores online play compares rooms against, with each file's path, size and time; read again when one of them changes. Safe to delete |
 | `arcade/retroarch/` | RetroArch's folder for FinalBurn Neo's games, readable by you alone. The rows below are in it |
 | `retroarch.cfg`, `info/fbneo_libretro.info` | RetroArch's settings and the core's information, written before each game |
 | `last.log`, `system/fbneo` | What RetroArch said in the last game; links to the BIOS sets |
@@ -698,13 +699,14 @@ mame galaga \
     -diff_directory ~/.local/share/OSD-OS/arcade/diff \
     -ctrlrpath ~/.local/share/OSD-OS/arcade/ctrlr -ctrlr osdos \
     -skip_gameinfo \
+    -comm_localhost 127.0.0.1 \
     -samplepath /media/OSD-OS/Games/Arcade/samples \
     -pluginspath /usr/share/games/mame/plugins -plugin hiscore \
     -aspect 4:3 -nounevenstretch -unevenstretchx \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-`;…/bios` and the arguments after `-skip_gameinfo` are given only when they apply. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
+`-comm_localhost 127.0.0.1` keeps the link board of a game that has one (CPS-2's Communication setting, Model 1/2/3, System 32) listening on the machine itself rather than on every address: OSD/OS never links two machines through MAME. `;…/bios` and the arguments after `-comm_localhost` are given only when they apply. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
 
 Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, and reads the `mame.ini` there.
 

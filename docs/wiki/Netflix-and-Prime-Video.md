@@ -134,6 +134,7 @@ Backspace and Right Shift don't count as back while the browser is open. On a Ma
 
 - Each service keeps its sign-in in its own Chromium profile in the data folder: `netflix/browser` and `prime_video/browser`.
 - **Sign Out** deletes that profile. It does nothing while the browser is open.
+- On a Raspberry Pi the profiles are on the SD card, and whoever has the card has the sign-ins in them: sign out of both services before the card leaves the house.
 - Without `wtype` (or on a desktop), close the browser with `Ctrl+W` after signing in, or wait half a minute before holding back. Otherwise the sign-in may not be saved.
 
 ## Chromium, Widevine and cage
@@ -146,7 +147,7 @@ web-player.sh --close <service>
 ```
 
 - With a desktop (`WAYLAND_DISPLAY` or `DISPLAY` set), the browser opens over OSD/OS. Without one, it runs inside `cage`, which needs the user in the `video` and `input` groups.
-- On an Arm board the browser tells the sites it is ChromeOS, which these players require. `OSDOS_WEB_PLAYER_UA` sets another user agent.
+- On an Arm board the browser tells the sites it is ChromeOS, which these players require, with its own version: asked of it once and kept in the data folder's `web-player-browser` until the browser changes. `OSDOS_WEB_PLAYER_UA` sets another user agent.
 - **Scaling** enlarges the player's picture: 8/7 for 14:9, 4/3 for Pan & Scan, 4/3 taller for Anamorphic. Letterbox adds nothing. It doesn't apply on a Mac.
 
 ## Settings

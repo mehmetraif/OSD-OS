@@ -114,6 +114,8 @@ void SetupExporter::finish(const QVariantMap &joined, int maxVersion, int run) {
         m_carried << QStringLiteral("the Web API key");
     if (system.ssh == 1 && !system.sshKeys.isEmpty())
         m_carried << QStringLiteral("SSH keys");
+    if (system.firewall == 0)
+        m_carried << QStringLiteral("the firewall off");
 
     m_links = setupexport::links(setup, setupexport::capacity(std::clamp(maxVersion, 1, 40)));
     if (m_links.isEmpty())

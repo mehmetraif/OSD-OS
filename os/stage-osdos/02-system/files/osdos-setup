@@ -14,10 +14,13 @@ stages, each a service of its own:
   --stage system  osdos-setup.service, once the app is on screen, whose boot
                   screen shows it as SETTINGS. Sets the rest: the device's
                   name, the Wi-Fi and its country, the app user's password,
-                  SSH, the time zone, the keyboard, and the display output,
-                  last, with a restart when the picture has to change. Then
-                  the pending file goes, and osdos-setup.log on bootfs says
-                  what was done and why anything wasn't, as the journal does;
+                  SSH, the firewall, the time zone, the keyboard, and the
+                  display output, last, with a restart when the picture has
+                  to change. Then
+                  the pending file goes, overwritten with zeros first (as
+                  each copy of it is once a new one replaces it), and
+                  osdos-setup.log on bootfs says what was done and why
+                  anything wasn't, as the journal does;
                   never a password. It ends in failure when anything wasn't
                   set, for the boot screen's [FAIL].
 
@@ -51,12 +54,16 @@ import uuid
 
 SETUP_VERSION = 1
 MAX_SIZE = 1024 * 1024
+# The most of a file on bootfs overwritten before it goes (wipe()): far more
+# than the page makes, little enough to write as the card starts.
+WIPE_MAX = 16 * MAX_SIZE
 # Raspberry Pi OS's own PATH for services, where osdos-stop is too.
 PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # The parts the app reads as it starts, set before it does.
 APP_PARTS = ("config", "retroachievements", "favorites")
 # First of sshd's drop-ins, as sshd keeps the first value it reads: another's
-# PasswordAuthentication (cloud-init's 50-cloud-init.conf) can't undo it.
+# PasswordAuthentication (cloud-init's 50-cloud-init.conf, the image's own
+# 90-osdos.conf, which has none) can't undo it.
 SSHD_CONF = "/etc/ssh/sshd_config.d/00-osdos-setup.conf"
 # NetworkManager's own switches, read as it starts. pi-gen leaves Wi-Fi off
 # there on an image built without a country (WirelessEnabled=false), and
@@ -211,11 +218,13 @@ class Setup:
                            ("Wi-Fi", lambda: self.wifi(wifi)),
                            ("Password", lambda: self.password(system)),
                            ("SSH", lambda: self.ssh(system)),
+                           ("Firewall", lambda: self.firewall(system)),
                            ("Time zone", lambda: self.timezone(system)),
                            ("Keyboard", lambda: self.keyboard(system)),
                            ("Display output", lambda: self.display(part("display")))):
             self.step(name, step)
-        # Its passwords go with it.
+        # Its passwords go with it, overwritten where they lay first.
+        wipe(self.pending)
         try:
             os.remove(self.pending)
         except OSError as e:
@@ -245,11 +254,22 @@ class Setup:
         return setup
 
     def save_pending(self):
-        """What is left to apply, and what has been said so far, root's alone."""
+        """What is left to apply, and what has been said so far, root's alone.
+        The copy it replaces, which may hold the passwords taken out of it
+        since, is overwritten with zeros once the new one is in its place
+        (never before: a power cut between the two leaves either whole)."""
         os.makedirs(self.keep, mode=0o700, exist_ok=True)
         os.chmod(self.keep, 0o700)
-        write_atomically(self.pending, json.dumps({"setup": self.setup, "lines": self.lines,
-                                                   "failed": self.failed}).encode(), 0o600)
+        old = open_to_wipe(self.pending)
+        try:
+            write_atomically(self.pending, json.dumps({"setup": self.setup, "lines": self.lines,
+                                                       "failed": self.failed}).encode(), 0o600)
+        except BaseException:
+            if old is not None:
+                os.close(old)
+            raise
+        if old is not None:
+            wipe_open(old)
 
     def load_pending(self):
         """The pending file's settings and lines: False without one."""
@@ -270,6 +290,10 @@ class Setup:
         return True
 
     def remove_file(self):
+        # Its plain-text passwords (Wi-Fi's, RetroAchievements') overwritten
+        # where they are first, rather than left in the partition's free
+        # space, where anyone with the card could read them back.
+        wipe(self.file)
         try:
             os.remove(self.file)
         except OSError as e:
@@ -383,8 +407,10 @@ class Setup:
         # login off (pi-gen's PUBKEY_ONLY_SSH) mustn't win over its being on.
         try:
             if password_login:
+                # Through PasswordAuthentication alone, PAM's as UsePAM has it:
+                # keyboard-interactive stays off, as the image's own 90-osdos.conf has it.
                 self.write_root(self.path(SSHD_CONF), f"# OSD/OS Setup: {self.user}'s password logs in too.\n"
-                                                      "PasswordAuthentication yes\n", 0o644)
+                                                      "PasswordAuthentication yes\nKbdInteractiveAuthentication no\n", 0o644)
             else:
                 self.write_root(self.path(SSHD_CONF), "# OSD/OS Setup: only the keys in ~/.ssh/authorized_keys log in.\n"
                                                       "PasswordAuthentication no\nKbdInteractiveAuthentication no\n", 0o644)
@@ -401,6 +427,23 @@ class Setup:
             self.fail(f"SSH: on, keys only: password login needs {self.user}'s password, set in the same file")
         else:
             self.say("SSH: on, " + ("password login on" if password_login else "keys only"))
+
+    def firewall(self, system):
+        """The firewall (osdos-firewall.service: only the home network's
+        addresses may connect) on or off, through osdos-stop, as Settings →
+        System → Firewall has it done; nothing unless the file says which."""
+        firewall = system.get("firewall")
+        if not isinstance(firewall, dict) or not isinstance(firewall.get("enabled"), bool):
+            return
+        word = "on" if firewall["enabled"] else "off"
+        why = self.ask("system-setting", f"firewall {word}")
+        if why == "nothing this sets":
+            # A helper from before the firewall (launcher API under 12).
+            self.fail("Firewall: not set: this card's system can't set it")
+        elif why:
+            self.fail(f"Firewall: not set: {why}")
+        else:
+            self.say(f"Firewall: {word}")
 
     def timezone(self, system):
         zone = system.get("timezone")
@@ -736,6 +779,55 @@ def sync_folder(folder):
             os.close(dir_fd)
     except OSError:
         pass
+
+
+def wipe(path):
+    """A file's bytes overwritten with zeros where they lie, and on the card,
+    before it is deleted: the Setup file on the boot partition, and the
+    pending copy of it in /var/lib/osdos-setup. Best effort: an SD card's
+    controller may write the zeros to other cells and keep the old ones until
+    it reuses them, which nothing short of erasing the card reaches; FAT and
+    ext4 write them where the file is. Never fails: the delete that follows
+    says what went wrong."""
+    fd = open_to_wipe(path)
+    if fd is not None:
+        wipe_open(fd)
+
+
+def open_to_wipe(path):
+    """The file at path opened to be overwritten, or None. A link is never
+    followed (O_NOFOLLOW), and only a plain file with no other name is taken
+    (a hard link could be another file of root's); one bigger than any the
+    page makes is left to be deleted as it is."""
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+    except OSError:
+        os.close(fd)
+        return None
+    if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_size > WIPE_MAX:
+        os.close(fd)
+        return None
+    return fd
+
+
+def wipe_open(fd):
+    """What open_to_wipe() opened overwritten with zeros of its length and
+    synced, whether a name is still on it or not (a copy replaced by a new
+    one), then closed. Never fails."""
+    try:
+        zeros = bytes(64 * 1024)
+        left = min(os.fstat(fd).st_size, WIPE_MAX)
+        while left > 0:
+            left -= os.write(fd, zeros[:min(left, len(zeros))])
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def write_atomically(path, data, mode=None):

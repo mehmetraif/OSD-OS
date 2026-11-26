@@ -5,6 +5,10 @@ Description=Turn cloud-init off after the first boot (the OSD/OS image)
 # sysinit.target on every boot, delaying everything after them, the app
 # included. Once the first boot is through, switch it off. Delete
 # /etc/cloud/cloud-init.disabled to have it run again.
+# The users cloud-init made (Raspberry Pi Imager's customisation) keep sudo,
+# but with their password, as the image's own user has it: the NOPASSWD it
+# writes into their sudoers rule is taken out. Their rule stays, so a user
+# outside the sudo group still has sudo; the line stays valid sudoers.
 After=cloud-final.service
 # cloud-final itself runs after multi-user.target; saying so explicitly keeps
 # multi-user.target from being ordered after this unit, which would be a cycle.
@@ -14,6 +18,9 @@ ConditionPathExists=!/etc/cloud/cloud-init.disabled
 
 [Service]
 Type=oneshot
+# Done before cloud-init is switched off: should it fail, the unit fails, and
+# runs again at the next boot.
+ExecStart=/bin/sh -c 'f=/etc/sudoers.d/90-cloud-init-users; [ ! -e "$$f" ] || sed -i -e "s/NOPASSWD://g" "$$f"'
 ExecStart=/usr/bin/touch /etc/cloud/cloud-init.disabled
 
 [Install]

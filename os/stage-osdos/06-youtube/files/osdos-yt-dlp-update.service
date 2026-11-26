@@ -20,6 +20,28 @@ ExecCondition=/usr/lib/osdos/yt-dlp-wanted
 # that only plays its own films may never be online.
 ExecCondition=/usr/bin/nm-online -q -t 300
 ExecStart=/home/@FIRST_USER_NAME@/.local/share/OSD-OS/bin/yt-dlp --update
+# The build, new or not, with its bytecode put in (yt-dlp-compile): a zip of
+# sources is compiled again at every run, which costs each YouTube video,
+# search and Info Screen a second or two on a Pi. Skipped when it holds this
+# Python's bytecode already; stopped, the file as it was, if a game starts
+# meanwhile. A failure leaves the file as it was, which still runs, so it
+# doesn't fail the unit (the "-"): the journal says why.
+ExecStartPost=-/usr/lib/osdos/yt-dlp-compile --stop-if /run/osdos-game/playing /home/@FIRST_USER_NAME@/.local/share/OSD-OS/bin/yt-dlp
 # Out of the way of a film that is playing.
 Nice=19
 IOSchedulingClass=idle
+# It runs code it has just downloaded, so it is given nothing it doesn't use.
+# It writes only its own folder, ~/.local/share/OSD-OS/bin (the new build
+# over the old; the compiled one in a folder beside it, then put in its
+# place), and reads the app's settings in
+# ~/.local/share/OSD-OS (yt-dlp-wanted): /usr, /boot and /etc read-only, no
+# way to more privileges than the user's (no setuid, no file capabilities),
+# and the kernel's settings, modules and control groups out of its reach.
+# Each of these leaves the home folder and the network as they were.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes

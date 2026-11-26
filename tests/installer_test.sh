@@ -6,7 +6,8 @@
 # installed before (its user offered, and kept when it isn't installed again),
 # and the OSD/OS image's own, which asks nothing. Then the helpers it writes
 # around the service: the request sockets for the service user's group; and
-# the image's network settings, from the image's own files.
+# the image's network settings, from the image's own files in the release's
+# tarball.
 #   installer_test.sh <scripts/install.sh>
 set -u
 
@@ -89,54 +90,86 @@ check "...and restarted after they are enabled, to take it" "enable $sockets|res
       "$(grep -E "^systemctl (enable|restart) .*socket" "$T/sudo" | sed 's/^systemctl //' | paste -sd'|')"
 
 # The image's network settings (its "network settings for games and streams"
-# block): the image's own files fetched at the release's tag, by a stand-in
-# curl that serves them from this repository, and put where the image has
-# them, the marking's unit enabled; and a release without them, or GitHub
-# not answering, leaves the system as it is.
+# block): the image's own files taken from the release's tarball, a stand-in
+# made of this repository's files as CMakeLists.txt installs them
+# (./usr/local/share/osdos/system), never from the network, and put where the
+# image has them, the marking's unit enabled and the firewall's installed but left
+# off; and a tarball from a release
+# before them leaves the system as it is.
 IMAGE_FILES_DIR="$(cd "$(dirname "$INSTALL_SH")/../os/stage-osdos/02-system/files" && pwd)"
+NETWORK_FILES="osdos-wifi-powersave.conf osdos-netplay-priority.nft osdos-netplay-priority.service osdos-firewall.nft osdos-firewall.service"
 {
     echo 'set -euo pipefail'
-    printf 'REPO=owner/repo VERSION=v9.9.9 TMP_DIR=%q\n' "$T/tmp"
+    printf 'REPO=owner/repo VERSION=v9.9.9 TARBALL=OSD-OS-v9.9.9-linux-arm64.tar.gz TMP_DIR=%q\n' "$T/tmp"
     printf 'sudo() { echo "$*" >> %q; }\n' "$T/sudo"
-    # curl -fsSL --retry 3 -o <file> <url>: the file the URL names, from
-    # the image's folder, while curl-answers is there.
-    printf 'curl() { echo "${*: -1}" >> %q; [ -e %q ] || return 22; cp %q/"${6##*/}" "$5"; }\n' \
-        "$T/curl" "$T/curl-answers" "$IMAGE_FILES_DIR"
+    # Nothing is downloaded: a curl or a wget asked for is a failure.
+    printf 'curl() { echo "curl $*" >> %q; return 22; }\n' "$T/sudo"
+    printf 'wget() { echo "wget $*" >> %q; return 1; }\n' "$T/sudo"
     awk '/# NETWORK_FILES_BEGIN$/ { on = 1; next }
          /# NETWORK_FILES_END$/   { exit }
          on                       { print }' "$INSTALL_SH"
 } > "$T/network.sh"
 grep -q 'osdos-netplay-priority.nft' "$T/network.sh" \
     || { echo "FAIL: the network settings' block not found in $INSTALL_SH"; exit 1; }
-mkdir -p "$T/tmp"
-: > "$T/sudo"; : > "$T/curl"; touch "$T/curl-answers"
+# A release's tarball, as os-image.yml makes it (tar -czf ... . in the
+# install prefix's parent): the app and the image's files beside it.
+tarball() {  # with the image's files or not (yes|no)
+    rm -rf "$T/tmp" "$T/prefix"; mkdir -p "$T/tmp" "$T/prefix/usr/local/bin" "$T/prefix/usr/local/share/osdos"
+    echo app > "$T/prefix/usr/local/bin/osdos"
+    if [ "$1" = yes ]; then
+        mkdir -p "$T/prefix/usr/local/share/osdos/system"
+        for f in $NETWORK_FILES; do cp "$IMAGE_FILES_DIR/$f" "$T/prefix/usr/local/share/osdos/system/"; done
+    fi
+    (cd "$T/prefix" && tar -czf "$T/tmp/OSD-OS-v9.9.9-linux-arm64.tar.gz" .)
+}
+tarball yes
+: > "$T/sudo"
 bash "$T/network.sh" > /dev/null 2>&1
-check "network: the image's files fetched at the release's tag" \
-      "https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-wifi-powersave.conf
-https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-netplay-priority.nft
-https://raw.githubusercontent.com/owner/repo/v9.9.9/os/stage-osdos/02-system/files/osdos-netplay-priority.service" \
-      "$(cat "$T/curl")"
-for f in osdos-wifi-powersave.conf osdos-netplay-priority.nft osdos-netplay-priority.service; do
-    check "network: $f is the image's own" same \
+for f in $NETWORK_FILES; do
+    check "network: $f is the image's own, from the tarball" same \
           "$(cmp -s "$T/tmp/image-files/$f" "$IMAGE_FILES_DIR/$f" && echo same || echo different)"
 done
-check "network: put where the image has them, the unit enabled and started" \
+check "network: only those files taken out of the tarball" "$(printf '%s\n' $NETWORK_FILES | sort)" \
+      "$(ls "$T/tmp/image-files")"
+check "network: put where the image has them, the unit enabled and started, nothing downloaded" \
       "install -D -m 644 $T/tmp/image-files/osdos-wifi-powersave.conf /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
 apt-get install -y nftables
 install -D -m 644 $T/tmp/image-files/osdos-netplay-priority.nft /usr/lib/osdos/netplay-priority.nft
 install -m 644 $T/tmp/image-files/osdos-netplay-priority.service /etc/systemd/system/osdos-netplay-priority.service
 systemctl daemon-reload
 systemctl enable osdos-netplay-priority.service
-systemctl restart osdos-netplay-priority.service" "$(cat "$T/sudo")"
+systemctl restart osdos-netplay-priority.service
+install -D -m 644 $T/tmp/image-files/osdos-firewall.nft /usr/lib/osdos/firewall.nft
+install -m 644 $T/tmp/image-files/osdos-firewall.service /etc/systemd/system/osdos-firewall.service
+systemctl daemon-reload
+systemctl try-reload-or-restart osdos-firewall.service
+systemctl is-enabled --quiet osdos-firewall.service" "$(cat "$T/sudo")"
+# The firewall installed, never enabled: this system is its owner's.
+check "network: the firewall is never enabled here" "" \
+      "$(grep -e '^systemctl enable osdos-firewall' -e '^systemctl start osdos-firewall' "$T/sudo")"
+check "network: the firewall's unit reads the rules where they are put" \
+      "ExecStart=/usr/sbin/nft -f /usr/lib/osdos/firewall.nft" \
+      "$(grep '^ExecStart=' "$IMAGE_FILES_DIR/osdos-firewall.service")"
 # The unit reads the rules where they are put.
 check "network: the unit reads the rules where they are put" \
       "ExecStart=/usr/sbin/nft -f /usr/lib/osdos/netplay-priority.nft" \
       "$(grep '^ExecStart=' "$IMAGE_FILES_DIR/osdos-netplay-priority.service")"
-rm -rf "$T/tmp"; mkdir -p "$T/tmp"
-: > "$T/sudo"; rm -f "$T/curl-answers"
+# The tarball has them where the block looks: CMakeLists.txt installs each
+# into the data folder's system/, on Linux.
+CMAKELISTS="$(dirname "$INSTALL_SH")/../CMakeLists.txt"
+for f in $NETWORK_FILES; do
+    check "network: CMakeLists.txt puts $f in the tarball" 1 \
+          "$(grep -c "\"\${CMAKE_SOURCE_DIR}/os/stage-osdos/02-system/files/$f\"" "$CMAKELISTS")"
+done
+check "network: ...into share/osdos/system" 1 \
+      "$(grep -c 'DESTINATION "${OSDOS_INSTALL_DATADIR}/system"' "$CMAKELISTS")"
+# A release from before them: its tarball has none, nothing changes, it is
+# said, and the install goes on.
+tarball no
+: > "$T/sudo"
 out=$(bash "$T/network.sh" 2>&1) || out="exited $?"
-check "network: nothing fetched, nothing changed" "" "$(cat "$T/sudo")"
-check "network: ...and said, the install going on" 2 "$(grep -c '^Warning: ' <<< "$out")"
+check "network: an older release's tarball: nothing changed" "" "$(cat "$T/sudo")"
+check "network: ...and said, the install going on" 3 "$(grep -c '^Warning: ' <<< "$out")"
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures check(s) failed"

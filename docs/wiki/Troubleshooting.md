@@ -24,7 +24,7 @@ OSD/OS writes one line per event. Where the lines go depends on how it was start
 | `stall-report.txt`, `crash-report.txt` | The reports, when there is one |
 | `retroarch-last.log` | RetroArch's log of the last FinalBurn Neo game |
 
-- Tokens in addresses are blanked, and so is the sign-in in one: `https://user:password@host/…` reads `https://HIDDEN@host/…`, and `?username=…&password=…` reads `?username=HIDDEN&password=HIDDEN`, the host and the rest kept. mpv's own log is left out. The newest ten folders are kept.
+- Tokens in addresses and in headers (`X-Plex-Token: …`, `Token="…"`, an API key) are blanked, as in OSD/OS's own log, and so is the sign-in in an address: `https://user:password@host/…` reads `https://HIDDEN@host/…`, and `?username=…&password=…` reads `?username=HIDDEN&password=HIDDEN`, the host and the rest kept. mpv's own log is left out. The newest ten folders are kept.
 - After a problem: Quit → Save Logs, then Power Off, and put the card in a computer.
 - When the Pi is stuck: wait a minute, switch it off and on, then Save Logs. The stuck run is in `app-previous-run.log`.
 
@@ -206,7 +206,7 @@ YouTube searches, lists and plays through yt-dlp. A problem shows in the help li
 | **Could not load the playlists: check the network, and that yt-dlp is installed** | The same, for the playlists in Settings and in `youtube_playlists.txt` | The same |
 | **Could not load the subscriptions: check the network** | The channels' feeds didn't come | Check the network, and the channel ids in Settings' Subscriptions and in `youtube_subscriptions.txt` |
 
-- **Updating yt-dlp.** The image updates its own after each boot, once a day, and as the YouTube module opens; `~/.local/share/OSD-OS/bin/yt-dlp --update` updates it now, and `journalctl -u osdos-yt-dlp-update` shows the last update. Elsewhere: `sudo yt-dlp -U` for a copy in `/usr/local/bin`, `brew upgrade yt-dlp` on a Mac.
+- **Updating yt-dlp.** The image updates its own after each boot, once a day, and as the YouTube module opens; `~/.local/share/OSD-OS/bin/yt-dlp --update` updates it now (then `/usr/lib/osdos/yt-dlp-compile ~/.local/share/OSD-OS/bin/yt-dlp` puts its bytecode back in, or the next update does), and `journalctl -u osdos-yt-dlp-update` shows the last update. Elsewhere: `sudo yt-dlp -U` for a copy in `/usr/local/bin`, `brew upgrade yt-dlp` on a Mac.
 - **Deno.** yt-dlp needs a JavaScript runtime for YouTube; without one, a video plays in few formats or none ([yt-dlp's EJS notes](https://github.com/yt-dlp/yt-dlp/wiki/EJS)). Deno must be on the `PATH` of the user or service that runs OSD/OS, such as `/usr/local/bin`. The image has it; `brew install deno` on a Mac.
 - **"Sign in to confirm you're not a bot".** Sign in under YouTube's settings → **Sign in**, with a spare account: YouTube can block one used through yt-dlp. Or compare IPv4 and IPv6; if only IPv4 gets the check, the cause is the IPv4 route:
 
@@ -342,6 +342,30 @@ sudo nmcli device wifi connect "MyHomeWiFi" password "my-wifi-password"
 
 Setting Wi-Fi before the first boot is in [Installation → Wi-Fi by hand](https://github.com/mehmetraif/OSD-OS/wiki/Installation#wi-fi-by-hand-network-config). More in [The OSD/OS image → Wi-Fi](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#wi-fi).
 
+## A computer can't reach the Pi
+
+On the OSD/OS image, Settings → System → **Firewall** is on: only the home network's kinds of address can connect (`10.x`, `172.16`–`172.31`, `192.168.x`, `169.254.x`, IPv6's `fe80::` and `fc00::`–`fdff::`). What the Pi itself connects to (streams, updates, the media servers, online games) is untouched.
+
+| What you see | Cause | Fix |
+|---|---|---|
+| `ssh pi@osdos.local` or a LAN game's join waits, then times out | The computer is on a network outside those addresses: a provider's `100.64.x`, public addresses on the LAN, a guest network routed in from elsewhere | Settings → System → **Firewall** → **Off**, or, before the card's first start, **Firewall** off on [OSD/OS Setup](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) (`osdos-setup.log` on **bootfs** then says `Firewall: off`) |
+| It works from home, not over a VPN (WireGuard, Tailscale, ZeroTier) | The VPN gives the computer an address outside those (Tailscale's are `100.64.x`) | **Firewall** → **Off**, and let the VPN decide who reaches the Pi |
+| `ssh` to the Pi's IPv6 address times out, its IPv4 address works | A global IPv6 address (`2xxx:` or `3xxx:`) is refused; `osdos.local` gives IPv4 alone | Use the IPv4 address in System Information, or `ssh -4`. A router whose own names (`osdos.fritz.box`, `osdos.lan`) give IPv6 first does the same: `ssh -4`, or **Firewall** → **Off** |
+| `osdos.local` doesn't resolve at all | A network with IPv6 alone: the image publishes `osdos.local` by IPv4 alone | Use the address in System Information |
+| The row says **Its rules aren't loaded** | The firewall is on, but nftables didn't load its rules: anything can connect | `journalctl -u osdos-firewall -b` says why; `sudo systemctl restart osdos-firewall` tries again |
+| The Firewall row is dimmed | A card whose system is older than the app, a system without nftables, or `install.sh` couldn't fetch it | Write a new image, or run `install.sh` again |
+
+Locked out of SSH by it? The row is at the TV, with the remote: the firewall never keeps the device's own menus out. On a Pi set up with `install.sh` it is off until the row turns it on.
+
+## SSH on the image
+
+| What happens | Cause | Fix |
+|---|---|---|
+| SSH asks for a password and refuses it | The image lets a password in only when an OSD/OS Setup card turned **Password Login** on ([sshd's rules](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#sshds-rules)): SSH turned on from Settings, or by a card with keys alone, takes a key | On [OSD/OS Setup](https://osdos.tv/setup/), set **pi's Password** and turn **SSH** and **Password Login** on, or give a key; copy the file to **bootfs** and start the Pi |
+| `Too many authentication failures` | The computer offers more keys than the image's three tries before the right one | `ssh -o IdentitiesOnly=yes -i ~/.ssh/<key> pi@osdos.local` |
+| `Permission denied` for a user of your own | Only the users of the `sudo` group sign in | `sudo usermod -aG sudo <user>`, from `pi` |
+| An empty `ssh` file on **bootfs** doesn't turn SSH on | Raspberry Pi OS's switch is off on the image | An OSD/OS Setup card with SSH on, or Settings → System → **SSH** |
+
 ## Two OSD/OS on one network
 
 Every OSD/OS image starts as `osdos`, so two of them share a name on the network and in LAN Play. Give each a name: select on **Device Name** in **Settings → System → System Information** ([Settings](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)), or name each card in Raspberry Pi Imager's customisation.
@@ -376,7 +400,7 @@ A video on a drive that was pulled out drops out of Recently Watched and Favorit
 | Films copied on, not in Local Files | Local Files opens the partition's **Movies** folder (`/media/OSD-OS/Movies`), unless its Media Folder names another | Move them into **Movies**, or choose Settings → TV / Movie → Local Files → Media Folder → Default Folder |
 | Offline playlists fail, naming the folder | A card flashed with an old image mounts the partition read-only (`ro` in `/etc/fstab`) | Flash the current image, or change `ro` to `rw,noexec,nosuid,nodev` and the line's last `0` to `2` |
 
-The partition is checked with `fsck.exfat` at every boot. More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card).
+The partition is checked with `fsck.exfat` before it is mounted when it was left untidy (switched off at the wall mid-write, or pulled from a Windows PC without ejecting it), not at every boot; `journalctl -b -u osdos-media-check` says whether it was this boot. A computer that leaves it untidy without setting exFAT's flag for it leaves it unchecked: [The OSD/OS image → How it is mounted](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#how-it-is-mounted) says how to check it by hand. More in [The OSD/OS image → Films on the card](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#films-on-the-card).
 
 ## A theme or skin isn't listed, or is partly ignored
 
@@ -461,6 +485,7 @@ Settings never hides a row. One that can't be used is dimmed, a checkerboard ove
 | Window Mode (Screen) | On Windows, or a Linux or BSD desktop (X11 or Wayland) |
 | Audio Output (Sound) | On Linux with ALSA's cards (`/proc/asound/cards`) and no sound server |
 | Music File, Music Volume (Sound) | Menu Music is File; Menu Music isn't Off |
+| Time Zone, Keyboard Layout, SSH, Firewall (System) | On the OSD/OS image, or a Raspberry Pi OS set up with `install.sh`, run by its service. SSH needs launcher level 11 and `ssh.service`; Firewall launcher level 12, `osdos-firewall.service` and nftables ([A computer can't reach the Pi](#a-computer-cant-reach-the-pi)) |
 | Wi-Fi (Network) | On Linux, in a build with Qt D-Bus, with NetworkManager running |
 | Bluetooth (Network) | On Linux, in a build with Qt D-Bus, with BlueZ running |
 | Network (the first screen) | Wi-Fi or Bluetooth can be used |

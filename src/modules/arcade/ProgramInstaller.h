@@ -50,6 +50,8 @@ private:
 // archive is downloaded as a .part file and unpacked beside it (SevenZip),
 // and the folder the program came out in is moved into place once it is
 // whole, over one downloaded before. Nothing is in place before all of it is.
+// The archive is checked against its SHA-256 (scripts/engines.env) before
+// any of it is unpacked, where one is known.
 class ProgramInstaller : public Installer {
     Q_OBJECT
 public:
@@ -58,6 +60,10 @@ public:
         QString version;           // the one downloaded: "1.20.0", "0.276"
         bool    available = false; // built for this machine: 64-bit Windows
         QUrl    archive;           // the archive, a 7z or a self-extracting one
+        // Its SHA-256 in hexadecimal, which the download must have before
+        // anything of it is unpacked; "" when none is known (not checked,
+        // and logged).
+        QString sha256;
         // What the archive must hold, at its top or one folder down.
         QString program;
         // The folder it ends up as: <data>/arcade/retroarch/RetroArch-Win64.
@@ -66,6 +72,9 @@ public:
     // libretro's RetroArch and mamedev's MAME, for a 64-bit Windows.
     static Source retroarch(const QString &dataRoot);
     static Source mame(const QString &dataRoot);
+    // The name of the 64-bit Windows build in mamedev's release of a
+    // version: mame0276b_64bit.exe up to 0.280, mame0281b_x64.exe from 0.281.
+    static QString mameWindowsFile(const QString &version);
 
     explicit ProgramInstaller(QObject *parent = nullptr);
 

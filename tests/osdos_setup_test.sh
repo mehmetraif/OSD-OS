@@ -10,7 +10,8 @@
 # hostnamectl, raspi-config, systemctl, chpasswd and timedatectl are
 # stand-ins that only note what they were asked. A whole file: off the boot
 # partition at the first stage, root's alone until the second has applied
-# it, nothing of its passwords in the log; the same again, changing nothing
+# it, nothing of its passwords in the log, its bytes on the boot partition
+# overwritten with zeros before it goes; the same again, changing nothing
 # more; files it takes only part of, or none of; and a start cut short.
 # Every name and password is an invented one.
 #   osdos_setup_test.sh <osdos-setup> <scripts/install.sh> <os/stage-osdos/03-boot/files>
@@ -43,8 +44,18 @@ awk -v marker=STOP_HELPER '
                       -e "s#/run/osdos-display-boot.txt#$T/run/osdos-display-boot.txt#g" \
                       -e "s#/usr/share/zoneinfo/iso3166.tab#$T/usr/share/zoneinfo/iso3166.tab#g" \
                       -e "s#^SHADOW=/etc/shadow\$#SHADOW=$T/etc/shadow#" \
+                      -e "s#^SSHD=/usr/sbin/sshd\$#SSHD=$T/bin/sshd#" -e "s#^SSH_DIR=/etc/ssh\$#SSH_DIR=$T/etc/ssh#" \
+                      -e "s#^FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service\$#FIREWALL_UNIT=$T/etc/systemd/system/osdos-firewall.service#" \
+                      -e "s#^NFT=/usr/sbin/nft\$#NFT=$T/usr/sbin/nft#" \
                       -e "s#/etc/hosts#$T/etc/hosts#g" -e "s#/etc/hostname#$T/etc/hostname#g" > "$T/bin/osdos-stop"
 grep -q "$T/run/osdos-display-boot.txt" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop not found in $INSTALL_SH"; exit 1; }
+grep -q "^FIREWALL_UNIT=$T/" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop's firewall unit not found in $INSTALL_SH"; exit 1; }
+grep -q "^NFT=$T/" "$T/bin/osdos-stop" || { echo "FAIL: osdos-stop's nft not found in $INSTALL_SH"; exit 1; }
+# The firewall's unit and nft, as the image has them.
+mkdir -p "$T/etc/systemd/system" "$T/usr/sbin"
+printf '[Unit]\nDescription=OSD/OS firewall\n' > "$T/etc/systemd/system/osdos-firewall.service"
+printf '#!/bin/sh\necho "nft $*" >> "%s/asked"\n' "$T" > "$T/usr/sbin/nft"
+chmod +x "$T/usr/sbin/nft"
 for tool in systemctl raspi-config timedatectl; do
     printf '#!/bin/sh\necho "%s $*" >> "%s/asked"\n' "$tool" "$T" > "$T/bin/$tool"
 done
@@ -54,6 +65,12 @@ printf '#!/bin/sh\necho "chpasswd $* $(cat)" >> "%s/asked"\n' "$T" > "$T/bin/chp
 printf '#!/bin/sh\necho "hostnamectl $*" >> "%s/asked"\necho "$2" > "%s/etc/hostname"\n' "$T" "$T" > "$T/bin/hostnamectl"
 chmod +x "$T"/bin/*
 cp "$PRESETS"/osdos-display-*.txt "$BOOT/"
+# sshd's files as the image has them (no sshd to ask: its files are read),
+# its own drop-in after the card's, with no password login.
+printf 'Include sshd_config.d/*.conf\nKbdInteractiveAuthentication no\nUsePAM yes\n' > "$T/etc/ssh/sshd_config"
+sed 's/@PASSWORD_AUTHENTICATION@/no/' "$(dirname "$SETUP")/osdos-sshd.conf" > "$T/etc/ssh/sshd_config.d/90-osdos.conf"
+grep -q '^PasswordAuthentication no$' "$T/etc/ssh/sshd_config.d/90-osdos.conf" \
+    || { echo "FAIL: the image's sshd drop-in not found beside $SETUP"; exit 1; }
 cp "$BOOT/osdos-display-hdmi.txt" "$BOOT/osdos-display.txt"
 mkdir -p "$T/usr/lib/osdos"
 cp "$PRESETS/display-presets.json" "$T/usr/lib/osdos/"
@@ -195,6 +212,11 @@ check "again: said why" "1" "$(logged "SSH: on, keys only: password login needs 
 check "again: the output as it was, no restart" "0" "$(asked "systemctl --no-block reboot")"
 check "again: said so" "1" "$(logged "Display output: scart-rgb-pal")"
 check "again: what wasn't as asked fails the system stage" "0 1" "$status"
+# SSH turned on from the device now (Settings → System → SSH): sshd takes no
+# password, as the card said, and the app is told so, to say that only a key
+# gets in.
+check "keys only, from the device: no password logs in" "ok no-password" \
+    "$(printf 'ssh on\n' | PATH="$T/bin:$PATH" "$T/bin/osdos-stop" system-setting 2>> "$T/err")"
 
 # Password login with the password set in the same file: on.
 printf '{ "osdos_setup": 1, "system": { "password_hash": "%s", "ssh": { "enabled": true } } }\n' "$HASH" \
@@ -202,6 +224,8 @@ printf '{ "osdos_setup": 1, "system": { "password_hash": "%s", "ssh": { "enabled
 apply
 check "password login: on, ahead of any other drop-in" "PasswordAuthentication yes" \
     "$(grep '^PasswordAuthentication' "$SSHD_CONF")"
+check "password login: keyboard-interactive still off" "KbdInteractiveAuthentication no" \
+    "$(grep '^KbdInteractiveAuthentication' "$SSHD_CONF")"
 check "password login: said so" "1" "$(logged "SSH: on, password login on")"
 check "password login: content" "0 0" "$status"
 
@@ -232,6 +256,51 @@ apply
 check "no password, no key: SSH not turned on" "0" "$(asked "systemctl enable ssh.service")"
 check "no password, no key: said why" "1" \
     "$(logged "SSH: not turned on: password login needs pi's password, set in the same file, or else a key")"
+
+# The firewall, after SSH: on or off through osdos-stop, as Settings →
+# System → Firewall has it done; nothing at all unless the file says which.
+firewall_asked() { grep -c -e 'osdos-firewall' -e '^nft ' "$T/asked"; }
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": false } } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "firewall off: disabled, then stopped" $'systemctl disable osdos-firewall.service\nsystemctl stop osdos-firewall.service' \
+    "$(grep osdos-firewall "$T/asked")"
+check "firewall off: said so" "1" "$(logged "Firewall: off")"
+check "firewall off: content" "0 0" "$status"
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": true }, "timezone": "Europe/Istanbul" } }\n' \
+    > "$BOOT/osdos-setup.json"
+apply
+check "firewall on: enabled, then started" $'systemctl enable osdos-firewall.service\nsystemctl start osdos-firewall.service' \
+    "$(grep osdos-firewall "$T/asked")"
+check "firewall on: nft not run by the helper" "0" "$(grep -c '^nft ' "$T/asked")"
+check "firewall on: said so, after SSH's place and before the time zone" $'Firewall: on\nTime zone: Europe/Istanbul' \
+    "$(grep -e '^Firewall' -e '^Time zone' "$BOOT/osdos-setup.log")"
+check "firewall on: content" "0 0" "$status"
+for nothing in '{}' '{ "enabled": "yes" }' '{ "enabled": 1 }' '"on"' 'true' 'null'; do
+    printf '{ "osdos_setup": 1, "system": { "firewall": %s, "timezone": "UTC" } }\n' "$nothing" > "$BOOT/osdos-setup.json"
+    : > "$T/usr/share/zoneinfo/UTC"
+    apply
+    check "firewall $nothing: nothing asked" "0" "$(firewall_asked)"
+    check "firewall $nothing: nothing said" "0" "$(grep -c '^Firewall' "$BOOT/osdos-setup.log")"
+done
+# What the helper refuses is said with its reason, and fails the stage.
+mv "$T/etc/systemd/system/osdos-firewall.service" "$T/firewall.away"
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": true } } }\n' > "$BOOT/osdos-setup.json"
+apply
+check "no firewall unit: said why" "1" "$(logged "Firewall: not set: the firewall isn't installed")"
+check "no firewall unit: the system stage fails" "0 1" "$status"
+mv "$T/firewall.away" "$T/etc/systemd/system/osdos-firewall.service"
+# A card whose helper is older than the firewall answers "nothing this
+# sets": said so, and the rest set all the same.
+cp "$T/bin/osdos-stop" "$T/osdos-stop.new"
+printf '#!/bin/sh\nread -r line\necho "osdos-stop $1 $line" >> "%s/asked"\necho "nothing this sets"\n' "$T" > "$T/bin/osdos-stop"
+printf '{ "osdos_setup": 1, "system": { "firewall": { "enabled": false }, "timezone": "Europe/Istanbul" } }\n' \
+    > "$BOOT/osdos-setup.json"
+apply
+check "an older helper: asked as the app asks" "1" "$(asked "osdos-stop system-setting firewall off")"
+check "an older helper: said the card can't" "1" "$(logged "Firewall: not set: this card's system can't set it")"
+check "an older helper: the rest set" "1" "$(logged "Time zone: Europe/Istanbul")"
+check "an older helper: the system stage fails" "0 1" "$status"
+mv "$T/osdos-stop.new" "$T/bin/osdos-stop"
 
 # The page's model left at another Pi's: what counts is the outputs this one
 # has.
@@ -383,6 +452,56 @@ check "no password of it kept" "" "$(grep -r -l hunter22 "$T/var" "$BOOT")"
 printf '\xef\xbb\xbf{ "osdos_setup": 1, "device": { "name": "bom-tv" } }\n' > "$BOOT/osdos-setup.json"
 apply
 check "a BOM: read" "bom-tv" "$(cat "$T/etc/hostname")"
+
+# The file's bytes overwritten with zeros before it goes, so that its
+# plain-text passwords aren't left in the partition's free space: read
+# through a descriptor held open on it from before, the same file, it holds
+# zeros alone, as long as it was.
+printf '{ "osdos_setup": 1, "wifi": { "ssid": "Loft", "password": "wipe me please" } }\n' > "$BOOT/osdos-setup.json"
+size=$(stat -c %s "$BOOT/osdos-setup.json")
+exec 3< "$BOOT/osdos-setup.json"
+apply
+check "wiped: the file gone" "no" "$(there "$BOOT/osdos-setup.json")"
+check "wiped: zeros where its bytes were, as many" "$size 0" \
+    "$(head -c "$size" <&3 | wc -c) $(head -c "$size" "/proc/$$/fd/3" | tr -d '\0' | wc -c)"
+exec 3<&-
+# A link is deleted, never followed; a file with another name (a hard link,
+# which bootfs can't have) is deleted, and the other name's file not wiped.
+printf '{ "osdos_setup": 1, "device": { "name": "link-tv" } }\n' > "$T/elsewhere.json"
+cp "$T/elsewhere.json" "$T/elsewhere.orig"
+ln -s "$T/elsewhere.json" "$BOOT/osdos-setup.json"
+apply
+check "a link: deleted" "no" "$(there "$BOOT/osdos-setup.json")"
+check "a link: what it points to not wiped" "same" "$(cmp -s "$T/elsewhere.json" "$T/elsewhere.orig" && echo same)"
+ln "$T/elsewhere.json" "$BOOT/osdos-setup.json"
+apply
+check "a hard link: deleted" "no" "$(there "$BOOT/osdos-setup.json")"
+check "a hard link: the other name's file not wiped" "same" "$(cmp -s "$T/elsewhere.json" "$T/elsewhere.orig" && echo same)"
+
+# The pending copy, root's between the two stages, holds the Wi-Fi password
+# (and, until the app's stage has set it, RetroAchievements'): each copy a
+# new one replaces is overwritten with zeros once the new one is in place,
+# and the last before it is deleted. Read through descriptors held open on
+# them from before.
+rm -f "$PENDING"
+printf '{ "osdos_setup": 1, "wifi": { "ssid": "Loft", "password": "wipe me too please" } }\n' > "$BOOT/osdos-setup.json"
+: > "$T/out"
+check "pending wiped: app stage" "0" "$(stage app)"
+size=$(stat -c %s "$PENDING")
+exec 3< "$PENDING"
+# The next start's app stage, as after a power cut, writes it anew.
+check "pending wiped: the app stage again" "0" "$(stage app)"
+check "pending wiped: the copy replaced, zeros where its bytes were" "$size 0" \
+    "$(head -c "$size" <&3 | wc -c) $(head -c "$size" "/proc/$$/fd/3" | tr -d '\0' | wc -c)"
+exec 3<&-
+check "pending wiped: the new copy has what is left" "osdos_setup wifi" "$(keys)"
+size=$(stat -c %s "$PENDING")
+exec 3< "$PENDING"
+stage system > /dev/null
+check "pending wiped: gone after the system stage" "no" "$(there "$PENDING")"
+check "pending wiped: zeros where its bytes were, as many" "$size 0" \
+    "$(head -c "$size" <&3 | wc -c) $(head -c "$size" "/proc/$$/fd/3" | tr -d '\0' | wc -c)"
+exec 3<&-
 
 # A start cut short after the app's stage: the next start's app stage sets
 # nothing twice, and the system's says all of it once.

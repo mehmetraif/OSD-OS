@@ -15,7 +15,7 @@ Installed as an app ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/In
 ### What it is built on
 
 - **Raspberry Pi OS Lite (64-bit)**, based on **Debian 13 "trixie"**, arm64. Its kernel, firmware, drivers and patched FFmpeg are unchanged.
-- **pi-gen**, Raspberry Pi's image builder, at a pinned commit of its `arm64` branch (`PI_GEN_REF` in [`os/build.sh`](https://github.com/mehmetraif/OSD-OS/blob/main/os/build.sh), today `4d8ee447dd3d37e8b0ef8752e460d9082d9d435d`).
+- **pi-gen**, Raspberry Pi's image builder, at a pinned commit of its `arm64` branch (`PI_GEN_REF` in [`os/build.sh`](https://github.com/mehmetraif/OSD-OS/blob/main/os/build.sh), today `c0d2c9f2cffc08bc56850b0a3eb23178f4226e8a`).
 - **One stage of OSD/OS's own**, [`os/stage-osdos`](https://github.com/mehmetraif/OSD-OS/tree/main/os/stage-osdos), on top.
 - The release name is **OSD/OS** (`PI_GEN_RELEASE`), written to `/boot/firmware/issue.txt`.
 
@@ -48,6 +48,7 @@ Against Raspberry Pi OS Lite with `scripts/install.sh` and its autostart service
 | Settings → Screen → Display Output | Not offered | Offered |
 | Bluetooth blocked by rfkill | Stays blocked | Unblocked |
 | Wi-Fi power saving | On | Off ([Wi-Fi](#wi-fi)) |
+| Swap | Compressed in RAM (zram), with a file on the card it writes idle pages back to | Compressed in RAM only |
 
 The rest is the same: the launcher, the in-app updater, Exit to Terminal and the data folder `~/.local/share/OSD-OS`.
 
@@ -61,8 +62,8 @@ Raspberry Pi Imager 2 offers no OS customisation for an image chosen with **Use 
 
 [OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what a card starts with ([Installation](https://github.com/mehmetraif/OSD-OS/wiki/Installation#osdos-setup-settings-on-the-card-before-the-first-boot) has the steps). Its file, `osdos-setup.json`, goes on the boot partition (**bootfs**). `/usr/local/sbin/osdos-setup` applies it in two stages:
 
-1. **`osdos-setup-app.service`**, before OSD/OS starts, moves the file to `/var/lib/osdos-setup/pending.json` (root's alone). It sets OSD/OS's settings and the RetroAchievements account.
-2. **`osdos-setup.service`**, once OSD/OS is on screen, sets the rest. The boot screen lists it as **SETTINGS**: `[ OK ]` when all was set, `[FAIL]` when anything wasn't. It then writes `osdos-setup.log` on the boot partition, without passwords.
+1. **`osdos-setup-app.service`**, before OSD/OS starts, moves the file to `/var/lib/osdos-setup/pending.json` (root's alone), and overwrites it on bootfs with zeros before deleting it, so that its passwords don't stay in the partition's free space (as far as the SD card's controller allows: it may keep the old cells until it reuses them). It sets OSD/OS's settings and the RetroAchievements account.
+2. **`osdos-setup.service`**, once OSD/OS is on screen, sets the rest, then overwrites `pending.json` with zeros and deletes it (each earlier copy of it was overwritten as a new one took its place), so that the Wi-Fi password it held doesn't stay on the card's free space either. The boot screen lists it as **SETTINGS**: `[ OK ]` when all was set, `[FAIL]` when anything wasn't. It then writes `osdos-setup.log` on the boot partition, without passwords.
 
 The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. Each part is applied on its own:
 
@@ -72,11 +73,13 @@ The journal has the same lines: `journalctl -u osdos-setup-app -u osdos-setup`. 
 | Wi-Fi | `/etc/NetworkManager/system-connections/osdos-setup-<network>-<id>.nmconnection` |
 | `pi`'s password | `chpasswd -e`, with the SHA-512 crypt hash (100,000 rounds) the page made |
 | SSH | `ssh.service` on or off; keys in `pi`'s `~/.ssh/authorized_keys`; password login in `/etc/ssh/sshd_config.d/00-osdos-setup.conf` |
+| The firewall | `osdos-stop system-setting`, `firewall on` or `firewall off`, as Settings → System → Firewall has it done, after SSH. Left as it is when the file doesn't say. The log says `Firewall: on` or `Firewall: off`, or why not |
 | The time zone, the keyboard | `timedatectl set-timezone`; `raspi-config nonint do_configure_keyboard` |
 | OSD/OS's settings | Merged into `~/.local/share/OSD-OS/config.json` |
 | The RetroAchievements account | `~/.local/share/OSD-OS/arcade/retroachievements-setup.json`. RetroArch signs in once the network is up, tried every 30 seconds, ten times at most |
 
-- SSH password login needs `pi`'s password set in the same file. SSH is not turned on without a key or that password.
+- SSH password login needs `pi`'s password set in the same file, and **Password Login** turned on on the page, where it starts off. SSH is not turned on without a key or that password.
+- The page takes a password of 8 characters at least that isn't one of the first anyone guesses (`raspberry`, `password`, `12345678`, the user's name…). The card only sees its hash, so the page alone checks it.
 - Settings → System → SSH turns the service on or off later on the device, and leaves the card's password login and keys as they are; the next card's SSH setting wins over it.
 - A file that can't be read is deleted, and the log says why.
 - The file can also go on a card that has already started.
@@ -179,22 +182,25 @@ The `[boot]` lines give the first frame's time and when each service settled, in
 | `osdos.service` | Enabled. OSD/OS, as the first user (`pi`) |
 | `NetworkManager.service`, `bluetooth.service`, `avahi-daemon.service`, `ssh.service` (with `ENABLE_SSH=1`) | Held back until OSD/OS's first frame, then started in that order |
 | `NetworkManager-wait-online.service` | Gives up after 20 seconds (`NM_ONLINE_TIMEOUT=20`) |
-| `osdos-cloud-init-once.service` | After the first boot, writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
+| `osdos-cloud-init-once.service` | After the first boot, takes `NOPASSWD` out of cloud-init's sudoers rule, then writes `/etc/cloud/cloud-init.disabled`. Delete that file to run cloud-init again |
 | `osdos-setup-app.service`, `osdos-setup.service` | Run only with an `osdos-setup.json` on the boot partition |
 | `osdos-yt-dlp-update.timer` | Updates yt-dlp two minutes after each boot and once a day, unless an arcade game plays |
 | `osdos-usb-mount@<device>.service` | One per USB drive plugged in |
+| `osdos-media-check.service` | Checks the film partition before it is mounted, only when it was left untidy ([How it is mounted](#how-it-is-mounted)) |
 | `osdos-media-folders.service` | Makes **Movies** on the film partition as it is mounted |
 | `osdos-netplay-priority.service` | Enabled. Marks a network game's packets for Wi-Fi's video queue ([Wi-Fi](#wi-fi)) |
+| `osdos-firewall.service` | Enabled. Lets only the home network connect, from before the network comes up ([Firewall](#firewall)) |
 | `osdos-jamma.service` | Enabled. A JAMMA board's controls as two gamepads ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls#a-jamma-cabinet)). Exits without the JAMMA display preset |
 | `osdos-display.socket` | Enabled. Display Output's At Next Start |
 | `osdos-wifi.socket` | Enabled. The Wi-Fi country |
 | `osdos-name.socket` | Enabled. The device's name |
-| `osdos-system.socket` | Enabled. The time zone, the keyboard and SSH on or off |
+| `osdos-system.socket` | Enabled. The time zone, the keyboard, SSH on or off and the firewall on or off |
 | `osdos-game.socket` | Enabled. An arcade game's CPU governor, and the flag the timers wait on ([The game's socket](#the-games-socket)) |
 | `osdos-terminal.service` | Not enabled. Started by Exit to Terminal |
 | `getty@tty1.service`, `autovt@.service` | Masked. `/etc/systemd/logind.conf.d/osdos.conf` sets `NAutoVTs=0`, `ReserveVT=0` |
 | `serial-getty@ttyAMA10.service` | Masked: no login on the Pi 5's debug UART |
 | `udisks2.service` | Masked |
+| `sshswitch.service`, `userconfig.service` | Masked: an empty `ssh` file or a `userconf.txt` on the boot partition turns nothing on. OSD/OS Setup's file takes their place |
 | `apt-daily.timer`, `apt-daily-upgrade.timer`, `man-db.timer`, `e2scrub_all.timer`, `dpkg-db-backup.timer`, `fstrim.timer`, `cron.service` | Disabled. To trim the card by hand: `sudo fstrim -av` |
 | `rpi-connect-lite` | Purged |
 
@@ -283,6 +289,7 @@ With less than **2 GiB** left, or with `OSDOS_ROOT_SIZE=0`, there is no film par
 
 - A card needs about 10.5 GiB (11.3 GB as cards are sold) for a film partition. A 16 GB card gets about 6 GiB of films, a 32 GB card about 21 GiB.
 - The partition table is MBR: on a disk over 2 TiB the partitions stop at 2 TiB.
+- The disk keeps its identifier, which `root=PARTUUID=` in `cmdline.txt` and `/etc/fstab` name: pi-gen writes a few bytes of boot code into the image's MBR, without which the `parted` in the initramfs would give the disk a new one as it grows the system partition.
 - On a USB disk the system boots from, the film partition is `sda3` instead of `mmcblk0p3`.
 
 ### How it is mounted
@@ -290,10 +297,18 @@ With less than **2 GiB** left, or with `OSDOS_ROOT_SIZE=0`, there is no film par
 `/etc/fstab` has this line (`1000` is the first user's id):
 
 ```text
-LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=3s  0  2
+LABEL=OSD-OS  /media/OSD-OS  exfat  rw,noexec,nosuid,nodev,nofail,noatime,uid=1000,gid=1000,umask=0022,x-systemd.device-timeout=3s  0  0
 ```
 
-It is mounted read-write, nothing on it can run, and `fsck.exfat` checks it at every boot. A card without the partition holds the boot 3 seconds at most.
+It is mounted read-write and nothing on it can run. A card without the partition holds the boot 3 seconds at most.
+
+The line has no check of its own (its last field is `0`): a full `fsck.exfat` at every boot cost a card with thousands of files seconds before the app could start. `osdos-media-check.service` runs before the mount instead, and `/usr/lib/osdos/media-check` reads the flag exFAT keeps in its boot sector while the partition is written to (VolumeDirty, bit 1 of VolumeFlags at byte 106), which a clean unmount by Linux or Windows clears:
+
+- clear: no check, a few milliseconds;
+- set (the Pi switched off at the wall mid-write, a card pulled from a Windows PC without ejecting it, or a check cut short): `fsck.exfat` checks and repairs it, as the boot's own check would have (`fsck.repair=` on the kernel's command line: `yes` on the image, so `-y`), for 10 minutes at most;
+- no exFAT boot sector to read: checked too.
+
+Whatever goes wrong there, the partition is mounted as before and the app starts. `journalctl -b -u osdos-media-check` has one line saying which it was: `clean (VolumeFlags 0x0000); check skipped`, `dirty (VolumeFlags 0x0002); checked (fsck.exfat -y): exit status 0, clean` (or the status fsck gave), or `unreadable`. `fsck.mode=force` on the kernel's command line checks it at every boot, `fsck.mode=skip` never. To check it by hand: `sudo systemctl stop osdos.service 'media-OSD\x2dOS.mount'`, then `sudo fsck.exfat -y /dev/disk/by-label/OSD-OS` and `sudo reboot`.
 
 The Playlists module downloads into a **Playlists** folder in **Movies** (its Download Folder setting can name another).
 
@@ -366,10 +381,30 @@ The network is NetworkManager's, as on Raspberry Pi OS.
 
 ### The local network
 
-- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`.
+- The hostname is `osdos` (`TARGET_HOSTNAME`), published as `osdos.local`, by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses nor answers over IPv6 (`/etc/avahi/avahi-daemon.conf`: `use-ipv6=no`, `publish-aaaa-on-ipv4=no`), so the name never leads a computer to the Pi's global IPv6 address, which the [firewall](#firewall) refuses. On a network with IPv6 alone, `osdos.local` doesn't resolve: use the address in System Information. Wide-area DNS-SD, which asks unicast DNS servers for services and which nothing here uses, is off (`enable-wide-area=no`).
 - **A cable and Wi-Fi both up**: each answers only for its own address (`/etc/sysctl.d/90-osdos-arp.conf`: `net.ipv4.conf.all.arp_ignore = 1`, `arp_announce = 2`), so another machine sends a game meant for the cable over the cable, not to the Pi's Wi-Fi. `ip neigh show <the Pi's cable address>` on another Linux machine (`arp -a` on Windows) shows the cable's MAC address, as `ip -br link` on the Pi names it.
 - Settings → System → System Information renames the device. Give each OSD/OS on one network its own name.
 - Settings shows the Pi's IPv4 address in its title bar, Ethernet's before Wi-Fi's.
+
+### Firewall
+
+Every listener on the Pi answers on every address, IPv4 and IPv6: SSH when it is on, a hosted LAN game (RetroArch on TCP and UDP 55435, with no password; OSD/OS's seat claims on UDP 55436), RetroArch's network pad during a single-player game with credits, avahi. Where the Pi has a global IPv6 address behind a router that doesn't filter it, a forwarded port, a DMZ or a public IPv4 address, the internet could reach all of them. So only the home network may connect:
+
+- **`osdos-firewall.service`** has nftables read `/usr/lib/osdos/firewall.nft` before the network comes up (`Before=network-pre.target`, which NetworkManager starts after), and takes its table away once the network's services have stopped. Its table, `inet osdos_firewall`, has an input chain whose policy is drop.
+- **What it lets in**: answers to what the Pi sent (connection tracking: DNS, NTP, updates, streams, the media servers, an online game through its relay); the loopback; ICMP and ICMPv6 (neighbour discovery and router advertisements); a DHCP server's answer (UDP from port 67 to 68) and a DHCPv6 server's (547 to 546), wherever they come from; and everything from the home network's kinds of address: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `fe80::/10` and `fc00::/7`.
+- **By source, not by port**: a LAN game's room query and the rooms' answers, the seats' claims and mDNS's answers are unicast replies to a broadcast or a multicast, which connection tracking doesn't match. Every one of them comes from a home address.
+- **No forward chain**: the Pi shares no connection and makes no hotspot.
+- **What it refuses**: anything from another address. A home network on public addresses or a carrier's `100.64.0.0/10`, a computer that reaches the Pi over its global IPv6 address, and a VPN on other addresses need Firewall off ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#a-computer-cant-reach-the-pi)).
+- **Off and on**: Settings → System → **Firewall** ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)), or an [OSD/OS Setup](#osdos-setup) card with **Firewall** set (`system.firewall`), before anything can reach the Pi. From a shell, `sudo systemctl disable --now osdos-firewall` turns it off and `sudo systemctl enable --now osdos-firewall` on.
+- **When it can't load**: OSD/OS starts all the same, the network comes up unfiltered, and the row's help line says **Its rules aren't loaded**. Without nft the unit doesn't run.
+- **`install.sh`** installs it on Raspberry Pi OS and leaves it off: that system is its owner's. The row turns it on.
+
+```sh
+systemctl is-enabled osdos-firewall       # enabled, or disabled
+systemctl is-active osdos-firewall        # active once the rules are loaded
+sudo nft list table inet osdos_firewall   # the rules in force
+journalctl -u osdos-firewall -b           # why they didn't load, if they didn't
+```
 
 ### Bluetooth
 
@@ -384,22 +419,47 @@ Settings → Network → Bluetooth pairs and connects keyboards, gamepads and re
   ExecStartPre=+-/usr/sbin/rfkill unblock bluetooth
   ```
 
+- The drop-in `/etc/systemd/system/bluetooth.service.d/osdos-noplugin.conf` starts bluetoothd without the profiles nothing on the image uses: sound (`a2dp`, `avrcp`, and LE Audio's `bap`, `bass`, `mcp`, `vcp`, `micp`, `ccp`, `csip`, `asha`), networking (`network`), the SIM access profile (`sap`) and `midi`. Its `ExecStart` is the packaged unit's own line with `--noplugin=…` added, written as the image is built; a unit whose line can't be read is left as it is. Keyboards, gamepads and remotes keep their HID profiles (`input`, `hog`), with battery and device information. `systemctl cat bluetooth` shows the drop-in, and `ps -o args= -C bluetoothd` the option.
+
 ## SSH
 
-SSH is off on the image as it comes (`ENABLE_SSH=0`). Four ways to have it:
+SSH is off on the image as it comes (`ENABLE_SSH=0`). An empty `ssh` file or a `userconf.txt` on the boot partition does nothing on this image (`sshswitch.service` and `userconfig.service` are masked): OSD/OS Setup's file takes their place. Four ways to have it:
 
 - **OSD/OS Setup** turns it on, with password login or keys only.
 - **Settings → System → SSH** turns the service on or off on the device ([The time zone's, the keyboard's and SSH's socket](#the-time-zones-the-keyboards-and-sshs-socket)). It changes nothing else: someone signs in with the password or the keys OSD/OS Setup (or the image's build) gave `pi`.
 - **Raspberry Pi Imager's customisation** enables it, with the user it creates.
 - **An image built with `ENABLE_SSH=1`** has it. `PUBKEY_SSH_FIRST_USER` adds a public key for `pi`, and `PUBKEY_ONLY_SSH=1` turns password logins off.
 
-Then, from a computer on the same network:
+Then, from a computer on the same network (the [firewall](#firewall) lets the home network's addresses in, and no others):
 
 ```sh
 ssh pi@osdos.local
 ```
 
 The address in Settings' title bar works in place of `osdos.local`.
+
+### sshd's rules
+
+The image's `/etc/ssh/sshd_config.d/90-osdos.conf` sets how sshd lets anyone in, once SSH is on. It is read after OSD/OS Setup's `00-osdos-setup.conf` and cloud-init's `50-cloud-init.conf`, and sshd keeps the first value it reads, so theirs win:
+
+| Setting | Value | So |
+|---|---|---|
+| `PasswordAuthentication` | `no` | Only a key logs in, unless an OSD/OS Setup card with **Password Login** on, or Imager's customisation, says otherwise. An image built with `ENABLE_SSH=1`, a `FIRST_USER_PASS` and not `PUBKEY_ONLY_SSH=1` has `yes` |
+| `KbdInteractiveAuthentication` | `no` | A password goes through password login alone |
+| `PermitRootLogin` | `no` | |
+| `AllowGroups` | `sudo` | `pi` and the users Imager creates; no system account |
+| `MaxAuthTries` | `3` | Three tries a connection. A computer that offers more than two keys before the right one: `ssh -o IdentitiesOnly=yes -i ~/.ssh/<key> pi@osdos.local` |
+| `LoginGraceTime` | `20` | 20 seconds to sign in |
+| `MaxStartups` | `3:50:10` | Past three connections not signed in yet, new ones refused more and more often, all of them at ten |
+
+Settings → System → **SSH** turned on with no card's password login thus lets keys alone in: never the password every card of an image built with one shares. To see what sshd takes:
+
+```sh
+sudo sshd -T | grep -i -e passwordauthentication -e kbdinteractive -e permitrootlogin -e allowgroups -e maxauthtries
+ls /etc/ssh/sshd_config.d/
+```
+
+A Pi set up with `install.sh` keeps its sshd as you have it: none of this is installed there.
 
 ## The user, its password and sudo
 
@@ -409,10 +469,17 @@ The address in Settings' title bar works in place of `osdos.local`.
 
 | Built | Logging in as `pi` | Exit to Terminal | `sudo` |
 |---|---|---|---|
-| With `FIRST_USER_PASS` (in CI, the secret `OS_FIRST_USER_PASS`) | With that password, on the console and over SSH | A login prompt | Asks for that password |
+| With `FIRST_USER_PASS` (in CI, the secret `OS_FIRST_USER_PASS`) | With that password on the console; over SSH only with `ENABLE_SSH=1`, or once a card turns Password Login on with a password of its own | A login prompt | Asks for that password |
 | Without one (the account is locked) | Over SSH with a key only (`PUBKEY_SSH_FIRST_USER`, `ENABLE_SSH=1`) | Logs `pi` in by itself | Unusable |
 
 For `sudo` on an image built without a password, give `pi` a password on OSD/OS Setup, or log in as the user Imager's customisation creates.
+
+`sudo` always asks for the password. The build removes pi-gen's passwordless rule (`/etc/sudoers.d/010_pi-nopasswd`) and stops if any `NOPASSWD` is left in `/etc/sudoers` or `/etc/sudoers.d`. cloud-init writes one for the users Imager's customisation creates (`/etc/sudoers.d/90-cloud-init-users`): `osdos-cloud-init-once.service` takes its `NOPASSWD` out after the first boot, and the rule stays, with the user's password. Nothing on the image or in the app runs `sudo`. To check:
+
+```sh
+sudo grep -r NOPASSWD /etc/sudoers /etc/sudoers.d    # nothing
+sudo -k; sudo true                                   # asks for the password
+```
 
 ## Quitting, restarting and Exit to Terminal
 
@@ -467,8 +534,9 @@ The launcher exports `OSDOS_LAUNCHER_API`. OSD/OS offers only what the launcher 
 | 9 | Exits 39 and 59: JAMMA 480i at 640 across |
 | 10 | `osdos-system.socket`: Settings → System sets the time zone and the keyboard |
 | 11 | `osdos-game.socket`: an arcade game has the CPU at full speed |
+| 12 | `firewall on` and `firewall off` through `osdos-system.socket`: Settings → System offers Firewall |
 
-The image's launcher is level 11, as `install.sh`'s is.
+The image's launcher is level 12, as `install.sh`'s is.
 
 ### At Next Start's socket
 
@@ -498,10 +566,12 @@ journalctl -u 'osdos-name@*' -b    # what renaming the device did
 
 Settings → System → **Time Zone**, **Keyboard** and **SSH** go through `osdos-system.socket` (`/run/osdos-system.sock`) and `osdos-stop system-setting`. It takes a zone that `/usr/share/zoneinfo` has, set with `timedatectl set-timezone`, or a layout that `/usr/share/X11/xkb/symbols` has, set with `raspi-config nonint do_configure_keyboard`: the console's keyboard, in which a name and a password are typed at Exit to Terminal.
 
-For SSH it takes `ssh on` or `ssh off` and nothing else. On is `systemctl enable ssh.service`, then `systemctl start ssh.service` (enabled again only for as long as it starts: one that doesn't is disabled again); off is `systemctl disable ssh.service`, then `systemctl stop ssh.service`. It never touches `pi`'s password, `~/.ssh/authorized_keys` or `/etc/ssh/sshd_config.d/00-osdos-setup.conf`: whether a password logs in stays as OSD/OS Setup left it, and the next card's SSH setting wins over the row. Turned on, it answers `ok no-password` where the user OSD/OS runs as (`osdos.service`'s `User=`) has no password in `/etc/shadow` (none, or locked), which the row shows as **Set a password or a key with OSD/OS Setup first** when that user has no key either; nothing else of the password leaves it.
+For SSH it takes `ssh on` or `ssh off` and nothing else. On is `systemctl enable ssh.service`, then `systemctl start ssh.service` (enabled again only for as long as it starts: one that doesn't is disabled again); off is `systemctl disable ssh.service`, then `systemctl stop ssh.service`. It never touches `pi`'s password, `~/.ssh/authorized_keys` or `/etc/ssh/sshd_config.d/00-osdos-setup.conf`: whether a password logs in stays as OSD/OS Setup left it, and the next card's SSH setting wins over the row. Turned on, it answers `ok no-password` where no password can sign in: the user OSD/OS runs as (`osdos.service`'s `User=`) has no password in `/etc/shadow` (none, or locked), or sshd takes none (`PasswordAuthentication no` and no keyboard-interactive through PAM, as `sshd -T` says, or its files where `sshd -T` can't run). The row shows it as **No way in yet: give a key, or a password with Password Login, on OSD/OS Setup** when that user has no key either; nothing else of the password leaves it. `sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|usepam) '` shows what sshd takes.
+
+For the [firewall](#firewall) it takes `firewall on` or `firewall off` and nothing else, refused where `osdos-firewall.service` or `/usr/sbin/nft` isn't there. On is `systemctl enable osdos-firewall.service`, then `systemctl start` (disabled again should its rules not load); off is `systemctl disable`, then `systemctl stop`, which takes the table away. Only through `systemctl`: the request's unit has no network of its own, and the rules are the service's to load. The journal says what the system lets in after each.
 
 ```sh
-journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard or SSH did
+journalctl -u 'osdos-system@*' -b    # what setting the time zone, the keyboard, SSH or the firewall did
 systemctl is-enabled ssh             # enabled, or disabled
 systemctl is-active ssh              # active, or inactive
 ```
@@ -543,6 +613,7 @@ Settings → System → **Update** installs a newer release ([Installation → U
 
 - The download is `OSD-OS-<version>-linux-arm64.tar.gz`, kept in `~/.local/share/OSD-OS/updates`.
 - **Apply & Restart** has the launcher swap the new version into `/opt/osdos`. Settings stay.
+- The first start of the new version compiles the menus' QML before their first frame, as the image's very first start would without its build's compile. About 20 seconds after the menus are up, while nothing plays, a copy of OSD/OS compiles all the rest at the lowest priority (`[QmlWarmUp]` in the journal), so the pages opened from then on, and every start after, aren't held up by it.
 - An update brings OSD/OS alone. A package a newer release needs comes with a newer image, or with `install.sh` run again.
 - Qt Quick 3D is such a package: a card flashed before 0.0.31 needs it installed once ([Arcade → The Orb look](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#the-orb-look)).
 - An image built from a branch has a `dev` app. Its Update screen says **Dev build — self-update is disabled.**
@@ -555,6 +626,9 @@ The image carries yt-dlp's latest nightly build in `~/.local/share/OSD-OS/bin/yt
 - It is also skipped without a connection within five minutes, and while an arcade game plays (`/run/osdos-game/playing`, [The game's socket](#the-games-socket)).
 - The YouTube module starts the update itself the first time it opens.
 - `journalctl -u osdos-yt-dlp-update` shows each run, and why one was skipped.
+- It runs as `pi` with no way to more privileges and the system out of its reach (`NoNewPrivileges`, `ProtectSystem=full`, the kernel's settings, modules and control groups protected, no setuid, `LockPersonality`): it writes only its own folder. `systemctl show osdos-yt-dlp-update -p NoNewPrivileges -p ProtectSystem` shows them.
+- After each run, new build or not, `/usr/lib/osdos/yt-dlp-compile` puts the bytecode into the zip, so that yt-dlp starts without compiling its sources first: about 0.4 s sooner on a PC by measure, an estimated 1.5 to 2 s on a Pi 4, for every video, search and Info Screen. A zip compiled already for this Python is left alone; a game started meanwhile stops the rebuild, the file as it was. The journal has a line for it: `compiled for /usr/bin/python3`, `compiled already`, or `left as it was:` and why (the zip then runs from its sources, as before).
+- After an update by hand (`~/.local/share/OSD-OS/bin/yt-dlp --update`), `/usr/lib/osdos/yt-dlp-compile ~/.local/share/OSD-OS/bin/yt-dlp` compiles it at once; otherwise the next run of the timer does.
 
 ### The system's packages
 
@@ -593,17 +667,20 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/usr/local/sbin/osdos-setup` | Applies OSD/OS Setup's file |
 | `/etc/systemd/system/` | The `osdos` units above, and the drop-ins `osdos.service.d/osdos-media.conf` and `<unit>.d/osdos-defer.conf` |
 | `/etc/systemd/system/osdos-netplay-priority.service`, `/usr/lib/osdos/netplay-priority.nft` | A network game's packets marked CS4 for Wi-Fi's video queue |
-| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `yt-dlp-wanted` | The image's helpers |
+| `/etc/systemd/system/osdos-firewall.service`, `/usr/lib/osdos/firewall.nft` | The firewall: only the home network may connect |
+| `/etc/avahi/avahi-daemon.conf` | `osdos.local` by IPv4 alone (`use-ipv6=no`, `publish-aaaa-on-ipv4=no`), wide-area DNS-SD off (`enable-wide-area=no`) |
+| `/usr/lib/osdos/wait-for-app`, `wait-for-display`, `usb-mount`, `media-check`, `yt-dlp-wanted`, `yt-dlp-compile` | The image's helpers |
 | `/etc/osdos/boot-units` | What the boot screen follows |
 | `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules` | Lets OSD/OS's user use NetworkManager for Wi-Fi |
 | `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` | Wi-Fi power saving off |
+| `/etc/rpi/swap.conf.d/osdos.conf` | Swap in compressed RAM only (`[Main]`, `Mechanism=zram`): no swap file on the card. `swapon --show` lists `/dev/zram0` alone |
 | `/etc/modules-load.d/osdos-jamma.conf` | The JAMMA controls' kernel modules (`i2c-dev`, `uinput`) |
 | `/etc/udev/rules.d/99-osdos-tty.rules`, `99-osdos-usb-mount.rules`, `99-osdos-uinput.rules` | `/dev/tty0` for the `tty` group, USB drives, `/dev/uinput` for the `input` group |
 | `/etc/initramfs-tools/scripts/local-premount/resize_early` | The first boot's card split |
 | `/run/osdos/ready` | Written at OSD/OS's first frame |
 | `/run/osdos-display.sock`, `/run/osdos-wifi.sock`, `/run/osdos-name.sock`, `/run/osdos-system.sock` | The four sockets |
 | `/run/osdos-display-boot.txt` | The display preset this boot started on |
-| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set |
+| `/var/lib/osdos-setup/pending.json` | What of OSD/OS Setup's file is still to be set (root's alone; overwritten with zeros before it goes) |
 | `/home/pi/.local/share/OSD-OS/` | The data folder: `config.json`, `lists.json`, sign-ins, `bin/yt-dlp`, `updates/` |
 | `/media/OSD-OS` | The film partition: `Movies`, `Games/Arcade` |
 | `/media/usb/<label>` | USB drives, read-only |
@@ -615,7 +692,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, and what became of it |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs |
 | `/usr/games/mame`, `/etc/mame/mame.ini`, `/usr/bin/retroarch` | MAME, its settings, and RetroArch |
-| `/opt/osdos/lib/osdos/retroarch` | The RetroArch the games play in: the same version, built by OSD/OS with TLS. It comes with the app, and an update brings a new one |
+| `/opt/osdos/lib/osdos/retroarch` | The RetroArch the games play in: the same version, built by OSD/OS with TLS and a few fixes (`scripts/retroarch-fixes.patch` in OSD/OS's source). It comes with the app, and an update brings a new one |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and its licences |
 | `/tmp/runtime-pi/osdos-mpv.log` | mpv's own log |
 
@@ -628,6 +705,7 @@ journalctl -u osdos -b                    # this boot
 journalctl -u osdos -f                    # as it happens
 journalctl -u osdos -b | grep '\[boot\]'   # the boot screen's timings
 journalctl -u 'osdos-usb-mount@*'         # USB drives
+journalctl -b -u osdos-media-check        # the film partition's check
 journalctl -u osdos-yt-dlp-update         # yt-dlp's updates
 journalctl -u osdos-jamma                 # a JAMMA board's controls
 journalctl -u 'osdos-display@*'           # Display Output's At Next Start
@@ -687,7 +765,7 @@ Then the image:
 FIRST_USER_PASS='choose-a-password' os/build.sh OSD-OS-dev-linux-arm64.tar.gz
 ```
 
-The image lands in `os/work/pi-gen/deploy/`, as `image_<date>-osdos.img.xz` with `<date>-osdos.info`.
+The image lands in `os/work/pi-gen/deploy/`, as `image_<date>-osdos.img.xz` with `<date>-osdos.info` (its packages), `<date>-osdos.os.json` (its sizes and SHA-256 sums, as Raspberry Pi Imager's list takes them) and `release_notes.txt` (Raspberry Pi OS's, not OSD/OS's). The workflow keeps the `.img.xz` and the `.info`.
 
 ### Its settings
 
@@ -754,11 +832,11 @@ The parts are the folders of [`os/stage-osdos`](https://github.com/mehmetraif/OS
 |---|---|---|
 | `00-packages` | What `install.sh` installs, without `qt6-wayland`, plus alsa-utils | |
 | `01-app` | The tarball unpacked into `/opt/osdos`, owned by `pi`; the launcher; the NOTICE | |
-| `02-system` | The service, its helpers and sockets, the polkit rule, Wi-Fi power saving, the network game marking (`nftables`), OSD/OS Setup, the JAMMA controls, the boot order, the masked and disabled units | |
+| `02-system` | The service, its helpers and sockets, the polkit rule, Wi-Fi power saving, the network game marking and the firewall (`nftables`), `osdos.local` by IPv4, OSD/OS Setup, the JAMMA controls, the boot order, the masked and disabled units | |
 | `03-boot` | `config.txt`, the display presets and `osdos-display.txt` (from `OSDOS_DISPLAY`), the JAMMA preset's Pi 5 overlay, the quiet `cmdline.txt` | |
 | `04-streaming` | `chromium`, `rpi-chromium-mods`, `libwidevinecdm0`, `libgl1-mesa-dri`, `fonts-liberation`, `cage`, `wtype` | `OSDOS_STREAMING=0` |
-| `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
-| `06-youtube` | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build; Deno, pinned (today `v2.9.7`); the update timer | `OSDOS_YOUTUBE=0` |
+| `05-media` | `exfatprogs`, the `resize_early` override, `/media/OSD-OS`, its `fstab` line, `osdos-media-check.service`, `osdos-media-folders.service` and `OSDOS_MEDIA_DIR` | `OSDOS_ROOT_SIZE=0` |
+| `06-youtube` | Python with pycryptodome, requests and brotli; ffmpeg; yt-dlp's nightly build; Deno, pinned (today `v2.9.8`); the update timer | `OSDOS_YOUTUBE=0` |
 | `07-usb` | `ntfs-3g`, the USB rule, unit and script, `/media/usb` | |
 | `08-arcade` | Debian's `mame`, `mame-data` and `retroarch`, checked against the versions `scripts/engines.env` names, and the app's own RetroArch started once | `OSDOS_ARCADE=0` |
 

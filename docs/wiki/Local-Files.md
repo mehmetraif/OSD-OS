@@ -62,7 +62,7 @@ On its first boot the [OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/T
 3. Windows also offers to format the system's partition. Always answer **Cancel**: formatting it erases the system.
 4. Put the card back in the Pi.
 
-- The partition is mounted at `/media/OSD-OS`, read-write, `noexec,nosuid,nodev`, and checked with `fsck.exfat` at every boot.
+- The partition is mounted at `/media/OSD-OS`, read-write, `noexec,nosuid,nodev`, and checked with `fsck.exfat` before it is mounted when it was left untidy.
 - A card with less than 2 GiB to spare past the system gets no film partition; `/media/OSD-OS` is then an ordinary folder.
 - More in the image's [os/README.md](https://github.com/mehmetraif/OSD-OS/blob/main/os/README.md#films-on-the-card).
 

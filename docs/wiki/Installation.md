@@ -131,7 +131,7 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 
 ### OSD/OS Setup: settings on the card before the first boot
 
-[OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what the card starts with, for a **TV** or an **Arcade Cabinet**. Nothing you type leaves your browser. It sets the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH, the time zone, the keyboard, every setting of OSD/OS and the RetroAchievements account.
+[OSD/OS Setup](https://osdos.tv/setup/) is a web page that chooses what the card starts with, for a **TV** or an **Arcade Cabinet**. Nothing you type leaves your browser. It sets the display output, the device's name, Wi-Fi and its country, `pi`'s password, SSH, the firewall, the time zone, the keyboard, every setting of OSD/OS and the RetroAchievements account.
 
 1. Choose your settings, then **Download for the card (zip)**. It holds `osdos-setup.json` and, with a display output chosen, `osdos-display.txt`.
 2. After flashing, take the card out and put it back in. The computer shows the boot partition as a drive called **bootfs**.
@@ -142,9 +142,11 @@ xz -dc ~/Downloads/OSD-OS-*-raspberry-pi.img.xz | sudo dd of=/dev/sdX bs=4M conv
 - Only what you change on the page goes into the file.
 - **Export** saves `osdos-setup.json` alone. **Import** reads it back, or reads OSD/OS's own `config.json`.
 - The file can also go on a card that has already been started.
-- The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is deleted from the card once applied.
+- The file holds the Wi-Fi and RetroAchievements passwords as typed: keep it to yourself. It is overwritten with zeros and deleted from the card as the Pi starts. A copy left on your computer, or in its recycle bin, stays there.
 - A display output chosen for another kind of Pi is not applied, and the log says so.
+- **pi's Password** has 8 characters at least, and isn't one of the first anyone guesses (`raspberry`, `password`, `12345678`, the user's name…). **Password Login** starts off: a key is the safer way in.
 - SSH stays as the card set it until Settings → System → **SSH** turns it off or on; the password and the keys stay the card's either way, and a later card's SSH setting wins again.
+- **Firewall** (under Logins, after SSH) is left as the card has it unless you set it. On: only devices on your home network can connect. Off: anything that reaches the Pi can, for a network on other addresses (public ones, a carrier's `100.64.x`, a VPN). Settings → System → **Firewall** changes it later, and a later card's setting wins again.
 
 [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#osdos-setup) has how each setting is applied. A computer takes part of the settings too ([below](#osdos-setup-on-a-computer)).
 
@@ -219,8 +221,9 @@ Put the card in the Pi, connect the TV and the keyboard, remote or gamepad, and 
 The image's own user is `pi`. You only need to log in for **Exit to Terminal** (Settings → Power) or SSH.
 
 - **The password.** A release image's `pi` has the password of the repository secret `OS_FIRST_USER_PASS`, if the release was built with one. Without one, Exit to Terminal logs `pi` in by itself, without `sudo`.
-- **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`.
-- **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a password or a key to log in with; then Settings → System → **SSH** turns it off and on again on the device. Or from a shell with `sudo`:
+- **`sudo`** always asks for the password, on the image as on any user Imager's customisation creates.
+- **OSD/OS Setup** gives `pi` a password of your own, for SSH and `sudo`: 8 characters at least, and not one as easy to guess as `raspberry`.
+- **SSH** is off on a release image. Turn it on on OSD/OS Setup, which also gives it a key to log in with, or a password with **Password Login** turned on (it starts off); then Settings → System → **SSH** turns it off and on again on the device. A password logs in over SSH only when a card turned Password Login on: otherwise only a key does, whatever password `pi` has. An empty `ssh` file on the boot partition does nothing on this image. Or from a shell with `sudo`:
 
   ```sh
   sudo systemctl enable --now ssh
@@ -301,7 +304,6 @@ sdram_freq=500
 
 # Drivers & Video
 dtoverlay=vc4-fkms-v3d,cma-256
-dtoverlay=rpivid-v4l2
 
 # Overclocking
 over_voltage=2
@@ -359,7 +361,6 @@ sdram_freq=500
 
 # Drivers & Video
 dtoverlay=vc4-fkms-v3d,cma-256
-dtoverlay=rpivid-v4l2
 
 # Overclocking
 over_voltage=2
@@ -417,7 +418,7 @@ On the OSD/OS image it asks neither, and keeps the image's own service. The inst
 | A udev rule | `/etc/udev/rules.d/99-osdos-tty.rules`: lets the `tty` group open `/dev/tty0` |
 | The `bluetooth` group | Adds the user OSD/OS runs as |
 | A polkit rule | With a service: `/etc/polkit-1/rules.d/50-osdos-networkmanager.rules`, for Settings → Network → Wi-Fi |
-| The network, as the image has it | The image's own files at the release's tag: `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` (Wi-Fi without power saving, from the next connection), and `osdos-netplay-priority.service` with `/usr/lib/osdos/netplay-priority.nft` and `nftables` (a network game's packets marked CS4 for Wi-Fi's video queue). A release without them, or GitHub not answering, leaves the system as it is, and says so |
+| The network, as the image has it | The image's own files, from the release's tarball (`share/osdos/system`, checked against GitHub's SHA-256 with the rest of it; nothing of them is downloaded apart): `/etc/NetworkManager/conf.d/osdos-wifi-powersave.conf` (Wi-Fi without power saving, from the next connection), and `osdos-netplay-priority.service` with `/usr/lib/osdos/netplay-priority.nft` and `nftables` (a network game's packets marked CS4 for Wi-Fi's video queue), and the firewall, `osdos-firewall.service` with `/usr/lib/osdos/firewall.nft`, installed but left off: only the home network's addresses may connect once Settings → System → Firewall turns it on, and one turned on stays on. A release whose tarball has none of them (one from before) leaves the system as it is, and says so |
 | The app | `OSD-OS-<version>-linux-arm64.tar.gz`, checked against its SHA-256, into `/opt/osdos` (`bin`, `lib`, `share`), owned by the user OSD/OS runs as |
 | 240-MP | A 240-MP install (`/opt/240mp`, `240mp.service`) is removed. OSD/OS moves its data folder over on its first start |
 | The launcher | `/usr/local/bin/osdos`: applies a downloaded update, then starts OSD/OS on Wayland, X11, or straight on the screen (Qt's EGLFS) |
@@ -680,6 +681,8 @@ sudo rm -f /etc/systemd/system/osdos-game.socket /etc/systemd/system/osdos-game@
 sudo rm -f /etc/polkit-1/rules.d/50-osdos-networkmanager.rules
 sudo systemctl disable --now osdos-netplay-priority.service
 sudo rm -f /etc/systemd/system/osdos-netplay-priority.service /usr/lib/osdos/netplay-priority.nft
+sudo systemctl disable --now osdos-firewall.service
+sudo rm -f /etc/systemd/system/osdos-firewall.service /usr/lib/osdos/firewall.nft
 sudo rm -f /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
 sudo systemctl daemon-reload
 sudo rm -rf /opt/osdos

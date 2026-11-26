@@ -152,6 +152,7 @@ add_executable(osdos
     src/input/IdleTracker.cpp
     src/input/JammaPins.cpp
     src/update/UpdateManager.cpp
+    src/update/QmlWarmUp.cpp
     src/boot/BootProgress.cpp
     src/display/DisplayOutput.cpp
     src/audio/AudioOutput.cpp
@@ -482,4 +483,18 @@ else()
         DESTINATION "${OSDOS_INSTALL_DATADIR}"
         COMPONENT Runtime
         FILES_MATCHING PATTERN "*.lua" PATTERN "web-player.sh" PATTERN "save-logs.sh")
+    # The OSD/OS image's network settings for games and streams and its
+    # inbound filter, which scripts/install.sh takes from this tarball
+    # (checked against GitHub's digest) to set up Raspberry Pi OS as the
+    # image has them. The app reads none of them.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        install(FILES
+            "${CMAKE_SOURCE_DIR}/os/stage-osdos/02-system/files/osdos-wifi-powersave.conf"
+            "${CMAKE_SOURCE_DIR}/os/stage-osdos/02-system/files/osdos-netplay-priority.nft"
+            "${CMAKE_SOURCE_DIR}/os/stage-osdos/02-system/files/osdos-netplay-priority.service"
+            "${CMAKE_SOURCE_DIR}/os/stage-osdos/02-system/files/osdos-firewall.nft"
+            "${CMAKE_SOURCE_DIR}/os/stage-osdos/02-system/files/osdos-firewall.service"
+            DESTINATION "${OSDOS_INSTALL_DATADIR}/system"
+            COMPONENT Runtime)
+    endif()
 endif()

@@ -133,7 +133,8 @@ FocusScope {
           description: "Plays the games FinalBurn Neo has, with RetroAchievements and online play, by libretro and its"
                        + " contributors, retroarch.com • Free software under the GNU General Public License, version 3,"
                        + " its rcheevos under the MIT License • On the OSD/OS image and a Raspberry Pi, OSD/OS's own"
-                       + " build of it, with BearSSL (MIT) for RetroAchievements over https • {select} The license's text" },
+                       + " build of it, with BearSSL (MIT) for RetroAchievements over https, modified with fixes, its"
+                       + " changes public in OSD/OS's source (scripts/retroarch-fixes.patch) • {select} The license's text" },
         { key: "fbneo", label: "FinalBurn Neo", value: "Non-commercial", license: "fbneo",
           licenseName: "FinalBurn Neo's license",
           description: "The arcade emulator RetroArch plays those games with, as a libretro core, by Team FB Neo,"

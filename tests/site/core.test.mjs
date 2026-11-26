@@ -33,6 +33,19 @@ test("pi's password as openssl passwd -6 hashes it", async () => {
     assert.equal(core.checkPassword("x".repeat(511)), "");
     assert.equal(core.checkPassword("x".repeat(512)), "A password has 511 bytes at most");
     assert.equal(core.checkPassword("ş".repeat(256)), "A password has 511 bytes at most");
+    // None: the card's password left as it is.
+    assert.equal(core.checkPassword(""), "");
+    // One a guess finds at once: too short, or among the first anyone tries,
+    // in any case, or the user's own name; the page says the rule.
+    assert.equal(core.checkPassword("short12"), "A password has 8 characters at least");
+    assert.equal(core.checkPassword("şifreğüç"), "", "eight characters, more bytes");
+    for (const obvious of ["raspberry", "RaspBerry", "password", "12345678", "OSDOS-OS", "osdos123"])
+        assert.equal(core.checkPassword(obvious), "Too easy to guess: one of the first passwords anyone tries", obvious);
+    assert.equal(core.checkPassword("arcadeplayer", "arcadeplayer"), "Too easy to guess: one of the first passwords anyone tries");
+    assert.equal(core.checkPassword("correct horse"), "");
+    assert.ok(core.OBVIOUS_PASSWORDS.every(p => p.length >= core.PASSWORD_MIN_LENGTH && p === p.toLowerCase()),
+              "the list holds only what the length alone lets through");
+    assert.match(core.PASSWORD_RULE, /^8 characters at least, /);
 });
 
 test("an SSH key whole, as sshd takes it", () => {
@@ -180,7 +193,30 @@ test("a cabinet's file: its kind, and the Arcade it starts on turned on", () => 
     assert.deepEqual(core.withStartupModule({ app: { startup_module: "None" } }), { app: { startup_module: "None" } });
     // SSH's keys with SSH on alone.
     assert.deepEqual(core.buildSetup({ sshEnabled: false, sshKeys: "ssh-ed25519 AAAA" }).system,
-                     { ssh: { enabled: false, password_login: true } });
+                     { ssh: { enabled: false, password_login: false } });
+    // Password login only when turned on; a key given leaves it off.
+    assert.deepEqual(core.buildSetup({ sshEnabled: true, sshKeys: "ssh-ed25519 AAAA" }).system.ssh.password_login, false);
+    assert.deepEqual(core.buildSetup({ sshEnabled: true, sshPasswordLogin: true, passwordHash: "$6$ab$x" }).system,
+                     { password_hash: "$6$ab$x", ssh: { enabled: true, password_login: true } });
+});
+
+test("the firewall: in the file only when set, and read back the same way", () => {
+    // Unset (the page's own start) leaves the card's as it is.
+    for (const unset of [null, undefined])
+        assert.deepEqual(core.buildSetup({ firewallEnabled: unset }), { osdos_setup: 1 }, String(unset));
+    for (const enabled of [true, false]) {
+        const setup = core.buildSetup({ firewallEnabled: enabled, sshEnabled: true, sshKeys: "ssh-ed25519 AAAA" });
+        assert.deepEqual(setup.system.firewall, { enabled });
+        assert.deepEqual(Object.keys(setup.system), ["ssh", "firewall"], "after SSH");
+        const back = core.readSetup(JSON.stringify(setup));
+        assert.equal(back.firewallEnabled, enabled);
+        assert.deepEqual(core.buildSetup(back), setup, "made again, the same file");
+    }
+    // As the card takes it: an object with a true or a false, nothing else.
+    for (const firewall of [true, "off", { enabled: "false" }, { enabled: 0 }, {}, null])
+        assert.equal(core.readSetup(JSON.stringify({ osdos_setup: 1, system: { firewall } })).firewallEnabled, undefined,
+                     JSON.stringify(firewall));
+    assert.equal(core.readSetup(JSON.stringify({ osdos_setup: 1 })).firewallEnabled, undefined);
 });
 
 test("a file read back as the card would read it", () => {

@@ -15,7 +15,7 @@ class QObject;
 namespace rootrequest {
 
 struct Answer {
-    // "ok", or "ok <note>": done, with a word on it (SSH's "no-password").
+    // "ok", or "ok <note>": done, with a word on it (SSH's "no-password": no password logs in).
     bool ok = false;
     QString note;
     // The helper's reason; without its answer, what went wrong on the way

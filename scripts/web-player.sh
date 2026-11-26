@@ -122,12 +122,38 @@ fi
 
 # These players play on an Arm Linux browser only when it says it is ChromeOS,
 # as Raspberry Pi OS's Chromium already does; say so here too, with the
-# browser's real version, so other builds work the same.
+# browser's real version, so other builds work the same. Asking it starts the
+# browser once just for that, a second or more on a Pi: the answer is kept in
+# the data folder's web-player-browser (the browser's file, resolved, and its
+# time, then its version), and asked again only once the browser has changed.
 UA=${OSDOS_WEB_PLAYER_UA:-${MP240_WEB_PLAYER_UA:-}}
 case "$(uname -m)" in
     aarch64|arm64|armv7l|armv6l)
         if [ -z "$UA" ]; then
-            VERSION=$("$BROWSER" --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1)
+            VERSION=
+            KEPT=$DATA/web-player-browser
+            BROWSER_FILE=$(command -v "$BROWSER")
+            BROWSER_FILE=$(readlink -f "$BROWSER_FILE" 2>/dev/null || printf '%s' "$BROWSER_FILE")
+            BROWSER_TIME=$(stat -c %Y "$BROWSER_FILE" 2>/dev/null || true)
+            STAMP=
+            [ -n "$BROWSER_TIME" ] && STAMP="$BROWSER_FILE $BROWSER_TIME"
+            if [ -n "$STAMP" ] && [ -r "$KEPT" ] \
+                && { read -r KEPT_STAMP && read -r KEPT_VERSION; } < "$KEPT" && [ "$KEPT_STAMP" = "$STAMP" ]; then
+                # Only a version's digits and dots: nothing else reaches the
+                # command line from the file.
+                case "$KEPT_VERSION" in
+                    *[!0-9.]*|.*|'') ;;
+                    *) VERSION=$KEPT_VERSION ;;
+                esac
+            fi
+            if [ -z "$VERSION" ]; then
+                VERSION=$("$BROWSER" --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1)
+                # Whole or not at all: written beside it, then moved over it.
+                if [ -n "$VERSION" ] && [ -n "$STAMP" ] \
+                    && printf '%s\n%s\n' "$STAMP" "$VERSION" > "$KEPT.$$" 2>/dev/null; then
+                    mv -f "$KEPT.$$" "$KEPT" 2>/dev/null || rm -f "$KEPT.$$"
+                fi
+            fi
             if [ -n "$VERSION" ]; then
                 UA="Mozilla/5.0 (X11; CrOS aarch64 15917.71.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$VERSION Safari/537.36"
             fi

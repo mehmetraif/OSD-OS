@@ -3,12 +3,14 @@
 #include "Libretro.h"
 #include "Mame.h"
 #include "../../util/SevenZip.h"
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QNetworkAccessManager>
 #include <QPromise>
 #include <QSysInfo>
+#include <QVersionNumber>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace {
@@ -19,6 +21,11 @@ namespace {
 // for playing together over the network. They rise with that floor.
 constexpr const char *kRetroArchVersion = OSDOS_RETROARCH_VERSION;
 constexpr const char *kMameVersion = OSDOS_MAME_VERSION;
+// The SHA-256 each one's Windows download has (scripts/engines.env), checked
+// before anything of it is unpacked: MAME's from its release's SHA256SUMS,
+// RetroArch's empty, as libretro publishes none (not checked, and logged).
+constexpr const char *kRetroArchSha256 = OSDOS_RETROARCH_WIN_SHA256;
+constexpr const char *kMameSha256 = OSDOS_MAME_WIN_SHA256;
 
 // The progress the download reaches, the unpacking after it.
 constexpr int kDownloadDone = 90;
@@ -41,6 +48,17 @@ bool windows64() {
 #endif
 }
 
+// The file's SHA-256 in lower-case hexadecimal, or "" when it can't be read.
+QString sha256Of(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QString();
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&file))
+        return QString();
+    return QString::fromLatin1(hash.result().toHex());
+}
+
 } // namespace
 
 ProgramInstaller::Source ProgramInstaller::retroarch(const QString &dataRoot) {
@@ -52,21 +70,33 @@ ProgramInstaller::Source ProgramInstaller::retroarch(const QString &dataRoot) {
     source.available = windows64();
     source.archive = QUrl(QStringLiteral("https://buildbot.libretro.com/stable/%1/windows/x86_64/RetroArch.7z")
                               .arg(source.version));
+    source.sha256 = QLatin1String(kRetroArchSha256);
     source.program = QStringLiteral("retroarch.exe");
     source.target = QFileInfo(libretro::downloadedRetroArch(dataRoot)).absolutePath();
     return source;
 }
 
+QString ProgramInstaller::mameWindowsFile(const QString &version) {
+    // mamedev's release mameNNNN has the 64-bit Windows build as
+    // mameNNNNb_64bit.exe up to 0.280 and as mameNNNNb_x64.exe from 0.281,
+    // when an ARM build (mameNNNNb_arm64.exe) came beside it.
+    const QString tag = QStringLiteral("mame") + QString(version).remove(QLatin1Char('.'));
+    const bool x64 = QVersionNumber::fromString(version) >= QVersionNumber(0, 281);
+    return tag + (x64 ? QStringLiteral("b_x64.exe") : QStringLiteral("b_64bit.exe"));
+}
+
 ProgramInstaller::Source ProgramInstaller::mame(const QString &dataRoot) {
-    // mamedev's release mame0276 has mame0276b_64bit.exe, the 64-bit Windows
-    // build, a self-extracting archive with mame.exe at its top, beside the
-    // sources (mame0276s.exe) and the ARM build.
+    // mamedev's release of the version: its 64-bit Windows build
+    // (mameWindowsFile()), a self-extracting archive with mame.exe at its
+    // top, beside the sources (mameNNNNs.exe). 0.276 has no ARM build.
     Source source;
     source.name = QStringLiteral("MAME");
     source.version = QLatin1String(kMameVersion);
     source.available = windows64();
     const QString tag = QStringLiteral("mame") + QString(source.version).remove(QLatin1Char('.'));
-    source.archive = QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/%1/%1b_64bit.exe").arg(tag));
+    source.archive = QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/%1/%2")
+                              .arg(tag, mameWindowsFile(source.version)));
+    source.sha256 = QLatin1String(kMameSha256);
     source.program = QStringLiteral("mame.exe");
     source.target = QFileInfo(mame::downloadedMame(dataRoot)).absolutePath();
     return source;
@@ -170,7 +200,11 @@ void ProgramInstaller::unpack() {
     const QString staging = unpackFolder();
     const QString target = m_source.target;
     const QString program = m_source.program;
-    m_watcher->setFuture(QtConcurrent::run([part, staging, target, program](QPromise<QString> &promise) {
+    const QString expected = m_source.sha256.toLower();
+    if (expected.isEmpty())
+        qWarning("[Arcade] %s's download is not checked: no SHA-256 is known for %s",
+                 qPrintable(m_source.name), qPrintable(m_source.archive.fileName()));
+    m_watcher->setFuture(QtConcurrent::run([part, staging, target, program, expected](QPromise<QString> &promise) {
         promise.setProgressRange(0, 100);
         const auto cleanUp = [&] {
             QDir(staging).removeRecursively();
@@ -180,6 +214,20 @@ void ProgramInstaller::unpack() {
             cleanUp();
             promise.addResult(error);
         };
+        // The file that was meant, before anything of it is read as an
+        // archive: HTTPS alone says only where it came from.
+        if (!expected.isEmpty()) {
+            const QString actual = sha256Of(part);
+            if (actual.isEmpty()) {
+                done(QStringLiteral("The download could not be read to check it"));
+                return;
+            }
+            if (actual != expected) {
+                done(QStringLiteral("The download is not the file expected: its SHA-256 is %1, not %2")
+                         .arg(actual, expected));
+                return;
+            }
+        }
         QString error;
         const QStringList names = sevenzip::list(part, &error);
         if (!error.isEmpty()) {

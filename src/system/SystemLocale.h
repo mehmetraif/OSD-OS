@@ -7,7 +7,7 @@
 #include <QString>
 #include <QStringList>
 
-// The system's time zone, keyboard layout and SSH, as the files say: read by
+// The system's time zone, keyboard layout, SSH and firewall, as the files say: read by
 // Settings → System's rows (SystemSettings) and by the export to OSD/OS Setup
 // (util/SetupExport). `root` stands before every path, for tests.
 namespace systemlocale {
@@ -51,6 +51,24 @@ inline int ssh(const QString &root = QString()) {
     return wanted.exists() || wanted.isSymLink() ? 1 : 0;
 }
 
+// The firewall (osdos-firewall.service, which lets only the home network's
+// addresses connect): -1 where it isn't there to be turned on (no unit, as on
+// a system set up before it, or no nft to load its rules), else 1 when
+// systemd starts it (its link in multi-user.target.wants), 0 when it doesn't.
+inline int firewall(const QString &root = QString()) {
+    if (!QFileInfo::exists(root + QStringLiteral("/etc/systemd/system/osdos-firewall.service"))
+        || !QFileInfo::exists(root + QStringLiteral("/usr/sbin/nft")))
+        return -1;
+    const QFileInfo wanted(root + QStringLiteral("/etc/systemd/system/multi-user.target.wants/osdos-firewall.service"));
+    return wanted.exists() || wanted.isSymLink() ? 1 : 0;
+}
+
+// Whether its rules are in force now: /run/osdos-firewall, its unit's
+// RuntimeDirectory=, is there from its start until it stops or fails.
+inline bool firewallLoaded(const QString &root = QString()) {
+    return QFileInfo(root + QStringLiteral("/run/osdos-firewall")).isDir();
+}
+
 // The public keys in home's ~/.ssh/authorized_keys that log in, each as its
 // line has it, once: a type, then its key, as the card's setup takes one
 // (public_key() in osdos-setup).
@@ -68,6 +86,27 @@ inline QStringList sshKeys(const QString &home) {
             keys << key;
     }
     return keys;
+}
+
+// Whether any line of home's ~/.ssh/authorized_keys or authorized_keys2
+// (Debian's sshd reads both) holds a key that may log in, options before
+// it or not (restrict, from="…"), as the card's setup counts one
+// (KEY_LINE in osdos-setup): not a comment, and a type then at least 16
+// characters of its key.
+inline bool hasSshKey(const QString &home) {
+    static const QRegularExpression kKeyLine(
+        QStringLiteral("(^|\\s)(ssh-(rsa|dss|ed25519)|ecdsa-sha2-nistp[0-9]+"
+                       "|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\\.com) [A-Za-z0-9+/=]{16,}"));
+    for (const char *name : { "/.ssh/authorized_keys", "/.ssh/authorized_keys2" }) {
+        const QStringList lines =
+            QString::fromUtf8(filetext::readText(home + QLatin1String(name), 256 * 1024)).split(QLatin1Char('\n'));
+        for (const QString &line : lines) {
+            const QString text = line.trimmed();
+            if (!text.startsWith(QLatin1Char('#')) && kKeyLine.match(text).hasMatch())
+                return true;
+        }
+    }
+    return false;
 }
 
 } // namespace systemlocale

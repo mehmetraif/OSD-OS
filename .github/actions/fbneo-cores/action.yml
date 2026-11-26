@@ -33,7 +33,7 @@ runs:
     # Windows the same MSYS2 environment).
     - name: Restore FinalBurn Neo's cores
       id: cache
-      uses: actions/cache/restore@v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: fbneo-cores
         key: fbneo-cores-${{ steps.image.outputs.image }}-${{ runner.arch }}-${{ runner.os == 'Windows' && 'ucrt64-' || '' }}${{ hashFiles('scripts/engines.env', 'scripts/build-fbneo-cores.sh', 'scripts/build-fbneo.sh', 'scripts/build-fbneo-lan.sh', 'scripts/fbneo-make.sh', 'scripts/fbneo-lan.patch') }}
@@ -49,7 +49,7 @@ runs:
     # the app needs. MSYS2 is retiring MINGW64, on the old msvcrt.dll.
     - name: MSYS2
       if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
-      uses: msys2/setup-msys2@v2
+      uses: msys2/setup-msys2@3c51bf698df1e37b2261f53cb67797b97761185c # v2.34.0
       with:
         msystem: UCRT64
         install: mingw-w64-ucrt-x86_64-gcc make perl patch
@@ -66,7 +66,7 @@ runs:
 
     - name: Keep FinalBurn Neo's cores
       if: steps.cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v6.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: fbneo-cores
         key: ${{ steps.cache.outputs.cache-primary-key }}

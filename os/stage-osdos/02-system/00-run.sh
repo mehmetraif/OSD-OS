@@ -5,7 +5,8 @@
 # Information's device name socket, Settings → System's time zone and keyboard
 # socket and the polkit rule that lets the app's
 # user use NetworkManager (all but the service taken from scripts/install.sh
-# by os/build.sh), the network's settings for games and streams, OSD/OS
+# by os/build.sh), the network's settings for games and streams, the filter
+# that lets only the home network connect, osdos.local by IPv4, OSD/OS
 # Setup's file applied at start, and the boot order:
 # the units below hold back until the app is on screen, then start one after
 # another.
@@ -37,6 +38,29 @@ install -m 755 files/wait-for-app files/wait-for-display "${LIB}/"
 # Wi-Fi sends from its video queue (the file says why; nftables reads it).
 install -m 644 files/osdos-netplay-priority.nft "${LIB}/netplay-priority.nft"
 install -m 644 files/osdos-netplay-priority.service "${ETC}/systemd/system/"
+# Only the home network may connect: what comes in from any other address is
+# dropped, on IPv4 and IPv6, from before the network comes up (the file says
+# what is let in and why; Settings → System → Firewall turns it off and on).
+install -m 644 files/osdos-firewall.nft "${LIB}/firewall.nft"
+install -m 644 files/osdos-firewall.service "${ETC}/systemd/system/"
+# osdos.local by IPv4 alone: avahi neither publishes the Pi's IPv6 addresses
+# nor answers over IPv6, so that the name never leads a computer to the global
+# IPv6 address, which the filter above refuses. And without wide-area DNS-SD
+# (service discovery asked of unicast DNS servers), which nothing here uses
+# and which has open flaws in avahi 0.8. Raspberry Pi OS's own file, three of
+# its lines changed; a build whose file lacks any of them stops here.
+AVAHI="${ETC}/avahi/avahi-daemon.conf"
+sed -i -E -e 's/^#?[[:space:]]*use-ipv6=.*/use-ipv6=no/' \
+	-e 's/^#?[[:space:]]*publish-aaaa-on-ipv4=.*/publish-aaaa-on-ipv4=no/' \
+	-e 's/^#?[[:space:]]*enable-wide-area=.*/enable-wide-area=no/' "${AVAHI}"
+if ! grep -qx 'use-ipv6=no' "${AVAHI}" || ! grep -qx 'publish-aaaa-on-ipv4=no' "${AVAHI}"; then
+	echo "${AVAHI}: use-ipv6 or publish-aaaa-on-ipv4 not found: osdos.local would lead to IPv6" >&2
+	exit 1
+fi
+if ! grep -qx 'enable-wide-area=no' "${AVAHI}"; then
+	echo "${AVAHI}: enable-wide-area not found: wide-area DNS-SD would stay on" >&2
+	exit 1
+fi
 # With a cable and Wi-Fi both up, each interface answers only for its own
 # address, so that a game meant for the cable never comes over Wi-Fi
 # (osdos-arp.conf says why).
@@ -51,6 +75,19 @@ for unit in osdos-setup-app.service osdos-setup.service; do
 	install -m 644 "files/${unit}" "${ETC}/systemd/system/"
 	sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/" "${ETC}/systemd/system/${unit}"
 done
+
+# sshd's rules for when SSH is on (files/osdos-sshd.conf says why), after
+# OSD/OS Setup's drop-in and cloud-init's, which win over it. No password logs
+# in unless a card or Raspberry Pi Imager says so; or unless the image is
+# built for it, with SSH on, a password of its own (FIRST_USER_PASS) and
+# PUBKEY_ONLY_SSH not 1, which would otherwise leave such an image without a
+# way in.
+password_authentication=no
+if [ "${ENABLE_SSH:-0}" = "1" ] && [ "${OSDOS_LOCK_FIRST_USER:-0}" != "1" ] && [ "${PUBKEY_ONLY_SSH:-0}" != "1" ]; then
+	password_authentication=yes
+fi
+install -D -m 644 files/osdos-sshd.conf "${ETC}/ssh/sshd_config.d/90-osdos.conf"
+sed -i "s/@PASSWORD_AUTHENTICATION@/${password_authentication}/" "${ETC}/ssh/sshd_config.d/90-osdos.conf"
 
 # A Raspberry Pi to JAMMA board's controls (osdos-jamma, in the app's folder):
 # its service, which does nothing without the JAMMA display preset, the kernel
@@ -108,6 +145,18 @@ cat > "${ETC}/systemd/system/NetworkManager-wait-online.service.d/osdos.conf" <<
 # OSD/OS image: don't hold the boot for a minute when there is no network.
 [Service]
 Environment=NM_ONLINE_TIMEOUT=20
+EOF
+
+# Swap in memory only: rpi-swap (pi-gen's stage2) makes compressed swap in
+# RAM, zram, and by default a swap file on the card beside it that idle pages
+# are written back to on a timer: writes to the card at random times, which
+# the image keeps away elsewhere (the timers 01-run-chroot.sh disables). zram
+# alone needs no file, and rpi-swap deletes one left there (swap.conf(5)).
+install -d "${ETC}/rpi/swap.conf.d"
+cat > "${ETC}/rpi/swap.conf.d/osdos.conf" << 'EOF'
+# OSD/OS image: swap in compressed RAM only, never on the card (swap.conf(5)).
+[Main]
+Mechanism=zram
 EOF
 
 # Bluetooth is switched on and off in Settings → Network → Bluetooth, through BlueZ, and

@@ -7,16 +7,22 @@ name: Engines
 # - RetroArch and MAME: Debian trixie's, the OSD/OS image's, the lowest that
 #   any distribution of OSD/OS has. A version Debian has raised is taken once
 #   OSD/OS can download it for Windows as well: libretro's stable build of
-#   RetroArch and mamedev's release of MAME.
+#   RetroArch and mamedev's release of MAME. The Linux arm64 package's own
+#   RetroArch is built from that version's tag with scripts/retroarch-fixes.patch,
+#   which is made against the commit it rises from: its build
+#   (retroarch.yml) stops until the patch is made again for the new one, and
+#   the pull request says so.
 # - FinalBurn Neo: the newest commit of libretro's FBNeo, which OSD/OS builds
 #   for every package. The pull request's own checks build it on every
 #   system (fbneo.yml, windows.yml, freebsd.yml, openbsd.yml), and the CV1000
 #   LAN core's patch has to apply to it.
 #
 # GitHub starts no workflow for a push or a pull request made with this
-# workflow's own token, so the branch's checks (those four and retroarch.yml)
-# are started here by hand, on the branch, once it is pushed: their results
-# are the pull request's, as its head commit's.
+# workflow's own token, so the branch's checks (those four, retroarch.yml and
+# the regression tests, regression-tests.yml) are started here by hand, on
+# the branch, once it is pushed: their results are the pull request's, as its
+# head commit's. The pull request's description gives the reviewer FinalBurn
+# Neo's range of commits and what changed in the parts OSD/OS leans on.
 #
 # A rise is a pull request on the branch engines/raise, made again on each
 # run while it is open. Merged, the next release brings the new engines to
@@ -46,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: The newest each can be
         id: newest
@@ -54,17 +60,48 @@ jobs:
           set -euo pipefail
           . scripts/engines.env
           # Debian trixie's version of a source package, upstream's part of
-          # it: 1.20.0 of 1.20.0+dfsg-2.
+          # it: 1.20.0 of 1.20.0+dfsg-2, 0.276 of 0.276+dfsg.1-1+deb13u1.
+          # Read from qa.debian.org's madison (lines "pkg | version | suite
+          # | architectures"), else from ftp-master's API, which answers the
+          # same in JSON ([{pkg: {suite: {version: {architectures: [...]}}}}])
+          # where qa.debian.org fails (it has answered HTTP 500 for mame).
+          # Nothing printed when neither gives the package's source; an
+          # answer whose version isn't one fails the job.
           debian() {
-            curl -fsSL --retry 3 "https://qa.debian.org/madison.php?package=$1&s=trixie&text=on" \
-              | awk -F'|' '$3 ~ /trixie/ && $4 ~ /source/ { gsub(/ /, "", $2); print $2; exit }' \
-              | sed -e 's/^[0-9]*://' -e 's/[+~-].*$//'
+            local answer full=""
+            if answer=$(curl -fsSL --retry 3 "https://qa.debian.org/madison.php?package=$1&s=trixie&text=on"); then
+              full=$(printf '%s\n' "$answer" \
+                | awk -F'|' '$3 ~ /trixie/ && $4 ~ /source/ { gsub(/ /, "", $2); print $2; exit }')
+            fi
+            if [ -z "$full" ]; then
+              echo "::warning::qa.debian.org gave no version of $1; reading ftp-master's instead" >&2
+              if answer=$(curl -fsSL --retry 3 "https://api.ftp-master.debian.org/madison?package=$1&s=trixie&f=json"); then
+                full=$(printf '%s\n' "$answer" | jq -r --arg p "$1" '
+                  [.[] | .[$p] // empty | .[] | to_entries[]
+                   | select(.value.architectures | index("source")) | .key]
+                  | unique | if length == 1 then .[0] else empty end' 2>/dev/null) || full=""
+              fi
+            fi
+            [ -n "$full" ] || return 0
+            local upstream
+            upstream=$(printf '%s\n' "$full" | sed -e 's/^[0-9]*://' -e 's/[+~-].*$//')
+            if ! [[ "$upstream" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+              echo "::error::Debian gives $1 as '${full}', which is not a version this workflow can read" >&2
+              return 1
+            fi
+            echo "$upstream"
           }
-          retroarch=$(debian retroarch)
-          mame=$(debian mame)
+          retroarch=$(debian retroarch) || exit 1
+          mame=$(debian mame) || exit 1
+          # Neither source answering for one leaves it as it is, and
+          # FinalBurn Neo is still raised; the run fails at its end
+          # (debian_failed) so that it is seen.
+          debian_failed=false
           if [ -z "$retroarch" ] || [ -z "$mame" ]; then
-            echo "Debian's versions could not be read" >&2
-            exit 1
+            echo "::error::Debian's versions could not be read (retroarch: ${retroarch:-none}, mame: ${mame:-none}); what could not be read stays as it is" >&2
+            debian_failed=true
+            retroarch=${retroarch:-$RETROARCH_VERSION}
+            mame=${mame:-$MAME_VERSION}
           fi
           # A version OSD/OS can't download for Windows yet stays as it is.
           if [ "$retroarch" != "$RETROARCH_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
@@ -84,26 +121,63 @@ jobs:
               retroarch_commit=$RETROARCH_COMMIT
             fi
           fi
+          # mamedev's 64-bit Windows build of a version, as the app asks for
+          # it (ProgramInstaller::mameWindowsFile()): mameNNNNb_64bit.exe up
+          # to 0.280, mameNNNNb_x64.exe from 0.281.
+          mame_windows_file() {
+            local tag="mame${1//./}"
+            if [[ "$1" =~ ^0\.([0-9]+)$ ]] && (( 10#${BASH_REMATCH[1]} < 281 )); then
+              echo "${tag}b_64bit.exe"
+            else
+              echo "${tag}b_x64.exe"
+            fi
+          }
           tag="mame${mame//./}"
           if [ "$mame" != "$MAME_VERSION" ] && ! curl -fsSIL --retry 3 -o /dev/null \
-              "https://github.com/mamedev/mame/releases/download/${tag}/${tag}b_64bit.exe"; then
+              "https://github.com/mamedev/mame/releases/download/${tag}/$(mame_windows_file "$mame")"; then
             echo "::notice::Debian has MAME ${mame}, which mamedev has no Windows build of"
             mame=$MAME_VERSION
+          fi
+          # The SHA-256 of that Windows build, which the app checks the
+          # download against: the release's own SHA256SUMS line for the file.
+          # A MAME raised without one fails the job rather than keep the old
+          # version's hash for the new file.
+          mame_sha256=$MAME_WIN_SHA256
+          if [ "$mame" != "$MAME_VERSION" ]; then
+            tag="mame${mame//./}"
+            file=$(mame_windows_file "$mame")
+            if ! sums=$(curl -fsSL --retry 3 "https://github.com/mamedev/mame/releases/download/${tag}/SHA256SUMS"); then
+              echo "::error::MAME ${mame}'s release has no SHA256SUMS to check ${file} by" >&2
+              exit 1
+            fi
+            mame_sha256=$(printf '%s\n' "$sums" | awk -v f="$file" '$2 == f || $2 == "*" f { print tolower($1) }')
+            if ! [[ "$mame_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::MAME ${mame}'s SHA256SUMS has no single SHA-256 for ${file}" >&2
+              exit 1
+            fi
           fi
           # FinalBurn Neo's newest commit, and its date as the core's build
           # makes it (git's committer date, yymmdd), so that the version
           # matches libretro's own build of the same commit.
-          git init -q fbneo
-          git -C fbneo fetch -q --depth 1 --filter=blob:none https://github.com/libretro/FBNeo.git master
-          commit=$(git -C fbneo rev-parse FETCH_HEAD)
-          date=$(git -C fbneo log -1 --format=%cd --date=format:%y%m%d FETCH_HEAD)
-          rm -rf fbneo
+          # The clone, without its files' contents (a partial clone of
+          # origin, which fetches them as they are wanted), is kept outside
+          # the checkout for the pull request's account of the change.
+          fbneo=$RUNNER_TEMP/fbneo
+          rm -rf "$fbneo"
+          git init -q "$fbneo"
+          git -C "$fbneo" remote add origin https://github.com/libretro/FBNeo.git
+          git -C "$fbneo" fetch -q --depth 1 --filter=blob:none origin master
+          commit=$(git -C "$fbneo" rev-parse FETCH_HEAD)
+          date=$(git -C "$fbneo" log -1 --format=%cd --date=format:%y%m%d FETCH_HEAD)
           {
             echo "retroarch=$retroarch"
             echo "retroarch_commit=$retroarch_commit"
             echo "mame=$mame"
+            echo "mame_sha256=$mame_sha256"
+            echo "old_commit=$FBNEO_COMMIT"
             echo "commit=$commit"
             echo "date=$date"
+            echo "debian_failed=$debian_failed"
           } >> "$GITHUB_OUTPUT"
           echo "RetroArch ${RETROARCH_VERSION} -> ${retroarch}, MAME ${MAME_VERSION} -> ${mame}," \
                "FinalBurn Neo ${FBNEO_COMMIT:0:7} -> ${commit:0:7} (${date})"
@@ -114,6 +188,7 @@ jobs:
           RETROARCH: ${{ steps.newest.outputs.retroarch }}
           RETROARCH_AT: ${{ steps.newest.outputs.retroarch_commit }}
           MAME: ${{ steps.newest.outputs.mame }}
+          MAME_SHA256: ${{ steps.newest.outputs.mame_sha256 }}
           COMMIT: ${{ steps.newest.outputs.commit }}
           DATE: ${{ steps.newest.outputs.date }}
         run: |
@@ -122,6 +197,7 @@ jobs:
                  -e "s/^RETROARCH_COMMIT=.*/RETROARCH_COMMIT=${RETROARCH_AT}/" \
                  -e "s/^\\(# RetroArch's commit at that version's tag (v\\)[0-9.]*)/\\1${RETROARCH})/" \
                  -e "s/^MAME_VERSION=.*/MAME_VERSION=${MAME}/" \
+                 -e "s/^MAME_WIN_SHA256=.*/MAME_WIN_SHA256=${MAME_SHA256}/" \
                  -e "s/^FBNEO_COMMIT=.*/FBNEO_COMMIT=${COMMIT}/" \
                  -e "s/^FBNEO_DATE=.*/FBNEO_DATE=${DATE}/" scripts/engines.env
           if git diff --quiet scripts/engines.env; then
@@ -132,6 +208,55 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # For the reviewer: FinalBurn Neo's commits from the one before to the
+      # new one, and what changed in the parts OSD/OS leans on (the CV1000
+      # driver and its epic12 blitter, which the LAN patch changes; the
+      # libretro front end, which the rest of it changes; the archive readers
+      # and libchdr, which read the sets), from the clone the step above
+      # kept: the history between the two fetched, the files' contents as
+      # the diff wants them.
+      - name: What changed in FinalBurn Neo
+        id: changes
+        if: steps.raise.outputs.changed == 'true'
+        env:
+          OLD: ${{ steps.newest.outputs.old_commit }}
+          NEW: ${{ steps.newest.outputs.commit }}
+        run: |
+          set -euo pipefail
+          fbneo=$RUNNER_TEMP/fbneo
+          notes=$RUNNER_TEMP/fbneo-changes.md
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+          if [ "$OLD" = "$NEW" ]; then
+            echo "FinalBurn Neo stays at libretro/FBNeo@${NEW}." > "$notes"
+            exit 0
+          fi
+          paths=(src/burn/drv/cave/d_cv1k.cpp 'src/burn/devices/epic12*' src/burner/libretro
+                 src/burner/unzip.c src/burner/un7z.cpp src/dep/libs/libchdr)
+          if ! git -C "$fbneo" fetch -q --depth 1 --filter=blob:none origin "$OLD" ||
+             ! since=$(git -C "$fbneo" log -1 --format=%cI "$OLD") ||
+             ! git -C "$fbneo" fetch -q --filter=blob:none --shallow-since="$since" origin "$NEW" ||
+             ! count=$(git -C "$fbneo" rev-list --count "${OLD}..${NEW}") ||
+             ! files=$(git -C "$fbneo" diff --name-only "$OLD" "$NEW" | wc -l) ||
+             ! stat=$(git -C "$fbneo" diff --stat=100 "$OLD" "$NEW" -- "${paths[@]}"); then
+            echo "::warning::FinalBurn Neo's changes from ${OLD:0:7} to ${NEW:0:7} could not be read"
+            echo "FinalBurn Neo's changes from ${OLD} to ${NEW} could not be read on this run: see the run's log, and compare https://github.com/libretro/FBNeo/compare/${OLD}...${NEW} by hand." > "$notes"
+            exit 0
+          fi
+          ancestry="the new commit follows the one before"
+          if ! git -C "$fbneo" merge-base --is-ancestor "$OLD" "$NEW"; then
+            ancestry="the new commit does not follow the one before: the branch was rewritten, so read the comparison with care"
+          fi
+          {
+            echo "FinalBurn Neo ${OLD:0:7}..${NEW:0:7}: ${count} commits, ${files} files changed; ${ancestry} (https://github.com/libretro/FBNeo/compare/${OLD}...${NEW})."
+            echo
+            echo "What changed in the parts OSD/OS leans on (${paths[*]}):"
+            echo
+            echo '```'
+            if [ -n "$stat" ]; then echo "$stat"; else echo "nothing"; fi
+            echo '```'
+          } > "$notes"
+          cat "$notes"
+
       - name: Pull request
         if: steps.raise.outputs.changed == 'true'
         env:
@@ -140,8 +265,13 @@ jobs:
           MAME: ${{ steps.newest.outputs.mame }}
           COMMIT: ${{ steps.newest.outputs.commit }}
           DATE: ${{ steps.newest.outputs.date }}
+          DEBIAN_FAILED: ${{ steps.newest.outputs.debian_failed }}
+          NOTES: ${{ steps.changes.outputs.notes }}
         run: |
           set -euo pipefail
+          # The version it rises from: engines.env as checked out, before
+          # the step above raised it.
+          RETROARCH_BEFORE=$(git show HEAD:scripts/engines.env | sed -n 's/^RETROARCH_VERSION=//p')
           title="chore: arcade engines raised to FinalBurn Neo ${COMMIT:0:7}, RetroArch ${RETROARCH} and MAME ${MAME}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -153,12 +283,32 @@ jobs:
           - FinalBurn Neo: libretro/FBNeo@${COMMIT} (${DATE}), built for every package by this pull request's checks.
           - RetroArch ${RETROARCH} and MAME ${MAME}: Debian trixie's, the OSD/OS image's, which Windows downloads too. The Linux arm64 package's own RetroArch, with TLS, is built from the same version's tag by this pull request's checks.
 
+          $(cat "$NOTES")
+
           Merged, the next release brings them to every machine."
+          if [ "$RETROARCH" != "$RETROARCH_BEFORE" ]; then
+            body="${body}
+
+          RetroArch rises from ${RETROARCH_BEFORE}: scripts/retroarch-fixes.patch is made against ${RETROARCH_BEFORE}'s commit and must be made again for ${RETROARCH} before this is merged. Until then the Linux arm64 RetroArch's build (retroarch.yml) stops where the patch does not apply. Upstream's later versions carry some of its fixes already; the bind of the network gamepad to 127.0.0.1 is OSD/OS's own and has to stay."
+          fi
+          if [ "$DEBIAN_FAILED" = true ]; then
+            body+="
+
+          Debian's versions could not be read on this run (the run's log says which), so what could not be read stays as it was."
+          fi
           if [ -z "$(gh pr list --head engines/raise --state open --json number --jq '.[].number')" ]; then
             gh pr create --head engines/raise --base "${{ github.event.repository.default_branch }}" --title "$title" --body "$body"
           else
             gh pr edit engines/raise --title "$title" --body "$body"
           fi
-          for workflow in fbneo.yml windows.yml freebsd.yml openbsd.yml retroarch.yml; do
+          for workflow in fbneo.yml windows.yml freebsd.yml openbsd.yml retroarch.yml regression-tests.yml; do
             gh workflow run "$workflow" --ref engines/raise
           done
+
+      # FinalBurn Neo was raised without Debian's versions: the run fails
+      # here, after it, so that a source gone wrong doesn't pass unseen.
+      - name: Debian's versions were read
+        if: steps.newest.outputs.debian_failed == 'true'
+        run: |
+          echo "::error::Debian's versions of retroarch and mame could not be read; see the step 'The newest each can be'" >&2
+          exit 1

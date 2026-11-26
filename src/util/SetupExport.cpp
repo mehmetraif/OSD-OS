@@ -178,6 +178,11 @@ void readSystem(System &system, const QString &root, const QString &home) {
                 system.sshKeys << key;
         }
     }
+
+    // The firewall, where it is there to be turned on, as Settings → System
+    // shows it: a network on other addresses needs it off on the next card
+    // too, or nothing but the TV reaches the device there.
+    system.firewall = systemlocale::firewall(root);
 }
 
 QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject &account, const System &system,
@@ -214,6 +219,8 @@ QJsonObject build(const QJsonObject &config, const Form &form, const QJsonObject
             ssh.insert(QStringLiteral("authorized_keys"), QJsonArray::fromStringList(system.sshKeys));
         sys.insert(QStringLiteral("ssh"), ssh);
     }
+    if (system.firewall >= 0)
+        sys.insert(QStringLiteral("firewall"), QJsonObject{ { QStringLiteral("enabled"), system.firewall == 1 } });
     if (!system.timezone.isEmpty())
         sys.insert(QStringLiteral("timezone"), system.timezone);
     if (!system.keyboard.isEmpty())

@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcessEnvironment>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -146,46 +147,186 @@ QByteArray configLine(const char *option, const QString &value) {
     return QByteArray(option) + "=%" + QByteArray::number(bytes.size()) + '%' + bytes + '\n';
 }
 
-// Whether the mpv at `bin` takes "forced" for --subs-with-matching-audio,
-// which came with mpv 0.38: an older one refuses the whole command line for
-// it ("option parameter could not be parsed"), and the video never starts.
-// Its own list of options says (--list-options: a Flag before, Choices with
-// "forced" since), asked once for each mpv binary (its path, size and time),
-// on its first video with Forced Only subtitles. One that can't be asked is
-// taken to.
-bool takesForcedSubtitles(const QString &bin) {
-    if (bin.isEmpty())
-        return true;
-    static QMutex mutex;
-    static QHash<QString, bool> known;
+// What an mpv binary's own list of options (--list-options) says that its
+// command line depends on. `forcedSubtitles`: whether it takes "forced" for
+// --subs-with-matching-audio, which came with mpv 0.38; an older one refuses
+// the whole command line for it ("option parameter could not be parsed"),
+// and the video never starts (a Flag before, Choices with "forced" since).
+// `loadOptions`: which of kLoadOptions it lists, each an option that keeps
+// one of mpv's own Lua scripts from loading (unusedScriptsOff()).
+struct MpvTraits {
+    bool forcedSubtitles = true;
+    QStringList loadOptions;
+};
+
+// mpv's own scripts that a session without a keyboard or mouse of mpv's own
+// has no use for: the statistics page (`i`), the console (`` ` ``) and, in
+// newer mpv, its menus (select), its pan and zoom by mouse (positioning) and
+// its command list (commands). Each is reached only by a key or a click
+// that goes to mpv itself; none by OSD/OS's own scripts, key bindings or
+// commands. The console's option was load-osd-console before mpv 0.39.
+// auto_profiles isn't among them: it applies a profile-cond in the user's
+// mpv.conf, which the process reads.
+const char *const kLoadOptions[] = { "load-stats-overlay", "load-console", "load-osd-console",
+                                     "load-select", "load-positioning", "load-commands" };
+
+// Its stamp: the binary's path, size and time. Another mpv, or this one
+// updated, is asked anew.
+struct MpvStamp {
+    QString path;
+    qint64 size = -1;
+    qint64 modified = 0;
+    bool operator==(const MpvStamp &other) const {
+        return path == other.path && size == other.size && modified == other.modified;
+    }
+    QString key() const {
+        return path + QLatin1Char('|') + QString::number(size) + QLatin1Char('|') + QString::number(modified);
+    }
+};
+
+MpvStamp stampOf(const QString &bin) {
     const QFileInfo info(bin);
-    const QString key = info.absoluteFilePath() + QLatin1Char('|') + QString::number(info.size())
-                        + QLatin1Char('|') + QString::number(info.lastModified().toMSecsSinceEpoch());
-    const QMutexLocker locker(&mutex);
-    const auto found = known.constFind(key);
-    if (found != known.constEnd())
-        return *found;
-    bool takes = true;
+    return { info.absoluteFilePath(), info.size(), info.lastModified().toMSecsSinceEpoch() };
+}
+
+// The answer kept in the data folder from one run to the next, for the last
+// mpv asked: {"version", "mpv", "size", "modified", "forcedSubtitles",
+// "loadOptions"}. One of another version or stamp, or that can't be read,
+// counts for none.
+constexpr int kTraitsVersion = 2;
+
+QString traitsFile(const QString &dataRoot) {
+    return dataRoot.isEmpty() ? QString() : dataRoot + QStringLiteral("/mpv-options.json");
+}
+
+bool readTraits(const QString &file, const MpvStamp &stamp, MpvTraits *traits) {
+    QFile f(file);
+    if (file.isEmpty() || !f.open(QIODevice::ReadOnly))
+        return false;
+    const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+    if (o.value(QLatin1String("version")).toInt() != kTraitsVersion
+        || !(MpvStamp{ o.value(QLatin1String("mpv")).toString(),
+                       qint64(o.value(QLatin1String("size")).toDouble(-1)),
+                       qint64(o.value(QLatin1String("modified")).toDouble()) } == stamp)
+        || !o.value(QLatin1String("forcedSubtitles")).isBool()
+        || !o.value(QLatin1String("loadOptions")).isArray())
+        return false;
+    traits->forcedSubtitles = o.value(QLatin1String("forcedSubtitles")).toBool();
+    traits->loadOptions.clear();
+    for (const QJsonValue &name : o.value(QLatin1String("loadOptions")).toArray()) {
+        // Only those this build knows: the file is never a way to put
+        // anything else on mpv's command line.
+        const QString option = name.toString();
+        if (std::any_of(std::begin(kLoadOptions), std::end(kLoadOptions),
+                        [&option](const char *known) { return option == QLatin1String(known); }))
+            traits->loadOptions << option;
+    }
+    return true;
+}
+
+void writeTraits(const QString &file, const MpvStamp &stamp, const MpvTraits &traits) {
+    if (file.isEmpty())
+        return;
+    const QJsonObject o{ { QStringLiteral("version"), kTraitsVersion },
+                         { QStringLiteral("mpv"), stamp.path },
+                         { QStringLiteral("size"), double(stamp.size) },
+                         { QStringLiteral("modified"), double(stamp.modified) },
+                         { QStringLiteral("forcedSubtitles"), traits.forcedSubtitles },
+                         { QStringLiteral("loadOptions"), QJsonArray::fromStringList(traits.loadOptions) } };
+    writeFileAtomically(file, QJsonDocument(o).toJson(QJsonDocument::Compact));
+}
+
+void logTraits(const QString &bin, const MpvTraits &traits) {
+    if (!traits.forcedSubtitles)
+        qInfo("[MpvController] %s is older than mpv 0.38 (no \"forced\" for --subs-with-matching-audio): "
+              "Forced Only subtitles go by --subs-fallback-forced=always alone", qPrintable(bin));
+}
+
+// The answers of this run, by stamp.
+QMutex g_traitsMutex;
+QHash<QString, MpvTraits> g_traits;
+
+// What the mpv at `bin` is known to say, from this run or the data folder's
+// file, without asking it; false if neither has it.
+bool knownTraits(const QString &bin, const QString &dataRoot, MpvTraits *traits) {
+    const MpvStamp stamp = stampOf(bin);
+    {
+        const QMutexLocker locker(&g_traitsMutex);
+        const auto found = g_traits.constFind(stamp.key());
+        if (found != g_traits.constEnd()) {
+            *traits = *found;
+            return true;
+        }
+    }
+    if (!readTraits(traitsFile(dataRoot), stamp, traits))
+        return false;
+    logTraits(bin, *traits);
+    const QMutexLocker locker(&g_traitsMutex);
+    g_traits.insert(stamp.key(), *traits);
+    return true;
+}
+
+// What the mpv at `bin` says, asked once for each binary: ahead of need off
+// the app's thread (MpvController::warmUp()), or here on its first video
+// that needs it, which then waits for an ask already under way rather than
+// starting another. Kept in the data folder for the runs after. One that
+// can't be asked is taken to say yes to all, and is asked again next run.
+MpvTraits mpvTraits(const QString &bin, const QString &dataRoot) {
+    MpvTraits traits;
+    if (bin.isEmpty() || knownTraits(bin, dataRoot, &traits))
+        return traits;
+    static QMutex asking;
+    const QMutexLocker one(&asking);
+    if (knownTraits(bin, dataRoot, &traits))
+        return traits;
+    const MpvStamp stamp = stampOf(bin);
     QProcess ask;
     ask.setProcessChannelMode(QProcess::MergedChannels);
     ask.start(bin, { QStringLiteral("--no-config"), QStringLiteral("--list-options") });
-    if (ask.waitForStarted(2000) && ask.waitForFinished(5000)) {
+    const bool answered = ask.waitForStarted(2000) && ask.waitForFinished(5000)
+                          && ask.exitStatus() == QProcess::NormalExit;
+    if (answered) {
+        QList<QByteArray> listed;
         for (const QByteArray &line : ask.readAll().split('\n')) {
             const QByteArray option = line.trimmed();
-            if (option.startsWith("--subs-with-matching-audio ")) {
-                takes = option.contains("forced");
-                break;
-            }
+            if (option.startsWith("--subs-with-matching-audio "))
+                traits.forcedSubtitles = option.contains("forced");
+            if (option.startsWith("--load-"))
+                listed << option.mid(2, option.indexOf(' ') - 2);
+        }
+        for (const char *name : kLoadOptions) {
+            if (listed.contains(QByteArray(name)))
+                traits.loadOptions << QLatin1String(name);
         }
     } else {
         ask.kill();
         ask.waitForFinished(1000);
     }
-    if (!takes)
-        qInfo("[MpvController] %s is older than mpv 0.38 (no \"forced\" for --subs-with-matching-audio): "
-              "Forced Only subtitles go by --subs-fallback-forced=always alone", qPrintable(bin));
-    known.insert(key, takes);
-    return takes;
+    logTraits(bin, traits);
+    {
+        const QMutexLocker locker(&g_traitsMutex);
+        g_traits.insert(stamp.key(), traits);
+    }
+    // On the disk off the app's thread: the file is synced to the card.
+    if (answered) {
+        const QString file = traitsFile(dataRoot);
+        QThreadPool::globalInstance()->start([file, stamp, traits] { writeTraits(file, stamp, traits); });
+    }
+    return traits;
+}
+
+// The options that keep mpv's own scripts a session has no use for from
+// loading (kLoadOptions), as many as this mpv lists: an option it doesn't
+// know would stop it from starting. The console's by its newer name where
+// both are listed.
+QStringList unusedScriptsOff(const MpvTraits &traits) {
+    QStringList args;
+    for (const QString &name : traits.loadOptions) {
+        if (name == QLatin1String("load-osd-console") && traits.loadOptions.contains(QStringLiteral("load-console")))
+            continue;
+        args << QStringLiteral("--") + name + QStringLiteral("=no");
+    }
+    return args;
 }
 
 // The last value an option was given among these, "" if none.
@@ -749,7 +890,7 @@ QStringList MpvController::trackArgs(const PlaybackRequest &request, bool embedd
         // (it selects a forced track in the audio's language, whatever the
         // preferred languages, and nothing else). libmpv only leaves out an
         // option it refuses (EmbeddedMpv::start()).
-        if (embedded || takesForcedSubtitles(mpvbin::locate()))
+        if (embedded || mpvTraits(mpvbin::locate(), m_dataRoot).forcedSubtitles)
             args << QStringLiteral("--subs-with-matching-audio=forced");
         args << QStringLiteral("--subs-fallback-forced=always");
     }
@@ -1513,6 +1654,16 @@ void MpvController::startProcess(QStringList args, const QStringList &media) {
 #endif
         }
     }
+    // Headless, mpv reads no keyboard or mouse of its own (only the keys
+    // sent over its control connection, MpvKeys.js's): the scripts of its
+    // own reached by nothing else are left unloaded, where this mpv is
+    // known to list their options (asked ahead, warmUp(); never waited for
+    // here). Ahead of mpv_video_args, which keeps the last word. On a
+    // desktop, mpv's window has the keyboard, and `i` still shows its
+    // statistics.
+    MpvTraits traits;
+    if (m_headlessMode && knownTraits(bin, m_dataRoot, &traits))
+        args << unusedScriptsOff(traits);
     appendVideoArgs(args);
     if (m_headlessMode)
         args << "--no-input-terminal";
@@ -2196,6 +2347,11 @@ bool MpvController::embeddedAvailable() const {
 }
 
 void MpvController::warmUp() {
+    // What the mpv binary says of itself (mpvTraits()), asked here off the
+    // app's thread rather than at the first video that needs it: tens of
+    // milliseconds on a PC, a good part of a second on a Pi after a boot.
+    // Once it is in the data folder, there is nothing to ask at all.
+    QThreadPool::globalInstance()->start([bin = mpvbin::locate(), data = m_dataRoot] { mpvTraits(bin, data); });
     // By the setting alone: transparentBackground() would open the library
     // here, on the app's thread, which is the wait this is for.
     if (!transparentBackgroundAsked())

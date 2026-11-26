@@ -3,10 +3,13 @@ name: Regression tests
 # Builds the app and the regression tests (tests/, see tests/README.md) on
 # both Linux architectures, and runs the tests; then once more on the Pi's own
 # system, Raspberry Pi OS, with its newer Qt and mpv. The release workflow
-# runs it too, and publishes nothing unless it passes.
+# runs it too, and publishes nothing unless it passes. The engines' raise
+# (engines.yml) starts it by hand on its branch, whose pull request, opened
+# with that workflow's own token, starts no pull_request run.
 
 on:
   workflow_call:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: &paths
@@ -54,11 +57,11 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install dependencies
         uses: ./.github/actions/apt-packages
         with:
-          packages: build-essential lua5.4 cmake qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev libminizip-dev dbus-daemon
+          packages: build-essential lua5.4 cmake qt6-base-dev qt6-declarative-dev qml6-module-qttest qml6-module-qtquick qml6-module-qtqml-workerscript qml6-module-qtquick-window qt6-svg-dev libdrm-dev libssl-dev libsdl2-dev libpcsclite-dev libmpv-dev libminizip-dev dbus-daemon nftables
       - name: Configure application
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build application
@@ -69,6 +72,18 @@ jobs:
         run: cmake --build build-tests --parallel 2
       - name: Run regression tests
         run: ctest --test-dir build-tests --verbose --timeout 60
+      # The image's nftables rules given to the kernel's nftables to check, and
+      # the firewall's loaded twice in a network namespace of its own: only
+      # root may, and the tests above run as the runner's user, where they
+      # leave that part out ("note: ..."). Here it must not be left out.
+      - name: Check the image's nftables rules
+        run: |
+          for t in "netplay_priority_test.sh src/modules/arcade/Libretro.h" "firewall_test.sh src/modules/arcade/LanRooms.cpp"; do
+            set -- $t
+            out=$(sudo bash "tests/$1" os/stage-osdos/02-system "$2")
+            echo "$out"
+            if grep -q '^note:' <<< "$out"; then exit 1; fi
+          done
 
   # Raspberry Pi OS, as the OS image is made of it (os/README.md): Debian 13
   # "trixie" with Raspberry Pi's archive on top, arm64. Its Qt (6.8) and mpv
@@ -91,7 +106,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates curl git
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # As pi-gen sets apt up for the image, at the commit os/build.sh pins:
       # Raspberry Pi's archive, signed by the key pi-gen carries, and everything
       # upgraded to it (its libc, FFmpeg, Mesa and libdrm are its own).

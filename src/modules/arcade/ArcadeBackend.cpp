@@ -1,4 +1,5 @@
 #include "ArcadeBackend.h"
+#include "EngineVersions.h"
 #include "../scripts/ScriptLauncher.h"
 #include "../../AppCore.h"
 #include "../../audio/AudioOutput.h"
@@ -2586,6 +2587,12 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     args << QStringLiteral("-ctrlrpath") << m_home + QStringLiteral("/ctrlr")
          << QStringLiteral("-ctrlr") << QStringLiteral("osdos")
          << QStringLiteral("-skip_gameinfo");
+    // The link boards of the games that have one (CPS-2's Communication
+    // setting, Model 1/2/3, System 32 and others) listen on this machine
+    // alone: MAME's default is every address, and OSD/OS links no two
+    // machines through MAME. Both MAMEs it runs with (0.276 and Homebrew's
+    // newer one) know the option.
+    args << QStringLiteral("-comm_localhost") << QStringLiteral("127.0.0.1");
     // The sounds some early games play from recordings (Donkey Kong's,
     // Space Invaders'), in a samples folder beside the games.
     const QString samples = otherFolder(QStringLiteral("samples"));
@@ -3739,6 +3746,7 @@ QVariantMap ArcadeBackend::roomInfo(const libretro::Room &room, const QDateTime 
         why = QStringLiteral("It asks for a password");
     else if (!room.joinable)
         why = room.game.isEmpty() ? QStringLiteral("Its game isn't named as a set")
+              : room.insideAddress ? QStringLiteral("The lobby gives an address inside a network, not on the internet")
               : room.joinAddress.isEmpty() ? QStringLiteral("The lobby gives no address it can be joined at")
                                            : QStringLiteral("Its host's RetroArch can't be joined from here");
     else if (!ready)
@@ -3943,6 +3951,12 @@ void ArcadeBackend::readOwnVersions() {
         }
         return true;
     };
+    // What a run before read of a file of the same stamp, kept in the
+    // arcade folder (EngineVersions.h): taken as it is, nothing asked. Each
+    // ask a process started on the app's behalf, a core loaded by a copy of
+    // the app, every run with online play on: a second and more on a Pi.
+    const QString kept = engineversions::file(m_home);
+    bool taken = false;
     const QString program = retroarchPath();
     const QString programStamp = program.isEmpty() ? QString() : fileStamp(QFileInfo(program));
     if (programStamp != m_retroarchVersionOf && !m_versionRead) {
@@ -3954,11 +3968,17 @@ void ArcadeBackend::readOwnVersions() {
             // its version is its bundle's.
             m_retroarchVersion = *version;
             m_retroarchVersionOf = programStamp;
+        } else if (const std::optional<QString> version
+                   = engineversions::kept(kept, QStringLiteral("retroarch"), programStamp)) {
+            m_retroarchVersion = *version;
+            m_retroarchVersionOf = programStamp;
+            taken = true;
+            raiseOwnDownloads();
         } else {
             // The file before's version isn't this one's.
             m_retroarchVersion.clear();
             m_versionRead = askVersion(program, { QStringLiteral("--version") },
-                                       [this, program, programStamp, doneWith](const QByteArray &output, bool timedOut) {
+                                       [this, program, programStamp, doneWith, kept](const QByteArray &output, bool timedOut) {
                 m_versionRead = nullptr;
                 m_retroarchVersion = libretro::readVersion(output);
                 if (m_retroarchVersion.isEmpty() && !timedOut && program == libretro::packagedProgram()) {
@@ -3973,8 +3993,10 @@ void ArcadeBackend::readOwnVersions() {
                     QTimer::singleShot(0, this, &ArcadeBackend::readOwnVersions);
                     return;
                 }
-                if (doneWith(programStamp, timedOut && m_retroarchVersion.isEmpty()))
+                if (doneWith(programStamp, timedOut && m_retroarchVersion.isEmpty())) {
                     m_retroarchVersionOf = programStamp;
+                    engineversions::keep(kept, QStringLiteral("retroarch"), programStamp, m_retroarchVersion);
+                }
                 raiseOwnDownloads();
             });
         }
@@ -3982,8 +4004,8 @@ void ArcadeBackend::readOwnVersions() {
     // A core's, loaded by a copy of the app, not by this one: one that can't
     // be takes nothing down with it. Into version, with the stamp of the
     // file it is of in versionOf, while read is the copy asked.
-    const auto readCore = [this, doneWith](const QString &core, QString &version, QString &versionOf,
-                                           QPointer<QProcess> &read) {
+    const auto readCore = [this, doneWith, &kept, &taken](const QString &core, QString &version, QString &versionOf,
+                                                          QPointer<QProcess> &read, const QString &role) {
         const QString stamp = core.isEmpty() ? QString() : fileStamp(QFileInfo(core));
         if (stamp == versionOf || read || m_coreInfoCommand.isEmpty())
             return;
@@ -3992,17 +4014,29 @@ void ArcadeBackend::readOwnVersions() {
             versionOf.clear();
             return;
         }
+        if (const std::optional<QString> known = engineversions::kept(kept, role, stamp)) {
+            version = *known;
+            versionOf = stamp;
+            taken = true;
+            return;
+        }
         read = askVersion(m_coreInfoCommand.first(), m_coreInfoCommand.mid(1) << core,
-                          [stamp, doneWith, &version, &versionOf, &read](const QByteArray &output, bool timedOut) {
+                          [stamp, doneWith, &version, &versionOf, &read, kept, role](const QByteArray &output, bool timedOut) {
             read = nullptr;
             version = libretro::readCoreInfo(output).version;
-            if (doneWith(stamp, timedOut && version.isEmpty()))
+            if (doneWith(stamp, timedOut && version.isEmpty())) {
                 versionOf = stamp;
+                engineversions::keep(kept, role, stamp, version);
+            }
         });
     };
-    readCore(libretro::corePath(m_dataRoot), m_coreVersion, m_coreVersionOf, m_coreInfoRead);
+    readCore(libretro::corePath(m_dataRoot), m_coreVersion, m_coreVersionOf, m_coreInfoRead, QStringLiteral("core"));
     readCore(m_lanPlay ? libretro::lanCorePath(m_dataRoot) : QString(), m_lanCoreVersion, m_lanCoreVersionOf,
-             m_lanCoreInfoRead);
+             m_lanCoreInfoRead, QStringLiteral("lanCore"));
+    // As a read that ends says it (askVersion()): the rooms' lines, which
+    // say each version against a room's.
+    if (taken)
+        emit roomsChanged();
 }
 
 QProcess *ArcadeBackend::askVersion(const QString &program, const QStringList &arguments,

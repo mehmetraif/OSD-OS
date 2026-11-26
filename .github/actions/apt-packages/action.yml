@@ -40,7 +40,7 @@ runs:
         echo "dir=${HOME}/.cache/osdos-apt" >> "$GITHUB_OUTPUT"
 
     - name: Restore the packages' downloads
-      uses: actions/cache/restore@v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/osdos-apt
         key: ${{ steps.key.outputs.key }}
@@ -87,7 +87,7 @@ runs:
     # Saved only when this run fetched something the cache hadn't.
     - name: Keep the packages' downloads
       if: steps.install.outputs.changed == 'true'
-      uses: actions/cache/save@v6.1.0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/osdos-apt
         key: ${{ steps.key.outputs.key }}

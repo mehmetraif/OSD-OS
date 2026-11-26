@@ -109,6 +109,61 @@ check "a caller's FBNEO_DEFINES kept" "FBNEO_DEFINES=-DEXTRA -ffp-contract=off L
 # No CPU flags: every machine of a release plays the same cores.
 check "no CPU flags" "" "$(grep -nE -- '-m(cpu|arch|tune)=' "$source_dir/fbneo-make.sh")"
 
+# The LAN core's patch goes in with no fuzz: scripts/build-fbneo-lan.sh
+# beside a small patch of its own, with stand-ins for make (which leaves a
+# core where the makefile does) and strip, against three sources: as the
+# patch was made, the same a few lines further down (an offset, taken), and
+# one whose context differs at a hunk's edge, which patch's default fuzz
+# would take and the script must refuse before anything is built.
+lan=$work/lan
+mkdir -p "$lan/scripts" "$lan/bin"
+cp "$source_dir/build-fbneo-lan.sh" "$source_dir/fbneo-make.sh" "$source_dir/engines.env" "$lan/scripts/"
+cat > "$lan/scripts/fbneo-lan.patch" << 'EOF'
+--- a/src/burn/drv.cpp
++++ b/src/burn/drv.cpp
+@@ -2,7 +2,7 @@
+ two
+ three
+ four
+-five
++FIVE
+ six
+ seven
+ eight
+EOF
+printf '#!/bin/sh\necho Linux\n' > "$lan/bin/uname"
+cat > "$lan/bin/make" << 'EOF'
+#!/bin/sh
+echo made >> "$LAN_CALLS"
+touch "$2/fbneo_libretro.so"
+EOF
+cp "$lan/bin/make" "$lan/bin/gmake"
+printf '#!/bin/sh\n:\n' > "$lan/bin/strip"
+chmod +x "$lan/bin/uname" "$lan/bin/make" "$lan/bin/gmake" "$lan/bin/strip"
+lan_source() {  # folder, lines before the hunk's, its first context line
+    mkdir -p "$1/src/burn" "$1/src/burner/libretro"
+    echo "the licence" > "$1/src/license.txt"
+    local before
+    read -ra before <<< "$2"
+    printf '%s\n' "${before[@]}" one "$3" three four five six seven eight nine | sed '/^$/d' > "$1/src/burn/drv.cpp"
+}
+lan_build() {  # folder: the script's status and what was made
+    local status=0
+    : > "$lan/calls"
+    LAN_CALLS=$lan/calls PATH="$lan/bin:$PATH" bash "$lan/scripts/build-fbneo-lan.sh" \
+        "$1" "$1-out" "$1-out/license.txt" > /dev/null 2>&1 || status=$?
+    echo "$status $(wc -l < "$lan/calls") $(grep -c '^FIVE$' "$1/src/burn/drv.cpp")"
+}
+lan_source "$lan/exact" "" two
+check "the LAN patch as it was made: in, and the core built" "0 1 1" "$(lan_build "$lan/exact")"
+lan_source "$lan/offset" "zero-a zero-b" two
+check "the LAN patch a few lines down: in, and the core built" "0 1 1" "$(lan_build "$lan/offset")"
+lan_source "$lan/fuzzy" "" "two, changed"
+check "a source the patch needs fuzz for: one patch's default takes" "0" \
+    "$(cp -r "$lan/fuzzy" "$lan/fuzzy-default"
+       patch -s -d "$lan/fuzzy-default" -p1 -i "$lan/scripts/fbneo-lan.patch" > /dev/null 2>&1; echo $?)"
+check "the LAN patch that needs fuzz: refused, nothing built" "1 0 0" "$(lan_build "$lan/fuzzy" | sed 's/^[1-9][0-9]* /1 /')"
+
 if [ "$failures" -gt 0 ]; then
     echo "$failures failed"
     exit 1

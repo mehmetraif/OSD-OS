@@ -50,7 +50,7 @@ endfunction()
 
 osdos_cpp_test(reliability
     SOURCES ../src/modules/playlists/ServerDownload.cpp ../src/modules/weather/WeatherBackend.cpp
-            ../src/update/UpdateManager.cpp ../src/util/LogFile.cpp
+            ../src/update/UpdateManager.cpp ../src/update/QmlWarmUp.cpp ../src/util/LogFile.cpp
     DEFINITIONS APP_VERSION="test" OSDOS_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
     LIBRARIES osdos_test_audio Qt6::Concurrent Qt6::Network Qt6::Qml)
 # What a view says under "… is not installed", for the system OSD/OS runs
@@ -369,6 +369,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME save_logs COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/save_logs_test.sh
                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/save-logs.sh)
 
+    # The web player (scripts/web-player.sh) with stand-ins for uname and
+    # Chromium: the browser's version in the user agent on Arm, asked once
+    # and kept in the data folder until the browser changes.
+    add_test(NAME web_player COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/web_player_test.sh
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/web-player.sh)
+
     # FinalBurn Neo's source unpacked and both cores built in order
     # (scripts/build-fbneo-cores.sh), with stand-ins for curl and the builds;
     # and each system's settings (scripts/fbneo-make.sh), -ffp-contract=off
@@ -391,6 +397,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                            ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system
                                            ${CMAKE_CURRENT_SOURCE_DIR}/../src/modules/arcade/Libretro.h)
 
+    # The image's inbound filter (osdos-firewall): what the input chain
+    # takes, the unit before the network and its place in the stage, avahi by
+    # IPv4 alone, LAN Play's sockets on IPv4, and the rules given to nft (and
+    # loaded twice in a network namespace of the test's own) where it is here
+    # and root.
+    add_test(NAME firewall COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/firewall_test.sh
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/../src/modules/arcade/LanRooms.cpp)
+
     # OSD/OS Setup's file applied as the card starts (osdos-setup, the
     # image's), on a stand-in card with the image's osdos-stop: a whole file,
     # the same again, parts it refuses, files it can't read. Needs Python 3.
@@ -398,6 +413,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                                       ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system/files/osdos-setup
                                       ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                       ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files)
+
+    # Who can log in to the image (os/stage-osdos/02-system): sshd's drop-in
+    # after OSD/OS Setup's and cloud-init's, the first value of each setting
+    # kept; sudo never without a password; and the boot partition's switches
+    # for SSH and a user masked.
+    add_test(NAME image_logins COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/image_logins_test.sh
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/02-system)
 
     # The launcher (scripts/install.sh) on a stand-in install: a staged update
     # applied, or one cut short by a power cut put right, and a Pi 5 waiting
@@ -415,6 +437,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME image_packages COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/image_packages_test.sh
                                          ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh
                                          ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/00-packages/00-packages-nr)
+
+    # yt-dlp's zip rebuilt with its bytecode inside (os/stage-osdos/06-youtube:
+    # yt-dlp-compile), on a stand-in zipapp: it runs the same from its .pyc
+    # files, keeps its first line and mode, and a rebuild that fails half-way
+    # leaves it as it was; the stage and the update unit run it. Needs Python 3.
+    # The film partition's check before it is mounted (os/stage-osdos/05-media:
+    # media-check): only a dirty or unreadable exFAT boot sector checked, on
+    # an image made in a file with a stand-in fsck.exfat; never failing; the
+    # unit before the mount and the fstab line without a pass.
+    add_test(NAME media_check COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/media_check_test.sh
+                                      ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/05-media)
+
+    add_test(NAME yt_dlp_compile COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/yt_dlp_compile_test.sh
+                                          ${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/06-youtube)
 endif()
 
 # The runner's engine has the app's provider of the pixel symbols' pictures

@@ -32,10 +32,11 @@ Every OSD/OS machine plays FinalBurn Neo's arcade games with the others: over th
 
 ## The same engines on every machine
 
-Every system plays arcade games with the same engines, so machines stay in step and take the same ROM sets.
+Every system plays network games with the same FinalBurn Neo, so machines stay in step and take the same ROM sets for them. MAME is the same on the image, Debian trixie and Windows only (below).
 
 - **FinalBurn Neo comes with OSD/OS** on every system, built from one commit of it. Machines whose cores differ drift apart in a game, and RetroArch drops one of them.
-- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages. The image and the Raspberry Pi tarball also bring that RetroArch built by OSD/OS with TLS, for [RetroAchievements](https://github.com/mehmetraif/OSD-OS/wiki/Arcade), and play in it.
+- **RetroArch and MAME** are the OSD/OS image's versions, Debian's: RetroArch 1.20.0 and MAME 0.276. On Windows, OSD/OS downloads exactly these. Elsewhere they are the system's packages.
+- **MAME on a Mac and on the BSDs** is the system's own: Homebrew's, FreeBSD's or OpenBSD's package, which follows MAME's releases and is newer than the image's today. MAME's sets change from one version to the next (sets are renamed, split or redumped), so a ROM set that plays in MAME on the image may not in a newer MAME, and the other way round. Network play is FinalBurn Neo's alone, so this changes nothing for playing together; it matters when you copy a games folder between machines. The image and the Raspberry Pi tarball also bring that RetroArch built by OSD/OS with TLS, for [RetroAchievements](https://github.com/mehmetraif/OSD-OS/wiki/Arcade), and play in it. That build carries a few fixes from RetroArch's and BearSSL's later code (`scripts/retroarch-fixes.patch` in OSD/OS's source), none of which changes its version or its netplay protocol, so it plays with any other RetroArch 1.20.0.
 - **The newest core**: **Settings → Arcade → FinalBurn Neo → Upgrade to Latest** puts libretro's newest core in place of OSD/OS's. Play with others on OSD/OS's version: **Back to OSD/OS's Version** goes back to it.
 
 ## LAN play
@@ -54,6 +55,8 @@ Every system plays arcade games with the same engines, so machines stay in step 
 ### Hosting
 
 **Host LAN Game**, in a game's options, starts the game for others on your network to join. It isn't put in the lobby and goes through no relay. A game that can't be hosted ends the same way: `Could not host the game: Failed to bind port 55435`, the port taken.
+
+**Who can join.** A game hosted on the OSD/OS image has no password, and its port answers whoever reaches it. Settings → System → **Firewall**, on there from the first start, lets in only machines at the home network's addresses (`192.168.x`, `10.x`, `172.16`–`172.31`, and the link-local ones): every machine on your network, by cable or Wi-Fi, and nobody from the internet, even where a router forwards the port or gives the Pi a public address. LAN Play goes over IPv4, so a joiner on the same network always comes from one of those. A network on other addresses (a provider's `100.64.x`, public ones) or a machine joining over a VPN needs Firewall off on the host ([The OSD/OS image → Firewall](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#firewall)). On a Raspberry Pi OS set up with `install.sh` the firewall is off until the row turns it on. [Online play](#online-play) goes out to a relay, so the firewall changes nothing there.
 
 ### Players
 
@@ -170,9 +173,9 @@ Coin and Start together, or Esc, brings a player back to OSD/OS. When the host l
 ### Names, and how games are found
 
 - **Online Name** is the name the others see. Unset, it is the device's name on the local network ([System Information](https://github.com/mehmetraif/OSD-OS/wiki/Settings#system-information)).
-- OSD/OS asks every network it is on, with a broadcast to UDP port 55435, and each RetroArch hosting there answers.
+- OSD/OS asks every network it is on, with a broadcast to UDP port 55435, and each RetroArch hosting there answers. The port the answers come back to is open for that second alone, and the one a machine joining asks the host for its ports from only until the host answers.
 - A game hosted online (**Host Online Game**) isn't found this way: host it with **Host LAN Game**.
-- Both machines need an address of a private network: `192.168.x.x`, `10.x.x.x`, or `172.16.x.x` to `172.31.x.x`. A router gives one.
+- Both machines need an address of a private network: `192.168.x.x`, `10.x.x.x`, or `172.16.x.x` to `172.31.x.x`. A router gives one. OSD/OS takes the games' answers, and a host's word on the ports a machine joining plays on, from those addresses alone.
 - Two machines joined by a cable alone need one set by hand on each (`192.168.50.1` and `192.168.50.2`, say).
 - A network of other addresses (a VPN's, such as Tailscale's `100.x.x.x`) finds no game.
 
@@ -196,12 +199,12 @@ Games on the local network play on a core OSD/OS builds for them: `osdos_lan_lib
 **Settings → Arcade → Online Play**, **On**, plays the games FinalBurn Neo has with others over the internet, through RetroArch's netplay and its lobby (lobby.libretro.com). The Arcade screen's **Playable Online** filter lists those games of yours.
 
 - **Joining**: **Online Games** lists the games hosted in the lobby that you have, each with who hosts it and where. Select joins one. A game with a password isn't listed.
-- **Hosting**: **Host Online Game**, in a game's options, puts the game in the lobby under your name. It goes through the **Relay Server** chosen, so that no router has to let anyone in.
+- **Hosting**: **Host Online Game**, in a game's options, puts the game in the lobby under your name. It goes through the **Relay Server** chosen, so that no router has to let anyone in, and OSD/OS has RetroArch ask the router to open no port. The players join through the relay, but the lobby is public, and it lists the room with your connection's public address, the one RetroArch announced it from.
 - **The whole lobby**: **RetroArch Lobby** lists every game hosted there, of every core. ▶ marks one you can join, a lock one with a password. It is a filter of the Arcade screen, and the last line of Online Games in the tree.
 - **A room's page** has what the lobby says of it, with ✓ on the core and versions that are yours. Select opens it in the tree; on the Arcade screen, select held does, or select on a room you can't join. **Join** comes first on it.
 - **Read again**: the lobby is read as Arcade opens, and every 20 seconds while it is shown.
 
-A room's page says why it can't be joined: another core's, a host whose connection takes no players, a password, a RetroArch that can't be joined, or a game not in your folder. A room whose core version isn't yours can still be joined, though the game may fall out of step.
+A room's page says why it can't be joined: another core's, a host whose connection takes no players, a password, a RetroArch that can't be joined, an address inside a network rather than on the internet (a room that isn't relayed is joined straight at the address the lobby gives, and OSD/OS doesn't follow a public list into your own network), or a game not in your folder. A room whose core version isn't yours can still be joined, though the game may fall out of step.
 
 | Setting | What it is |
 |---|---|

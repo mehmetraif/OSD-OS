@@ -15,8 +15,8 @@
 YTDLP_URL=https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download
 # Deno, pinned like pi-gen: bump deliberately, with files/deno-LICENSE.md from
 # the same tag.
-DENO_VERSION=v2.9.7
-DENO_SHA256=c832298b1ad4422481334855f6003e0f54145762c5a134f20a489511d2f65bbf
+DENO_VERSION=v2.9.8
+DENO_SHA256=d49596c20b9788cf8f5d8ddf644103d4bde56ed239753f0bdb92ba9361d51905
 
 DOWNLOADS=$(mktemp -d)
 trap 'rm -rf "${DOWNLOADS}"' EXIT
@@ -36,7 +36,18 @@ fetch "${DOWNLOADS}/SHA2-256SUMS" "${YTDLP_URL}/SHA2-256SUMS"
 fetch "${DOWNLOADS}/deno.zip" \
 	"https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-aarch64-unknown-linux-gnu.zip"
 echo "${DENO_SHA256}  ${DOWNLOADS}/deno.zip" | sha256sum -c -
-bsdtar -xf "${DOWNLOADS}/deno.zip" -C "${DOWNLOADS}" deno
+# Unpacked by the image's own unzip (00-packages-nr), as pi-gen's build host
+# has no zip reader: its depends and Dockerfile list zip, not unzip or bsdtar.
+# In /var/tmp, which on_chroot leaves as it is (it mounts a tmpfs over /tmp).
+UNPACK=/var/tmp/osdos-deno
+rm -rf "${ROOTFS_DIR}${UNPACK}"
+install -d "${ROOTFS_DIR}${UNPACK}"
+install -m 644 "${DOWNLOADS}/deno.zip" "${ROOTFS_DIR}${UNPACK}/deno.zip"
+on_chroot << CHROOT || { rm -rf "${ROOTFS_DIR}${UNPACK}"; echo "Could not unpack Deno" >&2; exit 1; }
+unzip -q -o "${UNPACK}/deno.zip" deno -d "${UNPACK}"
+CHROOT
+mv "${ROOTFS_DIR}${UNPACK}/deno" "${DOWNLOADS}/deno"
+rm -rf "${ROOTFS_DIR}${UNPACK}"
 
 DATA_BIN="/home/${FIRST_USER_NAME}/.local/share/OSD-OS/bin"
 install -d "${ROOTFS_DIR}${DATA_BIN}"
@@ -53,11 +64,18 @@ UNITS="${ROOTFS_DIR}/etc/systemd/system"
 install -m 644 files/osdos-yt-dlp-update.service files/osdos-yt-dlp-update.timer "${UNITS}/"
 sed -i "s/@FIRST_USER_NAME@/${FIRST_USER_NAME}/g" "${UNITS}/osdos-yt-dlp-update.service"
 install -D -m 755 files/yt-dlp-wanted "${ROOTFS_DIR}/usr/lib/osdos/yt-dlp-wanted"
+# The bytecode put into yt-dlp's zip (yt-dlp-compile), here and after each
+# update: Python compiles nothing it imports from a zip once and for all, so a
+# zip of sources is compiled again at every run. Compiled by the image's own
+# Python, the one that runs it. Root's, outside the folders the app's user
+# can write, like yt-dlp-wanted.
+install -D -m 755 files/yt-dlp-compile "${ROOTFS_DIR}/usr/lib/osdos/yt-dlp-compile"
 RULE="${ROOTFS_DIR}/etc/polkit-1/rules.d/50-osdos-yt-dlp-update.rules"
 install -D -m 644 files/50-osdos-yt-dlp-update.rules "${RULE}"
 sed -i "s/@OSDOS_USER@/${FIRST_USER_NAME}/" "${RULE}"
 
 on_chroot << CHROOT
+/usr/lib/osdos/yt-dlp-compile "${DATA_BIN}/yt-dlp"
 chown -R "${FIRST_USER_NAME}:" "/home/${FIRST_USER_NAME}/.local"
 systemctl enable osdos-yt-dlp-update.timer
 CHROOT

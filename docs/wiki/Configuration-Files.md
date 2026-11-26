@@ -52,7 +52,7 @@ Each is also read under its 240-MP name, `MP240_<NAME>`, when the `OSDOS_` one i
 | Variable | Set by | What it does |
 |---|---|---|
 | `OSDOS_AUTOSTART` | The autostart service (`Environment=OSDOS_AUTOSTART=1`) | Set to anything: OSD/OS runs as the system's app. Quit offers Power Off, Restart and Exit to Terminal (and Save Logs with `OSDOS_MEDIA_DIR`), and Display Output can be offered |
-| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`11`) | What the launcher can do, each level adding to those below. Set at all, with the app in `/opt/osdos`: in-app updates. `2`: Restart in Quit. `3`: Display Output. `4`: JAMMA 720x240. `5`: Switch and Power Off, At Next Start. `6`: the JAMMA board's other modes. `7`: Wi-Fi. `8`: renaming the device. `9`: JAMMA 640x480i. `10`: the time zone and the keyboard. `11`: an arcade game's CPU governor |
+| `OSDOS_LAUNCHER_API` | The launcher, `/usr/local/bin/osdos` (`12`) | What the launcher can do, each level adding to those below. Set at all, with the app in `/opt/osdos`: in-app updates. `2`: Restart in Quit. `3`: Display Output. `4`: JAMMA 720x240. `5`: Switch and Power Off, At Next Start. `6`: the JAMMA board's other modes. `7`: Wi-Fi. `8`: renaming the device. `9`: JAMMA 640x480i. `10`: the time zone and the keyboard. `11`: an arcade game's CPU governor. `12`: the firewall |
 | `OSDOS_DRM_DEVICE`, `OSDOS_DRM_CONNECTOR`, `OSDOS_DRM_MODE` | The launcher, on a Pi 5, from the display preset's `# osdos-output:` and `# osdos-mode:` lines | The output OSD/OS draws on and mpv plays on: `--drm-device`, `--drm-connector` and, when set, `--drm-mode` ([Playback and mpv](https://github.com/mehmetraif/OSD-OS/wiki/Playback-and-mpv#per-device-decode-profiles)) |
 | `OSDOS_MEDIA_DIR` | The OSD/OS image: `/media/OSD-OS`, in `/etc/systemd/system/osdos.service.d/osdos-media.conf` | The folder the media go in; else `media` in the data folder. Default folders there: Local Files' `Movies`, Playlists' `Movies/Playlists`, the Arcade's `Games/Arcade` |
 | `OSDOS_BOOT_UNITS_FILE` | The OSD/OS image: `/etc/osdos/boot-units` | The services the boot screen follows, as `unit\|LABEL` lines. Unset, there is no boot screen |
@@ -155,6 +155,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `input.cfg`, `gamecontrollerdb.txt` | Gamepad remapping, read again when it changes; extra SDL mappings, read at start ([Controls](https://github.com/mehmetraif/OSD-OS/wiki/Controls)) |
 | `display-output.json` | `{ "from", "to" }` while a new output waits to be kept, `{ "reverted" }` after one wasn't. Deleted afterwards |
 | `osdos-setup.json` | Settings from [OSD/OS Setup](https://osdos.tv/setup/). At the next start OSD/OS merges its `config` into `config.json` and deletes it. One beside the app is taken the same way |
+| `mpv-options.json` | What the mpv binary takes of the options OSD/OS may give it, from its `--list-options`, with the binary's path, size and time. Asked again when mpv is replaced; safe to delete |
 | `crash-report.txt`, `stall-report.txt` | The latest crash, or freeze of 5 seconds, only ([Troubleshooting](https://github.com/mehmetraif/OSD-OS/wiki/Troubleshooting#when-it-crashes-or-freezes-the-reports)) |
 | `themes/`, `skins/` | One with the folder name of one of OSD/OS's replaces it |
 | `soundfonts/` | For a MIDI file with no SoundFont of its name beside it: the first `.sf2` here by name ([Menu music](https://github.com/mehmetraif/OSD-OS/wiki/Menu-Music)) |
@@ -162,6 +163,7 @@ A file or folder appears only once something needs it. A module's own files are 
 | `bin/mame` | Found first, before `mame` on `PATH` and `/usr/games/mame` ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#setting-it-up)) |
 | `arcade/`, `highscores/` | Listed in [Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#files-it-keeps) and [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores#files-it-keeps) |
 | `<service>/browser/` | A Chromium profile per service, with its sign-in. Sign Out deletes it |
+| `web-player-browser` | On Arm Linux, the browser's version for the web players' user agent: its file and time, then the version. Asked of the browser again when it changes; safe to delete |
 | `updates/` | The downloaded release with `staged.json` and `staged.sha256` (written at Apply), `staged.sha256.failed` (why the launcher couldn't put it in place, told once on the Software Update page), unfinished `*.part` downloads, and on an AppImage or a Mac the helper script and its `apply.log` |
 
 ## config.json
@@ -341,7 +343,7 @@ A module's settings are under `modules.<module id>`, with the keys its `manifest
 - **Read from the disk.** `appCore.get_setting(moduleId, key)` returns what `config.json` holds now, `get_settings()` the whole file. A key with one dot reads one level down: `get_setting("", "remote_keymap.back")` is `app.remote_keymap.back`.
 - **Written whole.** `appCore.save_setting(moduleId, key, value)` changes the one key and writes the file again, atomically (`writeFileAtomically()`), as every state file is. A crash or a full disk leaves the old file.
 - **Then announced** with `appSettingChanged` or `moduleSettingChanged`. A change that couldn't be written is not announced, and `save_setting` returns `false`.
-- **A slider's steps are written once.** Each step of ◄ ► on a slider row is announced, and is `get_setting()`'s, at once (`appCore.save_setting_soon()`), but the file is written half a second after the last step, or sooner: as the page is left, with the next setting saved, or as OSD/OS quits. Should that write fail, the setting is as the file has it again and is announced again with that value.
+- **A slider's and a list's steps are written once.** Each step of ◄ ► on a slider or a list row (but a list whose module acts on it at once, Plex's Current User and Server) is announced, and is `get_setting()`'s, at once (`appCore.save_setting_soon()`), but the file is written half a second after the last step, or sooner: as the page is left, with the next setting saved, or as OSD/OS quits. Should that write fail, the setting is as the file has it again and is announced again with that value.
 - **A missing file** reads as `{ "app": { "color_scheme": "Video 1" }, "modules": {} }`, and the first change writes a new file.
 - **An invalid file is left alone.** A `config.json` that isn't valid JSON reads as those defaults but is never written over: every `save_setting` returns `false` until it is fixed. `lists.json` is kept the same way.
 
@@ -452,14 +454,20 @@ OSD/OS carries over what a 240-MP install left:
 
 ## The cache folder
 
-OSD/OS caches one kind of file: menu music made into a WAV from a MIDI file (FluidSynth) or from a tracker's module mpv can't play (openmpt123).
+OSD/OS caches menu music made into a WAV from a MIDI file (FluidSynth) or from a tracker's module mpv can't play (openmpt123), and Qt keeps its compiled QML there.
 
 | System | Cache folder |
 |---|---|
-| Linux, the OSD/OS image | `~/.cache/OSD-OS/menu-music/`, or `$XDG_CACHE_HOME/OSD-OS/menu-music/` |
-| macOS | `~/Library/Caches/OSD-OS/menu-music/` |
+| Linux, the OSD/OS image | `~/.cache/OSD-OS/`, or `$XDG_CACHE_HOME/OSD-OS/` |
+| macOS | `~/Library/Caches/OSD-OS/` |
 
-Only the newest WAV is kept, and a changed file is made again. Deleting the folder is always safe.
+| In it | What it holds |
+|---|---|
+| `menu-music/` | Only the newest WAV; a changed file is made again |
+| `qmlcache/` | Qt's compiled QML, by each file's path and time |
+| `qmlcache-built.json` | The build whose QML has all been compiled: the `osdos` binary's path, size and time, the QML folder and its `Main.qml`'s time, and Qt's version. A new build (an update) compiles its QML once the menus are idle, at the lowest priority, then writes it |
+
+Deleting the folder is always safe.
 
 ## Logs and temporary files
 

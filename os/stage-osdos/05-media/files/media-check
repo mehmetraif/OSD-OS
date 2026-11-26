@@ -1,0 +1,89 @@
+#!/bin/bash
+# OSD/OS image: checks the film partition (exFAT) before it is mounted, only
+# when it needs it. osdos-media-check.service runs it, in place of the full
+# fsck.exfat a pass in /etc/fstab gave it at every boot, which on a card with
+# thousands of files held the app back seconds at each one.
+#
+# exFAT keeps a VolumeDirty flag in its boot sector: the VolumeFlags field, 16
+# bits little-endian at byte 106, bit 1 (the exFAT specification's Main Boot
+# Sector table; exfatprogs' struct bsx64 vol_flags and VOL_DIRTY 0x0002).
+# Linux and Windows set it while the volume is written to and clear it on a
+# clean unmount, and fsck.exfat sets it as it starts repairing and clears it
+# once done. So a partition switched off at the wall mid-write, or a check cut
+# short, is checked; a clean one isn't. Nor one whose boot sector can't be
+# read as exFAT at all: that one is checked.
+#
+# The repair is the one systemd-fsck gave it: fsck.repair= on the kernel's
+# command line (the image's says yes: -y), "preen" by default (-p), and
+# fsck.mode=force or skip, as systemd-fsck takes them.
+#
+# It never fails and never stops the mount: whatever goes wrong (no device, a
+# read error, fsck missing, failing or taking too long), it says which in one
+# line and exits 0, and the partition is mounted as before.
+#
+#   media-check DEVICE
+set -u
+
+DEV="${1:-}"
+CMDLINE="${OSDOS_MEDIA_CMDLINE:-/proc/cmdline}"
+FSCK_TIMEOUT="${OSDOS_MEDIA_FSCK_TIMEOUT:-10m}"
+
+say() { echo "media-check: $DEV: $*"; }
+
+repair=-p
+mode=auto
+# shellcheck disable=SC2013  # the words of one line
+for word in $(cat "$CMDLINE" 2> /dev/null); do
+	case "$word" in
+		fsck.repair=preen) repair=-p ;;
+		fsck.repair=yes) repair=-y ;;
+		fsck.repair=no) repair=-n ;;
+		fsck.mode=auto | fsck.mode=force | fsck.mode=skip) mode=${word#fsck.mode=} ;;
+	esac
+done
+
+check() {
+	if ! command -v fsck.exfat > /dev/null 2>&1; then
+		say "$1; fsck.exfat is missing, mounted unchecked"
+		return
+	fi
+	timeout --kill-after=30s "$FSCK_TIMEOUT" fsck.exfat "$repair" "$DEV"
+	local status=$?
+	case "$status" in
+		0) say "$1; checked (fsck.exfat $repair): exit status 0, clean" ;;
+		1) say "$1; checked (fsck.exfat $repair): exit status 1, errors corrected" ;;
+		124 | 137) say "$1; checked (fsck.exfat $repair): stopped after $FSCK_TIMEOUT (exit status $status), mounted as it is" ;;
+		*) say "$1; checked (fsck.exfat $repair): exit status $status, mounted as it is" ;;
+	esac
+}
+
+if [ -z "$DEV" ] || [ ! -e "$DEV" ]; then
+	say "no such device; nothing checked"
+	exit 0
+fi
+if [ "$mode" = skip ]; then
+	say "fsck.mode=skip; nothing checked"
+	exit 0
+fi
+
+# The boot sector's first 512 bytes, as numbers. dd's own failure, and a
+# short read, both leave fewer than 512.
+read -r -a bytes <<< "$(dd if="$DEV" bs=512 count=1 2> /dev/null | od -An -v -tu1 | tr '\n' ' ')"
+if [ "${#bytes[@]}" -ne 512 ]; then
+	check "unreadable (the boot sector can't be read)"
+	exit 0
+fi
+# FileSystemName at byte 3: "EXFAT   ".
+if [ "${bytes[*]:3:8}" != "69 88 70 65 84 32 32 32" ]; then
+	check "unreadable (no exFAT boot sector)"
+	exit 0
+fi
+flags=$(( bytes[106] | bytes[107] << 8 ))
+if [ "$mode" = force ]; then
+	check "fsck.mode=force (VolumeFlags $(printf '0x%04x' "$flags"))"
+elif (( flags & 2 )); then
+	check "dirty (VolumeFlags $(printf '0x%04x' "$flags"))"
+else
+	say "clean (VolumeFlags $(printf '0x%04x' "$flags")); check skipped"
+fi
+exit 0

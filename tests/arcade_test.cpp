@@ -14,6 +14,7 @@
 #include "modules/arcade/RomCheck.h"
 #include "util/DisplayHandoff.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -1009,7 +1010,8 @@ private slots:
             QStringLiteral("play pacman -rompath %1;%1/bios -homepath %2 -cfg_directory %2/cfg"
                            " -nvram_directory %2/nvram -input_directory %2/inp -state_directory %2/sta"
                            " -snapshot_directory %2/snap -diff_directory %2/diff"
-                           " -ctrlrpath %2/ctrlr -ctrlr osdos -skip_gameinfo -samplepath %1/samples"
+                           " -ctrlrpath %2/ctrlr -ctrlr osdos -skip_gameinfo -comm_localhost 127.0.0.1"
+                           " -samplepath %1/samples"
                            " -pluginspath %3 -plugin hiscore").arg(m_games, home, plugins) }));
         QCOMPARE(logLines(QStringLiteral("cwd")), QStringList({ QStringLiteral("cwd ") + home }));
         // The output's card, for SDL, on a Pi 5.
@@ -2359,8 +2361,10 @@ private slots:
         QVERIFY(!config.contains(QStringLiteral("cheevos_username")));
         QVERIFY(!config.contains(QStringLiteral("video_driver")));
         QVERIFY(!config.contains(QStringLiteral("input_driver ")));
+        // Through the relay, and no port asked of the router (UPnP).
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "netplay_nat_traversal = \"false\"",
                                   "libretro_directory = \"/cores\"", "libretro_info_path = \"/ra/info\"" })
             QVERIFY2(has(QLatin1String(line)), line);
         // The core's options from OSD/OS's file for the network alone, no
@@ -2748,6 +2752,126 @@ private slots:
             lan.stopClaims();
         }
 
+        // Joining: the host's answer taken from the local network alone, as
+        // the rooms' answers and the claims are. Ports from another machine
+        // there are given back to it; from the internet, a carrier's shared
+        // addresses, a link-local address or IPv6 nothing is read, and
+        // nothing sent back. The host's own layout and ports start the game.
+        {
+            LanRooms lan;
+            QUdpSocket other;
+            QVERIFY(other.bind(QHostAddress::LocalHost, 0));
+            lan.setClaimPort(other.localPort());
+            int answered = 0;
+            std::optional<libretro::PortRange> given;
+            libretro::Launch::Layout layout = libretro::Launch::Layout::Classic;
+            connect(&lan, &LanRooms::portsAnswered, &lan,
+                    [&](const std::optional<libretro::PortRange> &ports, libretro::Launch::Layout said) {
+                        ++answered;
+                        given = ports;
+                        layout = said;
+                    });
+            // The host this machine joins: another address of this one.
+            QCOMPARE(lan.askPort(), quint16(0));
+            QVERIFY(lan.askForPorts(QStringLiteral("127.0.0.2"), 1));
+            const quint16 asked = lan.askPort();
+            QVERIFY(asked != 0);
+            const auto from = [](const char *address, const QByteArray &data) {
+                QNetworkDatagram datagram(data);
+                datagram.setSender(QHostAddress(QLatin1String(address)), 55436);
+                return datagram;
+            };
+            for (const char *forged : { "203.0.113.9", "8.8.8.8", "100.64.0.1", "169.254.1.1", "fd00::1", "fe80::1" }) {
+                QVERIFY2(!lan.takePortsAnswer(from(forged, libretro::claimLayout(libretro::Launch::Layout::Panel))), forged);
+                QVERIFY2(!lan.takePortsAnswer(from(forged, libretro::claimAnswer({ 2, 1 }))), forged);
+                QVERIFY2(!lan.releasing(QLatin1String(forged)), forged);
+            }
+            QVERIFY(!lan.takePortsAnswer(from("127.0.0.1", libretro::claimAnswer({ 4, 1 }))));
+            QVERIFY(lan.releasing(QStringLiteral("127.0.0.1")));
+            QTRY_VERIFY(other.hasPendingDatagrams());
+            QCOMPARE(other.receiveDatagram().data(), libretro::claimRelease());
+            // Sent again a moment later, then its socket closed.
+            QVERIFY(lan.releaseSocketOpen());
+            QTRY_VERIFY(other.hasPendingDatagrams());
+            QCOMPARE(other.receiveDatagram().data(), libretro::claimRelease());
+            QTRY_VERIFY(!lan.releaseSocketOpen());
+            QVERIFY(!lan.releasing(QStringLiteral("127.0.0.1")));
+            QCOMPARE(answered, 0);
+            QVERIFY(!lan.takePortsAnswer(from("127.0.0.2", libretro::claimLayout(libretro::Launch::Layout::Panel))));
+            QTest::ignoreMessage(QtInfoMsg,
+                                 "[Arcade] 127.0.0.2 gives this machine's 1 player(s) 1 port(s) from 3, on the panel layout");
+            QVERIFY(lan.takePortsAnswer(from("127.0.0.2", libretro::claimAnswer({ 3, 1 }))));
+            QCOMPARE(answered, 1);
+            QVERIFY(given);
+            QCOMPARE(given->first, 3);
+            QCOMPARE(layout, libretro::Launch::Layout::Panel);
+            // Answered: the ask's socket closed, its port free for anyone.
+            QCOMPARE(lan.askPort(), quint16(0));
+            {
+                QUdpSocket again;
+                QVERIFY2(again.bind(QHostAddress(QHostAddress::AnyIPv4), asked), qPrintable(again.errorString()));
+            }
+            // Never answered (asked three times, a quarter of a second
+            // each): closed as it gives up, and the host told to give back
+            // what an answer that comes later would have had given back.
+            answered = 0;
+            QVERIFY(lan.askForPorts(QStringLiteral("127.0.0.2"), 1));
+            const quint16 unanswered = lan.askPort();
+            QVERIFY(unanswered != 0);
+            QTRY_COMPARE_WITH_TIMEOUT(answered, 1, 3000);
+            QVERIFY(!given);
+            QCOMPARE(lan.askPort(), quint16(0));
+            QVERIFY(lan.releasing(QStringLiteral("127.0.0.2")));
+            {
+                QUdpSocket again;
+                QVERIFY2(again.bind(QHostAddress(QHostAddress::AnyIPv4), unanswered), qPrintable(again.errorString()));
+            }
+            // A host that can't be asked at all: nothing left bound.
+            QVERIFY(!lan.askForPorts(QStringLiteral("not an address"), 1));
+            QCOMPARE(lan.askPort(), quint16(0));
+        }
+
+        // The LAN query's socket: bound for the second its answers are
+        // listened for, closed once they have been (its port free for
+        // anyone), and bound afresh for the next query; closed too as LAN
+        // Play is turned off with a query under way. An answer to it is
+        // still heard.
+        {
+            QUdpSocket hosts;
+            QVERIFY(hosts.bind(QHostAddress::LocalHost, 0));
+            connect(&hosts, &QUdpSocket::readyRead, &hosts, [&hosts] {
+                while (hosts.hasPendingDatagrams()) {
+                    const QNetworkDatagram query = hosts.receiveDatagram();
+                    if (query.data() == libretro::lanQuery())
+                        hosts.writeDatagram(lanAnswer("ann", "sf2", 55435), query.senderAddress(), query.senderPort());
+                }
+            });
+            LanRooms lan;
+            lan.setDiscovery(QStringLiteral("127.0.0.1"), hosts.localPort());
+            lan.setListenTime(200);
+            QSignalSpy read(&lan, &LanRooms::roomsRead);
+            QCOMPARE(lan.queryPort(), quint16(0));
+            lan.query();
+            const quint16 first = lan.queryPort();
+            QVERIFY(first != 0);
+            QVERIFY(read.wait(3000));
+            QCOMPARE(lan.rooms().size(), qsizetype(1));
+            QCOMPARE(lan.queryPort(), quint16(0));
+            {
+                QUdpSocket again;
+                QVERIFY2(again.bind(QHostAddress(QHostAddress::AnyIPv4), first), qPrintable(again.errorString()));
+            }
+            lan.query();
+            QVERIFY(lan.queryPort() != 0);
+            QVERIFY(read.wait(3000));
+            QCOMPARE(lan.rooms().size(), qsizetype(1));
+            QCOMPARE(lan.queryPort(), quint16(0));
+            lan.query();
+            QVERIFY(lan.queryPort() != 0);
+            lan.forget();
+            QCOMPARE(lan.queryPort(), quint16(0));
+        }
+
         // A host's answer to the query on the local network: its game, who
         // hosts it, what it plays in, and where it is joined, at the address
         // it answered from and the port it gives.
@@ -2965,7 +3089,7 @@ private slots:
         // The whole lobby: every room, newest first, as it can be shown; a
         // room FinalBurn Neo hosts that can be joined among them.
         const QList<libretro::Room> whole = libretro::readWholeLobby(lobby);
-        QCOMPARE(whole.size(), 11);
+        QCOMPARE(whole.size(), 12);
         const libretro::Room &kart = whole.at(0);
         QCOMPARE(kart.id, 22);
         QCOMPARE(kart.rom, QStringLiteral("Super Mario Kart (USA)"));
@@ -2986,17 +3110,51 @@ private slots:
         QStringList ids;
         for (const libretro::Room &room : whole)
             ids << QString::number(room.id) + (room.joinable ? QStringLiteral("+") : QString());
-        QCOMPARE(ids, QStringList({ "22", "21", "20", "19", "18+", "17", "16", "15", "14+", "11+", "10" }));
+        QCOMPARE(ids, QStringList({ "22", "21", "20", "19", "18+", "17", "16", "15", "14+", "13", "11+", "10" }));
         // What the lobby doesn't say, as such; the relay another runs by its
         // name; a name that can't be a set's none, the host's name as it is.
-        QCOMPARE(whole.at(9).players, -1);
-        QVERIFY(!whole.at(9).created.isValid());
-        QVERIFY(whole.at(9).relay.isEmpty());
+        QCOMPARE(whole.at(10).players, -1);
+        QVERIFY(!whole.at(10).created.isValid());
+        QVERIFY(whole.at(10).relay.isEmpty());
         QCOMPARE(whole.at(8).relay, QStringLiteral("198.51.100.7"));
         QVERIFY(whole.at(2).game.isEmpty());
         QCOMPARE(whole.at(2).rom, QStringLiteral("../../etc/passwd"));
         QVERIFY(!whole.at(7).connectable);
         QCOMPARE(whole.at(4).host, QStringLiteral("img src=http://192.0.2.99/a.pngz"));
+        // A room reached straight at an address inside a network (here a
+        // home network's) isn't joined from a public list, and says so.
+        QCOMPARE(whole.at(9).id, 13);
+        QVERIFY(whole.at(9).insideAddress);
+        QVERIFY(whole.at(9).joinAddress.isEmpty());
+        QVERIFY(!whole.at(9).joinable);
+        QVERIFY(!whole.at(1).insideAddress);
+        // Each such address, and a name, refused straight; an address on the
+        // internet joined; a relayed room joined at its relay whatever its
+        // host's address.
+        const auto straight = [](const char *ip, int hostMethod = 0, const char *relay = "") {
+            return libretro::readWholeLobby(QByteArray("[{\"fields\": {\"id\": 1, \"game_name\": \"sf2\", "
+                                                       "\"core_name\": \"FinalBurn Neo\", \"retroarch_version\": \"1.22.2\", "
+                                                       "\"port\": 55435, \"mitm_port\": 55435, \"mitm_session\": \"c2Vzc2lvbg==\", \"ip\": \"")
+                                            + ip + "\", \"host_method\": " + QByteArray::number(hostMethod)
+                                            + ", \"mitm_ip\": \"" + relay + "\"}}]")
+                .value(0);
+        };
+        for (const char *inside : { "192.168.1.40", "10.0.0.2", "172.20.1.1", "127.0.0.1", "127.8.8.8", "169.254.3.4",
+                                    "100.64.1.1", "0.0.0.0", "224.0.0.251", "255.255.255.255", "::1", "::", "fe80::1",
+                                    "fd00::2", "fc12::1", "ff02::1", "::ffff:192.168.1.40", "localhost",
+                                    "router.lan" }) {
+            const libretro::Room room = straight(inside);
+            QVERIFY2(!room.joinable && room.joinAddress.isEmpty() && room.insideAddress, inside);
+        }
+        for (const char *outside : { "203.0.113.7", "8.8.8.8", "172.32.0.1", "100.128.0.1", "2001:db8::7" }) {
+            const libretro::Room room = straight(outside);
+            QVERIFY2(room.joinable && !room.insideAddress, outside);
+            QCOMPARE(room.joinAddress, QLatin1String(outside) + QStringLiteral("|55435"));
+        }
+        const libretro::Room relayed = straight("192.168.1.40", 3, "us-east1.relay.retroarch.com");
+        QVERIFY(relayed.joinable);
+        QVERIFY(!relayed.insideAddress);
+        QCOMPARE(relayed.joinAddress, QStringLiteral("us-east1.relay.retroarch.com|55435|c2Vzc2lvbg=="));
         // An answer with more rooms than the lobby ever lists: the newest
         // thousand.
         QByteArray crowded = "[";
@@ -4709,11 +4867,13 @@ private slots:
         });
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
         // libretro's source as on a 64-bit Windows, its archive on the
-        // stand-in.
-        const auto source = [&base, &data](const char *archive) {
+        // stand-in, with the SHA-256 of what the stand-in serves.
+        const auto source = [&base, &data, &files](const char *archive) {
             ProgramInstaller::Source s = ProgramInstaller::retroarch(data.path());
             s.available = true;
             s.archive = QUrl(base + QLatin1String(archive));
+            s.sha256 = QString::fromLatin1(
+                QCryptographicHash::hash(files.value(archive), QCryptographicHash::Sha256).toHex());
             return s;
         };
         const QString program = libretro::downloadedRetroArch(data.path());
@@ -4776,6 +4936,40 @@ private slots:
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The download has no retroarch.exe"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
+        // The archive whole but not the file expected, its SHA-256 another:
+        // refused before any of it is unpacked, the one before kept.
+        ProgramInstaller::Source wrong = source("/stable/1.20.0/windows/x86_64/RetroArch.7z");
+        const QString archiveSha = wrong.sha256;
+        wrong.sha256 = QString(64, QLatin1Char('0'));
+        installer.start(wrong);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(),
+                 QStringLiteral("The download is not the file expected: its SHA-256 is %1, not %2")
+                     .arg(archiveSha, wrong.sha256));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // Its SHA-256 given in capitals, as some lists have it: the same.
+        ProgramInstaller::Source capitals = source("/stable/1.20.0/windows/x86_64/RetroArch.7z");
+        capitals.sha256 = capitals.sha256.toUpper();
+        installer.start(capitals);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
+        // None known, as for libretro's builds: installed unchecked, and
+        // said so in the log.
+        writeFile(program, "the one before");
+        ProgramInstaller::Source unchecked = source("/stable/1.20.0/windows/x86_64/RetroArch.7z");
+        unchecked.sha256.clear();
+        QTest::ignoreMessage(QtWarningMsg,
+                             "[Arcade] RetroArch's download is not checked: no SHA-256 is known for RetroArch.7z");
+        installer.start(unchecked);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QCOMPARE(finished.last().at(0).toBool(), true);
+        QVERIFY(contents(program).startsWith("MZ a stand-in for RetroArch for Windows"));
+        QCOMPARE(leftovers(), QStringList());
+        writeFile(program, "the one before");
         // A machine libretro builds none for: this one, as the source stands.
         installer.start(ProgramInstaller::retroarch(data.path()));
         QVERIFY2(finished.last().at(1).toString().startsWith(QStringLiteral("There is no RetroArch build for this machine")),
@@ -4789,6 +4983,8 @@ private slots:
         QCOMPARE(pinned.version, QStringLiteral("1.20.0"));
         QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://buildbot.libretro.com/stable/1.20.0/windows/x86_64/RetroArch.7z")));
         QCOMPARE(pinned.program, QStringLiteral("retroarch.exe"));
+        // libretro publishes no SHA-256 for it (scripts/engines.env).
+        QCOMPARE(pinned.sha256, QString());
         QCOMPARE(pinned.target, home);
     }
 
@@ -4823,11 +5019,13 @@ private slots:
         });
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
         // mamedev's source as on a 64-bit Windows, its archive on the
-        // stand-in.
-        const auto source = [&base, &data](const char *archive) {
+        // stand-in, with the SHA-256 of what the stand-in serves.
+        const auto source = [&base, &data, &files](const char *archive) {
             ProgramInstaller::Source s = ProgramInstaller::mame(data.path());
             s.available = true;
             s.archive = QUrl(base + QLatin1String(archive));
+            s.sha256 = QString::fromLatin1(
+                QCryptographicHash::hash(files.value(archive), QCryptographicHash::Sha256).toHex());
             return s;
         };
         const QString program = mame::downloadedMame(data.path());
@@ -4883,6 +5081,31 @@ private slots:
         QCOMPARE(finished.last().at(1).toString(), QStringLiteral("The file is not a 7z archive"));
         QCOMPARE(contents(program), QByteArray("the one before"));
         QCOMPARE(leftovers(), QStringList());
+        // The release's file with the SHA-256 engines.env has for 0.276's
+        // (scripts/engines.env), which the stand-in isn't: refused before
+        // anything of it is unpacked or run, the one before kept.
+        ProgramInstaller::Source wrong = source("/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe");
+        const QString archiveSha = wrong.sha256;
+        wrong.sha256 = ProgramInstaller::mame(data.path()).sha256;
+        installer.start(wrong);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(0).toBool(), false);
+        QCOMPARE(finished.last().at(1).toString(),
+                 QStringLiteral("The download is not the file expected: its SHA-256 is %1, not %2")
+                     .arg(archiveSha, wrong.sha256));
+        QCOMPARE(contents(program), QByteArray("the one before"));
+        QCOMPARE(leftovers(), QStringList());
+        // None known: installed unchecked, and said so in the log.
+        ProgramInstaller::Source unchecked = source("/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe");
+        unchecked.sha256.clear();
+        QTest::ignoreMessage(QtWarningMsg,
+                             "[Arcade] MAME's download is not checked: no SHA-256 is known for mame0276b_64bit.exe");
+        installer.start(unchecked);
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(finished.last().at(1).toString(), QString());
+        QVERIFY(contents(program).startsWith("MZ a stand-in for MAME for Windows"));
+        QCOMPARE(leftovers(), QStringList());
+        writeFile(program, "the one before");
         // A machine mamedev builds none for: this one, as the source stands.
         installer.start(ProgramInstaller::mame(data.path()));
         QVERIFY(finished.last().at(1).toString().startsWith(QStringLiteral("There is no MAME build for this machine")));
@@ -4895,6 +5118,14 @@ private slots:
         QCOMPARE(pinned.version, QStringLiteral("0.276"));
         QCOMPARE(pinned.archive, QUrl(QStringLiteral("https://github.com/mamedev/mame/releases/download/mame0276/mame0276b_64bit.exe")));
         QCOMPARE(pinned.program, QStringLiteral("mame.exe"));
+        // The Windows build's name by version: b_64bit.exe up to 0.280,
+        // b_x64.exe from 0.281, as engines.yml has it too.
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.276")), QStringLiteral("mame0276b_64bit.exe"));
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.280")), QStringLiteral("mame0280b_64bit.exe"));
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.281")), QStringLiteral("mame0281b_x64.exe"));
+        QCOMPARE(ProgramInstaller::mameWindowsFile(QStringLiteral("0.289")), QStringLiteral("mame0289b_x64.exe"));
+        // The SHA-256 of that file in the release's SHA256SUMS.
+        QCOMPARE(pinned.sha256, QStringLiteral("12499709a4cfea351b997762c2e6399f7edc70855ec68efbc419024b51f9ffcc"));
         QCOMPARE(pinned.target, home);
     }
 
@@ -6527,7 +6758,7 @@ private slots:
             order << QString::number(r.value(QStringLiteral("id")).toInt());
             byId.insert(r.value(QStringLiteral("id")).toInt(), r);
         }
-        QCOMPARE(order, QStringList({ "20", "15", "18", "14", "21", "19", "17", "11", "10", "16", "22" }));
+        QCOMPARE(order, QStringList({ "20", "15", "18", "14", "21", "19", "17", "13", "11", "10", "16", "22" }));
         const auto why = [&byId](int id) { return byId.value(id).value(QStringLiteral("why")).toString(); };
         QVERIFY(byId.value(11).value(QStringLiteral("joinable")).toBool());
         QCOMPARE(why(11), QString());
@@ -6541,6 +6772,7 @@ private slots:
         QCOMPARE(why(17), QStringLiteral("Its host's RetroArch can't be joined from here"));
         QCOMPARE(why(19), QStringLiteral("The lobby gives no address it can be joined at"));
         QCOMPARE(why(21), QStringLiteral("The lobby gives no address it can be joined at"));
+        QCOMPARE(why(13), QStringLiteral("The lobby gives an address inside a network, not on the internet"));
         QCOMPARE(why(18), QStringLiteral("kof98 isn't in your games folder"));
         QCOMPARE(byId.value(18).value(QStringLiteral("title")).toString(), QStringLiteral("kof98.zip"));
         QVERIFY(byId.value(18).value(QStringLiteral("set")).toString().isEmpty());
@@ -6617,7 +6849,7 @@ private slots:
         QCOMPARE(filters.value(3).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Online Games"));
         QCOMPARE(filters.value(3).toMap().value(QStringLiteral("count")).toInt(), 1);
         QCOMPARE(filters.value(4).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("RetroArch Lobby"));
-        QCOMPARE(filters.value(4).toMap().value(QStringLiteral("count")).toInt(), 11);
+        QCOMPARE(filters.value(4).toMap().value(QStringLiteral("count")).toInt(), 12);
         QCOMPARE(arcade.filterStatus(QStringLiteral("favorites")).value(QStringLiteral("name")).toString(),
                  QStringLiteral("No Favorites"));
         QCOMPARE(arcade.filterStatus(QStringLiteral("recent")).value(QStringLiteral("name")).toString(),
@@ -6838,6 +7070,7 @@ private slots:
         config = QString::fromUtf8(contents(configCopy));
         for (const char *line : { "netplay_nickname = \"Mehmet\"", "netplay_public_announce = \"true\"",
                                   "netplay_use_mitm_server = \"true\"", "netplay_mitm_server = \"madrid\"",
+                                  "netplay_nat_traversal = \"false\"",
                                   "netplay_input_latency_frames_min = \"2\"", "netplay_ping_show = \"true\"",
                                   "video_max_swapchain_images = \"2\"", "audio_latency = \"48\"" })
             QVERIFY2(config.contains(QLatin1String(line)), line);
@@ -8104,6 +8337,94 @@ private slots:
         QCOMPARE(ours("yourRetroArchState"), QStringLiteral("reading"));
         QCOMPARE(ours("yourRetroArch"), QString());
         QTRY_COMPARE_WITH_TIMEOUT(ours("yourRetroArch"), QStringLiteral("1.22.3"), 5000);
+    }
+
+    // The versions read are kept in the arcade folder (engine-versions.json)
+    // by the stamp of the file each was read from: the next run asks none
+    // of them, its RetroArch's and cores' as soon as online play looks;
+    // a file changed since, of a stamp it doesn't keep, is asked again, the
+    // rest kept; and a kept file that can't be read counts for none.
+    void ownVersionsAreKeptForTheNextRun() {
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        const QString askedRetroArch = data.path() + QStringLiteral("/asked-retroarch");
+        const QString askedCore = data.path() + QStringLiteral("/asked-core");
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"),
+                  QStringLiteral("#!/bin/sh\necho >> '%1'\necho 'Version: 1.22.2 (Git 0a1b2c3)'\n")
+                      .arg(askedRetroArch).toUtf8());
+        writeFile(libretro::downloadedCore(data.path()), "core");
+        const QString coreInfo = data.path() + QStringLiteral("/bin/coreinfo");
+        writeFile(coreInfo, QStringLiteral("#!/bin/sh\necho \"$2\" >> '%1'\n"
+                                           "printf 'name=FinalBurn Neo\\nversion=v1.0.0.03 6e7c2a1\\n'\n")
+                                .arg(askedCore).toUtf8());
+        for (const char *program : { "/bin/retroarch", "/bin/coreinfo" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const auto lines = [](const QString &path) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
+        };
+        const QString kept = data.path() + QStringLiteral("/arcade/engine-versions.json");
+        // A run: online play on, the lobby (not reached) looked at.
+        const auto run = [&](const std::function<void(ArcadeBackend &)> &then) {
+            ArcadeBackend arcade(data.path(), data.path(), nullptr, nullptr);
+            arcade.setLobbyUrl(QUrl(QStringLiteral("http://127.0.0.1:9/list")));
+            arcade.setCoreInfoCommand({ coreInfo, QStringLiteral("--core-info") });
+            arcade.setVersionReadTimeout(3000);
+            arcade.onSettingChanged(QStringLiteral("com.osdos.arcade"), QStringLiteral("online_play"), QStringLiteral("On"));
+            arcade.refreshRooms();
+            then(arcade);
+            // Its file written (off the app's thread) before the next run.
+            QThreadPool::globalInstance()->waitForDone();
+        };
+        const auto ours = [](ArcadeBackend &arcade, const char *key) {
+            return arcade.lobby().value(QLatin1String(key)).toString();
+        };
+
+        run([&](ArcadeBackend &arcade) {
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourRetroArchState"), QStringLiteral("read"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourCoreState"), QStringLiteral("read"), 5000);
+        });
+        QCOMPARE(lines(askedRetroArch), 1);
+        QCOMPARE(lines(askedCore), 1);
+        QVERIFY(QFileInfo::exists(kept));
+
+        // The next run: read at once, nothing asked.
+        run([&](ArcadeBackend &arcade) {
+            QCOMPARE(ours(arcade, "yourRetroArchState"), QStringLiteral("read"));
+            QCOMPARE(ours(arcade, "yourRetroArch"), QStringLiteral("1.22.2"));
+            QCOMPARE(ours(arcade, "yourCoreState"), QStringLiteral("read"));
+            QCOMPARE(ours(arcade, "yourCore"), QStringLiteral("v1.0.0.03 6e7c2a1"));
+            QTest::qWait(300);
+        });
+        QCOMPARE(lines(askedRetroArch), 1);
+        QCOMPARE(lines(askedCore), 1);
+
+        // The core replaced (another size): asked again; RetroArch kept.
+        writeFile(libretro::downloadedCore(data.path()), "a newer core");
+        run([&](ArcadeBackend &arcade) {
+            QCOMPARE(ours(arcade, "yourRetroArch"), QStringLiteral("1.22.2"));
+            QCOMPARE(ours(arcade, "yourCoreState"), QStringLiteral("reading"));
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourCoreState"), QStringLiteral("read"), 5000);
+        });
+        QCOMPARE(lines(askedRetroArch), 1);
+        QCOMPARE(lines(askedCore), 2);
+        run([](ArcadeBackend &) {});
+        QCOMPARE(lines(askedCore), 2);
+
+        // A kept file that can't be read: everything asked again.
+        writeFile(kept, "{ \"version\": 1, \"retroarch\": ");
+        run([&](ArcadeBackend &arcade) {
+            QCOMPARE(ours(arcade, "yourRetroArchState"), QStringLiteral("reading"));
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourRetroArchState"), QStringLiteral("read"), 5000);
+            QTRY_COMPARE_WITH_TIMEOUT(ours(arcade, "yourCoreState"), QStringLiteral("read"), 5000);
+        });
+        QCOMPARE(lines(askedRetroArch), 2);
+        QCOMPARE(lines(askedCore), 3);
+        // And written whole again.
+        QCOMPARE(QJsonDocument::fromJson([&] { QFile f(kept); f.open(QIODevice::ReadOnly); return f.readAll(); }())
+                     .object().value(QStringLiteral("retroarch")).toObject().value(QStringLiteral("version")).toString(),
+                 QStringLiteral("1.22.2"));
     }
 
     // A game started while MAME is asked about the sets stops that MAME and

@@ -15,7 +15,10 @@ class QThread;
 // <base>.<extension> only when complete. An existing good file survives failure.
 // The target name is chosen once
 // the server's reply says what the file is (its Content-Disposition name,
-// else its type). A transfer that stops moving for half a minute fails. The
+// else its type). A transfer that stops moving for half a minute fails, and
+// so does one that runs more than a megabyte past the size the server
+// announced, or that would leave less than 200 MB free on the folder's volume
+// (checked as it starts and every 16 MB written). The
 // server's own TLS allowances apply (SslErrors.h). Reports on the app's
 // thread; deletes itself once it has.
 //
@@ -30,10 +33,15 @@ public:
     // Ends it and removes the part file; finished() doesn't follow.
     void cancel();
 
+    // For tests: the free space a download must leave (200 MB; a negative
+    // value brings that back).
+    static void setFreeSpaceFloor(qint64 bytes);
+
 signals:
     void progress(int percent);
     // reason is "not allowed" for a 401 or 403, else the network's error, or
-    // why the file couldn't be written. mayPass says a failure may pass by
+    // why the file couldn't be written ("larger than the server said it
+    // was", "not enough free space: less than 200 MB would be left"). mayPass says a failure may pass by
     // itself, so that trying again later is worth it: the network's, or the
     // server's own trouble (a 5xx), not what the server refuses or hasn't (a
     // 4xx), nor a file that couldn't be written.

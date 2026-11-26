@@ -10,10 +10,11 @@
 #include <QTest>
 #include <QVariantMap>
 
-// Settings → System's Time Zone, Keyboard and SSH (SystemSettings), on a
-// stand-in for the system's files (OSDOS_SYSTEM_ROOT) and for
+// Settings → System's Time Zone, Keyboard, SSH and Firewall (SystemSettings),
+// on a stand-in for the system's files (OSDOS_SYSTEM_ROOT) and for
 // osdos-system.socket: what the system has, the zones and layouts offered,
-// and a new one, or SSH on or off, sent as osdos-stop takes it.
+// and a new one, or SSH or the firewall on or off, sent as osdos-stop takes
+// it.
 class SystemSettingsTest : public QObject {
     Q_OBJECT
     QTemporaryDir m_root;
@@ -327,8 +328,11 @@ private slots:
         QVERIFY(!settings.setSsh(false));
         QVERIFY(asked.isEmpty());
 
-        // On, with no password for the app's user (the helper's word) and no
-        // key: said why nobody can sign in yet.
+        // On, with no password that logs in (the helper's word: the app's
+        // user has none, or sshd takes none) and no key: said why nobody can
+        // sign in yet, in so many words.
+        const QString kNoWayIn =
+            QStringLiteral("No way in yet: give a key, or a password with Password Login, on OSD/OS Setup");
         reply = "ok no-password\n";
         QSignalSpy busy(&settings, &SystemSettings::busyChanged);
         QVERIFY(settings.setSsh(true));
@@ -341,7 +345,7 @@ private slots:
         QCOMPARE(asked, QByteArrayList({ "ssh on\n" }));
         QVERIFY(settings.ssh());
         QCOMPARE(settings.message(), QStringLiteral("SSH on"));
-        QCOMPARE(settings.sshNote(), QStringLiteral("Set a password or a key with OSD/OS Setup first"));
+        QCOMPARE(settings.sshNote(), kNoWayIn);
         QVERIFY(!settings.setSsh(true));
         QCOMPARE(asked.size(), 1);
         // A key in ~/.ssh/authorized_keys (a comment and a line that isn't
@@ -352,13 +356,36 @@ private slots:
         keys.write("# none yet\nnot a key\n");
         keys.close();
         settings.refresh();
-        QCOMPARE(settings.sshNote(), QStringLiteral("Set a password or a key with OSD/OS Setup first"));
+        QCOMPARE(settings.sshNote(), kNoWayIn);
         QVERIFY(keys.open(QIODevice::Append));
         keys.write("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented den@laptop\n");
         keys.close();
         settings.refresh();
         QCOMPARE(settings.sshNote(), QString());
         QVERIFY(keys.remove());
+        // A key with options before it (restrict, from="…") is a way in too,
+        // and so is one in authorized_keys2, which Debian's sshd reads; a
+        // key commented out and a type with too little after it aren't.
+        QVERIFY(keys.open(QIODevice::WriteOnly));
+        keys.write("# ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented old\nssh-ed25519 AAAA\n");
+        keys.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), kNoWayIn);
+        QVERIFY(keys.open(QIODevice::Append));
+        keys.write("restrict,from=\"192.168.1.0/24\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIinvented den@laptop\n");
+        keys.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), QString());
+        QVERIFY(keys.remove());
+        QFile keys2(home.path() + QStringLiteral("/.ssh/authorized_keys2"));
+        QVERIFY(keys2.open(QIODevice::WriteOnly));
+        keys2.write("ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYinvented attic\n");
+        keys2.close();
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), QString());
+        QVERIFY(keys2.remove());
+        settings.refresh();
+        QCOMPARE(settings.sshNote(), kNoWayIn);
 
         // Off: nothing to say.
         reply = "ok\n";
@@ -400,6 +427,146 @@ private slots:
         qunsetenv("OSDOS_LAUNCHER_API");
         qunsetenv("OSDOS_RUN_DIR");
         qputenv("HOME", homeBefore);
+    }
+
+    // The firewall: on when systemd starts osdos-firewall.service (its link
+    // in multi-user.target.wants), only where the helper is, from launcher
+    // API 12; dimmed with why under it, without its unit or without nft;
+    // "firewall on" or "firewall off" sent; and, on, why it is on in name
+    // alone while its rules aren't in force (no /run/osdos-firewall).
+    void firewall() {
+        const QString unit = QStringLiteral("/etc/systemd/system/osdos-firewall.service");
+        write(unit, "[Unit]\nDescription=OSD/OS firewall\n");
+        write(QStringLiteral("/usr/sbin/nft"), "#!/bin/sh\n");
+        const QString wants = m_root.path() + QStringLiteral("/etc/systemd/system/multi-user.target.wants/osdos-firewall.service");
+        const QString loaded = m_root.path() + QStringLiteral("/run/osdos-firewall");
+        QVERIFY(QDir().mkpath(QFileInfo(wants).path()));
+        const auto enable = [this, &wants, &loaded, &unit](bool on) {
+            QFile::remove(wants);
+            QDir(loaded).removeRecursively();
+            if (on) {
+                QFile::link(m_root.path() + unit, wants);
+                QDir().mkpath(loaded);
+            }
+        };
+
+        // Off the image: off, whatever the system has, and nothing asked.
+        enable(true);
+        {
+            SystemSettings settings;
+            QVERIFY(!settings.available());
+            QVERIFY(!settings.firewall());
+            QCOMPARE(settings.firewallOff(), QString());
+            QVERIFY(!settings.setFirewall(false));
+            QVERIFY(!settings.setFirewall(true));
+            QVERIFY(!settings.busy());
+        }
+
+        QTemporaryDir run;
+        QVERIFY(run.isValid());
+        qputenv("OSDOS_RUN_DIR", run.path().toUtf8());
+        QLocalServer server;
+        QVERIFY(server.listen(run.path() + QStringLiteral("/osdos-system.sock")));
+
+        // A launcher at level 11, its helper older than the firewall: SSH
+        // can be set, the firewall shows what systemd has, dimmed with why,
+        // and nothing is asked of the helper.
+        qputenv("OSDOS_LAUNCHER_API", "11");
+        {
+            SystemSettings settings;
+            QVERIFY(settings.available());
+            QCOMPARE(settings.sshOff(), QString());
+            QVERIFY(settings.firewall());
+            QVERIFY(settings.firewallOff().startsWith(QStringLiteral("The card's system is older than the app")));
+            QVERIFY(!settings.setFirewall(false));
+            QVERIFY(!settings.busy());
+            QCoreApplication::processEvents();
+            QVERIFY(!server.hasPendingConnections());
+        }
+        qputenv("OSDOS_LAUNCHER_API", "12");
+        // No nft, or no unit (a system set up before it): nothing to turn on.
+        QVERIFY(QFile::rename(m_root.path() + QStringLiteral("/usr/sbin/nft"), m_root.path() + QStringLiteral("/usr/sbin/nft.away")));
+        {
+            SystemSettings settings;
+            QCOMPARE(settings.firewallOff(), QStringLiteral("nftables isn't installed on this system"));
+            QVERIFY(!settings.firewall());
+            QVERIFY(!settings.setFirewall(false));
+        }
+        QVERIFY(QFile::rename(m_root.path() + QStringLiteral("/usr/sbin/nft.away"), m_root.path() + QStringLiteral("/usr/sbin/nft")));
+        QVERIFY(QFile::rename(m_root.path() + unit, m_root.path() + unit + QStringLiteral(".away")));
+        {
+            SystemSettings settings;
+            QCOMPARE(settings.firewallOff(), QStringLiteral("The firewall isn't installed on this system: install.sh installs it"));
+            QVERIFY(!settings.firewall());
+        }
+        QVERIFY(QFile::rename(m_root.path() + unit + QStringLiteral(".away"), m_root.path() + unit));
+
+        QByteArrayList asked;
+        QByteArray reply = "ok\n";
+        connect(&server, &QLocalServer::newConnection, &server, [&server, &asked, &reply, &enable] {
+            QLocalSocket *socket = server.nextPendingConnection();
+            connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
+            connect(socket, &QLocalSocket::readyRead, socket, [socket, &asked, &reply, &enable] {
+                if (!socket->canReadLine())
+                    return;
+                asked << socket->readLine();
+                // The service as systemctl would leave it.
+                if (reply.startsWith("ok"))
+                    enable(asked.last() == "firewall on\n");
+                socket->write(reply);
+                socket->flush();
+                socket->disconnectFromServer();
+            });
+        });
+
+        // What systemd has: on, its rules in force, then off once read again.
+        SystemSettings settings;
+        QVERIFY(settings.available());
+        QCOMPARE(settings.firewallOff(), QString());
+        QVERIFY(settings.firewall());
+        QCOMPARE(settings.firewallNote(), QString());
+        QSignalSpy changed(&settings, &SystemSettings::changed);
+        enable(false);
+        settings.refresh();
+        QVERIFY(!settings.firewall());
+        QCOMPARE(changed.size(), 1);
+        // As the system has it already: nothing sent.
+        QVERIFY(!settings.setFirewall(false));
+        QVERIFY(asked.isEmpty());
+
+        // On: sent, one at a time, and as the system has it after.
+        QVERIFY(settings.setFirewall(true));
+        QVERIFY(settings.busy());
+        QVERIFY(!settings.setFirewall(false));
+        QVERIFY(!settings.setSsh(true));
+        QTRY_VERIFY(!settings.busy());
+        QCOMPARE(asked, QByteArrayList({ "firewall on\n" }));
+        QVERIFY(settings.firewall());
+        QCOMPARE(settings.message(), QStringLiteral("Firewall on"));
+        QCOMPARE(settings.firewallNote(), QString());
+        // Enabled, but its rules not in force (the unit failed): said.
+        QDir(loaded).removeRecursively();
+        settings.refresh();
+        QVERIFY(settings.firewall());
+        QVERIFY(settings.firewallNote().startsWith(QStringLiteral("Its rules aren't loaded")));
+        // Off.
+        QVERIFY(settings.setFirewall(false));
+        QTRY_VERIFY(!settings.busy());
+        QCOMPARE(asked.last(), QByteArray("firewall off\n"));
+        QVERIFY(!settings.firewall());
+        QCOMPARE(settings.firewallNote(), QString());
+        QCOMPARE(settings.message(), QStringLiteral("Firewall off"));
+        // Refused: why, on what it had.
+        reply = "its rules couldn't be loaded\n";
+        QVERIFY(settings.setFirewall(true));
+        QTRY_VERIFY(!settings.busy());
+        QVERIFY(!settings.firewall());
+        QCOMPARE(settings.message(), QStringLiteral("Firewall not turned on: its rules couldn't be loaded"));
+        QCOMPARE(asked.size(), 3);
+
+        server.close();
+        qunsetenv("OSDOS_LAUNCHER_API");
+        qunsetenv("OSDOS_RUN_DIR");
     }
 };
 

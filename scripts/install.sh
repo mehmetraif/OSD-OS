@@ -303,7 +303,9 @@ INSTALL_DIR="/opt/osdos"
 #    osdos-system.socket, so Settings → System offers Time Zone and Keyboard.
 # 11: osdos-stop also sets the CPU's governor for an arcade game and puts it
 #    back after, through osdos-game.socket, so the Arcade module asks for it.
-export OSDOS_LAUNCHER_API=11
+# 12: osdos-stop also turns the firewall (osdos-firewall.service) on and off
+#    through osdos-system.socket, so Settings → System offers Firewall.
+export OSDOS_LAUNCHER_API=12
 
 # ── Apply a staged in-app update ───────────────────────────────────────────────
 # The app downloads the release tarball to DATA_ROOT/updates and writes
@@ -521,16 +523,24 @@ sudo chmod +x "${LAUNCHER}"
 # Wi-Fi without power saving (NetworkManager's osdos-wifi-powersave.conf), and
 # a network game's packets marked CS4 for Wi-Fi's video queue
 # (osdos-netplay-priority.service, with the rules nft reads), as the OSD/OS
-# image has them: the image's own files, os/stage-osdos/02-system/files at
-# this release's tag, never a copy of their text here. On a desktop Pi too,
-# which then keeps its Wi-Fi awake as well. A release from before them, or no
-# answer from GitHub, leaves the system as it is, and says so.
+# image has them, and the image's inbound filter, installed but off (below):
+# the image's own files (os/stage-osdos/02-system/files),
+# never a copy of their text here, taken from the release's tarball
+# (share/osdos/system, CMakeLists.txt), which was checked against GitHub's
+# digest above: nothing a root unit is made of comes unchecked from the
+# network. On a desktop Pi too, which then keeps its Wi-Fi awake as well. A
+# release whose tarball doesn't carry them (one from before) leaves the system
+# as it is, and says so.
 # NETWORK_FILES_BEGIN
-IMAGE_FILES="https://raw.githubusercontent.com/${REPO}/${VERSION}/os/stage-osdos/02-system/files"
 NETWORK_DIR="${TMP_DIR}/image-files"
 mkdir -p "${NETWORK_DIR}"
+# The tarball's own members, ./usr/local/share/osdos/system/<file>, read
+# from the checked download, not from what was unpacked into INSTALL_DIR,
+# which the app's user can write.
+tar -xzf "${TMP_DIR}/${TARBALL}" -C "${NETWORK_DIR}" --no-same-owner --strip-components=6 \
+    --wildcards './usr/local/share/osdos/system/*' 2> /dev/null || true
 network_file() {
-    curl -fsSL --retry 3 -o "${NETWORK_DIR}/$1" "${IMAGE_FILES}/$1" && [ -s "${NETWORK_DIR}/$1" ]
+    [ -f "${NETWORK_DIR}/$1" ] && [ ! -L "${NETWORK_DIR}/$1" ] && [ -s "${NETWORK_DIR}/$1" ]
 }
 if network_file osdos-wifi-powersave.conf; then
     # From the next connection, or the next start.
@@ -538,7 +548,7 @@ if network_file osdos-wifi-powersave.conf; then
         /etc/NetworkManager/conf.d/osdos-wifi-powersave.conf
     echo "Wi-Fi's power saving is off from the next connection."
 else
-    echo "Warning: osdos-wifi-powersave.conf couldn't be read from ${VERSION}: Wi-Fi's power saving is left as it is." >&2
+    echo "Warning: ${TARBALL} has no osdos-wifi-powersave.conf (a release from before it): Wi-Fi's power saving is left as it is." >&2
 fi
 if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priority.service; then
     sudo apt-get install -y nftables || echo "Warning: nftables couldn't be installed: network games' packets go unmarked." >&2
@@ -549,7 +559,25 @@ if network_file osdos-netplay-priority.nft && network_file osdos-netplay-priorit
     sudo systemctl restart osdos-netplay-priority.service \
         || echo "Warning: osdos-netplay-priority.service didn't start: network games' packets go unmarked (journalctl -u osdos-netplay-priority)." >&2
 else
-    echo "Warning: the network game's marking couldn't be read from ${VERSION}: its packets go unmarked." >&2
+    echo "Warning: ${TARBALL} has no network game's marking (a release from before it): its packets go unmarked." >&2
+fi
+# The image's inbound filter (osdos-firewall.service: only the home network's
+# addresses may connect), installed but left off: this system is its owner's,
+# who may run services for other networks on it. Settings → System → Firewall
+# turns it on. One turned on before is kept on, its rules read again in place.
+if network_file osdos-firewall.nft && network_file osdos-firewall.service; then
+    sudo install -D -m 644 "${NETWORK_DIR}/osdos-firewall.nft" /usr/lib/osdos/firewall.nft
+    sudo install -m 644 "${NETWORK_DIR}/osdos-firewall.service" /etc/systemd/system/osdos-firewall.service
+    sudo systemctl daemon-reload
+    sudo systemctl try-reload-or-restart osdos-firewall.service \
+        || echo "Warning: osdos-firewall.service's rules couldn't be read again (journalctl -u osdos-firewall)." >&2
+    if sudo systemctl is-enabled --quiet osdos-firewall.service; then
+        echo "The firewall stays on: only the home network can connect."
+    else
+        echo "The firewall is installed and off: Settings → System → Firewall turns it on."
+    fi
+else
+    echo "Warning: the firewall couldn't be read from ${VERSION}: Settings → System → Firewall can't turn it on." >&2
 fi
 # NETWORK_FILES_END
 
@@ -634,7 +662,7 @@ if [ -n "${SERVICE_USER}" ]; then
 # with wifi-country, by osdos-wifi.socket: Settings → Network → Wi-Fi's country; with
 # device-name, by osdos-name.socket: Settings → System → System Information's
 # Device Name; with system-setting, by osdos-system.socket: Settings → System's
-# Time Zone, Keyboard and SSH; with game, by osdos-game.socket: an arcade
+# Time Zone, Keyboard, SSH and Firewall; with game, by osdos-game.socket: an arcade
 # game's CPU governor, for the length of the game.
 
 # What comes in is read as the C locale reads it, whatever the system's
@@ -802,7 +830,7 @@ device_name() {
     echo ok
 }
 
-# Settings → System's Time Zone, Keyboard and SSH: a line from the app, through the
+# Settings → System's Time Zone, Keyboard, SSH and Firewall: a line from the app, through the
 # socket, "time-zone Europe/Istanbul" or "keyboard tr", and "ok" back, or why
 # not. A time zone only as the time zone database names one (letters, digits,
 # _ + and -, two slashes at most) and has one, a keyboard only as XKB names a
@@ -814,12 +842,26 @@ device_name() {
 # started, or disabled and stopped, now and for every start after. Only
 # whether it runs: the password, the keys and whether a password logs in
 # (/etc/ssh/sshd_config.d/00-osdos-setup.conf) stay as OSD/OS Setup's file
-# left them. Turned on, the answer is "ok no-password" where the app's user
-# (osdos.service's) has no password to log in with, for the app to say that
-# nobody can yet without a key; never the password, nor anything of it.
+# left them. Turned on, the answer is "ok no-password" where no password
+# can log in: the app's user (osdos.service's) has none, or sshd takes none
+# (its PasswordAuthentication no, as the image's own drop-in has it unless a
+# card or Raspberry Pi Imager says otherwise, and no keyboard-interactive
+# through PAM). The app, which can read its user's ~/.ssh where this unit
+# can't (ProtectHome=), then says nobody can sign in yet without a key.
+# Never the password, nor anything of it.
+# And the firewall, "firewall on" or "firewall off" and nothing else:
+# osdos-firewall.service (only the home network's addresses may connect)
+# enabled and started, or disabled and stopped, now and for every start
+# after; refused where its unit or nft isn't there. Only through systemctl:
+# this unit has no network of its own (PrivateNetwork=), and the rules are
+# the service's to load. The journal says what the system now lets in.
 ZONES=/usr/share/zoneinfo
 LAYOUTS=/usr/share/X11/xkb/symbols
 SHADOW=/etc/shadow
+SSHD=/usr/sbin/sshd
+SSH_DIR=/etc/ssh
+FIREWALL_UNIT=/etc/systemd/system/osdos-firewall.service
+NFT=/usr/sbin/nft
 # Whether the app's user has a password: its field of /etc/shadow neither
 # empty nor locked (! or *). Taken as yes where the user or the file can't
 # be told, so that nothing is said for want of knowing.
@@ -829,6 +871,66 @@ app_user_has_password() {
     [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] && [ -r "$SHADOW" ] || return 0
     awk -F: -v user="$user" '$1 == user { found = 1; usable = $2 != "" && $2 !~ /^[!*]/ }
                              END { exit !(usable || !found) }' "$SHADOW"
+}
+# The lines of sshd's configuration in the order sshd reads them, for when
+# sshd -T can't say: sshd_config, an Include's files where the line stands
+# (a name without a / is under /etc/ssh; a pattern's files in the order of
+# their names), three deep at most. A file's lines stop at its first Match,
+# whose settings hold for some connections only.
+sshd_config_lines() {
+    local line key words pattern file
+    [ -r "$1" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line#"${line%%[![:space:]]*}"}"
+        key="${line%%[[:space:]=]*}"
+        case "${key,,}" in
+            match) return 0 ;;
+            include)
+                [ "$2" -lt 3 ] || continue
+                read -ra words <<< "${line:${#key}}"
+                for pattern in "${words[@]}"; do
+                    [[ "$pattern" == /* ]] || pattern="$SSH_DIR/$pattern"
+                    while IFS= read -r file; do
+                        sshd_config_lines "$file" $(($2 + 1))
+                    done < <(compgen -G "$pattern" | sort)
+                done
+                ;;
+            *) printf '%s\n' "$line" ;;
+        esac
+    done < "$1"
+}
+# sshd's effective settings, "<keyword> <value>" a line, the keyword and the
+# value in lower case as sshd -T prints them: from sshd -T itself (no
+# connection named, so no Match applies), else from its files, the first
+# value read of each winning, as sshd keeps it.
+sshd_settings() {
+    if [ -x "$SSHD" ] && "$SSHD" -T < /dev/null 2> /dev/null; then
+        return
+    fi
+    sshd_config_lines "$SSH_DIR/sshd_config" 0 | awk '
+        {
+            n = match($0, /[ \t=]/)
+            if (n < 2) next
+            key = tolower(substr($0, 1, n - 1))
+            if (key == "challengeresponseauthentication") key = "kbdinteractiveauthentication"
+            value = substr($0, n)
+            sub(/^[ \t]*=?[ \t]*/, "", value)
+            sub(/[ \t].*/, "", value)
+            if (value != "" && !(key in seen)) { seen[key] = 1; print key, tolower(value) }
+        }'
+}
+# Whether sshd takes a password: PasswordAuthentication, or
+# keyboard-interactive through PAM, as it has them (OpenSSH's own defaults
+# where nothing says: yes, yes, and no PAM). Taken as yes where it can't be
+# told, so that nothing is said for want of knowing.
+sshd_setting() {  # keyword, the value where none is set
+    awk -v key="$1" -v otherwise="$2" '$1 == key { print $2; found = 1; exit }
+                                       END { if (!found) print otherwise }' <<< "$SSHD_SETTINGS"
+}
+sshd_takes_password() {
+    SSHD_SETTINGS="$(sshd_settings)"
+    [ "$(sshd_setting passwordauthentication yes)" != no ] && return 0
+    [ "$(sshd_setting kbdinteractiveauthentication yes)" != no ] && [ "$(sshd_setting usepam no)" = yes ]
 }
 system_setting() {
     local line what value
@@ -870,6 +972,28 @@ system_setting() {
                     ;;
             esac
             ;;
+        firewall)
+            case "$value" in
+                on|off) ;;
+                *) refuse "the firewall is only on or off"; return ;;
+            esac
+            [ -f "$FIREWALL_UNIT" ] || { refuse "the firewall isn't installed"; return; }
+            if [ "$value" = on ]; then
+                [ -x "$NFT" ] || { refuse "nftables isn't installed"; return; }
+                systemctl enable osdos-firewall.service < /dev/null >&2 || { refuse "systemctl couldn't enable it"; return; }
+                # Not left enabled for the next start when its rules can't be loaded now.
+                if ! systemctl start osdos-firewall.service < /dev/null >&2; then
+                    systemctl disable osdos-firewall.service < /dev/null >&2
+                    refuse "its rules couldn't be loaded"
+                    return
+                fi
+                echo "osdos-stop $MODE: firewall on: only the home network's addresses can connect" >&2
+            else
+                systemctl disable osdos-firewall.service < /dev/null >&2 || { refuse "systemctl couldn't disable it"; return; }
+                systemctl stop osdos-firewall.service < /dev/null >&2 || { refuse "it didn't stop"; return; }
+                echo "osdos-stop $MODE: firewall off: anything that reaches this device can connect" >&2
+            fi
+            ;;
         *)
             refuse "nothing this sets"
             return
@@ -877,7 +1001,7 @@ system_setting() {
     esac
     # On the card before the answer: the root file system only.
     sync -f /etc
-    if [ "$what" = ssh ] && [ "$value" = on ] && ! app_user_has_password; then
+    if [ "$what" = ssh ] && [ "$value" = on ] && { ! app_user_has_password || ! sshd_takes_password; }; then
         echo "ok no-password"
         return
     fi
@@ -1184,7 +1308,7 @@ STOP_HELPER
         "display|next-start|display output for the next start|Settings → Screen → Display Output"
         "wifi|wifi-country|Wi-Fi country|Settings → Network → Wi-Fi"
         "name|device-name|device name|Settings → System → System Information"
-        "system|system-setting|time zone and keyboard|Settings → System"
+        "system|system-setting|time zone, keyboard, SSH and firewall|Settings → System"
         "game|game|CPU governor for a game|Arcade"
     )
     # A request's socket, osdos-<name>.socket, from its line: @OSDOS_GROUP@ is

@@ -54,7 +54,10 @@ here=$(cd "$(dirname "$0")" && pwd)
 commit=$FBNEO_COMMIT
 date=$FBNEO_DATE
 
-patch -d "$src" -p1 -i "$here/fbneo-lan.patch"
+# With no fuzz: each hunk goes in with all of its context as the patch has
+# it, if at another line, or the build fails, so that a FinalBurn Neo raised
+# under the patch never takes a hunk where its surroundings have changed.
+patch -d "$src" -p1 --fuzz=0 -i "$here/fbneo-lan.patch"
 
 fbneo_make "$src" GIT_VERSION="${commit:0:7}-lan" GIT_DATE="$date"
 

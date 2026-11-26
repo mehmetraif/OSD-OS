@@ -9,11 +9,25 @@
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QStorageInfo>
 #include <QThread>
 #include <QUrl>
+#include <atomic>
 #include <memory>
 
 namespace {
+
+// How far past the size the server announced (Content-Length) a download may
+// run before it is stopped: a server's answer is that size, and one that
+// sends more (framing it otherwise, by chunks) would fill the card.
+constexpr qint64 kSizeMargin = qint64(1) << 20;
+// The free space a download leaves on its folder's volume at the least: the
+// card holds the system and the app's own data too. Checked as it starts,
+// against what is still to come where the server says, and again every
+// kFreeSpaceCheckBytes written.
+constexpr qint64 kDefaultFreeSpaceFloor = qint64(200) << 20;
+constexpr qint64 kFreeSpaceCheckBytes = qint64(16) << 20;
+std::atomic<qint64> g_freeSpaceFloor{ kDefaultFreeSpaceFloor };
 
 // What the server's reply says the file is: from its Content-Disposition
 // name, else its type.
@@ -84,10 +98,32 @@ signals:
     void done(bool ok, const QString &finalPath, const QString &reason, bool mayPass);
 
 private:
+    // Whether writing still more (of what the server says is to come)
+    // leaves the folder's volume its floor of free space; else why not, in
+    // m_writeError. A volume whose free space can't be read isn't held up.
+    bool leavesFloor(qint64 more) {
+        const qint64 floor = g_freeSpaceFloor.load();
+        QStorageInfo volume(QFileInfo(m_finalPath).absolutePath());
+        volume.refresh();
+        if (!volume.isValid() || volume.bytesAvailable() < 0 || volume.bytesAvailable() - more >= floor)
+            return true;
+        m_writeError = QStringLiteral("not enough free space: less than %1 MB would be left").arg(floor >> 20);
+        return false;
+    }
+
     bool writePending() {
         if (!m_writeError.isEmpty()) return false;
         if (!m_file) {
             m_finalPath = m_base + QLatin1Char('.') + extensionOf(m_reply);
+            // The size the server says, where it says it of the bytes that
+            // come: a reply it compresses (Content-Encoding) is larger once
+            // unpacked than it says.
+            const QVariant length = m_reply->header(QNetworkRequest::ContentLengthHeader);
+            const QByteArray encoding = m_reply->rawHeader("Content-Encoding").trimmed().toLower();
+            if (length.isValid() && (encoding.isEmpty() || encoding == "identity"))
+                m_announced = std::max<qint64>(0, length.toLongLong());
+            if (!leavesFloor(std::max<qint64>(0, m_announced)))
+                return false;
             m_file = std::make_unique<QSaveFile>(m_finalPath);
             if (!m_file->open(QIODevice::WriteOnly)) {
                 m_writeError = m_file->errorString();
@@ -95,10 +131,20 @@ private:
             }
         }
         const QByteArray bytes = m_reply->readAll();
+        if (m_announced >= 0 && m_written + bytes.size() > m_announced + kSizeMargin) {
+            m_writeError = QStringLiteral("larger than the server said it was");
+            return false;
+        }
+        if (m_written + bytes.size() - m_checkedAt >= kFreeSpaceCheckBytes) {
+            m_checkedAt = m_written + bytes.size();
+            if (!leavesFloor(bytes.size() + std::max<qint64>(0, m_announced - m_checkedAt)))
+                return false;
+        }
         if (m_file->write(bytes) != bytes.size()) {
             m_writeError = m_file->errorString();
             return false;
         }
+        m_written += bytes.size();
         return true;
     }
 
@@ -144,6 +190,9 @@ private:
     std::unique_ptr<QSaveFile> m_file;
     QString m_finalPath;
     QString m_writeError;
+    qint64 m_announced = -1;   // the server's Content-Length; -1 where it says none
+    qint64 m_written = 0;
+    qint64 m_checkedAt = 0;    // m_written as the free space was last looked at
     QNetworkAccessManager *m_nam = nullptr;
     QNetworkReply *m_reply = nullptr;
     bool m_completed = false;
@@ -188,6 +237,10 @@ ServerDownload *ServerDownload::start(const QNetworkRequest &request, const QStr
     connect(worker, &Worker::done, thread, &QThread::quit, Qt::QueuedConnection);
     thread->start();
     return download;
+}
+
+void ServerDownload::setFreeSpaceFloor(qint64 bytes) {
+    g_freeSpaceFloor.store(bytes < 0 ? kDefaultFreeSpaceFloor : bytes);
 }
 
 void ServerDownload::cancel() {

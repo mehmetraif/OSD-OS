@@ -18,5 +18,6 @@ fluidsynth timgm6mb-soundfont openmpt123
 # so it stays.
 polkitd
 # nftables, which marks a network game's packets for Wi-Fi's video queue
-# (osdos-netplay-priority.service, 02-system), as install.sh installs it.
+# (osdos-netplay-priority.service, 02-system) and keeps out what doesn't come
+# from the home network (osdos-firewall.service), as install.sh installs it.
 nftables

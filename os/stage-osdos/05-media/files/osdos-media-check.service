@@ -1,0 +1,28 @@
+[Unit]
+Description=Check the OSD-OS film partition if it was left untidy
+# In place of a pass in /etc/fstab, which ran systemd-fsck@ and so a full
+# fsck.exfat at every boot, the app waiting for it: media-check reads the
+# boot sector's VolumeDirty flag and checks the partition only when it is set
+# (switched off at the wall mid-write) or the sector isn't exFAT's. Started by
+# the mount (media-OSD\x2dOS.mount.wants), and ordered before it.
+#
+# As systemd-fsck@ was: bound to the partition's device (by its label, as
+# /etc/fstab names it), so a card without the partition never runs it, and the
+# app waits no longer than the mount's 3 s device timeout; early in the boot,
+# after the root partition's own check; and never at shutdown.
+DefaultDependencies=no
+BindsTo=dev-disk-by\x2dlabel-OSD\x2dOS.device
+After=dev-disk-by\x2dlabel-OSD\x2dOS.device systemd-fsck-root.service local-fs-pre.target
+Before=media-OSD\x2dOS.mount shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# media-check always exits 0, and the mount wants this unit rather than
+# requiring it: whatever happens here, the partition is mounted as before.
+# It stops fsck after 10 minutes itself (the flag left set, so the next boot
+# checks again); this is the backstop.
+ExecStart=-/usr/lib/osdos/media-check /dev/disk/by-label/OSD-OS
+TimeoutStartSec=11min
+StandardOutput=journal

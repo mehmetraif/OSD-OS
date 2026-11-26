@@ -75,9 +75,12 @@ public:
     // `imageContent` for stills; `extraArgs`, mpv options of the player's
     // own; `extraUrls`, more of the playlist after `url`.
     Q_INVOKABLE void loadAndPlay(const QVariantMap &request);
-    // What a video inside the window needs, loaded ahead off the app's
-    // thread where videos play there (Transparent Background): libmpv and
-    // the libraries under it, which the first video otherwise waits for.
+    // What the first video needs, made ready ahead off the app's thread:
+    // what the mpv binary says of its options (--list-options, kept in the
+    // data folder's mpv-options.json by the binary's path, size and time),
+    // and where videos play inside the window (Transparent Background)
+    // libmpv and the libraries under it. A video that starts first waits for
+    // what it needs, as it would without this.
     void warmUp();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seekTo(int positionMs);
