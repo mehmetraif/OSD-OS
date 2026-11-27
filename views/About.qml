@@ -170,6 +170,13 @@ FocusScope {
           description: "Unpacks the MAME and RetroArch for Windows downloaded from their releases, 7z archives: the"
                        + " LZMA SDK's decoder by Igor Pavlov, 7-zip.org/sdk.html • In the public domain • {select}"
                        + " The notice's text" },
+        { key: "switchres", label: "Switchres", value: "GPL v2+", license: "assets/licenses/GPL-2.0.txt",
+          licenseName: "GNU General Public License, version 2 or later",
+          description: "How a game's own video mode is worked out for a 15 kHz arcade monitor (Emulator Video's"
+                       + " Game's Own Mode, osdos-modetest): Switchres's arithmetic and its arcade_15 monitor, by"
+                       + " Chris Kennedy, Antonio Giner, Alexandre Wodarczyk and Gil Delescluse,"
+                       + " github.com/antonioginer/switchres • Free software under the GNU General Public License,"
+                       + " version 2 or later • {select} The license's text" },
         { key: "achievements", label: "RetroAchievements", value: "retroachievements.org",
           description: "Leaderboards and hardcore play for the games FinalBurn Neo plays, with your own account,"
                        + " read through its Web API, and the games' pictures and the achievements' badges from its"

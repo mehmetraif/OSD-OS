@@ -5,8 +5,11 @@ OSD/OS uses. The GNU GPL v3 is OSD/OS's own `LICENSE`; these are the others,
 which ship with every build:
 
 - `GPL-2.0.txt`: the GNU General Public License, version 2, for MAME (version
-  2 or later), hi2txt's game definitions and the 240p Test Suite's pictures
-  in Settings → Screen → Test Patterns (version 2 or later, `assets/testpatterns`).
+  2 or later), hi2txt's game definitions, the 240p Test Suite's pictures
+  in Settings → Screen → Test Patterns (version 2 or later, `assets/testpatterns`)
+  and Switchres (version 2 or later), whose arithmetic for a game's own video
+  mode `src/modetest/GameMode.cpp` has, written again for the one case
+  OSD/OS needs, with its `arcade_15` monitor range.
 - `RapidXML.txt`: RapidXML's, the Boost Software License 1.0 or the MIT
   License, as in `thirdparty/openhi2txt/thirdparty/rapidxml-1.13/LICENSE`.
 - `zlib.txt`: minizip's and zlib's notices, under the zlib License.
