@@ -22,6 +22,17 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+// The menu music playing with its stand-in's starts on record. QProcess says a
+// process runs before the stand-in, a shell script, has written its "start"
+// line, so a test that waited for playing() alone and then held the music
+// off, or counted the starts at once, ran ahead of the script on a slow
+// machine: the script was ended before its line, or the count came one short.
+#define TRY_PLAYING_ON_RECORD(count, timeout) \
+    do { \
+        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), timeout); \
+        QTRY_COMPARE_WITH_TIMEOUT(starts().size(), count, timeout); \
+    } while (false)
+
 static const char kStandIn[] = R"(#!/bin/sh
 log="$FAKE_MPV_LOG"
 media=""
@@ -173,7 +184,7 @@ private slots:
     void holdStopsAtOnce() {
         m_music->setSource(m_tune);
         m_music->setWanted(true);
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        TRY_PLAYING_ON_RECORD(1, 3000);
         QElapsedTimer held;
         held.start();
         MenuMusic::hold(QStringLiteral("video"));
@@ -193,7 +204,7 @@ private slots:
     void holdsAddUp() {
         m_music->setSource(m_tune);
         m_music->setWanted(true);
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        TRY_PLAYING_ON_RECORD(1, 3000);
         MenuMusic::hold(QStringLiteral("a"));
         MenuMusic::hold(QStringLiteral("b"));
         MenuMusic::release(QStringLiteral("a"));
@@ -238,8 +249,7 @@ private slots:
         QTest::qWait(2500);
         QCOMPARE(starts().size(), 1);
         QVERIFY(soundCard(true));
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 5000);
-        QCOMPARE(starts().size(), 2);
+        TRY_PLAYING_ON_RECORD(2, 5000);
     }
 
     // A tune given up on is tried once more on another sound card (Settings →
@@ -252,8 +262,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(m_music->findChildren<QProcess *>().isEmpty(), 3000);
         qputenv("FAKE_MPV_MODE", "play");
         m_music->restart();
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
-        QCOMPARE(starts().size(), 2);
+        TRY_PLAYING_ON_RECORD(2, 3000);
     }
 
     // A MIDI file: FluidSynth makes it into a WAV with the SoundFont beside
@@ -453,7 +462,7 @@ private slots:
     void ambientAudioEndingOnItsOwn() {
         m_music->setSource(m_tune);
         m_music->setWanted(true);
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        TRY_PLAYING_ON_RECORD(1, 3000);
         AmbientModeBackend ambient(m_dir.path() + QStringLiteral("/data"));
         // Its environment is taken as it starts: the menu music's next mpv plays.
         qputenv("FAKE_MPV_MODE", "fail");
@@ -462,8 +471,7 @@ private slots:
         QVERIFY(!m_music->playing());
         QTRY_COMPARE_WITH_TIMEOUT(starts().size(), 2, 3000);
         QTRY_VERIFY_WITH_TIMEOUT(ambient.findChildren<QProcess *>().isEmpty(), 3000);
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
-        QCOMPARE(starts().size(), 3);
+        TRY_PLAYING_ON_RECORD(3, 3000);
     }
 
     // Weather's music stopped twice (for the setup screen, then as the module
@@ -472,7 +480,7 @@ private slots:
     void weatherMusicStoppedTwice() {
         m_music->setSource(m_tune);
         m_music->setWanted(true);
-        QTRY_VERIFY_WITH_TIMEOUT(m_music->playing(), 3000);
+        TRY_PLAYING_ON_RECORD(1, 3000);
         WeatherBackend weather(m_dir.path(), m_dir.path() + QStringLiteral("/data"));
         // Its environment is taken as it starts: an mpv that won't go when
         // asked, killed after the grace (a second).
