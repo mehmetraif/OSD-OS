@@ -371,6 +371,25 @@ if(CMAKE_SYSTEM_NAME MATCHES "^(Linux|FreeBSD|OpenBSD)$")
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 endif()
 
+# osdos_keepmode: preloaded into an emulator started on a game's own video
+# mode (Settings → Arcade → Emulator Video → Game's Own Mode), it shows the
+# emulator each connector as listing the one mode its CRTC is on, so that it
+# keeps the mode OSD/OS set (src/modetest/KeepMode.c says what SDL2 and
+# RetroArch do otherwise). Beside the app, which finds it there, and
+# osdos-modetest, which preloads it into its --run's command. Linux only, as
+# the hand-off of the screen is, and no Qt.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    enable_language(C)
+    add_library(osdos_keepmode MODULE src/modetest/KeepMode.c)
+    set_target_properties(osdos_keepmode PROPERTIES
+        PREFIX ""
+        C_VISIBILITY_PRESET hidden
+        AUTOMOC OFF
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    target_include_directories(osdos_keepmode PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(osdos_keepmode PRIVATE ${CMAKE_DL_LIBS})
+endif()
+
 # ── macOS bundle metadata ──────────────────────────────────────────────────────
 set_target_properties(osdos PROPERTIES
     MACOSX_BUNDLE TRUE
@@ -463,6 +482,11 @@ else()
     endif()
     if(TARGET osdos_signin_libretro)
         install(TARGETS osdos_signin_libretro
+            LIBRARY DESTINATION "${OSDOS_INSTALL_BINDIR}"
+            COMPONENT Runtime)
+    endif()
+    if(TARGET osdos_keepmode)
+        install(TARGETS osdos_keepmode
             LIBRARY DESTINATION "${OSDOS_INSTALL_BINDIR}"
             COMPONENT Runtime)
     endif()

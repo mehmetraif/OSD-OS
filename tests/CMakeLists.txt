@@ -366,6 +366,33 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ENVIRONMENT "OSDOS_MODETEST_DRI=${CMAKE_CURRENT_BINARY_DIR}/no-dri"
         PASS_REGULAR_EXPRESSION "no screen to test on: no DPI output is showing a picture")
 
+    # osdos_keepmode.so (src/modetest/KeepMode.c), which an emulator started
+    # on a game's own mode is preloaded with: against a stand-in for libdrm
+    # (keepmode_fake_drm.c, built as a libdrm.so.2 of its own), a connector
+    # lists the one mode its CRTC is on, and one whose CRTC shows nothing is
+    # left as it is; and without the library, every connector is as the
+    # stand-in has it, which is what tells the two apart.
+    add_library(osdos_keepmode MODULE ../src/modetest/KeepMode.c)
+    set_target_properties(osdos_keepmode PROPERTIES PREFIX "" C_VISIBILITY_PRESET hidden AUTOMOC OFF)
+    target_include_directories(osdos_keepmode PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(osdos_keepmode PRIVATE ${CMAKE_DL_LIBS})
+    add_library(keepmode_fake_drm SHARED keepmode_fake_drm.c)
+    set_target_properties(keepmode_fake_drm PROPERTIES OUTPUT_NAME drm SOVERSION 2 AUTOMOC OFF
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/keepmode-drm")
+    target_include_directories(keepmode_fake_drm PRIVATE ${Libdrm_INCLUDE_DIRS})
+    add_executable(keepmode_test keepmode_test.c)
+    set_target_properties(keepmode_test PROPERTIES AUTOMOC OFF)
+    target_include_directories(keepmode_test PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(keepmode_test PRIVATE keepmode_fake_drm)
+    add_dependencies(keepmode_test osdos_keepmode)
+    add_test(NAME keepmode COMMAND keepmode_test kept)
+    set_tests_properties(keepmode PROPERTIES
+        ENVIRONMENT "LD_PRELOAD=$<TARGET_FILE:osdos_keepmode>;OSDOS_KEEPMODE_VERBOSE=1"
+        PASS_REGULAR_EXPRESSION "kept: every connector as expected"
+        FAIL_REGULAR_EXPRESSION "FAIL:;cannot be preloaded")
+    add_test(NAME keepmode_without COMMAND keepmode_test as-is)
+    set_tests_properties(keepmode_without PROPERTIES PASS_REGULAR_EXPRESSION "as-is: every connector as expected")
+
     # A release's notes (scripts/release-notes.sh) on a made-up history: the
     # commits since the previous tag under What's New, Changelog and Bug Fixes.
     add_test(NAME release_notes COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/release_notes_test.sh
