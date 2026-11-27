@@ -10,8 +10,10 @@
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/RecordFile.h"
 #include "modules/arcade/Mame.h"
+#include "modules/arcade/OwnMode.h"
 #include "modules/arcade/RetroAchievements.h"
 #include "modules/arcade/RomCheck.h"
+#include "modetest/GameMode.h"
 #include "util/DisplayHandoff.h"
 
 #include <QCryptographicHash>
@@ -97,7 +99,7 @@ class ArcadeTest : public QObject {
     // MAME as far as the module asks it: -listxml for the machines below
     // (exit 5 for a name it has none of, after the XML of those it has),
     // noted as asked and as answered, and a game, whose arguments, folder,
-    // display card and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
+    // display card, preloaded library and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
     // slowgame takes a second, as does asking about a_slowlist half of one;
     // any other game takes $MAME_SECONDS, and -listxml exits $MAME_LIST_LINGER
     // seconds after its answer, -verifyroms $MAME_VERIFY_LINGER after its
@@ -105,9 +107,9 @@ class ArcadeTest : public QObject {
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
-	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224"/><input players="2" coins="2"><control type="joy" player="1"/></input><dipswitch name="Coinage" tag="DSW1" mask="3"><dipvalue name="Free Play" value="0"/><dipvalue name="1C/1C" value="1" default="yes"/></dipswitch><dipswitch name="Difficulty" tag="DSW1" mask="64"><diplocation name="SW" number="7"/><dipvalue name="Normal" value="64" default="yes"/><dipvalue name="Hard" value="0"/></dipswitch><driver status="good"/></machine>' ;;
+	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224" refresh="60.606061"/><input players="2" coins="2"><control type="joy" player="1"/></input><dipswitch name="Coinage" tag="DSW1" mask="3"><dipvalue name="Free Play" value="0"/><dipvalue name="1C/1C" value="1" default="yes"/></dipswitch><dipswitch name="Difficulty" tag="DSW1" mask="64"><diplocation name="SW" number="7"/><dipvalue name="Normal" value="64" default="yes"/><dipvalue name="Hard" value="0"/></dipswitch><driver status="good"/></machine>' ;;
 	galaga) echo '<machine name="galaga" sourcefile="namco/galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
-	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><display tag="screen" type="raster" rotate="0" width="320" height="224"/><input players="2"/><driver status="good"/></machine>' ;;
+	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><display tag="screen" type="raster" rotate="0" width="320" height="224" refresh="59.185606"/><input players="2"/><driver status="good"/></machine>' ;;
 	neogeo) echo '<machine name="neogeo" isbios="yes"><description>Neo-Geo MV-6F</description><year>1990</year><manufacturer>SNK</manufacturer></machine>' ;;
 	xmen6p) echo '<machine name="xmen6p" sourcefile="konami/xmen.cpp" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
@@ -183,6 +185,7 @@ esac
 	echo "cwd $(pwd)"
 	echo "kms ${SDL_KMSDRM_DEVICE_INDEX:-}"
 	echo "alsa ${ALSA_CARD:-}"
+	echo "preload ${LD_PRELOAD:-}"
 	echo "labels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
 	echo "mappings ${SDL_GAMECONTROLLERCONFIG:-}"
 } >> "$MAME_LOG"
@@ -1219,6 +1222,234 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
         line = args("pacman");
         QVERIFY2(!line.contains(QStringLiteral("-rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
+    }
+
+    // Emulator Video → Game's Own Mode, the choice: a horizontal game of
+    // one screen whose lines and refresh rate a 15 kHz arcade monitor takes
+    // gets a mode of its own, 1920 across, the very modes osdos-modetest
+    // showed on the device; every other game gets none, with why, and stays
+    // on the mode the screen is on.
+    void ownModeOfAGame() {
+        const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
+        const auto machine = [](int width, int height, double refresh, int rotate = 0, int screens = 1) {
+            mame::Machine m;
+            m.width = width;
+            m.height = height;
+            m.refresh = refresh;
+            m.rotate = rotate;
+            m.screens = screens;
+            return m;
+        };
+        const auto mode = [&arcade15](const mame::Machine &m, bool turned = false) {
+            const mame::OwnMode own = mame::ownModeFor(m, arcade15, turned);
+            return own.mode ? QString::fromStdString(modetest::describe(*own.mode)) + QStringLiteral(" | ") + own.why
+                            : QStringLiteral("none: ") + own.why;
+        };
+        // A Neo Geo game, a CPS game, 240 lines at 57.55 Hz, R-Type, a
+        // 60 Hz game of 240 lines, and Pac-Man's board with a horizontal
+        // game on it: the tool's modes, as it named them on the device.
+        QCOMPARE(mode(machine(320, 224, 59.185606)),
+                 QStringLiteral("1920x224  15.684 kHz  59.19 Hz  39.132 MHz | its 320x224 at 59.185606 Hz"));
+        QCOMPARE(mode(machine(384, 224, 59.637405)),
+                 QStringLiteral("1920x224  15.625 kHz  59.64 Hz  38.953 MHz | its 384x224 at 59.637405 Hz"));
+        QCOMPARE(mode(machine(320, 240, 57.55)),
+                 QStringLiteral("1920x240  15.654 kHz  57.55 Hz  39.024 MHz | its 320x240 at 57.550000 Hz"));
+        QCOMPARE(mode(machine(384, 256, 55.017606)),
+                 QStringLiteral("1920x256  15.680 kHz  55.02 Hz  39.122 MHz | its 384x256 at 55.017606 Hz"));
+        QCOMPARE(mode(machine(320, 240, 60.0)),
+                 QStringLiteral("1920x240  15.660 kHz  60.00 Hz  39.040 MHz | its 320x240 at 60.000000 Hz"));
+        QCOMPARE(mode(machine(288, 224, 60.606061)),
+                 QStringLiteral("1920x224  15.636 kHz  60.61 Hz  38.981 MHz | its 288x224 at 60.606061 Hz"));
+        // Its width changes nothing: the mode is 1920 across for all.
+        QCOMPARE(mode(machine(256, 224, 59.185606)).section(QLatin1Char('|'), 0, 0),
+                 mode(machine(512, 224, 59.185606)).section(QLatin1Char('|'), 0, 0));
+        // A game flipped (rotate 180) is horizontal still; PAL's 288 lines
+        // at 50 Hz fit.
+        QVERIFY(mode(machine(320, 224, 59.185606, 180)).startsWith(QStringLiteral("1920x224 ")));
+        QVERIFY2(mode(machine(384, 288, 50.0)).startsWith(QStringLiteral("1920x288  15.6")), qPrintable(mode(machine(384, 288, 50.0))));
+
+        // A vertical game, either way up.
+        QCOMPARE(mode(machine(288, 224, 60.606061, 90)), QStringLiteral("none: a vertical game"));
+        QCOMPARE(mode(machine(288, 224, 60.606061, 270)), QStringLiteral("none: a vertical game"));
+        // A monitor turned on its side for the game.
+        QCOMPARE(mode(machine(320, 224, 59.185606), true), QStringLiteral("none: the monitor is turned on its side for it"));
+        // No figures (a vector game, a set MAME gave no display of), and a
+        // size without a rate (FinalBurn Neo's list alone).
+        QCOMPARE(mode(machine(0, 0, 0)), QStringLiteral("none: no screen size and refresh rate is known for it"));
+        QCOMPARE(mode(machine(0, 0, 60.0)), QStringLiteral("none: no screen size and refresh rate is known for it"));
+        QCOMPARE(mode(machine(384, 224, 0)),
+                 QStringLiteral("none: no refresh rate is known for it (MAME gives them, and has none for this set)"));
+        // More than a screen.
+        QCOMPARE(mode(machine(320, 224, 59.185606, 0, 2)), QStringLiteral("none: it has 2 screens"));
+        QCOMPARE(mode(machine(288, 224, 60.0, 0, 3)), QStringLiteral("none: it has 3 screens"));
+        // A 31 kHz game's 480 lines (and an interlaced game's), a 25 kHz
+        // game's 384, and too few lines for the monitor.
+        QCOMPARE(mode(machine(640, 480, 60.0)), QStringLiteral("none: its 480 lines are outside the monitor's 192 to 288"));
+        QCOMPARE(mode(machine(512, 384, 60.0)), QStringLiteral("none: its 384 lines are outside the monitor's 192 to 288"));
+        QCOMPARE(mode(machine(256, 160, 60.0)), QStringLiteral("none: its 160 lines are outside the monitor's 192 to 288"));
+        // Lines and a rate that together need more than 16.2 kHz, and a
+        // rate no such monitor holds.
+        QCOMPARE(mode(machine(256, 256, 60.0)),
+                 QStringLiteral("none: its 256 lines at 60.00 Hz need a line rate above the monitor's 16.200 kHz"));
+        QCOMPARE(mode(machine(640, 240, 30.0)), QStringLiteral("none: its 30.00 Hz is outside the monitor's 49.50 to 65.00 Hz"));
+        // No monitor named by the display output, or a line that isn't one.
+        QCOMPARE(mame::ownModeFor(machine(320, 224, 59.185606), QString(), false).why,
+                 QStringLiteral("the display output names no monitor's range"));
+        QVERIFY(!mame::ownModeFor(machine(320, 224, 59.185606), QString(), false).mode);
+        const mame::OwnMode bad = mame::ownModeFor(machine(320, 224, 59.185606), QStringLiteral("arcade_15"), false);
+        QVERIFY(!bad.mode);
+        QVERIFY2(bad.why.startsWith(QStringLiteral("the display output's monitor range isn't one (")), qPrintable(bad.why));
+
+        // What MAME is told on such a mode: the screen's shape as a tube's,
+        // the lines whole, no filter; Fit to Screen over the whole of it;
+        // BGFX's own word for no filter.
+        const mame::Machine mslug = machine(320, 224, 59.185606);
+        const auto told = [&mslug](const char *shape, bool fill, const char *video) {
+            return mame::ownModeArguments(mslug, 224, QLatin1String(shape), fill, QLatin1String(video)).join(QLatin1Char(' '));
+        };
+        QCOMPARE(told("4:3", false, ""), QStringLiteral("-aspect 4:3 -nounevenstretch -unevenstretchx -nofilter"));
+        QCOMPARE(told("", false, "opengl"), QStringLiteral("-aspect 4:3 -nounevenstretch -unevenstretchx -nofilter"));
+        QCOMPARE(told("16:9", false, "soft"), QStringLiteral("-aspect 16:9 -nounevenstretch -unevenstretchx -nofilter"));
+        QCOMPARE(told("4:3", true, ""), QStringLiteral("-nokeepaspect -nofilter"));
+        QCOMPARE(told("4:3", false, "bgfx"),
+                 QStringLiteral("-aspect 4:3 -nounevenstretch -unevenstretchx -nofilter -bgfx_screen_chains unfiltered"));
+        for (const char *never : { "-syncrefresh", "-switchres", "-resolution" })
+            QVERIFY2(!told("4:3", false, "bgfx").contains(QLatin1String(never)), never);
+    }
+
+    // Game's Own Mode in MAME: off, and on where it can do nothing, a game
+    // starts with the very arguments it has without it and the screen is
+    // never asked for a mode; on a Raspberry Pi 5 with a 15 kHz arcade
+    // monitor's display output, a horizontal game's mode is asked for, and
+    // set, MAME is told of a screen of its lines, unfiltered, and preloaded
+    // with osdos_keepmode.so; refused by the kernel, or for a game that
+    // gets none, as without the setting. The log has a line each time.
+    void ownModeInMame() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        DisplayHandoff handoff;
+        QStringList asked;
+        bool take = true;
+        handoff.setModeSetter([&](const modetest::ModeLine &m, QString *why) {
+            asked << QString::fromStdString(modetest::describe(m));
+            if (!take)
+                *why = QStringLiteral("the kernel refused it: Invalid argument");
+            return take;
+        });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, &handoff);
+        refreshed(arcade);
+        // JAMMA 720x288, the preset the tool was run on.
+        arcade.setScreen(true, QSize(720, 288), 50);
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        const auto restore = qScopeGuard([&arcade, module] {
+            arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), QStringLiteral("OFF"));
+            arcade.onSettingChanged(module, QStringLiteral("game_picture"), QStringLiteral("Original"));
+        });
+        // What MAME was started with, and what was preloaded into it.
+        const auto run = [this, &arcade](const char *set) {
+            QFile::remove(m_log);
+            played(arcade, QLatin1String(set));
+            return logLines(QStringLiteral("play ")).value(0) + QLatin1Char('\n') + logLines(QStringLiteral("preload ")).value(0);
+        };
+        const auto setting = [&arcade, module](bool on) {
+            arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), on ? QStringLiteral("ON") : QStringLiteral("OFF"));
+        };
+        const auto capabilities = [&arcade] {
+            QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+            arcade.machineCapabilities();
+            return options.value(0).value(1).toStringList();
+        };
+        const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
+        const QByteArray line = "[Arcade] Game's own mode for mslug in MAME: ";
+
+        // Where it can do nothing: any machine but a Pi 5, a display output
+        // that names no monitor, and no osdos_keepmode.so. The row's
+        // capability isn't there, the arguments are those without the
+        // setting, and the screen is never asked.
+        struct Where { board::Family family; QString monitor; QString library; const char *why; };
+        const Where nowhere[] = {
+            { board::Family::Other, arcade15, QStringLiteral(KEEPMODE_LIBRARY), "only on a Raspberry Pi 5" },
+            { board::Family::Pi4, arcade15, QStringLiteral(KEEPMODE_LIBRARY), "only on a Raspberry Pi 5" },
+            { board::Family::Pi5, QString(), QStringLiteral(KEEPMODE_LIBRARY),
+              "only on a display output for a 15 kHz arcade monitor" },
+            { board::Family::Pi5, arcade15, m_data.path() + QStringLiteral("/no-such.so"),
+              "osdos_keepmode.so is not beside the app" },
+        };
+        for (const Where &where : nowhere) {
+            arcade.setBoard(where.family);
+            arcade.setMonitor(where.monitor);
+            arcade.setKeepModeLibrary(where.library);
+            QCOMPARE(arcade.ownModeUnavailable(), QLatin1String(where.why));
+            QVERIFY(!capabilities().contains(QStringLiteral("own_video_mode")));
+            setting(false);
+            const QString off = run("mslug");
+            setting(true);
+            QTest::ignoreMessage(QtInfoMsg, (line + "none, " + where.why).constData());
+            QCOMPARE(run("mslug"), off);
+            QVERIFY(off.endsWith(QStringLiteral("\npreload ")));
+        }
+        QVERIFY(asked.isEmpty());
+
+        // Where it can: a Pi 5 on a JAMMA preset's monitor.
+        arcade.setBoard(board::Family::Pi5);
+        arcade.setMonitor(arcade15);
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        QCOMPARE(arcade.ownModeUnavailable(), QString());
+        QCOMPARE(capabilities(), QStringList({ QStringLiteral("raspberry_pi"), QStringLiteral("own_video_mode") }));
+        // Off: nothing asked, nothing said, nothing preloaded.
+        setting(false);
+        const QString off = run("mslug");
+        QVERIFY2(off.endsWith(QStringLiteral(" -waitvsync -aspect 4:3 -nounevenstretch -unevenstretchx\npreload ")), qPrintable(off));
+        QVERIFY(asked.isEmpty());
+
+        // On: Metal Slug's 224 lines at 59.19 Hz.
+        setting(true);
+        QTest::ignoreMessage(QtInfoMsg, (line + "1920x224  15.684 kHz  59.19 Hz  39.132 MHz asked for, from its 320x224 "
+                                                "at 59.185606 Hz").constData());
+        const QString on = run("mslug");
+        QCOMPARE(asked, QStringList({ QStringLiteral("1920x224  15.684 kHz  59.19 Hz  39.132 MHz") }));
+        QCOMPARE(on, off.section(QLatin1Char('\n'), 0, 0) + QStringLiteral(" -nofilter\npreload ")
+                         + QStringLiteral(KEEPMODE_LIBRARY));
+        for (const char *never : { "-syncrefresh", "-switchres", "-resolution" })
+            QVERIFY2(!on.contains(QLatin1String(never)), never);
+        QVERIFY(!handoff.held() && !handoff.modeSet());
+
+        // The kernel refuses the mode: the game all the same, as without.
+        take = false;
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^\\[Arcade\\] Game's own mode for mslug in MAME: 1920x224 ")));
+        QCOMPARE(run("mslug"), off);
+        QCOMPARE(asked.size(), 2);
+        take = true;
+
+        // Fit to Screen: over the whole of the mode, unfiltered.
+        arcade.onSettingChanged(module, QStringLiteral("game_picture"), QStringLiteral("Fit to Screen"));
+        QVERIFY2(run("mslug").section(QLatin1Char('\n'), 0, 0).endsWith(QStringLiteral(" -waitvsync -nokeepaspect -nofilter")),
+                 qPrintable(run("mslug")));
+        arcade.onSettingChanged(module, QStringLiteral("game_picture"), QStringLiteral("Original"));
+        asked.clear();
+
+        // A vertical game, and one MAME gives no screen of: none, and why;
+        // the screen isn't asked, and MAME starts as without the setting.
+        setting(false);
+        const QString pacmanOff = run("pacman");
+        const QString galagaOff = run("galaga");
+        setting(true);
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for pacman in MAME: none, a vertical game");
+        QCOMPARE(run("pacman"), pacmanOff);
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for galaga in MAME: none, no screen size and refresh "
+                                        "rate is known for it");
+        QCOMPARE(run("galaga"), galagaOff);
+        // Settings → Screen has no monitor turned here; one turned for the
+        // game alone (its options' Monitor) keeps a vertical game off it
+        // either way, and Vertical Games leaves a horizontal one its mode.
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Right"));
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for pacman in MAME: none, the monitor is turned on "
+                                        "its side for it");
+        QVERIFY(run("pacman").contains(QStringLiteral(" -rol")));
+        QVERIFY(asked.isEmpty());
+        QVERIFY(run("mslug").contains(QStringLiteral(" -nofilter")));
+        QCOMPARE(asked.size(), 1);
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+        arcade.setBoard(board::Family::Other);
     }
 
     // A game's options: its difficulty, where MAME plays it and its board has

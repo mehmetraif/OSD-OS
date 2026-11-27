@@ -115,6 +115,7 @@ add_executable(osdos
     src/modules/arcade/ArcadePictures.cpp
     src/modules/arcade/LanRooms.cpp
     src/modules/arcade/Mame.cpp
+    src/modules/arcade/OwnMode.cpp
     src/modules/arcade/Libretro.cpp
     src/modules/arcade/FbneoInstaller.cpp
     src/modules/arcade/GameSystem.cpp

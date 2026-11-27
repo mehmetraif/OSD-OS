@@ -298,6 +298,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/ArcadePictures.cpp
         ../src/modules/arcade/LanRooms.cpp
         ../src/modules/arcade/Mame.cpp
+        ../src/modules/arcade/OwnMode.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
         ../src/modules/arcade/GameSystem.cpp
@@ -328,6 +329,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(arcade_test_core MODULE arcade_test_core.c)
     set_target_properties(arcade_test_core PROPERTIES PREFIX "" AUTOMOC OFF)
     add_dependencies(arcade_test arcade_test_core)
+    # osdos_keepmode.so (below), which a game on its own video mode is
+    # preloaded with: the test's stand-ins for MAME and RetroArch say what
+    # they were started with.
+    add_dependencies(arcade_test osdos_keepmode)
+    target_compile_definitions(arcade_test PRIVATE KEEPMODE_LIBRARY="$<TARGET_FILE:osdos_keepmode>")
     target_compile_definitions(arcade_test PRIVATE TEST_CORE="$<TARGET_FILE:arcade_test_core>")
 
     # A playlist's m3u: owner-only and whole, the one before removed once it

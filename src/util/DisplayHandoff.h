@@ -213,7 +213,8 @@ public:
     bool modeSet() const { return m_modeSet; }
     // In place of the screen, for tests, which have none: what setMode()
     // asks instead of the kernel, once it has found the owner holding a
-    // hand-off.
+    // hand-off. With one set, a hand-off touches no console and no DRM
+    // device, on a Linux console too: it is the logical one a desktop has.
     using ModeSetter = std::function<bool(const modetest::ModeLine &mode, QString *why)>;
     void setModeSetter(ModeSetter setter) { m_modeSetter = std::move(setter); }
 

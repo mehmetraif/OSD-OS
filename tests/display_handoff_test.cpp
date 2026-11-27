@@ -112,6 +112,10 @@ private slots:
     // takes is the hand-off's until the screen is back; one it refuses
     // leaves none, with its reason.
     void aModeIsTheHandOffsUntilTheScreenIsBack() {
+        // As on a console, where the hand-off would switch the VT and let go
+        // of DRM: with the stand-in it touches neither.
+        qunsetenv("DISPLAY");
+        const auto desktop = qScopeGuard([] { qputenv("DISPLAY", ":99"); });
         DisplayHandoff handoff;
         const modetest::ModeLine mode = gameMode();
         QStringList asked;

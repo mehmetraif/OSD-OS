@@ -94,9 +94,14 @@ DisplayHandoff::DisplayHandoff(QObject *parent)
 {
 #ifdef Q_OS_LINUX
     // Qt's refused flips counted (checkFramesShown()), every message passed
-    // on to the handler before (util/LogFile's, then Qt's own).
-    if (isHeadless())
-        g_nextHandler = qInstallMessageHandler(countRefusedFlips);
+    // on to the handler before (util/LogFile's, then Qt's own). Once for the
+    // process: a second hand-off (a test's) finds the counter there already,
+    // and must not hand it its own messages back.
+    if (isHeadless()) {
+        const QtMessageHandler before = qInstallMessageHandler(countRefusedFlips);
+        if (before != countRefusedFlips)
+            g_nextHandler = before;
+    }
     m_verifyTimer = new QTimer(this);
     m_verifyTimer->setInterval(1000);
     connect(m_verifyTimer, &QTimer::timeout, this, &DisplayHandoff::checkFramesShown);
@@ -191,7 +196,9 @@ int DisplayHandoff::acquire(const QString &owner) {
     // VT/DRM work; elsewhere the child just opens a window over ours.
     m_owner = owner;
     m_modeSet = false;
-    if (!isHeadless()) {
+    // The same in a test with a stand-in for the screen (setModeSetter()):
+    // it has no console to switch and no DRM device to let go of.
+    if (!isHeadless() || m_modeSetter) {
         emit heldChanged();
         return 0;
     }
