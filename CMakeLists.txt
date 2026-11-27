@@ -163,6 +163,8 @@ add_executable(osdos
     src/system/SystemInfo.cpp
     src/system/SystemSettings.cpp
     src/util/RootRequest.cpp
+    src/modetest/ModeLine.cpp
+    src/modetest/GameMode.cpp
     $<$<BOOL:${APPLE}>:src/util/MacosUtils.mm>
 )
 

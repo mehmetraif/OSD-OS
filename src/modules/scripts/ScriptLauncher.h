@@ -46,6 +46,10 @@ public:
     // True when the requested takeover was downgraded to console because the
     // display could not be handed over safely.
     bool    downgraded() const      { return m_downgraded; }
+    // The run was started on the video mode its entry asked for
+    // (ScriptEntry::mode), with modeArgv and modeEnvironment; false for a
+    // run without one, and where the mode wasn't set.
+    bool    modeSet() const         { return m_modeSet; }
 
     // Validates before spawning and returns false with *errorOut set if anything
     // is wrong, having started nothing. Callers must surface that error: a
@@ -148,6 +152,7 @@ private:
     // rather than waited for.
     bool        m_endLeftovers  = false;
     bool        m_downgraded    = false;
+    bool        m_modeSet       = false;
     qint64      m_drainStartMs  = 0;
     bool        m_warnedDrain   = false;
 

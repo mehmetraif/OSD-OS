@@ -11,6 +11,7 @@
 // It never shows a mode whose line rate is not the one the screen is on
 // already (modetest::safeFor()): a monitor made for 15 kHz can be damaged by
 // another rate.
+#include "DrmMode.h"
 #include "ModeLine.h"
 
 #include <xf86drm.h>
@@ -30,6 +31,8 @@
 #include <unistd.h>
 
 using modetest::ModeLine;
+using modetest::fromDrm;
+using modetest::toDrm;
 
 namespace {
 
@@ -84,37 +87,6 @@ int suits(const drmModeConnector *connector) {
     case DRM_MODE_CONNECTOR_DSI: return 1;
     default:                     return 0;
     }
-}
-
-ModeLine fromDrm(const drmModeModeInfo &m) {
-    ModeLine out;
-    out.name = m.name;
-    out.clockMHz = m.clock / 1000.0;
-    out.hdisplay = m.hdisplay; out.hsyncStart = m.hsync_start; out.hsyncEnd = m.hsync_end; out.htotal = m.htotal;
-    out.vdisplay = m.vdisplay; out.vsyncStart = m.vsync_start; out.vsyncEnd = m.vsync_end; out.vtotal = m.vtotal;
-    out.hsyncPositive = m.flags & DRM_MODE_FLAG_PHSYNC;
-    out.vsyncPositive = m.flags & DRM_MODE_FLAG_PVSYNC;
-    out.interlace = m.flags & DRM_MODE_FLAG_INTERLACE;
-    out.doublescan = m.flags & DRM_MODE_FLAG_DBLSCAN;
-    out.csync = m.flags & DRM_MODE_FLAG_CSYNC;
-    return out;
-}
-
-drmModeModeInfo toDrm(const ModeLine &mode) {
-    drmModeModeInfo m = {};
-    m.clock = uint32_t(mode.clockMHz * 1000.0 + 0.5);
-    m.hdisplay = uint16_t(mode.hdisplay); m.hsync_start = uint16_t(mode.hsyncStart);
-    m.hsync_end = uint16_t(mode.hsyncEnd); m.htotal = uint16_t(mode.htotal);
-    m.vdisplay = uint16_t(mode.vdisplay); m.vsync_start = uint16_t(mode.vsyncStart);
-    m.vsync_end = uint16_t(mode.vsyncEnd); m.vtotal = uint16_t(mode.vtotal);
-    m.vrefresh = uint32_t(mode.refreshHz() + 0.5);
-    m.flags = (mode.hsyncPositive ? DRM_MODE_FLAG_PHSYNC : DRM_MODE_FLAG_NHSYNC)
-            | (mode.vsyncPositive ? DRM_MODE_FLAG_PVSYNC : DRM_MODE_FLAG_NVSYNC);
-    if (mode.csync)
-        m.flags |= DRM_MODE_FLAG_CSYNC;
-    m.type = DRM_MODE_TYPE_USERDEF;
-    std::snprintf(m.name, sizeof m.name, "%s", mode.name.c_str());
-    return m;
 }
 
 // The screen a test runs on: a device, an output on it and the CRTC that

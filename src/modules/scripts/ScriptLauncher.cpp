@@ -278,6 +278,7 @@ void ScriptLauncher::resetForNewRun() {
     m_waitForGroup  = true;
     m_endLeftovers  = false;
     m_downgraded    = false;
+    m_modeSet       = false;
     m_drainStartMs  = 0;
     m_warnedDrain   = false;
     m_decoder.resetState();   // don't carry a half-decoded character into a new run
@@ -345,6 +346,12 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
             m_takeoverRun = true;
         }
     }
+    // A video mode of the run's own (a game's lines and refresh rate), now
+    // that the screen is handed over and nothing is started yet. Set or not
+    // (the hand-off's log says which, and why not), the run goes on: on its
+    // mode with what keeps it there, or as a run without one.
+    if (m_takeoverRun && entry.mode)
+        m_modeSet = m_handoff->setMode(m_handoffOwner, *entry.mode);
 
     delete m_process;
     m_process = new QProcess(this);
@@ -380,6 +387,15 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     controllers::applyPlayersTo(env);
     for (const auto &variable : std::as_const(entry.environment))
         env.insert(variable.first, variable.second);
+    // On a mode of its own: what keeps the program on it. A library to
+    // preload goes after any the session preloads already.
+    if (m_modeSet) {
+        for (const auto &variable : std::as_const(entry.modeEnvironment)) {
+            const QString before = env.value(variable.first);
+            const bool list = variable.first == QLatin1String("LD_PRELOAD") && !before.isEmpty();
+            env.insert(variable.first, list ? before + QLatin1Char(':') + variable.second : variable.second);
+        }
+    }
 #ifdef Q_OS_LINUX
     // Strip the wrong-word-size Steam overlay hook the Gaming Mode session hands
     // down, so ld.so's "wrong ELF class ... ignored" warning stops appearing in
@@ -485,7 +501,7 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     const QStringList extra = (entry.meta.args.trimmed().isEmpty()
                                    ? QStringList()
                                    : QProcess::splitCommand(entry.meta.args))
-                              + entry.argv;
+                              + (m_modeSet ? entry.modeArgv : entry.argv);
 
     // The menu music stops first: what runs may play sound of its own.
     MenuMusic::hold(musicHolder());
@@ -513,6 +529,8 @@ bool ScriptLauncher::start(const ScriptEntry &entry, QString *errorOut) {
     if (nice != 0)
         given += QStringLiteral(", nice %1").arg(nice);
 #endif
+    if (m_modeSet)
+        given += QStringLiteral(", on a mode of its own");
     qInfo("[Scripts] Running '%s' (%s, %s%s%s%s)", qPrintable(entry.basename),
           direct ? "direct" : "/bin/sh",
           takeover ? "takeover" : "console",

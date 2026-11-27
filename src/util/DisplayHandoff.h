@@ -1,4 +1,5 @@
 #pragma once
+#include "../modetest/ModeLine.h"
 #include <QElapsedTimer>
 #include <QObject>
 #include <QString>
@@ -39,9 +40,10 @@ struct DrmSavedState {
     std::vector<DrmPropValue> props;
 };
 
-// A frame buffer of the hand-off's own (a dumb buffer, XRGB8888, mapped), the
-// cover: what the screen shows while the child starts and what the child
-// puts back as it ends (see acquire()).
+// A frame buffer of the hand-off's own (a dumb buffer, XRGB8888, mapped): the
+// cover, what the screen shows while the child starts and what the child
+// puts back as it ends (see acquire()); and the frame a mode of the child's
+// own is set with, which has that mode's size (see setMode()).
 struct DrmCover {
     int      fd     = -1;
     uint32_t handle = 0;
@@ -116,6 +118,25 @@ struct DrmCover {
 //     starts and is blacked out once its own picture is up, so that what it
 //     puts back as it ends is black.
 //
+//   A mode of the child's own (setMode(), between acquire() and the child's
+//     start): a game played on its own lines and refresh rate. Qt has let go
+//     of the screen by then and its state is saved, so master is taken for a
+//     moment, as for the cover, and the CRTC set by the legacy call to that
+//     mode on a black frame buffer of the mode's own size (Qt's is the
+//     menu's size, which the kernel would refuse under a mode any larger
+//     either way). The child must then keep the mode it finds: the programs
+//     OSD/OS starts so look only among the connector's own modes
+//     (osdos_keepmode, src/modetest/KeepMode.c, shows them the one the
+//     screen is on). The mode is only ever one whose line rate the screen is
+//     on already (modetest::safeFor()): a monitor made for one line rate can
+//     be damaged by another. Nothing more is needed to put the app's mode
+//     back: release() restores what acquire() saved, the mode with it, by
+//     the atomic commit or the legacy call, whichever path the hand-back
+//     takes, at the child's end, at its crash, when its start fails and at
+//     shutdown alike. Nothing of it is written anywhere: should the app
+//     itself die in mid-game, the next start sets the display output's own
+//     mode as every start does.
+//
 // On macOS and on desktop Linux (X11/Wayland present) there is no DRM/VT work
 // — the child just opens a window over ours — so acquire() still returns 0,
 // but it still records the owner so held/heldChanged track a logical hand-off
@@ -177,6 +198,24 @@ public:
     // pending deferred release (discarding its callback, since the object that
     // would receive it is being torn down).
     void releaseNow(const QString &owner);
+
+    // A video mode of the child's own (a game's lines and refresh rate), for
+    // the owner that holds the screen, after acquire() and before it starts
+    // its child: the CRTC set to it on a black frame of its size (see the
+    // top of this file). False, with why, and the screen as it was, where it
+    // can't be: no console was handed over (a desktop, any other system, a
+    // hand-off whose state couldn't be saved), the mode's line rate isn't
+    // the one the screen is on (modetest::safeFor()), or the kernel refused
+    // it. The log says which, in one line either way. The hand-back puts the
+    // app's own mode back, as it does everything else acquire() saved.
+    bool setMode(const QString &owner, const modetest::ModeLine &mode, QString *why = nullptr);
+    // A mode set with setMode() is the hand-off's, until the screen is back.
+    bool modeSet() const { return m_modeSet; }
+    // In place of the screen, for tests, which have none: what setMode()
+    // asks instead of the kernel, once it has found the owner holding a
+    // hand-off.
+    using ModeSetter = std::function<bool(const modetest::ModeLine &mode, QString *why)>;
+    void setModeSetter(ModeSetter setter) { m_modeSetter = std::move(setter); }
 
     // Paints the app's frame as it is now into a cover of width x height
     // (32-bit XRGB pixels, pitch bytes a line), for a hand-off on headless
@@ -245,10 +284,16 @@ private:
     // The CRTC set to a cover painted with the app's frame, master taken
     // for it and dropped again (acquire()).
     void showCover(int fd);
+    // A frame buffer of that size in frame, the one there kept when it has
+    // it: the cover (ensureCover()), or the frame of a child's own mode.
+    bool ensureFrame(DrmCover &frame, int fd, uint32_t width, uint32_t height, const char *what);
     bool ensureCover(int fd, uint32_t width, uint32_t height);
     void blackenCover();
     // Blacked out once the child's own picture is up (m_coverTimer).
     void checkCover();
+    // With a mode of the child's own set: once its picture is up, whether
+    // it is on that mode still, into the log (m_modeTimer).
+    void checkChildMode();
 #endif
     // useCover false for shutdown: Qt's own last frame buffer put back.
     void doRestore(bool useCover = true);
@@ -268,9 +313,16 @@ private:
     DrawingSwitch m_drawingSwitch;
     bool    m_drawingStopped = false;
     std::atomic<quint64> m_frames { 0 };
+    ModeSetter m_modeSetter;
+    bool    m_modeSet = false;          // setMode()'s is on the screen
+    QTimer *m_modeTimer = nullptr;
 #ifdef Q_OS_LINUX
     DrmSavedState m_savedDrm = {};
     DrmCover      m_cover    = {};
+    // The frame a child's own mode was set with, of that mode's size, and
+    // the mode as the kernel was given it.
+    DrmCover        m_modeFrame = {};
+    drmModeModeInfo m_childMode = {};
     // The hand-back being watched (checkFramesShown()): Qt's DRM file and
     // CRTC, the frames drawn and the flips refused before it, the checks left.
     QTimer  *m_verifyTimer   = nullptr;

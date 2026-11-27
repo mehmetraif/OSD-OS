@@ -7,6 +7,7 @@
 #include <utility>
 
 #ifdef Q_OS_LINUX
+#include "../modetest/DrmMode.h"
 #include <QElapsedTimer>
 #include <fcntl.h>
 #include <unistd.h>
@@ -115,8 +116,13 @@ DisplayHandoff::DisplayHandoff(QObject *parent)
     // cover is blacked out then (checkCover()).
     m_coverTimer = new QTimer(this);
     m_coverTimer->setInterval(250);
+    // With a mode of the child's own set: whether its picture came up on it
+    // (checkChildMode()).
+    m_modeTimer = new QTimer(this);
+    m_modeTimer->setInterval(500);
 #ifdef Q_OS_LINUX
     connect(m_coverTimer, &QTimer::timeout, this, &DisplayHandoff::checkCover);
+    connect(m_modeTimer, &QTimer::timeout, this, &DisplayHandoff::checkChildMode);
 #endif
 }
 
@@ -133,9 +139,11 @@ DisplayHandoff::~DisplayHandoff() {
     }
 #ifdef Q_OS_LINUX
     // The cover's mapping; the buffer itself goes with the app's DRM file,
-    // which may be on the screen still.
+    // which may be on the screen still. The same for a mode's frame.
     if (m_cover.pixels)
         ::munmap(m_cover.pixels, m_cover.size);
+    if (m_modeFrame.pixels)
+        ::munmap(m_modeFrame.pixels, m_modeFrame.size);
 #endif
 }
 
@@ -182,6 +190,7 @@ int DisplayHandoff::acquire(const QString &owner) {
     // not only a DRM master drop. Headless Linux continues below with the
     // VT/DRM work; elsewhere the child just opens a window over ours.
     m_owner = owner;
+    m_modeSet = false;
     if (!isHeadless()) {
         emit heldChanged();
         return 0;
@@ -274,9 +283,79 @@ void DisplayHandoff::releaseNow(const QString &owner) {
     doRestore();
 }
 
+bool DisplayHandoff::setMode(const QString &owner, const modetest::ModeLine &mode, QString *why) {
+    const QByteArray asked = QByteArray::fromStdString(modetest::describe(mode));
+    const auto refuse = [&](const QString &reason) {
+        qWarning("[DisplayHandoff] %s's mode %s not set (%s): it plays on the mode the screen is on",
+                 qPrintable(owner), asked.constData(), qPrintable(reason));
+        if (why)
+            *why = reason;
+        return false;
+    };
+    if (!isHeldBy(owner))
+        return refuse(QStringLiteral("the screen isn't handed over to it"));
+    if (m_modeSet)
+        return refuse(QStringLiteral("a mode is set for this hand-off already"));
+    // No screen in a test: its stand-in answers for the kernel.
+    if (m_modeSetter) {
+        QString reason;
+        if (!m_modeSetter(mode, &reason))
+            return refuse(reason);
+        m_modeSet = true;
+        qInfo("[DisplayHandoff] %s's mode set: %s", qPrintable(owner), asked.constData());
+        return true;
+    }
+#ifdef Q_OS_LINUX
+    const int fd = m_qtDrmFd;
+    if (fd < 0 || !m_savedDrm.valid)
+        return refuse(QStringLiteral("no console's screen was handed over"));
+    // Never a line rate the screen isn't on already, whatever was asked:
+    // the tool's rule, and the last word on it.
+    const modetest::ModeLine screen = modetest::fromDrm(m_savedDrm.mode);
+    std::string unsafe;
+    if (!modetest::safeFor(mode, screen.lineRateHz(), &unsafe))
+        return refuse(QString::fromStdString(unsafe));
+    drmModeModeInfo wanted = modetest::toDrm(mode);
+    // The sync as the board has it now: its polarities, and a composite one.
+    if (m_savedDrm.mode.flags & modetest::kSyncFlags)
+        wanted.flags = (wanted.flags & ~modetest::kSyncFlags) | (m_savedDrm.mode.flags & modetest::kSyncFlags);
+    // A frame of the mode's own size, black: Qt's is the menu's.
+    if (!ensureFrame(m_modeFrame, fd, wanted.hdisplay, wanted.vdisplay, "frame of the mode's size"))
+        return refuse(QStringLiteral("no frame buffer of %1x%2").arg(wanted.hdisplay).arg(wanted.vdisplay));
+    std::memset(m_modeFrame.pixels, 0, m_modeFrame.size);
+    m_modeFrame.black = true;
+    // Master for the moment it takes, as for the cover: Qt's is dropped and
+    // the child isn't started yet.
+    if (::ioctl(fd, DRM_IOCTL_SET_MASTER, 0) < 0)
+        return refuse(QStringLiteral("drmSetMaster failed: %1").arg(QString::fromLocal8Bit(strerror(errno))));
+    const bool set = drmModeSetCrtc(fd, m_savedDrm.crtcId, m_modeFrame.fbId, 0, 0,
+                                    &m_savedDrm.connectorId, 1, &wanted) == 0;
+    const int setError = errno;
+    if (::ioctl(fd, DRM_IOCTL_DROP_MASTER, 0) < 0)
+        qWarning("[DisplayHandoff] DRM master could not be dropped again after the mode: %s", strerror(errno));
+    // Refused, the CRTC is as it was: the app's frame in the app's mode.
+    if (!set)
+        return refuse(QStringLiteral("the kernel refused it: %1").arg(QString::fromLocal8Bit(strerror(setError))));
+    m_childMode = wanted;
+    m_modeFrame.shown = true;
+    m_modeSet = true;
+    m_modeTimer->start();
+    qInfo("[DisplayHandoff] %s's mode set: %s (the screen was on %s)", qPrintable(owner), asked.constData(),
+          modetest::describe(screen).c_str());
+    return true;
+#else
+    return refuse(QStringLiteral("no console's screen was handed over"));
+#endif
+}
+
 void DisplayHandoff::doRestore(bool useCover) {
     m_coverTimer->stop();
+    m_modeTimer->stop();
 #ifdef Q_OS_LINUX
+    // A mode of the child's own whose picture never came up on the screen.
+    if (m_modeSet && m_modeFrame.shown && !m_owner.isEmpty())
+        qInfo("[DisplayHandoff] %s ended before a picture of its own was on the screen", qPrintable(m_owner));
+    m_modeFrame.shown = false;
     if (m_qtDrmFd >= 0) {
         if (::ioctl(m_qtDrmFd, DRM_IOCTL_SET_MASTER, 0) < 0) {
             qWarning("[DisplayHandoff] drmSetMaster failed: %s", strerror(errno));
@@ -309,6 +388,8 @@ void DisplayHandoff::doRestore(bool useCover) {
 #else
     Q_UNUSED(useCover)
 #endif
+    // The mode went back with the rest, where one was set.
+    m_modeSet = false;
     // Only switch back if we actually switched away — otherwise this just logs a
     // second, confusing permission error on a VT we never left.
     if (m_previousVt > 0 && m_switchedVt) {
@@ -751,25 +832,31 @@ void DisplayHandoff::logScreenState(int fd) const {
 // there kept when it is of that size. Never called while the cover is on the
 // screen: removing a frame buffer that is shown turns its CRTC off.
 bool DisplayHandoff::ensureCover(int fd, uint32_t width, uint32_t height) {
-    if (m_cover.fbId && m_cover.fd == fd && m_cover.width == width && m_cover.height == height)
+    return ensureFrame(m_cover, fd, width, height, "cover");
+}
+
+// The same for any frame of the hand-off's own (what: "cover", or the frame
+// of a child's mode), under the same rule: never while it is on the screen.
+bool DisplayHandoff::ensureFrame(DrmCover &frame, int fd, uint32_t width, uint32_t height, const char *what) {
+    if (frame.fbId && frame.fd == fd && frame.width == width && frame.height == height)
         return true;
-    if (m_cover.fbId) {
-        if (m_cover.pixels)
-            ::munmap(m_cover.pixels, m_cover.size);
-        if (m_cover.fd >= 0 && ::fcntl(m_cover.fd, F_GETFD) != -1) {
-            drmModeRmFB(m_cover.fd, m_cover.fbId);
+    if (frame.fbId) {
+        if (frame.pixels)
+            ::munmap(frame.pixels, frame.size);
+        if (frame.fd >= 0 && ::fcntl(frame.fd, F_GETFD) != -1) {
+            drmModeRmFB(frame.fd, frame.fbId);
             drm_mode_destroy_dumb destroy {};
-            destroy.handle = m_cover.handle;
-            drmIoctl(m_cover.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
+            destroy.handle = frame.handle;
+            drmIoctl(frame.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy);
         }
-        m_cover = {};
+        frame = {};
     }
     drm_mode_create_dumb create {};
     create.width = width;
     create.height = height;
     create.bpp = 32;
     if (drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &create) != 0) {
-        qWarning("[DisplayHandoff] No cover for the screen (%ux%u): %s", width, height, strerror(errno));
+        qWarning("[DisplayHandoff] No %s for the screen (%ux%u): %s", what, width, height, strerror(errno));
         return false;
     }
     const auto destroy = [fd, &create] {
@@ -779,8 +866,8 @@ bool DisplayHandoff::ensureCover(int fd, uint32_t width, uint32_t height) {
     };
     uint32_t fbId = 0;
     if (drmModeAddFB(fd, width, height, 24, 32, create.pitch, create.handle, &fbId) != 0) {
-        qWarning("[DisplayHandoff] No cover for the screen (a frame buffer of %ux%u): %s",
-                 width, height, strerror(errno));
+        qWarning("[DisplayHandoff] No %s for the screen (a frame buffer of %ux%u): %s",
+                 what, width, height, strerror(errno));
         destroy();
         return false;
     }
@@ -790,19 +877,19 @@ bool DisplayHandoff::ensureCover(int fd, uint32_t width, uint32_t height) {
     if (drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &map) == 0)
         pixels = ::mmap(nullptr, create.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, off_t(map.offset));
     if (pixels == MAP_FAILED) {
-        qWarning("[DisplayHandoff] No cover for the screen (its memory): %s", strerror(errno));
+        qWarning("[DisplayHandoff] No %s for the screen (its memory): %s", what, strerror(errno));
         drmModeRmFB(fd, fbId);
         destroy();
         return false;
     }
-    m_cover.fd = fd;
-    m_cover.handle = create.handle;
-    m_cover.fbId = fbId;
-    m_cover.width = width;
-    m_cover.height = height;
-    m_cover.pitch = create.pitch;
-    m_cover.size = create.size;
-    m_cover.pixels = static_cast<unsigned char *>(pixels);
+    frame.fd = fd;
+    frame.handle = create.handle;
+    frame.fbId = fbId;
+    frame.width = width;
+    frame.height = height;
+    frame.pitch = create.pitch;
+    frame.size = create.size;
+    frame.pixels = static_cast<unsigned char *>(pixels);
     return true;
 }
 
@@ -862,5 +949,34 @@ void DisplayHandoff::checkCover() {
         blackenCover();
         m_coverTimer->stop();
     }
+}
+
+void DisplayHandoff::checkChildMode() {
+    if (!m_modeSet || !m_modeFrame.shown || m_qtDrmFd < 0) {
+        m_modeTimer->stop();
+        return;
+    }
+    drmModeCrtcPtr crtc = drmModeGetCrtc(m_qtDrmFd, m_savedDrm.crtcId);
+    if (!crtc)
+        return;
+    const uint32_t onScreen = crtc->buffer_id;
+    const bool valid = crtc->mode_valid;
+    const drmModeModeInfo now = crtc->mode;
+    drmModeFreeCrtc(crtc);
+    // Our black frame still, or the screen off between the two: its picture
+    // isn't up yet.
+    if (onScreen == m_modeFrame.fbId || onScreen == 0 || !valid)
+        return;
+    // Up: on the mode it was given, or on one it set itself (it looked for
+    // the mode among the connector's own, and took one of those).
+    m_modeFrame.shown = false;
+    m_modeTimer->stop();
+    if (modetest::sameTimings(now, m_childMode))
+        qInfo("[DisplayHandoff] %s's picture is up on its mode: %s", qPrintable(m_owner),
+              modetest::describe(modetest::fromDrm(now)).c_str());
+    else
+        qWarning("[DisplayHandoff] %s's picture is up on %s, a mode it set itself, not the one it was given (%s)",
+                 qPrintable(m_owner), modetest::describe(modetest::fromDrm(now)).c_str(),
+                 modetest::describe(modetest::fromDrm(m_childMode)).c_str());
 }
 #endif

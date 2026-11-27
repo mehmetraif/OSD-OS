@@ -1,10 +1,12 @@
 #pragma once
+#include "../../modetest/ModeLine.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
 #include <QList>
 #include <QPair>
+#include <optional>
 
 // Per-script settings, read from the sidecar .txt beside each .sh.
 //
@@ -44,6 +46,17 @@ struct ScriptEntry {
     // lets the app's user give it (RLIMIT_NICE, the unit's LimitNICE=), and
     // left at the app's own otherwise. Unix only.
     int         nice = 0;
+    // A video mode of the run's own, for a takeover (the Arcade module's
+    // game on its own lines and refresh rate): set once the screen is handed
+    // over and before the program starts, the app's own put back with the
+    // screen (DisplayHandoff::setMode()). Where it was set, the program is
+    // started with modeArgv in argv's place and modeEnvironment over
+    // environment, what makes it keep that mode and draw for it; where it
+    // wasn't (no console handed over, a mode the kernel refused), with argv
+    // and environment, exactly as a run without one.
+    std::optional<modetest::ModeLine> mode;
+    QStringList modeArgv;
+    QList<QPair<QString, QString>> modeEnvironment;
 };
 
 class AppCore;

@@ -165,7 +165,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/DisplayHandoff.cpp
         ../src/util/YtDlpLocator.cpp)
     target_include_directories(osdos_test_launch PUBLIC ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(osdos_test_launch PUBLIC osdos_test_audio ${Libdrm_LIBRARIES})
+    target_link_libraries(osdos_test_launch PUBLIC osdos_test_audio osdos_test_modes ${Libdrm_LIBRARIES})
     add_library(osdos_test_youtube STATIC
         ../src/modules/youtube/YouTubeBackend.cpp
         ../src/modules/web_player/WebPlayerBackend.cpp
@@ -258,6 +258,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # The same as a Raspberry Pi 4, where a game without the helper says so.
     add_test(NAME game_system_pi4 COMMAND game_system_test)
     set_tests_properties(game_system_pi4 PROPERTIES ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 4 Model B Rev 1.5")
+
+    # A video mode of a child's own through the hand-off of the screen
+    # (DisplayHandoff::setMode(), ScriptEntry::mode), without a screen: who
+    # may ask for one, a mode refused, and what a program is started with on
+    # its mode and without it.
+    osdos_cpp_test(display_handoff LIBRARIES osdos_test_launch)
 
     # Settings → System's Time Zone and Keyboard (SystemSettings): what the
     # system has from a stand-in root, the lists it offers, and a new one sent
