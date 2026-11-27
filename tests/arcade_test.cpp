@@ -1361,6 +1361,15 @@ private slots:
         const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
         const QByteArray line = "[Arcade] Game's own mode for mslug in MAME: ";
 
+        // Nothing saved: off, even where it could work. No mode is asked
+        // for, and MAME starts as ever.
+        arcade.setBoard(board::Family::Pi5);
+        arcade.setMonitor(arcade15);
+        const QString unset = run("mslug");
+        QVERIFY2(unset.endsWith(QStringLiteral(" -waitvsync -aspect 4:3 -nounevenstretch -unevenstretchx\npreload ")),
+                 qPrintable(unset));
+        QVERIFY(asked.isEmpty());
+
         // Where it can do nothing: any machine but a Pi 5, a display output
         // that names no monitor, and no osdos_keepmode.so. The row's
         // capability isn't there, the arguments are those without the
@@ -9899,7 +9908,9 @@ private slots:
         QFile file(QStringLiteral(TESTS_DIR "/../modules/arcade/manifest.json"));
         QVERIFY(file.open(QIODevice::ReadOnly));
         QStringList named;
-        std::function<void(const QJsonArray &)> walk = [&](const QJsonArray &rows) {
+        QJsonObject ownMode;
+        QString ownModeIn;
+        std::function<void(const QJsonArray &, const QString &)> walk = [&](const QJsonArray &rows, const QString &in) {
             for (const QJsonValue &v : rows) {
                 const QJsonObject row = v.toObject();
                 const QJsonObject need = row.value(QLatin1String("requires_capability")).toObject();
@@ -9908,12 +9919,48 @@ private slots:
                     QCOMPARE(need.value(QLatin1String("reason")).toString(), QStringLiteral("Only on a Raspberry Pi"));
                     named << row.value(QLatin1String("key")).toString();
                 }
-                walk(row.value(QLatin1String("settings")).toArray());
+                if (row.value(QLatin1String("key")).toString() == QLatin1String("own_video_mode")) {
+                    ownMode = row;
+                    ownModeIn = in;
+                }
+                walk(row.value(QLatin1String("settings")).toArray(), row.value(QLatin1String("key")).toString());
             }
         };
-        walk(QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("settings")).toArray());
+        walk(QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("settings")).toArray(), QString());
         QCOMPARE(named, QStringList({ "cpu_full_speed", "frame_buffers" }));
         QCOMPARE(QString::fromLatin1(GameSystem::kFullSpeedKey), QStringLiteral("cpu_full_speed"));
+
+        // Emulator Video → Game's Own Mode: a row of Emulator Video's, off
+        // unless turned on, which waits for a capability of its own from the
+        // same slot. That comes only on a Raspberry Pi 5 on a display output
+        // that names its monitor's ranges, with osdos_keepmode.so there:
+        // never on a Pi 4 or a PC, whatever the display output.
+        QCOMPARE(ownModeIn, QStringLiteral("emulator_video"));
+        QCOMPARE(ownMode.value(QLatin1String("label")).toString(), QStringLiteral("Game's Own Mode"));
+        QCOMPARE(ownMode.value(QLatin1String("type")).toString(), QStringLiteral("toggle"));
+        QCOMPARE(ownMode.value(QLatin1String("default")).toString(), QStringLiteral("OFF"));
+        const QJsonObject need = ownMode.value(QLatin1String("requires_capability")).toObject();
+        QCOMPARE(need.value(QLatin1String("name")).toString(), QStringLiteral("own_video_mode"));
+        QCOMPARE(need.value(QLatin1String("slot")).toString(), QStringLiteral("machineCapabilities"));
+        QCOMPARE(need.value(QLatin1String("reason")).toString(),
+                 QStringLiteral("Only on a Raspberry Pi 5 with a 15 kHz JAMMA display output"));
+        const QString help = ownMode.value(QLatin1String("description")).toString();
+        QVERIFY2(help.contains(QStringLiteral("\n[ON] ")) && help.contains(QStringLiteral("  [OFF] ")), qPrintable(help));
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        const auto offered = [&](board::Family family, const QString &monitor) {
+            arcade.setBoard(family);
+            arcade.setMonitor(monitor);
+            options.clear();
+            arcade.machineCapabilities();
+            return options.value(0).value(1).toStringList().contains(QStringLiteral("own_video_mode"));
+        };
+        const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
+        QVERIFY(offered(board::Family::Pi5, arcade15));
+        QVERIFY(!offered(board::Family::Pi5, QString()));
+        QVERIFY(!offered(board::Family::Pi4, arcade15));
+        QVERIFY(!offered(board::Family::Pi3, arcade15));
+        QVERIFY(!offered(board::Family::Other, arcade15));
+        arcade.setBoard(board::Family::Other);
     }
 
     void regionsOfNames() {

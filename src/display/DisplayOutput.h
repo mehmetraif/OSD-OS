@@ -95,6 +95,16 @@ public:
     // 800×480.
     static bool isTube(const QString &preset, const QSize &size);
 
+    // The ranges of the monitor a preset is for, as display-presets.json
+    // names them ("monitor": the line and refresh rates it holds, the
+    // porches and syncs it wants and the lines of its picture, as Switchres
+    // writes a range, modetest::parseMonitorRange()): its arcade_15 for the
+    // JAMMA presets of a 15 kHz arcade monitor. "" for a preset that names
+    // none (HDMI, composite, SCART RGB, the 25 and 31 kHz JAMMA presets),
+    // for none, and off the image. The Arcade's Game's Own Mode makes each
+    // game's video mode within them, and never one outside.
+    static QString monitorOf(const QString &preset);
+
 signals:
     void changed();
     // ok, or why not: osdos-stop's answer, or what came between.

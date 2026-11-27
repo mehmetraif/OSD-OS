@@ -383,6 +383,14 @@
           "description": "A monitor you turn on its side for a vertical game: the vertical games turned to stand upright on it, filling it with their own lines, the menus and the horizontal games as they are; a monitor that stays turned is set in Settings > Screen > Rotation instead, which goes first\n[HORIZONTAL] Every game as it is  [TURNED RIGHT] Its top on the right as you face it  [TURNED LEFT] Its top on the left"
         },
         {
+          "key": "own_video_mode",
+          "label": "Game's Own Mode",
+          "type": "toggle",
+          "default": "OFF",
+          "requires_capability": { "name": "own_video_mode", "slot": "machineCapabilities", "reason": "Only on a Raspberry Pi 5 with a 15 kHz JAMMA display output" },
+          "description": "The screen put on each game's own lines and refresh rate while it plays, in MAME and FinalBurn Neo alike, on a 15 kHz arcade monitor: it goes black for a moment as a game starts and as it ends, and the menus come back on the display output's mode\n[ON] A horizontal game of 192 to 288 lines plays on a video mode made for it, each of its lines one of the screen's, at its own speed; a vertical game, and any game the monitor has no mode for, on the display output's mode  [OFF] Every game on the display output's mode"
+        },
+        {
           "key": "video",
           "label": "MAME Video",
           "type": "list_single",

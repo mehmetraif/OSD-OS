@@ -415,12 +415,16 @@ test("Arcade's emulator and network rows in their groups, with the backend's def
     assert.equal(rows[rows.findIndex(r => r.key === "cpu_full_speed") + 1].key, "show_stats");
     assert.equal(groupOf("mame_vsync"), "Emulators / Emulator Video");
     assert.equal(groupOf("frame_buffers"), "Emulators / Emulator Video");
+    assert.equal(groupOf("own_video_mode"), "Emulators / Emulator Video");
 
     const arcade = schema.modules.find(m => m.id === "com.osdos.arcade").settings;
     const row = key => arcade.find(r => r.key === key);
     assert.deepEqual([row("show_ping").type, row("show_ping").default], ["toggle", false]);
     assert.deepEqual(row("show_ping").shown_with, [{ key: "online_play", value: "On" }, { key: "lan_play", value: "On" }]);
     assert.deepEqual([row("cpu_full_speed").type, row("cpu_full_speed").default], ["toggle", true]);
+    // Game's Own Mode: off until it is turned on, on the page as on the device.
+    assert.deepEqual([row("own_video_mode").type, row("own_video_mode").default], ["toggle", false]);
+    assert.equal(row("own_video_mode").label, "Game's Own Mode");
     assert.deepEqual(valuesOf(row("mame_vsync")), ["Auto", "On", "Off"]);
     assert.deepEqual(valuesOf(row("frame_buffers")), ["Auto", "Two", "Three"]);
     assert.deepEqual(valuesOf(row("sound_buffer")), ["Auto", "RetroArch's"]);

@@ -29,6 +29,7 @@ struct Preset {
     bool keyboard = true;
     QString help;     // its line in the chooser
     QString warning;  // said as it is chosen
+    QString monitor;  // the ranges of the monitor it is for, where it says
 };
 
 const QList<Preset> &presets() {
@@ -39,8 +40,10 @@ const QList<Preset> &presets() {
             qWarning("[DisplayOutput] %s: %s", qPrintable(file.fileName()), qPrintable(file.errorString()));
             return out;
         }
-        const QJsonArray array =
-            QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("presets")).toArray();
+        const QJsonObject all = QJsonDocument::fromJson(file.readAll()).object();
+        const QJsonArray array = all.value(QStringLiteral("presets")).toArray();
+        // The monitors the presets name, each by its ranges.
+        const QJsonObject monitors = all.value(QStringLiteral("monitors")).toObject();
         for (const QJsonValue &v : array) {
             const QJsonObject o = v.toObject();
             Preset p;
@@ -53,6 +56,7 @@ const QList<Preset> &presets() {
             p.keyboard = o.value(QStringLiteral("keyboard")).toBool(true);
             p.help = o.value(QStringLiteral("help")).toString();
             p.warning = o.value(QStringLiteral("warning")).toString();
+            p.monitor = monitors.value(o.value(QStringLiteral("monitor")).toString()).toString();
             out << p;
         }
         return out;
@@ -272,6 +276,11 @@ bool DisplayOutput::isTube(const QString &preset, const QSize &size) {
         return preset != QLatin1String("hdmi");
     return (size.height() <= 288 && size.width() >= 2 * size.height())
         || (size.width() == 720 && (size.height() == 480 || size.height() == 576));
+}
+
+QString DisplayOutput::monitorOf(const QString &preset) {
+    const Preset *p = presetById(preset);
+    return p ? p->monitor : QString();
 }
 
 bool DisplayOutput::offered(const QString &id) const {

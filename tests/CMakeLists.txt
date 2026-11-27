@@ -209,7 +209,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     osdos_cpp_test(display_output SOURCES ../src/display/DisplayOutput.cpp
         DEFINITIONS PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
                     INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh"
-        LIBRARIES osdos_test_system Qt6::Network)
+        LIBRARIES osdos_test_system osdos_test_modes Qt6::Network)
     qt_add_resources(display_output_test "display_presets" PREFIX "/display" BASE "../os/stage-osdos/03-boot/files"
                      FILES "../os/stage-osdos/03-boot/files/display-presets.json")
     # The same as a Pi 5, whose outputs are others.
