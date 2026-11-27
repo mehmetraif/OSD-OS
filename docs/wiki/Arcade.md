@@ -563,9 +563,32 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 | Screen Shape | Auto, 4:3, 16:9, Square Pixels | The shape of your screen. **Auto**: 4:3 on a CRT's display output (composite, SCART RGB, JAMMA; off the OSD/OS image, a mode of 576 lines or fewer), square pixels on HDMI | `modules.com.osdos.arcade.screen_shape` |
 | Integer Scale | Auto, On, Off | A game's lines drawn whole, once (twice on a 480-line output), with a thin border above and below. **Auto**: on on a CRT's display output. A game with more lines than the screen fills it either way | `modules.com.osdos.arcade.integer_scale` |
 | Vertical Games | Horizontal, Turned Right, Turned Left | Turns the vertical games for a monitor you turn on its side for them ([A monitor on its side](#a-monitor-on-its-side-tate)) | `modules.com.osdos.arcade.vertical_monitor` |
+| Game's Own Mode | Off, On | Puts the screen on each game's own lines and refresh rate while it plays ([A game's own video mode](#a-games-own-video-mode)). Only on a Raspberry Pi 5 with a 15 kHz JAMMA display output: dimmed elsewhere ("Only on a Raspberry Pi 5 with a 15 kHz JAMMA display output") | `modules.com.osdos.arcade.own_video_mode` |
 | MAME Video | Auto, OpenGL, BGFX, Accelerated, Software | How MAME draws. **Auto** leaves it to MAME's own settings (Debian's `mame.ini` says OpenGL). Try another when a game shows no picture | `modules.com.osdos.arcade.video` |
 | MAME Vsync | Auto, On, Off | Each frame of MAME's waits for the screen's refresh (`-waitvsync`), against tearing and judder. **Auto**: on on a Raspberry Pi 4 or 5 drawing on the console, off elsewhere. **Off** if a game runs slow with it | `modules.com.osdos.arcade.mame_vsync` |
 | Frame Buffers | Auto, Two, Three | How many frames RetroArch keeps queued for the screen on the console (`video_max_swapchain_images`). **Two** shows each frame a refresh sooner than RetroArch's own **Three**, but a frame that comes late is held a whole refresh. **Auto**: Two on a Raspberry Pi 5, Three on the other Pis. A desktop's RetroArch keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.frame_buffers` |
+
+### Show Stats
+
+**Settings → Arcade → Show Stats** puts a line in the top left corner of the game's picture while it plays, from the next game started: **FPS** the frame rate, **FPS + System** the machine's state after it. It is off by default.
+
+- **FinalBurn Neo** shows RetroArch's own frame rate (`fps_show`), measured over a second's frames: `FPS:  59.94`. Played alone without RetroAchievements, OSD/OS draws it as RetroArch's message text rather than in RetroArch's widgets, whose box sits against the top right edge of the screen, where a CRT's overscan hides it: top left, a twentieth of the screen in from its edges, 16 pixels high at 720x240 and 20 at 720x480, so that the whole line fits across, 48 at most. RetroArch's other messages are not shown meanwhile, as is RetroArch's own way with its message text. Online, on the local network or signed in to RetroAchievements, RetroArch's widgets stay, for the ping, the players coming and going and the achievements, and the frame rate is in their box at the top right. **FPS + System** adds the machine's state in the RetroArch OSD/OS builds for its Linux arm64 package (a Raspberry Pi's, on the OSD/OS image or after `install.sh`): `FPS:  59.94 | CPU: 37% | 48C | THROTTLED`, the processor's load over the second, the temperature, and `UNDERVOLT` or `THROTTLED` while the Pi's firmware reports under-voltage or throttling now, each read once a second and left out where it can't be read. Any other RetroArch (Windows, macOS, a Linux desktop's own) shows the frame rate alone.
+- **MAME** has no setting that puts its frame rate in a corner, so OSD/OS's script for the game draws the line itself, top left, a twentieth of the screen in from its edges, white on a dark box: `FPS:  59.94 | SPEED: 100%`, the game's frames over the last second and MAME's speed. **FPS + System** adds, on Linux, the processor's load over that second (`CPU: 37%`, all cores together), the temperature (`48C`) and `UNDERVOLT` or `THROTTLED` while a Raspberry Pi's firmware reports under-voltage or throttling now, each read once a second and left out where the machine doesn't have it. The script is the one the credits go in through (`coins.lua`), so the line and the credits come together.
+
+### A game's own video mode
+
+An arcade game was made for one picture: so many lines, so many times a second. Metal Slug has 224 lines at 59.19 Hz, Street Fighter II 224 at 59.64 Hz, R-Type 256 at 55.02 Hz. On a display output of 240 lines at 60 Hz, or 288 at 50 Hz, such a game plays out of step with the screen or at another speed, with a border above and below.
+
+**Game's Own Mode** puts the screen on the game's own lines and refresh rate while it plays, in MAME and FinalBurn Neo alike. It is off until you turn it on, and new: it has been seen to hold on a Raspberry Pi 5 with a JAMMA board with the test tool, and a whole game through the menus is still being confirmed on the device.
+
+- **Where**: a Raspberry Pi 5 on one of the JAMMA display outputs for a 15 kHz arcade monitor (JAMMA 720x240, 320x240, 1920x240, 720x288 or 1920x288). A Pi 4's display output is set once as it starts and can't change for a game, and the other outputs name no monitor to make a mode for.
+- **Which games**: a horizontal game of one screen, 192 to 288 lines at 49.5 to 65 Hz, whose lines and rate fit under the monitor's 16.2 kHz. A vertical game, a game with two or three screens, a game with more lines (the 25 and 31 kHz games, and the interlaced ones) and a game MAME gives no figures for play on the display output's mode, as without the setting.
+- **What you see**: the screen goes black for a moment as the game starts, the game fills it with each of its lines on one of the screen's, and the menus come back on the display output's mode as it ends. The picture is 1920 pixels across for every game, so a game of any width fills the screen.
+- **Safety**: a mode is made only within the range of the monitor the display output names (15.625 to 16.2 kHz), and it is set only when its line rate is within 5% of the one the screen is on. A 15 kHz monitor is never given a faster mode.
+- **The log** has a line for each game started: `journalctl -u osdos -b | grep -E "own mode|arcade's (mode|picture)"`. It says which mode was asked for (`Game's own mode for mslug in MAME: 1920x224  15.684 kHz  59.19 Hz  39.132 MHz asked for`), or why there is none; whether the kernel took it (`arcade's mode set`); and, once the game's picture is up, whether the emulator kept it (`arcade's picture is up on its mode`).
+- **If the screen stays wrong** after a game: OSD/OS notices when its menus no longer reach the screen and starts itself again. Failing that, switch the Pi off and on: nothing of a game's mode is saved, so it starts on the display output's own mode. Then turn Game's Own Mode off.
+
+`osdos-modetest` tries the same by hand, one emulator at a time: [The OSD/OS image](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image).
 
 ## Settings
 
@@ -613,8 +636,9 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | **EMULATORS** | | | | |
 | Sound Buffer | Auto, RetroArch's | Auto | FinalBurn Neo's sound buffer. **Auto**: 48 ms, so the sound trails the picture less, and on a Raspberry Pi 4 RetroArch's 64 ms with a lighter resampler. **RetroArch's**: RetroArch's own 64 ms and resampler, if the sound crackles | `modules.com.osdos.arcade.sound_buffer` |
 | CPU at Full Speed | ON, OFF | ON | While a game plays, in MAME or FinalBurn Neo, the Pi's CPU governor at `performance`, put back as the game ends, on the OSD/OS image or after `install.sh` ([The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). A Pi already hot or throttled keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.cpu_full_speed` |
+| Show Stats | Off, FPS, FPS + System | Off | A line in the top left corner of the game's picture, from the next game started ([Show Stats](#show-stats)). **FPS**: the frame rate, and in MAME its speed. **FPS + System**: with the processor's load, the temperature, and `THROTTLED` or `UNDERVOLT` while a Raspberry Pi's firmware reports it: on Linux, and for FinalBurn Neo in the RetroArch of OSD/OS's Linux arm64 package | `modules.com.osdos.arcade.show_stats` |
 | MAME, FinalBurn Neo | (pages) | | [MAME's page](#mames-page), [The core and RetroArch](#the-core-and-retroarch) | |
-| Emulator Video | (page) | | Seven settings ([Emulator Video](#emulator-video)) | |
+| Emulator Video | (page) | | Eight settings ([Emulator Video](#emulator-video)) | |
 
 ### How the values are saved
 
@@ -706,7 +730,7 @@ mame galaga \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-`-comm_localhost 127.0.0.1` keeps the link board of a game that has one (CPS-2's Communication setting, Model 1/2/3, System 32) listening on the machine itself rather than on every address: OSD/OS never links two machines through MAME. `;…/bios` and the arguments after `-comm_localhost` are given only when they apply. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
+`-comm_localhost 127.0.0.1` keeps the link board of a game that has one (CPS-2's Communication setting, Model 1/2/3, System 32) listening on the machine itself rather than on every address: OSD/OS never links two machines through MAME. `;…/bios` and the arguments after `-comm_localhost` are given only when they apply: `-autoboot_script` with credits bought or [Show Stats](#show-stats) on. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
 
 Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, and reads the `mame.ini` there.
 

@@ -149,10 +149,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     pkg_check_modules(Libdrm REQUIRED libdrm)
 
     # More of the app's sources that several of them are built with, once:
-    # the board and the requests to the system's root helpers; what starts a
-    # program with the screen (a script, the web player, a game) and finds
-    # mpv's and yt-dlp's programs; and YouTube with the web player it plays
-    # through.
+    # the board and the requests to the system's root helpers; the video
+    # modes, which have no Qt in them (src/modetest: a modeline, and a game's
+    # own mode for a monitor's range); what starts a program with the screen
+    # (a script, the web player, a game) and finds mpv's and yt-dlp's
+    # programs; and YouTube with the web player it plays through.
+    add_library(osdos_test_modes STATIC ../src/modetest/ModeLine.cpp ../src/modetest/GameMode.cpp)
+    set_target_properties(osdos_test_modes PROPERTIES AUTOMOC OFF)
+    target_include_directories(osdos_test_modes PUBLIC ../src)
     add_library(osdos_test_system STATIC ../src/util/Board.cpp ../src/util/RootRequest.cpp)
     target_link_libraries(osdos_test_system PUBLIC osdos_test_names Qt6::Network)
     add_library(osdos_test_launch STATIC
@@ -161,7 +165,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/util/DisplayHandoff.cpp
         ../src/util/YtDlpLocator.cpp)
     target_include_directories(osdos_test_launch PUBLIC ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(osdos_test_launch PUBLIC osdos_test_audio ${Libdrm_LIBRARIES})
+    target_link_libraries(osdos_test_launch PUBLIC osdos_test_audio osdos_test_modes ${Libdrm_LIBRARIES})
     add_library(osdos_test_youtube STATIC
         ../src/modules/youtube/YouTubeBackend.cpp
         ../src/modules/web_player/WebPlayerBackend.cpp
@@ -205,7 +209,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     osdos_cpp_test(display_output SOURCES ../src/display/DisplayOutput.cpp
         DEFINITIONS PRESETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../os/stage-osdos/03-boot/files"
                     INSTALL_SH="${CMAKE_CURRENT_SOURCE_DIR}/../scripts/install.sh"
-        LIBRARIES osdos_test_system Qt6::Network)
+        LIBRARIES osdos_test_system osdos_test_modes Qt6::Network)
     qt_add_resources(display_output_test "display_presets" PREFIX "/display" BASE "../os/stage-osdos/03-boot/files"
                      FILES "../os/stage-osdos/03-boot/files/display-presets.json")
     # The same as a Pi 5, whose outputs are others.
@@ -255,6 +259,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME game_system_pi4 COMMAND game_system_test)
     set_tests_properties(game_system_pi4 PROPERTIES ENVIRONMENT "OSDOS_BOARD_MODEL=Raspberry Pi 4 Model B Rev 1.5")
 
+    # A video mode of a child's own through the hand-off of the screen
+    # (DisplayHandoff::setMode(), ScriptEntry::mode), without a screen: who
+    # may ask for one, a mode refused, and what a program is started with on
+    # its mode and without it.
+    osdos_cpp_test(display_handoff LIBRARIES osdos_test_launch)
+
     # Settings → System's Time Zone and Keyboard (SystemSettings): what the
     # system has from a stand-in root, the lists it offers, and a new one sent
     # through a stand-in for osdos-system.socket.
@@ -288,6 +298,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ../src/modules/arcade/ArcadePictures.cpp
         ../src/modules/arcade/LanRooms.cpp
         ../src/modules/arcade/Mame.cpp
+        ../src/modules/arcade/OwnMode.cpp
         ../src/modules/arcade/Libretro.cpp
         ../src/modules/arcade/FbneoInstaller.cpp
         ../src/modules/arcade/GameSystem.cpp
@@ -318,6 +329,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(arcade_test_core MODULE arcade_test_core.c)
     set_target_properties(arcade_test_core PROPERTIES PREFIX "" AUTOMOC OFF)
     add_dependencies(arcade_test arcade_test_core)
+    # osdos_keepmode.so (below), which a game on its own video mode is
+    # preloaded with: the test's stand-ins for MAME and RetroArch say what
+    # they were started with.
+    add_dependencies(arcade_test osdos_keepmode)
+    target_compile_definitions(arcade_test PRIVATE KEEPMODE_LIBRARY="$<TARGET_FILE:osdos_keepmode>")
     target_compile_definitions(arcade_test PRIVATE TEST_CORE="$<TARGET_FILE:arcade_test_core>")
 
     # A playlist's m3u: owner-only and whole, the one before removed once it
@@ -338,14 +354,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     osdos_cpp_test(jamma SOURCES ../src/jamma/JammaPanel.cpp)
 
     # osdos-modetest (src/modetest): modelines read, the built-in modes, which
-    # a screen may be given and the picture drawn in each; and the tool itself
-    # where there is no screen: a modeline that isn't one turned down, and
-    # none found to test on. Linux only, as libdrm is.
-    osdos_cpp_test(modetest SOURCES ../src/modetest/ModeLine.cpp)
-    add_executable(modetest_tool ../src/modetest/main.cpp ../src/modetest/ModeLine.cpp)
+    # a screen may be given and the picture drawn in each, and a game's own
+    # mode worked out for a monitor's range (GameMode), as the app works it
+    # out too; and the tool itself where there is no screen: a modeline that
+    # isn't one turned down, none found to test on, a game's own mode printed
+    # as the modeline Switchres gives for it, a game the monitor has no mode
+    # for turned down with why, and --run kept to one mode and to a screen.
+    # Linux only, as libdrm is.
+    osdos_cpp_test(modetest LIBRARIES osdos_test_modes)
+    add_executable(modetest_tool ../src/modetest/main.cpp)
     set_target_properties(modetest_tool PROPERTIES AUTOMOC OFF)
     target_include_directories(modetest_tool PRIVATE ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(modetest_tool PRIVATE ${Libdrm_LIBRARIES})
+    target_link_libraries(modetest_tool PRIVATE osdos_test_modes ${Libdrm_LIBRARIES})
     add_test(NAME modetest_tool_modeline COMMAND modetest_tool --mode "6.5 320 300 364 416 224 236 239 265")
     set_tests_properties(modetest_tool_modeline PROPERTIES
         PASS_REGULAR_EXPRESSION "not a modeline \\(the horizontal sync isn't in the blanking after the picture\\)")
@@ -353,6 +373,46 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set_tests_properties(modetest_tool_no_screen PROPERTIES
         ENVIRONMENT "OSDOS_MODETEST_DRI=${CMAKE_CURRENT_BINARY_DIR}/no-dri"
         PASS_REGULAR_EXPRESSION "no screen to test on: no DPI output is showing a picture")
+    add_test(NAME modetest_tool_game COMMAND modetest_tool --game 224@59.185606 --game 384x224@59.637405 --modelines)
+    set_tests_properties(modetest_tool_game PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"1920x224_59.19\" 39.132041 1920 1998 2182 2495 224 236 239 265 -hsync -vsync.*\n\"384x224_59.64\" 7.796875 384 400 437 499 224 234 237 262 -hsync -vsync")
+    add_test(NAME modetest_tool_game_refused COMMAND modetest_tool --game 480@60 --modelines)
+    set_tests_properties(modetest_tool_game_refused PROPERTIES
+        PASS_REGULAR_EXPRESSION "no mode for the game 480@60: its 480 lines are outside the monitor's 192 to 288")
+    add_test(NAME modetest_tool_run_one_mode COMMAND modetest_tool --run true)
+    set_tests_properties(modetest_tool_run_one_mode PROPERTIES
+        PASS_REGULAR_EXPRESSION "--run takes one mode, a --game or a --mode: 0 given")
+    add_test(NAME modetest_tool_run_no_screen COMMAND modetest_tool --game 224@59.185606 --run true)
+    set_tests_properties(modetest_tool_run_no_screen PROPERTIES
+        ENVIRONMENT "OSDOS_MODETEST_DRI=${CMAKE_CURRENT_BINARY_DIR}/no-dri"
+        PASS_REGULAR_EXPRESSION "no screen to test on: no DPI output is showing a picture")
+
+    # osdos_keepmode.so (src/modetest/KeepMode.c), which an emulator started
+    # on a game's own mode is preloaded with: against a stand-in for libdrm
+    # (keepmode_fake_drm.c, built as a libdrm.so.2 of its own), a connector
+    # lists the one mode its CRTC is on, and one whose CRTC shows nothing is
+    # left as it is; and without the library, every connector is as the
+    # stand-in has it, which is what tells the two apart.
+    add_library(osdos_keepmode MODULE ../src/modetest/KeepMode.c)
+    set_target_properties(osdos_keepmode PROPERTIES PREFIX "" C_VISIBILITY_PRESET hidden AUTOMOC OFF)
+    target_include_directories(osdos_keepmode PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(osdos_keepmode PRIVATE ${CMAKE_DL_LIBS})
+    add_library(keepmode_fake_drm SHARED keepmode_fake_drm.c)
+    set_target_properties(keepmode_fake_drm PROPERTIES OUTPUT_NAME drm SOVERSION 2 AUTOMOC OFF
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/keepmode-drm")
+    target_include_directories(keepmode_fake_drm PRIVATE ${Libdrm_INCLUDE_DIRS})
+    add_executable(keepmode_test keepmode_test.c)
+    set_target_properties(keepmode_test PROPERTIES AUTOMOC OFF)
+    target_include_directories(keepmode_test PRIVATE ${Libdrm_INCLUDE_DIRS})
+    target_link_libraries(keepmode_test PRIVATE keepmode_fake_drm)
+    add_dependencies(keepmode_test osdos_keepmode)
+    add_test(NAME keepmode COMMAND keepmode_test kept)
+    set_tests_properties(keepmode PROPERTIES
+        ENVIRONMENT "LD_PRELOAD=$<TARGET_FILE:osdos_keepmode>;OSDOS_KEEPMODE_VERBOSE=1"
+        PASS_REGULAR_EXPRESSION "kept: every connector as expected"
+        FAIL_REGULAR_EXPRESSION "FAIL:;cannot be preloaded")
+    add_test(NAME keepmode_without COMMAND keepmode_test as-is)
+    set_tests_properties(keepmode_without PROPERTIES PASS_REGULAR_EXPRESSION "as-is: every connector as expected")
 
     # A release's notes (scripts/release-notes.sh) on a made-up history: the
     # commits since the previous tag under What's New, Changelog and Bug Fixes.

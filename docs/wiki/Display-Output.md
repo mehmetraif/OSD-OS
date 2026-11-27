@@ -399,6 +399,7 @@ Each of the board's nine other presets is JAMMA 240p's but for its mode. Its nam
 - **No interlace on a Pi 5.** Its DPI interlaces only with a sync on GPIO 1, which carries the board's controls. JAMMA 480i and 576i are untested on the board.
 - **The picture's shape.** Every JAMMA mode is shown 4:3 whatever its pixels ([below](https://github.com/mehmetraif/OSD-OS/wiki/Display-Output#overscan-and-the-safe-area)).
 - **Should the picture roll**, change the syncs as for JAMMA 240p.
+- **A game on its own mode.** The preset is the menus' mode. On a Raspberry Pi 5, with one of the 15 kHz presets, an arcade game can play on a mode made for it, its own lines at its own refresh rate, and the menus come back on the preset's: **Settings → Arcade → Emulator Video → Game's Own Mode** ([Arcade](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-games-own-video-mode)). Each 15 kHz JAMMA preset names the monitor it is for (`"monitor": "arcade_15"` in `display-presets.json`: 15.625 to 16.2 kHz, 49.5 to 65 Hz, 192 to 288 lines), and a game's mode is made within that and never outside it. The 25 and 31 kHz presets, SCART RGB, composite and HDMI name none, and keep their one mode.
 
 ### The Pi 5's output
 

@@ -405,6 +405,13 @@ int main(int argc, char *argv[]) {
           tube ? "a TV's tube, drawn 4:3" : "square pixels");
     mpvController.setScreen(tube, screenPixels);
     arcadeBackend.setScreen(tube, screenPixels, targetScreen ? targetScreen->refreshRate() : 0);
+    // Emulator Video → Game's Own Mode makes each game's video mode within
+    // the ranges of the monitor the display output in force is for (the
+    // JAMMA presets name a 15 kHz arcade monitor's). Only while the screen
+    // is that output's tube: a Pi 5 that found the preset's output missing
+    // and took the first display connected is on no monitor of the
+    // preset's.
+    arcadeBackend.setMonitor(tube ? DisplayOutput::monitorOf(displayOutput.current()) : QString());
 
     // When the Qt window is inactive (fullscreen mpv has OS focus on macOS),
     // gamepad actions bypass QML and drive mpv directly over IPC; the media

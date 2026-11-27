@@ -367,6 +367,73 @@ StandInRoot {
             compare(off(page, "buffers"), "")
         }
 
+        // Emulator Video's Game's Own Mode, the row as Arcade's manifest has
+        // it (tests/arcade_test.cpp holds the manifest's to these words):
+        // OFF, and dimmed with its own reason until the backend reports its
+        // capability, which a Raspberry Pi alone isn't (a Pi 4, or a Pi 5 on
+        // HDMI): only a Pi 5 on a 15 kHz JAMMA display output is
+        // (ArcadeBackend::machineCapabilities()). Dimmed, ◄ ► leave it OFF
+        // and save nothing; usable, they turn it on, the help line saying
+        // what the value on the row does.
+        function test_gamesOwnMode() {
+            var pi = { name: "raspberry_pi", slot: "machineCapabilities", reason: "Only on a Raspberry Pi" }
+            var reason = "Only on a Raspberry Pi 5 with a 15 kHz JAMMA display output"
+            appCore.schema = [
+                { key: "emulator_video", label: "Emulator Video", type: "submenu", settings: [
+                    { key: "vertical_monitor", label: "Vertical Games", type: "list_single",
+                      options: ["Horizontal", "Turned Right", "Turned Left"], default: "Horizontal" },
+                    { key: "own_video_mode", label: "Game's Own Mode", type: "toggle", default: "OFF",
+                      requires_capability: { name: "own_video_mode", slot: "machineCapabilities", reason: reason },
+                      description: "The screen put on each game's own lines and refresh rate while it plays\n"
+                                   + "[ON] A horizontal game plays on a video mode made for it  "
+                                   + "[OFF] Every game on the display output's mode" },
+                    { key: "frame_buffers", label: "Frame Buffers", type: "list_single", options: ["Auto", "Two"],
+                      default: "Auto", requires_capability: pi }] }
+            ]
+            loader.setSource(Qt.resolvedUrl("../../views/ModuleSettings.qml"),
+                             { navParams: { moduleId: "com.osdos.test", submenu: "emulator_video" } })
+            var page = loader.item
+            verify(page !== null, "loaded ModuleSettings.qml")
+            page.forceActiveFocus()
+            compare(keys(page), ["vertical_monitor", "own_video_mode", "frame_buffers"])
+            // Asked of the backend once, by the one slot the two rows name.
+            compare(appCore.actions, ["machineCapabilities"])
+            compare(off(page, "own_video_mode"), reason)
+            compare(menuRow(page, 1).value, "OFF")
+            verify(menuRow(page, 1).dimmed)
+            keyClick(Qt.Key_Down)
+            compare(cursor(page), "own_video_mode")
+            var help = findChild(page, "helpLine")
+            verify(help.shownText.indexOf(reason) === 0, help.shownText)
+            keyClick(Qt.Key_Right)
+            keyClick(Qt.Key_Left)
+            keyClick(Qt.Key_Return)
+            compare(appCore.values.own_video_mode, undefined)
+            compare(menuRow(page, 1).value, "OFF")
+            // A Raspberry Pi and no more: its rows come, this one doesn't.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["raspberry_pi"])
+            compare(off(page, "frame_buffers"), "")
+            compare(off(page, "own_video_mode"), reason)
+            verify(menuRow(page, 1).dimmed)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.own_video_mode, undefined)
+            // A Pi 5 on a 15 kHz JAMMA display output.
+            appCore.dynamicOptionsReady("com.osdos.test", "_capabilities", ["raspberry_pi", "own_video_mode"])
+            compare(off(page, "own_video_mode"), "")
+            verify(!menuRow(page, 1).dimmed)
+            compare(menuRow(page, 1).value, "OFF")
+            verify(help.shownText.indexOf("The screen put on each game's own lines") === 0, help.shownText)
+            verify(help.shownText.indexOf("[OFF] Every game on the display output's mode") > 0, help.shownText)
+            verify(help.shownText.indexOf("[ON]") < 0, help.shownText)
+            keyClick(Qt.Key_Right)
+            compare(appCore.values.own_video_mode, true)
+            compare(menuRow(page, 1).value, "ON")
+            verify(help.shownText.indexOf("[ON] A horizontal game plays on a video mode made for it") > 0, help.shownText)
+            keyClick(Qt.Key_Left)
+            compare(appCore.values.own_video_mode, false)
+            compare(appCore.actions, ["machineCapabilities"])
+        }
+
         // What dims a row changes (the row it goes with, what the server can
         // do, a sign-in): the rows dimmed or usable otherwise change in
         // place. No line of the list is made again, the list stays where it

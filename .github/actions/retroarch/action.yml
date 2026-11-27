@@ -1,7 +1,8 @@
 name: RetroArch with TLS
 description: >
   OSD/OS's own RetroArch for the Linux arm64 package, built from the commit
-  scripts/engines.env names with OSD/OS's fixes (scripts/retroarch-fixes.patch)
+  scripts/engines.env names with OSD/OS's fixes (scripts/retroarch-fixes.patch),
+  Show Stats' machine state (scripts/retroarch-stats.patch)
   and TLS (scripts/build-retroarch.sh), or kept
   from an earlier run, and put where the package keeps it, with its
   licences. A new build is first started on a game against a stand-in for
@@ -30,13 +31,13 @@ runs:
         echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
         echo "commit=${RETROARCH_COMMIT}" >> "$GITHUB_OUTPUT"
 
-    # Kept from a run before for the same commit, script, patch and test.
+    # Kept from a run before for the same commit, script, patches and test.
     - name: Restore RetroArch
       id: cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: retroarch-built
-        key: retroarch-${{ steps.what.outputs.image }}-${{ runner.arch }}-${{ steps.what.outputs.commit }}-${{ hashFiles('scripts/build-retroarch.sh', 'scripts/retroarch-fixes.patch', 'tests/retroarch_tls_test.sh', 'tests/retroarch_tls/**') }}
+        key: retroarch-${{ steps.what.outputs.image }}-${{ runner.arch }}-${{ steps.what.outputs.commit }}-${{ hashFiles('scripts/build-retroarch.sh', 'scripts/retroarch-fixes.patch', 'scripts/retroarch-stats.patch', 'tests/retroarch_tls_test.sh', 'tests/retroarch_tls/**') }}
 
     # What it is built with, whose libraries it also needs to say its
     # version below: the features scripts/build-retroarch.sh asks for by name.

@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <optional>
 
+#include "../../modetest/ModeLine.h"
 #include "../../util/Board.h"
 
 class QHostAddress;
@@ -130,9 +131,11 @@ qint64 netplayMemory(qint64 stateSize, bool hosting);
 // each as MAME would describe it, for a set MAME doesn't know: its
 // description (its set's name for none), year, maker, parent, driver (named
 // as MAME's are: capcom/d_cps1.cpp is capcom/cps1.cpp), whether it works, a
-// vertical one's rotation (90), and the shape of its picture on the glass,
-// its width over its height (4:3, 3:4 for a vertical one), where the DAT
-// says (<video>: Machine::aspect); no players, which the DAT doesn't say.
+// vertical one's rotation (90), the shape of its picture on the glass, its
+// width over its height (4:3, 3:4 for a vertical one), and its size in its
+// own pixels, before the rotation as MAME gives one, where the DAT says
+// (<video>: Machine::aspect, width and height); no players and no refresh
+// rate, which the DAT doesn't say.
 // Not a BIOS set (neogeo), which games start from but which isn't one.
 // Empty for a file that can't be read.
 QHash<QString, mame::Machine> readDat(const QString &path);
@@ -179,6 +182,17 @@ bool coinDown(qint64 ms, int coins, bool *done);
 // RetroArch's message to its network RetroPad (struct remote_message in its
 // input/input_driver.h): a RetroPad button down or let go.
 QByteArray remotePadMessage(int button, bool down);
+
+// Settings → Arcade → Show Stats, for FinalBurn Neo (Launch::stats) and
+// MAME (mame::autobootScript()) alike: nothing; the frame rate (and MAME's
+// speed); or that and the machine's state, its processor's load, its
+// temperature and its firmware's throttling. statsOf() reads the row's
+// value ("Off", "FPS", "FPS + System"; anything else Off).
+enum class Stats { Off, Fps, System };
+Stats statsOf(const QString &value);
+// The key OSD/OS's own RetroArch (scripts/retroarch-stats.patch) reads to put
+// the machine's state after the frame rate; a stock RetroArch ignores it.
+inline constexpr char kSystemShowKey[] = "osdos_system_show";
 
 // What a game is started with.
 struct Launch {
@@ -270,9 +284,20 @@ struct Launch {
     // size) for the mode RetroArch takes by itself.
     QSize   modeSize;
     int     modeRefresh = 0;
+    // On a video mode of the game's own (Game's Own Mode), the config laid
+    // over this one (ownModeConfigText(), RetroArch's --appendconfig); ""
+    // for none, as for every game the mode wasn't set for.
+    QString ownModeConfig;
     // Settings → Arcade → Show Ping: over the network, each peer's ping on
     // the screen (netplay_ping_show).
     bool    pingShown = false;
+    // Settings → Arcade → Show Stats: RetroArch's frame rate (fps_show),
+    // with the machine's state after it in OSD/OS's own RetroArch
+    // (kSystemShowKey). Played alone without RetroAchievements it is drawn
+    // as RetroArch's message text, top left inside the overscan, sized for
+    // the screen (screenSize, or modeSize): configText().
+    Stats   stats = Stats::Off;
+    QSize   screenSize;
     // Online, the controller types every port plays with. RetroArch gives
     // every machine the host's, port by port, and a machine's players find
     // their pads only among ports of one kind (its pad n drives the n-th of
@@ -347,6 +372,20 @@ std::optional<GameMode> gameMode(const QSize &screen, double refresh, bool tube,
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
 QString configText(const Launch &launch);
+// The config laid over it for a game on a video mode of its own
+// (Launch::ownModeConfig), which OSD/OS has set and RetroArch keeps
+// (osdos_keepmode): the screen's refresh rate as that mode's (rate: the
+// kernel's, from its pixel clock in kHz), so that RetroArch, which plays a
+// frame for each of the screen's, stretches neither the game's time nor its
+// sound; no mode asked for of its own (video_fullscreen_x and _y 0, the size
+// it finds; no refresh-rate switch, no CRT SwitchRes); the picture's shape in
+// the mode's pixels (aspect, viewportAspect() for the mode's size) with the
+// game's lines whole, or over the whole screen (fill, Fit to Screen); and no
+// smoothing between the game's pixels.
+QString ownModeConfigText(double rate, double aspect, bool fill);
+// A mode's refresh rate as the kernel makes it: its pixel clock counted in
+// whole kHz (drmModeModeInfo's), over its totals.
+double kernelRefresh(const modetest::ModeLine &mode);
 // RetroArch's arguments: the core, the config, the log and the game.
 QStringList arguments(const Launch &launch);
 // The remap file RetroArch loads with FinalBurn Neo from remapDir: the

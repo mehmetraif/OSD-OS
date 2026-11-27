@@ -52,8 +52,10 @@ const QString kModuleId = QStringLiteral("com.osdos.arcade");
 // games.json's layout: of one of another, only the sets MAME had no machine
 // of are read, kept apart as every set is asked about again (2: each
 // machine's source file, for its system; 3: its screen's size, for its
-// picture on a tube; 4: its difficulty's DIP switch, for its options).
-constexpr int kCacheVersion = 4;
+// picture on a tube; 4: its difficulty's DIP switch, for its options; 5: its
+// screen's refresh rate and how many screens it has, for a video mode of its
+// own).
+constexpr int kCacheVersion = 5;
 
 // The most favourites the list keeps, as EntryOptions adds them.
 constexpr int kMostFavorites = 100;
@@ -519,7 +521,8 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                              "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
                              "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "lan_sync", "pictures_source",
-                             "frame_buffers", "sound_buffer", "show_ping", "mame_vsync" }) {
+                             "frame_buffers", "sound_buffer", "show_ping", "mame_vsync", "show_stats",
+                             "own_video_mode" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -709,8 +712,14 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_soundBuffer = value.toString();
     } else if (key == QLatin1String("show_ping")) {
         m_showPing = isOn(value, false);
+    } else if (key == QLatin1String("show_stats")) {
+        // From the next game started.
+        m_stats = libretro::statsOf(value.toString());
     } else if (key == QLatin1String("mame_vsync")) {
         m_mameVsync = value.toString();
+    } else if (key == QLatin1String("own_video_mode")) {
+        // Off unless it says on: unset too.
+        m_ownMode = isOn(value, false);
     } else if (key == QLatin1String("lan_sync")) {
         // Smooth unless it says otherwise: unset too.
         m_lanFollow = value.toString() != QLatin1String("Responsive");
@@ -2273,6 +2282,8 @@ void ArcadeBackend::machineCapabilities() {
     QVariantList capabilities;
     if (m_board != board::Family::Other)
         capabilities << QStringLiteral("raspberry_pi");
+    if (ownModeUnavailable().isEmpty())
+        capabilities << QStringLiteral("own_video_mode");
     emit dynamicOptionsReady(QStringLiteral("_capabilities"), capabilities);
 }
 
@@ -2619,8 +2630,10 @@ bool ArcadeBackend::play(const QString &name, int credits) {
         args << QStringLiteral("-resolution")
              << QStringLiteral("%1x%2@%3").arg(mode->size.width()).arg(mode->size.height()).arg(mode->refresh);
     // Emulator Video: the screen's shape, and the game's lines whole.
-    args << mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(), integerScale(),
-                                  m_fitScreen, monitorFor(name));
+    const qsizetype screenAt = args.size();
+    const QStringList screen = mame::screenArguments(m_machines.value(name), m_screenSize.height(), screenShape(),
+                                                     integerScale(), m_fitScreen, monitorFor(name));
+    args << screen;
     // Without a sound card that can play now (a Pi 5 whose picture goes out
     // through a JAMMA board or composite, its HDMI off, with no USB card),
     // the game is played in silence: MAME's SDL sound fails there, and
@@ -2628,14 +2641,22 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // one and crashes (signal 11).
     if (!AudioOutput::hasPlaybackCard())
         args << QStringLiteral("-sound") << QStringLiteral("none");
-    // The credits bought on the Arcade screen, put in as the game starts.
-    // Without the script the game still starts, with no credits.
-    if (credits > 0) {
+    // The credits bought on the Arcade screen, put in as the game starts,
+    // and Show Stats' line, in the one script MAME takes. Without the
+    // script the game still starts, with no credits and no line.
+#ifdef Q_OS_LINUX
+    constexpr bool readsSystem = true;   // /proc/stat and /sys
+#else
+    constexpr bool readsSystem = false;
+#endif
+    const QString script = mame::autobootScript(std::min(credits, kMaxCredits), m_stats != libretro::Stats::Off,
+                                                m_stats == libretro::Stats::System && readsSystem);
+    if (!script.isEmpty()) {
         const QString coins = m_home + QStringLiteral("/coins.lua");
-        if (writeFileAnew(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
+        if (writeFileAnew(coins, script.toUtf8()))
             args << QStringLiteral("-autoboot_script") << coins;
         else
-            qWarning("[Arcade] The credits could not be written for MAME: the game starts without them");
+            qWarning("[Arcade] MAME's script could not be written: the game starts without its credits or stats");
     }
 
     ScriptEntry entry;
@@ -2648,6 +2669,20 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // screen held.
     entry.meta.wait = QStringLiteral("program");
     entry.argv = args;
+    // Emulator Video → Game's Own Mode: the screen on the game's lines and
+    // refresh rate while it plays. Where that mode is set (the hand-off of
+    // the screen sets it, and says so), MAME is told of a screen of the
+    // mode's lines in place of the menu's, and is preloaded with what makes
+    // its SDL keep the mode it finds; where it isn't, MAME starts with the
+    // arguments above, as without the setting.
+    if (const std::optional<modetest::ModeLine> mode = ownMode(name, QStringLiteral("MAME"))) {
+        QStringList own = args.mid(0, screenAt);
+        own << mame::ownModeArguments(m_machines.value(name), mode->vdisplay, screenShape(), m_fitScreen, m_video);
+        own << args.mid(screenAt + screen.size());
+        entry.mode = mode;
+        entry.modeArgv = own;
+        entry.modeEnvironment = { { QStringLiteral("LD_PRELOAD"), keepModeLibrary() } };
+    }
     // A MAME of its own folder runs there, as by hand, to find its files
     // (MAME's paths are relative to where it runs) and its own mame.ini.
     // What it writes goes to <data>/arcade either way (kOutputs).
@@ -2730,6 +2765,60 @@ bool ArcadeBackend::mameVsync() const {
         return false;
     // Auto: where MAME draws through KMS on a Raspberry Pi 4 or 5.
     return onConsole() && (m_board == board::Family::Pi4 || m_board == board::Family::Pi5);
+}
+
+QString ArcadeBackend::keepModeLibrary() const {
+    const QString path = m_keepModeLibrary.isEmpty()
+                             ? QCoreApplication::applicationDirPath() + QStringLiteral("/osdos_keepmode.so")
+                             : m_keepModeLibrary;
+    return QFileInfo(path).isFile() ? path : QString();
+}
+
+QString ArcadeBackend::ownModeUnavailable() const {
+    // Where it has been seen to hold: a Pi 5's DPI output, whose driver
+    // takes any timing at run time. A Pi 4's DPI is its firmware's, set
+    // once as it starts.
+    if (m_board != board::Family::Pi5)
+        return QStringLiteral("only on a Raspberry Pi 5");
+    if (!onConsole())
+        return QStringLiteral("only where OSD/OS draws on the console");
+    if (m_monitor.isEmpty())
+        return QStringLiteral("only on a display output for a 15 kHz arcade monitor");
+    if (keepModeLibrary().isEmpty())
+        return QStringLiteral("osdos_keepmode.so is not beside the app");
+    return QString();
+}
+
+mame::Machine ArcadeBackend::ownModeFigures(const QString &set) const {
+    if (const auto machine = m_machines.constFind(set); machine != m_machines.constEnd())
+        return machine.value();
+    // A set MAME doesn't know: FinalBurn Neo's list has its size and no
+    // refresh rate. Its parent's, where MAME knows the parent with a screen
+    // of that size and turn: the same board.
+    mame::Machine listed = m_fbneoMachines.value(set);
+    const auto parent = m_machines.constFind(listed.cloneOf);
+    if (!listed.cloneOf.isEmpty() && parent != m_machines.constEnd() && parent->refresh > 0 && parent->screens == 1
+        && parent->width == listed.width && parent->height == listed.height
+        && (parent->rotate == 90 || parent->rotate == 270) == (listed.rotate == 90 || listed.rotate == 270))
+        listed.refresh = parent->refresh;
+    return listed;
+}
+
+std::optional<modetest::ModeLine> ArcadeBackend::ownMode(const QString &set, const QString &engine) const {
+    if (!m_ownMode)
+        return std::nullopt;
+    mame::OwnMode own;
+    own.why = ownModeUnavailable();
+    if (own.why.isEmpty())
+        own = mame::ownModeFor(ownModeFigures(set), m_monitor, !monitorFor(set).isEmpty());
+    // One line for each game started, whichever way it went.
+    if (own.mode)
+        qInfo("[Arcade] Game's own mode for %s in %s: %s asked for, from %s", qPrintable(set), qPrintable(engine),
+              modetest::describe(*own.mode).c_str(), qPrintable(own.why));
+    else
+        qInfo("[Arcade] Game's own mode for %s in %s: none, %s", qPrintable(set), qPrintable(engine),
+              qPrintable(own.why));
+    return own.mode;
 }
 
 QString ArcadeBackend::relay() const {
@@ -3329,6 +3418,8 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.audioLatency = sound.latency;
     launch.resamplerQuality = sound.resamplerQuality;
     launch.pingShown = m_showPing;
+    launch.stats = m_stats;
+    launch.screenSize = m_screenSize;
     if (const std::optional<libretro::GameMode> mode = gameMode()) {
         launch.modeSize = mode->size;
         launch.modeRefresh = mode->refresh;
@@ -3477,6 +3568,28 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     entry.workingDirectory = home;
     entry.environment = padEnvironment(m_dataRoot);
     entry.nice = GameSystem::emulatorNice();
+    // Emulator Video → Game's Own Mode, as for MAME: where the game's mode
+    // is set, RetroArch is started with a config of that mode's laid over
+    // the one above (the screen's refresh rate the mode's, the picture's
+    // shape in the mode's pixels, no mode asked for of its own) and
+    // preloaded with what makes its KMS context keep the mode it finds;
+    // where it isn't, with the arguments above, as without the setting.
+    if (const std::optional<modetest::ModeLine> mode = ownMode(name, QStringLiteral("FinalBurn Neo"))) {
+        const double tube = shape == QLatin1String("16:9") ? 16.0 / 9.0 : 4.0 / 3.0;
+        const QString ownConfig = home + QStringLiteral("/own-mode.cfg");
+        const QString text = libretro::ownModeConfigText(
+            libretro::kernelRefresh(*mode),
+            libretro::viewportAspect(gameAspect(name), QSize(mode->hdisplay, mode->vdisplay), tube), m_fitScreen);
+        if (writeFileAnew(ownConfig, text.toUtf8(), kOwnerOnly)) {
+            libretro::Launch own = launch;
+            own.ownModeConfig = ownConfig;
+            entry.mode = mode;
+            entry.modeArgv = libretro::arguments(own);
+            entry.modeEnvironment = { { QStringLiteral("LD_PRELOAD"), keepModeLibrary() } };
+        } else {
+            qWarning("[Arcade] %s could not be written: the game plays on the mode the screen is on", qPrintable(ownConfig));
+        }
+    }
 
     // As for MAME: the batch MAME is asked meanwhile shares the machine.
     pauseScan();

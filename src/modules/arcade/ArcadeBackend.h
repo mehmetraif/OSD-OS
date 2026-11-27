@@ -21,6 +21,7 @@
 #include "ArcadePictures.h"
 #include "Libretro.h"
 #include "Mame.h"
+#include "OwnMode.h"
 #include "RomCheck.h"
 
 class AppCore;
@@ -166,6 +167,20 @@ public:
     // Where the display connectors' modes are read (<dir>/cardN-<name>/modes,
     // /sys/class/drm), or a test's folder.
     void setDrmFolder(const QString &dir) { m_drmFolder = dir; }
+    // The ranges of the monitor the display output in force is for, as its
+    // preset names them (DisplayOutput::monitorOf(): Switchres's line for a
+    // 15 kHz arcade monitor on the JAMMA presets; "" for an output that
+    // names none, HDMI and composite among them, and off the OSD/OS image).
+    // Emulator Video → Game's Own Mode makes each game's mode within them,
+    // and is offered only where there are some (ownModeUnavailable()).
+    void setMonitor(const QString &range) { m_monitor = range; }
+    // osdos_keepmode.so, which an emulator started on a game's own mode is
+    // preloaded with so that it keeps it: beside the app; a test's.
+    void setKeepModeLibrary(const QString &path) { m_keepModeLibrary = path; }
+    // Why Game's Own Mode can do nothing on this machine, "" where it can:
+    // a Raspberry Pi 5 drawing on the console, on a display output that
+    // names its monitor's ranges, with osdos_keepmode.so there.
+    QString ownModeUnavailable() const;
 
     // Where the games are: the module's Games Folder, else Games/Arcade in
     // the media folder, beside Local Files' Movies (on the image, the card's
@@ -942,6 +957,22 @@ private:
     std::optional<libretro::GameMode> gameMode() const;
     QStringList connectorModes() const;
     bool mameVsync() const;
+    // Emulator Video → Game's Own Mode: the video mode a game is started on
+    // in that engine ("MAME", "FinalBurn Neo"), made from its lines and
+    // refresh rate within the monitor's ranges (mame::ownModeFor()); none
+    // with the setting off, where it can do nothing (ownModeUnavailable()),
+    // and for a game that gets none. With the setting on, the log has one
+    // line for each game started: the mode asked for and what it was made
+    // from, or why there is none.
+    std::optional<modetest::ModeLine> ownMode(const QString &set, const QString &engine) const;
+    // A set's figures for it: MAME's of the set; for a set MAME doesn't
+    // know, FinalBurn Neo's list's size with its parent's refresh rate where
+    // MAME knows the parent at that size (a hack or a later version of a
+    // game on the same board), else no rate.
+    mame::Machine ownModeFigures(const QString &set) const;
+    // Where osdos_keepmode.so is: setKeepModeLibrary()'s, else beside the
+    // app; "" where there is none.
+    QString keepModeLibrary() const;
     // The relay a game hosted online goes through, by RetroArch's name: the
     // one saved, else relayForTimeZone()'s.
     QString relay() const;
@@ -1203,7 +1234,14 @@ private:
     QString m_frameBuffers;
     QString m_soundBuffer;
     bool    m_showPing = false;
+    libretro::Stats m_stats = libretro::Stats::Off;   // Show Stats
     QString m_mameVsync;
+    // Emulator Video → Game's Own Mode, off unless turned on; the monitor's
+    // ranges it makes each mode within (setMonitor()), and a test's
+    // osdos_keepmode.so (setKeepModeLibrary()).
+    bool    m_ownMode = false;
+    QString m_monitor;
+    QString m_keepModeLibrary;
     board::Family m_board = board::family();   // setBoard()
     std::optional<QString> m_timeZone;         // setTimeZone()
     std::optional<bool> m_overWifi;            // setOverWifi()

@@ -1,0 +1,175 @@
+# OSD/OS's own addition to RetroArch 1.20.0 (commit
+# ab3b175848fa6cd8b2340809631e30bc0fe1d136, the v1.20.0 tag), which
+# scripts/build-retroarch.sh applies after scripts/retroarch-fixes.patch,
+# before it builds the Linux arm64 package's RetroArch. OSD/OS's own, from
+# no upstream commit:
+#
+# 1. configuration.h and configuration.c: a boolean setting,
+#    osdos_system_show, false unless a configuration file sets it, so that
+#    a stock configuration behaves exactly as before.
+# 2. gfx/video_driver.c, video_driver_frame() and a helper before it,
+#    video_driver_osdos_system(): with osdos_system_show and fps_show both
+#    on, the status text carries after the frame rate the processor's load
+#    in percent (all cores together, from the first line of /proc/stat,
+#    over the last fps_update_interval), the temperature in degrees (the
+#    first of /sys/class/thermal/thermal_zone0..9/temp that reads, which is
+#    thermal_zone0 on a Raspberry Pi), and UNDERVOLT or THROTTLED while the
+#    Raspberry Pi's firmware reports under-voltage (bit 0) or a capped
+#    clock, throttling or the soft temperature limit (bits 1 to 3) now,
+#    from its sysfs node get_throttled where it exists: the first
+#    /sys/devices/platform/soc*/soc*:firmware/get_throttled, looked for
+#    once (soc/soc:firmware on a Pi 4, under the soc's address on a Pi 5),
+#    read with fopen(), no process started. The files are read when the frame rate is computed,
+#    once per fps_update_interval frames, never per frame; one that can't
+#    be read leaves its part out. Linux only: elsewhere the key is read and
+#    the frame rate shown alone. OSD/OS writes the key for Settings ->
+#    Arcade -> Show Stats' FPS + System (src/modules/arcade/Libretro.cpp,
+#    configText()).
+#
+# A RetroArch without this patch ignores the key: config_load_file() reads
+# only the settings it knows, by name. Nothing here changes RetroArch's
+# version, its netplay protocol or what two machines send each other.
+# Made on 2026-11-27 with diff -u against the tag with
+# scripts/retroarch-fixes.patch applied; applied with patch -p1 --fuzz=0.
+
+--- a/configuration.c
++++ b/configuration.c
+@@ -1735,6 +1735,7 @@
+    SETTING_BOOL("statistics_show",               &settings->bools.video_statistics_show, true, DEFAULT_STATISTICS_SHOW, false);
+    SETTING_BOOL("framecount_show",               &settings->bools.video_framecount_show, true, DEFAULT_FRAMECOUNT_SHOW, false);
+    SETTING_BOOL("memory_show",                   &settings->bools.video_memory_show, true, DEFAULT_MEMORY_SHOW, false);
++   SETTING_BOOL("osdos_system_show",             &settings->bools.osdos_system_show, true, false, false);
+    SETTING_BOOL("ui_menubar_enable",             &settings->bools.ui_menubar_enable, true, DEFAULT_UI_MENUBAR_ENABLE, false);
+    SETTING_BOOL("pause_nonactive",               &settings->bools.pause_nonactive, true, DEFAULT_PAUSE_NONACTIVE, false);
+    SETTING_BOOL("pause_on_disconnect",           &settings->bools.pause_on_disconnect, true, DEFAULT_PAUSE_ON_DISCONNECT, false);
+--- a/configuration.h
++++ b/configuration.h
+@@ -638,6 +638,7 @@
+       bool video_statistics_show;
+       bool video_framecount_show;
+       bool video_memory_show;
++      bool osdos_system_show;
+       bool video_msg_bgcolor_enable;
+ #ifdef _3DS
+       bool video_3ds_lcd_bottom;
+--- a/gfx/video_driver.c
++++ b/gfx/video_driver.c
+@@ -3632,6 +3632,106 @@
+    return true;
+ }
+ 
++#if defined(__linux__)
++#include <stdio.h>
++#include <glob.h>
++#endif
++
++/* OSD/OS: the machine's state after the frame rate (osdos_system_show):
++ * the CPU load of all cores over the last update interval (/proc/stat),
++ * the first thermal zone's temperature and a mark while the Raspberry Pi's
++ * firmware reports under-voltage or throttling now (its get_throttled
++ * node: soc/soc:firmware's on a Pi 4, under the soc's address on a Pi 5,
++ * looked for once), read when the frame rate is (update), kept between.
++ * A file that can't be read leaves its part out. Linux only: elsewhere
++ * nothing. */
++static size_t video_driver_osdos_system(char *s, size_t len, bool update)
++{
++   static char text[64];
++   size_t _len = 0;
++#if defined(__linux__)
++   if (update)
++   {
++      static char throttled[192];
++      static bool looked;
++      static unsigned long long last_busy, last_total;
++      unsigned long long v[8] = {0};
++      unsigned i;
++      int zone;
++      unsigned flags;
++      FILE *file;
++      size_t at = 0;
++
++      text[0] = '\0';
++      if ((file = fopen("/proc/stat", "r")))
++      {
++         if (fscanf(file, "cpu %llu %llu %llu %llu %llu %llu %llu %llu",
++                  &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7]) >= 4)
++         {
++            unsigned long long total = 0;
++            unsigned long long busy;
++            for (i = 0; i < 8; i++)
++               total += v[i];
++            busy = total - v[3] - v[4];
++            if (last_total && total > last_total && busy >= last_busy)
++               at += snprintf(text + at, sizeof(text) - at, " | CPU: %u%%",
++                     (unsigned)((200 * (busy - last_busy) + (total - last_total))
++                     / (2 * (total - last_total))));
++            last_busy  = busy;
++            last_total = total;
++         }
++         fclose(file);
++      }
++      for (zone = 0; zone < 10; zone++)
++      {
++         char path[64];
++         long milli;
++         int got;
++         snprintf(path, sizeof(path), "/sys/class/thermal/thermal_zone%d/temp", zone);
++         if (!(file = fopen(path, "r")))
++            continue;
++         got = fscanf(file, "%ld", &milli);
++         fclose(file);
++         if (got == 1)
++         {
++            if (at < sizeof(text))
++               at += snprintf(text + at, sizeof(text) - at, " | %ldC",
++                     (milli + (milli < 0 ? -500 : 500)) / 1000);
++            break;
++         }
++      }
++      if (!looked)
++      {
++         glob_t found;
++         memset(&found, 0, sizeof(found));
++         looked = true;
++         if (glob("/sys/devices/platform/soc*/soc*:firmware/get_throttled", 0, NULL, &found) == 0
++               && found.gl_pathc > 0)
++            strlcpy(throttled, found.gl_pathv[0], sizeof(throttled));
++         globfree(&found);
++      }
++      if (throttled[0] && (file = fopen(throttled, "r")))
++      {
++         if (fscanf(file, "%x", &flags) == 1)
++         {
++            if ((flags & 0x1) && at < sizeof(text))
++               at += snprintf(text + at, sizeof(text) - at, " | UNDERVOLT");
++            if ((flags & 0xE) && at < sizeof(text))
++               at += snprintf(text + at, sizeof(text) - at, " | THROTTLED");
++         }
++         fclose(file);
++      }
++   }
++#endif
++   if (len > 0)
++   {
++      _len = strlcpy(s, text, len);
++      if (_len >= len)
++         _len = len - 1;
++   }
++   return _len;
++}
++
+ void video_driver_frame(const void *data, unsigned width,
+       unsigned height, size_t pitch)
+ {
+@@ -3811,6 +3911,11 @@
+                status_text         + _len,
+                sizeof(status_text) - _len,
+                "%6.2f", last_fps);
++         if (config_get_ptr()->bools.osdos_system_show)
++            _len += video_driver_osdos_system(
++                  status_text         + _len,
++                  sizeof(status_text) - _len,
++                  (video_st->frame_count % fps_update_interval) == 0);
+       }
+ 
+       if (video_info.framecount_show)

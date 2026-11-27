@@ -5,8 +5,11 @@ OSD/OS uses. The GNU GPL v3 is OSD/OS's own `LICENSE`; these are the others,
 which ship with every build:
 
 - `GPL-2.0.txt`: the GNU General Public License, version 2, for MAME (version
-  2 or later), hi2txt's game definitions and the 240p Test Suite's pictures
-  in Settings → Screen → Test Patterns (version 2 or later, `assets/testpatterns`).
+  2 or later), hi2txt's game definitions, the 240p Test Suite's pictures
+  in Settings → Screen → Test Patterns (version 2 or later, `assets/testpatterns`)
+  and Switchres (version 2 or later), whose arithmetic for a game's own video
+  mode `src/modetest/GameMode.cpp` has, written again for the one case
+  OSD/OS needs, with its `arcade_15` monitor range.
 - `RapidXML.txt`: RapidXML's, the Boost Software License 1.0 or the MIT
   License, as in `thirdparty/openhi2txt/thirdparty/rapidxml-1.13/LICENSE`.
 - `zlib.txt`: minizip's and zlib's notices, under the zlib License.
@@ -38,8 +41,9 @@ The Linux arm64 tarball, and so the OSD/OS image, also carries RetroArch
 https://github.com/libretro/RetroArch at the commit `scripts/engines.env`
 names, with TLS. It is a modified RetroArch: `scripts/retroarch-fixes.patch`
 in OSD/OS's source changes it before the build, with fixes from RetroArch's
-and BearSSL's later commits and the network gamepad bound to 127.0.0.1; the
-patch's header lists each change. The licences of the libraries built into it from
+and BearSSL's later commits and the network gamepad bound to 127.0.0.1, and
+`scripts/retroarch-stats.patch` after it adds the machine's state after the
+frame rate on the screen; each patch's header lists its changes. The licences of the libraries built into it from
 its source (BearSSL, FLAC, rcheevos, SPIRV-Cross and others) are beside it,
 in `share/osdos/retroarch/licenses.txt`.
 

@@ -57,6 +57,14 @@ The Arcade module unpacks 7z archives with the LZMA SDK's decoder
 (https://7-zip.org/sdk.html), by Igor Pavlov, built into OSD/OS, in the
 public domain: /opt/osdos/share/osdos/assets/licenses/LZMA-SDK.txt.
 
+A game's own video mode (Settings → Arcade → Emulator Video → Game's Own
+Mode, and osdos-modetest) is worked out with Switchres's arithmetic
+(https://github.com/antonioginer/switchres), by Chris Kennedy, Antonio
+Giner, Alexandre Wodarczyk and Gil Delescluse, written again in OSD/OS's
+source (src/modetest/GameMode.cpp) for a progressive mode on a monitor of
+its arcade_15 range, under the GPL-2.0 or later, with the GPL-2.0's text in
+/opt/osdos/share/osdos/assets/licenses/.
+
 Icons others drew, whose notices are in
 /opt/osdos/share/osdos/assets/licenses/Icons.txt: the Weather module's are
 Weather Icons (https://erikflowers.github.io/weather-icons/), by Erik
@@ -142,8 +150,9 @@ the image.
   OSD/OS's source, by scripts/build-retroarch.sh there, with TLS. It is
   modified by OSD/OS: scripts/retroarch-fixes.patch there changes it before
   the build, with fixes from RetroArch's and BearSSL's later commits and
-  the network gamepad bound to 127.0.0.1; the patch's header lists each
-  change.
+  the network gamepad bound to 127.0.0.1, and scripts/retroarch-stats.patch
+  after it adds the machine's state after the frame rate on the screen;
+  each patch's header lists its changes.
   Its licence and those of the libraries built into it from its source
   (BearSSL, FLAC, rcheevos, SPIRV-Cross and others) are in
   /opt/osdos/share/osdos/retroarch/licenses.txt.

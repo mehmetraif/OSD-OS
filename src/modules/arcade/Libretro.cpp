@@ -21,6 +21,7 @@
 #include <QtEndian>
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <iterator>
 #include <optional>
@@ -506,6 +507,15 @@ QHash<QString, mame::Machine> readDat(const QString &path) {
                     machine.aspect = x / y;
                 if (attributes.value(QLatin1String("orientation")) == QLatin1String("vertical"))
                     machine.rotate = 90;
+                // Its size as MAME gives one, before the rotation: the list
+                // has a vertical game's as it stands on the glass.
+                const int width = attributes.value(QLatin1String("width")).toInt();
+                const int height = attributes.value(QLatin1String("height")).toInt();
+                if (width > 0 && height > 0) {
+                    machine.width = machine.rotate == 90 ? height : width;
+                    machine.height = machine.rotate == 90 ? width : height;
+                    machine.screens = 1;
+                }
             }
         } else if (xml.isEndElement()
                    && (xml.name() == QLatin1String("game") || xml.name() == QLatin1String("machine"))) {
@@ -851,6 +861,87 @@ QString configText(const Launch &launch) {
         set("netplay_use_mitm_server", on(false));
         set("netplay_nat_traversal", on(false));
     }
+    if (launch.stats != Stats::Off) {
+        // Show Stats: RetroArch's frame rate, over a second's frames (its
+        // own is 256), and in OSD/OS's own RetroArch the machine's state
+        // after it (kSystemShowKey), which any other RetroArch ignores.
+        set("fps_show", on(true));
+        set("fps_update_interval", QStringLiteral("60"));
+        if (launch.stats == Stats::System)
+            set(kSystemShowKey, on(true));
+        // With its widgets, RetroArch draws that text in a box at the top
+        // right, against the screen's edge, where a CRT's overscan hides it;
+        // without them as its message text, where video_message_pos puts
+        // it. So played alone without RetroAchievements: no widgets, the
+        // text top left, a twentieth of the screen in from its edges, a
+        // fifteenth of its lines high and no more than a thirty-sixth of its
+        // width, so that its longest line (the frame rate and the machine's
+        // state, some 57 letters) fits across: 16 at 720x240, 20 at 720x480,
+        // 48 at most, 12 at least. Online, on the local network or with
+        // RetroAchievements the widgets stay, for the ping, the players
+        // coming and going and the achievements, which RetroArch draws only
+        // with them, and the frame rate is in their box.
+        const QSize screen = launch.modeSize.isEmpty() ? launch.screenSize : launch.modeSize;
+        if (launch.netplay == Launch::Netplay::None && !achievements) {
+            set("menu_enable_widgets", on(false));
+            set("video_font_enable", on(true));
+            set("video_message_pos_x", QStringLiteral("0.05"));
+            if (screen.height() > 0 && screen.width() > 0) {
+                const int size = std::clamp(std::min((screen.height() + 7) / 15, screen.width() / 36), 12, 48);
+                set("video_font_size", QString::number(size));
+                // Its baseline, from the bottom: the text's top a twentieth
+                // down.
+                set("video_message_pos_y", QString::number(0.95 - double(size) / screen.height(), 'f', 3));
+            } else {
+                set("video_message_pos_y", QStringLiteral("0.88"));
+            }
+        }
+    }
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+Stats statsOf(const QString &value) {
+    if (value == QLatin1String("FPS"))
+        return Stats::Fps;
+    if (value == QLatin1String("FPS + System"))
+        return Stats::System;
+    return Stats::Off;
+}
+
+double kernelRefresh(const modetest::ModeLine &mode) {
+    if (mode.htotal <= 0 || mode.vtotal <= 0)
+        return 0;
+    return std::floor(mode.clockMHz * 1000.0 + 0.5) * 1000.0 / mode.htotal / mode.vtotal;
+}
+
+QString ownModeConfigText(double rate, double aspect, bool fill) {
+    QStringList lines{ QStringLiteral("# Written by OSD/OS for a game on a video mode of its own, over retroarch.cfg: "
+                                      "what is changed here is lost at the next.") };
+    const auto set = [&lines](const char *key, const QString &value) { lines << configLine(key, value); };
+    // The mode OSD/OS set, as RetroArch finds it: no size of its own asked
+    // for, no other refresh rate looked for, no CRT SwitchRes.
+    set("video_fullscreen_x", QStringLiteral("0"));
+    set("video_fullscreen_y", QStringLiteral("0"));
+    set("video_autoswitch_refresh_rate", QStringLiteral("3"));
+    set("crt_switch_resolution", QStringLiteral("0"));
+    // A frame of the game's for each of the screen's, which are as many a
+    // second now: nothing of its time or its sound is stretched.
+    set("video_refresh_rate", QString::number(rate, 'f', 6));
+    set("video_vsync", onOff(true));
+    set("vrr_runloop_enable", onOff(false));
+    // The game's pixels as they are, its lines one for one.
+    set("video_smooth", onOff(false));
+    set("video_aspect_ratio_auto", onOff(false));
+    if (fill) {
+        set("aspect_ratio_index", QStringLiteral("24"));
+        set("video_scale_integer", onOff(false));
+    } else {
+        set("aspect_ratio_index", QStringLiteral("20"));
+        set("video_aspect_ratio", QString::number(aspect, 'f', 6));
+        set("video_scale_integer", onOff(true));
+        set("video_scale_integer_axis", QStringLiteral("0"));
+        set("video_scale_integer_scaling", QStringLiteral("0"));
+    }
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
@@ -1022,6 +1113,10 @@ QStringList arguments(const Launch &launch) {
     const auto native = [](const QString &path) { return QDir::toNativeSeparators(path); };
     QStringList args{ QStringLiteral("-L"), native(launch.core), QStringLiteral("--config"), native(launch.config),
                       QStringLiteral("--verbose"), QStringLiteral("--log-file=") + native(launch.log) };
+    // On a video mode of the game's own: what that mode asks of RetroArch,
+    // over the config.
+    if (!launch.ownModeConfig.isEmpty())
+        args << QStringLiteral("--appendconfig=") + native(launch.ownModeConfig);
     if (hosts(launch.netplay))
         args << QStringLiteral("--host");
     else if (launch.netplay == Launch::Netplay::Join || launch.netplay == Launch::Netplay::LanJoin)

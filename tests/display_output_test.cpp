@@ -8,6 +8,7 @@
 // OSDOS_BOARD_MODEL names (ctest's display_output_pi5 runs it as a Pi 5,
 // display_output_pi3 as a Pi 3, whose outputs are a Pi 4's).
 #include "display/DisplayOutput.h"
+#include "modetest/GameMode.h"
 #include "util/Board.h"
 #include "util/ExitCodes.h"
 
@@ -389,6 +390,96 @@ private slots:
         QVERIFY(!DisplayOutput::isTube(QString(), QSize(800, 480)));
         QVERIFY(!DisplayOutput::isTube(QString(), QSize(1920, 1080)));
         QVERIFY(!DisplayOutput::isTube(QStringLiteral("jamma-240p"), QSize()));
+    }
+
+    // The monitor a preset is for, where a game may be shown on a video
+    // mode of its own: the JAMMA presets for a 15 kHz arcade monitor name
+    // Switchres's arcade_15, and no other preset names any. Each of them is
+    // itself on a line rate of that monitor's (the Pi 5's timing and the
+    // firmware's alike), every mode made for a game within its ranges may
+    // be shown on a screen that is on that preset (modetest::safeFor()),
+    // and none on a screen that is on the 25 or 31 kHz presets, whatever
+    // anyone names for them.
+    void monitorsOfThePresets() {
+        const QStringList arcade{ QStringLiteral("jamma-240p"), QStringLiteral("jamma-240p-native"),
+                                  QStringLiteral("jamma-240p-super"), QStringLiteral("jamma-288p"),
+                                  QStringLiteral("jamma-288p-super"), QStringLiteral("jamma-480i"),
+                                  QStringLiteral("jamma-480i-640"), QStringLiteral("jamma-576i") };
+        // A preset's own line rate: its Pi 5 timing (the overlay's clock and
+        // its hactive, hfp, hsync and hbp) where it has one, and its
+        // firmware's (dpi_timings).
+        const auto lineRates = [](const QString &id) {
+            QFile f(QStringLiteral(PRESETS_DIR "/osdos-display-") + id + QStringLiteral(".txt"));
+            QList<double> rates;
+            if (!f.open(QIODevice::ReadOnly))
+                return rates;
+            const QString text = QString::fromUtf8(f.readAll());
+            const QRegularExpressionMatch clock =
+                QRegularExpression(QStringLiteral("clock-frequency=(\\d+)")).match(text);
+            const QRegularExpressionMatch h = QRegularExpression(
+                QStringLiteral("dtparam=hactive=(\\d+),hfp=(\\d+),hsync=(\\d+),hbp=(\\d+)")).match(text);
+            if (clock.hasMatch() && h.hasMatch())
+                rates << clock.captured(1).toDouble()
+                             / (h.captured(1).toInt() + h.captured(2).toInt() + h.captured(3).toInt() + h.captured(4).toInt());
+            const QRegularExpressionMatch dpi = QRegularExpression(
+                QStringLiteral("dpi_timings=(\\d+) \\d+ (\\d+) (\\d+) (\\d+) (?:\\d+ ){10}(\\d+) ")).match(text);
+            if (dpi.hasMatch())
+                rates << dpi.captured(5).toDouble() / (dpi.captured(1).toInt() + dpi.captured(2).toInt()
+                                                       + dpi.captured(3).toInt() + dpi.captured(4).toInt());
+            return rates;
+        };
+        modetest::MonitorRange range;
+        std::string why;
+        QVERIFY(modetest::parseMonitorRange(modetest::kArcade15, &range, &why));
+        // Games' modes across the range: 224 lines at a Neo Geo's rate, 240
+        // at 60 Hz, 256 at R-Type's, PAL's 288 at 50.
+        QList<modetest::ModeLine> modes;
+        for (const auto &[lines, refresh] : { std::pair{ 224, 59.185606 }, std::pair{ 240, 60.0 },
+                                              std::pair{ 256, 55.017606 }, std::pair{ 288, 50.0 } }) {
+            modetest::ModeLine mode;
+            QVERIFY2(modetest::modeFor(1920, lines, refresh, range, &mode, &why), why.c_str());
+            modes << mode;
+        }
+        QFile json(QStringLiteral(PRESETS_DIR "/display-presets.json"));
+        QVERIFY(json.open(QIODevice::ReadOnly));
+        const QJsonObject all = QJsonDocument::fromJson(json.readAll()).object();
+        QCOMPARE(all.value(QStringLiteral("monitors")).toObject().value(QStringLiteral("arcade_15")).toString(),
+                 QString::fromLatin1(modetest::kArcade15));
+        int named = 0;
+        for (const QJsonValue &v : all.value(QStringLiteral("presets")).toArray()) {
+            const QString id = v.toObject().value(QStringLiteral("id")).toString();
+            const QByteArray name = id.toUtf8();
+            const QString monitor = DisplayOutput::monitorOf(id);
+            const QList<double> rates = lineRates(id);
+            if (!arcade.contains(id)) {
+                QVERIFY2(monitor.isEmpty(), name.constData());
+                QVERIFY2(!v.toObject().contains(QStringLiteral("monitor")), name.constData());
+                // A game's 15 kHz mode on a monitor on 25 or 31 kHz: never.
+                for (double rate : rates) {
+                    if (rate < 20000)
+                        continue;
+                    for (const modetest::ModeLine &mode : std::as_const(modes))
+                        QVERIFY2(!modetest::safeFor(mode, rate, &why), name.constData());
+                }
+                continue;
+            }
+            ++named;
+            QCOMPARE(monitor, QString::fromLatin1(modetest::kArcade15));
+            QVERIFY2(!rates.isEmpty(), name.constData());
+            for (double rate : rates) {
+                QVERIFY2(rate >= range.hfreqMin && rate <= range.hfreqMax,
+                         qPrintable(QStringLiteral("%1 is on %2 Hz").arg(id).arg(rate)));
+                for (const modetest::ModeLine &mode : std::as_const(modes))
+                    QVERIFY2(modetest::safeFor(mode, rate, &why), why.c_str());
+            }
+        }
+        QCOMPARE(named, int(arcade.size()));
+        // The 25 and 31 kHz presets were looked at.
+        QVERIFY(lineRates(QStringLiteral("jamma-31k")).value(0) > 31000);
+        QVERIFY(lineRates(QStringLiteral("jamma-25k")).value(0) > 24000);
+        // No preset, and one that isn't.
+        QCOMPARE(DisplayOutput::monitorOf(QString()), QString());
+        QCOMPARE(DisplayOutput::monitorOf(QStringLiteral("jamma-720p")), QString());
     }
 
     // Every preset, by name, on the boards that have its output: composite

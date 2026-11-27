@@ -10,8 +10,10 @@
 #include "modules/arcade/ProgramInstaller.h"
 #include "modules/arcade/RecordFile.h"
 #include "modules/arcade/Mame.h"
+#include "modules/arcade/OwnMode.h"
 #include "modules/arcade/RetroAchievements.h"
 #include "modules/arcade/RomCheck.h"
+#include "modetest/GameMode.h"
 #include "util/DisplayHandoff.h"
 
 #include <QCryptographicHash>
@@ -97,7 +99,7 @@ class ArcadeTest : public QObject {
     // MAME as far as the module asks it: -listxml for the machines below
     // (exit 5 for a name it has none of, after the XML of those it has),
     // noted as asked and as answered, and a game, whose arguments, folder,
-    // display card and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
+    // display card, preloaded library and controller file it notes. mslug and kinst lack files; sf2 can't open its picture;
     // slowgame takes a second, as does asking about a_slowlist half of one;
     // any other game takes $MAME_SECONDS, and -listxml exits $MAME_LIST_LINGER
     // seconds after its answer, -verifyroms $MAME_VERIFY_LINGER after its
@@ -105,9 +107,9 @@ class ArcadeTest : public QObject {
     static constexpr const char *kFakeMame = R"SH(#!/bin/sh
 machine() {
 	case "$1" in
-	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224"/><input players="2" coins="2"><control type="joy" player="1"/></input><dipswitch name="Coinage" tag="DSW1" mask="3"><dipvalue name="Free Play" value="0"/><dipvalue name="1C/1C" value="1" default="yes"/></dipswitch><dipswitch name="Difficulty" tag="DSW1" mask="64"><diplocation name="SW" number="7"/><dipvalue name="Normal" value="64" default="yes"/><dipvalue name="Hard" value="0"/></dipswitch><driver status="good"/></machine>' ;;
+	pacman) echo '<machine name="pacman" sourcefile="pacman/pacman.cpp" cloneof="puckman" romof="puckman"><description>Pac-Man (Midway)</description><year>1980</year><manufacturer>Namco (Midway license)</manufacturer><rom name="pacman.6e" size="4096"/><display tag="screen" type="raster" rotate="90" width="288" height="224" refresh="60.606061"/><input players="2" coins="2"><control type="joy" player="1"/></input><dipswitch name="Coinage" tag="DSW1" mask="3"><dipvalue name="Free Play" value="0"/><dipvalue name="1C/1C" value="1" default="yes"/></dipswitch><dipswitch name="Difficulty" tag="DSW1" mask="64"><diplocation name="SW" number="7"/><dipvalue name="Normal" value="64" default="yes"/><dipvalue name="Hard" value="0"/></dipswitch><driver status="good"/></machine>' ;;
 	galaga) echo '<machine name="galaga" sourcefile="namco/galaga.cpp"><description>Galaga (Namco rev. B)</description><year>1981</year><manufacturer>Namco</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
-	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><display tag="screen" type="raster" rotate="0" width="320" height="224"/><input players="2"/><driver status="good"/></machine>' ;;
+	mslug) echo '<machine name="mslug" sourcefile="neogeo/neogeo.cpp" romof="neogeo"><description>Metal Slug - Super Vehicle-001</description><year>1996</year><manufacturer>Nazca</manufacturer><display tag="screen" type="raster" rotate="0" width="320" height="224" refresh="59.185606"/><input players="2"/><driver status="good"/></machine>' ;;
 	neogeo) echo '<machine name="neogeo" isbios="yes"><description>Neo-Geo MV-6F</description><year>1990</year><manufacturer>SNK</manufacturer></machine>' ;;
 	xmen6p) echo '<machine name="xmen6p" sourcefile="konami/xmen.cpp" cloneof="xmen"><description>X-Men (6 Players ver EAB)</description><year>1992</year><manufacturer>Konami</manufacturer><display tag="lscreen" rotate="270"/><display tag="rscreen" rotate="0"/><input players="6"/><driver status="imperfect"/></machine>' ;;
 	kinst) echo '<machine name="kinst"><description>Killer Instinct (v1.5d)</description><year>1994</year><manufacturer>Rare / Nintendo</manufacturer><input players="2"/><driver status="good"/></machine>' ;;
@@ -183,6 +185,7 @@ esac
 	echo "cwd $(pwd)"
 	echo "kms ${SDL_KMSDRM_DEVICE_INDEX:-}"
 	echo "alsa ${ALSA_CARD:-}"
+	echo "preload ${LD_PRELOAD:-}"
 	echo "labels ${SDL_GAMECONTROLLER_USE_BUTTON_LABELS:-}"
 	echo "mappings ${SDL_GAMECONTROLLERCONFIG:-}"
 } >> "$MAME_LOG"
@@ -717,7 +720,9 @@ private slots:
             "<?xml version=\"1.0\"?>\n<mame build=\"0.276 (test)\" debug=\"no\" mameconfig=\"10\">\n"
             "\t<machine name=\"xmen6p\" sourcefile=\"konami/xmen.cpp\" cloneof=\"xmen\"><description>X-Men &amp; Friends</description>"
             "<year>1992</year><manufacturer>Konami</manufacturer><rom name=\"a\"/>"
-            "<display tag=\"l\" rotate=\"270\" width=\"288\" height=\"224\"/><display tag=\"r\" rotate=\"0\" width=\"320\" height=\"240\"/>"
+            "<display tag=\"l\" type=\"raster\" rotate=\"270\" width=\"288\" height=\"224\" refresh=\"59.185606\" pixclock=\"6000000\""
+            " htotal=\"384\" hbend=\"0\" hbstart=\"288\" vtotal=\"264\" vbend=\"16\" vbstart=\"240\"/>"
+            "<display tag=\"r\" rotate=\"0\" width=\"320\" height=\"240\" refresh=\"60.000000\"/>"
             "<input players=\"6\"><control type=\"joy\"/></input><dipswitch name=\"x\"><dipvalue name=\"y\"/></dipswitch>"
             "<driver status=\"imperfect\"/></machine>\n"
             "\t<machine name=\"neogeo\" isbios=\"yes\"><description>Neo-Geo</description></machine>\n"
@@ -744,10 +749,16 @@ private slots:
             QCOMPARE(x.rotate, 270);
             QCOMPARE(x.width, 288);
             QCOMPARE(x.height, 224);
+            // Its first screen's refresh rate, as MAME writes it, and how
+            // many screens it has.
+            QCOMPARE(x.refresh, 59.185606);
+            QCOMPARE(x.screens, 2);
             QCOMPARE(x.status, QStringLiteral("imperfect"));
             QVERIFY(x.isGame());
             QVERIFY(machines.at(1).bios && !machines.at(1).isGame());
             QVERIFY(machines.at(2).device && !machines.at(2).runnable);
+            QCOMPARE(machines.at(1).refresh, 0.0);
+            QCOMPARE(machines.at(1).screens, 0);
             // As the cache keeps it.
             const mame::Machine kept = mame::Machine::fromVariant(x.name, x.toVariant());
             QCOMPARE(kept.description, x.description);
@@ -756,7 +767,20 @@ private slots:
             QCOMPARE(kept.rotate, 270);
             QCOMPARE(kept.width, 288);
             QCOMPARE(kept.height, 224);
-            QVERIFY(mame::Machine::fromVariant(QStringLiteral("neogeo"), machines.at(1).toVariant()).bios);
+            QCOMPARE(kept.refresh, 59.185606);
+            QCOMPARE(kept.screens, 2);
+            const mame::Machine bios = mame::Machine::fromVariant(QStringLiteral("neogeo"), machines.at(1).toVariant());
+            QVERIFY(bios.bios);
+            QCOMPARE(bios.screens, 0);
+            // One screen goes unsaid, and comes back as one: a rate kept
+            // through the cache's JSON to the last digit MAME gave.
+            mame::Machine one = x;
+            one.screens = 1;
+            QVERIFY(!one.toVariant().contains(QStringLiteral("screens")));
+            const QByteArray json = QJsonDocument(QJsonObject::fromVariantMap(one.toVariant())).toJson(QJsonDocument::Compact);
+            const mame::Machine read = mame::Machine::fromVariant(one.name, QJsonDocument::fromJson(json).object().toVariantMap());
+            QCOMPARE(read.screens, 1);
+            QCOMPARE(read.refresh, 59.185606);
         }
         mame::ListXmlReader broken;
         broken.addData("<mame><machine name=\"x\"><description>a</year></mame>");
@@ -1198,6 +1222,430 @@ private slots:
         arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
         line = args("pacman");
         QVERIFY2(!line.contains(QStringLiteral("-rol")) && !line.contains(QStringLiteral("-ror")), qPrintable(line));
+    }
+
+    // Emulator Video → Game's Own Mode, the choice: a horizontal game of
+    // one screen whose lines and refresh rate a 15 kHz arcade monitor takes
+    // gets a mode of its own, 1920 across, the very modes osdos-modetest
+    // showed on the device; every other game gets none, with why, and stays
+    // on the mode the screen is on.
+    void ownModeOfAGame() {
+        const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
+        const auto machine = [](int width, int height, double refresh, int rotate = 0, int screens = 1) {
+            mame::Machine m;
+            m.width = width;
+            m.height = height;
+            m.refresh = refresh;
+            m.rotate = rotate;
+            m.screens = screens;
+            return m;
+        };
+        const auto mode = [&arcade15](const mame::Machine &m, bool turned = false) {
+            const mame::OwnMode own = mame::ownModeFor(m, arcade15, turned);
+            return own.mode ? QString::fromStdString(modetest::describe(*own.mode)) + QStringLiteral(" | ") + own.why
+                            : QStringLiteral("none: ") + own.why;
+        };
+        // A Neo Geo game, a CPS game, 240 lines at 57.55 Hz, R-Type, a
+        // 60 Hz game of 240 lines, and Pac-Man's board with a horizontal
+        // game on it: the tool's modes, as it named them on the device.
+        QCOMPARE(mode(machine(320, 224, 59.185606)),
+                 QStringLiteral("1920x224  15.684 kHz  59.19 Hz  39.132 MHz | its 320x224 at 59.185606 Hz"));
+        QCOMPARE(mode(machine(384, 224, 59.637405)),
+                 QStringLiteral("1920x224  15.625 kHz  59.64 Hz  38.953 MHz | its 384x224 at 59.637405 Hz"));
+        QCOMPARE(mode(machine(320, 240, 57.55)),
+                 QStringLiteral("1920x240  15.654 kHz  57.55 Hz  39.024 MHz | its 320x240 at 57.550000 Hz"));
+        QCOMPARE(mode(machine(384, 256, 55.017606)),
+                 QStringLiteral("1920x256  15.680 kHz  55.02 Hz  39.122 MHz | its 384x256 at 55.017606 Hz"));
+        QCOMPARE(mode(machine(320, 240, 60.0)),
+                 QStringLiteral("1920x240  15.660 kHz  60.00 Hz  39.040 MHz | its 320x240 at 60.000000 Hz"));
+        QCOMPARE(mode(machine(288, 224, 60.606061)),
+                 QStringLiteral("1920x224  15.636 kHz  60.61 Hz  38.981 MHz | its 288x224 at 60.606061 Hz"));
+        // Its width changes nothing: the mode is 1920 across for all.
+        QCOMPARE(mode(machine(256, 224, 59.185606)).section(QLatin1Char('|'), 0, 0),
+                 mode(machine(512, 224, 59.185606)).section(QLatin1Char('|'), 0, 0));
+        // A game flipped (rotate 180) is horizontal still; PAL's 288 lines
+        // at 50 Hz fit.
+        QVERIFY(mode(machine(320, 224, 59.185606, 180)).startsWith(QStringLiteral("1920x224 ")));
+        QVERIFY2(mode(machine(384, 288, 50.0)).startsWith(QStringLiteral("1920x288  15.6")), qPrintable(mode(machine(384, 288, 50.0))));
+
+        // A vertical game, either way up.
+        QCOMPARE(mode(machine(288, 224, 60.606061, 90)), QStringLiteral("none: a vertical game"));
+        QCOMPARE(mode(machine(288, 224, 60.606061, 270)), QStringLiteral("none: a vertical game"));
+        // A monitor turned on its side for the game.
+        QCOMPARE(mode(machine(320, 224, 59.185606), true), QStringLiteral("none: the monitor is turned on its side for it"));
+        // No figures (a vector game, a set MAME gave no display of), and a
+        // size without a rate (FinalBurn Neo's list alone).
+        QCOMPARE(mode(machine(0, 0, 0)), QStringLiteral("none: no screen size and refresh rate is known for it"));
+        QCOMPARE(mode(machine(0, 0, 60.0)), QStringLiteral("none: no screen size and refresh rate is known for it"));
+        QCOMPARE(mode(machine(384, 224, 0)),
+                 QStringLiteral("none: no refresh rate is known for it (MAME gives them, and has none for this set)"));
+        // More than a screen.
+        QCOMPARE(mode(machine(320, 224, 59.185606, 0, 2)), QStringLiteral("none: it has 2 screens"));
+        QCOMPARE(mode(machine(288, 224, 60.0, 0, 3)), QStringLiteral("none: it has 3 screens"));
+        // A 31 kHz game's 480 lines (and an interlaced game's), a 25 kHz
+        // game's 384, and too few lines for the monitor.
+        QCOMPARE(mode(machine(640, 480, 60.0)), QStringLiteral("none: its 480 lines are outside the monitor's 192 to 288"));
+        QCOMPARE(mode(machine(512, 384, 60.0)), QStringLiteral("none: its 384 lines are outside the monitor's 192 to 288"));
+        QCOMPARE(mode(machine(256, 160, 60.0)), QStringLiteral("none: its 160 lines are outside the monitor's 192 to 288"));
+        // Lines and a rate that together need more than 16.2 kHz, and a
+        // rate no such monitor holds.
+        QCOMPARE(mode(machine(256, 256, 60.0)),
+                 QStringLiteral("none: its 256 lines at 60.00 Hz need a line rate above the monitor's 16.200 kHz"));
+        QCOMPARE(mode(machine(640, 240, 30.0)), QStringLiteral("none: its 30.00 Hz is outside the monitor's 49.50 to 65.00 Hz"));
+        // No monitor named by the display output, or a line that isn't one.
+        QCOMPARE(mame::ownModeFor(machine(320, 224, 59.185606), QString(), false).why,
+                 QStringLiteral("the display output names no monitor's range"));
+        QVERIFY(!mame::ownModeFor(machine(320, 224, 59.185606), QString(), false).mode);
+        const mame::OwnMode bad = mame::ownModeFor(machine(320, 224, 59.185606), QStringLiteral("arcade_15"), false);
+        QVERIFY(!bad.mode);
+        QVERIFY2(bad.why.startsWith(QStringLiteral("the display output's monitor range isn't one (")), qPrintable(bad.why));
+
+        // What MAME is told on such a mode: the screen's shape as a tube's,
+        // the lines whole, no filter; Fit to Screen over the whole of it;
+        // BGFX's own word for no filter.
+        const mame::Machine mslug = machine(320, 224, 59.185606);
+        const auto told = [&mslug](const char *shape, bool fill, const char *video) {
+            return mame::ownModeArguments(mslug, 224, QLatin1String(shape), fill, QLatin1String(video)).join(QLatin1Char(' '));
+        };
+        QCOMPARE(told("4:3", false, ""), QStringLiteral("-aspect 4:3 -nounevenstretch -unevenstretchx -nofilter"));
+        QCOMPARE(told("", false, "opengl"), QStringLiteral("-aspect 4:3 -nounevenstretch -unevenstretchx -nofilter"));
+        QCOMPARE(told("16:9", false, "soft"), QStringLiteral("-aspect 16:9 -nounevenstretch -unevenstretchx -nofilter"));
+        QCOMPARE(told("4:3", true, ""), QStringLiteral("-nokeepaspect -nofilter"));
+        QCOMPARE(told("4:3", false, "bgfx"),
+                 QStringLiteral("-aspect 4:3 -nounevenstretch -unevenstretchx -nofilter -bgfx_screen_chains unfiltered"));
+        for (const char *never : { "-syncrefresh", "-switchres", "-resolution" })
+            QVERIFY2(!told("4:3", false, "bgfx").contains(QLatin1String(never)), never);
+    }
+
+    // Game's Own Mode in MAME: off, and on where it can do nothing, a game
+    // starts with the very arguments it has without it and the screen is
+    // never asked for a mode; on a Raspberry Pi 5 with a 15 kHz arcade
+    // monitor's display output, a horizontal game's mode is asked for, and
+    // set, MAME is told of a screen of its lines, unfiltered, and preloaded
+    // with osdos_keepmode.so; refused by the kernel, or for a game that
+    // gets none, as without the setting. The log has a line each time.
+    void ownModeInMame() {
+        const QString module = QStringLiteral("com.osdos.arcade");
+        DisplayHandoff handoff;
+        QStringList asked;
+        bool take = true;
+        handoff.setModeSetter([&](const modetest::ModeLine &m, QString *why) {
+            asked << QString::fromStdString(modetest::describe(m));
+            if (!take)
+                *why = QStringLiteral("the kernel refused it: Invalid argument");
+            return take;
+        });
+        ArcadeBackend arcade(m_data.path(), m_data.path(), nullptr, &handoff);
+        refreshed(arcade);
+        // JAMMA 720x288, the preset the tool was run on.
+        arcade.setScreen(true, QSize(720, 288), 50);
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        const auto restore = qScopeGuard([&arcade, module] {
+            arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), QStringLiteral("OFF"));
+            arcade.onSettingChanged(module, QStringLiteral("game_picture"), QStringLiteral("Original"));
+        });
+        // What MAME was started with, and what was preloaded into it.
+        const auto run = [this, &arcade](const char *set) {
+            QFile::remove(m_log);
+            played(arcade, QLatin1String(set));
+            return logLines(QStringLiteral("play ")).value(0) + QLatin1Char('\n') + logLines(QStringLiteral("preload ")).value(0);
+        };
+        const auto setting = [&arcade, module](bool on) {
+            arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), on ? QStringLiteral("ON") : QStringLiteral("OFF"));
+        };
+        const auto capabilities = [&arcade] {
+            QSignalSpy options(&arcade, &ArcadeBackend::dynamicOptionsReady);
+            arcade.machineCapabilities();
+            return options.value(0).value(1).toStringList();
+        };
+        const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
+        const QByteArray line = "[Arcade] Game's own mode for mslug in MAME: ";
+
+        // Nothing saved: off, even where it could work. No mode is asked
+        // for, and MAME starts as ever.
+        arcade.setBoard(board::Family::Pi5);
+        arcade.setMonitor(arcade15);
+        const QString unset = run("mslug");
+        QVERIFY2(unset.endsWith(QStringLiteral(" -waitvsync -aspect 4:3 -nounevenstretch -unevenstretchx\npreload ")),
+                 qPrintable(unset));
+        QVERIFY(asked.isEmpty());
+
+        // Where it can do nothing: any machine but a Pi 5, a display output
+        // that names no monitor, and no osdos_keepmode.so. The row's
+        // capability isn't there, the arguments are those without the
+        // setting, and the screen is never asked.
+        struct Where { board::Family family; QString monitor; QString library; const char *why; };
+        const Where nowhere[] = {
+            { board::Family::Other, arcade15, QStringLiteral(KEEPMODE_LIBRARY), "only on a Raspberry Pi 5" },
+            { board::Family::Pi4, arcade15, QStringLiteral(KEEPMODE_LIBRARY), "only on a Raspberry Pi 5" },
+            { board::Family::Pi5, QString(), QStringLiteral(KEEPMODE_LIBRARY),
+              "only on a display output for a 15 kHz arcade monitor" },
+            { board::Family::Pi5, arcade15, m_data.path() + QStringLiteral("/no-such.so"),
+              "osdos_keepmode.so is not beside the app" },
+        };
+        for (const Where &where : nowhere) {
+            arcade.setBoard(where.family);
+            arcade.setMonitor(where.monitor);
+            arcade.setKeepModeLibrary(where.library);
+            QCOMPARE(arcade.ownModeUnavailable(), QLatin1String(where.why));
+            QVERIFY(!capabilities().contains(QStringLiteral("own_video_mode")));
+            setting(false);
+            const QString off = run("mslug");
+            setting(true);
+            QTest::ignoreMessage(QtInfoMsg, (line + "none, " + where.why).constData());
+            QCOMPARE(run("mslug"), off);
+            QVERIFY(off.endsWith(QStringLiteral("\npreload ")));
+        }
+        QVERIFY(asked.isEmpty());
+
+        // Where it can: a Pi 5 on a JAMMA preset's monitor.
+        arcade.setBoard(board::Family::Pi5);
+        arcade.setMonitor(arcade15);
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        QCOMPARE(arcade.ownModeUnavailable(), QString());
+        QCOMPARE(capabilities(), QStringList({ QStringLiteral("raspberry_pi"), QStringLiteral("own_video_mode") }));
+        // Off: nothing asked, nothing said, nothing preloaded.
+        setting(false);
+        const QString off = run("mslug");
+        QVERIFY2(off.endsWith(QStringLiteral(" -waitvsync -aspect 4:3 -nounevenstretch -unevenstretchx\npreload ")), qPrintable(off));
+        QVERIFY(asked.isEmpty());
+
+        // On: Metal Slug's 224 lines at 59.19 Hz.
+        setting(true);
+        QTest::ignoreMessage(QtInfoMsg, (line + "1920x224  15.684 kHz  59.19 Hz  39.132 MHz asked for, from its 320x224 "
+                                                "at 59.185606 Hz").constData());
+        const QString on = run("mslug");
+        QCOMPARE(asked, QStringList({ QStringLiteral("1920x224  15.684 kHz  59.19 Hz  39.132 MHz") }));
+        QCOMPARE(on, off.section(QLatin1Char('\n'), 0, 0) + QStringLiteral(" -nofilter\npreload ")
+                         + QStringLiteral(KEEPMODE_LIBRARY));
+        for (const char *never : { "-syncrefresh", "-switchres", "-resolution" })
+            QVERIFY2(!on.contains(QLatin1String(never)), never);
+        QVERIFY(!handoff.held() && !handoff.modeSet());
+
+        // The kernel refuses the mode: the game all the same, as without.
+        take = false;
+        QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^\\[Arcade\\] Game's own mode for mslug in MAME: 1920x224 ")));
+        QCOMPARE(run("mslug"), off);
+        QCOMPARE(asked.size(), 2);
+        take = true;
+
+        // Fit to Screen: over the whole of the mode, unfiltered.
+        arcade.onSettingChanged(module, QStringLiteral("game_picture"), QStringLiteral("Fit to Screen"));
+        QVERIFY2(run("mslug").section(QLatin1Char('\n'), 0, 0).endsWith(QStringLiteral(" -waitvsync -nokeepaspect -nofilter")),
+                 qPrintable(run("mslug")));
+        arcade.onSettingChanged(module, QStringLiteral("game_picture"), QStringLiteral("Original"));
+        asked.clear();
+
+        // A vertical game, and one MAME gives no screen of: none, and why;
+        // the screen isn't asked, and MAME starts as without the setting.
+        setting(false);
+        const QString pacmanOff = run("pacman");
+        const QString galagaOff = run("galaga");
+        setting(true);
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for pacman in MAME: none, a vertical game");
+        QCOMPARE(run("pacman"), pacmanOff);
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for galaga in MAME: none, no screen size and refresh "
+                                        "rate is known for it");
+        QCOMPARE(run("galaga"), galagaOff);
+        // Settings → Screen has no monitor turned here; one turned for the
+        // game alone (its options' Monitor) keeps a vertical game off it
+        // either way, and Vertical Games leaves a horizontal one its mode.
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Turned Right"));
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for pacman in MAME: none, the monitor is turned on "
+                                        "its side for it");
+        QVERIFY(run("pacman").contains(QStringLiteral(" -rol")));
+        QVERIFY(asked.isEmpty());
+        QVERIFY(run("mslug").contains(QStringLiteral(" -nofilter")));
+        QCOMPARE(asked.size(), 1);
+        arcade.onSettingChanged(module, QStringLiteral("vertical_monitor"), QStringLiteral("Horizontal"));
+        arcade.setBoard(board::Family::Other);
+    }
+
+    // Game's Own Mode in FinalBurn Neo: off, RetroArch is started with the
+    // very config and arguments it has without it; on, a game whose mode is
+    // set is started with that config untouched and one of the mode's laid
+    // over it (the screen's refresh rate the mode's as the kernel makes it,
+    // the picture's shape in the mode's pixels, nothing smoothed, no mode
+    // asked for of RetroArch's own), preloaded with osdos_keepmode.so; a
+    // mode refused, and a game that gets none, as without the setting. A
+    // set MAME doesn't know takes its parent's refresh rate where MAME
+    // knows the parent at the same size.
+    void ownModeInFbneo() {
+        // The config laid over RetroArch's, to the letter.
+        modetest::MonitorRange range;
+        modetest::ModeLine neogeo;
+        std::string why;
+        QVERIFY(modetest::parseMonitorRange(modetest::kArcade15, &range, &why));
+        QVERIFY(modetest::modeFor(1920, 224, 59.185606, range, &neogeo, &why));
+        // 39132 kHz over 2495 x 265: the rate the kernel makes of it.
+        QCOMPARE(QString::number(libretro::kernelRefresh(neogeo), 'f', 6), QStringLiteral("59.185541"));
+        QCOMPARE(libretro::kernelRefresh(modetest::ModeLine()), 0.0);
+        const QString laidOver = QStringLiteral(
+            "# Written by OSD/OS for a game on a video mode of its own, over retroarch.cfg: what is changed here is "
+            "lost at the next.\n"
+            "video_fullscreen_x = \"0\"\n"
+            "video_fullscreen_y = \"0\"\n"
+            "video_autoswitch_refresh_rate = \"3\"\n"
+            "crt_switch_resolution = \"0\"\n"
+            "video_refresh_rate = \"59.185541\"\n"
+            "video_vsync = \"true\"\n"
+            "vrr_runloop_enable = \"false\"\n"
+            "video_smooth = \"false\"\n"
+            "video_aspect_ratio_auto = \"false\"\n"
+            "aspect_ratio_index = \"20\"\n"
+            "video_aspect_ratio = \"8.571429\"\n"
+            "video_scale_integer = \"true\"\n"
+            "video_scale_integer_axis = \"0\"\n"
+            "video_scale_integer_scaling = \"0\"\n");
+        QCOMPARE(libretro::ownModeConfigText(libretro::kernelRefresh(neogeo),
+                                             libretro::viewportAspect(4.0 / 3.0, QSize(1920, 224), 4.0 / 3.0), false),
+                 laidOver);
+        // Fit to Screen: the whole screen, no shape of the picture's own.
+        const QString filled = libretro::ownModeConfigText(59.637213, 8.571429, true);
+        QVERIFY2(filled.contains(QStringLiteral("aspect_ratio_index = \"24\"\nvideo_scale_integer = \"false\"\n")),
+                 qPrintable(filled));
+        QVERIFY(!filled.contains(QStringLiteral("video_aspect_ratio = ")));
+        QVERIFY(filled.contains(QStringLiteral("video_refresh_rate = \"59.637213\"\n")));
+        // RetroArch's arguments: the config laid over the other, before the game.
+        libretro::Launch launch;
+        launch.core = QStringLiteral("/c/fbneo_libretro.so");
+        launch.config = QStringLiteral("/h/retroarch.cfg");
+        launch.log = QStringLiteral("/h/last.log");
+        launch.content = QStringLiteral("/g/mslug.zip");
+        const QStringList plain = libretro::arguments(launch);
+        QVERIFY(!plain.join(QLatin1Char(' ')).contains(QStringLiteral("appendconfig")));
+        launch.ownModeConfig = QStringLiteral("/h/own-mode.cfg");
+        QStringList withMode = libretro::arguments(launch);
+        QCOMPARE(withMode.value(withMode.size() - 2), QStringLiteral("--appendconfig=/h/own-mode.cfg"));
+        withMode.removeAt(withMode.size() - 2);
+        QCOMPARE(withMode, plain);
+        // And nothing of it in the config itself, whatever the launch says.
+        QCOMPARE(libretro::configText(launch), [&launch] {
+            libretro::Launch without = launch;
+            without.ownModeConfig.clear();
+            return libretro::configText(without);
+        }());
+
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "mslug.zip", "mslughb.zip", "galaga.zip", "bios/neogeo.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+
+        DisplayHandoff handoff;
+        QStringList asked;
+        bool take = true;
+        handoff.setModeSetter([&](const modetest::ModeLine &m, QString *reason) {
+            asked << QString::fromStdString(modetest::describe(m));
+            if (!take)
+                *reason = QStringLiteral("the kernel refused it: Invalid argument");
+            return take;
+        });
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, &handoff);
+        refreshed(arcade);
+        QVERIFY(arcade.fbneoReady());
+        const QString module = QStringLiteral("com.osdos.arcade");
+        arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("mslug"), QStringLiteral("fbneo") },
+                                             { QStringLiteral("sf2"), QStringLiteral("fbneo") },
+                                             { QStringLiteral("galaga"), QStringLiteral("fbneo") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("mslug")), QStringLiteral("fbneo"));
+        QCOMPARE(arcade.engineOf(QStringLiteral("mslughb")), QStringLiteral("fbneo"));
+        arcade.setScreen(true, QSize(720, 288), 50);
+        arcade.setBoard(board::Family::Pi5);
+        arcade.setMonitor(QString::fromLatin1(modetest::kArcade15));
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QString ownConfig = home + QStringLiteral("/own-mode.cfg");
+        // What RetroArch was started with, what was preloaded into it, and
+        // the config it was given.
+        struct Run { QString line, preload; QByteArray config; };
+        const auto run = [&](const char *set) {
+            QFile::remove(m_log);
+            QFile::remove(configCopy);
+            played(arcade, QLatin1String(set));
+            return Run{ logLines(QStringLiteral("retroarch ")).value(0), logLines(QStringLiteral("rapreload ")).value(0),
+                        contents(configCopy) };
+        };
+        const QString plainLine = QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log %3/")
+                                      .arg(libretro::downloadedCore(data.path()), home, games);
+        const QString modeLine = QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log "
+                                                "--appendconfig=%2/own-mode.cfg %3/")
+                                     .arg(libretro::downloadedCore(data.path()), home, games);
+
+        // Off: as ever, and nothing written beside the config.
+        const Run off = run("mslug");
+        QCOMPARE(off.line, plainLine + QStringLiteral("mslug.zip"));
+        QCOMPARE(off.preload, QStringLiteral("rapreload "));
+        QVERIFY(!off.config.isEmpty());
+        QVERIFY(!QFileInfo::exists(ownConfig));
+        QVERIFY(asked.isEmpty());
+
+        // On: Metal Slug's mode asked for and set; the config RetroArch is
+        // given is byte for byte the one it has without the setting, and the
+        // mode's is laid over it.
+        arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), QStringLiteral("ON"));
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for mslug in FinalBurn Neo: 1920x224  15.684 kHz  59.19 Hz  "
+                                        "39.132 MHz asked for, from its 320x224 at 59.185606 Hz");
+        const Run on = run("mslug");
+        QCOMPARE(asked, QStringList({ QStringLiteral("1920x224  15.684 kHz  59.19 Hz  39.132 MHz") }));
+        QCOMPARE(on.line, modeLine + QStringLiteral("mslug.zip"));
+        QCOMPARE(on.preload, QStringLiteral("rapreload ") + QStringLiteral(KEEPMODE_LIBRARY));
+        QCOMPARE(on.config, off.config);
+        QCOMPARE(QString::fromUtf8(contents(ownConfig)), laidOver);
+        QCOMPARE(QFile::permissions(ownConfig) & (QFile::ReadGroup | QFile::ReadOther), QFileDevice::Permissions());
+        QVERIFY(!handoff.held() && !handoff.modeSet());
+
+        // The kernel refuses the mode: RetroArch as without the setting.
+        take = false;
+        const Run refused = run("mslug");
+        QCOMPARE(refused.line, off.line);
+        QCOMPARE(refused.preload, off.preload);
+        QCOMPARE(refused.config, off.config);
+        QCOMPARE(asked.size(), 2);
+        take = true;
+        asked.clear();
+
+        // A hack MAME doesn't know, of a game it does, at the same size:
+        // its parent's refresh rate.
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for mslughb in FinalBurn Neo: 1920x224  15.684 kHz  59.19 Hz  "
+                                        "39.132 MHz asked for, from its 320x224 at 59.185606 Hz");
+        QCOMPARE(run("mslughb").line, modeLine + QStringLiteral("mslughb.zip"));
+        QCOMPARE(asked.size(), 1);
+        // Games MAME gives no screen of (its stand-in's sf2 and galaga),
+        // though FinalBurn Neo's list has their sizes: no rate, no mode.
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for sf2 in FinalBurn Neo: none, no screen size and refresh "
+                                        "rate is known for it");
+        QCOMPARE(run("sf2").line, plainLine + QStringLiteral("sf2.zip"));
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for galaga in FinalBurn Neo: none, no screen size and "
+                                        "refresh rate is known for it");
+        QCOMPARE(run("galaga").preload, QStringLiteral("rapreload "));
+        QCOMPARE(asked.size(), 1);
+
+        // Off again: as at first.
+        arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), QStringLiteral("OFF"));
+        const Run again = run("mslug");
+        QCOMPARE(again.line, off.line);
+        QCOMPARE(again.config, off.config);
+        QCOMPARE(asked.size(), 1);
+        arcade.setBoard(board::Family::Other);
     }
 
     // A game's options: its difficulty, where MAME plays it and its board has
@@ -1802,6 +2250,97 @@ private slots:
         QVERIFY2(line.contains(QStringLiteral(" -samplepath %1/Samples ").arg(m_games)), qPrintable(line));
     }
 
+    // Show Stats in FinalBurn Neo's config: off, none of it, the rest of
+    // the text as it was; the frame rate, a second's frames at a time; the
+    // machine's state too, by OSD/OS's own key. Played alone without
+    // RetroAchievements, as RetroArch's message text top left, sized for
+    // the screen's lines (the game's mode's where it has one); with
+    // achievements or over the network, RetroArch's widgets kept.
+    void statsConfig() {
+        QCOMPARE(libretro::statsOf(QStringLiteral("Off")), libretro::Stats::Off);
+        QCOMPARE(libretro::statsOf(QStringLiteral("FPS")), libretro::Stats::Fps);
+        QCOMPARE(libretro::statsOf(QStringLiteral("FPS + System")), libretro::Stats::System);
+        QCOMPARE(libretro::statsOf(QString()), libretro::Stats::Off);
+        QCOMPARE(libretro::statsOf(QStringLiteral("fps")), libretro::Stats::Off);
+
+        libretro::Launch launch;
+        launch.core = QStringLiteral("/cores/fbneo_libretro.so");
+        launch.content = QStringLiteral("/games/sf2.zip");
+        launch.configDir = QStringLiteral("/ra/config");
+        launch.infoDir = QStringLiteral("/ra/info");
+        launch.screenSize = QSize(720, 240);
+        const QStringList keys{ QStringLiteral("fps_show"), QStringLiteral("fps_update_interval"),
+                                QStringLiteral("osdos_system_show"), QStringLiteral("menu_enable_widgets"),
+                                QStringLiteral("video_font_enable"), QStringLiteral("video_font_size"),
+                                QStringLiteral("video_message_pos_x"), QStringLiteral("video_message_pos_y") };
+        // The lines on adds to off, the rest of on being off to the byte.
+        const auto added = [&keys](const QString &off, const QString &on) {
+            QStringList lines = on.split(QLatin1Char('\n'));
+            QStringList extra;
+            for (auto it = lines.begin(); it != lines.end();) {
+                if (keys.contains(it->section(QLatin1Char(' '), 0, 0))) {
+                    extra << *it;
+                    it = lines.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+            return lines.join(QLatin1Char('\n')) == off ? extra : QStringList{ QStringLiteral("(changed)") };
+        };
+        const QStringList fps{ QStringLiteral("fps_show = \"true\""), QStringLiteral("fps_update_interval = \"60\"") };
+        const QStringList topLeft{ QStringLiteral("menu_enable_widgets = \"false\""),
+                                   QStringLiteral("video_font_enable = \"true\""),
+                                   QStringLiteral("video_message_pos_x = \"0.05\""),
+                                   QStringLiteral("video_font_size = \"16\""),
+                                   QStringLiteral("video_message_pos_y = \"0.883\"") };
+        const QStringList system{ QStringLiteral("osdos_system_show = \"true\"") };
+        const QString off = libretro::configText(launch);
+        for (const QString &key : keys)
+            QVERIFY2(!off.contains(key + QStringLiteral(" = ")), qPrintable(key));
+        launch.stats = libretro::Stats::Fps;
+        QCOMPARE(added(off, libretro::configText(launch)), fps + topLeft);
+        launch.stats = libretro::Stats::System;
+        QCOMPARE(added(off, libretro::configText(launch)), fps + system + topLeft);
+        // The text's size by the lines, and no more than its longest line
+        // fits across: 20 on a 720x480 mode, 48 at most, 12 at least; a
+        // game's mode over the screen's.
+        const auto sizeAndPlace = [&launch] {
+            const QStringList lines = libretro::configText(launch).split(QLatin1Char('\n'));
+            return lines.filter(QStringLiteral("video_font_size")).join(QLatin1Char(' ')) + QLatin1Char(' ')
+                   + lines.filter(QStringLiteral("video_message_pos_y")).join(QLatin1Char(' '));
+        };
+        launch.screenSize = QSize(720, 480);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"20\" video_message_pos_y = \"0.908\""));
+        launch.screenSize = QSize(640, 480);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"17\" video_message_pos_y = \"0.915\""));
+        launch.screenSize = QSize(320, 240);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"12\" video_message_pos_y = \"0.900\""));
+        launch.screenSize = QSize(3840, 2160);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"48\" video_message_pos_y = \"0.928\""));
+        launch.modeSize = QSize(1920, 1080);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"48\" video_message_pos_y = \"0.906\""));
+        launch.modeSize = QSize();
+        launch.screenSize = QSize();
+        QCOMPARE(sizeAndPlace(), QStringLiteral(" video_message_pos_y = \"0.88\""));
+        launch.screenSize = QSize(720, 240);
+        // Over the network, or signed in to RetroAchievements: the widgets
+        // stay, and the frame rate is in their box.
+        for (const auto netplay : { libretro::Launch::Netplay::Host, libretro::Launch::Netplay::LanJoin }) {
+            launch.netplay = netplay;
+            launch.stats = libretro::Stats::Off;
+            const QString alone = libretro::configText(launch);
+            launch.stats = libretro::Stats::System;
+            QCOMPARE(added(alone, libretro::configText(launch)), fps + system);
+        }
+        launch.netplay = libretro::Launch::Netplay::None;
+        launch.achievementsUser = QStringLiteral("player");
+        launch.achievementsToken = QStringLiteral("tok");
+        launch.stats = libretro::Stats::Off;
+        const QString signedIn = libretro::configText(launch);
+        launch.stats = libretro::Stats::Fps;
+        QCOMPARE(added(signedIn, libretro::configText(launch)), fps);
+    }
+
     // What RetroArch with FinalBurn Neo is asked and what is made of what it
     // says: its list of games, the controllers kept for the players, its
     // config and arguments, its log, the token it saves, the netplay
@@ -1811,9 +2350,9 @@ private slots:
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
         QHash<QString, mame::Machine> machines = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"));
-        QCOMPARE(machines.size(), 7);
+        QCOMPARE(machines.size(), 8);
         // The pictures' shapes, where the list says.
-        QCOMPARE(std::count_if(machines.cbegin(), machines.cend(), [](const mame::Machine &m) { return m.aspect > 0; }), 2);
+        QCOMPARE(std::count_if(machines.cbegin(), machines.cend(), [](const mame::Machine &m) { return m.aspect > 0; }), 3);
         QCOMPARE(machines.value(QStringLiteral("1943")).aspect, 0.0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).aspect, 4.0 / 3.0);
         QCOMPARE(machines.value(QStringLiteral("galaga")).aspect, 3.0 / 4.0);
@@ -1840,6 +2379,17 @@ private slots:
         QCOMPARE(machines.value(QStringLiteral("1943")).rotate, 90);
         QCOMPARE(machines.value(QStringLiteral("sf2")).rotate, 0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).status, QStringLiteral("good"));
+        // Its size as MAME gives one, before the rotation (the list has a
+        // vertical game's as it stands on the glass), one screen, and no
+        // refresh rate, which the list doesn't say.
+        const auto size = [&machines](const char *set) {
+            const mame::Machine m = machines.value(QLatin1String(set));
+            return QStringLiteral("%1x%2 %3 %4").arg(m.width).arg(m.height).arg(m.screens).arg(m.refresh);
+        };
+        QCOMPARE(size("sf2"), QStringLiteral("384x224 1 0"));
+        QCOMPARE(size("galaga"), QStringLiteral("288x224 1 0"));
+        QCOMPARE(size("1943"), QStringLiteral("256x224 1 0"));
+        QCOMPARE(size("kof98"), QStringLiteral("0x0 0 0"));
         QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
 
         // A sign-in RetroAchievements turned down, and one that didn't reach it.
@@ -3414,6 +3964,19 @@ private slots:
         const QString remap = home + QStringLiteral("/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
         QVERIFY(!QFileInfo::exists(remap));
         QVERIFY(config.contains(QStringLiteral("input_remapping_directory = \"%1/remaps\"").arg(home)));
+        // Show Stats, from the next game: off unless set, then the frame
+        // rate and OSD/OS's key for the machine's state; signed in to
+        // RetroAchievements, in RetroArch's widgets.
+        QVERIFY(!config.contains(QStringLiteral("fps_show")));
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("FPS + System"));
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY(config.contains(QStringLiteral("fps_show = \"true\"")));
+        QVERIFY(config.contains(QStringLiteral("osdos_system_show = \"true\"")));
+        QVERIFY(!config.contains(QStringLiteral("menu_enable_widgets")));
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QVariant());
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!contents(configCopy).contains("fps_show"));
         controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("06002868010000000100000001000000") },
@@ -3767,7 +4330,7 @@ private slots:
         writeFile(cache, R"({"version": 1, "unknown": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         // One of another version that kept them apart too.
-        writeFile(cache, R"({"version": 5, "unknownBefore": ["kof98"]})");
+        writeFile(cache, R"({"version": 6, "unknownBefore": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         // Read the Games Again before the list was ever opened: games.json
         // read first.
@@ -8837,6 +9400,40 @@ private slots:
         QVERIFY(script.contains(QStringLiteral("local left = 3\n")));
         QVERIFY(script.contains(QStringLiteral("local nextAt, hold, gap = 5, 0.1, 0.2\n")));
         QVERIFY(script.contains(QStringLiteral("token_to_input_type(\"COIN1\")")));
+
+        // One script for the credits and Show Stats: the credits alone as
+        // they were, nothing for neither, Show Stats' line first (the
+        // credits' part returns from the script at a reset), the machine's
+        // state read only where asked.
+        QCOMPARE(mame::autobootScript(3, false, false), script);
+        QCOMPARE(mame::autobootScript(3, false, true), script);
+        QCOMPARE(mame::autobootScript(0, false, true), QString());
+        QCOMPARE(mame::autobootScript(-1, false, false), QString());
+        const QString fps = mame::autobootScript(0, true, false);
+        QCOMPARE(fps, mame::statsScript(false));
+        QVERIFY(fps.contains(QStringLiteral("if not osdos_stats_run then\n  osdos_stats_run = true\n")));
+        QVERIFY(fps.contains(QStringLiteral("  local system = false\n")));
+        QVERIFY(fps.endsWith(QStringLiteral("  end)\nend\n")));
+        QVERIFY(!fps.contains(QStringLiteral("osdos_coins_run")));
+        QVERIFY(fps.contains(QStringLiteral("emu.register_frame_done(function()")));
+        QVERIFY(fps.contains(QStringLiteral("manager.machine.render.ui_container:draw_text(0.05, 0.05, line,")));
+        QVERIFY(mame::statsScript(true).contains(QStringLiteral("  local system = true\n")));
+        QCOMPARE(mame::autobootScript(3, true, true), mame::statsScript(true) + script);
+        // Only calls both MAMEs it runs with (0.276, and Homebrew's and the
+        // BSDs' 0.289) have: a name MAME doesn't know stops the script.
+        static const QRegularExpression calls(QStringLiteral("\\b(emu|manager)((?:[.:][a-z_]+)+)"));
+        QSet<QString> used;
+        for (auto it = calls.globalMatch(mame::autobootScript(3, true, true)); it.hasNext();)
+            used.insert(it.next().captured(0));
+        QCOMPARE(used, (QSet<QString>{ QStringLiteral("emu.osd_ticks_per_second"), QStringLiteral("emu.osd_ticks"),
+                                       QStringLiteral("manager.machine.screens"),
+                                       QStringLiteral("emu.register_frame_done"),
+                                       QStringLiteral("emu.add_machine_frame_notifier"),
+                                       QStringLiteral("manager.machine.video.speed_percent"),
+                                       QStringLiteral("manager.machine.render.ui_container:draw_text"),
+                                       QStringLiteral("manager.machine.ioport:token_to_input_type"),
+                                       QStringLiteral("manager.machine.ioport.ports"),
+                                       QStringLiteral("manager.machine.time:as_double") }));
     }
 
     // The filters: All Games, the lists, the genres catver.ini gives (a
@@ -9311,7 +9908,9 @@ private slots:
         QFile file(QStringLiteral(TESTS_DIR "/../modules/arcade/manifest.json"));
         QVERIFY(file.open(QIODevice::ReadOnly));
         QStringList named;
-        std::function<void(const QJsonArray &)> walk = [&](const QJsonArray &rows) {
+        QJsonObject ownMode;
+        QString ownModeIn;
+        std::function<void(const QJsonArray &, const QString &)> walk = [&](const QJsonArray &rows, const QString &in) {
             for (const QJsonValue &v : rows) {
                 const QJsonObject row = v.toObject();
                 const QJsonObject need = row.value(QLatin1String("requires_capability")).toObject();
@@ -9320,12 +9919,48 @@ private slots:
                     QCOMPARE(need.value(QLatin1String("reason")).toString(), QStringLiteral("Only on a Raspberry Pi"));
                     named << row.value(QLatin1String("key")).toString();
                 }
-                walk(row.value(QLatin1String("settings")).toArray());
+                if (row.value(QLatin1String("key")).toString() == QLatin1String("own_video_mode")) {
+                    ownMode = row;
+                    ownModeIn = in;
+                }
+                walk(row.value(QLatin1String("settings")).toArray(), row.value(QLatin1String("key")).toString());
             }
         };
-        walk(QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("settings")).toArray());
+        walk(QJsonDocument::fromJson(file.readAll()).object().value(QLatin1String("settings")).toArray(), QString());
         QCOMPARE(named, QStringList({ "cpu_full_speed", "frame_buffers" }));
         QCOMPARE(QString::fromLatin1(GameSystem::kFullSpeedKey), QStringLiteral("cpu_full_speed"));
+
+        // Emulator Video → Game's Own Mode: a row of Emulator Video's, off
+        // unless turned on, which waits for a capability of its own from the
+        // same slot. That comes only on a Raspberry Pi 5 on a display output
+        // that names its monitor's ranges, with osdos_keepmode.so there:
+        // never on a Pi 4 or a PC, whatever the display output.
+        QCOMPARE(ownModeIn, QStringLiteral("emulator_video"));
+        QCOMPARE(ownMode.value(QLatin1String("label")).toString(), QStringLiteral("Game's Own Mode"));
+        QCOMPARE(ownMode.value(QLatin1String("type")).toString(), QStringLiteral("toggle"));
+        QCOMPARE(ownMode.value(QLatin1String("default")).toString(), QStringLiteral("OFF"));
+        const QJsonObject need = ownMode.value(QLatin1String("requires_capability")).toObject();
+        QCOMPARE(need.value(QLatin1String("name")).toString(), QStringLiteral("own_video_mode"));
+        QCOMPARE(need.value(QLatin1String("slot")).toString(), QStringLiteral("machineCapabilities"));
+        QCOMPARE(need.value(QLatin1String("reason")).toString(),
+                 QStringLiteral("Only on a Raspberry Pi 5 with a 15 kHz JAMMA display output"));
+        const QString help = ownMode.value(QLatin1String("description")).toString();
+        QVERIFY2(help.contains(QStringLiteral("\n[ON] ")) && help.contains(QStringLiteral("  [OFF] ")), qPrintable(help));
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        const auto offered = [&](board::Family family, const QString &monitor) {
+            arcade.setBoard(family);
+            arcade.setMonitor(monitor);
+            options.clear();
+            arcade.machineCapabilities();
+            return options.value(0).value(1).toStringList().contains(QStringLiteral("own_video_mode"));
+        };
+        const QString arcade15 = QString::fromLatin1(modetest::kArcade15);
+        QVERIFY(offered(board::Family::Pi5, arcade15));
+        QVERIFY(!offered(board::Family::Pi5, QString()));
+        QVERIFY(!offered(board::Family::Pi4, arcade15));
+        QVERIFY(!offered(board::Family::Pi3, arcade15));
+        QVERIFY(!offered(board::Family::Other, arcade15));
+        arcade.setBoard(board::Family::Other);
     }
 
     void regionsOfNames() {
@@ -9652,6 +10287,30 @@ private slots:
         QVERIFY(arcade.play(QStringLiteral("galaga")));
         QVERIFY(finished.wait(10000));
         QVERIFY(!logLines(QStringLiteral("play")).last().contains(QStringLiteral("autoboot")));
+        // Show Stats: the script with its line alone, then with the credits
+        // after it; off again, the arguments as they were.
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString before = logLines(QStringLiteral("play")).last();
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("FPS + System"));
+        QVERIFY(arcade.play(QStringLiteral("galaga")));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(logLines(QStringLiteral("play")).last(), before + QStringLiteral(" -autoboot_script ") + script);
+#ifdef Q_OS_LINUX
+        QCOMPARE(coins(), mame::statsScript(true));
+#else
+        QCOMPARE(coins(), mame::statsScript(false));
+#endif
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("FPS"));
+        QVERIFY(arcade.play(QStringLiteral("galaga"), 2));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(coins(), mame::statsScript(false) + mame::coinScript(2));
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("Off"));
+        QVERIFY(arcade.play(QStringLiteral("galaga")));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(logLines(QStringLiteral("play")).last(), before);
+        QVERIFY(arcade.play(QStringLiteral("galaga"), 2));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(coins(), mame::coinScript(2));
     }
 
     // The module opened again reads nothing while the games folder is as it
@@ -9780,7 +10439,7 @@ private slots:
             QVERIFY(f.open(QIODevice::ReadOnly));
             cache = QJsonDocument::fromJson(f.readAll()).object();
         }
-        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 4);
+        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 5);
         cache.remove(QStringLiteral("version"));
         writeFile(path, QJsonDocument(cache).toJson());
         QFile::remove(m_log);
