@@ -411,6 +411,8 @@ test("Arcade's emulator and network rows in their groups, with the backend's def
     assert.equal(rows[rows.findIndex(r => r.key === "online_name") + 1].key, "show_ping");
     assert.equal(groupOf("sound_buffer"), "Emulators");
     assert.equal(groupOf("cpu_full_speed"), "Emulators");
+    assert.equal(groupOf("show_stats"), "Emulators");
+    assert.equal(rows[rows.findIndex(r => r.key === "cpu_full_speed") + 1].key, "show_stats");
     assert.equal(groupOf("mame_vsync"), "Emulators / Emulator Video");
     assert.equal(groupOf("frame_buffers"), "Emulators / Emulator Video");
 
@@ -422,6 +424,13 @@ test("Arcade's emulator and network rows in their groups, with the backend's def
     assert.deepEqual(valuesOf(row("mame_vsync")), ["Auto", "On", "Off"]);
     assert.deepEqual(valuesOf(row("frame_buffers")), ["Auto", "Two", "Three"]);
     assert.deepEqual(valuesOf(row("sound_buffer")), ["Auto", "RetroArch's"]);
+    // Show Stats: off unless set, as libretro::statsOf() reads a value it
+    // doesn't know; each value's help in the row's own words.
+    assert.deepEqual(valuesOf(row("show_stats")), ["Off", "FPS", "FPS + System"]);
+    assert.equal(row("show_stats").default, "Off");
+    const stats = rows.find(r => r.key === "show_stats").description;
+    for (const value of ["[OFF]", "[FPS]", "[FPS + SYSTEM]"])
+        assert.ok(stats.includes(value), value);
     for (const key of ["mame_vsync", "frame_buffers", "sound_buffer"])
         assert.equal(row(key).default, "Auto", key);
     // Online Name's help names where the device's name is seen: System

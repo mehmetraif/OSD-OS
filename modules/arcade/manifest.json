@@ -321,6 +321,14 @@
       "description": "While a game plays, in MAME and FinalBurn Neo alike, the Pi's processor clocked as high as it goes, and put back after it, on the OSD/OS image or after install.sh\n[ON] Steadier frames, the Pi warmer; a Pi already hot or throttled keeps its own clock  [OFF] The processor's clock as the system sets it"
     },
     {
+      "key": "show_stats",
+      "label": "Show Stats",
+      "type": "list_single",
+      "options": ["Off", "FPS", "FPS + System"],
+      "default": "Off",
+      "description": "A line in the top left corner of the game's picture, in MAME and FinalBurn Neo alike, from the next game started\n[OFF] None  [FPS] The frame rate, and MAME's speed  [FPS + SYSTEM] With the processor's load and temperature after it, and THROTTLED or UNDERVOLT while a Raspberry Pi's firmware reports it: on Linux, and for FinalBurn Neo with the RetroArch of OSD/OS's Linux arm64 package, a Raspberry Pi's"
+    },
+    {
       "key": "mame",
       "label": "MAME",
       "type": "module_view",

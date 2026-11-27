@@ -1802,6 +1802,97 @@ private slots:
         QVERIFY2(line.contains(QStringLiteral(" -samplepath %1/Samples ").arg(m_games)), qPrintable(line));
     }
 
+    // Show Stats in FinalBurn Neo's config: off, none of it, the rest of
+    // the text as it was; the frame rate, a second's frames at a time; the
+    // machine's state too, by OSD/OS's own key. Played alone without
+    // RetroAchievements, as RetroArch's message text top left, sized for
+    // the screen's lines (the game's mode's where it has one); with
+    // achievements or over the network, RetroArch's widgets kept.
+    void statsConfig() {
+        QCOMPARE(libretro::statsOf(QStringLiteral("Off")), libretro::Stats::Off);
+        QCOMPARE(libretro::statsOf(QStringLiteral("FPS")), libretro::Stats::Fps);
+        QCOMPARE(libretro::statsOf(QStringLiteral("FPS + System")), libretro::Stats::System);
+        QCOMPARE(libretro::statsOf(QString()), libretro::Stats::Off);
+        QCOMPARE(libretro::statsOf(QStringLiteral("fps")), libretro::Stats::Off);
+
+        libretro::Launch launch;
+        launch.core = QStringLiteral("/cores/fbneo_libretro.so");
+        launch.content = QStringLiteral("/games/sf2.zip");
+        launch.configDir = QStringLiteral("/ra/config");
+        launch.infoDir = QStringLiteral("/ra/info");
+        launch.screenSize = QSize(720, 240);
+        const QStringList keys{ QStringLiteral("fps_show"), QStringLiteral("fps_update_interval"),
+                                QStringLiteral("osdos_system_show"), QStringLiteral("menu_enable_widgets"),
+                                QStringLiteral("video_font_enable"), QStringLiteral("video_font_size"),
+                                QStringLiteral("video_message_pos_x"), QStringLiteral("video_message_pos_y") };
+        // The lines on adds to off, the rest of on being off to the byte.
+        const auto added = [&keys](const QString &off, const QString &on) {
+            QStringList lines = on.split(QLatin1Char('\n'));
+            QStringList extra;
+            for (auto it = lines.begin(); it != lines.end();) {
+                if (keys.contains(it->section(QLatin1Char(' '), 0, 0))) {
+                    extra << *it;
+                    it = lines.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+            return lines.join(QLatin1Char('\n')) == off ? extra : QStringList{ QStringLiteral("(changed)") };
+        };
+        const QStringList fps{ QStringLiteral("fps_show = \"true\""), QStringLiteral("fps_update_interval = \"60\"") };
+        const QStringList topLeft{ QStringLiteral("menu_enable_widgets = \"false\""),
+                                   QStringLiteral("video_font_enable = \"true\""),
+                                   QStringLiteral("video_message_pos_x = \"0.05\""),
+                                   QStringLiteral("video_font_size = \"16\""),
+                                   QStringLiteral("video_message_pos_y = \"0.883\"") };
+        const QStringList system{ QStringLiteral("osdos_system_show = \"true\"") };
+        const QString off = libretro::configText(launch);
+        for (const QString &key : keys)
+            QVERIFY2(!off.contains(key + QStringLiteral(" = ")), qPrintable(key));
+        launch.stats = libretro::Stats::Fps;
+        QCOMPARE(added(off, libretro::configText(launch)), fps + topLeft);
+        launch.stats = libretro::Stats::System;
+        QCOMPARE(added(off, libretro::configText(launch)), fps + system + topLeft);
+        // The text's size by the lines, and no more than its longest line
+        // fits across: 20 on a 720x480 mode, 48 at most, 12 at least; a
+        // game's mode over the screen's.
+        const auto sizeAndPlace = [&launch] {
+            const QStringList lines = libretro::configText(launch).split(QLatin1Char('\n'));
+            return lines.filter(QStringLiteral("video_font_size")).join(QLatin1Char(' ')) + QLatin1Char(' ')
+                   + lines.filter(QStringLiteral("video_message_pos_y")).join(QLatin1Char(' '));
+        };
+        launch.screenSize = QSize(720, 480);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"20\" video_message_pos_y = \"0.908\""));
+        launch.screenSize = QSize(640, 480);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"17\" video_message_pos_y = \"0.915\""));
+        launch.screenSize = QSize(320, 240);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"12\" video_message_pos_y = \"0.900\""));
+        launch.screenSize = QSize(3840, 2160);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"48\" video_message_pos_y = \"0.928\""));
+        launch.modeSize = QSize(1920, 1080);
+        QCOMPARE(sizeAndPlace(), QStringLiteral("video_font_size = \"48\" video_message_pos_y = \"0.906\""));
+        launch.modeSize = QSize();
+        launch.screenSize = QSize();
+        QCOMPARE(sizeAndPlace(), QStringLiteral(" video_message_pos_y = \"0.88\""));
+        launch.screenSize = QSize(720, 240);
+        // Over the network, or signed in to RetroAchievements: the widgets
+        // stay, and the frame rate is in their box.
+        for (const auto netplay : { libretro::Launch::Netplay::Host, libretro::Launch::Netplay::LanJoin }) {
+            launch.netplay = netplay;
+            launch.stats = libretro::Stats::Off;
+            const QString alone = libretro::configText(launch);
+            launch.stats = libretro::Stats::System;
+            QCOMPARE(added(alone, libretro::configText(launch)), fps + system);
+        }
+        launch.netplay = libretro::Launch::Netplay::None;
+        launch.achievementsUser = QStringLiteral("player");
+        launch.achievementsToken = QStringLiteral("tok");
+        launch.stats = libretro::Stats::Off;
+        const QString signedIn = libretro::configText(launch);
+        launch.stats = libretro::Stats::Fps;
+        QCOMPARE(added(signedIn, libretro::configText(launch)), fps);
+    }
+
     // What RetroArch with FinalBurn Neo is asked and what is made of what it
     // says: its list of games, the controllers kept for the players, its
     // config and arguments, its log, the token it saves, the netplay
@@ -3414,6 +3505,19 @@ private slots:
         const QString remap = home + QStringLiteral("/remaps/FinalBurn Neo/FinalBurn Neo.rmp");
         QVERIFY(!QFileInfo::exists(remap));
         QVERIFY(config.contains(QStringLiteral("input_remapping_directory = \"%1/remaps\"").arg(home)));
+        // Show Stats, from the next game: off unless set, then the frame
+        // rate and OSD/OS's key for the machine's state; signed in to
+        // RetroAchievements, in RetroArch's widgets.
+        QVERIFY(!config.contains(QStringLiteral("fps_show")));
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("FPS + System"));
+        played(arcade, QStringLiteral("sf2"));
+        config = QString::fromUtf8(contents(configCopy));
+        QVERIFY(config.contains(QStringLiteral("fps_show = \"true\"")));
+        QVERIFY(config.contains(QStringLiteral("osdos_system_show = \"true\"")));
+        QVERIFY(!config.contains(QStringLiteral("menu_enable_widgets")));
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QVariant());
+        played(arcade, QStringLiteral("sf2"));
+        QVERIFY(!contents(configCopy).contains("fps_show"));
         controllers::setPlayerEnvironment({ { QStringLiteral("OSDOS_PLAYER1_NAME"), QStringLiteral("OSD/OS JAMMA P1") },
                                             { QStringLiteral("OSDOS_PLAYER1_GUID"),
                                               QStringLiteral("06002868010000000100000001000000") },

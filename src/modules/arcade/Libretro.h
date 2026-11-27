@@ -180,6 +180,17 @@ bool coinDown(qint64 ms, int coins, bool *done);
 // input/input_driver.h): a RetroPad button down or let go.
 QByteArray remotePadMessage(int button, bool down);
 
+// Settings → Arcade → Show Stats, for FinalBurn Neo (Launch::stats) and
+// MAME (mame::autobootScript()) alike: nothing; the frame rate (and MAME's
+// speed); or that and the machine's state, its processor's load, its
+// temperature and its firmware's throttling. statsOf() reads the row's
+// value ("Off", "FPS", "FPS + System"; anything else Off).
+enum class Stats { Off, Fps, System };
+Stats statsOf(const QString &value);
+// The key OSD/OS's own RetroArch (scripts/retroarch-stats.patch) reads to put
+// the machine's state after the frame rate; a stock RetroArch ignores it.
+inline constexpr char kSystemShowKey[] = "osdos_system_show";
+
 // What a game is started with.
 struct Launch {
     QString core;
@@ -273,6 +284,13 @@ struct Launch {
     // Settings → Arcade → Show Ping: over the network, each peer's ping on
     // the screen (netplay_ping_show).
     bool    pingShown = false;
+    // Settings → Arcade → Show Stats: RetroArch's frame rate (fps_show),
+    // with the machine's state after it in OSD/OS's own RetroArch
+    // (kSystemShowKey). Played alone without RetroAchievements it is drawn
+    // as RetroArch's message text, top left inside the overscan, sized for
+    // the screen (screenSize, or modeSize): configText().
+    Stats   stats = Stats::Off;
+    QSize   screenSize;
     // Online, the controller types every port plays with. RetroArch gives
     // every machine the host's, port by port, and a machine's players find
     // their pads only among ports of one kind (its pad n drives the n-th of

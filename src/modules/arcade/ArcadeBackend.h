@@ -1203,6 +1203,7 @@ private:
     QString m_frameBuffers;
     QString m_soundBuffer;
     bool    m_showPing = false;
+    libretro::Stats m_stats = libretro::Stats::Off;   // Show Stats
     QString m_mameVsync;
     board::Family m_board = board::family();   // setBoard()
     std::optional<QString> m_timeZone;         // setTimeZone()

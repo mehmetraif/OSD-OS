@@ -519,7 +519,7 @@ ArcadeBackend::ArcadeBackend(const QString &appRoot, const QString &dataRoot, Ap
                              "integer_scale", "game_picture", "vertical_monitor", "difficulties", "monitors",
                              "menu_filters", "online_high_scores", "online_play", "engines",
                              "online_name", "relay_server", "lan_play", "lan_sync", "pictures_source",
-                             "frame_buffers", "sound_buffer", "show_ping", "mame_vsync" }) {
+                             "frame_buffers", "sound_buffer", "show_ping", "mame_vsync", "show_stats" }) {
         const QString k = QLatin1String(key);
         applySetting(k, m_appCore ? m_appCore->get_setting(kModuleId, k) : QVariant());
     }
@@ -709,6 +709,9 @@ void ArcadeBackend::applySetting(const QString &key, const QVariant &value) {
         m_soundBuffer = value.toString();
     } else if (key == QLatin1String("show_ping")) {
         m_showPing = isOn(value, false);
+    } else if (key == QLatin1String("show_stats")) {
+        // From the next game started.
+        m_stats = libretro::statsOf(value.toString());
     } else if (key == QLatin1String("mame_vsync")) {
         m_mameVsync = value.toString();
     } else if (key == QLatin1String("lan_sync")) {
@@ -3329,6 +3332,8 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     launch.audioLatency = sound.latency;
     launch.resamplerQuality = sound.resamplerQuality;
     launch.pingShown = m_showPing;
+    launch.stats = m_stats;
+    launch.screenSize = m_screenSize;
     if (const std::optional<libretro::GameMode> mode = gameMode()) {
         launch.modeSize = mode->size;
         launch.modeRefresh = mode->refresh;

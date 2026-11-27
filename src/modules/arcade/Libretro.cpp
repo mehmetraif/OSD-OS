@@ -851,7 +851,51 @@ QString configText(const Launch &launch) {
         set("netplay_use_mitm_server", on(false));
         set("netplay_nat_traversal", on(false));
     }
+    if (launch.stats != Stats::Off) {
+        // Show Stats: RetroArch's frame rate, over a second's frames (its
+        // own is 256), and in OSD/OS's own RetroArch the machine's state
+        // after it (kSystemShowKey), which any other RetroArch ignores.
+        set("fps_show", on(true));
+        set("fps_update_interval", QStringLiteral("60"));
+        if (launch.stats == Stats::System)
+            set(kSystemShowKey, on(true));
+        // With its widgets, RetroArch draws that text in a box at the top
+        // right, against the screen's edge, where a CRT's overscan hides it;
+        // without them as its message text, where video_message_pos puts
+        // it. So played alone without RetroAchievements: no widgets, the
+        // text top left, a twentieth of the screen in from its edges, a
+        // fifteenth of its lines high and no more than a thirty-sixth of its
+        // width, so that its longest line (the frame rate and the machine's
+        // state, some 57 letters) fits across: 16 at 720x240, 20 at 720x480,
+        // 48 at most, 12 at least. Online, on the local network or with
+        // RetroAchievements the widgets stay, for the ping, the players
+        // coming and going and the achievements, which RetroArch draws only
+        // with them, and the frame rate is in their box.
+        const QSize screen = launch.modeSize.isEmpty() ? launch.screenSize : launch.modeSize;
+        if (launch.netplay == Launch::Netplay::None && !achievements) {
+            set("menu_enable_widgets", on(false));
+            set("video_font_enable", on(true));
+            set("video_message_pos_x", QStringLiteral("0.05"));
+            if (screen.height() > 0 && screen.width() > 0) {
+                const int size = std::clamp(std::min((screen.height() + 7) / 15, screen.width() / 36), 12, 48);
+                set("video_font_size", QString::number(size));
+                // Its baseline, from the bottom: the text's top a twentieth
+                // down.
+                set("video_message_pos_y", QString::number(0.95 - double(size) / screen.height(), 'f', 3));
+            } else {
+                set("video_message_pos_y", QStringLiteral("0.88"));
+            }
+        }
+    }
     return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+Stats statsOf(const QString &value) {
+    if (value == QLatin1String("FPS"))
+        return Stats::Fps;
+    if (value == QLatin1String("FPS + System"))
+        return Stats::System;
+    return Stats::Off;
 }
 
 QString coreRemapPath(const QString &remapDir, bool lanCore) {

@@ -567,6 +567,12 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 | MAME Vsync | Auto, On, Off | Each frame of MAME's waits for the screen's refresh (`-waitvsync`), against tearing and judder. **Auto**: on on a Raspberry Pi 4 or 5 drawing on the console, off elsewhere. **Off** if a game runs slow with it | `modules.com.osdos.arcade.mame_vsync` |
 | Frame Buffers | Auto, Two, Three | How many frames RetroArch keeps queued for the screen on the console (`video_max_swapchain_images`). **Two** shows each frame a refresh sooner than RetroArch's own **Three**, but a frame that comes late is held a whole refresh. **Auto**: Two on a Raspberry Pi 5, Three on the other Pis. A desktop's RetroArch keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.frame_buffers` |
 
+### Show Stats
+
+**Settings → Arcade → Show Stats** puts a line in the top left corner of the game's picture while it plays, from the next game started: **FPS** the frame rate, **FPS + System** the machine's state after it. It is off by default.
+
+- **FinalBurn Neo** shows RetroArch's own frame rate (`fps_show`), measured over a second's frames: `FPS:  59.94`. Played alone without RetroAchievements, OSD/OS draws it as RetroArch's message text rather than in RetroArch's widgets, whose box sits against the top right edge of the screen, where a CRT's overscan hides it: top left, a twentieth of the screen in from its edges, 16 pixels high at 720x240 and 20 at 720x480, so that the whole line fits across, 48 at most. RetroArch's other messages are not shown meanwhile, as is RetroArch's own way with its message text. Online, on the local network or signed in to RetroAchievements, RetroArch's widgets stay, for the ping, the players coming and going and the achievements, and the frame rate is in their box at the top right. **FPS + System** also writes `osdos_system_show`, a key of OSD/OS's own that any other RetroArch ignores.
+
 ## Settings
 
 Settings → Arcade. Enabled comes first, then the rows in groups under headings the cursor steps over: **Games**, **Arcade Screen**, **Playing**, **Scores and Pictures**, **Online and LAN** and **Emulators**. The page is shared with the [High Scores](https://github.com/mehmetraif/OSD-OS/wiki/High-Scores) module, whose Enabled, a row named **High Scores**, follows them under a **High Scores** heading. The rows marked † can be used while Screen is Arcade, and are dimmed otherwise.
@@ -613,6 +619,7 @@ Settings → Arcade. Enabled comes first, then the rows in groups under headings
 | **EMULATORS** | | | | |
 | Sound Buffer | Auto, RetroArch's | Auto | FinalBurn Neo's sound buffer. **Auto**: 48 ms, so the sound trails the picture less, and on a Raspberry Pi 4 RetroArch's 64 ms with a lighter resampler. **RetroArch's**: RetroArch's own 64 ms and resampler, if the sound crackles | `modules.com.osdos.arcade.sound_buffer` |
 | CPU at Full Speed | ON, OFF | ON | While a game plays, in MAME or FinalBurn Neo, the Pi's CPU governor at `performance`, put back as the game ends, on the OSD/OS image or after `install.sh` ([The game's socket](https://github.com/mehmetraif/OSD-OS/wiki/The-OSD-OS-Image#the-games-socket)). A Pi already hot or throttled keeps its own. Only on a Raspberry Pi: dimmed elsewhere ("Only on a Raspberry Pi") | `modules.com.osdos.arcade.cpu_full_speed` |
+| Show Stats | Off, FPS, FPS + System | Off | A line in the top left corner of the game's picture, from the next game started ([Show Stats](#show-stats)). **FPS**: the frame rate, and in MAME its speed. **FPS + System**: with the processor's load, the temperature, and `THROTTLED` or `UNDERVOLT` while a Raspberry Pi's firmware reports it: on Linux, and for FinalBurn Neo in the RetroArch of OSD/OS's Linux arm64 package | `modules.com.osdos.arcade.show_stats` |
 | MAME, FinalBurn Neo | (pages) | | [MAME's page](#mames-page), [The core and RetroArch](#the-core-and-retroarch) | |
 | Emulator Video | (page) | | Seven settings ([Emulator Video](#emulator-video)) | |
 
