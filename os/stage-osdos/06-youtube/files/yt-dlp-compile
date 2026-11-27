@@ -19,6 +19,7 @@ zip already compiled for this Python is left alone, so a run after an update
 that found nothing new costs one look at the zip's index.
 
     yt-dlp-compile [--force] [--python PYTHON] [--stop-if PATH] FILE
+    yt-dlp-compile --update [--wait SECONDS] [--python PYTHON] [--stop-if PATH] FILE
 
 --python  the Python to compile with: by default the one the zip's first line
           names (python3 on the PATH for "env python3").
@@ -26,10 +27,36 @@ that found nothing new costs one look at the zip's index.
           exit 0): /run/osdos-game/playing, so that it never competes with an
           arcade game started meanwhile.
 
+--update: the update and the compile, without changing the file under a
+yt-dlp that runs from it. Python's zip importer reads a zip's index once, as
+the process starts, and opens the file again by its path for every later
+import; yt-dlp imports most of its modules as it needs them. A file replaced
+while a search, an Info Screen or mpv's hook runs from it makes that process
+fail at its next import ("bad local file header"). So the update works on a
+copy beside the file (.yt-dlp-update): the copy's own --update (which writes
+the new build over the file it runs from, whatever its name), then the
+compile, then --version. A copy the same as the file (no new build, compiled
+already) is removed, and nothing is swapped. Otherwise the copy is kept as the
+spare, .yt-dlp-ready, and takes the file's place by one rename once no process
+runs from the file (its command line names the file: the interpreter with the
+zip as its argument, as the kernel starts a "#!" file, or the file itself),
+looked for every second for up to --wait seconds (600 by default). If one still
+runs then, the spare stays for the next run, which swaps it without a download
+or a compile; the file is never replaced under a running process. A spare
+older than the file (an update by hand since) or that doesn't run is removed,
+and a copy of a run cut short is removed by the next. A game's flag stops it as
+above, the file as it was (a spare made ready is kept). Either way a run
+holds a lock on the file's folder; a second run meanwhile leaves it to the
+first (exit 0).
+
 Exits 0 when the file is compiled (now or already) or the rebuild was stopped,
-1 when it could not be rebuilt (the file as it was).
+1 when it could not be rebuilt (the file as it was). With --update: 1 when the
+update itself fails (no copy kept); 0 otherwise, a failed compile among them
+(a new build then goes in uncompiled, and still runs), and the journal says
+which.
 """
 
+import fcntl
 import os
 import shutil
 import stat
@@ -44,9 +71,23 @@ import zipfile
 UNCHECKED_HASH = (1).to_bytes(4, "little")
 TMP_PREFIX = ".yt-dlp-compile-"
 # A folder of an earlier run cut short (power cut, killed): removed once it is
-# this old, since no run takes so long.
+# this old, since no run takes so long (at once by --update, which holds the
+# folder's lock).
 STALE_SECONDS = 3600
 CHECK_TIMEOUT = 300
+# --update's copy while it is made, and the spare once it is ready: one name
+# each, beside the file (the rename stays on its filesystem), hidden, and not
+# "yt-dlp", so that nothing runs either as the real one.
+PART_NAME = ".yt-dlp-update"
+READY_NAME = ".yt-dlp-ready"
+UPDATE_TIMEOUT = 600
+# How long --update waits for the processes that run from the file to end. A
+# search, an Info Screen or mpv's hook runs yt-dlp for a few seconds, so a
+# second with none comes soon even while YouTube is in use; ten minutes, twice
+# the five the unit gives the network and each check, outlasts a run of them
+# and still ends long before the next run of the timer.
+WAIT_SECONDS = 600
+POLL_SECONDS = 1
 
 
 class Stopped(Exception):
@@ -101,12 +142,12 @@ def compiled(zf, magic):
     return True
 
 
-def remove_stale(directory):
+def remove_stale(directory, max_age=STALE_SECONDS):
     now = time.time()
     for entry in os.scandir(directory):
         if entry.name.startswith(TMP_PREFIX) and entry.is_dir(follow_symlinks=False):
             try:
-                if now - entry.stat(follow_symlinks=False).st_mtime > STALE_SECONDS:
+                if now - entry.stat(follow_symlinks=False).st_mtime > max_age:
                     shutil.rmtree(entry.path)
             except OSError:
                 pass
@@ -135,8 +176,11 @@ def safe_name(name):
     return not (name.startswith("/") or "\\" in name or ".." in parts or ":" in parts[0])
 
 
-def rebuild(path, python, stop_if):
+def rebuild(path, python, stop_if, named=None):
+    """Compiles the zip at path. named: the path its files are compiled as
+    (the real file's, when path is --update's copy of it)."""
     path = os.path.realpath(path)
+    named = named or path
     directory = os.path.dirname(path)
     shebang = shebang_of(path)
     python = python or python_of(shebang)
@@ -157,7 +201,7 @@ def rebuild(path, python, stop_if):
         if not sources:
             raise RuntimeError("the zip holds no Python sources")
 
-        remove_stale(directory)
+        remove_stale(directory, 0 if named != path else STALE_SECONDS)
         # Beside the file, so that the rename stays on its filesystem.
         work = tempfile.mkdtemp(prefix=TMP_PREFIX, dir=directory)
         try:
@@ -176,7 +220,7 @@ def rebuild(path, python, stop_if):
             # compiling from it.
             code, out = run([python, "-I", "-m", "compileall", "-q", "-b",
                              "--invalidation-mode", "unchecked-hash",
-                             "-s", tree, "-p", path, tree], stop_if, CHECK_TIMEOUT * 4)
+                             "-s", tree, "-p", named, tree], stop_if, CHECK_TIMEOUT * 4)
             if code != 0:
                 raise RuntimeError(f"compileall failed ({code}): {out.strip()[-2000:]}")
 
@@ -228,18 +272,232 @@ def rebuild(path, python, stop_if):
     log(f"{path} compiled for {python} (version {out.strip()})")
 
 
+def fsync_dir(directory):
+    dir_fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
+def lock(directory):
+    """The folder's lock, held until the process ends: one run at a time."""
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        return False
+    return True
+
+
+def own_pids():
+    """This process and those it was started by (none of them run the zip)."""
+    pids, pid = set(), os.getpid()
+    while pid > 1 and pid not in pids:
+        pids.add(pid)
+        try:
+            with open(f"/proc/{pid}/stat", "rb") as f:
+                pid = int(f.read().rsplit(b")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+    return pids
+
+
+def users_of(path, own):
+    """The processes whose command line names the file at path: the
+    interpreter with the zip as an argument (how the kernel starts a "#!"
+    file, and "python3 FILE"), or the file itself. Each argument is resolved
+    (against the process's folder when relative) to the file it names, and
+    compared with path's by device and inode, so that a symbolic link, a
+    second name or a relative path is found too."""
+    try:
+        target = os.stat(path)
+    except FileNotFoundError:
+        return []
+    key = (target.st_dev, target.st_ino)
+    found = []
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdigit() or int(entry.name) in own:
+            continue
+        try:
+            with open(f"/proc/{entry.name}/cmdline", "rb") as f:
+                args = f.read().split(b"\0")
+        except OSError:
+            continue
+        cwd = None
+        for raw in args:
+            if not raw or len(raw) > 4096:
+                continue
+            arg = os.fsdecode(raw)
+            if not arg.startswith("/"):
+                if cwd is None:
+                    try:
+                        cwd = os.readlink(f"/proc/{entry.name}/cwd")
+                    except OSError:
+                        cwd = ""
+                if not cwd:
+                    continue
+                arg = os.path.join(cwd, arg)
+            try:
+                st = os.stat(arg)
+            except (OSError, ValueError):
+                continue
+            if (st.st_dev, st.st_ino) == key:
+                found.append(int(entry.name))
+                break
+    return found
+
+
+def same_file_content(a, b):
+    with open(a, "rb") as fa, open(b, "rb") as fb:
+        while True:
+            da, db = fa.read(1 << 20), fb.read(1 << 20)
+            if da != db:
+                return False
+            if not da:
+                return True
+
+
+def spare_unusable(ready, st, python):
+    """Why the spare an earlier run left can't take the file's place, or
+    None."""
+    rst = os.lstat(ready)
+    if not stat.S_ISREG(rst.st_mode):
+        return "it is not a file"
+    if st.st_mtime_ns > rst.st_mtime_ns:
+        return "the file has changed since it was made"
+    try:
+        with zipfile.ZipFile(ready) as zf:
+            if zf.testzip() is not None:
+                return "its zip is damaged"
+    except (OSError, zipfile.BadZipFile) as e:
+        return f"its zip doesn't open ({e})"
+    code, out = run([python, "-I", ready, "--version"], None, CHECK_TIMEOUT)
+    if code != 0:
+        return f"it does not run ({code}): {out.strip()[-500:]}"
+    return None
+
+
+def make_spare(path, part, ready, st, python, stop_if):
+    """The copy, updated, compiled and checked, kept as the spare. False when
+    it is the same as the file (nothing to swap)."""
+    shutil.copy2(path, part)
+    if os.geteuid() == 0:
+        os.chown(part, st.st_uid, st.st_gid)
+    code, out = run([python, "-I", part, "--update"], stop_if, UPDATE_TIMEOUT)
+    sys.stderr.write(out)
+    sys.stderr.flush()
+    if code != 0:
+        raise UpdateFailed(f"yt-dlp --update failed ({code}); {path} left as it was")
+    updated = not same_file_content(part, path)
+    try:
+        rebuild(part, python, stop_if, named=path)
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError) as e:
+        if not updated:
+            log(f"{path} left as it was: {e}")
+            return False
+        log(f"the new build goes in uncompiled: {e}")
+    if same_file_content(part, path):
+        log(f"{path} is up to date and compiled already: nothing to swap")
+        return False
+    code, out = run([python, "-I", part, "--version"], stop_if, CHECK_TIMEOUT)
+    if code != 0:
+        raise UpdateFailed(f"the new build does not run ({code}): {out.strip()[-2000:]}; {path} left as it was")
+    os.chmod(part, stat.S_IMODE(st.st_mode))
+    with open(part, "rb") as f:
+        os.fsync(f.fileno())
+    # Ready, all of it: one name, so that the folder never holds more than
+    # one spare.
+    os.replace(part, ready)
+    fsync_dir(os.path.dirname(path))
+    log(f"the new build is ready ({out.strip()})")
+    return True
+
+
+def update(path, python, stop_if, wait):
+    path = os.path.realpath(path)
+    directory = os.path.dirname(path)
+    part = os.path.join(directory, PART_NAME)
+    ready = os.path.join(directory, READY_NAME)
+    python = python or python_of(shebang_of(path))
+    if not python:
+        raise RuntimeError("no Python found for the zip's first line")
+    st = os.stat(path)
+
+    # A copy is only ever made under the folder's lock (main): one found here
+    # is a run's cut short (a power cut, the unit stopped).
+    if os.path.lexists(part):
+        os.unlink(part)
+        log(f"removed {part}, left by a run cut short")
+    remove_stale(directory, 0)
+    have_spare = False
+    if os.path.lexists(ready):
+        why = spare_unusable(ready, st, python)
+        if why:
+            os.unlink(ready)
+            log(f"removed {ready}, left by an earlier run: {why}")
+        else:
+            have_spare = True
+            log(f"{ready}, made ready by an earlier run, takes the file's place")
+    if not have_spare:
+        try:
+            if not make_spare(path, part, ready, st, python, stop_if):
+                return
+        finally:
+            if os.path.lexists(part):
+                os.unlink(part)
+
+    # The swap: only while no process runs from the file.
+    own = own_pids()
+    deadline = time.monotonic() + wait
+    said = False
+    while True:
+        if stop_if and os.path.exists(stop_if):
+            raise Stopped()
+        now = os.stat(path)
+        if (now.st_ino, now.st_mtime_ns, now.st_size) != (st.st_ino, st.st_mtime_ns, st.st_size):
+            os.unlink(ready)
+            log(f"{path} changed meanwhile (an update by hand): the spare removed, the file left as it is")
+            return
+        busy = users_of(path, own)
+        if not busy:
+            break
+        if time.monotonic() >= deadline:
+            log(f"{path} still in use after {wait} s (process {', '.join(map(str, busy))}): "
+                f"left as it was; the next run puts {ready} in its place")
+            return
+        if not said:
+            log(f"waiting for process {', '.join(map(str, busy))} to end, which runs from {path}")
+            said = True
+        time.sleep(POLL_SECONDS)
+    os.replace(ready, path)
+    fsync_dir(directory)
+    log(f"{path} replaced by the new build")
+
+
+class UpdateFailed(Exception):
+    pass
+
+
 FORCE = False
 
 
 def main(argv):
     global FORCE
-    usage = "usage: yt-dlp-compile [--force] [--python PYTHON] [--stop-if PATH] FILE"
+    usage = ("usage: yt-dlp-compile [--force] [--python PYTHON] [--stop-if PATH] FILE\n"
+             "       yt-dlp-compile --update [--wait SECONDS] [--python PYTHON] [--stop-if PATH] FILE")
     python = stop_if = path = None
+    updating, wait = False, WAIT_SECONDS
     args = list(argv)
     while args:
         arg = args.pop(0)
         if arg == "--force":
             FORCE = True
+        elif arg == "--update":
+            updating = True
+        elif arg == "--wait" and args and args[0].isdigit():
+            wait = int(args.pop(0))
         elif arg == "--python" and args:
             python = args.pop(0)
         elif arg == "--stop-if" and args:
@@ -249,13 +507,22 @@ def main(argv):
         else:
             print(usage, file=sys.stderr)
             return 2
-    if path is None:
+    if path is None or (FORCE and updating):
         print(usage, file=sys.stderr)
         return 2
     try:
-        rebuild(path, python, stop_if)
+        if not lock(os.path.dirname(os.path.realpath(path))):
+            log(f"another run is at work on {path}; left to it")
+            return 0
+        if updating:
+            update(path, python, stop_if, wait)
+        else:
+            rebuild(path, python, stop_if)
     except Stopped:
         log(f"stopped: {stop_if} appeared; {path} left as it was")
+    except UpdateFailed as e:
+        log(str(e))
+        return 1
     except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError) as e:
         log(f"{path} left as it was: {e}")
         return 1

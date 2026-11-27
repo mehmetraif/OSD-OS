@@ -19,25 +19,33 @@ ExecCondition=/usr/lib/osdos/yt-dlp-wanted
 # the boot screen's check. Without one the run is skipped, not failed: a player
 # that only plays its own films may never be online.
 ExecCondition=/usr/bin/nm-online -q -t 300
-ExecStart=/home/@FIRST_USER_NAME@/.local/share/OSD-OS/bin/yt-dlp --update
-# The build, new or not, with its bytecode put in (yt-dlp-compile): a zip of
-# sources is compiled again at every run, which costs each YouTube video,
-# search and Info Screen a second or two on a Pi. Skipped when it holds this
-# Python's bytecode already; stopped, the file as it was, if a game starts
-# meanwhile. A failure leaves the file as it was, which still runs, so it
-# doesn't fail the unit (the "-"): the journal says why.
-ExecStartPost=-/usr/lib/osdos/yt-dlp-compile --stop-if /run/osdos-game/playing /home/@FIRST_USER_NAME@/.local/share/OSD-OS/bin/yt-dlp
+# The update and the compile (yt-dlp-compile --update), on a copy beside the
+# file, so that the file a yt-dlp runs from (mpv's hook, a search, the Info
+# Screen) never changes under it: Python reads a zip's index as it starts and
+# opens the file again by its path for each later import, so a file replaced
+# meanwhile fails that process at its next import. The copy runs its own
+# --update (yt-dlp replaces itself with the latest nightly build when there is
+# one), gets its bytecode put in (a zip of sources is compiled again at every
+# run, which costs each YouTube video, search and Info Screen a second or two
+# on a Pi), and is checked with --version; then it takes the file's place by
+# one rename, once no process runs from the file, waited for up to ten
+# minutes. Still in use then, it is kept as the spare (.yt-dlp-ready) for the
+# next run to put in place. Nothing new and compiled already: nothing changes.
+# A game started meanwhile stops it, the file as it was. A failed update fails
+# the unit; a failed compile doesn't (the new build goes in uncompiled, which
+# still runs): the journal says why.
+ExecStart=/usr/lib/osdos/yt-dlp-compile --update --stop-if /run/osdos-game/playing /home/@FIRST_USER_NAME@/.local/share/OSD-OS/bin/yt-dlp
 # Out of the way of a film that is playing.
 Nice=19
 IOSchedulingClass=idle
 # It runs code it has just downloaded, so it is given nothing it doesn't use.
-# It writes only its own folder, ~/.local/share/OSD-OS/bin (the new build
-# over the old; the compiled one in a folder beside it, then put in its
-# place), and reads the app's settings in
-# ~/.local/share/OSD-OS (yt-dlp-wanted): /usr, /boot and /etc read-only, no
-# way to more privileges than the user's (no setuid, no file capabilities),
-# and the kernel's settings, modules and control groups out of its reach.
-# Each of these leaves the home folder and the network as they were.
+# It writes only its own folder, ~/.local/share/OSD-OS/bin (the copy, the
+# compiled one in a folder beside it, then the copy put in the file's place),
+# and reads the app's settings in ~/.local/share/OSD-OS (yt-dlp-wanted), and
+# /proc's command lines, for the processes that run from the file: /usr,
+# /boot and /etc read-only, no way to more privileges than the user's (no
+# setuid, no file capabilities), and the kernel's settings, modules and
+# control groups out of its reach. Each of these leaves the home folder and the network as they were.
 NoNewPrivileges=yes
 ProtectSystem=full
 ProtectKernelTunables=yes
