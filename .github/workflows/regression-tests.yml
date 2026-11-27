@@ -25,6 +25,8 @@ on:
       - 'os/stage-osdos/00-packages/**'
       - 'os/stage-osdos/02-system/**'
       - 'os/stage-osdos/03-boot/files/**'
+      - 'os/stage-osdos/05-media/**'
+      - 'os/stage-osdos/06-youtube/**'
       - 'thirdparty/**'
       - 'cmake/**'
       - 'CMakeLists.txt'
