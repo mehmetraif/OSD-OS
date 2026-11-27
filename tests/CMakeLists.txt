@@ -149,10 +149,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     pkg_check_modules(Libdrm REQUIRED libdrm)
 
     # More of the app's sources that several of them are built with, once:
-    # the board and the requests to the system's root helpers; what starts a
-    # program with the screen (a script, the web player, a game) and finds
-    # mpv's and yt-dlp's programs; and YouTube with the web player it plays
-    # through.
+    # the board and the requests to the system's root helpers; the video
+    # modes, which have no Qt in them (src/modetest: a modeline, and a game's
+    # own mode for a monitor's range); what starts a program with the screen
+    # (a script, the web player, a game) and finds mpv's and yt-dlp's
+    # programs; and YouTube with the web player it plays through.
+    add_library(osdos_test_modes STATIC ../src/modetest/ModeLine.cpp ../src/modetest/GameMode.cpp)
+    set_target_properties(osdos_test_modes PROPERTIES AUTOMOC OFF)
+    target_include_directories(osdos_test_modes PUBLIC ../src)
     add_library(osdos_test_system STATIC ../src/util/Board.cpp ../src/util/RootRequest.cpp)
     target_link_libraries(osdos_test_system PUBLIC osdos_test_names Qt6::Network)
     add_library(osdos_test_launch STATIC
@@ -338,10 +342,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     osdos_cpp_test(jamma SOURCES ../src/jamma/JammaPanel.cpp)
 
     # osdos-modetest (src/modetest): modelines read, the built-in modes, which
-    # a screen may be given and the picture drawn in each; and the tool itself
-    # where there is no screen: a modeline that isn't one turned down, and
-    # none found to test on. Linux only, as libdrm is.
-    osdos_cpp_test(modetest SOURCES ../src/modetest/ModeLine.cpp)
+    # a screen may be given and the picture drawn in each, and a game's own
+    # mode worked out for a monitor's range (GameMode), as the app works it
+    # out too; and the tool itself where there is no screen: a modeline that
+    # isn't one turned down, and none found to test on. Linux only, as libdrm
+    # is.
+    osdos_cpp_test(modetest LIBRARIES osdos_test_modes)
     add_executable(modetest_tool ../src/modetest/main.cpp ../src/modetest/ModeLine.cpp)
     set_target_properties(modetest_tool PROPERTIES AUTOMOC OFF)
     target_include_directories(modetest_tool PRIVATE ${Libdrm_INCLUDE_DIRS})
