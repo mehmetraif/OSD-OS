@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <optional>
 
+#include "../../modetest/ModeLine.h"
 #include "../../util/Board.h"
 
 class QHostAddress;
@@ -283,6 +284,10 @@ struct Launch {
     // size) for the mode RetroArch takes by itself.
     QSize   modeSize;
     int     modeRefresh = 0;
+    // On a video mode of the game's own (Game's Own Mode), the config laid
+    // over this one (ownModeConfigText(), RetroArch's --appendconfig); ""
+    // for none, as for every game the mode wasn't set for.
+    QString ownModeConfig;
     // Settings → Arcade → Show Ping: over the network, each peer's ping on
     // the screen (netplay_ping_show).
     bool    pingShown = false;
@@ -367,6 +372,20 @@ std::optional<GameMode> gameMode(const QSize &screen, double refresh, bool tube,
 // The retroarch.cfg for a game: everything RetroArch would otherwise take
 // from a desktop's defaults, for a console with the menus' controllers.
 QString configText(const Launch &launch);
+// The config laid over it for a game on a video mode of its own
+// (Launch::ownModeConfig), which OSD/OS has set and RetroArch keeps
+// (osdos_keepmode): the screen's refresh rate as that mode's (rate: the
+// kernel's, from its pixel clock in kHz), so that RetroArch, which plays a
+// frame for each of the screen's, stretches neither the game's time nor its
+// sound; no mode asked for of its own (video_fullscreen_x and _y 0, the size
+// it finds; no refresh-rate switch, no CRT SwitchRes); the picture's shape in
+// the mode's pixels (aspect, viewportAspect() for the mode's size) with the
+// game's lines whole, or over the whole screen (fill, Fit to Screen); and no
+// smoothing between the game's pixels.
+QString ownModeConfigText(double rate, double aspect, bool fill);
+// A mode's refresh rate as the kernel makes it: its pixel clock counted in
+// whole kHz (drmModeModeInfo's), over its totals.
+double kernelRefresh(const modetest::ModeLine &mode);
 // RetroArch's arguments: the core, the config, the log and the game.
 QStringList arguments(const Launch &launch);
 // The remap file RetroArch loads with FinalBurn Neo from remapDir: the

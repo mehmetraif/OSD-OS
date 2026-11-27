@@ -21,6 +21,7 @@
 #include <QtEndian>
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <iterator>
 #include <optional>
@@ -907,6 +908,43 @@ Stats statsOf(const QString &value) {
     return Stats::Off;
 }
 
+double kernelRefresh(const modetest::ModeLine &mode) {
+    if (mode.htotal <= 0 || mode.vtotal <= 0)
+        return 0;
+    return std::floor(mode.clockMHz * 1000.0 + 0.5) * 1000.0 / mode.htotal / mode.vtotal;
+}
+
+QString ownModeConfigText(double rate, double aspect, bool fill) {
+    QStringList lines{ QStringLiteral("# Written by OSD/OS for a game on a video mode of its own, over retroarch.cfg: "
+                                      "what is changed here is lost at the next.") };
+    const auto set = [&lines](const char *key, const QString &value) { lines << configLine(key, value); };
+    // The mode OSD/OS set, as RetroArch finds it: no size of its own asked
+    // for, no other refresh rate looked for, no CRT SwitchRes.
+    set("video_fullscreen_x", QStringLiteral("0"));
+    set("video_fullscreen_y", QStringLiteral("0"));
+    set("video_autoswitch_refresh_rate", QStringLiteral("3"));
+    set("crt_switch_resolution", QStringLiteral("0"));
+    // A frame of the game's for each of the screen's, which are as many a
+    // second now: nothing of its time or its sound is stretched.
+    set("video_refresh_rate", QString::number(rate, 'f', 6));
+    set("video_vsync", onOff(true));
+    set("vrr_runloop_enable", onOff(false));
+    // The game's pixels as they are, its lines one for one.
+    set("video_smooth", onOff(false));
+    set("video_aspect_ratio_auto", onOff(false));
+    if (fill) {
+        set("aspect_ratio_index", QStringLiteral("24"));
+        set("video_scale_integer", onOff(false));
+    } else {
+        set("aspect_ratio_index", QStringLiteral("20"));
+        set("video_aspect_ratio", QString::number(aspect, 'f', 6));
+        set("video_scale_integer", onOff(true));
+        set("video_scale_integer_axis", QStringLiteral("0"));
+        set("video_scale_integer_scaling", QStringLiteral("0"));
+    }
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
 QString coreRemapPath(const QString &remapDir, bool lanCore) {
     const QLatin1String name = lanCore ? kLanCoreName : kCoreName;
     return remapDir + QLatin1Char('/') + name + QLatin1Char('/') + name + QStringLiteral(".rmp");
@@ -1075,6 +1113,10 @@ QStringList arguments(const Launch &launch) {
     const auto native = [](const QString &path) { return QDir::toNativeSeparators(path); };
     QStringList args{ QStringLiteral("-L"), native(launch.core), QStringLiteral("--config"), native(launch.config),
                       QStringLiteral("--verbose"), QStringLiteral("--log-file=") + native(launch.log) };
+    // On a video mode of the game's own: what that mode asks of RetroArch,
+    // over the config.
+    if (!launch.ownModeConfig.isEmpty())
+        args << QStringLiteral("--appendconfig=") + native(launch.ownModeConfig);
     if (hosts(launch.netplay))
         args << QStringLiteral("--host");
     else if (launch.netplay == Launch::Netplay::Join || launch.netplay == Launch::Netplay::LanJoin)

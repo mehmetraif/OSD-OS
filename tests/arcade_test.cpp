@@ -1452,6 +1452,193 @@ private slots:
         arcade.setBoard(board::Family::Other);
     }
 
+    // Game's Own Mode in FinalBurn Neo: off, RetroArch is started with the
+    // very config and arguments it has without it; on, a game whose mode is
+    // set is started with that config untouched and one of the mode's laid
+    // over it (the screen's refresh rate the mode's as the kernel makes it,
+    // the picture's shape in the mode's pixels, nothing smoothed, no mode
+    // asked for of RetroArch's own), preloaded with osdos_keepmode.so; a
+    // mode refused, and a game that gets none, as without the setting. A
+    // set MAME doesn't know takes its parent's refresh rate where MAME
+    // knows the parent at the same size.
+    void ownModeInFbneo() {
+        // The config laid over RetroArch's, to the letter.
+        modetest::MonitorRange range;
+        modetest::ModeLine neogeo;
+        std::string why;
+        QVERIFY(modetest::parseMonitorRange(modetest::kArcade15, &range, &why));
+        QVERIFY(modetest::modeFor(1920, 224, 59.185606, range, &neogeo, &why));
+        // 39132 kHz over 2495 x 265: the rate the kernel makes of it.
+        QCOMPARE(QString::number(libretro::kernelRefresh(neogeo), 'f', 6), QStringLiteral("59.185541"));
+        QCOMPARE(libretro::kernelRefresh(modetest::ModeLine()), 0.0);
+        const QString laidOver = QStringLiteral(
+            "# Written by OSD/OS for a game on a video mode of its own, over retroarch.cfg: what is changed here is "
+            "lost at the next.\n"
+            "video_fullscreen_x = \"0\"\n"
+            "video_fullscreen_y = \"0\"\n"
+            "video_autoswitch_refresh_rate = \"3\"\n"
+            "crt_switch_resolution = \"0\"\n"
+            "video_refresh_rate = \"59.185541\"\n"
+            "video_vsync = \"true\"\n"
+            "vrr_runloop_enable = \"false\"\n"
+            "video_smooth = \"false\"\n"
+            "video_aspect_ratio_auto = \"false\"\n"
+            "aspect_ratio_index = \"20\"\n"
+            "video_aspect_ratio = \"8.571429\"\n"
+            "video_scale_integer = \"true\"\n"
+            "video_scale_integer_axis = \"0\"\n"
+            "video_scale_integer_scaling = \"0\"\n");
+        QCOMPARE(libretro::ownModeConfigText(libretro::kernelRefresh(neogeo),
+                                             libretro::viewportAspect(4.0 / 3.0, QSize(1920, 224), 4.0 / 3.0), false),
+                 laidOver);
+        // Fit to Screen: the whole screen, no shape of the picture's own.
+        const QString filled = libretro::ownModeConfigText(59.637213, 8.571429, true);
+        QVERIFY2(filled.contains(QStringLiteral("aspect_ratio_index = \"24\"\nvideo_scale_integer = \"false\"\n")),
+                 qPrintable(filled));
+        QVERIFY(!filled.contains(QStringLiteral("video_aspect_ratio = ")));
+        QVERIFY(filled.contains(QStringLiteral("video_refresh_rate = \"59.637213\"\n")));
+        // RetroArch's arguments: the config laid over the other, before the game.
+        libretro::Launch launch;
+        launch.core = QStringLiteral("/c/fbneo_libretro.so");
+        launch.config = QStringLiteral("/h/retroarch.cfg");
+        launch.log = QStringLiteral("/h/last.log");
+        launch.content = QStringLiteral("/g/mslug.zip");
+        const QStringList plain = libretro::arguments(launch);
+        QVERIFY(!plain.join(QLatin1Char(' ')).contains(QStringLiteral("appendconfig")));
+        launch.ownModeConfig = QStringLiteral("/h/own-mode.cfg");
+        QStringList withMode = libretro::arguments(launch);
+        QCOMPARE(withMode.value(withMode.size() - 2), QStringLiteral("--appendconfig=/h/own-mode.cfg"));
+        withMode.removeAt(withMode.size() - 2);
+        QCOMPARE(withMode, plain);
+        // And nothing of it in the config itself, whatever the launch says.
+        QCOMPARE(libretro::configText(launch), [&launch] {
+            libretro::Launch without = launch;
+            without.ownModeConfig.clear();
+            return libretro::configText(without);
+        }());
+
+        QTemporaryDir data;
+        QVERIFY(data.isValid());
+        if (!libretro::corePath(data.path()).isEmpty() || !libretro::datPath(data.path()).isEmpty())
+            QSKIP("FinalBurn Neo is installed here");
+        const QString games = data.path() + QStringLiteral("/media/Games/Arcade");
+        for (const char *set : { "sf2.zip", "mslug.zip", "mslughb.zip", "galaga.zip", "bios/neogeo.zip" })
+            writeFile(games + QLatin1Char('/') + QLatin1String(set));
+        QVERIFY(QDir().mkpath(data.path() + QStringLiteral("/bin")));
+        QVERIFY(QFile::copy(mamePath(), data.path() + QStringLiteral("/bin/mame")));
+        writeFile(data.path() + QStringLiteral("/bin/retroarch"), fixture("retroarch"));
+        for (const char *program : { "/bin/mame", "/bin/retroarch" })
+            QVERIFY(QFile::setPermissions(data.path() + QLatin1String(program),
+                                          QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        writeFile(libretro::downloadedCore(data.path()));
+        writeFile(libretro::downloadedDat(data.path()), fixture("fbneo-arcade.dat"));
+        const QString configCopy = data.path() + QStringLiteral("/ra.cfg");
+        qputenv("RA_CONFIG_COPY", configCopy.toUtf8());
+        qputenv("OSDOS_MEDIA_DIR", (data.path() + QStringLiteral("/media")).toUtf8());
+        const auto restore = qScopeGuard([this] {
+            qunsetenv("RA_CONFIG_COPY");
+            qputenv("OSDOS_MEDIA_DIR", (m_data.path() + QStringLiteral("/media")).toUtf8());
+        });
+
+        DisplayHandoff handoff;
+        QStringList asked;
+        bool take = true;
+        handoff.setModeSetter([&](const modetest::ModeLine &m, QString *reason) {
+            asked << QString::fromStdString(modetest::describe(m));
+            if (!take)
+                *reason = QStringLiteral("the kernel refused it: Invalid argument");
+            return take;
+        });
+        ArcadeBackend arcade(data.path(), data.path(), nullptr, &handoff);
+        refreshed(arcade);
+        QVERIFY(arcade.fbneoReady());
+        const QString module = QStringLiteral("com.osdos.arcade");
+        arcade.onSettingChanged(module, QStringLiteral("engines"),
+                                QVariantMap{ { QStringLiteral("mslug"), QStringLiteral("fbneo") },
+                                             { QStringLiteral("sf2"), QStringLiteral("fbneo") },
+                                             { QStringLiteral("galaga"), QStringLiteral("fbneo") } });
+        QCOMPARE(arcade.engineOf(QStringLiteral("mslug")), QStringLiteral("fbneo"));
+        QCOMPARE(arcade.engineOf(QStringLiteral("mslughb")), QStringLiteral("fbneo"));
+        arcade.setScreen(true, QSize(720, 288), 50);
+        arcade.setBoard(board::Family::Pi5);
+        arcade.setMonitor(QString::fromLatin1(modetest::kArcade15));
+        arcade.setKeepModeLibrary(QStringLiteral(KEEPMODE_LIBRARY));
+        const QString home = data.path() + QStringLiteral("/arcade/retroarch");
+        const QString ownConfig = home + QStringLiteral("/own-mode.cfg");
+        // What RetroArch was started with, what was preloaded into it, and
+        // the config it was given.
+        struct Run { QString line, preload; QByteArray config; };
+        const auto run = [&](const char *set) {
+            QFile::remove(m_log);
+            QFile::remove(configCopy);
+            played(arcade, QLatin1String(set));
+            return Run{ logLines(QStringLiteral("retroarch ")).value(0), logLines(QStringLiteral("rapreload ")).value(0),
+                        contents(configCopy) };
+        };
+        const QString plainLine = QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log %3/")
+                                      .arg(libretro::downloadedCore(data.path()), home, games);
+        const QString modeLine = QStringLiteral("retroarch -L %1 --config %2/retroarch.cfg --verbose --log-file=%2/last.log "
+                                                "--appendconfig=%2/own-mode.cfg %3/")
+                                     .arg(libretro::downloadedCore(data.path()), home, games);
+
+        // Off: as ever, and nothing written beside the config.
+        const Run off = run("mslug");
+        QCOMPARE(off.line, plainLine + QStringLiteral("mslug.zip"));
+        QCOMPARE(off.preload, QStringLiteral("rapreload "));
+        QVERIFY(!off.config.isEmpty());
+        QVERIFY(!QFileInfo::exists(ownConfig));
+        QVERIFY(asked.isEmpty());
+
+        // On: Metal Slug's mode asked for and set; the config RetroArch is
+        // given is byte for byte the one it has without the setting, and the
+        // mode's is laid over it.
+        arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), QStringLiteral("ON"));
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for mslug in FinalBurn Neo: 1920x224  15.684 kHz  59.19 Hz  "
+                                        "39.132 MHz asked for, from its 320x224 at 59.185606 Hz");
+        const Run on = run("mslug");
+        QCOMPARE(asked, QStringList({ QStringLiteral("1920x224  15.684 kHz  59.19 Hz  39.132 MHz") }));
+        QCOMPARE(on.line, modeLine + QStringLiteral("mslug.zip"));
+        QCOMPARE(on.preload, QStringLiteral("rapreload ") + QStringLiteral(KEEPMODE_LIBRARY));
+        QCOMPARE(on.config, off.config);
+        QCOMPARE(QString::fromUtf8(contents(ownConfig)), laidOver);
+        QCOMPARE(QFile::permissions(ownConfig) & (QFile::ReadGroup | QFile::ReadOther), QFileDevice::Permissions());
+        QVERIFY(!handoff.held() && !handoff.modeSet());
+
+        // The kernel refuses the mode: RetroArch as without the setting.
+        take = false;
+        const Run refused = run("mslug");
+        QCOMPARE(refused.line, off.line);
+        QCOMPARE(refused.preload, off.preload);
+        QCOMPARE(refused.config, off.config);
+        QCOMPARE(asked.size(), 2);
+        take = true;
+        asked.clear();
+
+        // A hack MAME doesn't know, of a game it does, at the same size:
+        // its parent's refresh rate.
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for mslughb in FinalBurn Neo: 1920x224  15.684 kHz  59.19 Hz  "
+                                        "39.132 MHz asked for, from its 320x224 at 59.185606 Hz");
+        QCOMPARE(run("mslughb").line, modeLine + QStringLiteral("mslughb.zip"));
+        QCOMPARE(asked.size(), 1);
+        // Games MAME gives no screen of (its stand-in's sf2 and galaga),
+        // though FinalBurn Neo's list has their sizes: no rate, no mode.
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for sf2 in FinalBurn Neo: none, no screen size and refresh "
+                                        "rate is known for it");
+        QCOMPARE(run("sf2").line, plainLine + QStringLiteral("sf2.zip"));
+        QTest::ignoreMessage(QtInfoMsg, "[Arcade] Game's own mode for galaga in FinalBurn Neo: none, no screen size and "
+                                        "refresh rate is known for it");
+        QCOMPARE(run("galaga").preload, QStringLiteral("rapreload "));
+        QCOMPARE(asked.size(), 1);
+
+        // Off again: as at first.
+        arcade.onSettingChanged(module, QStringLiteral("own_video_mode"), QStringLiteral("OFF"));
+        const Run again = run("mslug");
+        QCOMPARE(again.line, off.line);
+        QCOMPARE(again.config, off.config);
+        QCOMPARE(asked.size(), 1);
+        arcade.setBoard(board::Family::Other);
+    }
+
     // A game's options: its difficulty, where MAME plays it and its board has
     // a DIP switch for it (Pac-Man's, not its coinage's), set in MAME's own
     // cfg file for the game as it starts, the rest of the file kept, and kept
@@ -2154,9 +2341,9 @@ private slots:
         QVERIFY(dir.isValid());
         writeFile(dir.path() + QStringLiteral("/fbneo.dat"), fixture("fbneo-arcade.dat"));
         QHash<QString, mame::Machine> machines = libretro::readDat(dir.path() + QStringLiteral("/fbneo.dat"));
-        QCOMPARE(machines.size(), 7);
+        QCOMPARE(machines.size(), 8);
         // The pictures' shapes, where the list says.
-        QCOMPARE(std::count_if(machines.cbegin(), machines.cend(), [](const mame::Machine &m) { return m.aspect > 0; }), 2);
+        QCOMPARE(std::count_if(machines.cbegin(), machines.cend(), [](const mame::Machine &m) { return m.aspect > 0; }), 3);
         QCOMPARE(machines.value(QStringLiteral("1943")).aspect, 0.0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).aspect, 4.0 / 3.0);
         QCOMPARE(machines.value(QStringLiteral("galaga")).aspect, 3.0 / 4.0);

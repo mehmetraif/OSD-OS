@@ -3568,6 +3568,28 @@ bool ArcadeBackend::playFbneo(const QString &name, libretro::Launch::Netplay net
     entry.workingDirectory = home;
     entry.environment = padEnvironment(m_dataRoot);
     entry.nice = GameSystem::emulatorNice();
+    // Emulator Video → Game's Own Mode, as for MAME: where the game's mode
+    // is set, RetroArch is started with a config of that mode's laid over
+    // the one above (the screen's refresh rate the mode's, the picture's
+    // shape in the mode's pixels, no mode asked for of its own) and
+    // preloaded with what makes its KMS context keep the mode it finds;
+    // where it isn't, with the arguments above, as without the setting.
+    if (const std::optional<modetest::ModeLine> mode = ownMode(name, QStringLiteral("FinalBurn Neo"))) {
+        const double tube = shape == QLatin1String("16:9") ? 16.0 / 9.0 : 4.0 / 3.0;
+        const QString ownConfig = home + QStringLiteral("/own-mode.cfg");
+        const QString text = libretro::ownModeConfigText(
+            libretro::kernelRefresh(*mode),
+            libretro::viewportAspect(gameAspect(name), QSize(mode->hdisplay, mode->vdisplay), tube), m_fitScreen);
+        if (writeFileAnew(ownConfig, text.toUtf8(), kOwnerOnly)) {
+            libretro::Launch own = launch;
+            own.ownModeConfig = ownConfig;
+            entry.mode = mode;
+            entry.modeArgv = libretro::arguments(own);
+            entry.modeEnvironment = { { QStringLiteral("LD_PRELOAD"), keepModeLibrary() } };
+        } else {
+            qWarning("[Arcade] %s could not be written: the game plays on the mode the screen is on", qPrintable(ownConfig));
+        }
+    }
 
     // As for MAME: the batch MAME is asked meanwhile shares the machine.
     pauseScan();
