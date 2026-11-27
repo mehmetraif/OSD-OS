@@ -357,18 +357,33 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # a screen may be given and the picture drawn in each, and a game's own
     # mode worked out for a monitor's range (GameMode), as the app works it
     # out too; and the tool itself where there is no screen: a modeline that
-    # isn't one turned down, and none found to test on. Linux only, as libdrm
-    # is.
+    # isn't one turned down, none found to test on, a game's own mode printed
+    # as the modeline Switchres gives for it, a game the monitor has no mode
+    # for turned down with why, and --run kept to one mode and to a screen.
+    # Linux only, as libdrm is.
     osdos_cpp_test(modetest LIBRARIES osdos_test_modes)
-    add_executable(modetest_tool ../src/modetest/main.cpp ../src/modetest/ModeLine.cpp)
+    add_executable(modetest_tool ../src/modetest/main.cpp)
     set_target_properties(modetest_tool PROPERTIES AUTOMOC OFF)
     target_include_directories(modetest_tool PRIVATE ${Libdrm_INCLUDE_DIRS})
-    target_link_libraries(modetest_tool PRIVATE ${Libdrm_LIBRARIES})
+    target_link_libraries(modetest_tool PRIVATE osdos_test_modes ${Libdrm_LIBRARIES})
     add_test(NAME modetest_tool_modeline COMMAND modetest_tool --mode "6.5 320 300 364 416 224 236 239 265")
     set_tests_properties(modetest_tool_modeline PROPERTIES
         PASS_REGULAR_EXPRESSION "not a modeline \\(the horizontal sync isn't in the blanking after the picture\\)")
     add_test(NAME modetest_tool_no_screen COMMAND modetest_tool)
     set_tests_properties(modetest_tool_no_screen PROPERTIES
+        ENVIRONMENT "OSDOS_MODETEST_DRI=${CMAKE_CURRENT_BINARY_DIR}/no-dri"
+        PASS_REGULAR_EXPRESSION "no screen to test on: no DPI output is showing a picture")
+    add_test(NAME modetest_tool_game COMMAND modetest_tool --game 224@59.185606 --game 384x224@59.637405 --modelines)
+    set_tests_properties(modetest_tool_game PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"1920x224_59.19\" 39.132041 1920 1998 2182 2495 224 236 239 265 -hsync -vsync.*\n\"384x224_59.64\" 7.796875 384 400 437 499 224 234 237 262 -hsync -vsync")
+    add_test(NAME modetest_tool_game_refused COMMAND modetest_tool --game 480@60 --modelines)
+    set_tests_properties(modetest_tool_game_refused PROPERTIES
+        PASS_REGULAR_EXPRESSION "no mode for the game 480@60: its 480 lines are outside the monitor's 192 to 288")
+    add_test(NAME modetest_tool_run_one_mode COMMAND modetest_tool --run true)
+    set_tests_properties(modetest_tool_run_one_mode PROPERTIES
+        PASS_REGULAR_EXPRESSION "--run takes one mode, a --game or a --mode: 0 given")
+    add_test(NAME modetest_tool_run_no_screen COMMAND modetest_tool --game 224@59.185606 --run true)
+    set_tests_properties(modetest_tool_run_no_screen PROPERTIES
         ENVIRONMENT "OSDOS_MODETEST_DRI=${CMAKE_CURRENT_BINARY_DIR}/no-dri"
         PASS_REGULAR_EXPRESSION "no screen to test on: no DPI output is showing a picture")
 

@@ -351,7 +351,7 @@ endif()
 # found (src/modetest; docs/TODO-display-modes.md says what for). Linux only,
 # and no Qt: libdrm alone. Run by hand, from a terminal with the app stopped.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_executable(osdos-modetest src/modetest/main.cpp src/modetest/ModeLine.cpp)
+    add_executable(osdos-modetest src/modetest/main.cpp src/modetest/ModeLine.cpp src/modetest/GameMode.cpp)
     set_target_properties(osdos-modetest PROPERTIES AUTOMOC OFF)
     target_include_directories(osdos-modetest PRIVATE ${Libdrm_INCLUDE_DIRS})
     target_link_libraries(osdos-modetest PRIVATE ${Libdrm_LIBRARIES})

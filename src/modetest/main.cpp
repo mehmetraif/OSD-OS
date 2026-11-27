@@ -11,13 +11,23 @@
 // It never shows a mode whose line rate is not the one the screen is on
 // already (modetest::safeFor()): a monitor made for 15 kHz can be damaged by
 // another rate.
+//
+// It also works a game's own mode out as the app does (--game, GameMode),
+// and runs a command on one mode (--run): the mode set on a black screen,
+// the command started with the screen and with osdos_keepmode.so preloaded,
+// as the app starts an emulator with Game's Own Mode on, and the mode it
+// found put back once the command ends. That tries by hand, one emulator at
+// a time, what the app does at each game's start: whether the emulator keeps
+// the mode it finds, and how its picture sits on it.
 #include "DrmMode.h"
+#include "GameMode.h"
 #include "ModeLine.h"
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
 #include <cerrno>
+#include <climits>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -28,6 +38,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 using modetest::ModeLine;
@@ -53,9 +64,70 @@ const char *kUsage =
     "  --mode '<modeline>'             a mode of your own in place of the built-in ones; may be given\n"
     "                                  more than once: \"name\" clock hdisplay hsync-start hsync-end htotal\n"
     "                                  vdisplay vsync-start vsync-end vtotal -hsync -vsync\n"
+    "  --game <lines>@<Hz>             a game's own mode, worked out as OSD/OS works it out for a 15 kHz\n"
+    "                                  arcade monitor, 1920 across: --game 224@59.185606. With a width,\n"
+    "                                  that many across: --game 320x224@59.185606. May be given more\n"
+    "                                  than once, with --mode or without\n"
+    "  --monitor '<range>'             the monitor's ranges for --game, as Switchres writes them, in\n"
+    "                                  place of its arcade_15; before the --game it is for\n"
+    "  --modelines                     prints the modes as modelines and changes nothing\n"
+    "  --run '<command>'               with one mode: sets it on a black screen, runs the command with\n"
+    "                                  the screen (through /bin/sh, osdos_keepmode.so preloaded, which\n"
+    "                                  makes an emulator keep the mode it finds), says which mode its\n"
+    "                                  picture came up on, and puts back the mode it found once it ends\n"
     "\n"
     "Only modes within 5% of the line rate the screen is on are shown. Run it with nothing else on\n"
     "the screen: on the OSD/OS image, Settings -> Quit -> Exit to Terminal.\n";
+
+// "224@59.185606" or "320x224@59.185606" as a game's mode on a monitor of
+// that range: 1920 across without a width. False with why.
+bool gameMode(const std::string &text, const modetest::MonitorRange &range, ModeLine *mode, std::string *why) {
+    int width = 1920, lines = 0, used = 0;
+    double refresh = 0;
+    const char *p = text.c_str();
+    if (std::sscanf(p, "%dx%d%n", &width, &lines, &used) == 2) {
+        p += used;
+    } else {
+        width = 1920;
+        if (std::sscanf(p, "%d%n", &lines, &used) != 1) {
+            *why = "a game is <lines>@<Hz>, or <width>x<lines>@<Hz>";
+            return false;
+        }
+        p += used;
+    }
+    // Its rate, with a point: the tool is in the C locale.
+    char *end = nullptr;
+    if (*p != '@' || (refresh = std::strtod(p + 1, &end), end == p + 1) || *end != '\0') {
+        *why = "a game is <lines>@<Hz>, or <width>x<lines>@<Hz>";
+        return false;
+    }
+    return modetest::modeFor(width, lines, refresh, range, mode, why);
+}
+
+std::string modeLineOf(const ModeLine &mode) {
+    char text[256];
+    std::snprintf(text, sizeof text, "\"%s\" %.6f %d %d %d %d %d %d %d %d %chsync %cvsync", mode.name.c_str(),
+                  mode.clockMHz, mode.hdisplay, mode.hsyncStart, mode.hsyncEnd, mode.htotal, mode.vdisplay,
+                  mode.vsyncStart, mode.vsyncEnd, mode.vtotal, mode.hsyncPositive ? '+' : '-',
+                  mode.vsyncPositive ? '+' : '-');
+    return text;
+}
+
+// osdos_keepmode.so beside this program, as the app's package has the two;
+// "" where it isn't there.
+std::string keepModeLibrary() {
+    char self[PATH_MAX];
+    const ssize_t length = readlink("/proc/self/exe", self, sizeof self - 1);
+    if (length <= 0)
+        return std::string();
+    self[length] = '\0';
+    std::string path(self);
+    const size_t slash = path.rfind('/');
+    if (slash == std::string::npos)
+        return std::string();
+    path = path.substr(0, slash) + "/osdos_keepmode.so";
+    return access(path.c_str(), R_OK) == 0 ? path : std::string();
+}
 
 std::string connectorName(const drmModeConnector *connector) {
     const char *type = "Unknown";
@@ -242,13 +314,126 @@ void putBack(Screen *screen, Picture *black) {
     }
 }
 
+// --run: one mode set on a black screen, the command run with the screen as
+// OSD/OS runs an emulator on a game's own mode (the device's mastership let
+// go for it, osdos_keepmode.so preloaded into it), which mode its picture
+// came up on noted meanwhile, and the mode found put back once it ends. The
+// report comes last, when the console has the screen again.
+int runOn(Screen *screen, const ModeLine &mode, const ModeLine &now, const std::string &command) {
+    std::string why;
+    if (!modetest::safeFor(mode, now.lineRateHz(), &why)) {
+        std::fprintf(stderr, "osdos-modetest: %s is left out: %s\n", modetest::describe(mode).c_str(), why.c_str());
+        return 1;
+    }
+    Picture frame;
+    if (!makePicture(screen->fd, mode.hdisplay, mode.vdisplay, &frame)) {
+        std::fprintf(stderr, "osdos-modetest: no frame buffer for %s: %s\n", modetest::describe(mode).c_str(),
+                     std::strerror(errno));
+        dropPicture(screen->fd, &frame);
+        return 1;
+    }
+    std::memset(frame.pixels, 0, size_t(frame.size));
+    drmModeModeInfo drm = toDrm(mode);
+    // The sync as the screen has it now, as the app sets a game's mode.
+    if (screen->before->mode.flags & modetest::kSyncFlags)
+        drm.flags = (drm.flags & ~modetest::kSyncFlags) | (screen->before->mode.flags & modetest::kSyncFlags);
+    if (drmModeSetCrtc(screen->fd, screen->crtcId, frame.fbId, 0, 0, &screen->connectorId, 1, &drm) != 0) {
+        std::fprintf(stderr, "osdos-modetest: %s was refused by the kernel: %s\n", modetest::describe(mode).c_str(),
+                     std::strerror(errno));
+        dropPicture(screen->fd, &frame);
+        return 1;
+    }
+    // The command is the screen's master now.
+    drmDropMaster(screen->fd);
+    const std::string library = keepModeLibrary();
+    // The card this screen is on, by its number, for an SDL program (MAME):
+    // left to itself SDL opens the first card it can use, which on a Pi 5
+    // may be HDMI's. The app names the card the same way for the emulators
+    // it starts (ScriptLauncher), and a number given already is kept.
+    const std::string::size_type digits = screen->device.find_last_not_of("0123456789");
+    const std::string card = digits == std::string::npos ? std::string() : screen->device.substr(digits + 1);
+    const pid_t child = fork();
+    if (child == 0) {
+        if (!card.empty())
+            setenv("SDL_KMSDRM_DEVICE_INDEX", card.c_str(), 0);
+        if (!library.empty()) {
+            const char *preloaded = std::getenv("LD_PRELOAD");
+            const std::string all = preloaded && *preloaded ? std::string(preloaded) + ":" + library : library;
+            setenv("LD_PRELOAD", all.c_str(), 1);
+            setenv("OSDOS_KEEPMODE_VERBOSE", "1", 1);
+        }
+        execl("/bin/sh", "sh", "-c", command.c_str(), static_cast<char *>(nullptr));
+        _exit(127);
+    }
+    // While it runs: the mode its first picture is on.
+    bool seen = false, kept = false;
+    std::string cameUpOn;
+    int status = 0;
+    int asked = 0;
+    while (child > 0) {
+        const pid_t ended = waitpid(child, &status, WNOHANG);
+        if (ended == child || (ended < 0 && errno != EINTR))
+            break;
+        // Stopped from the keyboard: the command first, and no waiting on
+        // one that won't go.
+        if (g_stop && asked++ % 15 == 0)
+            kill(child, asked > 15 ? SIGKILL : SIGTERM);
+        if (!seen) {
+            if (drmModeCrtc *crtc = drmModeGetCrtc(screen->fd, screen->crtcId)) {
+                if (crtc->mode_valid && crtc->buffer_id && crtc->buffer_id != frame.fbId) {
+                    seen = true;
+                    kept = modetest::sameTimings(crtc->mode, drm);
+                    cameUpOn = modetest::describe(fromDrm(crtc->mode));
+                }
+                drmModeFreeCrtc(crtc);
+            }
+        }
+        usleep(200000);
+    }
+    // The screen back: the command's hold on the device goes as it ends.
+    for (int tries = 0; tries < 20 && !drmIsMaster(screen->fd) && drmSetMaster(screen->fd) != 0; tries++)
+        usleep(100000);
+    Picture black;
+    putBack(screen, &black);
+    dropPicture(screen->fd, &frame);
+    dropPicture(screen->fd, &black);
+    drmDropMaster(screen->fd);
+
+    std::printf(" 1  %s  set, and the command run on it\n", modetest::describe(mode).c_str());
+    if (library.empty())
+        std::printf("    osdos_keepmode.so isn't beside osdos-modetest: the command ran without it\n");
+    if (child < 0)
+        std::printf("    the command could not be started: %s\n", std::strerror(errno));
+    else if (!seen)
+        std::printf("    it showed no picture of its own\n");
+    else if (kept)
+        std::printf("    its picture came up on this mode: it kept the mode it found\n");
+    else
+        std::printf("    its picture came up on %s, a mode it set itself: it did not keep this one\n", cameUpOn.c_str());
+    if (child > 0 && WIFEXITED(status))
+        std::printf("    the command ended with status %d\n", WEXITSTATUS(status));
+    else if (child > 0 && WIFSIGNALED(status))
+        std::printf("    the command was ended by signal %d\n", WTERMSIG(status));
+    std::printf("\nOn its mode, a game's picture has each of its lines on one of the screen's. Did it hold still,\n"
+                "fill the screen from edge to edge, and move without a tremor every second or so?\n");
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
     bool list = false;
+    bool modelines = false;
     int seconds = 6;
     std::string wanted;
+    std::string command;
     std::vector<ModeLine> modes;
+    modetest::MonitorRange monitor;
+    {
+        std::string why;
+        if (!modetest::parseMonitorRange(modetest::kArcade15, &monitor, &why))
+            return 1;
+    }
     for (int i = 1; i < argc; i++) {
         const std::string arg = argv[i];
         const bool more = i + 1 < argc;
@@ -274,13 +459,41 @@ int main(int argc, char **argv) {
             }
             mode.what = "given on the command line";
             modes.push_back(mode);
+        } else if (arg == "--monitor" && more) {
+            std::string why;
+            if (!modetest::parseMonitorRange(argv[++i], &monitor, &why)) {
+                std::fprintf(stderr, "osdos-modetest: not a monitor's range (%s): %s\n", why.c_str(), argv[i]);
+                return 1;
+            }
+        } else if (arg == "--game" && more) {
+            ModeLine mode;
+            std::string why;
+            if (!gameMode(argv[++i], monitor, &mode, &why)) {
+                std::fprintf(stderr, "osdos-modetest: no mode for the game %s: %s\n", argv[i], why.c_str());
+                return 1;
+            }
+            mode.what = std::string("a game's own mode, ") + argv[i];
+            modes.push_back(mode);
+        } else if (arg == "--modelines") {
+            modelines = true;
+        } else if (arg == "--run" && more) {
+            command = argv[++i];
         } else {
             std::fprintf(stderr, "osdos-modetest: not understood: %s\n\n%s", arg.c_str(), kUsage);
             return 1;
         }
     }
+    if (!command.empty() && modes.size() != 1) {
+        std::fprintf(stderr, "osdos-modetest: --run takes one mode, a --game or a --mode: %zu given\n", modes.size());
+        return 1;
+    }
     if (modes.empty())
         modes = modetest::builtInModes();
+    if (modelines) {
+        for (const ModeLine &mode : modes)
+            std::printf("%s    # %s\n", modeLineOf(mode).c_str(), modetest::describe(mode).c_str());
+        return 0;
+    }
 
     Screen screen;
     const bool found = findScreen(wanted, list, &screen);
@@ -314,6 +527,13 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &action, nullptr);
     sigaction(SIGTERM, &action, nullptr);
     sigaction(SIGHUP, &action, nullptr);
+
+    if (!command.empty()) {
+        const int result = runOn(&screen, modes.front(), now, command);
+        drmModeFreeCrtc(screen.before);
+        close(screen.fd);
+        return result;
+    }
 
     std::vector<std::string> report;
     Picture shown;
