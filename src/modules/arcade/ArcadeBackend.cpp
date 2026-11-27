@@ -2631,14 +2631,22 @@ bool ArcadeBackend::play(const QString &name, int credits) {
     // one and crashes (signal 11).
     if (!AudioOutput::hasPlaybackCard())
         args << QStringLiteral("-sound") << QStringLiteral("none");
-    // The credits bought on the Arcade screen, put in as the game starts.
-    // Without the script the game still starts, with no credits.
-    if (credits > 0) {
+    // The credits bought on the Arcade screen, put in as the game starts,
+    // and Show Stats' line, in the one script MAME takes. Without the
+    // script the game still starts, with no credits and no line.
+#ifdef Q_OS_LINUX
+    constexpr bool readsSystem = true;   // /proc/stat and /sys
+#else
+    constexpr bool readsSystem = false;
+#endif
+    const QString script = mame::autobootScript(std::min(credits, kMaxCredits), m_stats != libretro::Stats::Off,
+                                                m_stats == libretro::Stats::System && readsSystem);
+    if (!script.isEmpty()) {
         const QString coins = m_home + QStringLiteral("/coins.lua");
-        if (writeFileAnew(coins, mame::coinScript(std::min(credits, kMaxCredits)).toUtf8()))
+        if (writeFileAnew(coins, script.toUtf8()))
             args << QStringLiteral("-autoboot_script") << coins;
         else
-            qWarning("[Arcade] The credits could not be written for MAME: the game starts without them");
+            qWarning("[Arcade] MAME's script could not be written: the game starts without its credits or stats");
     }
 
     ScriptEntry entry;

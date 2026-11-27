@@ -572,6 +572,7 @@ A core remap file of your own (**Save Core Remap File** in RetroArch's menu) is 
 **Settings → Arcade → Show Stats** puts a line in the top left corner of the game's picture while it plays, from the next game started: **FPS** the frame rate, **FPS + System** the machine's state after it. It is off by default.
 
 - **FinalBurn Neo** shows RetroArch's own frame rate (`fps_show`), measured over a second's frames: `FPS:  59.94`. Played alone without RetroAchievements, OSD/OS draws it as RetroArch's message text rather than in RetroArch's widgets, whose box sits against the top right edge of the screen, where a CRT's overscan hides it: top left, a twentieth of the screen in from its edges, 16 pixels high at 720x240 and 20 at 720x480, so that the whole line fits across, 48 at most. RetroArch's other messages are not shown meanwhile, as is RetroArch's own way with its message text. Online, on the local network or signed in to RetroAchievements, RetroArch's widgets stay, for the ping, the players coming and going and the achievements, and the frame rate is in their box at the top right. **FPS + System** also writes `osdos_system_show`, a key of OSD/OS's own that any other RetroArch ignores.
+- **MAME** has no setting that puts its frame rate in a corner, so OSD/OS's script for the game draws the line itself, top left, a twentieth of the screen in from its edges, white on a dark box: `FPS:  59.94 || SPEED: 100%`, the game's frames over the last second and MAME's speed. **FPS + System** adds, on Linux, the processor's load over that second (`CPU: 37%`, all cores together), the temperature (`48C`) and `UNDERVOLT` or `THROTTLED` while a Raspberry Pi's firmware reports under-voltage or throttling now, each read once a second and left out where the machine doesn't have it. The script is the one the credits go in through (`coins.lua`), so the line and the credits come together.
 
 ## Settings
 
@@ -713,7 +714,7 @@ mame galaga \
     -autoboot_script ~/.local/share/OSD-OS/arcade/coins.lua
 ```
 
-`-comm_localhost 127.0.0.1` keeps the link board of a game that has one (CPS-2's Communication setting, Model 1/2/3, System 32) listening on the machine itself rather than on every address: OSD/OS never links two machines through MAME. `;…/bios` and the arguments after `-comm_localhost` are given only when they apply. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
+`-comm_localhost 127.0.0.1` keeps the link board of a game that has one (CPS-2's Communication setting, Model 1/2/3, System 32) listening on the machine itself rather than on every address: OSD/OS never links two machines through MAME. `;…/bios` and the arguments after `-comm_localhost` are given only when they apply: `-autoboot_script` with credits bought or [Show Stats](#show-stats) on. The settings add `-video …`, `-rol` or `-ror`, `-nokeepaspect` and `-sound none` where they ask for them.
 
 Everything else is MAME's own settings: `/etc/mame/mame.ini` on the image, or a `mame.ini` of your own in `~/.mame`. A MAME of your own with its folders beside it runs in its own folder instead, and reads the `mame.ini` there.
 

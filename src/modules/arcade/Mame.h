@@ -227,6 +227,19 @@ inline constexpr int kCoinGapMs = 200;
 // timed by the game's own clock, so a game MAME warns about first waits for
 // it.
 QString coinScript(int coins);
+// Settings → Arcade → Show Stats in MAME (statsScript()): a line drawn on
+// MAME's UI container every frame, in the top left corner of the screen a
+// twentieth in from its edges, made again once a second: the game's frames
+// over the last second (its first screen's) and MAME's speed; with system, the processor's load
+// (all cores, from /proc/stat over that second), the first thermal zone's
+// temperature and UNDERVOLT or THROTTLED as a Raspberry Pi's firmware
+// reports them now (its get_throttled node, soc/soc:firmware's on a Pi 4,
+// the one under the soc's address on a Pi 5), each left out where its file
+// can't be read. Run again at a reset, it adds nothing.
+QString statsScript(bool system);
+// The one script MAME is given (-autoboot_script, which takes one): Show
+// Stats' line, then the credits; "" for neither, and then no script.
+QString autobootScript(int coins, bool stats, bool system);
 
 // The controller file MAME is started with (-ctrlr): each player's controller
 // (Settings → Controls) as MAME's joystick of that number, by its SDL GUID

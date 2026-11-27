@@ -904,6 +904,142 @@ QString coinScript(int coins) {
         .arg(kCoinGapMs / 1000.0);
 }
 
+QString statsScript(bool system) {
+    // Only what MAME 0.276 and the newer MAMEs of Homebrew and the BSDs
+    // (0.289) both have: emu.register_frame_done(), emu.osd_ticks() and
+    // osd_ticks_per_second(), manager.machine.screens and a screen's
+    // frame_number(), manager.machine.video.speed_percent and
+    // manager.machine.render.ui_container's draw_text(). The frame-done
+    // callbacks run after MAME's UI has drawn into that container, which it
+    // empties at each frame, and before the frame goes to the screen. The
+    // frame rate is the game's first screen's frames over the second (the
+    // callbacks' own count where it has no screen). The files are read with
+    // Lua's io, which MAME opens, the firmware's node looked for with the
+    // lfs MAME preloads; a file that isn't there gives nil, and its part is
+    // left out.
+    QString script = QStringLiteral(
+        "-- Written by OSD/OS as the game starts: Show Stats' line in the top\n"
+        "-- left corner of the screen.\n"
+        "if not osdos_stats_run then\n"
+        "  osdos_stats_run = true\n");
+    script += system ? QStringLiteral("  local system = true\n") : QStringLiteral("  local system = false\n");
+    script += QString::fromUtf8(R"lua(  local perSecond = emu.osd_ticks_per_second()
+  local since = emu.osd_ticks()
+  local frames = 0
+  local screen
+  for _, first in pairs(manager.machine.screens) do
+    screen = first
+    break
+  end
+  local lastFrame = screen and screen:frame_number()
+  local line = ""
+  local busy, total
+  local function firstLine(path)
+    local file = io.open(path, "r")
+    if not file then return nil end
+    local text = file:read("*l")
+    file:close()
+    return text
+  end
+  -- The firmware's node: soc/soc:firmware on a Pi 4, under the soc's
+  -- address on a Pi 5; looked for once, with MAME's lfs.
+  local throttledPath, looked
+  local function throttledFile()
+    if looked then return throttledPath end
+    looked = true
+    local base = "/sys/devices/platform"
+    if firstLine(base .. "/soc/soc:firmware/get_throttled") then
+      throttledPath = base .. "/soc/soc:firmware/get_throttled"
+      return throttledPath
+    end
+    local found, lfs = pcall(require, "lfs")
+    if not found then return nil end
+    pcall(function()
+      for soc in lfs.dir(base) do
+        if soc:match("^soc") then
+          pcall(function()
+            for node in lfs.dir(base .. "/" .. soc) do
+              local path = base .. "/" .. soc .. "/" .. node .. "/get_throttled"
+              if not throttledPath and node:match("^soc.*:firmware$") and firstLine(path) then
+                throttledPath = path
+              end
+            end
+          end)
+        end
+      end
+    end)
+    return throttledPath
+  end
+  local function machineState()
+    local parts = {}
+    local stat = firstLine("/proc/stat")
+    if stat and stat:match("^cpu%s") then
+      local fields, sum = {}, 0
+      for value in stat:gmatch("%d+") do
+        if #fields < 8 then
+          fields[#fields + 1] = tonumber(value)
+          sum = sum + fields[#fields]
+        end
+      end
+      if #fields >= 4 then
+        local work = sum - fields[4] - (fields[5] or 0)
+        if total and sum > total then
+          parts[#parts + 1] = string.format("CPU: %d%%", math.floor(100 * (work - busy) / (sum - total) + 0.5))
+        end
+        busy, total = work, sum
+      end
+    end
+    for zone = 0, 9 do
+      local milli = tonumber(firstLine("/sys/class/thermal/thermal_zone" .. zone .. "/temp") or "")
+      if milli then
+        parts[#parts + 1] = string.format("%dC", math.floor(milli / 1000 + 0.5))
+        break
+      end
+    end
+    local throttled = throttledFile() and firstLine(throttledPath)
+    local flags = throttled and tonumber((throttled:gsub("^%s*0[xX]", "")), 16)
+    if flags then
+      if flags % 2 == 1 then parts[#parts + 1] = "UNDERVOLT" end
+      if math.floor(flags / 2) % 8 ~= 0 then parts[#parts + 1] = "THROTTLED" end
+    end
+    return table.concat(parts, " || ")
+  end
+  emu.register_frame_done(function()
+    frames = frames + 1
+    local now = emu.osd_ticks()
+    if now - since >= perSecond then
+      if screen then
+        local frame = screen:frame_number()
+        frames, lastFrame = frame - lastFrame, frame
+      end
+      line = string.format("FPS: %6.2f || SPEED: %d%%", frames * perSecond / (now - since),
+                           math.floor(manager.machine.video.speed_percent * 100 + 0.5))
+      if system then
+        local state = machineState()
+        if state ~= "" then line = line .. " || " .. state end
+      end
+      frames, since = 0, now
+    end
+    if line ~= "" then
+      manager.machine.render.ui_container:draw_text(0.05, 0.05, line, 0xffffffff, 0xc0000000)
+    end
+  end)
+end
+)lua");
+    return script;
+}
+
+QString autobootScript(int coins, bool stats, bool system) {
+    // Show Stats' part first: the credits' returns from the script at a
+    // reset of the game.
+    QString script;
+    if (stats)
+        script += statsScript(system);
+    if (coins > 0)
+        script += coinScript(coins);
+    return script;
+}
+
 QString controllerConfig(const QStringList &playerGuids, const QList<QStringList> &arcade) {
     QString maps;
     QString ports;

@@ -8941,6 +8941,40 @@ private slots:
         QVERIFY(script.contains(QStringLiteral("local left = 3\n")));
         QVERIFY(script.contains(QStringLiteral("local nextAt, hold, gap = 5, 0.1, 0.2\n")));
         QVERIFY(script.contains(QStringLiteral("token_to_input_type(\"COIN1\")")));
+
+        // One script for the credits and Show Stats: the credits alone as
+        // they were, nothing for neither, Show Stats' line first (the
+        // credits' part returns from the script at a reset), the machine's
+        // state read only where asked.
+        QCOMPARE(mame::autobootScript(3, false, false), script);
+        QCOMPARE(mame::autobootScript(3, false, true), script);
+        QCOMPARE(mame::autobootScript(0, false, true), QString());
+        QCOMPARE(mame::autobootScript(-1, false, false), QString());
+        const QString fps = mame::autobootScript(0, true, false);
+        QCOMPARE(fps, mame::statsScript(false));
+        QVERIFY(fps.contains(QStringLiteral("if not osdos_stats_run then\n  osdos_stats_run = true\n")));
+        QVERIFY(fps.contains(QStringLiteral("  local system = false\n")));
+        QVERIFY(fps.endsWith(QStringLiteral("  end)\nend\n")));
+        QVERIFY(!fps.contains(QStringLiteral("osdos_coins_run")));
+        QVERIFY(fps.contains(QStringLiteral("emu.register_frame_done(function()")));
+        QVERIFY(fps.contains(QStringLiteral("manager.machine.render.ui_container:draw_text(0.05, 0.05, line,")));
+        QVERIFY(mame::statsScript(true).contains(QStringLiteral("  local system = true\n")));
+        QCOMPARE(mame::autobootScript(3, true, true), mame::statsScript(true) + script);
+        // Only calls both MAMEs it runs with (0.276, and Homebrew's and the
+        // BSDs' 0.289) have: a name MAME doesn't know stops the script.
+        static const QRegularExpression calls(QStringLiteral("\\b(emu|manager)((?:[.:][a-z_]+)+)"));
+        QSet<QString> used;
+        for (auto it = calls.globalMatch(mame::autobootScript(3, true, true)); it.hasNext();)
+            used.insert(it.next().captured(0));
+        QCOMPARE(used, (QSet<QString>{ QStringLiteral("emu.osd_ticks_per_second"), QStringLiteral("emu.osd_ticks"),
+                                       QStringLiteral("manager.machine.screens"),
+                                       QStringLiteral("emu.register_frame_done"),
+                                       QStringLiteral("emu.add_machine_frame_notifier"),
+                                       QStringLiteral("manager.machine.video.speed_percent"),
+                                       QStringLiteral("manager.machine.render.ui_container:draw_text"),
+                                       QStringLiteral("manager.machine.ioport:token_to_input_type"),
+                                       QStringLiteral("manager.machine.ioport.ports"),
+                                       QStringLiteral("manager.machine.time:as_double") }));
     }
 
     // The filters: All Games, the lists, the genres catver.ini gives (a
@@ -9756,6 +9790,30 @@ private slots:
         QVERIFY(arcade.play(QStringLiteral("galaga")));
         QVERIFY(finished.wait(10000));
         QVERIFY(!logLines(QStringLiteral("play")).last().contains(QStringLiteral("autoboot")));
+        // Show Stats: the script with its line alone, then with the credits
+        // after it; off again, the arguments as they were.
+        const QString module = QStringLiteral("com.osdos.arcade");
+        const QString before = logLines(QStringLiteral("play")).last();
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("FPS + System"));
+        QVERIFY(arcade.play(QStringLiteral("galaga")));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(logLines(QStringLiteral("play")).last(), before + QStringLiteral(" -autoboot_script ") + script);
+#ifdef Q_OS_LINUX
+        QCOMPARE(coins(), mame::statsScript(true));
+#else
+        QCOMPARE(coins(), mame::statsScript(false));
+#endif
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("FPS"));
+        QVERIFY(arcade.play(QStringLiteral("galaga"), 2));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(coins(), mame::statsScript(false) + mame::coinScript(2));
+        arcade.onSettingChanged(module, QStringLiteral("show_stats"), QStringLiteral("Off"));
+        QVERIFY(arcade.play(QStringLiteral("galaga")));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(logLines(QStringLiteral("play")).last(), before);
+        QVERIFY(arcade.play(QStringLiteral("galaga"), 2));
+        QVERIFY(finished.wait(10000));
+        QCOMPARE(coins(), mame::coinScript(2));
     }
 
     // The module opened again reads nothing while the games folder is as it
