@@ -100,7 +100,7 @@
 +               total += v[i];
 +            busy = total - v[3] - v[4];
 +            if (last_total && total > last_total && busy >= last_busy)
-+               at += snprintf(text + at, sizeof(text) - at, " || CPU: %u%%",
++               at += snprintf(text + at, sizeof(text) - at, " | CPU: %u%%",
 +                     (unsigned)((200 * (busy - last_busy) + (total - last_total))
 +                     / (2 * (total - last_total))));
 +            last_busy  = busy;
@@ -121,7 +121,7 @@
 +         if (got == 1)
 +         {
 +            if (at < sizeof(text))
-+               at += snprintf(text + at, sizeof(text) - at, " || %ldC",
++               at += snprintf(text + at, sizeof(text) - at, " | %ldC",
 +                     (milli + (milli < 0 ? -500 : 500)) / 1000);
 +            break;
 +         }
@@ -141,9 +141,9 @@
 +         if (fscanf(file, "%x", &flags) == 1)
 +         {
 +            if ((flags & 0x1) && at < sizeof(text))
-+               at += snprintf(text + at, sizeof(text) - at, " || UNDERVOLT");
++               at += snprintf(text + at, sizeof(text) - at, " | UNDERVOLT");
 +            if ((flags & 0xE) && at < sizeof(text))
-+               at += snprintf(text + at, sizeof(text) - at, " || THROTTLED");
++               at += snprintf(text + at, sizeof(text) - at, " | THROTTLED");
 +         }
 +         fclose(file);
 +      }

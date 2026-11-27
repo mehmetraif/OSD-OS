@@ -1002,7 +1002,7 @@ QString statsScript(bool system) {
       if flags % 2 == 1 then parts[#parts + 1] = "UNDERVOLT" end
       if math.floor(flags / 2) % 8 ~= 0 then parts[#parts + 1] = "THROTTLED" end
     end
-    return table.concat(parts, " || ")
+    return table.concat(parts, " | ")
   end
   emu.register_frame_done(function()
     frames = frames + 1
@@ -1012,11 +1012,11 @@ QString statsScript(bool system) {
         local frame = screen:frame_number()
         frames, lastFrame = frame - lastFrame, frame
       end
-      line = string.format("FPS: %6.2f || SPEED: %d%%", frames * perSecond / (now - since),
+      line = string.format("FPS: %6.2f | SPEED: %d%%", frames * perSecond / (now - since),
                            math.floor(manager.machine.video.speed_percent * 100 + 0.5))
       if system then
         local state = machineState()
-        if state ~= "" then line = line .. " || " .. state end
+        if state ~= "" then line = line .. " | " .. state end
       end
       frames, since = 0, now
     end
