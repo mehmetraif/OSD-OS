@@ -717,7 +717,9 @@ private slots:
             "<?xml version=\"1.0\"?>\n<mame build=\"0.276 (test)\" debug=\"no\" mameconfig=\"10\">\n"
             "\t<machine name=\"xmen6p\" sourcefile=\"konami/xmen.cpp\" cloneof=\"xmen\"><description>X-Men &amp; Friends</description>"
             "<year>1992</year><manufacturer>Konami</manufacturer><rom name=\"a\"/>"
-            "<display tag=\"l\" rotate=\"270\" width=\"288\" height=\"224\"/><display tag=\"r\" rotate=\"0\" width=\"320\" height=\"240\"/>"
+            "<display tag=\"l\" type=\"raster\" rotate=\"270\" width=\"288\" height=\"224\" refresh=\"59.185606\" pixclock=\"6000000\""
+            " htotal=\"384\" hbend=\"0\" hbstart=\"288\" vtotal=\"264\" vbend=\"16\" vbstart=\"240\"/>"
+            "<display tag=\"r\" rotate=\"0\" width=\"320\" height=\"240\" refresh=\"60.000000\"/>"
             "<input players=\"6\"><control type=\"joy\"/></input><dipswitch name=\"x\"><dipvalue name=\"y\"/></dipswitch>"
             "<driver status=\"imperfect\"/></machine>\n"
             "\t<machine name=\"neogeo\" isbios=\"yes\"><description>Neo-Geo</description></machine>\n"
@@ -744,10 +746,16 @@ private slots:
             QCOMPARE(x.rotate, 270);
             QCOMPARE(x.width, 288);
             QCOMPARE(x.height, 224);
+            // Its first screen's refresh rate, as MAME writes it, and how
+            // many screens it has.
+            QCOMPARE(x.refresh, 59.185606);
+            QCOMPARE(x.screens, 2);
             QCOMPARE(x.status, QStringLiteral("imperfect"));
             QVERIFY(x.isGame());
             QVERIFY(machines.at(1).bios && !machines.at(1).isGame());
             QVERIFY(machines.at(2).device && !machines.at(2).runnable);
+            QCOMPARE(machines.at(1).refresh, 0.0);
+            QCOMPARE(machines.at(1).screens, 0);
             // As the cache keeps it.
             const mame::Machine kept = mame::Machine::fromVariant(x.name, x.toVariant());
             QCOMPARE(kept.description, x.description);
@@ -756,7 +764,20 @@ private slots:
             QCOMPARE(kept.rotate, 270);
             QCOMPARE(kept.width, 288);
             QCOMPARE(kept.height, 224);
-            QVERIFY(mame::Machine::fromVariant(QStringLiteral("neogeo"), machines.at(1).toVariant()).bios);
+            QCOMPARE(kept.refresh, 59.185606);
+            QCOMPARE(kept.screens, 2);
+            const mame::Machine bios = mame::Machine::fromVariant(QStringLiteral("neogeo"), machines.at(1).toVariant());
+            QVERIFY(bios.bios);
+            QCOMPARE(bios.screens, 0);
+            // One screen goes unsaid, and comes back as one: a rate kept
+            // through the cache's JSON to the last digit MAME gave.
+            mame::Machine one = x;
+            one.screens = 1;
+            QVERIFY(!one.toVariant().contains(QStringLiteral("screens")));
+            const QByteArray json = QJsonDocument(QJsonObject::fromVariantMap(one.toVariant())).toJson(QJsonDocument::Compact);
+            const mame::Machine read = mame::Machine::fromVariant(one.name, QJsonDocument::fromJson(json).object().toVariantMap());
+            QCOMPARE(read.screens, 1);
+            QCOMPARE(read.refresh, 59.185606);
         }
         mame::ListXmlReader broken;
         broken.addData("<mame><machine name=\"x\"><description>a</year></mame>");
@@ -1931,6 +1952,17 @@ private slots:
         QCOMPARE(machines.value(QStringLiteral("1943")).rotate, 90);
         QCOMPARE(machines.value(QStringLiteral("sf2")).rotate, 0);
         QCOMPARE(machines.value(QStringLiteral("sf2")).status, QStringLiteral("good"));
+        // Its size as MAME gives one, before the rotation (the list has a
+        // vertical game's as it stands on the glass), one screen, and no
+        // refresh rate, which the list doesn't say.
+        const auto size = [&machines](const char *set) {
+            const mame::Machine m = machines.value(QLatin1String(set));
+            return QStringLiteral("%1x%2 %3 %4").arg(m.width).arg(m.height).arg(m.screens).arg(m.refresh);
+        };
+        QCOMPARE(size("sf2"), QStringLiteral("384x224 1 0"));
+        QCOMPARE(size("galaga"), QStringLiteral("288x224 1 0"));
+        QCOMPARE(size("1943"), QStringLiteral("256x224 1 0"));
+        QCOMPARE(size("kof98"), QStringLiteral("0x0 0 0"));
         QVERIFY(libretro::readDat(dir.path() + QStringLiteral("/none.dat")).isEmpty());
 
         // A sign-in RetroAchievements turned down, and one that didn't reach it.
@@ -3871,7 +3903,7 @@ private slots:
         writeFile(cache, R"({"version": 1, "unknown": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         // One of another version that kept them apart too.
-        writeFile(cache, R"({"version": 5, "unknownBefore": ["kof98"]})");
+        writeFile(cache, R"({"version": 6, "unknownBefore": ["kof98"]})");
         QCOMPARE(engineWhileAsked(kof98, false), QStringLiteral("fbneo"));
         // Read the Games Again before the list was ever opened: games.json
         // read first.
@@ -9942,7 +9974,7 @@ private slots:
             QVERIFY(f.open(QIODevice::ReadOnly));
             cache = QJsonDocument::fromJson(f.readAll()).object();
         }
-        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 4);
+        QCOMPARE(cache.value(QStringLiteral("version")).toInt(), 5);
         cache.remove(QStringLiteral("version"));
         writeFile(path, QJsonDocument(cache).toJson());
         QFile::remove(m_log);

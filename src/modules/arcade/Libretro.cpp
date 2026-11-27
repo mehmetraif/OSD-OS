@@ -506,6 +506,15 @@ QHash<QString, mame::Machine> readDat(const QString &path) {
                     machine.aspect = x / y;
                 if (attributes.value(QLatin1String("orientation")) == QLatin1String("vertical"))
                     machine.rotate = 90;
+                // Its size as MAME gives one, before the rotation: the list
+                // has a vertical game's as it stands on the glass.
+                const int width = attributes.value(QLatin1String("width")).toInt();
+                const int height = attributes.value(QLatin1String("height")).toInt();
+                if (width > 0 && height > 0) {
+                    machine.width = machine.rotate == 90 ? height : width;
+                    machine.height = machine.rotate == 90 ? width : height;
+                    machine.screens = 1;
+                }
             }
         } else if (xml.isEndElement()
                    && (xml.name() == QLatin1String("game") || xml.name() == QLatin1String("machine"))) {

@@ -52,8 +52,10 @@ const QString kModuleId = QStringLiteral("com.osdos.arcade");
 // games.json's layout: of one of another, only the sets MAME had no machine
 // of are read, kept apart as every set is asked about again (2: each
 // machine's source file, for its system; 3: its screen's size, for its
-// picture on a tube; 4: its difficulty's DIP switch, for its options).
-constexpr int kCacheVersion = 4;
+// picture on a tube; 4: its difficulty's DIP switch, for its options; 5: its
+// screen's refresh rate and how many screens it has, for a video mode of its
+// own).
+constexpr int kCacheVersion = 5;
 
 // The most favourites the list keeps, as EntryOptions adds them.
 constexpr int kMostFavorites = 100;

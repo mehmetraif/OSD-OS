@@ -220,6 +220,11 @@ QVariantMap Machine::toVariant() const {
         map.insert(QStringLiteral("width"), width);
         map.insert(QStringLiteral("height"), height);
     }
+    if (refresh > 0)
+        map.insert(QStringLiteral("refresh"), refresh);
+    // One screen is what a machine with a size has, unless said.
+    if (screens > 1)
+        map.insert(QStringLiteral("screens"), screens);
     if (difficulty.isValid()) {
         QVariantList values;
         for (const auto &value : difficulty.values)
@@ -251,6 +256,8 @@ Machine Machine::fromVariant(const QString &name, const QVariantMap &map) {
     m.rotate = map.value(QStringLiteral("rotate")).toInt();
     m.width = map.value(QStringLiteral("width")).toInt();
     m.height = map.value(QStringLiteral("height")).toInt();
+    m.refresh = map.value(QStringLiteral("refresh")).toDouble();
+    m.screens = map.value(QStringLiteral("screens"), m.width > 0 && m.height > 0 ? 1 : 0).toInt();
     const QVariantMap dip = map.value(QStringLiteral("difficulty")).toMap();
     m.difficulty.tag = dip.value(QStringLiteral("tag")).toString();
     m.difficulty.mask = dip.value(QStringLiteral("mask")).toInt();
@@ -343,8 +350,10 @@ void ListXmlReader::read() {
                     m_machine.rotate = attrs.value(QLatin1String("rotate")).toInt();
                     m_machine.width = attrs.value(QLatin1String("width")).toInt();
                     m_machine.height = attrs.value(QLatin1String("height")).toInt();
+                    m_machine.refresh = attrs.value(QLatin1String("refresh")).toDouble();
                 }
                 m_hadDisplay = true;
+                ++m_machine.screens;
             } else if (element == QLatin1String("input")) {
                 m_machine.players = attrs.value(QLatin1String("players")).toInt();
             } else if (element == QLatin1String("driver")) {

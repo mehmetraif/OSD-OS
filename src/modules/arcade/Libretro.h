@@ -130,9 +130,11 @@ qint64 netplayMemory(qint64 stateSize, bool hosting);
 // each as MAME would describe it, for a set MAME doesn't know: its
 // description (its set's name for none), year, maker, parent, driver (named
 // as MAME's are: capcom/d_cps1.cpp is capcom/cps1.cpp), whether it works, a
-// vertical one's rotation (90), and the shape of its picture on the glass,
-// its width over its height (4:3, 3:4 for a vertical one), where the DAT
-// says (<video>: Machine::aspect); no players, which the DAT doesn't say.
+// vertical one's rotation (90), the shape of its picture on the glass, its
+// width over its height (4:3, 3:4 for a vertical one), and its size in its
+// own pixels, before the rotation as MAME gives one, where the DAT says
+// (<video>: Machine::aspect, width and height); no players and no refresh
+// rate, which the DAT doesn't say.
 // Not a BIOS set (neogeo), which games start from but which isn't one.
 // Empty for a file that can't be read.
 QHash<QString, mame::Machine> readDat(const QString &path);

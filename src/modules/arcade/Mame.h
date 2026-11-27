@@ -65,6 +65,12 @@ struct Machine {
     // rotation: 0 where MAME doesn't say (a vector screen).
     int     width = 0;
     int     height = 0;
+    // That screen's refresh rate in Hz, as -listxml gives it ("59.185606"),
+    // and how many screens the machine has: with its lines, what a video
+    // mode of the game's own is made from. 0 where MAME doesn't say;
+    // FinalBurn Neo's list gives a size and no rate.
+    double  refresh = 0;
+    int     screens = 0;
     // Its picture's shape on the glass, its width over its height, where
     // FinalBurn Neo's list says (libretro::readDat()); 0 for MAME's own,
     // which games.json doesn't keep.
