@@ -662,7 +662,8 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 |---|---|
 | `/opt/osdos/bin/osdos` | The app |
 | `/opt/osdos/bin/osdos-jamma` | A JAMMA board's controls, run by `osdos-jamma.service` |
-| `/opt/osdos/bin/osdos-modetest` | Shows a few single games' video modes on the DPI output, then puts back the mode it found. Run it from Exit to Terminal (`--help` says how) |
+| `/opt/osdos/bin/osdos-modetest` | Shows a few single games' video modes on the DPI output, then puts back the mode it found. `--game 224@59.185606` shows the mode OSD/OS makes for a game of those lines and that rate, and `--run '<command>'` runs a command on one mode, as the app starts an emulator with [Game's Own Mode](https://github.com/mehmetraif/OSD-OS/wiki/Arcade#a-games-own-video-mode) on. Run it from Exit to Terminal (`--help` says how) |
+| `/opt/osdos/bin/osdos_keepmode.so` | Preloaded into MAME or RetroArch for a game on its own video mode, so that the emulator keeps the mode OSD/OS set |
 | `/opt/osdos/share/osdos/` | QML, modules, assets, mpv scripts and `LICENSE` (the app's `APP_ROOT`) |
 | `/opt/osdos/lib/osdos/fbneo_libretro.so`, `osdos_lan_libretro.so`, `/opt/osdos/share/osdos/fbneo/` | The FinalBurn Neo cores, their list of games and licence |
 | `/usr/local/bin/osdos`, `/usr/local/bin/osdos-stop` | The launcher and the stop helper |
