@@ -8,10 +8,10 @@ name: Engines
 #   any distribution of OSD/OS has. A version Debian has raised is taken once
 #   OSD/OS can download it for Windows as well: libretro's stable build of
 #   RetroArch and mamedev's release of MAME. The Linux arm64 package's own
-#   RetroArch is built from that version's tag with scripts/retroarch-fixes.patch,
-#   which is made against the commit it rises from: its build
-#   (retroarch.yml) stops until the patch is made again for the new one, and
-#   the pull request says so.
+#   RetroArch is built from that version's tag with scripts/retroarch-fixes.patch
+#   and scripts/retroarch-stats.patch, which are made against the commit it
+#   rises from: its build (retroarch.yml) stops until the patches are made
+#   again for the new one, and the pull request says so.
 # - FinalBurn Neo: the newest commit of libretro's FBNeo, which OSD/OS builds
 #   for every package. The pull request's own checks build it on every
 #   system (fbneo.yml, windows.yml, freebsd.yml, openbsd.yml), and the CV1000
@@ -289,7 +289,7 @@ jobs:
           if [ "$RETROARCH" != "$RETROARCH_BEFORE" ]; then
             body="${body}
 
-          RetroArch rises from ${RETROARCH_BEFORE}: scripts/retroarch-fixes.patch is made against ${RETROARCH_BEFORE}'s commit and must be made again for ${RETROARCH} before this is merged. Until then the Linux arm64 RetroArch's build (retroarch.yml) stops where the patch does not apply. Upstream's later versions carry some of its fixes already; the bind of the network gamepad to 127.0.0.1 is OSD/OS's own and has to stay."
+          RetroArch rises from ${RETROARCH_BEFORE}: scripts/retroarch-fixes.patch and scripts/retroarch-stats.patch (applied after it) are made against ${RETROARCH_BEFORE}'s commit and must be made again for ${RETROARCH} before this is merged. Until then the Linux arm64 RetroArch's build (retroarch.yml) stops where a patch does not apply. Upstream's later versions carry some of the fixes already; the bind of the network gamepad to 127.0.0.1 and Show Stats' machine state (osdos_system_show) are OSD/OS's own and have to stay."
           fi
           if [ "$DEBIAN_FAILED" = true ]; then
             body+="

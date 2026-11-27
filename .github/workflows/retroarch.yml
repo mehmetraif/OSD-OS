@@ -2,7 +2,8 @@ name: RetroArch build
 
 # Builds OSD/OS's own RetroArch from the commit scripts/engines.env names
 # (.github/actions/retroarch, scripts/build-retroarch.sh): the version every
-# machine plays with, with OSD/OS's fixes (scripts/retroarch-fixes.patch),
+# machine plays with, with OSD/OS's fixes (scripts/retroarch-fixes.patch)
+# and Show Stats' machine state (scripts/retroarch-stats.patch),
 # built with TLS for the Linux arm64 package (the tarball and the OSD/OS
 # image), where Debian's has none and asks RetroAchievements over plain
 # HTTP. It runs on the runner that package is built on, and starts the build
@@ -20,6 +21,7 @@ on:
     paths: &paths
       - 'scripts/build-retroarch.sh'
       - 'scripts/retroarch-fixes.patch'
+      - 'scripts/retroarch-stats.patch'
       - 'scripts/engines.env'
       - 'tests/retroarch_tls_test.sh'
       - 'tests/retroarch_tls/**'

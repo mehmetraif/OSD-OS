@@ -14,10 +14,13 @@
 # archive of it) and not yet changed. The program is a modified RetroArch:
 # scripts/retroarch-fixes.patch, applied here first, carries fixes from
 # RetroArch's and BearSSL's own later commits and binds the network gamepad
-# (OSD/OS's coin port) to this machine alone; its header lists each change
-# and where it comes from. The build stops if the patch does not apply. It
-# changes neither the version the program says, which is Debian's, nor the
-# netplay protocol, so machines play together as before.
+# (OSD/OS's coin port) to this machine alone; scripts/retroarch-stats.patch,
+# applied after it, puts the machine's state after the frame rate on the
+# screen for Settings -> Arcade -> Show Stats (a key of its own, off unless
+# set). Their headers list each change and where it comes from. The build
+# stops if either does not apply. Neither changes the version the program
+# says, which is Debian's, nor the netplay protocol, so machines play
+# together as before.
 #
 # The TLS is BearSSL's, which comes in RetroArch's source: it checks the
 # server's certificate against the system's (/etc/ssl/certs/ca-certificates.crt),
@@ -67,13 +70,20 @@ licenses=$(cd "$(dirname "$licenses")" && pwd)/$(basename "$licenses")
 
 cd "$src"
 # OSD/OS's changes, made against this commit: all of them or none (a dry run
-# first, no fuzz), and a source already patched is refused too.
+# first, no fuzz), and a source already patched is refused too. The fixes
+# first, then Show Stats' addition, made against the source with the fixes.
 patch_file=$here/retroarch-fixes.patch
 if ! patch -p1 --batch --forward --fuzz=0 --dry-run -i "$patch_file" > /dev/null; then
     echo "scripts/retroarch-fixes.patch does not apply to RetroArch $commit: it is made against its own commit and must be made again for this one" >&2
     exit 1
 fi
 patch -p1 --batch --forward --fuzz=0 -i "$patch_file"
+stats_patch=$here/retroarch-stats.patch
+if ! patch -p1 --batch --forward --fuzz=0 --dry-run -i "$stats_patch" > /dev/null; then
+    echo "scripts/retroarch-stats.patch does not apply to RetroArch $commit with scripts/retroarch-fixes.patch: it must be made again for them" >&2
+    exit 1
+fi
+patch -p1 --batch --forward --fuzz=0 -i "$stats_patch"
 
 # What must be there is asked for by name: configure then stops at a missing
 # library, where left to itself it would build without the feature.
@@ -136,7 +146,9 @@ fi
     echo "https://github.com/libretro/RetroArch at commit $commit, modified by"
     echo "OSD/OS: scripts/retroarch-fixes.patch in OSD/OS's source changes it before"
     echo "the build, with fixes from RetroArch's and BearSSL's later commits and a"
-    echo "network gamepad bound to 127.0.0.1. The patch's header lists each change."
+    echo "network gamepad bound to 127.0.0.1, and scripts/retroarch-stats.patch adds"
+    echo "the machine's state after the frame rate on the screen. Each patch's header"
+    echo "lists its changes."
     echo
     echo "RetroArch is under the GNU General Public License, version 3, which follows."
     echo "The libraries built into it from its source come after it, each under its"

@@ -694,7 +694,7 @@ cp /media/OSD-OS/config.json /media/OSD-OS/lists.json ~/.local/share/OSD-OS/
 | `/boot/firmware/osdos-setup.json`, `osdos-setup.log` | OSD/OS Setup's file, and what became of it |
 | `/usr/local/bin/deno` | The JavaScript runtime yt-dlp needs |
 | `/usr/games/mame`, `/etc/mame/mame.ini`, `/usr/bin/retroarch` | MAME, its settings, and RetroArch |
-| `/opt/osdos/lib/osdos/retroarch` | The RetroArch the games play in: the same version, built by OSD/OS with TLS and a few fixes (`scripts/retroarch-fixes.patch` in OSD/OS's source). It comes with the app, and an update brings a new one |
+| `/opt/osdos/lib/osdos/retroarch` | The RetroArch the games play in: the same version, built by OSD/OS with TLS, a few fixes and Show Stats' machine state (`scripts/retroarch-fixes.patch` and `scripts/retroarch-stats.patch` in OSD/OS's source). It comes with the app, and an update brings a new one |
 | `/usr/share/doc/osdos/NOTICE` | What the image is made of, and its licences |
 | `/tmp/runtime-pi/osdos-mpv.log` | mpv's own log |
 
